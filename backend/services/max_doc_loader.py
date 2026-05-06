@@ -25,8 +25,19 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-# Where max docs live, relative to the repo root.
-DEFAULT_MAX_DOC_DIR = Path(__file__).resolve().parents[2] / "data" / "maxes"
+# Where max docs live. Local repo layout has `backend/services/foo.py` so the
+# repo root is parents[2]; the Docker image flattens `backend/` into `/app/`,
+# so the same files end up at `/app/services/foo.py` and the docs sit at
+# `/app/data/maxes` (parents[1]). Probe both.
+_MAX_DOC_CANDIDATES = [
+    Path(__file__).resolve().parents[2] / "data" / "maxes",
+    Path(__file__).resolve().parents[1] / "data" / "maxes",
+    Path("/app/data/maxes"),
+]
+DEFAULT_MAX_DOC_DIR = next(
+    (p for p in _MAX_DOC_CANDIDATES if p.exists()),
+    _MAX_DOC_CANDIDATES[0],
+)
 
 
 @dataclass
