@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
+# Max-doc / RAG content lives at repo-root/data, outside backend/. Copy it in
+# so /app/data/maxes resolves at runtime (loader probes /app/data/maxes).
+COPY data/ ./data/
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
