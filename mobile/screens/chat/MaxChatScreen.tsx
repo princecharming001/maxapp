@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AppState, type AppStateStatus, View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Linking } from 'react-native';
+import { AppState, type AppStateStatus, View, Text, StyleSheet, TextInput, TouchableOpacity, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
@@ -559,17 +559,37 @@ export default function MaxChatScreen() {
 
         if (!canReply) return bubbleRow;
 
-        return (
-            <ReplySwipeableRow
-                onCommit={() => {
-                    setReplyTarget({
-                        id: item.id!,
-                        role: item.role,
-                        preview: (item.content || '').slice(0, 120),
-                    });
-                }}
+        const commitReply = () => {
+            setReplyTarget({
+                id: item.id!,
+                role: item.role,
+                preview: (item.content || '').slice(0, 120),
+            });
+        };
+
+        // Two parallel ways to start a reply:
+        //   - Native: swipe-right on the bubble (iMessage gesture).
+        //   - Web + native fallback: long-press on the bubble. ReanimatedSwipeable's
+        //     web support is unreliable so this is the only path that works in the
+        //     localhost browser preview, and it's also a useful alt on iOS for users
+        //     who don't discover the swipe.
+        const longPressable = (
+            <Pressable
+                onLongPress={commitReply}
+                delayLongPress={350}
+                // Don't change the bubble visual on press — long-press should feel
+                // invisible until the action commits.
+                style={({ pressed }) => (pressed ? { opacity: 0.85 } : null)}
+                accessibilityRole="button"
+                accessibilityLabel="Long press to reply"
             >
                 {bubbleRow}
+            </Pressable>
+        );
+
+        return (
+            <ReplySwipeableRow onCommit={commitReply}>
+                {longPressable}
             </ReplySwipeableRow>
         );
     };
