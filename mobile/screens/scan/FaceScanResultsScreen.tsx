@@ -48,16 +48,25 @@ function coerceAnalysisObject(analysis: unknown): any {
     return typeof analysis === 'object' ? analysis : null;
 }
 
-/** Match backend `_infer_psl_tier_from_score` when tier was never persisted. */
-function inferPslTierFromScore(score: number | null): string {
+/**
+ * Match backend `_infer_psl_tier_from_score` when tier was never persisted.
+ * Ladder: 0–3 Sub 3, 3–5 Sub 5, 5–6 LTN, 6–7 MTN, 7–8 HTN, 8–9 Chadlite,
+ * 9+ Chad. `isFirstScan` caps anything above HTN down to HTN to match
+ * the backend's first-scan policy.
+ */
+function inferPslTierFromScore(score: number | null, isFirstScan = false): string {
     if (score == null || Number.isNaN(score)) return '';
     const s = Math.max(0, Math.min(10, score));
-    if (s < 3.0) return 'Subhuman';
-    if (s < 4.25) return 'LTN';
-    if (s < 5.5) return 'MTN';
-    if (s < 6.75) return 'HTN';
-    if (s < 8.0) return 'Chadlite';
-    return 'Chad';
+    let label: string;
+    if (s < 3.0) label = 'Sub 3';
+    else if (s < 5.0) label = 'Sub 5';
+    else if (s < 6.0) label = 'LTN';
+    else if (s < 7.0) label = 'MTN';
+    else if (s < 8.0) label = 'HTN';
+    else if (s < 9.0) label = 'Chadlite';
+    else label = 'Chad';
+    if (isFirstScan && (label === 'Chadlite' || label === 'Chad')) return 'HTN';
+    return label;
 }
 
 const _BONE_UMAX_IDS = new Set(['jawline', 'cheekbones', 'nose', 'eyes', 'symmetry']);

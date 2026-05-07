@@ -233,11 +233,29 @@ async def upload_scan_triple(
 
     try:
         analysis = await llm_analyze_triple_full(front_data, left_data, right_data, onboarding_ctx)
+
+        # First-scan cap: if this is the user's first scan, force psl_tier
+        # to be no higher than HTN. The LLM occasionally hands back
+        # Chadlite/Chad on a first scan, which inflates expectations and
+        # cuts off the upgrade ladder. Subsequent scans uncap.
+        user = await db.get(User, user_uuid)
+        is_first_scan = bool(user and not user.first_scan_completed)
+        if is_first_scan:
+            from services.gemini_service import _infer_psl_tier_from_score
+            pr = analysis.get("psl_rating")
+            if isinstance(pr, dict):
+                try:
+                    score_val = float(pr.get("psl_score") or analysis.get("overall_score") or 0.0)
+                except (TypeError, ValueError):
+                    score_val = 0.0
+                pr["psl_tier"] = _infer_psl_tier_from_score(
+                    score_val, is_first_scan=True,
+                )
+
         scan_row.analysis = analysis
         scan_row.processing_status = "completed"
         await db.commit()
 
-        user = await db.get(User, user_uuid)
         if user and not user.first_scan_completed:
             user.first_scan_completed = True
             ob = dict(user.onboarding or {})

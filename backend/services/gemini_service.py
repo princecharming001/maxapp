@@ -199,7 +199,7 @@ Most real people score 3.5-6.0. Do not inflate.
 
 Set "psl_score" to the PSL rating on that scale (decimals allowed).
 
-Set "psl_tier" to EXACTLY one of these strings (pick the best fit): "Subhuman" / "LTN" / "MTN" / "HTN" / "Chadlite" / "Chad"
+Set "psl_tier" to EXACTLY one of these strings, mapped from psl_score: <3.0 → "Sub 3", 3.0-4.99 → "Sub 5", 5.0-5.99 → "LTN", 6.0-6.99 → "MTN", 7.0-7.99 → "HTN", 8.0-8.99 → "Chadlite", 9.0+ → "Chad".
 
 Rate based on BONE STRUCTURE and FEATURES — ignore grooming, lighting, photo quality, expression.
 
@@ -453,20 +453,38 @@ def _empty_psl_feature_cell() -> Dict[str, Any]:
     return {"score": 5.0, "tag": "Average", "notes": ""}
 
 
-def _infer_psl_tier_from_score(score: float) -> str:
-    """When the model omits psl_tier, map PSL overall score to forum-style labels (see TRIPLE_FULL prompt)."""
+# PSL tier ladder (single source of truth). Brackets are score ranges
+# in [0, 10]. The label on the right is what gets surfaced to the user.
+# `is_first_scan=True` caps the resulting tier at HTN — first-time users
+# should never get the Chadlite/Chad ladder rungs (room to grow on
+# subsequent scans, less initial-frame inflation).
+_PSL_TIER_LADDER: tuple[tuple[float, str], ...] = (
+    (3.0, "Sub 3"),     # 0  – 3.0
+    (5.0, "Sub 5"),     # 3  – 5.0
+    (6.0, "LTN"),       # 5  – 6.0
+    (7.0, "MTN"),       # 6  – 7.0
+    (8.0, "HTN"),       # 7  – 8.0
+    (9.0, "Chadlite"),  # 8  – 9.0
+    (10.01, "Chad"),    # 9  – 10
+)
+_FIRST_SCAN_TIER_CAP = "HTN"
+
+
+def _infer_psl_tier_from_score(score: float, *, is_first_scan: bool = False) -> str:
+    """Map a PSL overall score to its forum-style tier label.
+
+    Pure function over the score; ladder is the source of truth.
+    `is_first_scan=True` clamps anything above HTN down to HTN — the
+    user explicitly wanted no Chadlite/Chad ratings on the first scan."""
     s = max(0.0, min(10.0, float(score)))
-    if s < 3.0:
-        return "Subhuman"
-    if s < 4.25:
-        return "LTN"
-    if s < 5.5:
-        return "MTN"
-    if s < 6.75:
-        return "HTN"
-    if s < 8.0:
-        return "Chadlite"
-    return "Chad"
+    label = _PSL_TIER_LADDER[-1][1]
+    for upper, name in _PSL_TIER_LADDER:
+        if s < upper:
+            label = name
+            break
+    if is_first_scan and label in ("Chadlite", "Chad"):
+        return _FIRST_SCAN_TIER_CAP
+    return label
 
 
 def _suggested_modules_from_umax_metrics(umax_metrics: Optional[List[Any]]) -> List[str]:
