@@ -758,12 +758,7 @@ class ApiService {
         return response.data;
     }
 
-    async patchCoachingTone(
-        tone:
-            | 'coach' | 'supportive' | 'nerd' | 'dude'
-            // legacy slugs accepted for back-compat with older builds
-            | 'default' | 'hardcore' | 'gentle' | 'influencer' | 'mediumcore'
-    ) {
+    async patchCoachingTone(tone: 'default' | 'hardcore' | 'gentle' | 'influencer') {
         const response = await this.client.patch('users/coaching-tone', { tone });
         return response.data as { message: string; tone: string };
     }

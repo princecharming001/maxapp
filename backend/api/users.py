@@ -271,13 +271,8 @@ async def patch_coaching_tone(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Set the user's preferred coaching personality. Takes effect on the next chat turn."""
-    # Canonical slugs + legacy slugs from earlier builds (kept so older
-    # clients can still write their stored preference back without 400ing).
-    allowed = {
-        "coach", "supportive", "nerd", "dude",
-        "default", "hardcore", "gentle", "influencer", "mediumcore",
-    }
+    """Set the user's preferred coaching tone. Takes effect on the next chat turn."""
+    allowed = {"default", "hardcore", "gentle", "influencer"}
     tone = (body.tone or "").strip().lower()
     if tone not in allowed:
         raise HTTPException(

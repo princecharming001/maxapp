@@ -82,36 +82,19 @@ export type ChatConversationsDrawerProps = {
 };
 
 /* ── Preference vocabularies ────────────────────────────────────────── */
-// Personality (was "tone") — voice/diction selector. Doesn't change what
-// info the bot gives, just how it says it.
-type ToneId = 'coach' | 'supportive' | 'nerd' | 'dude';
-type ToneBackend = 'coach' | 'supportive' | 'nerd' | 'dude';
+type ToneId = 'softcore' | 'mediumcore' | 'hardcore';
+type ToneBackend = 'gentle' | 'default' | 'hardcore';
 
-const TONE_OPTIONS: { id: ToneId; backend: ToneBackend; label: string; hint: string }[] = [
-    { id: 'coach',      backend: 'coach',      label: 'Coach',      hint: 'tough love, no excuses' },
-    { id: 'supportive', backend: 'supportive', label: 'Supportive', hint: 'warm, still informative' },
-    { id: 'nerd',       backend: 'nerd',       label: 'Nerd',       hint: 'protocol-detail first' },
-    { id: 'dude',       backend: 'dude',       label: 'Dude',       hint: 'nonchalant, low-key' },
+const TONE_OPTIONS: { id: ToneId; backend: ToneBackend; label: string }[] = [
+    { id: 'softcore',   backend: 'gentle',   label: 'Softcore'   },
+    { id: 'mediumcore', backend: 'default',  label: 'Mediumcore' },
+    { id: 'hardcore',   backend: 'hardcore', label: 'Hardcore'   },
 ];
-// Map any backend slug (incl. legacy hardcore/gentle/default/etc.) to
-// the new UI ids so users who picked a tone in the old build land on
-// the closest equivalent without re-prompting. NOTE: legacy 'default'
-// (the slug ~every existing user has) maps to 'coach' here, NOT 'dude'.
-// 'default' was Mediumcore in the old build — firm, focused, direct —
-// which is closest to Coach today. Mapping to Dude made every existing
-// user's chat feel suddenly "less detailed" because the dude preamble
-// pushed terser one-liners. This restores the prior content shape.
 const TONE_BY_BACKEND: Record<string, ToneId> = {
-    coach:      'coach',
-    supportive: 'supportive',
-    nerd:       'nerd',
-    dude:       'dude',
-    // legacy
-    hardcore:   'coach',
-    gentle:     'supportive',
-    default:    'coach',
-    mediumcore: 'coach',
-    influencer: 'dude',
+    gentle: 'softcore',
+    default: 'mediumcore',
+    hardcore: 'hardcore',
+    influencer: 'mediumcore',
 };
 
 type LengthId = 'concise' | 'medium' | 'detailed';
@@ -156,7 +139,7 @@ export default function ChatConversationsDrawer({
 
     /* Preferences */
     const initialTone: ToneId =
-        TONE_BY_BACKEND[user?.coaching_tone || 'default'] || 'coach';
+        TONE_BY_BACKEND[user?.coaching_tone || 'default'] || 'mediumcore';
     const initialLength: LengthId =
         (user?.onboarding?.response_length as LengthId) || 'medium';
 
@@ -167,7 +150,7 @@ export default function ChatConversationsDrawer({
 
     React.useEffect(() => {
         if (!user) return;
-        setTone(TONE_BY_BACKEND[user.coaching_tone || 'default'] || 'coach');
+        setTone(TONE_BY_BACKEND[user.coaching_tone || 'default'] || 'mediumcore');
         setLength((user?.onboarding?.response_length as LengthId) || 'medium');
     }, [user]);
 
@@ -393,27 +376,29 @@ export default function ChatConversationsDrawer({
                 <View style={s.settings}>
                     <View style={s.divider} />
 
-                    <Text style={s.label}>Personality</Text>
-                    <View style={{ gap: 4 }}>
+                    <Text style={s.label}>Tone</Text>
+                    <View style={s.toneRow}>
                         {TONE_OPTIONS.map((opt) => {
                             const active = opt.id === tone;
                             const busy = savingTone === opt.id;
                             return (
                                 <TouchableOpacity
                                     key={opt.id}
-                                    style={s.lenRow}
+                                    style={[s.toneChip, active && s.toneChipActive]}
                                     onPress={() => applyTone(opt.id)}
-                                    activeOpacity={0.7}
+                                    activeOpacity={0.85}
                                     disabled={!!savingTone}
                                 >
-                                    <View style={[s.lenDot, active && s.lenDotActive]} />
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={[s.lenLabel, active && s.lenLabelActive]}>
+                                    {busy ? (
+                                        <ActivityIndicator
+                                            size="small"
+                                            color={active ? C.accentInk : C.ink}
+                                        />
+                                    ) : (
+                                        <Text style={[s.toneChipText, active && s.toneChipTextActive]}>
                                             {opt.label}
                                         </Text>
-                                        <Text style={s.lenHint}>{opt.hint}</Text>
-                                    </View>
-                                    {busy && <ActivityIndicator size="small" color={C.inkMuted} />}
+                                    )}
                                 </TouchableOpacity>
                             );
                         })}

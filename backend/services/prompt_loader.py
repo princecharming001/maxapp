@@ -100,26 +100,7 @@ async def refresh_prompt_cache() -> None:
         # observe a partially-populated cache.
         _CACHE.clear()
         _CACHE.update(new_cache)
-        # Log at WARNING level so the count actually shows up in Render's
-        # default log stream — earlier INFO line was being filtered out and
-        # we couldn't tell whether the rich Supabase prompts had loaded
-        # from the boot log alone, which made debugging the
-        # "chat feels reverted" report harder than it needed to be.
-        critical = ("max_chat_system", "rag_answer_system", "maxx_intent_system")
-        loaded = sum(1 for k in critical if k in _CACHE)
-        chat_len = len(_CACHE.get("max_chat_system", ""))
-        logger.warning(
-            "Prompt cache refreshed: %d prompts loaded "
-            "(critical=%d/%d, max_chat_system=%d chars)",
-            len(new_cache), loaded, len(critical), chat_len,
-        )
-        if "max_chat_system" not in _CACHE or chat_len < 5000:
-            logger.error(
-                "max_chat_system prompt missing or stub-sized (%d chars). "
-                "Chat will fall back to the hardcoded prompt_constants stub. "
-                "Check Supabase system_prompts table.",
-                chat_len,
-            )
+        logger.info("Prompt cache refreshed: %d prompts loaded", len(new_cache))
     except Exception as exc:
         logger.error(
             "Failed to refresh prompt cache from DB: %s — retaining stale cache", exc
