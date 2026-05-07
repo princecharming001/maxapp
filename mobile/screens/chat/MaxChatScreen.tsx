@@ -83,6 +83,18 @@ function ReplySwipeableRow({
     children: React.ReactNode;
 }) {
     const ref = useRef<SwipeableMethods>(null);
+    // Stable latest-onCommit ref — gesture-handler's worklet plumbing
+    // can hold the callback across re-renders, but we want every commit
+    // to use the freshest `setReplyTarget(item)` closure (the parent
+    // recreates `onCommit` per render so the captured `item` is current).
+    // Reading from a ref inside the callback sidesteps any worklet
+    // capture-staleness without wrapping in useCallback.
+    const onCommitRef = useRef(onCommit);
+    onCommitRef.current = onCommit;
+
+    // Guard so we never set reply twice for the same swipe (Will + Open
+    // both fire on commit; we just want the first one).
+    const firedRef = useRef(false);
 
     return (
         <ReanimatedSwipeable
@@ -97,16 +109,33 @@ function ReplySwipeableRow({
                     <Ionicons name="arrow-undo" size={18} color={colors.textMuted} />
                 </View>
             )}
-            onSwipeableOpen={() => {
-                onCommit();
+            onSwipeableWillOpen={() => {
+                if (firedRef.current) return;
+                firedRef.current = true;
+                onCommitRef.current();
                 if (Platform.OS !== 'web') {
                     Haptics.selectionAsync().catch(() => {});
+                }
+            }}
+            onSwipeableOpen={() => {
+                // Belt + suspenders — if WillOpen didn't fire for some
+                // reason (older lib version, edge case), commit here.
+                if (!firedRef.current) {
+                    firedRef.current = true;
+                    onCommitRef.current();
+                    if (Platform.OS !== 'web') {
+                        Haptics.selectionAsync().catch(() => {});
+                    }
                 }
                 // Snap back. Slight delay so the open animation finishes
                 // gracefully before the close kicks in — without this the
                 // gesture-handler library can swallow the close because
                 // it's still processing the open transition.
                 setTimeout(() => ref.current?.close(), 80);
+            }}
+            onSwipeableClose={() => {
+                // Re-arm for the next swipe.
+                firedRef.current = false;
             }}
         >
             {children}
@@ -849,14 +878,18 @@ const styles = StyleSheet.create({
         opacity: 0.85,
     },
     replyPreviewBar: {
+        // Visually obvious "you're replying to X" bar above the input.
+        // Subtle accent tint + 4px left stripe so the bar reads as a
+        // contextual quote, not a stray pill. iMessage / WhatsApp use
+        // a similar treatment.
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.surface,
+        backgroundColor: colors.surfaceLight ?? colors.surface,
         borderRadius: borderRadius.md,
-        paddingVertical: 8,
-        paddingHorizontal: 10,
-        marginBottom: 6,
-        borderLeftWidth: 3,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        marginBottom: 8,
+        borderLeftWidth: 4,
         borderLeftColor: colors.foreground,
     },
     replyPreviewAccent: {
