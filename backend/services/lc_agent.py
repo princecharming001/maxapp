@@ -1681,39 +1681,39 @@ def make_chat_tools(
             mod = str(module).lower().strip()
             con = str(concern).lower().strip()
 
-            # ---- 1. Catalog lookup (direct URLs, fact-filtered) ------ #
+            # ---- 1. Catalog-then-live lookup ------------------------- #
+            # `find_or_search` is curated-catalog first (fact-filtered,
+            # rationale-rich). If catalog returns 0 hits — rare but
+            # possible for novel concerns — it falls back to a
+            # constrained DDG search that returns real Amazon /dp/<ASIN>
+            # product URLs scraped from search results. Live URLs are
+            # auto-added to the link_validator allow-list so the agent
+            # can cite them without being stripped as 'not catalog'.
             catalog_block = ""
             try:
-                from services.product_catalog import (
-                    find_products, format_for_prompt,
-                )
+                from services.product_search import find_or_search, format_for_prompt
                 facts_blob = (
                     (user_context or {}).get("user_facts")
                     or ((user_context or {}).get("persistent_context") or {}).get("user_facts")
                     or {}
                 )
-                # Treat the concern string as a single concern; catalog
-                # also matches partial overlaps so "acne and oily" is OK.
                 concern_tokens = [c for c in re.split(r"[,/&\s]+", con) if c]
-                products = find_products(
+                hits = await find_or_search(
                     module=mod,
                     concerns=concern_tokens or None,
                     user_facts=facts_blob,
                     limit=3,
                 )
-                catalog_block = format_for_prompt(products)
-                if catalog_block:
-                    logger.info(
-                        "[recommend_product] catalog matched %d products for %s/%s",
-                        len(products), mod, con,
-                    )
-                else:
-                    logger.info(
-                        "[recommend_product] no catalog match for %s/%s (facts=%s)",
-                        mod, con, list((facts_blob or {}).keys()),
-                    )
+                catalog_block = format_for_prompt(hits)
+                source = "catalog" if hits and hits[0].source == "catalog" else (
+                    "live" if hits else "none"
+                )
+                logger.info(
+                    "[recommend_product] %d hits for %s/%s (source=%s)",
+                    len(hits), mod, con, source,
+                )
             except Exception as e:
-                logger.warning("[recommend_product] catalog lookup failed: %s", e)
+                logger.warning("[recommend_product] product lookup failed: %s", e)
                 catalog_block = ""
 
             # ---- 2. Doc-derived coaching notes ------------------------ #

@@ -56,11 +56,25 @@ _OTHER_SEARCH_RE = re.compile(
 
 
 def _is_catalog_url(url: str) -> bool:
+    """Accept URLs from EITHER the static curated catalog OR the live
+    product-search session allow-list. Live URLs are added by
+    `services.product_search` whenever it returns a hit, so the agent
+    can cite a real DDG-sourced /dp/<ASIN> link without the validator
+    stripping it as 'not catalog'."""
+    u = url.strip()
     try:
-        from services.product_catalog import allowed_urls
-        return url.strip() in allowed_urls()
+        from services.product_catalog import allowed_urls as _catalog_urls
+        if u in _catalog_urls():
+            return True
     except Exception:
-        return False
+        pass
+    try:
+        from services.product_search import live_allowed_urls as _live_urls
+        if u in _live_urls():
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _resolve_to_catalog(visible_text: str) -> Optional[str]:
