@@ -95,7 +95,12 @@ const TONE_OPTIONS: { id: ToneId; backend: ToneBackend; label: string; hint: str
 ];
 // Map any backend slug (incl. legacy hardcore/gentle/default/etc.) to
 // the new UI ids so users who picked a tone in the old build land on
-// the closest equivalent without re-prompting.
+// the closest equivalent without re-prompting. NOTE: legacy 'default'
+// (the slug ~every existing user has) maps to 'coach' here, NOT 'dude'.
+// 'default' was Mediumcore in the old build — firm, focused, direct —
+// which is closest to Coach today. Mapping to Dude made every existing
+// user's chat feel suddenly "less detailed" because the dude preamble
+// pushed terser one-liners. This restores the prior content shape.
 const TONE_BY_BACKEND: Record<string, ToneId> = {
     coach:      'coach',
     supportive: 'supportive',
@@ -104,8 +109,8 @@ const TONE_BY_BACKEND: Record<string, ToneId> = {
     // legacy
     hardcore:   'coach',
     gentle:     'supportive',
-    default:    'dude',
-    mediumcore: 'dude',
+    default:    'coach',
+    mediumcore: 'coach',
     influencer: 'dude',
 };
 
@@ -151,7 +156,7 @@ export default function ChatConversationsDrawer({
 
     /* Preferences */
     const initialTone: ToneId =
-        TONE_BY_BACKEND[user?.coaching_tone || 'dude'] || 'dude';
+        TONE_BY_BACKEND[user?.coaching_tone || 'default'] || 'coach';
     const initialLength: LengthId =
         (user?.onboarding?.response_length as LengthId) || 'medium';
 
@@ -162,7 +167,7 @@ export default function ChatConversationsDrawer({
 
     React.useEffect(() => {
         if (!user) return;
-        setTone(TONE_BY_BACKEND[user.coaching_tone || 'dude'] || 'dude');
+        setTone(TONE_BY_BACKEND[user.coaching_tone || 'default'] || 'coach');
         setLength((user?.onboarding?.response_length as LengthId) || 'medium');
     }, [user]);
 
