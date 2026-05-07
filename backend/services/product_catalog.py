@@ -212,6 +212,82 @@ def _passes_user_facts(p: Product, user_facts: Optional[dict]) -> bool:
 #  Search                                                                     #
 # --------------------------------------------------------------------------- #
 
+# Concern synonyms — map common single-word user queries to the broader
+# tag-set the catalog already uses. Lets "i need a moisturizer" surface
+# CeraVe Moisturizing Cream (which is tagged with `dryness`/`barrier`/`hydration`,
+# not literally `moisturizer`). Each input on the LEFT is what the LLM /
+# user might say; the RIGHT side is added to the concern set on lookup so
+# matches are softer than they used to be.
+_CONCERN_SYNONYMS: dict[str, list[str]] = {
+    # skin
+    "moisturizer":  ["dryness", "hydration", "barrier"],
+    "moisturiser":  ["dryness", "hydration", "barrier"],
+    "moisturize":   ["dryness", "hydration", "barrier"],
+    "cleanser":     ["gentle_cleansing"],
+    "cleanse":      ["gentle_cleansing"],
+    "wash":         ["gentle_cleansing"],
+    "sunscreen":    ["sun_protection", "daily_spf"],
+    "sunblock":     ["sun_protection", "daily_spf"],
+    "spf":          ["sun_protection", "daily_spf"],
+    "exfoliant":    ["exfoliation", "texture"],
+    "exfoliate":    ["exfoliation", "texture"],
+    "serum":        ["anti_aging", "barrier", "hydration"],
+    "vitc":         ["anti_aging", "pigmentation"],
+    "vitamin_c":    ["anti_aging", "pigmentation"],
+    "retinoid":     ["anti_aging", "texture", "acne"],
+    "retinol":      ["anti_aging", "texture", "acne"],
+    "tret":         ["anti_aging", "texture", "acne"],
+    "tretinoin":    ["anti_aging", "texture", "acne"],
+    "pimple":       ["acne"],
+    "breakout":     ["acne"],
+    "patch":        ["acne"],
+    # hair
+    "shampoo":      ["scalp_health", "scalp_stimulation"],
+    "conditioner":  ["scalp_health"],
+    "minoxidil":    ["hair_loss", "regrowth", "minoxidil"],
+    "rogaine":      ["hair_loss", "regrowth", "minoxidil"],
+    "thinning":     ["hair_loss", "regrowth"],
+    "balding":      ["hair_loss", "regrowth"],
+    # fit / supps
+    "creatine":     ["muscle_gain", "strength", "recovery"],
+    "protein":      ["protein", "muscle_gain"],
+    "preworkout":   ["pre_workout"],
+    "pre-workout":  ["pre_workout"],
+    "postworkout":  ["recovery", "post_workout"],
+    "electrolyte":  ["hydration"],
+    "electrolytes": ["hydration"],
+    # bone / jaw
+    "gum":          ["jaw_training", "masseter"],
+    "chew":         ["jaw_training", "masseter"],
+    "guasha":       ["masseter"],
+    "gua_sha":      ["masseter"],
+    "icing":        ["masseter"],
+    # height / posture
+    "hang":         ["posture"],
+    "decompress":   ["posture"],
+    "decompression":["posture"],
+    "stretch":      ["posture"],
+    "insole":       ["posture"],
+    "insoles":      ["posture"],
+}
+
+
+def _expand_concerns(concerns: Iterable[str]) -> set[str]:
+    """Expand user concern tokens with their synonyms. Always preserves
+    the original tokens — synonyms are additive, never replacing."""
+    out: set[str] = set()
+    for c in concerns:
+        if not c:
+            continue
+        tok = c.strip().lower().replace(" ", "_").replace("-", "_")
+        out.add(tok)
+        # Try original + a few common splits ("preworkout" / "pre-workout").
+        for variant in (tok, tok.replace("_", ""), tok.replace("_", "-")):
+            for syn in _CONCERN_SYNONYMS.get(variant, []):
+                out.add(syn)
+    return out
+
+
 def find_products(
     *,
     module: Optional[str] = None,
@@ -232,7 +308,7 @@ def find_products(
         return []
 
     target_module = (module or "").strip().lower() or None
-    concern_set = {c.strip().lower() for c in (concerns or []) if c}
+    concern_set = _expand_concerns(concerns or [])
 
     scored: list[tuple[int, int, Product]] = []  # (overlap, tier_priority, p)
     tier_priority = {"budget": 0, "mid": 1, "premium": 2}
@@ -242,16 +318,19 @@ def find_products(
             continue
         if not _passes_user_facts(p, user_facts):
             continue
-        overlap = len(concern_set & set(p.concerns)) if concern_set else 0
-        # When concerns are given but nothing overlaps, skip — better to
-        # return [] than off-topic product.
-        if concern_set and overlap == 0:
-            continue
         if price_tier and p.price_tier != price_tier.strip().lower():
             continue
+        overlap = len(concern_set & set(p.concerns)) if concern_set else 0
         scored.append((overlap, tier_priority.get(p.price_tier, 1), p))
 
-    # Higher overlap first; break ties with cheaper-first.
+    # Two-stage sort: products with concern-overlap first (best→worst),
+    # then concern-less hits (overlap=0) as fallback. The earlier behaviour
+    # was to drop the overlap=0 set entirely, which left the bot with NO
+    # link to give for any concern phrase that didn't exactly tag-match the
+    # YAML — even when there's a clearly-relevant module-matching product
+    # right there. The user reported "links aren't working / vague" which
+    # was rooted in this filter being too strict. Now the bot always gets
+    # at least one in-module product to surface, which is the goal.
     scored.sort(key=lambda t: (-t[0], t[1]))
     return [p for _, _, p in scored[:limit]]
 

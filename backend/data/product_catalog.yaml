@@ -28,7 +28,51 @@
 #                   gluten_free / dairy_free / cruelty_free
 #   rationale     one short sentence on why it's recommended (≤120 chars)
 #   references    [str] paths under rag_content/ that endorse it
-
+#
+# ─────────────────────────────────────────────────────────────────────────
+# Coverage gaps still to fill (verify ASINs on Amazon before committing —
+# pasting a fake ASIN ships a broken link). Each line below is a category
+# the maxx coaching docs reference but the catalog doesn't yet cover.
+# When adding, follow the schema above and cite the source doc in references.
+# ─────────────────────────────────────────────────────────────────────────
+# skinmax
+#   - cleansing balm (oil cleanser for double-cleanse) — heimish all clean balm
+#   - vanicream daily moisturizer (fragrance-free, ceramide-rich)
+#   - the ordinary lactic acid 10%
+#   - beauty of joseon glow serum (propolis + niacinamide)
+#   - cosrx salicylic acid daily gentle cleanser
+#   - stridex maximum strength acne pads
+#   - thinksport mineral spf 50 (zinc oxide)
+#   - aquaphor healing ointment (slugging / barrier-rescue)
+# hairmax
+#   - alpecin caffeine shampoo c1
+#   - now foods pumpkin seed oil (capsules)
+#   - pura d'or argan oil
+#   - bedsure mulberry silk pillowcase
+#   - boar bristle brush
+#   - leave-in conditioner (it's a 10 miracle, ouai, etc.)
+#   - heat protectant spray (chi 44 iron guard, kerastase)
+#   - dr squatch peppermint shampoo (men's scalp tingle)
+# fitmax
+#   - bodylastics resistance bands set
+#   - optimum nutrition opti-men multivitamin
+#   - now foods beta-alanine powder
+#   - now foods bcaa powder
+#   - schiek wrist wraps / stoic knee sleeves
+#   - theragun mini massage gun
+#   - lacrosse ball (mobility)
+# bonemax
+#   - now foods mastic gum (capsules) — chewing-jaw protocol
+#   - 3m micropore paper tape (mouth tape for nasal breathing)
+#   - breathe right nasal strips
+#   - mewing tongue trainer (chewable)
+# heightmax
+#   - flexispot e7 standing desk (posture / decompression)
+#   - yoga mat (mobility)
+#   - lacrosse ball (already useful for fitmax + heightmax)
+#   - resistance band loop (face pulls, glute bridges)
+# Once verified, copy the schema, paste ASIN into url, and concerns SHOULD be
+# >=3 keywords so single-word user queries surface them.
 
 products:
 - id: cerave-hydrating-cleanser
