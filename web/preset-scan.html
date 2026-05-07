@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Preset Scan Builder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Inter:wght@400;500;600;700&display=swap"
+  />
+  <style>
+    :root {
+      --bg: #f5f5f3;
+      --ink: #0a0a0b;
+      --ink-2: #2c2c2e;
+      --muted: #7c7c80;
+      --line: #e3e3e0;
+      --line-2: #d4d4d0;
+      --card: #ffffff;
+      --accent-violet: #8b5cf6;
+      --accent-mint: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Inter", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 36px;
+    }
+    @media (max-width: 880px) {
+      .wrap { grid-template-columns: 1fr; }
+    }
+    h1 {
+      font-family: "Playfair Display", serif;
+      font-weight: 400;
+      font-size: 38px;
+      letter-spacing: -1px;
+      margin: 0 0 4px;
+    }
+    .lede {
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.1px;
+      margin-bottom: 24px;
+    }
+    /* ============== LEFT: controls ============== */
+    .controls {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+      position: sticky;
+      top: 16px;
+      align-self: start;
+      max-height: calc(100vh - 32px);
+      overflow: auto;
+    }
+    .controls h2 {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.6px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+    .controls h2:not(:first-of-type) { margin-top: 22px; }
+    .upload {
+      border: 2px dashed var(--line-2);
+      border-radius: 12px;
+      padding: 22px;
+      text-align: center;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      background: #fafaf9;
+      transition: border-color 120ms ease, background 120ms ease;
+    }
+    .upload:hover { border-color: var(--ink); color: var(--ink); }
+    .upload input { display: none; }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 70px;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .row:last-child { border-bottom: none; }
+    .row label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink-2);
+    }
+    .row input[type="number"], .row input[type="text"], .row select {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid var(--line-2);
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 13px;
+      text-align: right;
+      background: #fff;
+      color: var(--ink);
+    }
+    .row input:focus, .row select:focus {
+      outline: 2px solid var(--ink);
+      outline-offset: -2px;
+    }
+    .focus-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding-top: 4px;
+    }
+    .focus-pill {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line-2);
+      background: #fff;
+      cursor: pointer;
+      color: var(--muted);
+      user-select: none;
+    }
+    .focus-pill.on {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: #fff;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 22px;
+    }
+    .btn {
+      flex: 1;
+      padding: 11px 14px;
+      border-radius: 999px;
+      border: none;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      transition: opacity 120ms ease;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: var(--ink); color: #fff; }
+    .btn-secondary { background: #fff; color: var(--ink); border: 1px solid var(--line-2); }
+
+    /* ============== RIGHT: preview ============== */
+    .preview-frame {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .scan {
+      /* Mimic an iPhone-shaped frame so the screenshot looks like an
+         in-app screen capture. */
+      width: 390px;
+      background: var(--card);
+      border-radius: 32px;
+      box-shadow:
+        0 20px 60px -12px rgba(10,10,11,0.18),
+        0 0 0 1px rgba(10,10,11,0.06);
+      overflow: hidden;
+      position: relative;
+    }
+    .scan .notch {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 110px;
+      height: 28px;
+      background: #0a0a0b;
+      border-radius: 999px;
+      z-index: 3;
+    }
+    .scan-header {
+      padding: 70px 28px 8px;
+      text-align: center;
+    }
+    .scan-eyebrow {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .scan-tier {
+      font-family: "Playfair Display", serif;
+      font-weight: 400;
+      font-size: 32px;
+      letter-spacing: -0.6px;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .scan-date {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.2px;
+    }
+    .scan-photo-wrap {
+      padding: 16px 28px 0;
+    }
+    .scan-photo {
+      width: 100%;
+      aspect-ratio: 1 / 1.1;
+      border-radius: 18px;
+      background: linear-gradient(160deg, #ece9e6 0%, #d3cec8 100%);
+      object-fit: cover;
+      display: block;
+    }
+    .scan-photo.empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+    .scan-score-row {
+      display: flex;
+      justify-content: center;
+      align-items: baseline;
+      gap: 6px;
+      margin-top: 22px;
+    }
+    .scan-score {
+      font-family: "Playfair Display", serif;
+      font-weight: 400;
+      font-size: 76px;
+      letter-spacing: -3px;
+      line-height: 1;
+      color: var(--ink);
+    }
+    .scan-score-out {
+      font-size: 18px;
+      color: var(--muted);
+    }
+    .scan-tagline {
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+      letter-spacing: 0.1px;
+    }
+    .scan-metrics {
+      padding: 24px 28px 8px;
+    }
+    .metric {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .metric:last-child { border-bottom: none; }
+    .metric-name {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+    .metric-bar {
+      flex: 1.3;
+      height: 6px;
+      background: #f0eeec;
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+    }
+    .metric-bar-fill {
+      height: 100%;
+      background: var(--ink);
+      border-radius: 3px;
+      transition: width 200ms ease;
+    }
+    .metric-value {
+      width: 38px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .scan-focus {
+      padding: 12px 28px 28px;
+    }
+    .scan-focus-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.6px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .scan-focus-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .scan-focus-chip {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #f0eeec;
+      color: var(--ink);
+    }
+    .scan-footer {
+      padding: 16px 28px 32px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.4px;
+    }
+    .scan-footer-brand {
+      font-family: "Playfair Display", serif;
+      font-size: 18px;
+      font-weight: 400;
+      color: var(--ink);
+      letter-spacing: -0.4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- ============================================================ -->
+    <!-- LEFT: controls                                               -->
+    <!-- ============================================================ -->
+    <aside class="controls">
+      <h1>preset scan</h1>
+      <div class="lede">build a scan card with your numbers, screenshot it.</div>
+
+      <h2>photo</h2>
+      <label class="upload" id="uploadLabel">
+        <input type="file" id="photo" accept="image/*" />
+        <span id="uploadText">drop or click to upload</span>
+      </label>
+
+      <h2>identity</h2>
+      <div class="row">
+        <label>tier</label>
+        <select id="tier">
+          <option value="Sub 3">Sub 3</option>
+          <option value="Sub 5">Sub 5</option>
+          <option value="LTN">LTN</option>
+          <option value="MTN" selected>MTN</option>
+          <option value="HTN">HTN</option>
+          <option value="Chadlite">Chadlite</option>
+          <option value="Chad">Chad</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>date</label>
+        <input type="text" id="date" placeholder="May 7, 2026" />
+      </div>
+      <div class="row">
+        <label>tagline</label>
+        <input type="text" id="tagline" value="solid baseline. lock in." />
+      </div>
+
+      <h2>scores (0-10)</h2>
+      <div class="row">
+        <label>overall</label>
+        <input type="number" id="overall" min="0" max="10" step="0.1" value="6.8" />
+      </div>
+      <div class="row">
+        <label>jawline</label>
+        <input type="number" id="jawline" min="0" max="10" step="0.1" value="6.5" />
+      </div>
+      <div class="row">
+        <label>symmetry</label>
+        <input type="number" id="symmetry" min="0" max="10" step="0.1" value="7.2" />
+      </div>
+      <div class="row">
+        <label>skin clarity</label>
+        <input type="number" id="skin" min="0" max="10" step="0.1" value="6.0" />
+      </div>
+      <div class="row">
+        <label>eye area</label>
+        <input type="number" id="eye" min="0" max="10" step="0.1" value="7.0" />
+      </div>
+      <div class="row">
+        <label>harmony</label>
+        <input type="number" id="harmony" min="0" max="10" step="0.1" value="6.7" />
+      </div>
+
+      <h2>focus areas</h2>
+      <div class="focus-pills" id="focusPills">
+        <button class="focus-pill" data-id="jawline">jawline</button>
+        <button class="focus-pill" data-id="skin">skin</button>
+        <button class="focus-pill" data-id="hair">hair</button>
+        <button class="focus-pill" data-id="symmetry">symmetry</button>
+        <button class="focus-pill" data-id="posture">posture</button>
+        <button class="focus-pill" data-id="height">height</button>
+        <button class="focus-pill" data-id="physique">physique</button>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-secondary" id="resetBtn">reset</button>
+        <button class="btn btn-primary" id="downloadBtn">download png</button>
+      </div>
+    </aside>
+
+    <!-- ============================================================ -->
+    <!-- RIGHT: preview                                               -->
+    <!-- ============================================================ -->
+    <section class="preview-frame">
+      <article class="scan" id="scan">
+        <div class="notch"></div>
+        <header class="scan-header">
+          <div class="scan-eyebrow">FACE SCAN</div>
+          <div class="scan-tier" id="o-tier">MTN</div>
+          <div class="scan-date" id="o-date">May 7, 2026</div>
+        </header>
+        <div class="scan-photo-wrap">
+          <div class="scan-photo empty" id="o-photo">no photo</div>
+        </div>
+        <div class="scan-score-row">
+          <div class="scan-score" id="o-overall">6.8</div>
+          <div class="scan-score-out">/10</div>
+        </div>
+        <div class="scan-tagline" id="o-tagline">solid baseline. lock in.</div>
+
+        <div class="scan-metrics" id="o-metrics"></div>
+
+        <div class="scan-focus">
+          <div class="scan-focus-title">focus areas</div>
+          <div class="scan-focus-list" id="o-focus"></div>
+        </div>
+
+        <footer class="scan-footer">
+          <div class="scan-footer-brand">max</div>
+          <div>your AI looksmaxxing coach</div>
+        </footer>
+      </article>
+    </section>
+  </div>
+
+  <!-- html2canvas for the download-png action. CDN; no npm install needed. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script>
+    /**
+     * preset-scan.html — completely standalone. NOT part of the maxapp
+     * mobile build. Open this file in a browser, drop in a photo, dial
+     * in numbers, screenshot or hit "download png" to capture the
+     * resulting card. Useful for marketing / mockups / social.
+     *
+     * No network calls beyond Google Fonts + html2canvas CDN.
+     */
+
+    const $ = (id) => document.getElementById(id);
+
+    const METRICS = [
+      ["jawline",  "jawline"],
+      ["symmetry", "symmetry"],
+      ["skin",     "skin clarity"],
+      ["eye",      "eye area"],
+      ["harmony",  "harmony"],
+    ];
+
+    function todayLabel() {
+      const d = new Date();
+      return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    }
+
+    /* Default the date field to today on load if empty. */
+    if (!$("date").value) $("date").value = todayLabel();
+
+    function renderScanCard() {
+      // Identity.
+      $("o-tier").textContent = $("tier").value || "MTN";
+      $("o-date").textContent = $("date").value || todayLabel();
+      $("o-tagline").textContent = $("tagline").value || "";
+
+      // Overall score.
+      const overall = clampScore($("overall").value);
+      $("o-overall").textContent = overall.toFixed(1);
+
+      // Per-metric rows.
+      const out = [];
+      for (const [key, label] of METRICS) {
+        const v = clampScore($(key).value);
+        const pct = Math.round((v / 10) * 100);
+        out.push(`
+          <div class="metric">
+            <div class="metric-name">${label}</div>
+            <div class="metric-bar"><div class="metric-bar-fill" style="width:${pct}%"></div></div>
+            <div class="metric-value">${v.toFixed(1)}</div>
+          </div>
+        `);
+      }
+      $("o-metrics").innerHTML = out.join("");
+
+      // Focus areas — pulled from the toggled pills.
+      const focus = Array.from(document.querySelectorAll(".focus-pill.on"))
+        .map((p) => p.dataset.id);
+      $("o-focus").innerHTML = focus.length
+        ? focus.map((f) => `<div class="scan-focus-chip">${f}</div>`).join("")
+        : `<div class="scan-focus-chip" style="background:transparent;border:1px dashed var(--line-2);color:var(--muted)">none selected</div>`;
+    }
+
+    function clampScore(raw) {
+      const n = parseFloat(raw);
+      if (Number.isNaN(n)) return 0;
+      return Math.max(0, Math.min(10, n));
+    }
+
+    /* ---- input listeners ---- */
+    document.querySelectorAll(".controls input, .controls select").forEach((el) => {
+      el.addEventListener("input", renderScanCard);
+      el.addEventListener("change", renderScanCard);
+    });
+
+    /* ---- focus pill toggles ---- */
+    document.querySelectorAll(".focus-pill").forEach((p) => {
+      p.addEventListener("click", () => {
+        p.classList.toggle("on");
+        renderScanCard();
+      });
+    });
+    /* Default-toggle a couple so the preview isn't empty. */
+    document.querySelector('.focus-pill[data-id="jawline"]').classList.add("on");
+    document.querySelector('.focus-pill[data-id="skin"]').classList.add("on");
+
+    /* ---- photo upload ---- */
+    $("photo").addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const img = document.createElement("img");
+      img.src = url;
+      img.className = "scan-photo";
+      img.alt = "face scan";
+      $("o-photo").replaceWith(img);
+      img.id = "o-photo";
+      $("uploadText").textContent = file.name;
+    });
+
+    /* ---- reset ---- */
+    $("resetBtn").addEventListener("click", () => {
+      if (!confirm("reset all values?")) return;
+      window.location.reload();
+    });
+
+    /* ---- download as PNG via html2canvas ---- */
+    $("downloadBtn").addEventListener("click", async () => {
+      const target = $("scan");
+      try {
+        const canvas = await html2canvas(target, {
+          backgroundColor: null,
+          scale: 2,                 // 2× retina-quality export
+          useCORS: true,
+          allowTaint: true,
+        });
+        const a = document.createElement("a");
+        a.href = canvas.toDataURL("image/png");
+        a.download = `preset-scan-${Date.now()}.png`;
+        a.click();
+      } catch (err) {
+        alert("could not export png: " + (err && err.message ? err.message : err));
+      }
+    });
+
+    renderScanCard();
+  </script>
+</body>
+</html>
