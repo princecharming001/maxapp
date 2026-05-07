@@ -335,20 +335,23 @@ export default function EditPersonalScreen() {
           {/* "Your Maxxes" header is intentionally hidden on the edit-lifestyle
               path — that picker lives on the Profile → "Your Maxxes" screen
               (onlyGoals=true), so showing it here was duplicate UX. */}
-          {onlyGoals ? <Text style={styles.goalsLimitHint}>
-            Up to {maxHomeMaxxesForUser(user)} on your home screen
-            {user?.is_paid && (user?.subscription_tier || '').toLowerCase() === 'premium'
-              ? ' (Premium)'
-              : user?.is_paid
-                ? ' (Basic)'
-                : ' (free)'}
-          </Text> : null}
-          {onlyGoals ? <View
-            style={[
-              styles.goalsListBleed,
-              isWide ? { marginHorizontal: -spacing.xxl } : { marginHorizontal: -spacing.xl },
-            ]}
-          >
+          {onlyGoals && (
+            <Text style={styles.goalsLimitHint}>
+              Up to {maxHomeMaxxesForUser(user)} on your home screen
+              {user?.is_paid && (user?.subscription_tier || '').toLowerCase() === 'premium'
+                ? ' (Premium)'
+                : user?.is_paid
+                  ? ' (Basic)'
+                  : ' (free)'}
+            </Text>
+          )}
+          {onlyGoals && (
+            <View
+              style={[
+                styles.goalsListBleed,
+                isWide ? { marginHorizontal: -spacing.xxl } : { marginHorizontal: -spacing.xl },
+              ]}
+            >
             {GOALS.map((goal, idx) => {
               const selected = selectedGoals.includes(goal.id);
               const maxG = maxHomeMaxxesForUser(user);
@@ -452,7 +455,8 @@ export default function EditPersonalScreen() {
                 />
               );
             })}
-          </View> : null}
+            </View>
+          )}
 
           {!onlyGoals && (
             <>
