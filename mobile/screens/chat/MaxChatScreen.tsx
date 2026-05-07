@@ -4,7 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
-import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import ReanimatedSwipeable, {
+    type SwipeableMethods,
+} from 'react-native-gesture-handler/ReanimatedSwipeable';
+import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
@@ -37,6 +40,78 @@ interface ReplyTarget {
     id: string;
     role: 'user' | 'assistant';
     preview: string;
+}
+
+/**
+ * iMessage-style swipe-to-reply row.
+ *
+ * Why a dedicated component (instead of inline ReanimatedSwipeable in
+ * renderItem):
+ *
+ *  1. ReanimatedSwipeable's `onSwipeableOpen` callback in this version
+ *     of `react-native-gesture-handler` ONLY receives `direction` — it
+ *     does NOT pass the swipeable instance, so the previous code's
+ *     `swipeable?.close?.()` was a no-op against undefined. The bubble
+ *     never snapped back. To programmatically close, we need a ref.
+ *
+ *  2. A ref needs a stable owner — putting `useRef` inside a
+ *     renderItem function would create a new ref on every render. The
+ *     row needs to be its own component.
+ *
+ * UX contract (matches iMessage / WhatsApp):
+ *
+ *  - User drags right past the threshold → onSwipeableOpen fires →
+ *    we call `onCommit()` (parent sets the reply target, triggering the
+ *    reply preview bar above the input) AND immediately call
+ *    `ref.current.close()` so the bubble snaps back to its resting
+ *    position. The reply preview is the only persistent UI.
+ *
+ *  - Selection haptic on commit so the user feels the action register
+ *    (the bubble's snap-back is so fast otherwise it can feel like
+ *    nothing happened).
+ *
+ *  - Only one active reply: the parent's `replyTarget` is a single
+ *    state slot. New commits replace the previous target. Each row's
+ *    swipeable closes itself on commit, so there's never a stale
+ *    indented bubble lying around.
+ */
+function ReplySwipeableRow({
+    onCommit,
+    children,
+}: {
+    onCommit: () => void;
+    children: React.ReactNode;
+}) {
+    const ref = useRef<SwipeableMethods>(null);
+
+    return (
+        <ReanimatedSwipeable
+            ref={ref}
+            friction={2}
+            rightThreshold={40}
+            // Disable left-swipe by giving it a far-out threshold; we only
+            // want the right-swipe → reply gesture, not delete-from-left.
+            leftThreshold={9999}
+            renderLeftActions={() => (
+                <View style={styles.swipeReplyHint}>
+                    <Ionicons name="arrow-undo" size={18} color={colors.textMuted} />
+                </View>
+            )}
+            onSwipeableOpen={() => {
+                onCommit();
+                if (Platform.OS !== 'web') {
+                    Haptics.selectionAsync().catch(() => {});
+                }
+                // Snap back. Slight delay so the open animation finishes
+                // gracefully before the close kicks in — without this the
+                // gesture-handler library can swallow the close because
+                // it's still processing the open transition.
+                setTimeout(() => ref.current?.close(), 80);
+            }}
+        >
+            {children}
+        </ReanimatedSwipeable>
+    );
 }
 
 /**
@@ -455,43 +530,18 @@ export default function MaxChatScreen() {
 
         if (!canReply) return bubbleRow;
 
-        // Swipe-right reveals a small reply icon, then commits on release.
-        // Mirrors iMessage / WhatsApp behaviour:
-        //   - Bubble snaps back to normal position immediately on open
-        //     (we call `.close()` from inside onSwipeableOpen). Without
-        //     this the bubble sits indented until the user dismisses
-        //     the reply preview, which felt sticky and off-pattern.
-        //   - Only one active reply target at a time. `replyTarget` is
-        //     a single state slot; setting it from a new swipe replaces
-        //     the previous target, and the previous bubble's swipeable
-        //     was already closed on its own open() callback so there's
-        //     no second indented bubble to worry about.
         return (
-            <ReanimatedSwipeable
-                friction={2}
-                rightThreshold={40}
-                renderLeftActions={() => (
-                    <View style={styles.swipeReplyHint}>
-                        <Ionicons name="arrow-undo" size={18} color={colors.textMuted} />
-                    </View>
-                )}
-                onSwipeableWillOpen={(_dir, swipeable) => {
-                    // Capture target on the way to open so the React state
-                    // update happens synchronously with the gesture release.
+            <ReplySwipeableRow
+                onCommit={() => {
                     setReplyTarget({
                         id: item.id!,
                         role: item.role,
                         preview: (item.content || '').slice(0, 120),
                     });
                 }}
-                onSwipeableOpen={(_dir, swipeable) => {
-                    // Snap back. The reply preview bar above the input is
-                    // the only persistent UI for the active reply now.
-                    swipeable?.close?.();
-                }}
             >
                 {bubbleRow}
-            </ReanimatedSwipeable>
+            </ReplySwipeableRow>
         );
     };
 
