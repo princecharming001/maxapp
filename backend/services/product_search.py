@@ -76,13 +76,20 @@ class ProductHit:
 
 # Real Amazon product URL: `https://www.amazon.com/<anything>/dp/<ASIN>/?...`
 # ASIN is 10 alphanumeric chars (Amazon's stable product identifier).
+#
+# We RESTRICT to `amazon.com` (US storefront) only — regional URLs like
+# amazon.de, amazon.co.uk, amazon.ca route the user to a foreign locale
+# they can't easily checkout from, AND the same ASIN often points at a
+# different product on different storefronts. The user reported invalid
+# links, and a chunk of the badness was DDG returning regional Amazon
+# pages mixed with the .com results.
 _AMAZON_DP_RE = re.compile(
-    r"https?://(?:www\.)?amazon\.[a-z.]+/(?:[^?#\s]*?/)?dp/([A-Z0-9]{10})(?:[/?#]|$)",
+    r"https?://(?:www\.|smile\.)?amazon\.com/(?:[^?#\s]*?/)?dp/([A-Z0-9]{10})(?:[/?#]|$)",
     re.IGNORECASE,
 )
 # Acceptable secondary forms — `/gp/product/<ASIN>` is the legacy mobile path.
 _AMAZON_GP_RE = re.compile(
-    r"https?://(?:www\.)?amazon\.[a-z.]+/gp/product/([A-Z0-9]{10})(?:[/?#]|$)",
+    r"https?://(?:www\.|smile\.)?amazon\.com/gp/product/([A-Z0-9]{10})(?:[/?#]|$)",
     re.IGNORECASE,
 )
 
@@ -172,6 +179,118 @@ def live_allowed_urls() -> set[str]:
 
 
 # ---------------------------------------------------------------------- #
+#  URL liveness check                                                    #
+# ---------------------------------------------------------------------- #
+
+# Cache of {url: is_alive} so repeated calls for the same query don't
+# re-hit Amazon. TTL: 24h. Capped at 2k entries.
+_LIVE_CHECK_CACHE: dict[str, tuple[float, bool]] = {}
+_LIVE_CHECK_TTL_S = 86400.0
+_LIVE_CHECK_MAX = 2048
+
+
+async def _is_alive(url: str, *, timeout_s: float = 4.0) -> bool:
+    """HEAD-request `url` and decide if Amazon is currently serving a
+    real product page for it.
+
+    Heuristic:
+      - 200/301/302 with a final URL still on amazon.com/.../dp/<ASIN>
+        (NOT redirected to /errors/, /b?node=, or homepage) → alive.
+      - 404, 410, or redirect to a search/error page → dead.
+
+    Network errors fail-open (return True) — we'd rather show a slightly-
+    stale link than block the agent's whole reply on a flaky connection.
+    The cache TTL handles repeat damage if the URL is genuinely dead.
+    """
+    import time
+    now = time.time()
+    cached = _LIVE_CHECK_CACHE.get(url)
+    if cached and (now - cached[0]) < _LIVE_CHECK_TTL_S:
+        return cached[1]
+
+    alive = True   # fail-open default
+    try:
+        import httpx
+        # Amazon serves different pages to bot UAs; mimic a desktop browser.
+        # `allow_redirects=True` so we see where Amazon ultimately lands.
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) "
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                "Version/16.6 Safari/605.1.15"
+            ),
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=timeout_s,
+            headers=headers,
+        ) as client:
+            # Use GET (range-limited) — Amazon often blocks plain HEAD.
+            r = await client.get(url, headers={**headers, "Range": "bytes=0-2048"})
+            final = str(r.url).lower()
+            status = r.status_code
+            alive = (
+                status in (200, 206)
+                and "/dp/" in final
+                and "/errors/" not in final
+                and "/ref=cs_503" not in final
+                and "/b?node=" not in final
+                # If Amazon bounced to homepage, it's a soft-404.
+                and not re.match(
+                    r"^https?://(?:www\.)?amazon\.com/?(?:\?[^#]*)?$",
+                    final,
+                )
+            )
+            # Body-level sanity: if the page literally says "Currently
+            # unavailable" or "we couldn't find that page", treat as dead.
+            if alive and r.text:
+                txt = r.text[:8000].lower()
+                if (
+                    "currently unavailable" in txt and "we don't know when" in txt
+                ) or (
+                    "page not found" in txt or "we couldn't find that page" in txt
+                ):
+                    alive = False
+    except Exception as e:
+        logger.debug("[product_search] liveness probe network err for %s: %s", url, e)
+        alive = True   # fail-open
+
+    _LIVE_CHECK_CACHE[url] = (now, alive)
+    if len(_LIVE_CHECK_CACHE) > _LIVE_CHECK_MAX:
+        ranked = sorted(_LIVE_CHECK_CACHE.items(), key=lambda kv: kv[1][0])
+        for k, _ in ranked[: len(_LIVE_CHECK_CACHE) // 4]:
+            _LIVE_CHECK_CACHE.pop(k, None)
+    return alive
+
+
+async def _filter_alive(hits: list["ProductHit"], *, limit: int) -> list["ProductHit"]:
+    """Run liveness checks in parallel; return up to `limit` ProductHits
+    whose URLs Amazon is currently serving as real product pages.
+
+    Order is preserved (search-rank order) — we don't re-rank by
+    liveness, just drop dead links. Bounded at `limit * 2` checks so a
+    pathological all-dead query doesn't blow the timeout budget."""
+    if not hits:
+        return []
+    candidates = hits[: max(limit * 2, limit)]
+    results = await asyncio.gather(
+        *[_is_alive(h.url) for h in candidates],
+        return_exceptions=True,
+    )
+    out: list[ProductHit] = []
+    for h, ok in zip(candidates, results):
+        if isinstance(ok, Exception):
+            continue
+        if ok:
+            out.append(h)
+        if len(out) >= limit:
+            break
+    return out
+
+
+# ---------------------------------------------------------------------- #
 #  Main entrypoints                                                      #
 # ---------------------------------------------------------------------- #
 
@@ -182,15 +301,26 @@ async def search_live(
     max_results: int = 3,
 ) -> list[ProductHit]:
     """Issue a constrained DDG search and return up to `max_results`
-    real Amazon product hits. Empty list on no match / search failure."""
+    real Amazon product hits. Empty list on no match / search failure.
+
+    Two-stage filter:
+      1. URL shape — must match `amazon.com/.../dp/<ASIN>` (US only).
+      2. Liveness — HEAD/GET the URL and confirm Amazon is currently
+         serving a real product page (not 404 / 'currently unavailable'
+         / redirect-to-homepage). Cached 24h per URL.
+
+    Stage 2 protects against the "links aren't valid" failure mode the
+    user reported — DDG's index lags Amazon's catalog by weeks, so
+    plain search results regularly include delisted ASINs."""
     shaped = _shape_query(query, module)
     if not shaped:
         return []
     try:
         from services.web_search import _ddg_search
-        # Ask for more raw results than we need — most won't be /dp/<ASIN>.
+        # Ask for more raw results than we need — most won't be /dp/<ASIN>,
+        # and of those that are, some will be dead. 8× over-fetch.
         raw = await asyncio.wait_for(
-            asyncio.to_thread(_ddg_search, shaped, max_results * 5, None),
+            asyncio.to_thread(_ddg_search, shaped, max_results * 8, None),
             timeout=10.0,
         )
     except asyncio.TimeoutError:
@@ -200,7 +330,7 @@ async def search_live(
         logger.info("[product_search] failed for %r: %s", shaped, e)
         return []
 
-    hits: list[ProductHit] = []
+    raw_hits: list[ProductHit] = []
     seen_asins: set[str] = set()
     for r in raw or []:
         url = (r.get("href") or r.get("url") or "").strip()
@@ -226,19 +356,22 @@ async def search_live(
         snippet = (r.get("body") or r.get("snippet") or "").strip()
         snippet = re.sub(r"\s+", " ", snippet)[:200]
 
-        hits.append(ProductHit(
+        raw_hits.append(ProductHit(
             name=title,
             url=clean,
             snippet=snippet,
             source="live",
         ))
-        _record_url(clean)
-        if len(hits) >= max_results:
-            break
+
+    # Stage 2: liveness check. Drops 404s / "currently unavailable" /
+    # redirect-to-homepage results. Parallelized; cached 24h.
+    hits = await _filter_alive(raw_hits, limit=max_results)
+    for h in hits:
+        _record_url(h.url)
 
     logger.info(
-        "[product_search] %d hits for %r (module=%s, raw=%d)",
-        len(hits), shaped, module, len(raw or []),
+        "[product_search] %d/%d alive for %r (module=%s, raw=%d)",
+        len(hits), len(raw_hits), shaped, module, len(raw or []),
     )
     return hits
 

@@ -456,7 +456,16 @@ export default function MaxChatScreen() {
         if (!canReply) return bubbleRow;
 
         // Swipe-right reveals a small reply icon, then commits on release.
-        // Mirrors iMessage's swipe-to-reply gesture; left-swipe is a no-op.
+        // Mirrors iMessage / WhatsApp behaviour:
+        //   - Bubble snaps back to normal position immediately on open
+        //     (we call `.close()` from inside onSwipeableOpen). Without
+        //     this the bubble sits indented until the user dismisses
+        //     the reply preview, which felt sticky and off-pattern.
+        //   - Only one active reply target at a time. `replyTarget` is
+        //     a single state slot; setting it from a new swipe replaces
+        //     the previous target, and the previous bubble's swipeable
+        //     was already closed on its own open() callback so there's
+        //     no second indented bubble to worry about.
         return (
             <ReanimatedSwipeable
                 friction={2}
@@ -466,12 +475,19 @@ export default function MaxChatScreen() {
                         <Ionicons name="arrow-undo" size={18} color={colors.textMuted} />
                     </View>
                 )}
-                onSwipeableOpen={() => {
+                onSwipeableWillOpen={(_dir, swipeable) => {
+                    // Capture target on the way to open so the React state
+                    // update happens synchronously with the gesture release.
                     setReplyTarget({
                         id: item.id!,
                         role: item.role,
                         preview: (item.content || '').slice(0, 120),
                     });
+                }}
+                onSwipeableOpen={(_dir, swipeable) => {
+                    // Snap back. The reply preview bar above the input is
+                    // the only persistent UI for the active reply now.
+                    swipeable?.close?.();
                 }}
             >
                 {bubbleRow}
