@@ -416,16 +416,14 @@ export default function MasterScheduleScreen() {
   const tasksForDay = selectedDate ? merged.byDate[selectedDate] || [] : [];
 
   const goToChatForTask = (task: MergedScheduleTask) => {
-    // Seed the chat with a directive question so the agent gives concrete,
-    // numbered steps for how to actually do the task — not generic explainer
-    // copy. The init_context tells the backend this is a "task help" request
-    // so it can pull the catalog evidence_section + relevant RAG chunks.
-    const initQuestion =
-      `Walk me through how to actually do this task — give me a short numbered list of the exact steps, what to use, and any common mistakes to avoid. Keep it practical, no fluff.` +
-      `\n\nTask: ${task.title}` +
-      (task.moduleLabel ? `\nProgram: ${task.moduleLabel}` : '') +
-      (task.time ? `\nWhen: ${task.time}` : '') +
-      (task.description ? `\nDetails: ${task.description}` : '');
+    // User-visible seed is intentionally short — just names the task. The
+    // verbose "give me numbered steps, no fluff" framing now lives in
+    // initContext (task_help:...) so the backend's chat path knows to
+    // respond with practical how-to copy without it cluttering the user's
+    // chat thread. Result: tap "Ask Max" → user sees one clean line, bot
+    // jumps straight to the answer.
+    const cleanTitle = stripDuplicateModulePrefix(task.title, task.moduleLabel);
+    const initQuestion = `how do i do "${cleanTitle}"?`;
     const initContext = `task_help:${task.scheduleId}:${task.task_id}`;
     if (isTab) {
       navigation.navigate('Chat', { initQuestion, initContext });

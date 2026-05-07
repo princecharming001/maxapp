@@ -69,6 +69,7 @@ const STEP_TITLES = [
     'How old are you?',
     'How tall are you?',
     "What's your weight?",
+    'When are you busy?',
     'What matters most?',
 ] as const;
 
@@ -99,6 +100,13 @@ export default function OnboardingScreen() {
     const [unit, setUnit] = useState<UnitSystem>('imperial');
     const [heightCm, setHeightCm] = useState(178);
     const [weightKg, setWeightKg] = useState(72);
+    // Schedule (busy hours) — 15-min slots since midnight (0..95).
+    // Defaults: wake 07:00 (28), sleep 23:00 (92), work 09:00–17:00 (36..68).
+    const [wakeSlot, setWakeSlot] = useState(28);
+    const [sleepSlot, setSleepSlot] = useState(92);
+    const [hasWork, setHasWork] = useState<'yes' | 'flexible' | null>(null);
+    const [workStartSlot, setWorkStartSlot] = useState(36);
+    const [workEndSlot, setWorkEndSlot] = useState(68);
     const [priority, setPriority] = useState<PriorityKey[]>([]);
 
     const valid: boolean[] = [
@@ -106,6 +114,10 @@ export default function OnboardingScreen() {
         age >= 13 && age <= 100,
         heightCm >= 120 && heightCm <= 230,
         weightKg >= 30 && weightKg <= 230,
+        // Schedule step is valid as soon as the user has answered the
+        // work-status question (Yes or Flexible). Wake/sleep have safe
+        // defaults so we don't block on them.
+        hasWork !== null && (hasWork === 'flexible' || workEndSlot > workStartSlot),
         priority.length === PRIORITIES.length,
     ];
 
@@ -156,6 +168,10 @@ export default function OnboardingScreen() {
             const heightDisplay = unit === 'metric' ? heightCm : Math.round(heightCm / 2.54);
             const weightDisplay = unit === 'metric' ? weightKg : kgToLb(weightKg);
             const top3 = priority.slice(0, 3);
+            const wake_time = slotToHHMM(wakeSlot);
+            const sleep_time = slotToHHMM(sleepSlot);
+            const work_start = hasWork === 'yes' ? slotToHHMM(workStartSlot) : null;
+            const work_end = hasWork === 'yes' ? slotToHHMM(workEndSlot) : null;
             await api.saveOnboarding({
                 goals: top3,
                 experience_level: 'beginner',
@@ -167,12 +183,15 @@ export default function OnboardingScreen() {
                 timezone:
                     typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC',
                 completed: true,
-                // @ts-expect-error — backend allows passthrough fields
                 priority_ranking: priority,
-                // @ts-expect-error
                 height_cm: heightCm,
-                // @ts-expect-error
                 weight_kg: weightKg,
+                // schedule anchors used by chatbot + scheduler
+                wake_time,
+                sleep_time,
+                work_schedule: hasWork === 'yes' ? 'fixed' : 'flexible',
+                work_start,
+                work_end,
             });
             await refreshUser();
             navigation.reset({ index: 0, routes: [{ name: 'FeaturesIntro' }] });
@@ -206,6 +225,21 @@ export default function OnboardingScreen() {
                     <WeightStep kg={weightKg} unit={unit} onChangeKg={setWeightKg} onChangeUnit={setUnit} />
                 );
             case 4:
+                return (
+                    <ScheduleStep
+                        wakeSlot={wakeSlot}
+                        sleepSlot={sleepSlot}
+                        hasWork={hasWork}
+                        workStartSlot={workStartSlot}
+                        workEndSlot={workEndSlot}
+                        onChangeWake={setWakeSlot}
+                        onChangeSleep={setSleepSlot}
+                        onChangeHasWork={setHasWork}
+                        onChangeWorkStart={setWorkStartSlot}
+                        onChangeWorkEnd={setWorkEndSlot}
+                    />
+                );
+            case 5:
                 return <PriorityStep value={priority} onChange={setPriority} />;
         }
         return null;
@@ -440,6 +474,128 @@ function UnitToggle({
     );
 }
 
+/* ─────────────────────────────────────────────────────────────────────── */
+/*  Step 5 — schedule (busy hours)                                         */
+/* ─────────────────────────────────────────────────────────────────────── */
+
+/** 15-min slot (0..95) → "HH:MM" 24h string. */
+const slotToHHMM = (slot: number) => {
+    const total = Math.max(0, Math.min(95, Math.round(slot))) * 15;
+    const h = Math.floor(total / 60);
+    const m = total - h * 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+/** 15-min slot (0..95) → "7:30 AM" pretty display. */
+const formatSlot = (slot: number) => {
+    const total = Math.max(0, Math.min(95, Math.round(slot))) * 15;
+    const h24 = Math.floor(total / 60);
+    const m = total - h24 * 60;
+    const period = h24 >= 12 ? 'PM' : 'AM';
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+};
+
+function ScheduleStep({
+    wakeSlot, sleepSlot, hasWork, workStartSlot, workEndSlot,
+    onChangeWake, onChangeSleep, onChangeHasWork, onChangeWorkStart, onChangeWorkEnd,
+}: {
+    wakeSlot: number;
+    sleepSlot: number;
+    hasWork: 'yes' | 'flexible' | null;
+    workStartSlot: number;
+    workEndSlot: number;
+    onChangeWake: (n: number) => void;
+    onChangeSleep: (n: number) => void;
+    onChangeHasWork: (v: 'yes' | 'flexible') => void;
+    onChangeWorkStart: (n: number) => void;
+    onChangeWorkEnd: (n: number) => void;
+}) {
+    return (
+        <View style={{ alignSelf: 'stretch' }}>
+            <Text style={styles.helperLine}>
+                so max can plan around your sleep + work hours
+            </Text>
+
+            <View style={{ marginTop: spacing.lg, gap: spacing.lg }}>
+                <TimeRow label="i wake up at" slot={wakeSlot} onChange={onChangeWake} min={16} max={56} />
+                <TimeRow label="i sleep at" slot={sleepSlot} onChange={onChangeSleep} min={72} max={119} />
+
+                <View style={styles.workToggleWrap}>
+                    <Text style={styles.scheduleLabel}>work / school hours</Text>
+                    <View style={styles.workToggleRow}>
+                        {([
+                            { id: 'yes', label: 'fixed' },
+                            { id: 'flexible', label: 'flexible' },
+                        ] as const).map((opt) => {
+                            const on = hasWork === opt.id;
+                            return (
+                                <TouchableOpacity
+                                    key={opt.id}
+                                    style={[styles.workToggleBtn, on && styles.workToggleBtnOn]}
+                                    activeOpacity={0.7}
+                                    onPress={() => onChangeHasWork(opt.id)}
+                                >
+                                    <Text style={[styles.workToggleText, on && styles.workToggleTextOn]}>
+                                        {opt.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+
+                {hasWork === 'yes' ? (
+                    <>
+                        <TimeRow
+                            label="from"
+                            slot={workStartSlot}
+                            onChange={(v) => {
+                                onChangeWorkStart(v);
+                                if (v >= workEndSlot) onChangeWorkEnd(Math.min(95, v + 4));
+                            }}
+                            min={16}
+                            max={84}
+                        />
+                        <TimeRow
+                            label="to"
+                            slot={workEndSlot}
+                            onChange={(v) => {
+                                onChangeWorkEnd(v);
+                                if (v <= workStartSlot) onChangeWorkStart(Math.max(0, v - 4));
+                            }}
+                            min={20}
+                            max={92}
+                        />
+                    </>
+                ) : null}
+            </View>
+        </View>
+    );
+}
+
+/** One-row time selector: label, big formatted time, glitch-free slider. */
+function TimeRow({
+    label, slot, onChange, min, max,
+}: {
+    label: string;
+    slot: number;
+    onChange: (n: number) => void;
+    min: number;
+    max: number;
+}) {
+    // 15-min snap: round on the way out.
+    const snap = useCallback((n: number) => onChange(Math.round(n)), [onChange]);
+    return (
+        <View>
+            <View style={styles.timeRowHeader}>
+                <Text style={styles.scheduleLabel}>{label}</Text>
+                <Text style={styles.timeValue}>{formatSlot(slot)}</Text>
+            </View>
+            <Slider min={min} max={max} value={slot} onChange={snap} compact />
+        </View>
+    );
+}
+
 /**
  * Custom slider — gesture-handler-free, glitch-free. Drag-tracks a
  * `startValue` captured on grant and applies `dx / trackWidth * range`,
@@ -449,9 +605,13 @@ function UnitToggle({
  * haptic tick on each integer step.
  */
 function Slider({
-    min, max, value, onChange,
+    min, max, value, onChange, compact = false,
 }: {
     min: number; max: number; value: number; onChange: (n: number) => void;
+    /** Use the tight inline layout (no big top margin) — for stacked rows
+     * where each row is its own sub-control. Default style keeps the wide
+     * spacing used on the dedicated number steps (age, height, weight). */
+    compact?: boolean;
 }) {
     const [trackWidth, setTrackWidth] = useState(0);
     const onLayout = (e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width);
@@ -511,7 +671,11 @@ function Slider({
     );
 
     return (
-        <View style={styles.sliderHitArea} onLayout={onLayout} {...panResponder.panHandlers}>
+        <View
+            style={[styles.sliderHitArea, compact && styles.sliderHitAreaCompact]}
+            onLayout={onLayout}
+            {...panResponder.panHandlers}
+        >
             <View style={styles.sliderTrack} pointerEvents="none">
                 <View style={[styles.sliderFill, { width: thumbX }]} />
                 <View style={[styles.sliderThumb, { left: Math.max(0, thumbX - 14) }]} />
@@ -703,12 +867,65 @@ const styles = StyleSheet.create({
         color: colors.buttonText,
     },
 
+    /* schedule (busy hours) step */
+    timeRowHeader: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+    },
+    scheduleLabel: {
+        fontFamily: fonts.sansMedium,
+        fontSize: 13,
+        color: colors.textSecondary,
+        letterSpacing: 0.1,
+    },
+    timeValue: {
+        fontFamily: fonts.serif,
+        fontSize: 22,
+        fontWeight: '400',
+        letterSpacing: -0.5,
+        color: colors.foreground,
+    },
+    workToggleWrap: {
+        gap: 8,
+    },
+    workToggleRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    workToggleBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: borderRadius.md,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        backgroundColor: colors.card,
+        alignItems: 'center',
+    },
+    workToggleBtnOn: {
+        borderColor: colors.foreground,
+        backgroundColor: colors.surfaceLight,
+    },
+    workToggleText: {
+        fontFamily: fonts.sansMedium,
+        fontSize: 13,
+        color: colors.textPrimary,
+    },
+    workToggleTextOn: {
+        color: colors.foreground,
+    },
+
     /* slider */
     sliderHitArea: {
         marginTop: spacing.xl,
         alignSelf: 'stretch',
         height: 44,
         justifyContent: 'center',
+    },
+    sliderHitAreaCompact: {
+        marginTop: 0,
+        height: 36,
     },
     sliderTrack: {
         height: 28,

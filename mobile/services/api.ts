@@ -520,12 +520,20 @@ class ApiService {
         age?: number;
         height?: number;
         weight?: number;
+        height_cm?: number;
+        weight_kg?: number;
         activity_level?: string;
         equipment?: string[];
         skin_type?: string;
         unit_system?: string;
         timezone?: string;
         completed?: boolean;
+        priority_ranking?: string[];
+        wake_time?: string;
+        sleep_time?: string;
+        work_schedule?: 'fixed' | 'flexible';
+        work_start?: string | null;
+        work_end?: string | null;
     }) {
         const response = await this.client.post('users/onboarding', data);
         return response.data;

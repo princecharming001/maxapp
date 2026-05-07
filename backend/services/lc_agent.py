@@ -300,6 +300,30 @@ async def build_agent_system_prompt(
             ]
             if bits:
                 context_str += f"\nPROFILE: {' | '.join(bits)}"
+            # Daily availability — chatbot uses this to plan around work
+            # hours and respect the user's wake/sleep window. Without it
+            # the bot suggests routines at times the user is unavailable
+            # (e.g. "morning skincare at 8am" when they're commuting).
+            wake = (ob.get("wake_time") or "").strip()
+            sleep = (ob.get("sleep_time") or "").strip()
+            work_sched = (ob.get("work_schedule") or "").strip().lower()
+            work_start = (ob.get("work_start") or "").strip()
+            work_end = (ob.get("work_end") or "").strip()
+            avail_bits: list[str] = []
+            if wake:
+                avail_bits.append(f"wakes {wake}")
+            if sleep:
+                avail_bits.append(f"sleeps {sleep}")
+            if work_sched == "fixed" and work_start and work_end:
+                avail_bits.append(f"busy {work_start}–{work_end} (work/school)")
+            elif work_sched == "flexible":
+                avail_bits.append("flexible work/school hours")
+            if avail_bits:
+                context_str += (
+                    f"\nDAILY AVAILABILITY: {' | '.join(avail_bits)}"
+                    f"\n(plan routines around the busy window; AM tasks before "
+                    f"the busy block, PM tasks after; never schedule during it)"
+                )
         if user_context.get("active_schedule"):
             schedule = user_context["active_schedule"]
             label = schedule.get("course_title") or schedule.get("maxx_id") or "?"

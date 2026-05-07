@@ -81,6 +81,14 @@ class OnboardingData(BaseModel):
     # Global schedule anchors — reused when starting any maxx module if already collected
     wake_time: Optional[str] = Field(default=None, description="Usual wake time HH:MM (24h), e.g. 07:00")
     sleep_time: Optional[str] = Field(default=None, description="Usual sleep time HH:MM (24h), e.g. 23:00")
+    # Busy hours — fed to chatbot context so it plans routines around the
+    # user's fixed obligations (work/school). work_schedule == "flexible"
+    # means the user has no fixed daily window; work_start/end are null.
+    work_schedule: Optional[str] = Field(
+        default=None, description="'fixed' | 'flexible' — whether user has set work/school hours.",
+    )
+    work_start: Optional[str] = Field(default=None, description="Work/school start HH:MM (24h)")
+    work_end: Optional[str] = Field(default=None, description="Work/school end HH:MM (24h)")
     completed: bool = False
     # Profile questionnaire v2 (collected before pay in app flow) — optional flag for clients
     questionnaire_v2_completed: Optional[bool] = None
