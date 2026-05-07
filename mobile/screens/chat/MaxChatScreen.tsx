@@ -39,6 +39,34 @@ interface ReplyTarget {
     preview: string;
 }
 
+/**
+ * Map an outgoing message + initContext to the typing-indicator mode.
+ * Keeps the rotating phrases in the placeholder relevant to what the bot
+ * is actually doing — schedule generation gets schedule phrases, product
+ * questions get catalog phrases, etc. Falls back to the generic deck.
+ */
+function pickTypingMode(
+    msg: string,
+    initContext?: string,
+    chatIntent?: string,
+): ChatTypingMode {
+    const ic = (initContext || '').toLowerCase();
+    const lower = (msg || '').toLowerCase();
+    if (ic.startsWith('skinmax') || ic.startsWith('hairmax') || ic.startsWith('fitmax') ||
+        ic.startsWith('heightmax') || ic.startsWith('bonemax') ||
+        /\b(schedule|routine|plan)\b/.test(lower)) {
+        return 'schedule';
+    }
+    if (ic.startsWith('task_help')) return 'protocol';
+    if (chatIntent === 'product' || /\b(product|brand|recommend|buy|amazon|link)\b/.test(lower)) {
+        return 'product';
+    }
+    if (/\b(scan|score|analysis|metric|harmony|symmetry)\b/.test(lower)) return 'analysis';
+    if (/\b(how|what|why|protocol|dose|study)\b/.test(lower)) return 'protocol';
+    if (/\b(feel|stuck|tired|down|frustrated|honest|opinion)\b/.test(lower)) return 'reflection';
+    return 'default';
+}
+
 export default function MaxChatScreen() {
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
@@ -147,7 +175,7 @@ export default function MaxChatScreen() {
         setMessages((prev) => [
             ...prev,
             { role: 'user', content: msg },
-            { role: 'assistant', content: '', isTyping: true, typingMode: initContext ? 'schedule' : 'default' },
+            { role: 'assistant', content: '', isTyping: true, typingMode: pickTypingMode(msg, initContext, chatIntent) },
         ]);
         // Capture-then-clear the reply target before the request fires so a
         // subsequent send while this is in flight starts fresh.
@@ -692,23 +720,32 @@ const styles = StyleSheet.create({
         backgroundColor: colors.card,
     },
     quickReplyRow: {
+        // Sleeker layout — chips sit a bit lower from the input, hairline
+        // borders instead of the heavier 1px borderLight, and a tighter gap
+        // so the row reads as one cluster of options instead of buttons.
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: spacing.sm,
-        marginBottom: spacing.sm,
+        gap: 6,
+        marginBottom: 10,
+        paddingHorizontal: 2,
     },
     quickReplyButton: {
-        backgroundColor: colors.surface,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
+        backgroundColor: colors.card,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
         borderRadius: borderRadius.full,
         paddingHorizontal: 14,
-        paddingVertical: 9,
+        paddingVertical: 8,
+        // Subtle pressed/elevated affordance — looks like glass tablets.
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#0A0A0B', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } }
+            : null),
     },
     quickReplyText: {
         color: colors.textPrimary,
         fontSize: 13,
-        fontWeight: '600',
+        fontWeight: '500',
+        letterSpacing: 0.1,
     },
     inputContainer: {
         flexDirection: 'row',

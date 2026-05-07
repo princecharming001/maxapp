@@ -61,6 +61,7 @@ export default function ChatSliderInput({ spec, onSubmit, disabled }: Props) {
 
     return (
         <View style={styles.container}>
+            {spec.label ? <Text style={styles.label}>{spec.label.toLowerCase()}</Text> : null}
             <View style={styles.valueRow}>
                 <Text style={styles.value}>{displayValue}</Text>
                 {spec.unit ? <Text style={styles.unit}>{spec.unit}</Text> : null}
@@ -89,8 +90,8 @@ export default function ChatSliderInput({ spec, onSubmit, disabled }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel={`Submit ${committedValue}`}
             >
-                <Text style={styles.submitText}>Confirm</Text>
-                <Ionicons name="arrow-forward" size={14} color={colors.foreground} />
+                <Text style={styles.submitText}>confirm</Text>
+                <Ionicons name="arrow-forward" size={13} color={colors.buttonText} />
             </Pressable>
         </View>
     );
@@ -115,7 +116,7 @@ function SliderTrack({ min, max, step, initialValue, onChangeLive, onCommit, dis
     if (Platform.OS === 'web') {
         return (
             <View style={styles.trackWeb}>
-                {/* @ts-expect-error - native HTML element under RN-Web */}
+                {/* @ts-ignore - native HTML element under RN-Web */}
                 <input
                     type="range"
                     min={min}
@@ -228,11 +229,26 @@ function clamp(v: number, lo: number, hi: number): number {
 
 const styles = StyleSheet.create({
     container: {
-        marginTop: spacing.sm,
+        marginTop: spacing.xs,
         marginBottom: spacing.md,
         paddingVertical: spacing.lg,
-        paddingHorizontal: spacing.xs,
+        paddingHorizontal: spacing.md,
         gap: spacing.sm,
+        // Cleaner card surface — frame the slider as its own quiet panel
+        // instead of letting it float against the chat bg.
+        backgroundColor: colors.card,
+        borderRadius: 18,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+    },
+    label: {
+        fontFamily: fonts.sans,
+        fontSize: 12,
+        color: colors.textMuted ?? '#888',
+        letterSpacing: 1.4,
+        textTransform: 'uppercase',
+        textAlign: 'center',
+        marginBottom: 2,
     },
     valueRow: {
         flexDirection: 'row',
@@ -243,19 +259,19 @@ const styles = StyleSheet.create({
     },
     value: {
         fontFamily: fonts.serif,
-        fontSize: 56,
+        fontSize: 64,
         fontWeight: '400',
         color: colors.foreground,
-        letterSpacing: -1.5,
-        lineHeight: 60,
+        letterSpacing: -2,
+        lineHeight: 70,
         includeFontPadding: false,
     },
     unit: {
         fontFamily: fonts.sans,
-        fontSize: 14,
-        fontWeight: '400',
+        fontSize: 13,
+        fontWeight: '500',
         color: colors.textMuted ?? '#888',
-        letterSpacing: 0.4,
+        letterSpacing: 0.6,
         textTransform: 'lowercase',
     },
     trackWeb: {
@@ -304,29 +320,23 @@ const styles = StyleSheet.create({
     },
     submit: {
         marginTop: spacing.md,
-        paddingVertical: 10,
-        paddingHorizontal: spacing.lg,
+        paddingVertical: 11,
+        paddingHorizontal: spacing.xl,
         borderRadius: 999,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border ?? '#2a2a2a',
-        backgroundColor: 'transparent',
+        backgroundColor: colors.foreground,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
         alignSelf: 'center',
+        minWidth: 160,
     },
-    submitPressed: {
-        opacity: 0.6,
-    },
-    submitDisabled: {
-        opacity: 0.3,
-    },
+    submitPressed: { opacity: 0.7 },
+    submitDisabled: { opacity: 0.35 },
     submitText: {
-        color: colors.foreground,
-        fontWeight: '500',
+        color: colors.buttonText,
+        fontWeight: '600',
         fontSize: 13,
-        letterSpacing: 0.4,
-        textTransform: 'uppercase',
+        letterSpacing: 0.6,
     },
 });

@@ -5,11 +5,27 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { colors, spacing, borderRadius, typography } from '../../theme/dark';
 import { CachedImage } from '../../components/CachedImage';
+import { useAuth } from '../../context/AuthContext';
+import { canAccessCourseDocs } from '../../utils/maxxLimits';
 
 export default function CourseDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const { courseId } = route.params;
+    const { user } = useAuth();
+    // Defensive entry guard — list-level intercept already prompts the
+    // upgrade alert, but a deep link or stale stack could land here too.
+    useEffect(() => {
+        if (canAccessCourseDocs(user)) return;
+        Alert.alert(
+            'Premium course',
+            'The full course library is part of Chad. Upgrade to unlock every chapter.',
+            [
+                { text: 'Not now', style: 'cancel', onPress: () => navigation.goBack() },
+                { text: 'Upgrade', onPress: () => navigation.replace('Payment') },
+            ],
+        );
+    }, [user]);
     const [course, setCourse] = useState<any>(null);
     const [progress, setProgress] = useState<any>(null);
     const [loading, setLoading] = useState(true);
