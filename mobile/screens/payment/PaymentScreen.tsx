@@ -54,7 +54,7 @@ const BASIC_PERKS: { label: string; included: boolean }[] = [
 ];
 
 const PREMIUM_PERKS: string[] = [
-    'Chatbot Pro — deeper, more nuanced coaching',
+    'Chatbot Pro',
     '3 active programs',
     'Daily face scans',
     'Full course library',
@@ -448,6 +448,10 @@ const s = StyleSheet.create({
 
     /* premium card (dark glass) */
     premiumWrap: {
+        // Extra top margin so the "MOST POPULAR" ribbon (top: -10) clears
+        // the headline above. Without this, the ribbon overlaps "level."
+        // on iPhone where the headline sits closer to the card.
+        marginTop: spacing.xl,
         marginBottom: spacing.lg,
     },
     popBadge: {

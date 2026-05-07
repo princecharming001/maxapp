@@ -606,11 +606,15 @@ const styles = StyleSheet.create({
         position: 'relative',
     },
     headerMenuButton: {
+        // Anchor to the bottom of the header so the button sits next to the
+        // subtitle row — well below the notch and within thumb reach on
+        // iPhone. Previous `top: 10` placed it up near the safe-area inset
+        // where it was unreachable one-handed.
         position: 'absolute',
-        top: 10,
-        left: spacing.md,
+        bottom: spacing.lg,
+        right: spacing.md,
         zIndex: 2,
-        padding: 6,
+        padding: 8,
     },
     headerEyebrow: {
         ...typography.label,

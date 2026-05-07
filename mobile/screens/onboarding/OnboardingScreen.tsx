@@ -22,10 +22,11 @@
  *   completed:        true
  */
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
     Animated,
     Easing,
+    PanResponder,
     Platform,
     StyleSheet,
     Text,
@@ -33,6 +34,7 @@ import {
     View,
     type LayoutChangeEvent,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -439,8 +441,12 @@ function UnitToggle({
 }
 
 /**
- * Tiny custom slider — flat track + draggable thumb. Works on iOS, Android,
- * and web via the responder system; no community-slider dependency.
+ * Custom slider — gesture-handler-free, glitch-free. Drag-tracks a
+ * `startValue` captured on grant and applies `dx / trackWidth * range`,
+ * so the thumb follows the finger continuously without re-reading
+ * `locationX` (which jitters when responder bubbles between parent and
+ * child). 44pt touch zone with a thinner visual track inside; light
+ * haptic tick on each integer step.
  */
 function Slider({
     min, max, value, onChange,
@@ -450,30 +456,66 @@ function Slider({
     const [trackWidth, setTrackWidth] = useState(0);
     const onLayout = (e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width);
     const range = max - min;
+
+    // Refs for PanResponder closure stability — avoids stale-state bugs.
+    const valueRef = useRef(value);
+    valueRef.current = value;
+    const trackWidthRef = useRef(trackWidth);
+    trackWidthRef.current = trackWidth;
+    const startValueRef = useRef(value);
+    const lastEmittedRef = useRef(value);
+
     const ratio = trackWidth > 0 ? (value - min) / range : 0;
     const thumbX = ratio * trackWidth;
 
-    const handle = useCallback(
-        (locX: number) => {
-            if (trackWidth <= 0) return;
-            const clamped = Math.max(0, Math.min(trackWidth, locX));
-            onChange(Math.round(min + (clamped / trackWidth) * range));
-        },
-        [trackWidth, min, range, onChange]
+    const tickHaptic = useCallback(() => {
+        if (Platform.OS !== 'web') {
+            Haptics.selectionAsync().catch(() => {});
+        }
+    }, []);
+
+    const panResponder = useMemo(
+        () =>
+            PanResponder.create({
+                onStartShouldSetPanResponder: () => true,
+                onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 1 || Math.abs(g.dy) > 1,
+                onPanResponderTerminationRequest: () => false,
+                onPanResponderGrant: (e) => {
+                    const w = trackWidthRef.current;
+                    if (w <= 0) return;
+                    // Tap-to-position: jump on tap, then drag from there.
+                    const x = Math.max(0, Math.min(w, e.nativeEvent.locationX));
+                    const next = Math.round(min + (x / w) * range);
+                    startValueRef.current = next;
+                    if (next !== lastEmittedRef.current) {
+                        lastEmittedRef.current = next;
+                        onChange(next);
+                        tickHaptic();
+                    }
+                },
+                onPanResponderMove: (_e, g) => {
+                    const w = trackWidthRef.current;
+                    if (w <= 0) return;
+                    const delta = (g.dx / w) * range;
+                    const raw = startValueRef.current + delta;
+                    const clamped = Math.max(min, Math.min(max, raw));
+                    const next = Math.round(clamped);
+                    if (next !== lastEmittedRef.current) {
+                        lastEmittedRef.current = next;
+                        onChange(next);
+                        tickHaptic();
+                    }
+                },
+            }),
+        [min, max, range, onChange, tickHaptic]
     );
 
     return (
-        <View
-            style={styles.sliderTrack}
-            onLayout={onLayout}
-            // @ts-ignore — onResponder* on View
-            onStartShouldSetResponder={() => true}
-            onMoveShouldSetResponder={() => true}
-            onResponderGrant={(e) => handle(e.nativeEvent.locationX)}
-            onResponderMove={(e) => handle(e.nativeEvent.locationX)}
-        >
-            <View style={[styles.sliderFill, { width: thumbX }]} />
-            <View style={[styles.sliderThumb, { left: Math.max(0, thumbX - 11) }]} />
+        <View style={styles.sliderHitArea} onLayout={onLayout} {...panResponder.panHandlers}>
+            <View style={styles.sliderTrack} pointerEvents="none">
+                <View style={[styles.sliderFill, { width: thumbX }]} />
+                <View style={[styles.sliderThumb, { left: Math.max(0, thumbX - 14) }]} />
+            </View>
         </View>
     );
 }
@@ -662,29 +704,33 @@ const styles = StyleSheet.create({
     },
 
     /* slider */
-    sliderTrack: {
+    sliderHitArea: {
         marginTop: spacing.xl,
         alignSelf: 'stretch',
-        height: 22,
+        height: 44,
+        justifyContent: 'center',
+    },
+    sliderTrack: {
+        height: 28,
         justifyContent: 'center',
     },
     sliderFill: {
         position: 'absolute',
         left: 0,
-        height: 2,
+        height: 3,
         backgroundColor: colors.foreground,
-        borderRadius: 1,
+        borderRadius: 1.5,
     },
     sliderThumb: {
         position: 'absolute',
         top: 0,
-        width: 22,
-        height: 22,
-        borderRadius: 11,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
         backgroundColor: colors.foreground,
         ...(Platform.OS === 'ios'
-            ? { shadowColor: '#18181b', shadowOpacity: 0.16, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } }
-            : { elevation: 3 }),
+            ? { shadowColor: '#18181b', shadowOpacity: 0.22, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } }
+            : { elevation: 4 }),
     },
 
     /* footer / CTA */
