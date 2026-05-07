@@ -478,21 +478,34 @@ function UnitToggle({
 /*  Step 5 — schedule (busy hours)                                         */
 /* ─────────────────────────────────────────────────────────────────────── */
 
-/** 15-min slot (0..95) → "HH:MM" 24h string. */
+/**
+ * 15-min slot → "HH:MM" 24h string.
+ *
+ * Slots above 95 represent next-day times so a user can pick a 4 AM
+ * bedtime without the bedtime slider running out of room. Slot 96 = 00:00
+ * next day, slot 112 = 04:00 next day, slot 119 = 05:45 next day. We wrap
+ * via modulo so the persisted HH:MM string is always a valid clock face.
+ */
 const slotToHHMM = (slot: number) => {
-    const total = Math.max(0, Math.min(95, Math.round(slot))) * 15;
-    const h = Math.floor(total / 60);
-    const m = total - h * 60;
+    const clamped = Math.max(0, Math.min(143, Math.round(slot)));
+    const total = clamped * 15;
+    const wrapped = total % (24 * 60);
+    const h = Math.floor(wrapped / 60);
+    const m = wrapped - h * 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
-/** 15-min slot (0..95) → "7:30 AM" pretty display. */
+/** 15-min slot → "7:30 AM" pretty display, with next-day awareness. */
 const formatSlot = (slot: number) => {
-    const total = Math.max(0, Math.min(95, Math.round(slot))) * 15;
-    const h24 = Math.floor(total / 60);
-    const m = total - h24 * 60;
+    const clamped = Math.max(0, Math.min(143, Math.round(slot)));
+    const total = clamped * 15;
+    const isNextDay = total >= 24 * 60;
+    const wrapped = total % (24 * 60);
+    const h24 = Math.floor(wrapped / 60);
+    const m = wrapped - h24 * 60;
     const period = h24 >= 12 ? 'PM' : 'AM';
     const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-    return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+    const base = `${h12}:${String(m).padStart(2, '0')} ${period}`;
+    return isNextDay ? `${base} (next day)` : base;
 };
 
 function ScheduleStep({
@@ -549,20 +562,14 @@ function ScheduleStep({
                         <TimeRow
                             label="from"
                             slot={workStartSlot}
-                            onChange={(v) => {
-                                onChangeWorkStart(v);
-                                if (v >= workEndSlot) onChangeWorkEnd(Math.min(95, v + 4));
-                            }}
+                            onChange={onChangeWorkStart}
                             min={16}
                             max={84}
                         />
                         <TimeRow
                             label="to"
                             slot={workEndSlot}
-                            onChange={(v) => {
-                                onChangeWorkEnd(v);
-                                if (v <= workStartSlot) onChangeWorkStart(Math.max(0, v - 4));
-                            }}
+                            onChange={onChangeWorkEnd}
                             min={20}
                             max={92}
                         />
