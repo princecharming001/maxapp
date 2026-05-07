@@ -134,12 +134,12 @@ function SliderTrack({ min, max, step, initialValue, onChangeLive, onCommit, dis
                         onCommit(v);
                     }}
                     style={{
-                        // Bumped to 44 so the rail is taller + thumb is easier
-                        // to land on. Width-100% lets the slider use the full
-                        // chat-pane width so drag distance per step is bigger
-                        // and granular values are easier to nail.
+                        // 36 keeps the rail thumb comfortably tappable on
+                        // iPhone without ballooning the slider card height
+                        // (was 44 — combined with the big serif value
+                        // above, the card overflowed small screens).
                         width: '100%',
-                        height: 44,
+                        height: 36,
                         accentColor: colors.foreground,
                         cursor: disabled ? 'not-allowed' : 'pointer',
                         touchAction: 'none',
@@ -187,10 +187,7 @@ function SliderTrack({ min, max, step, initialValue, onChangeLive, onCommit, dis
                     minimumTrackTintColor={colors.foreground}
                     maximumTrackTintColor={colors.divider ?? '#d4d4d4'}
                     thumbTintColor={colors.foreground}
-                    // Taller rail so the thumb is easier to grab; full width
-                    // gives more horizontal travel per step (granular values
-                    // become easier to land on).
-                    style={{ width: '100%', height: 44 }}
+                    style={{ width: '100%', height: 36 }}
                 />
             </View>
         );
@@ -229,49 +226,51 @@ function clamp(v: number, lo: number, hi: number): number {
 
 const styles = StyleSheet.create({
     container: {
+        // Compact card sized to fit comfortably on iPhone SE (320pt) and
+        // up. Was overflowing on small screens before — value font was
+        // 64pt with 70pt lineHeight, plus full vertical padding stacked
+        // up on every layout. Trimmed every spacing axis ~30%.
         marginTop: spacing.xs,
-        marginBottom: spacing.md,
-        paddingVertical: spacing.lg,
+        marginBottom: spacing.sm,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.md,
         paddingHorizontal: spacing.md,
-        gap: spacing.sm,
-        // Cleaner card surface — frame the slider as its own quiet panel
-        // instead of letting it float against the chat bg.
+        gap: 6,
         backgroundColor: colors.card,
-        borderRadius: 18,
+        borderRadius: 16,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
     },
     label: {
         fontFamily: fonts.sans,
-        fontSize: 12,
+        fontSize: 11,
         color: colors.textMuted ?? '#888',
-        letterSpacing: 1.4,
+        letterSpacing: 1.2,
         textTransform: 'uppercase',
         textAlign: 'center',
-        marginBottom: 2,
     },
     valueRow: {
         flexDirection: 'row',
         alignItems: 'baseline',
         justifyContent: 'center',
         gap: 6,
-        marginBottom: spacing.xs,
+        marginVertical: 2,
     },
     value: {
         fontFamily: fonts.serif,
-        fontSize: 64,
+        fontSize: 44,
         fontWeight: '400',
         color: colors.foreground,
-        letterSpacing: -2,
-        lineHeight: 70,
+        letterSpacing: -1.4,
+        lineHeight: 50,
         includeFontPadding: false,
     },
     unit: {
         fontFamily: fonts.sans,
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '500',
         color: colors.textMuted ?? '#888',
-        letterSpacing: 0.6,
+        letterSpacing: 0.5,
         textTransform: 'lowercase',
     },
     trackWeb: {
@@ -319,9 +318,9 @@ const styles = StyleSheet.create({
         color: colors.foreground,
     },
     submit: {
-        marginTop: spacing.md,
-        paddingVertical: 11,
-        paddingHorizontal: spacing.xl,
+        marginTop: 8,
+        paddingVertical: 9,
+        paddingHorizontal: spacing.lg,
         borderRadius: 999,
         backgroundColor: colors.foreground,
         flexDirection: 'row',
@@ -329,7 +328,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 6,
         alignSelf: 'center',
-        minWidth: 160,
+        minWidth: 140,
     },
     submitPressed: { opacity: 0.7 },
     submitDisabled: { opacity: 0.35 },

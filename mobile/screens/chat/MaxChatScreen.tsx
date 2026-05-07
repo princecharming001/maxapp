@@ -508,57 +508,6 @@ export default function MaxChatScreen() {
         const displayText = productLinks.length > 0 ? stripProductLinkLines(item.content!) : item.content;
         const canReply = !!item.id; // optimistic turns have no real id yet
 
-        const bubbleRow = (
-            <View style={[styles.messageRow, item.role === 'user' && styles.userMessageRow]}>
-                <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.assistantBubble]}>
-                    {item.reply_to ? (
-                        <View style={[
-                            styles.replyQuote,
-                            item.role === 'user' && { borderLeftColor: 'rgba(255,255,255,0.45)' },
-                        ]}>
-                            <Text style={[
-                                styles.replyQuoteRole,
-                                item.role === 'user' && { color: 'rgba(255,255,255,0.7)' },
-                            ]}>
-                                {item.reply_to.role === 'user' ? 'You' : 'Max'}
-                            </Text>
-                            <Text
-                                style={[
-                                    styles.replyQuoteText,
-                                    item.role === 'user' && { color: 'rgba(255,255,255,0.85)' },
-                                ]}
-                                numberOfLines={2}
-                            >
-                                {item.reply_to.preview}
-                            </Text>
-                        </View>
-                    ) : null}
-                    {displayText ? renderLinkedText(displayText, [styles.messageText, item.role === 'user' && styles.userMessageText]) : null}
-                    {productLinks.length > 0 && (
-                        <View style={styles.productLinksContainer}>
-                            {productLinks.map((link, i) => (
-                                <TouchableOpacity
-                                    key={i}
-                                    style={styles.productLinkButton}
-                                    onPress={() => openUrl(link.url)}
-                                    activeOpacity={0.7}
-                                >
-                                    <Ionicons name="cart-outline" size={14} color={colors.foreground} style={{ marginRight: 6 }} />
-                                    <Text style={styles.productLinkText} numberOfLines={1}>{link.label}</Text>
-                                    <Ionicons name="open-outline" size={12} color={colors.textMuted} style={{ marginLeft: 6 }} />
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    )}
-                    {item.attachment_url && item.attachment_type === 'image' && (
-                        <CachedImage uri={api.resolveAttachmentUrl(item.attachment_url)} style={styles.attachmentImage} contentFit="contain" />
-                    )}
-                </View>
-            </View>
-        );
-
-        if (!canReply) return bubbleRow;
-
         const commitReply = () => {
             setReplyTarget({
                 id: item.id!,
@@ -567,29 +516,95 @@ export default function MaxChatScreen() {
             });
         };
 
-        // Two parallel ways to start a reply:
-        //   - Native: swipe-right on the bubble (iMessage gesture).
-        //   - Web + native fallback: long-press on the bubble. ReanimatedSwipeable's
-        //     web support is unreliable so this is the only path that works in the
-        //     localhost browser preview, and it's also a useful alt on iOS for users
-        //     who don't discover the swipe.
-        const longPressable = (
-            <Pressable
-                onLongPress={commitReply}
-                delayLongPress={350}
-                // Don't change the bubble visual on press — long-press should feel
-                // invisible until the action commits.
-                style={({ pressed }) => (pressed ? { opacity: 0.85 } : null)}
-                accessibilityRole="button"
-                accessibilityLabel="Long press to reply"
-            >
-                {bubbleRow}
-            </Pressable>
+        // The bubble itself.
+        const bubble = (
+            <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.assistantBubble]}>
+                {item.reply_to ? (
+                    <View style={[
+                        styles.replyQuote,
+                        item.role === 'user' && { borderLeftColor: 'rgba(255,255,255,0.45)' },
+                    ]}>
+                        <Text style={[
+                            styles.replyQuoteRole,
+                            item.role === 'user' && { color: 'rgba(255,255,255,0.7)' },
+                        ]}>
+                            {item.reply_to.role === 'user' ? 'You' : 'Max'}
+                        </Text>
+                        <Text
+                            style={[
+                                styles.replyQuoteText,
+                                item.role === 'user' && { color: 'rgba(255,255,255,0.85)' },
+                            ]}
+                            numberOfLines={2}
+                        >
+                            {item.reply_to.preview}
+                        </Text>
+                    </View>
+                ) : null}
+                {displayText ? renderLinkedText(displayText, [styles.messageText, item.role === 'user' && styles.userMessageText]) : null}
+                {productLinks.length > 0 && (
+                    <View style={styles.productLinksContainer}>
+                        {productLinks.map((link, i) => (
+                            <TouchableOpacity
+                                key={i}
+                                style={styles.productLinkButton}
+                                onPress={() => openUrl(link.url)}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="cart-outline" size={14} color={colors.foreground} style={{ marginRight: 6 }} />
+                                <Text style={styles.productLinkText} numberOfLines={1}>{link.label}</Text>
+                                <Ionicons name="open-outline" size={12} color={colors.textMuted} style={{ marginLeft: 6 }} />
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
+                {item.attachment_url && item.attachment_type === 'image' && (
+                    <CachedImage uri={api.resolveAttachmentUrl(item.attachment_url)} style={styles.attachmentImage} contentFit="contain" />
+                )}
+            </View>
         );
 
+        // Reply trigger: a small, always-visible icon next to each bubble.
+        // Discord / Slack pattern. We previously tried swipe-to-reply
+        // (works on iOS, broken on web because gesture-handler's web
+        // support is unreliable) and long-press (broken on web because
+        // RN-Web renders Text with default `user-select: text`, so the
+        // browser's text-selection drag steals the press before
+        // onLongPress can fire). An explicit tap-to-reply button is the
+        // only approach that works in every environment.
+        const replyButton = canReply ? (
+            <TouchableOpacity
+                onPress={commitReply}
+                style={styles.bubbleReplyButton}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Reply to this message"
+            >
+                <Ionicons
+                    name="arrow-undo-outline"
+                    size={14}
+                    color={colors.textMuted}
+                />
+            </TouchableOpacity>
+        ) : null;
+
+        const bubbleRow = (
+            <View style={[styles.messageRow, item.role === 'user' && styles.userMessageRow]}>
+                {/* User bubbles: reply button on the LEFT of the bubble. */}
+                {item.role === 'user' ? replyButton : null}
+                {bubble}
+                {/* Assistant bubbles: reply button on the RIGHT. */}
+                {item.role !== 'user' ? replyButton : null}
+            </View>
+        );
+
+        if (!canReply) return bubbleRow;
+
+        // Native still gets the iMessage swipe-to-reply gesture as a
+        // discovery shortcut. Web users use the visible button.
         return (
             <ReplySwipeableRow onCommit={commitReply}>
-                {longPressable}
+                {bubbleRow}
             </ReplySwipeableRow>
         );
     };
@@ -669,7 +684,7 @@ export default function MaxChatScreen() {
                         the quick-reply chip row below: when the backend asks
                         for a number it sends `input_widget`, not `choices`. */}
                     {!loading && inputWidget && inputWidget.type === 'slider' && (
-                        <View style={styles.quickReplyRow}>
+                        <View style={styles.quickReplyStack}>
                             <ChatSliderInput
                                 spec={inputWidget}
                                 onSubmit={(v) => sendMessage(String(v))}
@@ -677,15 +692,22 @@ export default function MaxChatScreen() {
                         </View>
                     )}
                     {!loading && !inputWidget && quickReplies.length > 0 && (
-                        <View style={styles.quickReplyRow}>
+                        <View style={styles.quickReplyStack}>
                             {quickReplies.map((choice) => (
                                 <TouchableOpacity
                                     key={choice}
                                     style={styles.quickReplyButton}
                                     onPress={() => sendMessage(choice)}
-                                    activeOpacity={0.8}
+                                    activeOpacity={0.7}
                                 >
-                                    <Text style={styles.quickReplyText}>{choice}</Text>
+                                    <Text style={styles.quickReplyText} numberOfLines={2}>
+                                        {choice}
+                                    </Text>
+                                    <Ionicons
+                                        name="chevron-forward"
+                                        size={14}
+                                        color={colors.textMuted}
+                                    />
                                 </TouchableOpacity>
                             ))}
                         </View>
@@ -768,8 +790,23 @@ const styles = StyleSheet.create({
     subtitle: { fontSize: 14, color: colors.textSecondary, marginTop: 6, lineHeight: 20 },
     messageList: { padding: spacing.lg, paddingBottom: spacing.xl },
     messageListEmpty: { flexGrow: 1 },
-    messageRow: { flexDirection: 'row', marginBottom: spacing.md, paddingHorizontal: 4 },
+    messageRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        marginBottom: spacing.md,
+        paddingHorizontal: 4,
+        gap: 6,
+    },
     userMessageRow: { justifyContent: 'flex-end' },
+    bubbleReplyButton: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: 0.55,
+        marginBottom: 4,
+    },
     bubble: {
         maxWidth: '82%',
         paddingHorizontal: 16,
@@ -834,33 +871,38 @@ const styles = StyleSheet.create({
         borderTopColor: colors.borderLight,
         backgroundColor: colors.card,
     },
-    quickReplyRow: {
-        // Sleeker layout — chips sit a bit lower from the input, hairline
-        // borders instead of the heavier 1px borderLight, and a tighter gap
-        // so the row reads as one cluster of options instead of buttons.
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 6,
+    quickReplyStack: {
+        // Vertical stack — each option on its own row. Reads cleaner than
+        // wrapped pills, especially for longer answer text. Modern iOS
+        // settings-list aesthetic: hairline-bordered card, chevron on
+        // the right, generous tap target.
+        flexDirection: 'column',
+        gap: 8,
         marginBottom: 10,
         paddingHorizontal: 2,
     },
     quickReplyButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         backgroundColor: colors.card,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
-        borderRadius: borderRadius.full,
+        borderRadius: borderRadius.lg,
         paddingHorizontal: 14,
-        paddingVertical: 8,
-        // Subtle pressed/elevated affordance — looks like glass tablets.
+        paddingVertical: 12,
+        gap: 10,
         ...(Platform.OS === 'ios'
             ? { shadowColor: '#0A0A0B', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } }
             : null),
     },
     quickReplyText: {
+        flex: 1,
         color: colors.textPrimary,
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: '500',
-        letterSpacing: 0.1,
+        letterSpacing: 0.05,
+        lineHeight: 19,
     },
     inputContainer: {
         flexDirection: 'row',
