@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AppState, type AppStateStatus, View, Text, StyleSheet, TextInput, TouchableOpacity, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Linking } from 'react-native';
+import { AppState, type AppStateStatus, View, Text, StyleSheet, TextInput, TouchableOpacity, Pressable, PanResponder, Animated, KeyboardAvoidingView, Platform, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
-import ReanimatedSwipeable, {
-    type SwipeableMethods,
-} from 'react-native-gesture-handler/ReanimatedSwipeable';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -75,6 +72,30 @@ interface ReplyTarget {
  *    swipeable closes itself on commit, so there's never a stale
  *    indented bubble lying around.
  */
+/**
+ * Swipe-right-to-reply, cross-platform.
+ *
+ * Implementation: plain `PanResponder` driving an `Animated.Value` for
+ * translateX. We tried `react-native-gesture-handler/ReanimatedSwipeable`
+ * twice — its callbacks don't fire reliably on RN-Web (the localhost
+ * browser) and its native worklet plumbing makes the JS callback go
+ * stale across re-renders. PanResponder is universal, has zero worklet
+ * indirection, and gives us the exact iMessage gesture: drag right,
+ * release past threshold to commit, bubble springs back.
+ *
+ * Behaviour:
+ *  - Pan grants only on horizontal-dominant drag (Math.abs(dx) > Math.abs(dy)
+ *    AND |dx| > 6) so vertical scrolling stays uninterrupted.
+ *  - Bubble translates right by dx, clamped to [0, 80] (right-only swipe).
+ *  - Reveal a small reply icon underneath that fades in proportional to
+ *    drag distance.
+ *  - On release: if dx > 48 (commit threshold), fire onCommit() (with a
+ *    selection haptic); spring back to 0 either way. Single-fire guard
+ *    so a wobble doesn't double-commit.
+ */
+const SWIPE_THRESHOLD = 48;
+const SWIPE_MAX = 80;
+
 function ReplySwipeableRow({
     onCommit,
     children,
@@ -82,64 +103,69 @@ function ReplySwipeableRow({
     onCommit: () => void;
     children: React.ReactNode;
 }) {
-    const ref = useRef<SwipeableMethods>(null);
-    // Stable latest-onCommit ref — gesture-handler's worklet plumbing
-    // can hold the callback across re-renders, but we want every commit
-    // to use the freshest `setReplyTarget(item)` closure (the parent
-    // recreates `onCommit` per render so the captured `item` is current).
-    // Reading from a ref inside the callback sidesteps any worklet
-    // capture-staleness without wrapping in useCallback.
+    const translateX = useRef(new Animated.Value(0)).current;
     const onCommitRef = useRef(onCommit);
     onCommitRef.current = onCommit;
-
-    // Guard so we never set reply twice for the same swipe (Will + Open
-    // both fire on commit; we just want the first one).
     const firedRef = useRef(false);
 
-    return (
-        <ReanimatedSwipeable
-            ref={ref}
-            friction={2}
-            rightThreshold={40}
-            // Disable left-swipe by giving it a far-out threshold; we only
-            // want the right-swipe → reply gesture, not delete-from-left.
-            leftThreshold={9999}
-            renderLeftActions={() => (
-                <View style={styles.swipeReplyHint}>
-                    <Ionicons name="arrow-undo" size={18} color={colors.textMuted} />
-                </View>
-            )}
-            onSwipeableWillOpen={() => {
-                if (firedRef.current) return;
-                firedRef.current = true;
-                onCommitRef.current();
-                if (Platform.OS !== 'web') {
-                    Haptics.selectionAsync().catch(() => {});
-                }
-            }}
-            onSwipeableOpen={() => {
-                // Belt + suspenders — if WillOpen didn't fire for some
-                // reason (older lib version, edge case), commit here.
-                if (!firedRef.current) {
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => false,
+            onMoveShouldSetPanResponder: (_e, g) =>
+                Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > 6,
+            onPanResponderGrant: () => {
+                firedRef.current = false;
+                translateX.setValue(0);
+            },
+            onPanResponderMove: (_e, g) => {
+                if (g.dx <= 0) return;
+                const clamped = Math.min(g.dx, SWIPE_MAX);
+                translateX.setValue(clamped);
+                if (!firedRef.current && clamped >= SWIPE_THRESHOLD) {
                     firedRef.current = true;
                     onCommitRef.current();
                     if (Platform.OS !== 'web') {
                         Haptics.selectionAsync().catch(() => {});
                     }
                 }
-                // Snap back. Slight delay so the open animation finishes
-                // gracefully before the close kicks in — without this the
-                // gesture-handler library can swallow the close because
-                // it's still processing the open transition.
-                setTimeout(() => ref.current?.close(), 80);
-            }}
-            onSwipeableClose={() => {
-                // Re-arm for the next swipe.
-                firedRef.current = false;
-            }}
-        >
-            {children}
-        </ReanimatedSwipeable>
+            },
+            onPanResponderRelease: () => {
+                Animated.spring(translateX, {
+                    toValue: 0,
+                    useNativeDriver: true,
+                    speed: 18,
+                    bounciness: 6,
+                }).start();
+            },
+            onPanResponderTerminate: () => {
+                Animated.spring(translateX, {
+                    toValue: 0,
+                    useNativeDriver: true,
+                    speed: 18,
+                    bounciness: 6,
+                }).start();
+            },
+        })
+    ).current;
+
+    const hintOpacity = translateX.interpolate({
+        inputRange: [0, SWIPE_THRESHOLD],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    });
+
+    return (
+        <View style={styles.swipeWrap}>
+            <Animated.View style={[styles.swipeReplyHint, { opacity: hintOpacity }]} pointerEvents="none">
+                <Ionicons name="arrow-undo" size={18} color={colors.textMuted} />
+            </Animated.View>
+            <Animated.View
+                style={{ transform: [{ translateX }] }}
+                {...panResponder.panHandlers}
+            >
+                {children}
+            </Animated.View>
+        </View>
     );
 }
 
@@ -564,44 +590,16 @@ export default function MaxChatScreen() {
             </View>
         );
 
-        // Reply trigger: a small, always-visible icon next to each bubble.
-        // Discord / Slack pattern. We previously tried swipe-to-reply
-        // (works on iOS, broken on web because gesture-handler's web
-        // support is unreliable) and long-press (broken on web because
-        // RN-Web renders Text with default `user-select: text`, so the
-        // browser's text-selection drag steals the press before
-        // onLongPress can fire). An explicit tap-to-reply button is the
-        // only approach that works in every environment.
-        const replyButton = canReply ? (
-            <TouchableOpacity
-                onPress={commitReply}
-                style={styles.bubbleReplyButton}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel="Reply to this message"
-            >
-                <Ionicons
-                    name="arrow-undo-outline"
-                    size={14}
-                    color={colors.textMuted}
-                />
-            </TouchableOpacity>
-        ) : null;
-
         const bubbleRow = (
             <View style={[styles.messageRow, item.role === 'user' && styles.userMessageRow]}>
-                {/* User bubbles: reply button on the LEFT of the bubble. */}
-                {item.role === 'user' ? replyButton : null}
                 {bubble}
-                {/* Assistant bubbles: reply button on the RIGHT. */}
-                {item.role !== 'user' ? replyButton : null}
             </View>
         );
 
         if (!canReply) return bubbleRow;
 
-        // Native still gets the iMessage swipe-to-reply gesture as a
-        // discovery shortcut. Web users use the visible button.
+        // Swipe-right to reply. PanResponder-based (see ReplySwipeableRow
+        // above) so it works on web AND native. No visible reply button.
         return (
             <ReplySwipeableRow onCommit={commitReply}>
                 {bubbleRow}
@@ -700,7 +698,11 @@ export default function MaxChatScreen() {
                                     onPress={() => sendMessage(choice)}
                                     activeOpacity={0.7}
                                 >
-                                    <Text style={styles.quickReplyText} numberOfLines={2}>
+                                    <Text
+                                        style={styles.quickReplyText}
+                                        numberOfLines={1}
+                                        ellipsizeMode="tail"
+                                    >
                                         {choice}
                                     </Text>
                                     <Ionicons
@@ -798,15 +800,6 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     userMessageRow: { justifyContent: 'flex-end' },
-    bubbleReplyButton: {
-        width: 26,
-        height: 26,
-        borderRadius: 13,
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: 0.55,
-        marginBottom: 4,
-    },
     bubble: {
         maxWidth: '82%',
         paddingHorizontal: 16,
@@ -890,7 +883,7 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
         borderRadius: borderRadius.lg,
         paddingHorizontal: 14,
-        paddingVertical: 12,
+        paddingVertical: 10,
         gap: 10,
         ...(Platform.OS === 'ios'
             ? { shadowColor: '#0A0A0B', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } }
@@ -902,7 +895,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '500',
         letterSpacing: 0.05,
-        lineHeight: 19,
     },
     inputContainer: {
         flexDirection: 'row',
@@ -914,12 +906,20 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
     },
-    // --- iMessage-style swipe-to-reply UI ---
+    // --- swipe-to-reply UI ---
+    swipeWrap: {
+        // Wrap the bubble + the absolute reply hint that fades in
+        // underneath as the user drags right.
+        position: 'relative',
+    },
     swipeReplyHint: {
-        width: 56,
-        justifyContent: 'center',
+        position: 'absolute',
+        left: 12,
+        top: 0,
+        bottom: 0,
+        width: 36,
         alignItems: 'center',
-        paddingVertical: 8,
+        justifyContent: 'center',
     },
     replyQuote: {
         borderLeftWidth: 2,

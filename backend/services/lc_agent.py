@@ -370,7 +370,13 @@ async def build_agent_system_prompt(
     # Web-search fallback policy — appended to whichever prompt we ended
     # up with. Tells the agent when to escalate beyond the doc layer.
     chat_prompt += (
-        "\n\n## PRODUCT RECOMMENDATIONS — ALWAYS LINK WHEN ASKED\n"
+        # Style note for the model: prefer commas / colons / periods over
+        # em-dashes in your prose. Em-dashes feel overused; vary the
+        # punctuation so the answer reads natural, not template-y.
+        "\n\n## STYLE: do NOT overuse em-dashes (—) in your replies. "
+        "Prefer commas, colons, or periods. One em-dash per response is "
+        "fine; back-to-back is not.\n"
+        "## PRODUCT RECOMMENDATIONS: ALWAYS LINK WHEN ASKED\n"
         "When the user asks for a product, brand, supplement, skincare "
         "item, what to buy, or 'links/recs/recommendations', you MUST "
         "call `recommend_product(module, concern)` and surface the links "

@@ -3199,7 +3199,7 @@ async def _handle_context_change(
                 await _persist_user_wake_sleep(user, db, None, value)
             await db.commit()
             return (
-                f"got it — {kind.replace('_',' ')} now {value}. retimed your active schedules.",
+                f"got it, {kind.replace('_',' ')} now {value}. retimed your active schedules.",
                 [], None,
             )
         # Otherwise fall through and treat as new turn (cancel pending).
@@ -3226,7 +3226,7 @@ async def _handle_context_change(
             await _persist_user_wake_sleep(user, db, None, value)
         await db.commit()
         return (
-            f"got it — {kind.replace('_',' ')} now {value}. retimed your active schedules.",
+            f"got it, {kind.replace('_',' ')} now {value}. retimed your active schedules.",
             [], None,
         )
 
@@ -3256,13 +3256,13 @@ def _humanize_context_ack(kind: str, value: object) -> str:
     is_truthy = v is True or (isinstance(v, str) and v.lower() in ("true", "yes", "y"))
     is_falsy = v is False or (isinstance(v, str) and v.lower() in ("false", "no", "n"))
 
-    # Boolean-shaped concerns — "you have/don't have X".
+    # Boolean-shaped concerns: "you have/don't have X".
     bool_kinds = {
-        "posture_issues":   ("noted — posture is on the radar.",      "good — no posture flags."),
-        "outdoor":          ("noted — you're outside a lot.",         "noted — mostly indoors."),
-        "thinning":         ("noted — hair thinning is on the list.", "good — no thinning flagged."),
-        "hair_thinning":    ("noted — hair thinning is on the list.", "good — no thinning flagged."),
-        "dermastamp_owned": ("noted — you've got a dermastamp.",      "no dermastamp on file — pencilled in."),
+        "posture_issues":   ("noted, posture is on the radar.",      "good, no posture flags."),
+        "outdoor":          ("noted, you're outside a lot.",         "noted, mostly indoors."),
+        "thinning":         ("noted, hair thinning is on the list.", "good, no thinning flagged."),
+        "hair_thinning":    ("noted, hair thinning is on the list.", "good, no thinning flagged."),
+        "dermastamp_owned": ("noted, you've got a dermastamp.",      "no dermastamp on file, pencilled in."),
     }
     if k in bool_kinds and (is_truthy or is_falsy):
         msg_true, msg_false = bool_kinds[k]
@@ -3270,16 +3270,16 @@ def _humanize_context_ack(kind: str, value: object) -> str:
 
     # Time / numeric kinds with a clean string form.
     if k == "wake_time":
-        return f"got it — wake at {v}. routines retimed around it."
+        return f"got it, wake at {v}. routines retimed around it."
     if k == "sleep_time":
-        return f"got it — bed at {v}. routines retimed around it."
+        return f"got it, bed at {v}. routines retimed around it."
     if k == "training" and isinstance(v, (str, int)):
-        return f"got it — training {v}. workouts re-spaced to fit."
+        return f"got it, training {v}. workouts re-spaced to fit."
     if k == "equipment":
-        return f"got it — equipment is {v}. workouts updated to match."
+        return f"got it, equipment is {v}. workouts updated to match."
 
-    # Generic fallback — phrase it like a coach, not a JSON dump.
-    return "got it — saved that. routines updated to match."
+    # Generic fallback: phrase it like a coach, not a JSON dump.
+    return "got it, saved that. routines updated to match."
 
 
 # (Old _handle_context_change body removed — replaced by the chat_intent_detector
