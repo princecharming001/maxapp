@@ -182,37 +182,43 @@ def live_allowed_urls() -> set[str]:
 #  URL liveness check                                                    #
 # ---------------------------------------------------------------------- #
 
-# Cache of {url: is_alive} so repeated calls for the same query don't
-# re-hit Amazon. TTL: 24h. Capped at 2k entries.
-_LIVE_CHECK_CACHE: dict[str, tuple[float, bool]] = {}
+# Cache of {url: (timestamp, (alive, title))} so repeated calls for the
+# same query don't re-hit Amazon. TTL: 24h. Capped at 2k entries.
+_LIVE_CHECK_CACHE: dict[str, tuple[float, tuple[bool, str]]] = {}
 _LIVE_CHECK_TTL_S = 86400.0
 _LIVE_CHECK_MAX = 2048
 
 
-async def _is_alive(url: str, *, timeout_s: float = 4.0) -> bool:
-    """HEAD-request `url` and decide if Amazon is currently serving a
-    real product page for it.
+_TITLE_RE = re.compile(
+    r'<span\s+id="productTitle"[^>]*>([^<]+)</span>',
+    re.IGNORECASE | re.DOTALL,
+)
+_HEAD_TITLE_RE = re.compile(r"<title>([^<]+)</title>", re.IGNORECASE)
 
-    Heuristic:
-      - 200/301/302 with a final URL still on amazon.com/.../dp/<ASIN>
-        (NOT redirected to /errors/, /b?node=, or homepage) → alive.
-      - 404, 410, or redirect to a search/error page → dead.
 
-    Network errors fail-open (return True) — we'd rather show a slightly-
-    stale link than block the agent's whole reply on a flaky connection.
-    The cache TTL handles repeat damage if the URL is genuinely dead.
+async def _probe_url(url: str, *, timeout_s: float = 4.5) -> tuple[bool, str]:
+    """Fetch enough of `url` to decide both:
+       (a) is it serving a real product page (alive=True)
+       (b) what is the product title (so the caller can verify relevance)
+
+    Strategy:
+      - Range 0-32K so we read enough HTML to capture <title> AND the
+        productTitle span without downloading full marketing assets.
+      - Real-browser User-Agent (Amazon serves a different shell to
+        scraper-shaped UAs and the title element changes).
+      - Returns (alive, title). On any network error we now return
+        (False, "") — fail-CLOSED. The previous fail-open policy let
+        invalid links through under flaky network conditions.
     """
     import time
-    now = time.time()
     cached = _LIVE_CHECK_CACHE.get(url)
-    if cached and (now - cached[0]) < _LIVE_CHECK_TTL_S:
-        return cached[1]
+    if cached and (time.time() - cached[0]) < _LIVE_CHECK_TTL_S:
+        # Cache holds (alive, title) tuples now — pull both.
+        return cached[1]   # type: ignore[return-value]
 
-    alive = True   # fail-open default
+    result: tuple[bool, str] = (False, "")
     try:
         import httpx
-        # Amazon serves different pages to bot UAs; mimic a desktop browser.
-        # `allow_redirects=True` so we see where Amazon ultimately lands.
         headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) "
@@ -227,8 +233,10 @@ async def _is_alive(url: str, *, timeout_s: float = 4.0) -> bool:
             timeout=timeout_s,
             headers=headers,
         ) as client:
-            # Use GET (range-limited) — Amazon often blocks plain HEAD.
-            r = await client.get(url, headers={**headers, "Range": "bytes=0-2048"})
+            r = await client.get(
+                url,
+                headers={**headers, "Range": "bytes=0-32768"},
+            )
             final = str(r.url).lower()
             status = r.status_code
             alive = (
@@ -237,54 +245,124 @@ async def _is_alive(url: str, *, timeout_s: float = 4.0) -> bool:
                 and "/errors/" not in final
                 and "/ref=cs_503" not in final
                 and "/b?node=" not in final
-                # If Amazon bounced to homepage, it's a soft-404.
                 and not re.match(
                     r"^https?://(?:www\.)?amazon\.com/?(?:\?[^#]*)?$",
                     final,
                 )
             )
-            # Body-level sanity: if the page literally says "Currently
-            # unavailable" or "we couldn't find that page", treat as dead.
+            title = ""
             if alive and r.text:
-                txt = r.text[:8000].lower()
+                body = r.text[:32000]
+                low = body.lower()
                 if (
-                    "currently unavailable" in txt and "we don't know when" in txt
-                ) or (
-                    "page not found" in txt or "we couldn't find that page" in txt
+                    ("currently unavailable" in low and "we don't know when" in low)
+                    or "page not found" in low
+                    or "we couldn't find that page" in low
+                    or "looking for something?" in low   # Amazon's 404 footer
                 ):
                     alive = False
+                else:
+                    m = _TITLE_RE.search(body)
+                    if not m:
+                        m = _HEAD_TITLE_RE.search(body)
+                    if m:
+                        title = re.sub(r"\s+", " ", m.group(1)).strip()
+                        # Trim Amazon's "Amazon.com:" prefix and any
+                        # trailing " : ..." junk.
+                        title = re.sub(r"^amazon\.com\s*:?\s*", "", title, flags=re.IGNORECASE)
+                        title = title[:300]
+            result = (alive, title)
     except Exception as e:
-        logger.debug("[product_search] liveness probe network err for %s: %s", url, e)
-        alive = True   # fail-open
+        logger.debug("[product_search] probe net err for %s: %s", url, e)
+        # FAIL-CLOSED — bad link is worse than no link.
+        result = (False, "")
 
-    _LIVE_CHECK_CACHE[url] = (now, alive)
+    _LIVE_CHECK_CACHE[url] = (time.time(), result)   # type: ignore[assignment]
     if len(_LIVE_CHECK_CACHE) > _LIVE_CHECK_MAX:
         ranked = sorted(_LIVE_CHECK_CACHE.items(), key=lambda kv: kv[1][0])
         for k, _ in ranked[: len(_LIVE_CHECK_CACHE) // 4]:
             _LIVE_CHECK_CACHE.pop(k, None)
+    return result
+
+
+# Backward-compat shim — anything outside this module still calling
+# _is_alive(url) just gets the boolean.
+async def _is_alive(url: str, *, timeout_s: float = 4.5) -> bool:
+    alive, _title = await _probe_url(url, timeout_s=timeout_s)
+    return alive
     return alive
 
 
-async def _filter_alive(hits: list["ProductHit"], *, limit: int) -> list["ProductHit"]:
-    """Run liveness checks in parallel; return up to `limit` ProductHits
-    whose URLs Amazon is currently serving as real product pages.
+_STOPWORDS = {
+    "the", "and", "for", "with", "of", "a", "an", "to", "in", "on",
+    "best", "good", "top", "your", "you", "buy", "amazon", "site", "com",
+}
 
-    Order is preserved (search-rank order) — we don't re-rank by
-    liveness, just drop dead links. Bounded at `limit * 2` checks so a
-    pathological all-dead query doesn't blow the timeout budget."""
+
+def _query_keywords(query: str) -> set[str]:
+    """Tokenize a user query into meaningful keywords for relevance check."""
+    if not query:
+        return set()
+    toks = re.findall(r"[a-z0-9]{3,}", query.lower())
+    return {t for t in toks if t not in _STOPWORDS}
+
+
+def _title_matches_query(title: str, query_keywords: set[str]) -> bool:
+    """Does the product title contain at least one query keyword?
+
+    Conservative: if we have NO keywords (empty query) we accept (no
+    filter signal). Otherwise we require ≥1 overlap so the linked
+    product is at least topically adjacent to what the user asked.
+    Drops the "user asks for moisturizer, DDG returns moisturizer-themed
+    coffee mug" failure mode the user reported.
+    """
+    if not query_keywords:
+        return True
+    if not title:
+        return False
+    title_toks = set(re.findall(r"[a-z0-9]{3,}", title.lower()))
+    return bool(query_keywords & title_toks)
+
+
+async def _filter_alive(
+    hits: list["ProductHit"],
+    *,
+    limit: int,
+    query_keywords: Optional[set[str]] = None,
+) -> list["ProductHit"]:
+    """Run liveness + relevance checks in parallel; return up to `limit`
+    ProductHits whose URLs Amazon is serving AND whose product title
+    overlaps the user's query keywords.
+
+    Two-stage filter (alive AND relevant) is what catches the
+    "valid-but-wrong-product" failure mode. Order preserved (search-rank).
+    Bounded at `limit * 3` candidates so an all-dead/all-irrelevant
+    query can't blow the timeout budget."""
     if not hits:
         return []
-    candidates = hits[: max(limit * 2, limit)]
+    candidates = hits[: max(limit * 3, limit)]
     results = await asyncio.gather(
-        *[_is_alive(h.url) for h in candidates],
+        *[_probe_url(h.url) for h in candidates],
         return_exceptions=True,
     )
     out: list[ProductHit] = []
-    for h, ok in zip(candidates, results):
-        if isinstance(ok, Exception):
+    for h, res in zip(candidates, results):
+        if isinstance(res, Exception):
             continue
-        if ok:
-            out.append(h)
+        alive, title = res
+        if not alive:
+            continue
+        if query_keywords and not _title_matches_query(title, query_keywords):
+            logger.debug(
+                "[product_search] dropping irrelevant hit: %s (title=%r, keywords=%s)",
+                h.url, title, query_keywords,
+            )
+            continue
+        # Upgrade the hit's name to the actual Amazon title when we have
+        # one — DDG titles are often truncated or cluttered.
+        if title and len(title) > len(h.name):
+            h = ProductHit(name=title[:120], url=h.url, snippet=h.snippet, source=h.source)
+        out.append(h)
         if len(out) >= limit:
             break
     return out
@@ -363,15 +441,16 @@ async def search_live(
             source="live",
         ))
 
-    # Stage 2: liveness check. Drops 404s / "currently unavailable" /
-    # redirect-to-homepage results. Parallelized; cached 24h.
-    hits = await _filter_alive(raw_hits, limit=max_results)
+    # Stage 2: liveness AND relevance check. Drops both dead URLs AND
+    # alive-but-off-topic products (the "moisturizer mug" failure mode).
+    keywords = _query_keywords(query)
+    hits = await _filter_alive(raw_hits, limit=max_results, query_keywords=keywords)
     for h in hits:
         _record_url(h.url)
 
     logger.info(
-        "[product_search] %d/%d alive for %r (module=%s, raw=%d)",
-        len(hits), len(raw_hits), shaped, module, len(raw or []),
+        "[product_search] %d/%d kept for %r (module=%s, raw=%d, kw=%s)",
+        len(hits), len(raw_hits), shaped, module, len(raw or []), sorted(keywords),
     )
     return hits
 

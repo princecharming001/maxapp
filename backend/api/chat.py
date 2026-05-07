@@ -289,6 +289,39 @@ def _finalize_assistant_message(text: str) -> str:
     return _scrub_tech_leak(text).replace("*", "").lower()
 
 
+# Marker the LLM emits when it wants to clarify with MCQ chips. Server
+# parses the marker out of the response, strips it from the user-visible
+# text, and returns the options as the `choices` field on the chat
+# response. Mobile renders that field as the existing quick-reply chip
+# row.
+_CHOICES_MARKER_RE = re.compile(
+    r"\[CHOICES\]\s*([^\[\]]*?)\s*\[/CHOICES\]",
+    re.IGNORECASE,
+)
+
+
+def _extract_inline_choices(text: str) -> tuple[str, list[str]]:
+    """If `text` contains a [CHOICES]a|b|c[/CHOICES] marker, return the
+    cleaned text + the options list. Otherwise return (text, [])."""
+    if not text:
+        return text, []
+    m = _CHOICES_MARKER_RE.search(text)
+    if not m:
+        return text, []
+    raw = m.group(1)
+    options = [
+        opt.strip().rstrip(".,;:")
+        for opt in raw.split("|")
+        if opt and opt.strip()
+    ]
+    # Drop fragments shorter than 1 char or longer than 50 (LLM mishaps).
+    options = [o for o in options if 1 <= len(o) <= 50][:6]
+    cleaned = _CHOICES_MARKER_RE.sub("", text).strip()
+    # Tidy up trailing whitespace/punctuation left by the strip.
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned, options
+
+
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 FITMAX_REQUIRED_FIELDS = [
@@ -3863,6 +3896,20 @@ async def _send_message_locked(
         )
     except Exception as _e:
         logger.warning("could not schedule bg fact extractor: %s", _e)
+
+    # Last-mile MCQ extraction: if the assistant emitted a
+    # [CHOICES]a|b|c[/CHOICES] marker (only when it determined the user's
+    # question was too vague to answer well), parse it out and return
+    # the options in the `choices` field. The mobile client renders
+    # those as the existing quick-reply chip row, so the LLM can
+    # actively drive clarification UX without a custom widget.
+    # Skip when an upstream path already supplied choices (e.g. maxx
+    # onboarding's structured options) so we don't override those.
+    if not choices:
+        cleaned_text, mcq_choices = _extract_inline_choices(response_text or "")
+        if mcq_choices:
+            response_text = cleaned_text
+            choices = mcq_choices
 
     return ChatResponse(
         response=response_text,

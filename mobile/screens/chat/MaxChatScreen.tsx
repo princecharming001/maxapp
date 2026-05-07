@@ -590,16 +590,36 @@ export default function MaxChatScreen() {
             </View>
         );
 
+        // Two parallel reply paths:
+        //   - Swipe-right (PanResponder) — native iMessage-style gesture.
+        //   - Tiny always-visible reply icon — discoverable, works in every
+        //     browser even when scroll/text-selection wins the gesture race.
+        // Web research: Discord, Telegram-Web, Slack all use explicit
+        // buttons because trackpad/mouse swipe handlers are inherently
+        // unreliable across browsers; swipe on mobile native is the
+        // expected gesture there. We support both.
+        const replyIcon = canReply ? (
+            <TouchableOpacity
+                onPress={commitReply}
+                style={styles.bubbleReplyButton}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Reply"
+            >
+                <Ionicons name="arrow-undo-outline" size={13} color={colors.textMuted} />
+            </TouchableOpacity>
+        ) : null;
+
         const bubbleRow = (
             <View style={[styles.messageRow, item.role === 'user' && styles.userMessageRow]}>
+                {item.role === 'user' ? replyIcon : null}
                 {bubble}
+                {item.role !== 'user' ? replyIcon : null}
             </View>
         );
 
         if (!canReply) return bubbleRow;
 
-        // Swipe-right to reply. PanResponder-based (see ReplySwipeableRow
-        // above) so it works on web AND native. No visible reply button.
         return (
             <ReplySwipeableRow onCommit={commitReply}>
                 {bubbleRow}
@@ -800,6 +820,14 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     userMessageRow: { justifyContent: 'flex-end' },
+    bubbleReplyButton: {
+        width: 24,
+        height: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: 0.45,
+        marginBottom: 6,
+    },
     bubble: {
         maxWidth: '82%',
         paddingHorizontal: 16,

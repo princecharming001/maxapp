@@ -406,6 +406,26 @@ async def build_agent_system_prompt(
         "trust it.\n"
     )
     chat_prompt += (
+        "\n\n## CLARIFY VAGUE QUESTIONS WITH MCQ\n"
+        "When the user's question is too underspecified to answer well "
+        "(e.g. 'what should i do for my skin?', 'help with workouts'), "
+        "ask ONE focused clarifying question and offer 2-4 short concrete "
+        "options. Emit them with the marker:\n"
+        "    [CHOICES]option a|option b|option c[/CHOICES]\n"
+        "Place the marker at the END of your reply. The client strips it "
+        "from the displayed text and renders the options as tappable "
+        "chips. Each option must be 1-5 words. Examples of when to use:\n"
+        "  - User says 'help with skin' → 'what's bothering you most?' "
+        "[CHOICES]acne|dryness|oily|sensitive[/CHOICES]\n"
+        "  - User says 'i want to start working out' → 'what do you have "
+        "access to?' [CHOICES]full gym|home dumbbells|bodyweight only[/CHOICES]\n"
+        "  - User says 'recommend a moisturizer' → 'what's your skin "
+        "type?' [CHOICES]dry|oily|combination|sensitive[/CHOICES]\n"
+        "Do NOT use the marker for normal questions you can answer "
+        "directly. Use it only when you genuinely need user input to "
+        "give a useful answer.\n"
+    )
+    chat_prompt += (
         "\n\n## WEB SEARCH FALLBACK\n"
         "If the user asks a factual / how-to / current-info question and "
         "your doc-grounded knowledge (or search_knowledge tool) doesn't "
