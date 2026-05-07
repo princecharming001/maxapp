@@ -182,13 +182,24 @@ export default function MaxChatScreen() {
             setInputWidget(input_widget && input_widget.type === 'slider' ? input_widget as SliderSpec : null);
             // Invalidate the conversations list so the sidebar reorders + renames.
             queryClient.invalidateQueries({ queryKey: queryKeys.chatConversations });
+            // Schedule + maxes can change as a side effect of any chat turn
+            // (start a maxx, complete onboarding, schedule regenerated, etc).
+            // refetchType:'all' forces *inactive* observers to refetch too,
+            // so when the user navigates to Master Schedule or Home next,
+            // they see the updated state immediately instead of the stale
+            // cached version. invalidate alone (active only) was the cause
+            // of the "made a schedule but home/master didn't update" lag.
             queryClient.invalidateQueries({
-                predicate: (q) => {
-                    const k = q.queryKey;
-                    return k === queryKeys.schedulesActiveFull
-                        || k === queryKeys.activeSchedulesSummary
-                        || k === queryKeys.maxes;
-                },
+                queryKey: queryKeys.schedulesActiveFull,
+                refetchType: 'all',
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.activeSchedulesSummary,
+                refetchType: 'all',
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.maxes,
+                refetchType: 'all',
             });
         } catch (e: any) {
             console.error('sendMessageWithContext error:', e?.response?.data || e?.message || e);
@@ -442,18 +453,13 @@ export default function MaxChatScreen() {
 
     const ListEmpty = () => (
         <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Start a conversation</Text>
-            <Text style={styles.emptySubtitle}>Ask Max about lookmaxxing, routines, or anything else.</Text>
+            <Text style={styles.emptyTitle}>ask anything.</Text>
+            <Text style={styles.emptySubtitle}>routines, products, what to do today.</Text>
         </View>
     );
 
     return (
         <View style={styles.container}>
-            {/* Faint chat icon watermark in center background */}
-            <View style={styles.watermarkWrap} pointerEvents="none">
-                <Ionicons name="chatbubbles" size={140} color={colors.textMuted} style={styles.watermarkIcon} />
-            </View>
-
             <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
                 <View style={[styles.header, { paddingTop: Math.max(insets.top + spacing.md, 52) }]}>
                     <TouchableOpacity
@@ -589,14 +595,6 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     keyboardView: { flex: 1 },
     historyLoading: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: spacing.xxl },
-    watermarkWrap: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    watermarkIcon: {
-        opacity: 0.07,
-    },
     header: {
         paddingHorizontal: spacing.lg,
         paddingBottom: spacing.lg,
@@ -672,8 +670,21 @@ const styles = StyleSheet.create({
     typingText: { fontSize: 14, color: colors.textMuted, fontStyle: 'italic' },
     attachmentImage: { width: 220, height: 160, borderRadius: 12, marginTop: spacing.sm },
     emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.xl },
-    emptyTitle: { fontSize: 18, fontWeight: '600', color: colors.foreground, marginBottom: 8 },
-    emptySubtitle: { fontSize: 14, color: colors.textMuted, textAlign: 'center', lineHeight: 20 },
+    emptyTitle: {
+        fontFamily: fonts.serif,
+        fontSize: 32,
+        fontWeight: '400',
+        letterSpacing: -0.8,
+        color: colors.foreground,
+        marginBottom: 10,
+    },
+    emptySubtitle: {
+        fontFamily: fonts.sans,
+        fontSize: 14,
+        color: colors.textMuted,
+        textAlign: 'center',
+        letterSpacing: 0.1,
+    },
     outerInputContainer: {
         padding: spacing.md,
         borderTopWidth: 1,

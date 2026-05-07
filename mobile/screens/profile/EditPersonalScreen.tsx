@@ -15,6 +15,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { maxHomeMaxxesForUser } from '../../utils/maxxLimits';
@@ -56,24 +57,21 @@ const ACTIVITY_LEVELS = [
 ];
 
 function hydrateFromOnboarding(ob: Record<string, any>) {
+  // Mirrors the live onboarding flow — only the 5 questions we ask there
+  // (gender + age + body + schedule + priority). Older fields like
+  // appearance_concerns / skin / hair / training / screen-time are kept
+  // in user.onboarding as-is on save (via {...base} spread) so notification
+  // engines and schedule generators that still depend on them keep working,
+  // but we no longer surface those edits in the UI.
   return {
-    priorityOrder: normalizePriorityOrder(ob.priority_order),
-    appearanceConcerns: Array.isArray(ob.appearance_concerns) ? [...ob.appearance_concerns] : [],
-    primarySkin: ob.primary_skin_concern || '',
-    secondarySkin: ob.secondary_skin_concern && ob.secondary_skin_concern !== '' ? ob.secondary_skin_concern : 'none',
-    skincareRoutine: ob.skincare_routine_level || '',
-    hairFamily: ob.hair_family_history || '',
-    hairLoss: ob.hair_current_loss || '',
-    hairTreatments: ob.hair_treatments_current || '',
-    fitGoal: ob.fitmax_primary_goal || ob.primary_goal || '',
-    fitExperience: ob.fitmax_training_experience || ob.training_experience || 'beginner',
-    fitEquipment: inferFitEquipmentFromOnboarding(ob),
-    fitDays: typeof ob.fitmax_workout_days_per_week === 'number' ? ob.fitmax_workout_days_per_week : null,
+    priorityRanking: Array.isArray(ob.priority_ranking)
+      ? [...ob.priority_ranking]
+      : normalizePriorityOrder(ob.priority_order),
     wakeTime: ob.wake_time || '07:00',
     sleepTime: ob.sleep_time || '23:00',
-    workoutTime:
-      ob.preferred_workout_time || ob.fitmax_preferred_workout_time || ob.heightmax_workout_time || '18:00',
-    screenBand: inferScreenBand(ob),
+    workSchedule: (ob.work_schedule as 'fixed' | 'flexible' | undefined) || null,
+    workStart: ob.work_start || '09:00',
+    workEnd: ob.work_end || '17:00',
   };
 }
 
@@ -130,35 +128,21 @@ export default function EditPersonalScreen() {
   const [activityLevel, setActivityLevel] = useState(user?.onboarding?.activity_level || 'moderate');
 
   const v2 = hydrateFromOnboarding((user?.onboarding || {}) as Record<string, any>);
-  const [priorityOrder, setPriorityOrder] = useState<PriorityKey[]>(v2.priorityOrder);
-  const [appearanceConcerns, setAppearanceConcerns] = useState<string[]>(v2.appearanceConcerns);
-  const [primarySkin, setPrimarySkin] = useState(v2.primarySkin);
-  const [secondarySkin, setSecondarySkin] = useState(v2.secondarySkin);
-  const [skincareRoutine, setSkincareRoutine] = useState(v2.skincareRoutine);
-  const [hairFamily, setHairFamily] = useState(v2.hairFamily);
-  const [hairLoss, setHairLoss] = useState(v2.hairLoss);
-  const [hairTreatments, setHairTreatments] = useState(v2.hairTreatments);
-  const [fitGoal, setFitGoal] = useState(v2.fitGoal);
-  const [fitExperience, setFitExperience] = useState(v2.fitExperience);
-  const [fitEquipment, setFitEquipment] = useState(v2.fitEquipment);
-  const [fitDays, setFitDays] = useState<number | null>(v2.fitDays);
+  const [priorityRanking, setPriorityRanking] = useState<string[]>(v2.priorityRanking);
   const [wakeTime, setWakeTime] = useState(v2.wakeTime);
   const [sleepTime, setSleepTime] = useState(v2.sleepTime);
-  const [workoutTime, setWorkoutTime] = useState(v2.workoutTime);
-  const [screenBand, setScreenBand] = useState(v2.screenBand);
-  const [openTimePicker, setOpenTimePicker] = useState<'wake' | 'sleep' | 'workout' | null>(null);
+  const [workSchedule, setWorkSchedule] = useState<'fixed' | 'flexible' | null>(v2.workSchedule);
+  const [workStart, setWorkStart] = useState(v2.workStart);
+  const [workEnd, setWorkEnd] = useState(v2.workEnd);
+  const [openTimePicker, setOpenTimePicker] = useState<'wake' | 'sleep' | 'workStart' | 'workEnd' | null>(null);
 
   const movePriority = useCallback((index: number, dir: -1 | 1) => {
     const j = index + dir;
-    if (j < 0 || j >= priorityOrder.length) return;
-    const next = [...priorityOrder];
+    if (j < 0 || j >= priorityRanking.length) return;
+    const next = [...priorityRanking];
     [next[index], next[j]] = [next[j], next[index]];
-    setPriorityOrder(next);
-  }, [priorityOrder]);
-
-  const toggleAppearance = (id: string) => {
-    setAppearanceConcerns((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
+    setPriorityRanking(next);
+  }, [priorityRanking]);
 
   useEffect(() => {
     if (!user?.onboarding) return;
@@ -188,22 +172,12 @@ export default function EditPersonalScreen() {
     }
 
     const h = hydrateFromOnboarding(ob as Record<string, any>);
-    setPriorityOrder(h.priorityOrder);
-    setAppearanceConcerns(h.appearanceConcerns);
-    setPrimarySkin(h.primarySkin);
-    setSecondarySkin(h.secondarySkin);
-    setSkincareRoutine(h.skincareRoutine);
-    setHairFamily(h.hairFamily);
-    setHairLoss(h.hairLoss);
-    setHairTreatments(h.hairTreatments);
-    setFitGoal(h.fitGoal);
-    setFitExperience(h.fitExperience);
-    setFitEquipment(h.fitEquipment);
-    setFitDays(h.fitDays);
+    setPriorityRanking(h.priorityRanking);
     setWakeTime(h.wakeTime);
     setSleepTime(h.sleepTime);
-    setWorkoutTime(h.workoutTime);
-    setScreenBand(h.screenBand);
+    setWorkSchedule(h.workSchedule);
+    setWorkStart(h.workStart);
+    setWorkEnd(h.workEnd);
   }, [user]);
 
   const handleSave = async () => {
@@ -247,28 +221,21 @@ export default function EditPersonalScreen() {
       return;
     }
 
-    const heavy = screenBand ? heavyScreenFromBand(screenBand) : base.heightmax_screen_hours;
-
-    const maxGoals = maxHomeMaxxesForUser(user);
+    // Spread `base` so any older onboarding keys (skin/hair/training/etc.)
+    // saved by previous app versions persist for downstream services that
+    // still reference them. We only OVERWRITE the keys this screen now
+    // controls — gender/age/body + the schedule anchors the chatbot uses.
     const onboardingData: Record<string, any> = {
       ...base,
-      goals: (selectedGoals || []).slice(0, maxGoals),
       completed: true,
       timezone: tz,
       unit_system: unitSystem,
-      questionnaire_v2_completed: base.questionnaire_v2_completed ?? true,
-      priority_order: [...priorityOrder],
-      appearance_concerns: [...appearanceConcerns],
-      experience_level: mapTrainingToExperience(fitExperience),
-      fitmax_training_experience: fitExperience,
-      equipment: mapEquipmentToList(fitEquipment),
-      fitmax_equipment: fitEquipment,
-      activity_level: activityLevel || 'moderate',
+      priority_ranking: [...priorityRanking],
       wake_time: hhmm(wakeTime),
       sleep_time: hhmm(sleepTime),
-      preferred_workout_time: hhmm(workoutTime),
-      fitmax_preferred_workout_time: hhmm(workoutTime),
-      heightmax_workout_time: hhmm(workoutTime),
+      work_schedule: workSchedule || null,
+      work_start: workSchedule === 'fixed' ? hhmm(workStart) : null,
+      work_end: workSchedule === 'fixed' ? hhmm(workEnd) : null,
     };
 
     if (gender) onboardingData.gender = gender;
@@ -276,38 +243,15 @@ export default function EditPersonalScreen() {
     if (finalHeight !== undefined && finalHeight > 0) onboardingData.height = Math.round(finalHeight * 10) / 10;
     if (finalWeight !== undefined && finalWeight > 0) onboardingData.weight = Math.round(finalWeight * 10) / 10;
 
-    if (primarySkin) {
-      onboardingData.primary_skin_concern = primarySkin;
-      onboardingData.secondary_skin_concern = secondarySkin || 'none';
-      onboardingData.skincare_routine_level = skincareRoutine;
-      onboardingData.skin_type = mapSkinConcernToType(primarySkin);
-    }
-
-    onboardingData.hair_family_history = hairFamily;
-    onboardingData.hair_current_loss = hairLoss;
-    onboardingData.hair_treatments_current = hairTreatments;
-    if (hairLoss === 'yes_active' || hairLoss === 'starting') {
-      onboardingData.hair_thinning = 'yes';
-      onboardingData.thinning = 'yes';
-    } else if (hairLoss) {
-      onboardingData.hair_thinning = 'no';
-      onboardingData.thinning = 'no';
-    }
-
-    onboardingData.fitmax_primary_goal = fitGoal;
-    onboardingData.primary_goal = fitGoal;
-    onboardingData.training_experience = fitExperience;
-    if (fitDays != null) onboardingData.fitmax_workout_days_per_week = fitDays;
-
-    if (screenBand) {
-      onboardingData.screen_hours_daily = screenBand;
-      onboardingData.heightmax_screen_hours = heavy;
-      onboardingData.bonemax_heavy_screen_time = heavy;
-    }
-
     try {
       await api.saveOnboarding(onboardingData as any);
       await refreshUser();
+      // Lifestyle edits feed the chatbot's USER CONTEXT (wake/sleep/work
+      // hours, priority) and may change downstream schedule state. Force
+      // refetch so every screen sees the new data on next mount.
+      queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull, refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.activeSchedulesSummary, refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.maxes, refetchType: 'all' });
       Alert.alert('Success', 'Profile updated successfully.');
       navigation.goBack();
     } catch (error: any) {
@@ -323,7 +267,7 @@ export default function EditPersonalScreen() {
 
   const timeRow = (
     label: string,
-    which: 'wake' | 'sleep' | 'workout',
+    which: 'wake' | 'sleep' | 'workStart' | 'workEnd',
     value: string,
     setter: (s: string) => void,
   ) => (
@@ -385,19 +329,21 @@ export default function EditPersonalScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {!onlyGoals ? (
-            <Text style={styles.lead}>Update what you shared at signup — one place, no quiz replay.</Text>
+            <Text style={styles.lead}>Update what you shared at signup — chatbot context updates as you save.</Text>
           ) : null}
 
-          {!onlyGoals ? <Text style={styles.sectionTitle}>Your Maxxes</Text> : null}
-          <Text style={styles.goalsLimitHint}>
+          {/* "Your Maxxes" header is intentionally hidden on the edit-lifestyle
+              path — that picker lives on the Profile → "Your Maxxes" screen
+              (onlyGoals=true), so showing it here was duplicate UX. */}
+          {onlyGoals ? <Text style={styles.goalsLimitHint}>
             Up to {maxHomeMaxxesForUser(user)} on your home screen
             {user?.is_paid && (user?.subscription_tier || '').toLowerCase() === 'premium'
               ? ' (Premium)'
               : user?.is_paid
                 ? ' (Basic)'
                 : ' (free)'}
-          </Text>
-          <View
+          </Text> : null}
+          {onlyGoals ? <View
             style={[
               styles.goalsListBleed,
               isWide ? { marginHorizontal: -spacing.xxl } : { marginHorizontal: -spacing.xl },
@@ -506,49 +452,10 @@ export default function EditPersonalScreen() {
                 />
               );
             })}
-          </View>
+          </View> : null}
 
           {!onlyGoals && (
             <>
-              <View style={styles.card}>
-                {sectionKicker('NOTIFICATIONS')}
-                <Text style={styles.cardTitle}>What we prioritize</Text>
-                <Text style={styles.cardHint}>Top of the list = stronger nudges. Drag order with arrows.</Text>
-                {priorityOrder.map((key, i) => (
-                  <View key={key} style={styles.rankRow}>
-                    <Text style={styles.rankNum}>{i + 1}</Text>
-                    <Text style={styles.rankLabel}>{PRIORITY_LABELS[key]}</Text>
-                    <View style={styles.rankArrows}>
-                      <TouchableOpacity onPress={() => movePriority(i, -1)} disabled={i === 0} style={styles.iconBtn}>
-                        <Ionicons name="chevron-up" size={22} color={i === 0 ? colors.border : colors.foreground} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => movePriority(i, 1)}
-                        disabled={i === priorityOrder.length - 1}
-                        style={styles.iconBtn}
-                      >
-                        <Ionicons
-                          name="chevron-down"
-                          size={22}
-                          color={i === priorityOrder.length - 1 ? colors.border : colors.foreground}
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-                <Text style={[styles.inputLabel, { marginTop: spacing.lg }]}>FOCUS AREAS</Text>
-                <View style={styles.tagWrap}>
-                  {APPEARANCE_OPTIONS.map((o) => {
-                    const on = appearanceConcerns.includes(o.id);
-                    return (
-                      <TouchableOpacity key={o.id} style={[styles.tag, on && styles.tagOn]} onPress={() => toggleAppearance(o.id)}>
-                        <Text style={[styles.tagText, on && styles.tagTextOn]}>{o.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Body</Text>
                 <View style={styles.unitToggle}>
@@ -602,159 +509,66 @@ export default function EditPersonalScreen() {
                 </View>
               )}
 
-              <Text style={[styles.inputLabel, { marginTop: spacing.lg }]}>ACTIVITY LEVEL</Text>
-              <View style={styles.list}>
-                {ACTIVITY_LEVELS.map((level) => (
-                  <TouchableOpacity
-                    key={level.id}
-                    style={[styles.listCard, activityLevel === level.id && styles.listCardSelected]}
-                    onPress={() => setActivityLevel(level.id)}
-                  >
-                    <Text style={styles.listLabel}>{level.label}</Text>
-                    <Text style={styles.listDesc}>{level.desc}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
               <View style={styles.card}>
-                {sectionKicker('SKIN')}
-                <Text style={styles.cardTitle}>Skin details</Text>
-                <Text style={styles.inputLabel}>PRIMARY CONCERN</Text>
-                <View style={styles.tagWrap}>
-                  {SKIN_CONCERNS.map((s) => (
-                    <TouchableOpacity key={s.id} style={[styles.tag, primarySkin === s.id && styles.tagOn]} onPress={() => setPrimarySkin(s.id)}>
-                      <Text style={[styles.tagText, primarySkin === s.id && styles.tagTextOn]}>{s.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={styles.inputLabel}>SECONDARY</Text>
-                <View style={styles.tagWrap}>
-                  <TouchableOpacity style={[styles.tag, secondarySkin === 'none' && styles.tagOn]} onPress={() => setSecondarySkin('none')}>
-                    <Text style={[styles.tagText, secondarySkin === 'none' && styles.tagTextOn]}>None</Text>
-                  </TouchableOpacity>
-                  {SKIN_CONCERNS.map((s) => (
-                    <TouchableOpacity key={s.id} style={[styles.tag, secondarySkin === s.id && styles.tagOn]} onPress={() => setSecondarySkin(s.id)}>
-                      <Text style={[styles.tagText, secondarySkin === s.id && styles.tagTextOn]}>{s.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={styles.inputLabel}>ROUTINE LEVEL</Text>
-                {[
-                  { id: 'none', label: 'Nothing consistent' },
-                  { id: 'basic', label: 'Cleanser + moisturizer' },
-                  { id: 'full', label: 'Full routine' },
-                ].map((r) => (
-                  <TouchableOpacity
-                    key={r.id}
-                    style={[styles.listCard, skincareRoutine === r.id && styles.listCardSelected]}
-                    onPress={() => setSkincareRoutine(r.id)}
-                  >
-                    <Text style={styles.listLabel}>{r.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={styles.card}>
-                {sectionKicker('HAIR')}
-                <Text style={styles.cardTitle}>Hair context</Text>
-                <Text style={styles.inputLabel}>FAMILY HAIR LOSS</Text>
-                {[
-                  { id: 'mom', label: "Mom's side" },
-                  { id: 'dad', label: "Dad's side" },
-                  { id: 'both', label: 'Both sides' },
-                  { id: 'no', label: 'No' },
-                  { id: 'unknown', label: "Don't know" },
-                ].map((x) => (
-                  <TouchableOpacity key={x.id} style={[styles.listCard, hairFamily === x.id && styles.listCardSelected]} onPress={() => setHairFamily(x.id)}>
-                    <Text style={styles.listLabel}>{x.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                <Text style={styles.inputLabel}>CURRENT LOSS</Text>
-                {[
-                  { id: 'yes_active', label: 'Yes — actively' },
-                  { id: 'starting', label: 'Starting to notice' },
-                  { id: 'no', label: 'No' },
-                  { id: 'unsure', label: 'Not sure' },
-                ].map((x) => (
-                  <TouchableOpacity key={x.id} style={[styles.listCard, hairLoss === x.id && styles.listCardSelected]} onPress={() => setHairLoss(x.id)}>
-                    <Text style={styles.listLabel}>{x.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                <Text style={styles.inputLabel}>TREATMENTS</Text>
-                {[
-                  { id: 'nothing', label: 'Nothing' },
-                  { id: 'minoxidil', label: 'Minoxidil' },
-                  { id: 'finasteride', label: 'Finasteride' },
-                  { id: 'both', label: 'Both' },
-                  { id: 'other', label: 'Other' },
-                ].map((x) => (
-                  <TouchableOpacity key={x.id} style={[styles.listCard, hairTreatments === x.id && styles.listCardSelected]} onPress={() => setHairTreatments(x.id)}>
-                    <Text style={styles.listLabel}>{x.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={styles.card}>
-                {sectionKicker('TRAINING')}
-                <Text style={styles.cardTitle}>Strength & physique</Text>
-                <Text style={styles.inputLabel}>PRIMARY GOAL</Text>
-                {[
-                  { id: 'lean', label: 'Get lean (face gains)' },
-                  { id: 'muscle', label: 'Build muscle' },
-                  { id: 'both', label: 'Both / recomp' },
-                  { id: 'maintain', label: 'Maintain' },
-                ].map((x) => (
-                  <TouchableOpacity key={x.id} style={[styles.listCard, fitGoal === x.id && styles.listCardSelected]} onPress={() => setFitGoal(x.id)}>
-                    <Text style={styles.listLabel}>{x.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                <Text style={styles.inputLabel}>EXPERIENCE</Text>
-                {[
-                  { id: 'never', label: 'Never trained' },
-                  { id: 'beginner', label: 'Beginner (<1 yr)' },
-                  { id: 'intermediate', label: 'Intermediate (1–3 yr)' },
-                  { id: 'advanced', label: 'Advanced (3+ yr)' },
-                ].map((x) => (
-                  <TouchableOpacity key={x.id} style={[styles.listCard, fitExperience === x.id && styles.listCardSelected]} onPress={() => setFitExperience(x.id)}>
-                    <Text style={styles.listLabel}>{x.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                <Text style={styles.inputLabel}>EQUIPMENT</Text>
-                {[
-                  { id: 'full_gym', label: 'Full gym' },
-                  { id: 'home_gym', label: 'Home gym (DB + bench + bar)' },
-                  { id: 'bodyweight', label: 'Bodyweight only' },
-                ].map((x) => (
-                  <TouchableOpacity key={x.id} style={[styles.listCard, fitEquipment === x.id && styles.listCardSelected]} onPress={() => setFitEquipment(x.id)}>
-                    <Text style={styles.listLabel}>{x.label}</Text>
-                  </TouchableOpacity>
-                ))}
-                <Text style={styles.inputLabel}>DAYS PER WEEK</Text>
-                <View style={styles.tagWrap}>
-                  {[3, 4, 5, 6].map((d) => (
-                    <TouchableOpacity key={d} style={[styles.dayPill, fitDays === d && styles.dayPillOn]} onPress={() => setFitDays(d)}>
-                      <Text style={[styles.dayPillText, fitDays === d && styles.dayPillTextOn]}>{d}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.card}>
-                {sectionKicker('RHYTHM')}
-                <Text style={styles.cardTitle}>Sleep, workouts & screen time</Text>
-                <Text style={styles.cardHint}>Used for reminders across modules.</Text>
+                {sectionKicker('SCHEDULE')}
+                <Text style={styles.cardTitle}>When you're busy</Text>
+                <Text style={styles.cardHint}>Coach plans routines around your sleep + work hours.</Text>
                 {timeRow('Wake', 'wake', wakeTime, setWakeTime)}
                 {timeRow('Bed', 'sleep', sleepTime, setSleepTime)}
-                {timeRow('Typical workout start', 'workout', workoutTime, setWorkoutTime)}
-                <Text style={styles.inputLabel}>SCREEN TIME (DAILY)</Text>
-                <View style={styles.tagWrap}>
-                  {SCREEN_TIME_BANDS.map((b) => (
-                    <TouchableOpacity key={b.id} style={[styles.tag, screenBand === b.id && styles.tagOn]} onPress={() => setScreenBand(b.id)}>
-                      <Text style={[styles.tagText, screenBand === b.id && styles.tagTextOn]}>{b.label}</Text>
+                <Text style={[styles.inputLabel, { marginTop: spacing.lg }]}>WORK / SCHOOL HOURS</Text>
+                <View style={[styles.tagWrap, { marginBottom: spacing.md }]}>
+                  {[
+                    { id: 'fixed' as const, label: 'Fixed' },
+                    { id: 'flexible' as const, label: 'Flexible' },
+                  ].map((opt) => (
+                    <TouchableOpacity
+                      key={opt.id}
+                      style={[styles.tag, workSchedule === opt.id && styles.tagOn]}
+                      onPress={() => setWorkSchedule(opt.id)}
+                    >
+                      <Text style={[styles.tagText, workSchedule === opt.id && styles.tagTextOn]}>
+                        {opt.label}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
+                {workSchedule === 'fixed' ? (
+                  <>
+                    {timeRow('Start', 'workStart', workStart, setWorkStart)}
+                    {timeRow('End', 'workEnd', workEnd, setWorkEnd)}
+                  </>
+                ) : null}
               </View>
+
+              {priorityRanking.length > 0 ? (
+                <View style={styles.card}>
+                  {sectionKicker('PRIORITY')}
+                  <Text style={styles.cardTitle}>What matters most</Text>
+                  <Text style={styles.cardHint}>Top = strongest signal in coaching + reminders.</Text>
+                  {priorityRanking.map((key, i) => (
+                    <View key={key} style={styles.rankRow}>
+                      <Text style={styles.rankNum}>{i + 1}</Text>
+                      <Text style={styles.rankLabel}>{PRIORITY_LABELS[key as PriorityKey] || key}</Text>
+                      <View style={styles.rankArrows}>
+                        <TouchableOpacity onPress={() => movePriority(i, -1)} disabled={i === 0} style={styles.iconBtn}>
+                          <Ionicons name="chevron-up" size={22} color={i === 0 ? colors.border : colors.foreground} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => movePriority(i, 1)}
+                          disabled={i === priorityRanking.length - 1}
+                          style={styles.iconBtn}
+                        >
+                          <Ionicons
+                            name="chevron-down"
+                            size={22}
+                            color={i === priorityRanking.length - 1 ? colors.border : colors.foreground}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </>
           )}
 

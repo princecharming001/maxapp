@@ -17,8 +17,13 @@ export const queryClient = new QueryClient({
                 return failureCount < 2;
             },
             retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
-            // Don't auto-refetch on mount if data is fresh — trust the cache.
-            refetchOnMount: false,
+            // Refetch on mount IF data is stale. With staleTime=5min the
+            // cache still trumps for fresh data, so this doesn't cause a
+            // refetch storm — but it does mean that screens (Master
+            // Schedule, Home) which were invalidated while the user was
+            // chatting actually pick up the new data the moment they're
+            // remounted, instead of showing stale state until manual pull.
+            refetchOnMount: true,
             refetchOnWindowFocus: false,
             // RN: reconnect refetch is the only auto-refresh we want.
             refetchOnReconnect: true,
