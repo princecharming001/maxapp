@@ -369,6 +369,32 @@ _LEAKAGE_PATTERNS: tuple[re.Pattern, ...] = (
         r"[^,.\n!?]*[,.\n!?]?\s*",
         re.IGNORECASE,
     ),
+    # "i can't / cannot provide links / recommendations" — same shape as
+    # above but with a different verb the LLM sometimes reaches for when
+    # it thinks the catalog turned up nothing. Catalog has soft-fallback
+    # now, so this phrasing is never appropriate.
+    re.compile(
+        r"^\s*(?:i\s+)?(?:can'?t|cannot|am\s+unable\s+to)\s+(?:provide|give|share|offer|recommend|suggest)"
+        r"\s+(?:specific|any|exact)?\s*"
+        r"(?:links?|products?|recs?|recommendations?|brands?)"
+        r"[^.\n!?]*[.\n!?]\s*",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r",?\s*(?:though|but)?\s*(?:i\s+)?(?:can'?t|cannot|am\s+unable\s+to)\s+(?:provide|give|share|offer|recommend|suggest)"
+        r"\s+(?:specific|any|exact)?\s*"
+        r"(?:links?|products?|recs?|recommendations?|brands?)"
+        r"[^,.\n!?]*[,.\n!?]?\s*",
+        re.IGNORECASE,
+    ),
+    # "i'm not able to give you a direct link" / "i'm unable to ..." —
+    # softer LLM hedging that's still the same refusal shape.
+    re.compile(
+        r"^\s*(?:i'?m\s+|i\s+am\s+)?not\s+able\s+to\s+(?:provide|give|share|offer|recommend|suggest)"
+        r"[^.\n!?]*?(?:links?|products?|recs?|recommendations?|brands?)"
+        r"[^.\n!?]*[.\n!?]\s*",
+        re.IGNORECASE,
+    ),
     # "here are some practical tips" — generic preamble that contributes
     # nothing and signals the bot is about to give vague advice.
     re.compile(
