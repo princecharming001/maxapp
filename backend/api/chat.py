@@ -250,6 +250,15 @@ _TECH_LEAK_PATTERNS: tuple[re.Pattern, ...] = (
     re.compile(r"\b(?:exception|error)\s*:\s*[A-Za-z][\w.]*", re.IGNORECASE),
     # Bare URLs to internal endpoints.
     re.compile(r"https?://(?:localhost|127\.0\.0\.1|nlzsqnlk[a-z]+\.supabase\.co)\S*", re.IGNORECASE),
+    # Internal kwarg / dict syntax leaking into prose:
+    #   "saved posture_issues = True" / "training=4_per_week" / "thinning: false"
+    # The chat is conversational — Python truthiness, snake_case keys, and
+    # the literal '=' or ':' separators don't belong. Replace with a more
+    # natural verb so the sentence still parses for the user.
+    re.compile(
+        r"\b([a-z][a-z0-9]*(?:_[a-z0-9]+){1,3})\s*[:=]\s*(?:true|false|yes|no)\b",
+        re.IGNORECASE,
+    ),
 )
 
 
@@ -3230,8 +3239,47 @@ async def _handle_context_change(
     except Exception as _e:
         logger.warning("regen after chat intent failed (non-fatal): %s", _e)
     await db.commit()
-    pretty_kind = kind.replace("_", " ")
-    return (f"got it — saved {pretty_kind} = {value}. updated your active schedules.", [], None)
+    return (_humanize_context_ack(kind, value), [], None)
+
+
+def _humanize_context_ack(kind: str, value: object) -> str:
+    """Turn a (kind, value) pair into a human confirmation line.
+
+    The bot was previously echoing the raw kwargs format ('saved posture
+    issues = True. updated your active schedules.') which leaks our
+    internal field names + python-truthiness to the user. Map common
+    kinds to plain coach-speak; fall back to a generic line if we don't
+    know the kind, but never expose the literal '=' or 'True'/'False'.
+    """
+    k = (kind or "").strip().lower()
+    v = value
+    is_truthy = v is True or (isinstance(v, str) and v.lower() in ("true", "yes", "y"))
+    is_falsy = v is False or (isinstance(v, str) and v.lower() in ("false", "no", "n"))
+
+    # Boolean-shaped concerns — "you have/don't have X".
+    bool_kinds = {
+        "posture_issues":   ("noted — posture is on the radar.",      "good — no posture flags."),
+        "outdoor":          ("noted — you're outside a lot.",         "noted — mostly indoors."),
+        "thinning":         ("noted — hair thinning is on the list.", "good — no thinning flagged."),
+        "hair_thinning":    ("noted — hair thinning is on the list.", "good — no thinning flagged."),
+        "dermastamp_owned": ("noted — you've got a dermastamp.",      "no dermastamp on file — pencilled in."),
+    }
+    if k in bool_kinds and (is_truthy or is_falsy):
+        msg_true, msg_false = bool_kinds[k]
+        return f"{msg_true if is_truthy else msg_false} routines updated to match."
+
+    # Time / numeric kinds with a clean string form.
+    if k == "wake_time":
+        return f"got it — wake at {v}. routines retimed around it."
+    if k == "sleep_time":
+        return f"got it — bed at {v}. routines retimed around it."
+    if k == "training" and isinstance(v, (str, int)):
+        return f"got it — training {v}. workouts re-spaced to fit."
+    if k == "equipment":
+        return f"got it — equipment is {v}. workouts updated to match."
+
+    # Generic fallback — phrase it like a coach, not a JSON dump.
+    return "got it — saved that. routines updated to match."
 
 
 # (Old _handle_context_change body removed — replaced by the chat_intent_detector
