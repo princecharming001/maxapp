@@ -14,6 +14,7 @@ import { queryClient } from './lib/queryClient';
 import { colors } from './theme/dark';
 import MaxLoadingView from './components/MaxLoadingView';
 import { StripeProviderGate } from './components/StripeProviderGate';
+import DevDrawer from './components/DevDrawer';
 import api from './services/api';
 import {
     getPendingFaceScanSubmit,
@@ -137,6 +138,11 @@ function AppNavigator() {
         <NavigationContainer ref={navRef} key={isAuthenticated ? 'auth' : 'guest'}>
             <StatusBar style="dark" />
             <RootNavigator />
+            {/* Floating dev drawer — __DEV__ gate inside the component, so
+                production builds compile it to nothing. Mounted here (inside
+                NavigationContainer) so its 'jump to' buttons can use the
+                navigation prop. */}
+            {isAuthenticated ? <DevDrawer /> : null}
         </NavigationContainer>
     );
 }

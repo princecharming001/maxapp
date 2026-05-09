@@ -327,6 +327,89 @@ async def complete_main_app_tour(
     return {"message": "ok"}
 
 
+@router.post("/dev/reset")
+async def dev_reset_state(
+    body: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """DEBUG ONLY: bulk-reset user flags so a single account can replay
+    paywall / scan / onboarding without creating a new account.
+
+    Body (all optional, all default False):
+      {
+        "onboarding": bool,    # clear user.onboarding.completed + reset to {}
+        "scan":       bool,    # flip first_scan_completed → false
+        "subscription": bool,  # flip is_paid → false, subscription_tier → null
+        "all":        bool,    # equivalent to setting all three
+      }
+
+    Returns the new state of the affected flags so the client can sync.
+    Gated by `settings.debug` — 404s in production. Requires auth so a
+    rogue caller can only nuke their own account.
+    """
+    if not settings.debug:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    user_uuid = UUID(current_user["id"])
+    user = await db.get(User, user_uuid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    do_all = bool(body.get("all"))
+    do_onb = do_all or bool(body.get("onboarding"))
+    do_scan = do_all or bool(body.get("scan"))
+    do_sub = do_all or bool(body.get("subscription"))
+
+    if do_onb:
+        # Wipe onboarding entirely so the user re-runs the questions.
+        # Preserve nothing — fresh slate is the dev tool's whole point.
+        user.onboarding = {}
+        user.questionnaire_v2_completed = None
+    if do_scan:
+        user.first_scan_completed = False
+        user.facial_scan_summary = None
+    if do_sub:
+        user.is_paid = False
+        user.subscription_tier = None
+
+    user.updated_at = datetime.utcnow()
+    await db.commit()
+    return {
+        "message": "ok",
+        "reset": {
+            "onboarding": do_onb,
+            "scan": do_scan,
+            "subscription": do_sub,
+        },
+        "state": {
+            "is_paid": bool(user.is_paid),
+            "subscription_tier": user.subscription_tier,
+            "first_scan_completed": bool(user.first_scan_completed),
+            "onboarding_completed": bool((user.onboarding or {}).get("completed")),
+        },
+    }
+
+
+@router.post("/dev/mark-scan-completed")
+async def dev_mark_scan_completed(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """DEBUG ONLY: flip first_scan_completed → true without uploading
+    a real scan. Lets devs jump past the scan gate to test downstream
+    screens (paywall, module select, home)."""
+    if not settings.debug:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    user_uuid = UUID(current_user["id"])
+    user = await db.get(User, user_uuid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.first_scan_completed = True
+    user.updated_at = datetime.utcnow()
+    await db.commit()
+    return {"message": "ok", "first_scan_completed": True}
+
+
 @router.post("/sendblue-connect/dev-skip-engage")
 async def dev_skip_sendblue_engage_only(
     current_user: dict = Depends(get_current_user),

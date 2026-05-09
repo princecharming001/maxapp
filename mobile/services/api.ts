@@ -738,6 +738,30 @@ class ApiService {
         return response.data;
     }
 
+    /**
+     * DEBUG: bulk-reset user flags so a single account can replay
+     * onboarding / scan / paywall flows. Backend 404s when DEBUG=false.
+     */
+    async devReset(scope: { onboarding?: boolean; scan?: boolean; subscription?: boolean; all?: boolean }) {
+        const response = await this.client.post('users/dev/reset', scope);
+        return response.data as {
+            message: string;
+            reset: { onboarding: boolean; scan: boolean; subscription: boolean };
+            state: {
+                is_paid: boolean;
+                subscription_tier: string | null;
+                first_scan_completed: boolean;
+                onboarding_completed: boolean;
+            };
+        };
+    }
+
+    /** DEBUG: mark scan completed without an actual face scan upload. */
+    async devMarkScanCompleted() {
+        const response = await this.client.post('users/dev/mark-scan-completed');
+        return response.data;
+    }
+
     async registerPushToken(token: string) {
         const response = await this.client.post('users/push-token', { token });
         return response.data;
