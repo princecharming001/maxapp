@@ -346,6 +346,21 @@ class ApiService {
         return response.data;
     }
 
+    /**
+     * DEV ONLY: mint a throwaway account with EMPTY onboarding so the
+     * client lands on the very first onboarding question. Lets devs
+     * replay the full onboarding flow without retyping signup form.
+     */
+    async fauxFreshSignup() {
+        const response = await this.client.post(
+            'auth/faux-signup-fresh',
+            {},
+            { timeout: Platform.OS === 'web' ? WEB_AUTH_TIMEOUT_MS : undefined },
+        );
+        await this.setTokens(response.data.access_token, response.data.refresh_token);
+        return response.data;
+    }
+
     /** `identifier` = email, username, or phone (matches account on file). */
     async login(identifier: string, password: string) {
         const response = await this.client.post(

@@ -289,6 +289,47 @@ async def faux_signup(db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.post("/faux-signup-fresh", response_model=TokenResponse)
+async def faux_signup_fresh(db: AsyncSession = Depends(get_db)):
+    """
+    Create a throwaway demo account with EMPTY onboarding so the user
+    lands on the very first onboarding question. Useful for replaying
+    the onboarding flow end-to-end without polluting Auth Connect /
+    Apple Sign-In identity. The other faux-signup variants pre-fill
+    onboarding so they skip past it.
+    """
+    email, username, password, phone = _new_demo_identity("fresh")
+
+    user = User(
+        email=email,
+        password_hash=hash_password(password),
+        first_name="Demo",
+        last_name="User",
+        username=username,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        is_paid=False,
+        is_admin=False,
+        onboarding={},   # fresh — no `completed` flag, no answers
+        profile=UserProfile().model_dump(),
+        first_scan_completed=False,
+        phone_number=phone,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    user_id = str(user.id)
+    access_token = create_access_token(user_id)
+    refresh_token = create_refresh_token(user_id)
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+    )
+
+
 @router.post("/faux-signup-skip", response_model=TokenResponse)
 async def faux_signup_skip(db: AsyncSession = Depends(get_db)):
     """

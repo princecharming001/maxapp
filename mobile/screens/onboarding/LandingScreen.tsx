@@ -35,10 +35,11 @@ const SLIDES = [
 
 export default function LandingScreen() {
     const navigation = useNavigation<any>();
-    const { fauxSignup, fauxSkipSignup } = useAuth();
+    const { fauxSignup, fauxSkipSignup, fauxFreshSignup } = useAuth();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [demoLoading, setDemoLoading] = useState(false);
     const [skipLoading, setSkipLoading] = useState(false);
+    const [freshLoading, setFreshLoading] = useState(false);
     const flatListRef = useRef<FlatList>(null);
 
     const handleTryNow = async () => {
@@ -55,6 +56,23 @@ export default function LandingScreen() {
             }
         } finally {
             setDemoLoading(false);
+        }
+    };
+
+    const handleDevOnboarding = async () => {
+        // DEV ONLY: throwaway account with empty onboarding so we land on
+        // the first onboarding question. Lets us replay the flow without
+        // typing the signup form every time.
+        if (freshLoading) return;
+        setFreshLoading(true);
+        try {
+            await fauxFreshSignup();
+        } catch (e: any) {
+            const msg = e?.response?.data?.detail ?? e?.message ?? 'Something went wrong';
+            if (Platform.OS === 'web') window.alert(msg);
+            else Alert.alert('Error', msg);
+        } finally {
+            setFreshLoading(false);
         }
     };
 
@@ -194,6 +212,36 @@ export default function LandingScreen() {
                                     <Text style={styles.demoText}>Try it first — no account needed</Text>
                                 )}
                             </TouchableOpacity>
+                        ) : null}
+                        {/* DEV-only buttons: bypass signup form to test
+                            specific app states. Compiled out in prod builds. */}
+                        {__DEV__ ? (
+                            <View style={styles.devButtonStack}>
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    activeOpacity={0.7}
+                                    onPress={handleDevOnboarding}
+                                    disabled={freshLoading}
+                                >
+                                    {freshLoading ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text style={styles.devButtonText}>DEV → Test onboarding flow</Text>
+                                    )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    activeOpacity={0.7}
+                                    onPress={handleSkip}
+                                    disabled={skipLoading}
+                                >
+                                    {skipLoading ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text style={styles.devButtonText}>DEV → Skip to home (paid demo)</Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
                         ) : null}
                     </View>
                 ) : (
@@ -444,6 +492,26 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: 40,
+    },
+    /* DEV-only stack — only mounts in __DEV__ so production never sees it. */
+    devButtonStack: {
+        marginTop: spacing.sm,
+        gap: 6,
+    },
+    devButton: {
+        backgroundColor: 'rgba(10,10,11,0.85)',
+        borderRadius: 999,
+        paddingVertical: 9,
+        paddingHorizontal: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 36,
+    },
+    devButtonText: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 1.2,
     },
     demoText: {
         fontSize: 13,
