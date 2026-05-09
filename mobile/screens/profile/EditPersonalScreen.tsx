@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
+import OnairosConnectModal from '../../components/OnairosConnectModal';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { maxHomeMaxxesForUser } from '../../utils/maxxLimits';
 import { getMaxxDisplayDescription, getMaxxDisplayLabel } from '../../utils/maxxDisplay';
@@ -83,6 +84,10 @@ export default function EditPersonalScreen() {
   const { user, refreshUser } = useAuth();
   const maxxesQuery = useMaxxesQuery();
   const [loading, setLoading] = useState(false);
+  // Onairos modal — opens from the "external personalization" card.
+  // Connecting refreshes user data; coaching_service picks up the new
+  // traits on the next chat turn (no client-side cache to bust).
+  const [onairosVisible, setOnairosVisible] = useState(false);
 
   const onlyGoals = route.params?.onlyGoals === true;
 
@@ -544,6 +549,29 @@ export default function EditPersonalScreen() {
                 ) : null}
               </View>
 
+              {/* Onairos personalization card — let users connect or refresh
+                  their cross-app personality/habit data. The chatbot picks up
+                  the new traits on the next turn via coaching_service. */}
+              {(process.env.EXPO_PUBLIC_ONAIROS_API_KEY || '').trim() ? (
+                <View style={styles.card}>
+                  {sectionKicker('EXTERNAL PERSONALIZATION')}
+                  <Text style={styles.cardTitle}>Connect your apps</Text>
+                  <Text style={styles.cardHint}>
+                    Pull personality + habit signals from apps you already use,
+                    so Max can tailor coaching without another quiz. Re-run any
+                    time to refresh.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setOnairosVisible(true)}
+                    activeOpacity={0.85}
+                    style={styles.onairosBtn}
+                  >
+                    <Ionicons name="link-outline" size={15} color={colors.background} />
+                    <Text style={styles.onairosBtnText}>Connect with Onairos</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
               {priorityRanking.length > 0 ? (
                 <View style={styles.card}>
                   {sectionKicker('PRIORITY')}
@@ -585,6 +613,19 @@ export default function EditPersonalScreen() {
           {loading ? <ActivityIndicator color={colors.background} /> : <Text style={styles.saveBtnText}>{onlyGoals ? 'Save Maxxes' : 'Save all changes'}</Text>}
         </TouchableOpacity>
       </View>
+
+      <OnairosConnectModal
+        visible={onairosVisible}
+        onClose={() => setOnairosVisible(false)}
+        onConnected={() => {
+          // Refresh user object so any auth-side onairos flag flips, and
+          // bust schedules so the next chat turn rebuilds with the new
+          // coaching context (which now includes the fresh traits).
+          void refreshUser?.();
+          queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull, refetchType: 'all' });
+          setOnairosVisible(false);
+        }}
+      />
     </View>
   );
 }
@@ -767,6 +808,24 @@ const styles = StyleSheet.create({
   timeOptionOn: { backgroundColor: colors.accentMuted },
   timeOptionText: { fontSize: 15, color: colors.textSecondary, fontWeight: '600' },
   timeOptionTextOn: { color: colors.foreground },
+  /* Onairos card button — same shape as saveBtn but inline in the card. */
+  onairosBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.foreground,
+    borderRadius: borderRadius.full,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.md,
+  },
+  onairosBtnText: {
+    color: colors.background,
+    fontWeight: '600',
+    fontSize: 13.5,
+    letterSpacing: 0.3,
+  },
   footer: {
     padding: spacing.xl,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,

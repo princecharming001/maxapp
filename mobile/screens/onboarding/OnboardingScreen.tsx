@@ -42,6 +42,7 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { borderRadius, colors, fonts, spacing, typography } from '../../theme/dark';
+import OnairosConnectModal from '../../components/OnairosConnectModal';
 
 /* ── Vocabulary ───────────────────────────────────────────────────────── */
 
@@ -71,9 +72,13 @@ const STEP_TITLES = [
     "What's your weight?",
     'When are you busy?',
     'What matters most?',
+    'Personalize further?',
 ] as const;
 
 const STEP_COUNT = STEP_TITLES.length;
+// Onairos step is optional — index 6 (the last). Skipping is fine, so it
+// doesn't gate the CTA's enabled state.
+const ONAIROS_STEP_INDEX = 6;
 
 /* ── Conversions ──────────────────────────────────────────────────────── */
 
@@ -108,6 +113,11 @@ export default function OnboardingScreen() {
     const [workStartSlot, setWorkStartSlot] = useState(36);
     const [workEndSlot, setWorkEndSlot] = useState(68);
     const [priority, setPriority] = useState<PriorityKey[]>([]);
+    // Onairos: tracks whether the user opened the connect modal AND
+    // whether the connection succeeded. Both feed into the final
+    // step's UI state ("Connect" / "Connected ✓").
+    const [onairosVisible, setOnairosVisible] = useState(false);
+    const [onairosConnected, setOnairosConnected] = useState(false);
 
     const valid: boolean[] = [
         gender !== null,
@@ -119,6 +129,8 @@ export default function OnboardingScreen() {
         // defaults so we don't block on them.
         hasWork !== null && (hasWork === 'flexible' || workEndSlot > workStartSlot),
         priority.length === PRIORITIES.length,
+        // Onairos step is optional — always valid so user can skip with one tap.
+        true,
     ];
 
     /* Soft fade between steps — no horizontal motion. Quieter than a slide,
@@ -241,6 +253,13 @@ export default function OnboardingScreen() {
                 );
             case 5:
                 return <PriorityStep value={priority} onChange={setPriority} />;
+            case 6:
+                return (
+                    <OnairosStep
+                        connected={onairosConnected}
+                        onPressConnect={() => setOnairosVisible(true)}
+                    />
+                );
         }
         return null;
     };
@@ -294,10 +313,80 @@ export default function OnboardingScreen() {
                     activeOpacity={0.85}
                 >
                     <Text style={styles.ctaText}>
-                        {submitting ? 'Saving…' : step === STEP_COUNT - 1 ? 'Continue' : 'Next'}
+                        {submitting
+                            ? 'Saving…'
+                            : step === STEP_COUNT - 1
+                                ? (onairosConnected ? 'Continue' : 'Skip & continue')
+                                : 'Next'}
                     </Text>
                 </TouchableOpacity>
             </View>
+
+            {/* Onairos modal — opens from the OnairosStep button. */}
+            <OnairosConnectModal
+                visible={onairosVisible}
+                onClose={() => setOnairosVisible(false)}
+                onConnected={() => {
+                    setOnairosConnected(true);
+                    setOnairosVisible(false);
+                }}
+            />
+        </View>
+    );
+}
+
+/* ─────────────────────────────────────────────────────────────────────── */
+/*  Step 7 — Onairos personalization (optional)                            */
+/* ─────────────────────────────────────────────────────────────────────── */
+
+function OnairosStep({
+    connected,
+    onPressConnect,
+}: {
+    connected: boolean;
+    onPressConnect: () => void;
+}) {
+    return (
+        <View style={{ alignSelf: 'stretch', alignItems: 'center' }}>
+            <Text style={styles.helperLine}>
+                pull personality + habits from apps you already use, so max can
+                tailor coaching from day one. you approve every category.
+            </Text>
+
+            <View style={styles.onairosBenefits}>
+                {[
+                    'personalized routine out of the gate',
+                    'no second-round onboarding questions',
+                    'smarter check-in cadence',
+                ].map((line, i) => (
+                    <View key={i} style={styles.onairosBenefitRow}>
+                        <View style={styles.onairosBenefitDot} />
+                        <Text style={styles.onairosBenefitText}>{line}</Text>
+                    </View>
+                ))}
+            </View>
+
+            {connected ? (
+                <View style={styles.onairosConnected}>
+                    <Ionicons name="checkmark-circle" size={20} color={colors.foreground} />
+                    <Text style={styles.onairosConnectedText}>connected — max will use this</Text>
+                </View>
+            ) : (
+                <TouchableOpacity
+                    style={styles.onairosBtn}
+                    activeOpacity={0.85}
+                    onPress={onPressConnect}
+                    accessibilityRole="button"
+                    accessibilityLabel="Connect Onairos"
+                >
+                    <Ionicons name="link-outline" size={16} color={colors.buttonText} />
+                    <Text style={styles.onairosBtnText}>connect with onairos</Text>
+                </TouchableOpacity>
+            )}
+
+            <Text style={styles.onairosHint}>
+                you can skip and add it later from settings.
+            </Text>
         </View>
     );
 }
@@ -881,6 +970,76 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: 4,
     },
+    /* onairos onboarding step */
+    onairosBenefits: {
+        marginTop: spacing.lg,
+        marginBottom: spacing.xl,
+        gap: 10,
+        alignSelf: 'stretch',
+    },
+    onairosBenefitRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    onairosBenefitDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: colors.foreground,
+        opacity: 0.5,
+    },
+    onairosBenefitText: {
+        fontFamily: fonts.sans,
+        fontSize: 13.5,
+        color: colors.textPrimary,
+        letterSpacing: 0.05,
+        flex: 1,
+    },
+    onairosBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: colors.foreground,
+        paddingVertical: 13,
+        paddingHorizontal: spacing.xl,
+        borderRadius: borderRadius.full,
+        alignSelf: 'stretch',
+    },
+    onairosBtnText: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 13,
+        color: colors.buttonText,
+        letterSpacing: 0.4,
+    },
+    onairosConnected: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: colors.surfaceLight,
+        paddingVertical: 13,
+        paddingHorizontal: spacing.lg,
+        borderRadius: borderRadius.full,
+        alignSelf: 'stretch',
+        justifyContent: 'center',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+    },
+    onairosConnectedText: {
+        fontFamily: fonts.sansMedium,
+        fontSize: 13,
+        color: colors.foreground,
+        letterSpacing: 0.1,
+    },
+    onairosHint: {
+        fontFamily: fonts.sans,
+        fontSize: 12,
+        color: colors.textMuted,
+        marginTop: spacing.md,
+        textAlign: 'center',
+    },
+
     scheduleLabel: {
         fontFamily: fonts.sansMedium,
         fontSize: 13,
