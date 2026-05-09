@@ -17,7 +17,7 @@
  *   - Friction reduction: Apple IAP / Stripe one-tap CTAs at thumb level
  *
  * Tiers:
- *   Chadlite (basic):   chatbot · 1 active program · weekly face scan
+ *   Chadlite (basic):   chatbot · 2 active programs · weekly face scan
  *   Chad (premium):     chatbot pro · 3 active programs · daily scans
  *                       · full course library · everything else
  */
@@ -49,7 +49,7 @@ import { SHOW_DEV_SKIP_CONTROLS } from '../../constants/devSkips';
 
 const BASIC_PERKS: { label: string; included: boolean }[] = [
     { label: 'Chatbot access',           included: true  },
-    { label: '1 active program',         included: true  },
+    { label: '2 active programs',        included: true  },
     { label: 'Weekly face scan',         included: true  },
 ];
 
@@ -126,12 +126,37 @@ export default function PaymentScreen() {
 
     return (
         <View style={s.container}>
-            {/* ── Decorative glass orbs (full-screen backdrop) ─────── */}
+            {/* Decorative gradient blobs (full-screen backdrop). Replaces
+                the previous flat-color circles which read as 'unfinished
+                MS Paint disc'. Each blob is a radial-feeling linear
+                gradient with transparent end-stops so it fades cleanly
+                into the page. */}
             <View style={s.orb1} pointerEvents="none">
-                <View style={[s.orbInner, { backgroundColor: ACCENT_GLOW }]} />
+                <LinearGradient
+                    colors={['rgba(139,92,246,0.32)', 'rgba(139,92,246,0.10)', 'rgba(139,92,246,0)']}
+                    locations={[0, 0.55, 1]}
+                    start={{ x: 0.2, y: 0.2 }}
+                    end={{ x: 1, y: 1 }}
+                    style={s.orbInner}
+                />
             </View>
             <View style={s.orb2} pointerEvents="none">
-                <View style={[s.orbInner, { backgroundColor: ACCENT_GLOW_2 }]} />
+                <LinearGradient
+                    colors={['rgba(16,185,129,0.22)', 'rgba(59,130,246,0.10)', 'rgba(59,130,246,0)']}
+                    locations={[0, 0.6, 1]}
+                    start={{ x: 0.8, y: 0.2 }}
+                    end={{ x: 0, y: 1 }}
+                    style={s.orbInner}
+                />
+            </View>
+            <View style={s.orb3} pointerEvents="none">
+                <LinearGradient
+                    colors={['rgba(244,63,94,0.16)', 'rgba(244,114,182,0.06)', 'rgba(244,114,182,0)']}
+                    locations={[0, 0.5, 1]}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={s.orbInner}
+                />
             </View>
 
             {/* ── Top bar ─────────────────────────────────────────── */}
@@ -168,60 +193,11 @@ export default function PaymentScreen() {
                     onPress={() => handleSubscribe('basic')}
                 />
 
-                {/* ── Trust strip ──────────────────────────────────── */}
-                <View style={s.trustRow}>
-                    <TrustItem icon="lock-closed-outline" label="Encrypted" />
-                    <View style={s.trustDivider} />
-                    <TrustItem icon="refresh-outline" label="Cancel anytime" />
-                </View>
-
-                {IS_IOS ? (
-                    <TouchableOpacity
-                        style={[s.restoreBtn, busy && s.ctaDisabled]}
-                        onPress={handleRestore}
-                        disabled={busy}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="refresh-outline" size={15} color={colors.foreground} />
-                        <Text style={s.restoreBtnText}>
-                            {appleRestoring ? 'Restoring…' : 'Restore Purchases'}
-                        </Text>
-                    </TouchableOpacity>
-                ) : null}
-
-                {/* Apple 3.1.2 — ToS + Privacy required on subscription pages */}
-                <View style={s.legalRow}>
-                    <TouchableOpacity
-                        onPress={() => navigation.navigate('LegalDocument', { document: 'terms' })}
-                        activeOpacity={0.6}
-                    >
-                        <Text style={s.legalLink}>Terms of Service</Text>
-                    </TouchableOpacity>
-                    <Text style={s.legalDot}>·</Text>
-                    <TouchableOpacity
-                        onPress={() => navigation.navigate('LegalDocument', { document: 'privacy' })}
-                        activeOpacity={0.6}
-                    >
-                        <Text style={s.legalLink}>Privacy Policy</Text>
-                    </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity
-                    style={s.signOutBtn}
-                    onPress={() => {
-                        Alert.alert(
-                            'Sign out?',
-                            "You'll be taken back to the sign-in screen.",
-                            [
-                                { text: 'Cancel', style: 'cancel' },
-                                { text: 'Sign out', style: 'destructive', onPress: () => void logout() },
-                            ],
-                        );
-                    }}
-                    activeOpacity={0.7}
-                >
-                    <Text style={s.signOutText}>Sign out & start over</Text>
-                </TouchableOpacity>
+                {/* Restore / Terms / Privacy intentionally removed from
+                    this screen — they live in Settings (legal section +
+                    Manage Subscription → Restore) which is the standard
+                    place. Keep this screen visually focused on the
+                    upgrade decision. */}
 
                 {SHOW_DEV_SKIP_CONTROLS ? (
                     <View style={s.devRow}>
@@ -371,41 +347,41 @@ function BasicCard({
     );
 }
 
-/* ── Trust pill ──────────────────────────────────────────────────────── */
-
-function TrustItem({ icon, label }: { icon: any; label: string }) {
-    return (
-        <View style={s.trustItem}>
-            <Ionicons name={icon} size={13} color={colors.textSecondary} />
-            <Text style={s.trustLabel}>{label}</Text>
-        </View>
-    );
-}
 
 /* ── Styles ──────────────────────────────────────────────────────────── */
 
 const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
 
-    /* decorative orbs (background) */
+    /* decorative gradient blobs (background) — three layered blooms
+       give the page atmosphere without any sharp edges. */
     orb1: {
         position: 'absolute',
-        top: -40,
-        right: -60,
-        width: 240,
-        height: 240,
+        top: -60,
+        right: -80,
+        width: 320,
+        height: 320,
     },
     orb2: {
         position: 'absolute',
-        top: 320,
-        left: -80,
-        width: 280,
-        height: 280,
+        top: 280,
+        left: -100,
+        width: 360,
+        height: 360,
+    },
+    orb3: {
+        position: 'absolute',
+        bottom: -120,
+        right: -100,
+        width: 380,
+        height: 380,
     },
     orbInner: {
         flex: 1,
-        borderRadius: 140,
-        opacity: 1,
+        // Larger radius matches the bigger blob sizes; the gradient
+        // fades to fully-transparent at the edges so the hard radius
+        // is invisible in practice.
+        borderRadius: 200,
     },
 
     topBar: {
@@ -602,82 +578,10 @@ const s = StyleSheet.create({
     },
     ctaDisabled: { opacity: 0.45 },
 
-    /* trust strip */
-    trustRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: spacing.lg,
-    },
-    trustItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-        paddingHorizontal: 8,
-    },
-    trustLabel: {
-        fontFamily: fonts.sansMedium,
-        fontSize: 11,
-        letterSpacing: 0.3,
-        color: colors.textSecondary,
-    },
-    trustDivider: {
-        width: 1,
-        height: 12,
-        backgroundColor: colors.border,
-    },
-
-    disclaimer: {
-        fontSize: 11,
-        color: colors.textMuted,
-        textAlign: 'center',
-        lineHeight: 17,
-    },
-
-    restoreBtn: {
-        alignSelf: 'center',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginTop: spacing.lg,
-        paddingVertical: 9,
-        paddingHorizontal: 16,
-        borderRadius: borderRadius.full,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-    },
-    restoreBtnText: {
-        fontSize: 12.5,
-        fontWeight: '600',
-        color: colors.foreground,
-    },
-
-    legalRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: spacing.sm,
-        marginTop: spacing.md,
-    },
-    legalLink: {
-        fontSize: 11,
-        color: colors.textSecondary,
-        textDecorationLine: 'underline',
-    },
-    legalDot: { fontSize: 11, color: colors.textMuted },
-
-    signOutBtn: {
-        alignSelf: 'center',
-        marginTop: spacing.lg,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-    },
-    signOutText: {
-        fontSize: 12,
-        fontWeight: '500',
-        color: colors.textMuted,
-        textDecorationLine: 'underline',
-    },
+    /* (trust strip / restore / legal / sign-out styles removed —
+       those rows lived under the cards and made the screen look
+       crowded. Restore + Terms + Privacy are accessible from
+       Settings → Manage Subscription / Legal.) */
 
     devRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
     devBtn: {
