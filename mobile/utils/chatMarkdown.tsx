@@ -36,10 +36,63 @@ const BARE_URL_RE = /^https?:\/\//;
 const BOLD_RE = /\*\*([^*]+)\*\*/g;
 const CODE_RE = /`([^`]+)`/g;
 
+/**
+ * Soft-reformat plain prose so it doesn't render as a wall.
+ *
+ * Triggered ONLY when the model emitted no structure at all — no
+ * headings, bullets, numbered lists, or blank lines — AND the message
+ * is long enough that a wall is uncomfortable to read in a bubble (>=4
+ * sentences). In that case we:
+ *
+ *   1. Detect a numbered run inside a single paragraph
+ *      ("first, X. second, Y. third, Z.") and turn it into real
+ *      numbered lines.
+ *   2. Otherwise insert a blank line every ~2 sentences so the bubble
+ *      breathes.
+ *
+ * If the message already has structure (any newline / bullet / heading),
+ * we trust it and pass through unchanged.
+ */
+function softReflow(text: string): string {
+    if (!text) return text;
+    const hasStructure = /\n|^[-*•]\s|^\d{1,2}[.)]\s|^#{1,6}\s/m.test(text);
+    if (hasStructure) return text;
+
+    // Very rough sentence split — splits on . ! ? followed by space + capital
+    // letter. Keeps the punctuation with the sentence it ends.
+    const sentences = text
+        .split(/(?<=[.!?])\s+(?=[A-Z(\d])/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    if (sentences.length < 4) return text;
+
+    // Detect first/second/third-style enumeration → real numbered list.
+    const ENUM_PREFIX = /^(?:first|second|third|fourth|fifth|next|then|finally)[,:]?\s+/i;
+    const enumHits = sentences.filter((s) => ENUM_PREFIX.test(s)).length;
+    if (enumHits >= 2) {
+        let n = 1;
+        const lines = sentences.map((s) => {
+            if (ENUM_PREFIX.test(s)) {
+                const stripped = s.replace(ENUM_PREFIX, '');
+                return `${n++}. ${stripped}`;
+            }
+            return s;
+        });
+        return lines.join('\n');
+    }
+
+    // Otherwise group sentences into paragraphs of 2 with blank line between.
+    const paras: string[] = [];
+    for (let i = 0; i < sentences.length; i += 2) {
+        paras.push(sentences.slice(i, i + 2).join(' '));
+    }
+    return paras.join('\n\n');
+}
+
 /** Render a multi-line markdown-ish string into a React element tree. */
 export function renderRichText(text: string, opts: RenderOpts): React.ReactNode {
     if (!text) return null;
-    const lines = text.split('\n');
+    const lines = softReflow(text).split('\n');
     return (
         <View>
             {lines.map((line, i) => renderLine(line, i, opts))}

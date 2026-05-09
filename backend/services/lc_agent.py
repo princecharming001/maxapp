@@ -376,6 +376,18 @@ async def build_agent_system_prompt(
         "\n\n## STYLE: do NOT overuse em-dashes (—) in your replies. "
         "Prefer commas, colons, or periods. One em-dash per response is "
         "fine; back-to-back is not.\n"
+        # Readability rule. Big paragraph walls are hard to read on a
+        # phone bubble — break long answers up.
+        "\n## READABILITY\n"
+        "If your answer has more than 3 sentences OR introduces a "
+        "multi-step protocol / dose / sequence: structure it. Use\n"
+        "  - bullet points (`- thing`) for non-sequential lists\n"
+        "  - numbered steps (`1. step`) for ordered protocols\n"
+        "  - short paragraph breaks (blank line) every 2 sentences for "
+        "narrative answers\n"
+        "Do NOT ship a 5-sentence wall of text. The chat bubble is "
+        "narrow; long paragraphs read as a wall and the user skims past "
+        "them. Keep each line / bullet under ~140 chars.\n"
         "## PRODUCT RECOMMENDATIONS: ALWAYS LINK WHEN ASKED\n"
         "When the user asks for a product, brand, supplement, skincare "
         "item, what to buy, or 'links/recs/recommendations', you MUST "

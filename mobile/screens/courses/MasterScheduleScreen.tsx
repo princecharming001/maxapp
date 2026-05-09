@@ -480,22 +480,70 @@ export default function MasterScheduleScreen() {
   };
 
   const groupedTasks = useMemo(() => {
+    // Distribute across FOUR buckets, not three.
+    //   Morning  : 4-12   (morning_routine, post_routine, mid_morning)
+    //   Midday   : 12-17  (lunch + afternoon — was buried under "Afternoon"
+    //                      with everything past noon, which made the
+    //                      bucket either 1-task or 5-task depending on
+    //                      where lunch landed)
+    //   Evening  : 17-21  (pre_evening, workout, post_workout)
+    //   Night    : 21-04  (pm_routine, wind_down)
+    // The old 3-bucket split (Morning <12 / Afternoon <17 / Evening 17+)
+    // bunched ~everything into Morning + Evening because lunch landed at
+    // ~11:30 so it went to Morning, leaving Afternoon nearly empty. The
+    // 4-bucket split + the work/sleep block rendering below give a much
+    // more legible day view.
     const morning: MergedScheduleTask[] = [];
-    const afternoon: MergedScheduleTask[] = [];
+    const midday:  MergedScheduleTask[] = [];
     const evening: MergedScheduleTask[] = [];
+    const night:   MergedScheduleTask[] = [];
     for (const t of tasksForDay) {
       const parts = parseTimeToHHMM(t.time);
-      if (!parts || parts.hh < 12) morning.push(t);
-      else if (parts.hh < 17) afternoon.push(t);
-      else evening.push(t);
+      const hh = parts ? parts.hh : 8;   // missing time → treat as morning
+      if (hh < 12) morning.push(t);
+      else if (hh < 17) midday.push(t);
+      else if (hh < 21) evening.push(t);
+      else night.push(t);
     }
     const groups: { label: string; tasks: MergedScheduleTask[] }[] = [];
     if (morning.length) groups.push({ label: 'Morning', tasks: morning });
-    if (afternoon.length) groups.push({ label: 'Afternoon', tasks: afternoon });
+    if (midday.length)  groups.push({ label: 'Midday',  tasks: midday });
     if (evening.length) groups.push({ label: 'Evening', tasks: evening });
+    if (night.length)   groups.push({ label: 'Night',   tasks: night });
     if (groups.length === 0 && tasksForDay.length > 0) groups.push({ label: 'Today', tasks: tasksForDay });
     return groups;
   }, [tasksForDay]);
+
+  /**
+   * Block rows interleaved with the task groups so the schedule reads
+   * with real-life context: "you're at work 9–5, sleeping 11–7, here's
+   * what slots in around that". Pulled from onboarding (wake_time,
+   * sleep_time, work_schedule, work_start, work_end). Returns an array
+   * of {kind, label, start, end} entries to be rendered as styled
+   * non-interactive cards between groups.
+   */
+  const blocks = useMemo(() => {
+    const ob = (user?.onboarding || {}) as Record<string, any>;
+    const out: { kind: 'work' | 'sleep'; label: string; start: string; end: string }[] = [];
+    if (ob.work_schedule === 'fixed' && ob.work_start && ob.work_end) {
+      out.push({ kind: 'work',  label: 'Work / school', start: String(ob.work_start),  end: String(ob.work_end) });
+    }
+    if (ob.sleep_time && ob.wake_time) {
+      out.push({ kind: 'sleep', label: 'Sleep',         start: String(ob.sleep_time),  end: String(ob.wake_time) });
+    }
+    return out;
+  }, [user?.onboarding]);
+
+  /**
+   * Decide which block (if any) to render right after a given task
+   * group. Work block goes after Morning (since work usually starts
+   * after the morning routine). Sleep block goes after Night.
+   */
+  const blockForGroup = useCallback((groupLabel: string) => {
+    if (groupLabel === 'Morning') return blocks.find((b) => b.kind === 'work') ?? null;
+    if (groupLabel === 'Night')   return blocks.find((b) => b.kind === 'sleep') ?? null;
+    return null;
+  }, [blocks]);
 
   const HeaderChrome = ({
     title,
@@ -708,12 +756,47 @@ export default function MasterScheduleScreen() {
                   </View>
                 );
               })}
+              {/* Render the relevant calendar block AFTER this group so
+                  it visually slots between Morning↘Work or Night↘Sleep. */}
+              {(() => {
+                const blk = blockForGroup(group.label);
+                if (!blk) return null;
+                return (
+                  <View
+                    style={[
+                      styles.lifeBlock,
+                      blk.kind === 'sleep' && styles.lifeBlockSleep,
+                    ]}
+                  >
+                    <Ionicons
+                      name={blk.kind === 'sleep' ? 'moon-outline' : 'briefcase-outline'}
+                      size={14}
+                      color={colors.textMuted}
+                    />
+                    <Text style={styles.lifeBlockLabel}>{blk.label}</Text>
+                    <Text style={styles.lifeBlockTime}>
+                      {formatTime12(blk.start)} – {formatTime12(blk.end)}
+                    </Text>
+                  </View>
+                );
+              })()}
             </View>
           ))}
         </ScrollView>
       </View>
     </View>
   );
+}
+
+/** "07:00" → "7:00 AM". Used by the Work / Sleep blocks. */
+function formatTime12(hhmm: string): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
+  if (!m) return hhmm;
+  const h24 = Math.max(0, Math.min(23, parseInt(m[1], 10)));
+  const min = m[2];
+  const period = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${min} ${period}`;
 }
 
 const styles = StyleSheet.create({
@@ -813,6 +896,41 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   taskList: { flex: 1, minHeight: 0, paddingHorizontal: spacing.lg },
+  /* Life block (work / sleep) — calendar-style row inserted between
+     task groups so the schedule reads with real-life context. */
+  lifeBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.foreground,
+  },
+  lifeBlockSleep: {
+    // Slightly muted treatment so sleep reads as "you're asleep" rather
+    // than another action item.
+    backgroundColor: colors.surfaceLight,
+    borderLeftColor: colors.textMuted,
+    opacity: 0.95,
+  },
+  lifeBlockLabel: {
+    flex: 1,
+    fontFamily: fonts.sansMedium,
+    fontSize: 13,
+    color: colors.foreground,
+    letterSpacing: 0.1,
+  },
+  lifeBlockTime: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    color: colors.textMuted,
+    fontVariant: ['tabular-nums'],
+  },
   taskDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,

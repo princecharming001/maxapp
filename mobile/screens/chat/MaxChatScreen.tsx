@@ -847,7 +847,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
     },
-    messageText: { fontSize: 15, lineHeight: 22, color: colors.foreground },
+    messageText: { fontSize: 15, lineHeight: 23, color: colors.foreground, letterSpacing: 0.05 },
     userMessageText: { color: colors.buttonText },
     linkText: { color: '#60A5FA', textDecorationLine: 'underline' },
     productLinksContainer: { marginTop: 10, gap: 6 },
