@@ -82,6 +82,92 @@ def _normalize_apns_device_token(raw: str) -> str:
     return s
 
 
+@router.get("/me/products")
+async def get_my_products(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Surface every catalog product relevant to this user's onboarding +
+    active maxxes. Used by the Settings → My Products screen.
+
+    Strategy:
+      1. Pull the user's onboarding + active schedules.
+      2. Derive a set of (module, concerns) pairs from those signals
+         (e.g. skinmax + ['acne','dryness'], fitmax + ['muscle_gain']).
+      3. Run each pair through find_products() (catalog filter + fact
+         filter for vegan / fragrance-allergy / etc).
+      4. Dedupe by id, return the union as a list of compact dicts the
+         mobile client can render directly.
+    Fast (<50ms typical) — pure in-process, no network.
+    """
+    user_uuid = UUID(current_user["id"])
+    user = await db.get(User, user_uuid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    ob = dict(user.onboarding or {})
+    facts = (
+        ob.get("user_facts")
+        or (user.persistent_context or {}).get("user_facts") if hasattr(user, "persistent_context") else None
+    ) or {}
+
+    # Build (module, concerns) pairs from onboarding signals.
+    pairs: list[tuple[str, list[str]]] = []
+    if ob.get("primary_skin_concern"):
+        pairs.append(("skinmax", [str(ob["primary_skin_concern"])]))
+    if ob.get("secondary_skin_concern") and ob["secondary_skin_concern"] != "none":
+        pairs.append(("skinmax", [str(ob["secondary_skin_concern"])]))
+    if str(ob.get("hair_current_loss") or "").startswith("yes"):
+        pairs.append(("hairmax", ["hair_loss", "regrowth"]))
+    elif ob.get("hair_current_loss") == "starting":
+        pairs.append(("hairmax", ["hair_loss"]))
+    if ob.get("fitmax_primary_goal"):
+        goal = str(ob["fitmax_primary_goal"])
+        concern_map = {
+            "muscle": ["muscle_gain", "protein"],
+            "lean":   ["recovery", "protein"],
+            "both":   ["muscle_gain", "recovery", "protein"],
+        }
+        pairs.append(("fitmax", concern_map.get(goal, ["protein"])))
+    if any(g in (ob.get("goals") or []) for g in ("heightmax", "height")):
+        pairs.append(("heightmax", ["posture", "decompression"]))
+    if any(g in (ob.get("goals") or []) for g in ("bonemax", "jaw")):
+        pairs.append(("bonemax", ["jaw_training", "masseter"]))
+    # General fallback so the page isn't empty for new users.
+    if not pairs:
+        pairs = [("skinmax", []), ("fitmax", [])]
+
+    try:
+        from services.product_catalog import find_products
+        seen: set[str] = set()
+        products: list[dict] = []
+        for module, concerns in pairs:
+            hits = find_products(
+                module=module,
+                concerns=concerns or None,
+                user_facts=facts,
+                limit=4,
+            )
+            for p in hits:
+                if p.id in seen:
+                    continue
+                seen.add(p.id)
+                products.append({
+                    "id": p.id,
+                    "name": p.name,
+                    "brand": p.brand,
+                    "module": p.module,
+                    "url": p.display_url,
+                    "price_tier": p.price_tier,
+                    "rationale": p.rationale,
+                    "tags": p.tags,
+                })
+        return {"products": products}
+    except Exception as e:
+        logger.warning("[my-products] catalog read failed: %s", e)
+        return {"products": []}
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_profile(current_user: dict = Depends(get_current_user)):
     """

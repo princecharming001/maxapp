@@ -137,10 +137,22 @@ def _shape_query(query: str, module: Optional[str]) -> str:
     if not base:
         return ""
     bias = _MODULE_QUERY_HINTS.get((module or "").strip().lower(), "")
-    # Constrain to amazon — the validator only accepts `/dp/<ASIN>` URLs
-    # so non-Amazon results would just get dropped.
-    parts = [p for p in (base, bias, "site:amazon.com") if p]
-    return " ".join(parts)[:180]
+    parts = [p for p in (base, bias) if p]
+    return " ".join(parts)[:120]
+
+
+def _amazon_search_url(query: str) -> str:
+    """Build a clean Amazon search URL from free-text. Always lands on
+    a real product results page on amazon.com, which is the most
+    reliable thing we can hand the user without PA-API credentials.
+    Replaces the prior DDG → /dp/<ASIN> scraping path which was
+    chronically unreliable: DDG indexes lag Amazon's catalog (stale
+    ASINs that 404), Amazon serves bot-shaped UAs different HTML so
+    the liveness probe was bouncing, and Render's egress was getting
+    rate-limited."""
+    import urllib.parse as _u
+    q = _u.quote_plus(query.strip()[:120])
+    return f"https://www.amazon.com/s?k={q}"
 
 
 # ---------------------------------------------------------------------- #
@@ -378,81 +390,44 @@ async def search_live(
     module: Optional[str] = None,
     max_results: int = 3,
 ) -> list[ProductHit]:
-    """Issue a constrained DDG search and return up to `max_results`
-    real Amazon product hits. Empty list on no match / search failure.
+    """Build a deterministic Amazon search URL from `query` and return
+    it as a single ProductHit. ALWAYS works — there's no probe to fail,
+    no DDG index to be stale.
 
-    Two-stage filter:
-      1. URL shape — must match `amazon.com/.../dp/<ASIN>` (US only).
-      2. Liveness — HEAD/GET the URL and confirm Amazon is currently
-         serving a real product page (not 404 / 'currently unavailable'
-         / redirect-to-homepage). Cached 24h per URL.
+    Why we abandoned the DDG → /dp/<ASIN> scrape:
+      - DDG indexes lag Amazon's catalog by weeks, so the ASINs DDG
+        knows about are often delisted by the time we link them.
+      - Amazon serves bot-shaped UAs different HTML, so the liveness
+        probe was getting bounced and we were dropping good links.
+      - Render's egress IPs get rate-limited by Amazon under load.
+      - Even when liveness passed, the product on the page wasn't
+        always the right one (the "moisturizer mug" failure mode).
 
-    Stage 2 protects against the "links aren't valid" failure mode the
-    user reported — DDG's index lags Amazon's catalog by weeks, so
-    plain search results regularly include delisted ASINs."""
+    A search URL sidesteps every one of those: it lands on Amazon's
+    own ranked results for the keyword, which is exactly what the user
+    would do anyway. We give the user one click + Amazon's choice of
+    best matches, instead of zero-or-one possibly-wrong hand-picked
+    product. Catalog hits (find_or_search → product_catalog) still
+    return curated /dp/ URLs first; this is only the FALLBACK.
+    """
     shaped = _shape_query(query, module)
     if not shaped:
         return []
-    try:
-        from services.web_search import _ddg_search
-        # Ask for more raw results than we need — most won't be /dp/<ASIN>,
-        # and of those that are, some will be dead. 8× over-fetch.
-        raw = await asyncio.wait_for(
-            asyncio.to_thread(_ddg_search, shaped, max_results * 8, None),
-            timeout=10.0,
-        )
-    except asyncio.TimeoutError:
-        logger.info("[product_search] timeout for %r", shaped)
-        return []
-    except Exception as e:
-        logger.info("[product_search] failed for %r: %s", shaped, e)
-        return []
-
-    raw_hits: list[ProductHit] = []
-    seen_asins: set[str] = set()
-    for r in raw or []:
-        url = (r.get("href") or r.get("url") or "").strip()
-        clean = _extract_asin_url(url)
-        if not clean:
-            continue
-        # Dedupe by ASIN — sometimes search returns 3 variants of the
-        # same product (region pages, sponsored, etc.).
-        asin_match = re.search(r"/dp/([A-Z0-9]{10})", clean)
-        asin = asin_match.group(1) if asin_match else clean
-        if asin in seen_asins:
-            continue
-        seen_asins.add(asin)
-
-        title = (r.get("title") or "").strip()
-        # Trim DDG's "Amazon.com: ..." prefix that adds no signal.
-        title = re.sub(r"^amazon(?:\.[a-z]+)?\s*:?\s*", "", title, flags=re.IGNORECASE)
-        # Truncate at the first " - " or " | " separator (Amazon
-        # title-stuffs the URL slug after the brand+name).
-        title = re.split(r"\s+[\|–—-]\s+", title, maxsplit=1)[0]
-        title = title[:120].strip() or "Product on Amazon"
-
-        snippet = (r.get("body") or r.get("snippet") or "").strip()
-        snippet = re.sub(r"\s+", " ", snippet)[:200]
-
-        raw_hits.append(ProductHit(
-            name=title,
-            url=clean,
-            snippet=snippet,
-            source="live",
-        ))
-
-    # Stage 2: liveness AND relevance check. Drops both dead URLs AND
-    # alive-but-off-topic products (the "moisturizer mug" failure mode).
-    keywords = _query_keywords(query)
-    hits = await _filter_alive(raw_hits, limit=max_results, query_keywords=keywords)
-    for h in hits:
-        _record_url(h.url)
-
+    url = _amazon_search_url(shaped)
+    _record_url(url)
+    title = f"Search Amazon: {shaped[:80]}"
     logger.info(
-        "[product_search] %d/%d kept for %r (module=%s, raw=%d, kw=%s)",
-        len(hits), len(raw_hits), shaped, module, len(raw or []), sorted(keywords),
+        "[product_search] live → search-URL fallback for %r (module=%s)",
+        shaped, module,
     )
-    return hits
+    return [
+        ProductHit(
+            name=title,
+            url=url,
+            snippet=f"Amazon results for '{shaped[:60]}'",
+            source="live",
+        )
+    ]
 
 
 async def find_or_search(

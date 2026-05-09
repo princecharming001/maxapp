@@ -550,7 +550,11 @@ class ApiService {
         work_start?: string | null;
         work_end?: string | null;
     }) {
-        const response = await this.client.post('users/onboarding', data);
+        // 12s default was timing out on Edit Lifestyle saves when the
+        // server cold-starts (Render free tier wakes ~5-8s) or when the
+        // post-save schedule regenerator runs synchronously. 30s gives
+        // headroom without making a stuck request feel infinite.
+        const response = await this.client.post('users/onboarding', data, { timeout: 30_000 });
         return response.data;
     }
 
@@ -777,6 +781,23 @@ class ApiService {
         return response.data;
     }
 
+    /** Curated catalog products tailored to this user's onboarding signals. */
+    async getMyProducts(): Promise<{
+        products: {
+            id: string;
+            name: string;
+            brand: string;
+            module: string;
+            url: string;
+            price_tier: 'budget' | 'mid' | 'premium' | string;
+            rationale: string;
+            tags: Record<string, boolean | null>;
+        }[];
+    }> {
+        const response = await this.client.get('users/me/products');
+        return response.data;
+    }
+
     async registerPushToken(token: string) {
         const response = await this.client.post('users/push-token', { token });
         return response.data;
@@ -966,6 +987,8 @@ class ApiService {
     ): Promise<{
         response: string;
         choices?: string[];
+        /** When true the chip row renders multi-select with a Submit button. */
+        multi_choice?: boolean;
         // Optional structured input widget. When the backend wants the user
         // to provide a numeric value, it returns a slider spec instead of
         // (or alongside) text input. Mobile renders ChatSliderInput for it.

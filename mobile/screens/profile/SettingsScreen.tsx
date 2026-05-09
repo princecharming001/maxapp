@@ -146,6 +146,11 @@ export default function SettingsScreen() {
                         hint="Goals & habits for better recommendations"
                         onPress={() => navigation.navigate('EditPersonal')}
                     />
+                    <Row
+                        label="My products"
+                        hint="Everything you need for your schedule"
+                        onPress={() => navigation.navigate('MyProducts')}
+                    />
                     {/* Response length lives in the chat sidebar — keep
                         Settings focused on profile + account / legal. */}
                 </View>

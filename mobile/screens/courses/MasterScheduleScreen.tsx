@@ -896,40 +896,42 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   taskList: { flex: 1, minHeight: 0, paddingHorizontal: spacing.lg },
-  /* Life block (work / sleep) — calendar-style row inserted between
-     task groups so the schedule reads with real-life context. */
+  /* Life block (work / sleep) — quiet calendar-style row that reads as
+     "context, not action". Theme-matched: thin background tint, hairline
+     border instead of accent stripe, small icon, tracked uppercase
+     label so it visually subordinates to the task list. */
   lifeBlock: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-    paddingVertical: 12,
+    gap: 10,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    paddingVertical: 11,
     paddingHorizontal: 14,
-    borderRadius: borderRadius.md,
+    borderRadius: 12,
     backgroundColor: colors.surface,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.foreground,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderLight,
   },
   lifeBlockSleep: {
-    // Slightly muted treatment so sleep reads as "you're asleep" rather
-    // than another action item.
-    backgroundColor: colors.surfaceLight,
-    borderLeftColor: colors.textMuted,
-    opacity: 0.95,
+    // No real distinction needed beyond the moon icon. Same surface as
+    // work for visual consistency.
+    backgroundColor: colors.surface,
   },
   lifeBlockLabel: {
     flex: 1,
-    fontFamily: fonts.sansMedium,
-    fontSize: 13,
-    color: colors.foreground,
-    letterSpacing: 0.1,
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 11,
+    color: colors.textMuted,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
   },
   lifeBlockTime: {
-    fontFamily: fonts.sans,
-    fontSize: 12,
-    color: colors.textMuted,
+    fontFamily: fonts.sansMedium,
+    fontSize: 12.5,
+    color: colors.foreground,
     fontVariant: ['tabular-nums'],
+    letterSpacing: 0.2,
   },
   taskDivider: {
     height: StyleSheet.hairlineWidth,

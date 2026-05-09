@@ -211,6 +211,10 @@ export default function MaxChatScreen() {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [serverChoices, setServerChoices] = useState<string[]>([]);
+    /** When true, the chip row renders multi-select w/ a Submit button. */
+    const [multiChoice, setMultiChoice] = useState<boolean>(false);
+    /** Active picks during a multi-select round. */
+    const [multiPicked, setMultiPicked] = useState<Set<string>>(new Set());
     // Optional structured input widget (slider) returned by the backend for
     // numeric questions. Mutually-exclusive UI: when this is non-null we
     // render <ChatSliderInput /> in place of the quick-reply chip row.
@@ -312,7 +316,7 @@ export default function MaxChatScreen() {
         const replyId = replyTarget?.id ?? undefined;
         if (replyTarget) setReplyTarget(null);
         try {
-            const { response, choices, input_widget, conversation_id } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, conversation_id } = await api.sendChatMessage(
                 msg,
                 undefined,
                 undefined,
@@ -337,6 +341,8 @@ export default function MaxChatScreen() {
                 { role: 'assistant', content: response },
             ]);
             setServerChoices(Array.isArray(choices) ? choices : []);
+            setMultiChoice(!!multi_choice);
+            setMultiPicked(new Set());
             setInputWidget(input_widget && input_widget.type === 'slider' ? input_widget as SliderSpec : null);
             // Invalidate the conversations list so the sidebar reorders + renames.
             queryClient.invalidateQueries({ queryKey: queryKeys.chatConversations });
@@ -419,7 +425,7 @@ export default function MaxChatScreen() {
         const replyId = replyTarget?.id ?? undefined;
         if (replyTarget) setReplyTarget(null);
         try {
-            const { response, choices, input_widget, conversation_id } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, conversation_id } = await api.sendChatMessage(
                 userContent,
                 undefined,
                 undefined,
@@ -440,6 +446,8 @@ export default function MaxChatScreen() {
                 { role: 'assistant', content: response },
             ]);
             setServerChoices(Array.isArray(choices) ? choices : []);
+            setMultiChoice(!!multi_choice);
+            setMultiPicked(new Set());
             setInputWidget(input_widget && input_widget.type === 'slider' ? input_widget as SliderSpec : null);
             // Update the cache for the ACTIVE conversation, not the legacy
             // single-thread key. Without this, tapping a chip wrote to
@@ -709,7 +717,7 @@ export default function MaxChatScreen() {
                             />
                         </View>
                     )}
-                    {!loading && !inputWidget && quickReplies.length > 0 && (
+                    {!loading && !inputWidget && quickReplies.length > 0 && !multiChoice && (
                         <View style={styles.quickReplyStack}>
                             {quickReplies.map((choice) => (
                                 <TouchableOpacity
@@ -732,6 +740,64 @@ export default function MaxChatScreen() {
                                     />
                                 </TouchableOpacity>
                             ))}
+                        </View>
+                    )}
+                    {!loading && !inputWidget && quickReplies.length > 0 && multiChoice && (
+                        <View style={styles.quickReplyStack}>
+                            {quickReplies.map((choice) => {
+                                const on = multiPicked.has(choice);
+                                return (
+                                    <TouchableOpacity
+                                        key={choice}
+                                        style={[styles.quickReplyButton, on && styles.quickReplyButtonOn]}
+                                        onPress={() => {
+                                            // Toggle the pick. The Submit button below
+                                            // sends the joined comma-list so the backend
+                                            // sees one user message containing all picks.
+                                            setMultiPicked((prev) => {
+                                                const next = new Set(prev);
+                                                if (next.has(choice)) next.delete(choice);
+                                                else next.add(choice);
+                                                return next;
+                                            });
+                                        }}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons
+                                            name={on ? 'checkmark-circle' : 'ellipse-outline'}
+                                            size={16}
+                                            color={on ? colors.foreground : colors.textMuted}
+                                            style={{ marginRight: 4 }}
+                                        />
+                                        <Text
+                                            style={[styles.quickReplyText, on && styles.quickReplyTextOn]}
+                                            numberOfLines={1}
+                                            ellipsizeMode="tail"
+                                        >
+                                            {choice}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                            <TouchableOpacity
+                                style={[
+                                    styles.multiSubmitBtn,
+                                    multiPicked.size === 0 && styles.multiSubmitBtnDisabled,
+                                ]}
+                                onPress={() => {
+                                    if (multiPicked.size === 0) return;
+                                    const picks = quickReplies.filter((c) => multiPicked.has(c));
+                                    sendMessage(picks.join(', '));
+                                }}
+                                disabled={multiPicked.size === 0}
+                                activeOpacity={0.85}
+                            >
+                                <Text style={styles.multiSubmitText}>
+                                    {multiPicked.size === 0
+                                        ? 'pick any that apply'
+                                        : `submit ${multiPicked.size} ${multiPicked.size === 1 ? 'pick' : 'picks'}`}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     )}
                     {replyTarget ? (
@@ -923,6 +989,33 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '500',
         letterSpacing: 0.05,
+    },
+    /* Multi-select active state — slight foreground tint, ink text. */
+    quickReplyButtonOn: {
+        backgroundColor: colors.surfaceLight ?? colors.surface,
+        borderColor: colors.foreground,
+    },
+    quickReplyTextOn: {
+        color: colors.foreground,
+        fontWeight: '600',
+    },
+    /* Submit button below multi-select chips. */
+    multiSubmitBtn: {
+        marginTop: 4,
+        paddingVertical: 11,
+        borderRadius: borderRadius.full,
+        backgroundColor: colors.foreground,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    multiSubmitBtnDisabled: {
+        backgroundColor: colors.border,
+    },
+    multiSubmitText: {
+        color: colors.buttonText,
+        fontSize: 13,
+        fontWeight: '600',
+        letterSpacing: 0.4,
     },
     inputContainer: {
         flexDirection: 'row',

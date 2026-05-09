@@ -281,12 +281,105 @@ def _scrub_tech_leak(text: str) -> str:
     return out.strip()
 
 
-def _finalize_assistant_message(text: str) -> str:
-    """User-facing chat: scrub any technical leak, drop markdown
-    asterisks, lowercase Max voice."""
+# --------------------------------------------------------------------- #
+#  Anti-AI-tell hard post-processor                                     #
+# --------------------------------------------------------------------- #
+# The system prompt asks the LLM to sound human, avoid em-dashes, and
+# break up long paragraphs. Prompt rules are imperfect — the LLM still
+# leans on its trained tells under load. These regexes are the edge
+# enforcer: applied to every outbound chat message, no exceptions.
+
+_AI_LEADIN_PATTERNS: tuple[re.Pattern, ...] = (
+    # "Certainly! Of course! Absolutely! Sure thing!" — generic enthusiasm.
+    re.compile(r"^(?:certainly|absolutely|of course|sure thing)[!,.\s]+", re.IGNORECASE),
+    # "Great question / love that question / awesome question"
+    re.compile(r"^(?:great|awesome|love|amazing|fantastic|excellent)\s+(?:that\s+)?question[!,.\s]+", re.IGNORECASE),
+    # "I'd be happy to / I'd love to / Happy to help"
+    re.compile(r"^(?:i'?d?\s+(?:be\s+)?(?:happy|love)\s+to|happy\s+to\s+help)[,.\s]+(?:assist|help)?[,.\s]*", re.IGNORECASE),
+    # "Let me + verb"
+    re.compile(r"^let\s+me\s+(?:break\s+(?:this|that)|walk\s+you\s+through|explain|help|assist)[^.\n]*[.\n]\s*", re.IGNORECASE),
+    # "I'll be glad to / I am here to"
+    re.compile(r"^(?:i'?ll\s+be\s+glad|i\s+am\s+here)\s+to[^.\n]*[.\n]\s*", re.IGNORECASE),
+    # "It's important to note / It's worth noting"
+    re.compile(r"^it'?s\s+(?:important\s+to\s+note|worth\s+noting)[,:]?\s*", re.IGNORECASE),
+    # "As an AI / As a coach / As your..."
+    re.compile(r"^as\s+(?:an?\s+ai|your\s+(?:coach|ai|assistant))[,.\s]+", re.IGNORECASE),
+    # "I hope this helps / Hope that helps" — closing fluff
+    re.compile(r"\s*(?:i\s+)?hope\s+(?:this|that)\s+helps[!.\s]*$", re.IGNORECASE),
+    # "Feel free to ask / let me know if"
+    re.compile(r"\s*(?:feel\s+free\s+to\s+ask|let\s+me\s+know\s+if\s+you[^.\n]*?(?:question|help))[!.\s]*$", re.IGNORECASE),
+)
+
+
+def _strip_em_dashes(text: str) -> str:
+    """Cap em-dashes per response. The LLM defaults to 3-5 em-dashes per
+    answer which is a giveaway tell. Allow 1; replace the rest with
+    period+space (sentence break) when there's space, else comma+space.
+    Also kills consecutive em-dash patterns ("X — Y — Z" → "X. Y. Z")."""
+    if not text or "—" not in text:
+        return text
+    out_chars: list[str] = []
+    seen = 0
+    for ch in text:
+        if ch == "—":
+            if seen == 0:
+                out_chars.append("—")
+            else:
+                # Replace with period or comma based on what's around.
+                # If the prev char is a clause-ender already, just use a period.
+                prev = out_chars[-1] if out_chars else ""
+                out_chars.append("," if prev not in ".!?:" else ".")
+            seen += 1
+        else:
+            out_chars.append(ch)
+    out = "".join(out_chars)
+    # Tidy up double spaces left by replacements.
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    return out
+
+
+def _enforce_paragraph_breaks(text: str) -> str:
+    """If the response is one big paragraph (no \\n) AND >180 chars,
+    insert a break every ~2 sentences so it skims well in a bubble."""
+    if not text or "\n" in text:
+        return text
+    if len(text) < 180:
+        return text
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+(?=[A-Z(\d])", text) if s.strip()]
+    if len(sentences) < 4:
+        return text
+    out: list[str] = []
+    for i in range(0, len(sentences), 2):
+        out.append(" ".join(sentences[i:i + 2]))
+    return "\n\n".join(out)
+
+
+def _strip_ai_leadins(text: str) -> str:
+    """Remove leading / trailing AI-template phrases. Each pattern is
+    anchored at its end of the text so we don't gut mid-sentence usage."""
     if not text:
         return text
-    return _scrub_tech_leak(text).replace("*", "").lower()
+    out = text
+    for pat in _AI_LEADIN_PATTERNS:
+        out = pat.sub("", out)
+    return out.strip()
+
+
+def _finalize_assistant_message(text: str) -> str:
+    """User-facing chat: edge enforcer. Order matters:
+       1. Tech-leak scrub (system prompt fragments, kwarg-shapes).
+       2. AI-template lead-ins / sign-offs.
+       3. Em-dash cap (1 per response, rest become period/comma).
+       4. Paragraph-break enforcement on wall-of-text answers.
+       5. Drop markdown asterisks + lowercase to Max voice.
+    """
+    if not text:
+        return text
+    out = _scrub_tech_leak(text)
+    out = _strip_ai_leadins(out)
+    out = _strip_em_dashes(out)
+    out = _enforce_paragraph_breaks(out)
+    return out.replace("*", "").lower()
 
 
 # Marker the LLM emits when it wants to clarify with MCQ chips. Server
@@ -298,16 +391,30 @@ _CHOICES_MARKER_RE = re.compile(
     r"\[CHOICES\]\s*([^\[\]]*?)\s*\[/CHOICES\]",
     re.IGNORECASE,
 )
+# Multi-select variant — same payload shape, but the mobile client
+# renders chips with toggle state + a "Submit" button, and the user's
+# answer comes back as a comma-joined string. Useful for "what concerns
+# do you have? acne, dryness, oily, sensitive" — pick all that apply.
+_CHOICES_MULTI_MARKER_RE = re.compile(
+    r"\[CHOICES_MULTI\]\s*([^\[\]]*?)\s*\[/CHOICES_MULTI\]",
+    re.IGNORECASE,
+)
 
 
-def _extract_inline_choices(text: str) -> tuple[str, list[str]]:
-    """If `text` contains a [CHOICES]a|b|c[/CHOICES] marker, return the
-    cleaned text + the options list. Otherwise return (text, [])."""
+def _extract_inline_choices(text: str) -> tuple[str, list[str], bool]:
+    """If `text` contains a [CHOICES]a|b|c[/CHOICES] OR
+    [CHOICES_MULTI]a|b|c[/CHOICES_MULTI] marker, return the cleaned
+    text, the options list, and a `multi` flag. Otherwise (text, [], False)."""
     if not text:
-        return text, []
-    m = _CHOICES_MARKER_RE.search(text)
+        return text, [], False
+    multi = False
+    m = _CHOICES_MULTI_MARKER_RE.search(text)
+    if m:
+        multi = True
+    else:
+        m = _CHOICES_MARKER_RE.search(text)
     if not m:
-        return text, []
+        return text, [], False
     raw = m.group(1)
     options = [
         opt.strip().rstrip(".,;:")
@@ -316,10 +423,11 @@ def _extract_inline_choices(text: str) -> tuple[str, list[str]]:
     ]
     # Drop fragments shorter than 1 char or longer than 50 (LLM mishaps).
     options = [o for o in options if 1 <= len(o) <= 50][:6]
-    cleaned = _CHOICES_MARKER_RE.sub("", text).strip()
+    cleaned = _CHOICES_MULTI_MARKER_RE.sub("", text)
+    cleaned = _CHOICES_MARKER_RE.sub("", cleaned).strip()
     # Tidy up trailing whitespace/punctuation left by the strip.
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
-    return cleaned, options
+    return cleaned, options, multi
 
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -3905,15 +4013,18 @@ async def _send_message_locked(
     # actively drive clarification UX without a custom widget.
     # Skip when an upstream path already supplied choices (e.g. maxx
     # onboarding's structured options) so we don't override those.
+    multi_choice = False
     if not choices:
-        cleaned_text, mcq_choices = _extract_inline_choices(response_text or "")
+        cleaned_text, mcq_choices, multi_flag = _extract_inline_choices(response_text or "")
         if mcq_choices:
             response_text = cleaned_text
             choices = mcq_choices
+            multi_choice = multi_flag
 
     return ChatResponse(
         response=response_text,
         choices=choices,
+        multi_choice=multi_choice,
         input_widget=iw,
         conversation_id=conv_id,
     )

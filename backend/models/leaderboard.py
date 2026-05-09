@@ -83,6 +83,11 @@ class ChatResponse(BaseModel):
     """Chat response"""
     response: str
     choices: list[str] = Field(default_factory=list)
+    # When true, mobile renders `choices` as multi-select chips with a
+    # Submit button (user can pick more than one). When false, single-tap
+    # chips that submit immediately. Set by the LLM via the
+    # [CHOICES_MULTI]a|b|c[/CHOICES_MULTI] marker (see _extract_inline_choices).
+    multi_choice: bool = False
     # Optional structured input widget the mobile client renders inline below
     # the assistant bubble. Currently used for numeric questions:
     #   {"type":"slider","min":13,"max":50,"step":1,"default":18,"label":"How old are you?"}

@@ -95,15 +95,22 @@ def _is_bad_url(url: str) -> bool:
         return False
     if _is_catalog_url(url):
         return False
+    # Amazon search URLs (`/s?k=...`) are now ACCEPTED — they're our
+    # live-fallback path when the curated catalog can't match. A search
+    # URL is far better than no link at all (DDG /dp/<ASIN> scraping
+    # was chronically broken: stale ASINs, bot-blocked probes). The
+    # search URL always lands on a real Amazon page where the user
+    # picks the product Amazon ranks best for the keyword.
     if _AMAZON_SEARCH_RE.match(url):
-        return True
+        return False
+    # Generic non-amazon search URLs (google/bing/etc.) are still bad —
+    # they don't lead to anywhere useful for buying.
     if _OTHER_SEARCH_RE.match(url):
         return True
-    # Anything else from amazon.com that isn't /dp/<ASIN> is suspect — the
-    # LLM hallucinated. Be strict for amazon links since those are the
-    # high-leverage class of failures.
+    # Anything else from amazon.com that isn't /dp/<ASIN> or /s?k= is
+    # suspect — the LLM hallucinated.
     if re.match(r"https?://(?:www\.)?amazon\.[a-z.]+/", url, re.IGNORECASE):
-        if "/dp/" not in url and "/gp/product/" not in url:
+        if "/dp/" not in url and "/gp/product/" not in url and "/s?" not in url:
             return True
     return False
 
