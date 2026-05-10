@@ -176,11 +176,10 @@ export default function MyProductsScreen() {
                                         </Text>
                                     ) : null}
                                     <View style={styles.cardFooter}>
-                                        {/* Specific destination — names the product the
-                                            tap is taking the user to, not generic 'Open in
-                                            Amazon'. Truncates at 1 line on small phones. */}
+                                        {/* Specific item — no marketplace name. Tap tells
+                                            you which product you're opening. */}
                                         <Text style={styles.openText} numberOfLines={1}>
-                                            Buy {p.brand ? `${p.brand} on Amazon` : `${p.name} on Amazon`}
+                                            Open {p.brand || p.name}
                                         </Text>
                                         <Ionicons name="open-outline" size={14} color={colors.textMuted} />
                                     </View>

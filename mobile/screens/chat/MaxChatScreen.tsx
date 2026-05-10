@@ -585,17 +585,10 @@ export default function MaxChatScreen() {
                                 onPress={() => openUrl(link.url)}
                                 activeOpacity={0.7}
                                 accessibilityRole="link"
-                                accessibilityLabel={`Buy ${link.label} on Amazon`}
+                                accessibilityLabel={`Open ${link.label}`}
                             >
                                 <Ionicons name="cart-outline" size={14} color={colors.foreground} style={{ marginRight: 6 }} />
-                                <View style={{ flex: 1, minWidth: 0 }}>
-                                    {/* Two-line label: 'Buy on Amazon' affordance
-                                        on top, specific product name underneath.
-                                        Tells the user exactly where the tap is
-                                        going before they commit. */}
-                                    <Text style={styles.productLinkAffordance}>Buy on Amazon</Text>
-                                    <Text style={styles.productLinkText} numberOfLines={1}>{link.label}</Text>
-                                </View>
+                                <Text style={styles.productLinkText} numberOfLines={1}>{link.label}</Text>
                                 <Ionicons name="open-outline" size={12} color={colors.textMuted} style={{ marginLeft: 6 }} />
                             </TouchableOpacity>
                         ))}
@@ -939,20 +932,10 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
         borderRadius: borderRadius.md,
         paddingHorizontal: 12,
-        paddingVertical: 10,
-    },
-    /** Tracked label above the product name — tells the user where the
-     *  tap is going before they commit ('Buy on Amazon'). Sized small
-     *  so the product name still reads as the primary content. */
-    productLinkAffordance: {
-        fontSize: 9.5,
-        fontWeight: '700',
-        letterSpacing: 1.4,
-        textTransform: 'uppercase',
-        color: colors.textMuted,
-        marginBottom: 2,
+        paddingVertical: 9,
     },
     productLinkText: {
+        flex: 1,
         fontSize: 13.5,
         fontWeight: '600',
         color: colors.foreground,
