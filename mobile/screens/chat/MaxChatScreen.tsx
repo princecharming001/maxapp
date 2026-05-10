@@ -584,9 +584,18 @@ export default function MaxChatScreen() {
                                 style={styles.productLinkButton}
                                 onPress={() => openUrl(link.url)}
                                 activeOpacity={0.7}
+                                accessibilityRole="link"
+                                accessibilityLabel={`Buy ${link.label} on Amazon`}
                             >
                                 <Ionicons name="cart-outline" size={14} color={colors.foreground} style={{ marginRight: 6 }} />
-                                <Text style={styles.productLinkText} numberOfLines={1}>{link.label}</Text>
+                                <View style={{ flex: 1, minWidth: 0 }}>
+                                    {/* Two-line label: 'Buy on Amazon' affordance
+                                        on top, specific product name underneath.
+                                        Tells the user exactly where the tap is
+                                        going before they commit. */}
+                                    <Text style={styles.productLinkAffordance}>Buy on Amazon</Text>
+                                    <Text style={styles.productLinkText} numberOfLines={1}>{link.label}</Text>
+                                </View>
                                 <Ionicons name="open-outline" size={12} color={colors.textMuted} style={{ marginLeft: 6 }} />
                             </TouchableOpacity>
                         ))}
@@ -926,17 +935,28 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.surface,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
         borderRadius: borderRadius.md,
         paddingHorizontal: 12,
-        paddingVertical: 9,
+        paddingVertical: 10,
+    },
+    /** Tracked label above the product name — tells the user where the
+     *  tap is going before they commit ('Buy on Amazon'). Sized small
+     *  so the product name still reads as the primary content. */
+    productLinkAffordance: {
+        fontSize: 9.5,
+        fontWeight: '700',
+        letterSpacing: 1.4,
+        textTransform: 'uppercase',
+        color: colors.textMuted,
+        marginBottom: 2,
     },
     productLinkText: {
-        flex: 1,
-        fontSize: 13,
+        fontSize: 13.5,
         fontWeight: '600',
         color: colors.foreground,
+        letterSpacing: 0.05,
     },
     typingBubble: { paddingVertical: 10, paddingHorizontal: 16 },
     typingText: { fontSize: 14, color: colors.textMuted, fontStyle: 'italic' },

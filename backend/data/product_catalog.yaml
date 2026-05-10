@@ -126,7 +126,7 @@ products:
   - dryness
   - barrier
   - all_skin_types
-  url: https://www.amazon.com/s?k=CeraVe+CeraVe+PM+Facial+Moisturizing+Lotion
+  url: https://www.amazon.com/cerave-pm-facial-moisturizing-lotion/dp/B00365DABC
   price_tier: budget
   tags:
     vegetarian: true
@@ -229,7 +229,7 @@ products:
   concerns:
   - sun_protection
   - daily_spf
-  url: https://www.amazon.com/s?k=La+Roche-Posay+La+Roche-Posay+Anthelios+Melt-in+Milk+SPF+50%2B
+  url: https://www.amazon.com/la-roche-posay-anthelios-melt-in-milk-spf-50/dp/B0F6N25L2P
   price_tier: mid
   tags:
     vegetarian: true
@@ -292,7 +292,7 @@ products:
   - post_inflammatory_hyperpigmentation
   - rosacea
   - acne
-  url: https://www.amazon.com/s?k=The+Ordinary+The+Ordinary+Azelaic+Acid+Suspension+10%25
+  url: https://www.amazon.com/the-ordinary-azelaic-acid-suspension-10/dp/B0DNN8Z1PD
   price_tier: budget
   tags:
     vegetarian: true
@@ -313,7 +313,7 @@ products:
   - exfoliation
   - texture
   - dullness
-  url: https://www.amazon.com/s?k=The+Ordinary+The+Ordinary+Glycolic+Acid+7%25+Toning+Solution
+  url: https://www.amazon.com/the-ordinary-glycolic-acid-7-toning-solution/dp/B071914GGL
   price_tier: budget
   tags:
     vegetarian: true
@@ -375,7 +375,7 @@ products:
   - barrier_repair
   - irritation
   - post_treatment
-  url: https://www.amazon.com/s?k=La+Roche-Posay+La+Roche-Posay+Cicaplast+Baume+B5
+  url: https://www.amazon.com/la-roche-posay-cicaplast-baume-b5/dp/B0060OUV5Y
   price_tier: mid
   tags:
     vegetarian: true
@@ -395,7 +395,7 @@ products:
   - hair_loss
   - regrowth
   - minoxidil
-  url: https://www.amazon.com/s?k=Rogaine+Men%27s+Rogaine+5%25+Minoxidil+Foam
+  url: https://www.amazon.com/men-s-rogaine-5-minoxidil-foam-3-month/dp/B0012BNVE8
   price_tier: mid
   tags:
     vegetarian: true
@@ -416,7 +416,7 @@ products:
   - regrowth
   - minoxidil
   - budget
-  url: https://www.amazon.com/s?k=Kirkland+Kirkland+Signature+5%25+Minoxidil+Solution
+  url: https://www.amazon.com/kirkland-signature-5-minoxidil-solution-6-month/dp/B0DFVMQPDK
   price_tier: budget
   tags:
     vegetarian: true
@@ -436,7 +436,7 @@ products:
   - scalp_health
   - dandruff
   - dht_inhibition
-  url: https://www.amazon.com/s?k=Nizoral+Nizoral+A-D+Anti-Dandruff+Shampoo
+  url: https://www.amazon.com/nizoral-a-d-anti-dandruff-shampoo-ketoconazole-1/dp/B00AINMFAC
   price_tier: budget
   tags:
     vegetarian: true
@@ -457,7 +457,7 @@ products:
   - hair_loss
   - density
   - peptides
-  url: https://www.amazon.com/s?k=The+Ordinary+The+Ordinary+Multi-Peptide+Serum+for+Hair+Density
+  url: https://www.amazon.com/the-ordinary-multi-peptide-serum-for-hair-density/dp/B09WMT8HYB
   price_tier: budget
   tags:
     vegetarian: true
@@ -477,7 +477,7 @@ products:
   - microneedling
   - scalp_stimulation
   - dermarolling
-  url: https://www.amazon.com/s?k=Generic+Dermaroller+0.5mm+Titanium+Microneedling+Roller
+  url: https://www.amazon.com/dermaroller-0-5mm-titanium-microneedling-roller/dp/B08BGCRR7F
   price_tier: budget
   tags:
     vegetarian: true
@@ -605,7 +605,7 @@ products:
   - jaw_training
   - masseter
   - jawline
-  url: https://www.amazon.com/s?k=Jawzrsize+Jawzrsize+Pro+Jaw+Exerciser
+  url: https://www.amazon.com/jawzrsize-pro-jaw-exerciser/dp/B0DRMK6GFG
   price_tier: budget
   tags:
     vegetarian: true
@@ -625,7 +625,7 @@ products:
   - jaw_training
   - masseter
   - mastic
-  url: https://www.amazon.com/s?k=Falim+Falim+Sugarfree+Mastic+Chewing+Gum
+  url: https://www.amazon.com/falim-sugarfree-mastic-chewing-gum-200ct/dp/B000RKU2QU
   price_tier: budget
   tags:
     vegetarian: true
@@ -669,7 +669,7 @@ products:
   - daily_spf
   - sensitive
   - oily
-  url: https://www.amazon.com/s?k=Beauty+of+Joseon+Beauty+of+Joseon+Relief+Sun+Rice+%2B+Probiotic+SPF+50%2B+PA%2B%2B%2B%2B
+  url: https://www.amazon.com/beauty-of-joseon-relief-sun-rice-probiotic-spf-50-pa/dp/B0G4Z5G1NT
   price_tier: budget
   tags:
     vegetarian: true
@@ -690,7 +690,7 @@ products:
   - barrier
   - sensitive
   - all_skin_types
-  url: https://www.amazon.com/s?k=La+Roche-Posay+La+Roche-Posay+Toleriane+Double+Repair+Face+Moisturizer
+  url: https://www.amazon.com/la-roche-posay-toleriane-double-repair-face-moisturizer/dp/B01N9SPQHQ
   price_tier: mid
   tags:
     vegetarian: true
@@ -710,7 +710,7 @@ products:
   - antioxidant
   - brightening
   - anti_aging
-  url: https://www.amazon.com/s?k=The+Ordinary+The+Ordinary+Vitamin+C+Suspension+23%25+%2B+HA+Spheres+2%25
+  url: https://www.amazon.com/the-ordinary-vitamin-c-suspension-23-ha-spheres-2/dp/B07Y556CPP
   price_tier: budget
   tags:
     vegetarian: true
@@ -749,7 +749,7 @@ products:
   - exfoliation
   - texture
   - anti_aging
-  url: https://www.amazon.com/s?k=Paula%27s+Choice+Paula%27s+Choice+Resist+Daily+Smoothing+Treatment+5%25+AHA
+  url: https://www.amazon.com/paula-s-choice-resist-daily-smoothing-treatment-5-aha/dp/B00KOAMZCW
   price_tier: mid
   tags:
     vegetarian: true
@@ -769,7 +769,7 @@ products:
   - anti_aging
   - peptides
   - fine_lines
-  url: https://www.amazon.com/s?k=The+Ordinary+The+Ordinary+Buffet
+  url: https://www.amazon.com/the-ordinary-buffet-multi-peptide-serum/dp/B0BLHW7JZM
   price_tier: budget
   tags:
     vegetarian: true
@@ -790,7 +790,7 @@ products:
   - dht_inhibition
   - hair_loss
   - supplement
-  url: https://www.amazon.com/s?k=NOW+NOW+Foods+Saw+Palmetto+Berries+320+mg
+  url: https://www.amazon.com/now-foods-saw-palmetto-berries-320-mg/dp/B0013OXIFQ
   price_tier: budget
   tags:
     vegetarian: true
@@ -811,7 +811,7 @@ products:
   - scalp_health
   - volume
   - gentle_cleansing
-  url: https://www.amazon.com/s?k=Hims+Hims+Thick+Fix+Shampoo
+  url: https://www.amazon.com/hims-thick-fix-shampoo/dp/B09H3RK75S
   price_tier: mid
   tags:
     vegetarian: true
@@ -830,7 +830,7 @@ products:
   concerns:
   - scalp_stimulation
   - hair_growth_adjunct
-  url: https://www.amazon.com/s?k=Mielle+Mielle+Organics+Rosemary+Mint+Scalp+%26+Hair+Strengthening+Oil
+  url: https://www.amazon.com/mielle-organics-rosemary-mint-scalp-hair-strengthening-oil/dp/B07N7PK9QK
   price_tier: budget
   tags:
     vegetarian: true
@@ -849,7 +849,7 @@ products:
   concerns:
   - biotin_deficiency
   - hair_supplement
-  url: https://www.amazon.com/s?k=Thorne+Thorne+Biotin-8
+  url: https://www.amazon.com/thorne-biotin-8-8mg/dp/B0797CG5R8
   price_tier: mid
   tags:
     vegetarian: true
@@ -891,7 +891,7 @@ products:
   - electrolytes
   - hydration
   - training_performance
-  url: https://www.amazon.com/s?k=LMNT+LMNT+Recharge+Electrolyte+Drink+Mix
+  url: https://www.amazon.com/lmnt-recharge-electrolyte-drink-mix-variety-pack/dp/B0C1TG555G
   price_tier: mid
   tags:
     vegetarian: true
@@ -935,7 +935,7 @@ products:
   - omega3
   - inflammation
   - recovery
-  url: https://www.amazon.com/s?k=Nordic+Naturals+Nordic+Naturals+Ultimate+Omega+1280mg
+  url: https://www.amazon.com/nordic-naturals-ultimate-omega-1280mg/dp/B0D464H1GW
   price_tier: premium
   tags:
     vegetarian: true
@@ -956,7 +956,7 @@ products:
   - vitamin_d
   - bone_health
   - recovery
-  url: https://www.amazon.com/s?k=Sports+Research+Sports+Research+Vitamin+D3+5000+IU+%2B+K2+100+mcg
+  url: https://www.amazon.com/sports-research-vitamin-d3-5000-iu-k2-100-mcg/dp/B07255MPRN
   price_tier: mid
   tags:
     vegetarian: true
@@ -978,7 +978,7 @@ products:
   - caffeine
   - pre_workout
   - focus
-  url: https://www.amazon.com/s?k=ProLab+ProLab+Caffeine+Tablets+200mg
+  url: https://www.amazon.com/prolab-caffeine-tablets-200mg-100ct/dp/B0B7P4V98Y
   price_tier: budget
   tags:
     vegetarian: true
@@ -1000,7 +1000,7 @@ products:
   - pre_workout
   - focus
   - calm_alertness
-  url: https://www.amazon.com/s?k=NOW+NOW+L-Theanine+200mg
+  url: https://www.amazon.com/now-l-theanine-200mg/dp/B0GP1R3P3M
   price_tier: budget
   tags:
     vegetarian: true
@@ -1021,7 +1021,7 @@ products:
   - pre_workout
   - pump
   - endurance
-  url: https://www.amazon.com/s?k=BulkSupplements+BulkSupplements+L-Citrulline+Malate+2%3A1
+  url: https://www.amazon.com/bulksupplements-l-citrulline-malate-2-1-500g/dp/B00EYDJU50
   price_tier: budget
   tags:
     vegetarian: true
@@ -1042,7 +1042,7 @@ products:
   - protein
   - post_workout
   - low_carb
-  url: https://www.amazon.com/s?k=Dymatize+Dymatize+ISO100+Hydrolyzed+Whey+Isolate
+  url: https://www.amazon.com/dymatize-iso100-hydrolyzed-whey-isolate-5-lb/dp/B0D2PFN3NX
   price_tier: premium
   tags:
     vegetarian: true
@@ -1064,7 +1064,7 @@ products:
   - protein
   - vegan
   - dairy_free
-  url: https://www.amazon.com/s?k=KOS+KOS+Organic+Plant-Based+Protein+Powder
+  url: https://www.amazon.com/kos-organic-plant-based-protein-powder/dp/B0767Z2Y25
   price_tier: mid
   tags:
     vegetarian: true
@@ -1086,7 +1086,7 @@ products:
   - pre_workout
   - energy
   - beginner
-  url: https://www.amazon.com/s?k=Cellucor+Cellucor+C4+Original+Pre-Workout
+  url: https://www.amazon.com/cellucor-c4-original-pre-workout/dp/B01N272UAI
   price_tier: mid
   tags:
     vegetarian: true
@@ -1107,7 +1107,7 @@ products:
   - posture
   - arch_support
   - all_day_wear
-  url: https://www.amazon.com/s?k=Powerstep+Powerstep+Pinnacle+Maxx+Full+Length+Orthotic
+  url: https://www.amazon.com/powerstep-pinnacle-maxx-full-length-orthotic/dp/B000O5HE14
   price_tier: mid
   tags:
     vegetarian: true
@@ -1127,7 +1127,7 @@ products:
   - height_lift
   - perceived_height
   - footwear
-  url: https://www.amazon.com/s?k=ULZ+ULZ+Height+Increase+Heel+Lift+Insoles
+  url: https://www.amazon.com/ulz-height-increase-heel-lift-insoles-1-5-inch/dp/B0CD23HM9N
   price_tier: budget
   tags:
     vegetarian: true
@@ -1147,7 +1147,7 @@ products:
   - decompression
   - spine
   - posture
-  url: https://www.amazon.com/s?k=Innova+Innova+ITX9600+Heavy+Duty+Inversion+Table
+  url: https://www.amazon.com/innova-itx9600-heavy-duty-inversion-table/dp/B0CN825GK1
   price_tier: premium
   tags:
     vegetarian: true
@@ -1167,7 +1167,7 @@ products:
   - posture
   - kyphosis
   - daily_wear
-  url: https://www.amazon.com/s?k=BackEmbrace+BackEmbrace+Posture+Corrector
+  url: https://www.amazon.com/backembrace-posture-corrector/dp/B0FXXD9GDC
   price_tier: mid
   tags:
     vegetarian: true
@@ -1187,7 +1187,7 @@ products:
   - debloat
   - puffiness
   - lymphatic
-  url: https://www.amazon.com/s?k=Cooltime+Cooltime+Ice+Roller+for+Face+%26+Eye+Puffiness
+  url: https://www.amazon.com/cooltime-ice-roller-for-face-eye-puffiness/dp/B0F21N3KXV
   price_tier: budget
   tags:
     vegetarian: true
@@ -1207,7 +1207,7 @@ products:
   - lymphatic
   - gua_sha
   - face_massage
-  url: https://www.amazon.com/s?k=Empress+Wellness+Empress+Wellness+Rose+Quartz+Gua+Sha+Tool
+  url: https://www.amazon.com/empress-wellness-rose-quartz-gua-sha-tool/dp/B09V8FL2PF
   price_tier: budget
   tags:
     vegetarian: true
@@ -1226,7 +1226,7 @@ products:
   concerns:
   - jaw_training
   - masseter
-  url: https://www.amazon.com/s?k=Generic+Sport+Mouthguard+Athletic+Jaw+Trainer
+  url: https://www.amazon.com/sport-mouthguard-athletic-jaw-trainer-3-resistance-levels/dp/B073CWQ6PD
   price_tier: budget
   tags:
     vegetarian: true
@@ -1249,7 +1249,7 @@ products:
   - sensitive
   - barrier
   - fragrance_free
-  url: https://www.amazon.com/s?k=Vanicream+Vanicream+Daily+Facial+Moisturizer
+  url: https://www.amazon.com/vanicream-daily-facial-moisturizer/dp/B08BW46XXK
   price_tier: budget
   tags:
     vegetarian: true
@@ -1266,7 +1266,7 @@ products:
   - texture
   - pigmentation
   - dullness
-  url: https://www.amazon.com/s?k=The+Ordinary+The+Ordinary+Lactic+Acid+10%25+%2B+HA
+  url: https://www.amazon.com/the-ordinary-lactic-acid-10-ha/dp/B07NDNPCKW
   price_tier: budget
   tags:
     vegan: true
@@ -1283,7 +1283,7 @@ products:
   - dullness
   - barrier
   - anti_aging
-  url: https://www.amazon.com/s?k=Beauty+of+Joseon+Beauty+of+Joseon+Glow+Serum+%28Propolis+%2B+Niacinamide%29
+  url: https://www.amazon.com/beauty-of-joseon-glow-serum-propolis-niacinamide/dp/B0DZGKNPRB
   price_tier: mid
   tags:
     vegetarian: true
@@ -1299,7 +1299,7 @@ products:
   - dryness
   - barrier
   - slugging
-  url: https://www.amazon.com/s?k=Aquaphor+Aquaphor+Healing+Ointment
+  url: https://www.amazon.com/aquaphor-healing-ointment/dp/B07234GWJH
   price_tier: budget
   tags:
     vegetarian: true
@@ -1314,7 +1314,7 @@ products:
   - acne
   - blackheads
   - exfoliation
-  url: https://www.amazon.com/s?k=Stridex+Stridex+Maximum+Strength+Acne+Pads
+  url: https://www.amazon.com/stridex-maximum-strength-acne-pads/dp/B000O1KP1O
   price_tier: budget
   tags:
     fragrance_free: false
@@ -1330,7 +1330,7 @@ products:
   - scalp_health
   - scalp_stimulation
   - thinning
-  url: https://www.amazon.com/s?k=Alpecin+Alpecin+C1+Caffeine+Shampoo
+  url: https://www.amazon.com/alpecin-c1-caffeine-shampoo/dp/B01MXEG3PY
   price_tier: mid
   tags:
     sulfate_free: false
@@ -1344,7 +1344,7 @@ products:
   - hair_loss
   - regrowth
   - supplement
-  url: https://www.amazon.com/s?k=NOW+Foods+NOW+Pumpkin+Seed+Oil+Capsules
+  url: https://www.amazon.com/now-pumpkin-seed-oil-capsules/dp/B084XWMRRW
   price_tier: budget
   tags:
     vegan: true
@@ -1359,7 +1359,7 @@ products:
   - hair_loss
   - skin_friction
   - frizz
-  url: https://www.amazon.com/s?k=Bedsure+Bedsure+Mulberry+Silk+Pillowcase
+  url: https://www.amazon.com/bedsure-mulberry-silk-pillowcase/dp/B01LVU7THF
   price_tier: mid
   tags:
     vegan: false
@@ -1374,7 +1374,7 @@ products:
   - home_gym
   - mobility
   - bodyweight
-  url: https://www.amazon.com/s?k=Bodylastics+Bodylastics+Resistance+Bands+Set
+  url: https://www.amazon.com/bodylastics-resistance-bands-set/dp/B006NZZH18
   price_tier: mid
   tags:
     vegan: true
@@ -1388,7 +1388,7 @@ products:
   - supplement
   - recovery
   - general
-  url: https://www.amazon.com/s?k=Optimum+Nutrition+Optimum+Nutrition+Opti-Men+Multivitamin
+  url: https://www.amazon.com/optimum-nutrition-opti-men-multivitamin/dp/B00K2RJAR0
   price_tier: mid
   tags:
     vegetarian: true
@@ -1402,7 +1402,7 @@ products:
   - pre_workout
   - endurance
   - supplement
-  url: https://www.amazon.com/s?k=NOW+Foods+NOW+Beta-Alanine+Powder+500g
+  url: https://www.amazon.com/now-beta-alanine-powder-500g/dp/B0017KU74Q
   price_tier: budget
   tags:
     vegan: true
@@ -1417,7 +1417,7 @@ products:
   - jaw_training
   - masseter
   - supplement
-  url: https://www.amazon.com/s?k=NOW+Foods+NOW+Foods+Mastic+Gum+1000mg+Capsules
+  url: https://www.amazon.com/now-foods-mastic-gum-1000mg-capsules/dp/B0DNRJ8JZ1
   price_tier: mid
   tags:
     vegetarian: true
@@ -1431,7 +1431,7 @@ products:
   - mewing
   - nasal_breathing
   - sleep
-  url: https://www.amazon.com/s?k=3M+3M+Micropore+Paper+Tape+%28Mouth+Tape%29
+  url: https://www.amazon.com/3m-micropore-paper-tape-mouth-tape/dp/B0082A9FEM
   price_tier: budget
   tags:
     {}
@@ -1444,7 +1444,7 @@ products:
   concerns:
   - nasal_breathing
   - sleep
-  url: https://www.amazon.com/s?k=Breathe+Right+Breathe+Right+Original+Nasal+Strips
+  url: https://www.amazon.com/breathe-right-original-nasal-strips/dp/B0D14WZLB1
   price_tier: budget
   tags:
     {}
@@ -1458,7 +1458,7 @@ products:
   - mobility
   - posture
   - stretch
-  url: https://www.amazon.com/s?k=Gaiam+Gaiam+6mm+Premium+Yoga+Mat
+  url: https://www.amazon.com/gaiam-6mm-premium-yoga-mat/dp/B077V135W7
   price_tier: budget
   tags:
     {}
@@ -1472,7 +1472,7 @@ products:
   - mobility
   - posture
   - muscle_release
-  url: https://www.amazon.com/s?k=Champion+Sports+Champion+Sports+Lacrosse+Ball+Set
+  url: https://www.amazon.com/champion-sports-lacrosse-ball-set/dp/B00CWAAL00
   price_tier: budget
   tags:
     {}
