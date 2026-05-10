@@ -43,7 +43,9 @@ export default function AdminUserChatScreen({ route, navigation }: any) {
 
     return (
         <View style={styles.container}>
-            <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+            {/* offset 0 — screen is its own root, no navigator header
+                above. Same over-shift bug fixed in MaxChatScreen. */}
+            <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                         <Ionicons name="arrow-back" size={22} color={colors.foreground} />

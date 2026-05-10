@@ -644,7 +644,12 @@ export default function MaxChatScreen() {
 
     return (
         <View style={styles.container}>
-            <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+            {/* keyboardVerticalOffset = 0 because the screen IS the root
+                view (custom header lives INSIDE the KAV, not a navigator
+                header above it). The previous hardcoded 90 was an
+                over-correction that left a weird ~90pt gap above the
+                keyboard on tall iPhones. */}
+            <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
                 <View style={[styles.header, { paddingTop: Math.max(insets.top + spacing.md, 52) }]}>
                     <TouchableOpacity
                         style={styles.headerMenuButton}
