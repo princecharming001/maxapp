@@ -259,9 +259,33 @@ _CONCERN_SYNONYMS: dict[str, list[str]] = {
     # bone / jaw
     "gum":          ["jaw_training", "masseter"],
     "chew":         ["jaw_training", "masseter"],
+    "mastic":       ["jaw_training", "masseter", "supplement"],
     "guasha":       ["masseter"],
     "gua_sha":      ["masseter"],
     "icing":        ["masseter"],
+    "mouth":        ["mewing", "nasal_breathing"],
+    "tape":         ["mewing", "nasal_breathing"],
+    "mewing":       ["mewing", "nasal_breathing"],
+    "nasal":        ["nasal_breathing"],
+    "breathing":    ["nasal_breathing", "sleep"],
+    "snoring":      ["nasal_breathing", "sleep"],
+    # hair-care extras
+    "pillowcase":   ["hair_loss", "skin_friction"],
+    "silk":         ["hair_loss", "skin_friction"],
+    "caffeine_shampoo": ["hair_loss", "scalp_health", "scalp_stimulation"],
+    # supplements
+    "vitamin":      ["supplement"],
+    "vitamins":     ["supplement"],
+    "multivitamin": ["supplement", "general"],
+    "multi":        ["supplement", "general"],
+    "omega":        ["supplement", "recovery"],
+    "fish_oil":     ["supplement", "recovery"],
+    # mobility / posture
+    "mobility":     ["mobility", "posture"],
+    "lacrosse":     ["mobility", "muscle_release"],
+    "yoga":         ["mobility", "posture", "stretch"],
+    "bands":        ["home_gym", "muscle_gain", "mobility"],
+    "resistance":   ["home_gym", "muscle_gain"],
     # height / posture
     "hang":         ["posture"],
     "decompress":   ["posture"],
