@@ -63,8 +63,14 @@ export default function SubforumThreadsV2Screen() {
 
     const openThread = (t: Thread) => navigation.navigate('ThreadV2', { threadId: t.id, threadTitle: t.title });
 
-    const onRefresh = useCallback(() => void threadsQ.refetch(), [threadsQ]);
-    const listRefreshing = threadsQ.isRefetching && !threadsQ.isPending;
+    // RefreshControl shows ONLY during user pull-down. Background refetches
+    // (focus, stale-mount, invalidate) stay silent.
+    const [pulling, setPulling] = useState(false);
+    const onRefresh = useCallback(async () => {
+        setPulling(true);
+        try { await threadsQ.refetch(); } finally { setPulling(false); }
+    }, [threadsQ]);
+    const listRefreshing = pulling;
 
     return (
         <View style={styles.container}>

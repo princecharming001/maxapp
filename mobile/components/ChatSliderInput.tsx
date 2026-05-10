@@ -21,8 +21,18 @@
  * onSlidingComplete (or release on web). This makes scrubbing feel native.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    Animated,
+    LayoutChangeEvent,
+    PanResponder,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../theme/dark';
 
@@ -134,10 +144,6 @@ function SliderTrack({ min, max, step, initialValue, onChangeLive, onCommit, dis
                         onCommit(v);
                     }}
                     style={{
-                        // 36 keeps the rail thumb comfortably tappable on
-                        // iPhone without ballooning the slider card height
-                        // (was 44 — combined with the big serif value
-                        // above, the card overflowed small screens).
                         width: '100%',
                         height: 36,
                         accentColor: colors.foreground,
@@ -149,76 +155,108 @@ function SliderTrack({ min, max, step, initialValue, onChangeLive, onCommit, dis
         );
     }
 
-    // Native fallback: try @rn-community/slider, else tap rail.
-    let CommunitySlider: any = null;
-    try {
-        // Lazy require so web bundling doesn't try to resolve the native module.
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        CommunitySlider = require('@react-native-community/slider').default;
-    } catch {
-        CommunitySlider = null;
-    }
-    if (CommunitySlider) {
-        // Throttle live display updates so we don't blow the bridge with 60fps
-        // numeric updates while the user is dragging.
-        const lastEmitRef = useRef(0);
-        return (
-            <View style={styles.trackNative}>
-                <CommunitySlider
-                    minimumValue={min}
-                    maximumValue={max}
-                    step={step}
-                    // value is intentionally NOT bound after mount — passing it
-                    // on every render fights the user's finger on iOS.
-                    value={initialValue}
-                    disabled={disabled}
-                    onValueChange={(v: number) => {
-                        const now = Date.now();
-                        if (now - lastEmitRef.current < 33) return;
-                        lastEmitRef.current = now;
-                        const snapped = step > 0 ? Math.round(v / step) * step : v;
-                        onChangeLive(snapped);
-                    }}
-                    onSlidingComplete={(v: number) => {
-                        const snapped = step > 0 ? Math.round(v / step) * step : v;
-                        onChangeLive(snapped);
-                        onCommit(snapped);
-                    }}
-                    minimumTrackTintColor={colors.foreground}
-                    maximumTrackTintColor={colors.divider ?? '#d4d4d4'}
-                    thumbTintColor={colors.foreground}
-                    style={{ width: '100%', height: 36 }}
-                />
-            </View>
-        );
-    }
-    // Tap rail (very last-resort): show a few snap points.
-    const snaps: number[] = [];
-    const stepCount = Math.min(11, Math.floor((max - min) / step) + 1);
-    for (let i = 0; i < stepCount; i++) {
-        snaps.push(min + Math.round((i / Math.max(1, stepCount - 1)) * (max - min) / step) * step);
-    }
+    // Native (iOS/Android): custom PanResponder slider — same approach
+    // as the onboarding screen. Drops the @react-native-community/slider
+    // dep entirely (which wasn't installed anyway, so users on iOS were
+    // hitting the snap-pill last-resort fallback). Drag-tracks via a
+    // captured `startValue` + dx/trackWidth*range model so the thumb
+    // follows the finger continuously without re-reading locationX.
     return (
-        <View style={styles.snapRow}>
-            {snaps.map((s) => (
-                <Pressable
-                    key={s}
-                    onPress={() => {
-                        if (disabled) return;
-                        onChangeLive(s);
-                        onCommit(s);
-                    }}
-                    style={({ pressed }) => [
-                        styles.snap,
-                        pressed && styles.snapPressed,
-                    ]}
-                >
-                    <Text style={styles.snapText}>{s}</Text>
-                </Pressable>
-            ))}
+        <PanSliderTrack
+            min={min}
+            max={max}
+            step={step}
+            initialValue={initialValue}
+            onChangeLive={onChangeLive}
+            onCommit={onCommit}
+            disabled={disabled}
+        />
+    );
+}
+
+
+function PanSliderTrack({ min, max, step, initialValue, onChangeLive, onCommit, disabled }: TrackProps) {
+    const [trackWidth, setTrackWidth] = useState(0);
+    const [value, setValue] = useState(initialValue);
+    const range = max - min;
+
+    const valueRef = useRef(value);
+    valueRef.current = value;
+    const trackWidthRef = useRef(trackWidth);
+    trackWidthRef.current = trackWidth;
+    const startValueRef = useRef(value);
+
+    useEffect(() => {
+        setValue(initialValue);
+    }, [initialValue]);
+
+    const ratio = trackWidth > 0 ? Math.max(0, Math.min(1, (value - min) / range)) : 0;
+    const thumbX = ratio * trackWidth;
+
+    const tickHaptic = useCallback(() => {
+        if (Platform.OS !== 'web') {
+            Haptics.selectionAsync().catch(() => {});
+        }
+    }, []);
+
+    const onLayout = (e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width);
+
+    const panResponder = useMemo(
+        () =>
+            PanResponder.create({
+                onStartShouldSetPanResponder: () => !disabled,
+                onMoveShouldSetPanResponder: (_e, g) => !disabled && (Math.abs(g.dx) > 1 || Math.abs(g.dy) > 1),
+                onPanResponderTerminationRequest: () => false,
+                onPanResponderGrant: (e) => {
+                    if (disabled) return;
+                    const w = trackWidthRef.current;
+                    if (w <= 0) return;
+                    // Tap-to-position: jump to the tap location, then drag from there.
+                    const x = Math.max(0, Math.min(w, e.nativeEvent.locationX));
+                    const raw = min + (x / w) * range;
+                    const next = step > 0 ? Math.round(raw / step) * step : raw;
+                    const clamped = Math.max(min, Math.min(max, next));
+                    startValueRef.current = clamped;
+                    if (clamped !== valueRef.current) {
+                        setValue(clamped);
+                        onChangeLive(clamped);
+                        tickHaptic();
+                    }
+                },
+                onPanResponderMove: (_e, g) => {
+                    if (disabled) return;
+                    const w = trackWidthRef.current;
+                    if (w <= 0) return;
+                    const delta = (g.dx / w) * range;
+                    const raw = startValueRef.current + delta;
+                    const stepped = step > 0 ? Math.round(raw / step) * step : raw;
+                    const clamped = Math.max(min, Math.min(max, stepped));
+                    if (clamped !== valueRef.current) {
+                        setValue(clamped);
+                        onChangeLive(clamped);
+                        tickHaptic();
+                    }
+                },
+                onPanResponderRelease: () => {
+                    onCommit(valueRef.current);
+                },
+                onPanResponderTerminate: () => {
+                    onCommit(valueRef.current);
+                },
+            }),
+        [min, max, step, range, onChangeLive, onCommit, tickHaptic, disabled]
+    );
+
+    return (
+        <View style={styles.panHitArea} onLayout={onLayout} {...panResponder.panHandlers}>
+            <View style={styles.panTrack} pointerEvents="none">
+                <View style={[styles.panFill, { width: thumbX }]} />
+                <View style={[styles.panThumb, { left: Math.max(0, thumbX - 12) }]} />
+            </View>
         </View>
     );
 }
+
 
 function clamp(v: number, lo: number, hi: number): number {
     return Math.max(lo, Math.min(hi, v));
@@ -278,11 +316,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 2,
         marginTop: spacing.xs,
     },
-    trackNative: {
-        paddingVertical: spacing.sm,
-        paddingHorizontal: 2,
-        marginTop: spacing.xs,
-    },
     scaleRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -295,27 +328,36 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
         opacity: 0.7,
     },
-    snapRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 6,
-        paddingVertical: spacing.xs,
+    /* Custom PanResponder slider (native iOS/Android) — modern thin
+       rail + pill thumb, matches the onboarding step's slider so the
+       chat slider doesn't look like a different component. */
+    panHitArea: {
+        marginTop: spacing.xs,
+        alignSelf: 'stretch',
+        height: 40,
         justifyContent: 'center',
     },
-    snap: {
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: 999,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border ?? '#2a2a2a',
-        backgroundColor: 'transparent',
+    panTrack: {
+        height: 24,
+        justifyContent: 'center',
     },
-    snapPressed: {
-        opacity: 0.7,
+    panFill: {
+        position: 'absolute',
+        left: 0,
+        height: 3,
+        backgroundColor: colors.foreground,
+        borderRadius: 1.5,
     },
-    snapText: {
-        fontSize: 13,
-        color: colors.foreground,
+    panThumb: {
+        position: 'absolute',
+        top: 0,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: colors.foreground,
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#18181b', shadowOpacity: 0.20, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } }
+            : { elevation: 3 }),
     },
     submit: {
         marginTop: 8,

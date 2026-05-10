@@ -112,14 +112,24 @@ export default function ForumsHomeV2Screen() {
 
     const showSearchResults = debouncedSearch.length >= 2;
 
-    const refreshing =
-        (catsQ.isRefetching && !catsQ.isPending) || (subsQ.isRefetching && !subsQ.isPending) || (searchQ.isRefetching && showSearchResults);
-    const onRefresh = useCallback(() => {
-        void Promise.all([
-            catsQ.refetch(),
-            subsQ.refetch(),
-            ...(showSearchResults && debouncedSearch.length >= 2 ? [searchQ.refetch()] : []),
-        ]);
+    // RefreshControl shows ONLY during a user-initiated pull-down.
+    // Background refetches (focus, stale-mount, invalidate) stay silent
+    // — driving `refreshing` off `isRefetching` made the spinner pop up
+    // every time the user navigated to the screen, which the user
+    // reported as "the refreshing tab keeps popping up".
+    const [pulling, setPulling] = useState(false);
+    const refreshing = pulling;
+    const onRefresh = useCallback(async () => {
+        setPulling(true);
+        try {
+            await Promise.all([
+                catsQ.refetch(),
+                subsQ.refetch(),
+                ...(showSearchResults && debouncedSearch.length >= 2 ? [searchQ.refetch()] : []),
+            ]);
+        } finally {
+            setPulling(false);
+        }
     }, [catsQ, subsQ, searchQ, showSearchResults, debouncedSearch]);
 
     return (

@@ -177,8 +177,14 @@ export default function ThreadV2Screen() {
 
     const threadRows = useMemo(() => buildThreadRows(posts, expandedReplies), [posts, expandedReplies]);
 
-    const onRefresh = useCallback(() => void postsQ.refetch(), [postsQ]);
-    const listRefreshing = postsQ.isRefetching && !postsQ.isPending;
+    // RefreshControl spinner shows ONLY during user pull-down. Background
+    // refetches (focus, stale-mount, invalidate) stay silent.
+    const [pulling, setPulling] = useState(false);
+    const onRefresh = useCallback(async () => {
+        setPulling(true);
+        try { await postsQ.refetch(); } finally { setPulling(false); }
+    }, [postsQ]);
+    const listRefreshing = pulling;
 
     const submit = async () => {
         const msg = text.trim();

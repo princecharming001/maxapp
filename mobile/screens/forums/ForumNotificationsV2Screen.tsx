@@ -54,8 +54,16 @@ export default function ForumNotificationsV2Screen() {
     const q = useForumV2NotificationsQuery(unreadOnly);
     const items: Notif[] = useMemo(() => (q.data ?? []) as Notif[], [q.data]);
 
-    const onRefresh = useCallback(() => void q.refetch(), [q]);
-    const listRefreshing = q.isRefetching && !q.isPending;
+    // RefreshControl spinner should ONLY appear during a user-initiated
+    // pull-down. Driving it off `isRefetching` made it pop up on every
+    // background refetch (focus, stale-mount, invalidate) which the
+    // user reported as the spinner constantly appearing.
+    const [pulling, setPulling] = useState(false);
+    const onRefresh = useCallback(async () => {
+        setPulling(true);
+        try { await q.refetch(); } finally { setPulling(false); }
+    }, [q]);
+    const listRefreshing = pulling;
 
     const open = async (n: Notif) => {
         try {
