@@ -14,6 +14,7 @@ import {
     UIManager,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -134,6 +135,35 @@ export default function ForumsHomeV2Screen() {
 
     return (
         <View style={styles.container}>
+            {/* Full-bleed multicolor gradient backdrop. Same approach as
+                PaymentScreen: three stacked LinearGradients tilted at
+                different angles, each fading to transparent on its own
+                axis. No bounded shapes anywhere — pure color blending. */}
+            <LinearGradient
+                colors={['rgba(139,92,246,0.14)', 'rgba(139,92,246,0)', 'rgba(139,92,246,0)']}
+                locations={[0, 0.55, 1]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.bgLayer}
+                pointerEvents="none"
+            />
+            <LinearGradient
+                colors={['rgba(56,189,248,0)', 'rgba(56,189,248,0.10)', 'rgba(56,189,248,0)']}
+                locations={[0, 0.5, 1]}
+                start={{ x: 1, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={styles.bgLayer}
+                pointerEvents="none"
+            />
+            <LinearGradient
+                colors={['rgba(244,114,182,0)', 'rgba(251,146,60,0.09)', 'rgba(251,146,60,0)']}
+                locations={[0, 0.6, 1]}
+                start={{ x: 0.5, y: 1 }}
+                end={{ x: 0.5, y: 0 }}
+                style={styles.bgLayer}
+                pointerEvents="none"
+            />
+
             <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
                 {searchActive ? (
                     <View style={styles.searchBarActive}>
@@ -324,6 +354,9 @@ export default function ForumsHomeV2Screen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    /* Full-bleed gradient layers — span the screen, no bounded shapes.
+       absoluteFillObject means no width/height/borderRadius can render. */
+    bgLayer: { ...StyleSheet.absoluteFillObject },
     header: {
         paddingHorizontal: spacing.xl,
         paddingBottom: spacing.lg,
