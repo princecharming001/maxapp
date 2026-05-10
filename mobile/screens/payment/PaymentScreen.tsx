@@ -63,8 +63,6 @@ const PREMIUM_PERKS: string[] = [
 
 const IS_IOS = Platform.OS === 'ios';
 const ACCENT = '#F5F5F4';                  // off-white for premium fill
-const ACCENT_GLOW = 'rgba(139, 92, 246, 0.18)'; // soft violet decorative orb
-const ACCENT_GLOW_2 = 'rgba(16, 185, 129, 0.12)'; // soft green decorative orb
 
 export default function PaymentScreen() {
     const navigation = useNavigation<any>();
@@ -126,38 +124,37 @@ export default function PaymentScreen() {
 
     return (
         <View style={s.container}>
-            {/* Decorative gradient blobs (full-screen backdrop). Replaces
-                the previous flat-color circles which read as 'unfinished
-                MS Paint disc'. Each blob is a radial-feeling linear
-                gradient with transparent end-stops so it fades cleanly
-                into the page. */}
-            <View style={s.orb1} pointerEvents="none">
-                <LinearGradient
-                    colors={['rgba(139,92,246,0.32)', 'rgba(139,92,246,0.10)', 'rgba(139,92,246,0)']}
-                    locations={[0, 0.55, 1]}
-                    start={{ x: 0.2, y: 0.2 }}
-                    end={{ x: 1, y: 1 }}
-                    style={s.orbInner}
-                />
-            </View>
-            <View style={s.orb2} pointerEvents="none">
-                <LinearGradient
-                    colors={['rgba(16,185,129,0.22)', 'rgba(59,130,246,0.10)', 'rgba(59,130,246,0)']}
-                    locations={[0, 0.6, 1]}
-                    start={{ x: 0.8, y: 0.2 }}
-                    end={{ x: 0, y: 1 }}
-                    style={s.orbInner}
-                />
-            </View>
-            <View style={s.orb3} pointerEvents="none">
-                <LinearGradient
-                    colors={['rgba(244,63,94,0.16)', 'rgba(244,114,182,0.06)', 'rgba(244,114,182,0)']}
-                    locations={[0, 0.5, 1]}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
-                    style={s.orbInner}
-                />
-            </View>
+            {/* Full-bleed gradient backdrop. NO bounded shapes — the
+                previous "blob" containers (even with fading edges) still
+                read as discrete circles on screen. This is three stacked
+                full-screen LinearGradients, each tilted at a different
+                angle with transparent end-stops, so colors blend into
+                each other across the page like an aurora. No edges
+                anywhere; just color. */}
+            <LinearGradient
+                colors={['rgba(139,92,246,0.16)', 'rgba(139,92,246,0)', 'rgba(139,92,246,0)']}
+                locations={[0, 0.6, 1]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={s.bgLayer}
+                pointerEvents="none"
+            />
+            <LinearGradient
+                colors={['rgba(59,130,246,0)', 'rgba(16,185,129,0.10)', 'rgba(16,185,129,0)']}
+                locations={[0, 0.5, 1]}
+                start={{ x: 1, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={s.bgLayer}
+                pointerEvents="none"
+            />
+            <LinearGradient
+                colors={['rgba(244,114,182,0)', 'rgba(244,63,94,0.08)', 'rgba(244,63,94,0)']}
+                locations={[0, 0.55, 1]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={s.bgLayer}
+                pointerEvents="none"
+            />
 
             {/* ── Top bar ─────────────────────────────────────────── */}
             <View style={[s.topBar, { paddingTop: Math.max(insets.top + spacing.sm, 44) }]}>
@@ -353,35 +350,11 @@ function BasicCard({
 const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
 
-    /* decorative gradient blobs (background) — three layered blooms
-       give the page atmosphere without any sharp edges. */
-    orb1: {
-        position: 'absolute',
-        top: -60,
-        right: -80,
-        width: 320,
-        height: 320,
-    },
-    orb2: {
-        position: 'absolute',
-        top: 280,
-        left: -100,
-        width: 360,
-        height: 360,
-    },
-    orb3: {
-        position: 'absolute',
-        bottom: -120,
-        right: -100,
-        width: 380,
-        height: 380,
-    },
-    orbInner: {
-        flex: 1,
-        // Larger radius matches the bigger blob sizes; the gradient
-        // fades to fully-transparent at the edges so the hard radius
-        // is invisible in practice.
-        borderRadius: 200,
+    /* Full-bleed gradient layers — span the entire screen, no shape
+       containers. Each LinearGradient fades to transparent on its
+       own axis so they blend together like an aurora. */
+    bgLayer: {
+        ...StyleSheet.absoluteFillObject,
     },
 
     topBar: {

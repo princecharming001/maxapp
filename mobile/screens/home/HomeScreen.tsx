@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    Animated, ActivityIndicator,
+    Animated, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { useNavigation, useFocusEffect, CommonActions } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -130,6 +130,19 @@ export default function HomeScreen() {
     const maxes = maxesQuery.data?.maxes ?? [];
     const loading = maxesQuery.isPending && !maxesQuery.data;
     const schedulesLoading = schedulesQuery.isPending && !schedulesQuery.data;
+
+    // Pull-to-refresh — Instagram pattern. Spinner shows ONLY during a
+    // user-initiated swipe-down, not on background refetches. Refetch
+    // both queries in parallel and clear the spinner when both resolve.
+    const [pulling, setPulling] = useState(false);
+    const onPullRefresh = React.useCallback(async () => {
+        setPulling(true);
+        try {
+            await Promise.all([maxesQuery.refetch(), schedulesQuery.refetch()]);
+        } finally {
+            setPulling(false);
+        }
+    }, [maxesQuery, schedulesQuery]);
 
     const { scheduleRows, scheduleStreak, schedulesError } = useMemo(() => {
         const full = schedulesQuery.data;
@@ -274,7 +287,17 @@ export default function HomeScreen() {
 
     return (
         <View style={s.root}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={s.scroll}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={pulling}
+                        onRefresh={onPullRefresh}
+                        tintColor={colors.foreground}
+                    />
+                }
+            >
                 <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
 
                     {/* ── TOP BAR ── */}
