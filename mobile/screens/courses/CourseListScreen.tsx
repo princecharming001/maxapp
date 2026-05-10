@@ -23,22 +23,13 @@ export default function CourseListScreen() {
         } catch (e) { console.error(e); } finally { setLoading(false); }
     };
 
-    const promptUpgrade = () => {
-        // Subtle paywall: same alert pattern as elsewhere in the app, with
-        // a single primary CTA that drops the user on the upgrade screen.
-        // Locked state is visual-only on the list — the alert is the bridge.
-        Alert.alert(
-            'Premium course',
-            'The full course library is part of Chad. Upgrade to unlock every chapter and reading guide.',
-            [
-                { text: 'Not now', style: 'cancel' },
-                { text: 'Upgrade', onPress: () => navigation.navigate('Payment') },
-            ],
-        );
-    };
+    // Direct nav — no intermediate alert. Tap → Payment. The lock
+    // pill on each card already signals "this is paid"; an extra
+    // confirm-tap to reach the upgrade screen was friction.
+    const goToUpgrade = () => navigation.navigate('Payment');
 
     const handlePress = (item: any) => {
-        if (isLocked) { promptUpgrade(); return; }
+        if (isLocked) { goToUpgrade(); return; }
         navigation.navigate('CourseDetail', { courseId: item.id });
     };
 
@@ -97,7 +88,7 @@ export default function CourseListScreen() {
                 <View style={{ width: 40 }} />
             </View>
             {isLocked ? (
-                <TouchableOpacity style={styles.premiumStrip} onPress={promptUpgrade} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.premiumStrip} onPress={goToUpgrade} activeOpacity={0.8}>
                     <Ionicons name="lock-closed" size={13} color={colors.textSecondary} />
                     <Text style={styles.premiumStripText}>
                         Course library is a Chad feature. Tap any course to upgrade.

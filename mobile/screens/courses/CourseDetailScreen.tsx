@@ -13,18 +13,13 @@ export default function CourseDetailScreen() {
     const route = useRoute<any>();
     const { courseId } = route.params;
     const { user } = useAuth();
-    // Defensive entry guard — list-level intercept already prompts the
-    // upgrade alert, but a deep link or stale stack could land here too.
+    // Defensive entry guard — list-level intercept routes locked taps
+    // to Payment directly. If a deep link / stale stack lands non-paid
+    // users here anyway, replace with Payment so they see the upgrade
+    // surface immediately (no intermediate confirm alert).
     useEffect(() => {
         if (canAccessCourseDocs(user)) return;
-        Alert.alert(
-            'Premium course',
-            'The full course library is part of Chad. Upgrade to unlock every chapter.',
-            [
-                { text: 'Not now', style: 'cancel', onPress: () => navigation.goBack() },
-                { text: 'Upgrade', onPress: () => navigation.replace('Payment') },
-            ],
-        );
+        navigation.replace('Payment');
     }, [user]);
     const [course, setCourse] = useState<any>(null);
     const [progress, setProgress] = useState<any>(null);
