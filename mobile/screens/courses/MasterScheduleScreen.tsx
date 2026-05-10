@@ -535,15 +535,30 @@ export default function MasterScheduleScreen() {
   }, [user?.onboarding]);
 
   /**
-   * Decide which block (if any) to render right after a given task
-   * group. Work block goes after Morning (since work usually starts
-   * after the morning routine). Sleep block goes after Night.
+   * Pick which block to render after a given task group. Both work
+   * and sleep ALWAYS render somewhere in the day so the user sees
+   * full context, not just whichever group happened to fire:
+   *   - Work goes after Morning. If no Morning group, attach to
+   *     whichever group precedes work hours (Midday or top fallback).
+   *   - Sleep goes after Night. If no Night group, attach to the
+   *     last group of the day so it always closes the schedule.
    */
-  const blockForGroup = useCallback((groupLabel: string) => {
-    if (groupLabel === 'Morning') return blocks.find((b) => b.kind === 'work') ?? null;
-    if (groupLabel === 'Night')   return blocks.find((b) => b.kind === 'sleep') ?? null;
-    return null;
-  }, [blocks]);
+  const blockForGroup = useCallback((groupLabel: string, isLast: boolean) => {
+    const work = blocks.find((b) => b.kind === 'work') ?? null;
+    const sleep = blocks.find((b) => b.kind === 'sleep') ?? null;
+    const hasMorning = groupedTasks.some((g) => g.label === 'Morning');
+    const hasNight = groupedTasks.some((g) => g.label === 'Night');
+    const out: typeof blocks = [];
+    if (work) {
+      const anchor = hasMorning ? 'Morning' : (groupedTasks[0]?.label ?? '');
+      if (groupLabel === anchor) out.push(work);
+    }
+    if (sleep) {
+      const anchor = hasNight ? 'Night' : (groupedTasks[groupedTasks.length - 1]?.label ?? '');
+      if (groupLabel === anchor) out.push(sleep);
+    }
+    return out;
+  }, [blocks, groupedTasks]);
 
   const HeaderChrome = ({
     title,
@@ -756,30 +771,39 @@ export default function MasterScheduleScreen() {
                   </View>
                 );
               })}
-              {/* Render the relevant calendar block AFTER this group so
-                  it visually slots between Morning↘Work or Night↘Sleep. */}
-              {(() => {
-                const blk = blockForGroup(group.label);
-                if (!blk) return null;
-                return (
-                  <View
-                    style={[
-                      styles.lifeBlock,
-                      blk.kind === 'sleep' && styles.lifeBlockSleep,
-                    ]}
-                  >
-                    <Ionicons
-                      name={blk.kind === 'sleep' ? 'moon-outline' : 'briefcase-outline'}
-                      size={14}
-                      color={colors.textMuted}
-                    />
-                    <Text style={styles.lifeBlockLabel}>{blk.label}</Text>
-                    <Text style={styles.lifeBlockTime}>
-                      {formatTime12(blk.start)} – {formatTime12(blk.end)}
-                    </Text>
+              {/* Life blocks (work / sleep) styled as task-row clones in
+                  black so the user sees them as part of the timeline,
+                  not floating chrome. Always rendered: work after the
+                  Morning group (or first group if no Morning), sleep
+                  after Night (or last group if no Night). */}
+              {blockForGroup(group.label, gi === groupedTasks.length - 1).map((blk) => (
+                <View key={`${blk.kind}-${blk.start}`}>
+                  <View style={styles.taskDivider} />
+                  <View style={[styles.taskRow, styles.lifeRow]}>
+                    {/* Same accent stripe as task rows, but solid foreground. */}
+                    <View style={[styles.scheduleTaskAccent, { backgroundColor: colors.foreground }]} />
+                    {/* Filled square in the checkbox slot — visually
+                        signals "this isn't checkable, just context". */}
+                    <View style={[styles.taskCheck, styles.lifeCheck]}>
+                      <Ionicons
+                        name={blk.kind === 'sleep' ? 'moon' : 'briefcase'}
+                        size={10}
+                        color={colors.background}
+                      />
+                    </View>
+                    <View style={styles.taskContent}>
+                      <View style={styles.taskTopLine}>
+                        <Text style={[styles.taskTime, styles.lifeTime]}>
+                          {formatTime12(blk.start)}
+                        </Text>
+                        <Text style={[styles.taskTitle, styles.lifeTitle]}>
+                          {blk.label.toLowerCase()} · until {formatTime12(blk.end)}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                );
-              })()}
+                </View>
+              ))}
             </View>
           ))}
         </ScrollView>
@@ -896,42 +920,31 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   taskList: { flex: 1, minHeight: 0, paddingHorizontal: spacing.lg },
-  /* Life block (work / sleep) — quiet calendar-style row that reads as
-     "context, not action". Theme-matched: thin background tint, hairline
-     border instead of accent stripe, small icon, tracked uppercase
-     label so it visually subordinates to the task list. */
-  lifeBlock: {
-    flexDirection: 'row',
+  /* Life rows (work / sleep) — same shape as a regular taskRow but
+     painted in the foreground (black) so the user reads them as part
+     of the timeline, not floating chrome. Bleeds full-width like
+     taskRow does, accent stripe + checkbox slot + time + title in the
+     same positions as a task. The 'check' is a filled square with the
+     life-icon to signal 'context, not toggleable'. */
+  lifeRow: {
+    backgroundColor: colors.foreground,
+    marginHorizontal: -spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
+  lifeCheck: {
+    backgroundColor: colors.foreground,
+    borderColor: colors.background,
     alignItems: 'center',
-    gap: 10,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    paddingVertical: 11,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderLight,
+    justifyContent: 'center',
   },
-  lifeBlockSleep: {
-    // No real distinction needed beyond the moon icon. Same surface as
-    // work for visual consistency.
-    backgroundColor: colors.surface,
+  lifeTitle: {
+    color: colors.background,
+    fontWeight: '600',
+    letterSpacing: 0.1,
   },
-  lifeBlockLabel: {
-    flex: 1,
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 11,
-    color: colors.textMuted,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-  },
-  lifeBlockTime: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 12.5,
-    color: colors.foreground,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: 0.2,
+  lifeTime: {
+    color: colors.background,
+    opacity: 0.6,
   },
   taskDivider: {
     height: StyleSheet.hairlineWidth,
