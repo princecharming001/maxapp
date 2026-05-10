@@ -119,7 +119,7 @@ def _is_bad_url(url: str) -> bool:
 #  Catalog-link enrichment                                                    #
 # --------------------------------------------------------------------------- #
 
-def _enrich_brand_mentions(text: str, *, max_inserts: int = 3) -> tuple[str, int]:
+def _enrich_brand_mentions(text: str, *, max_inserts: int = 4) -> tuple[str, int]:
     """Where the bot mentioned a catalog product by name without a link,
     append a `(<direct-url>)` next to the FIRST mention. Limited to
     `max_inserts` to avoid spammy answers."""
@@ -340,6 +340,93 @@ def _strip_bare_urls(text: str) -> tuple[str, int]:
 #  Public entry point                                                         #
 # --------------------------------------------------------------------------- #
 
+def _enrich_category_mentions(text: str, *, max_inserts: int = 2) -> tuple[str, int]:
+    """When the bot mentions a product CATEGORY without any specific
+    brand (e.g. 'use a moisturizer with ceramides', 'add creatine'),
+    surface a single catalog pick for that category as an inline link.
+    The brand enricher only fires on specific name mentions; this is
+    the broader safety net so the user gets a link even when the LLM
+    speaks generically.
+    """
+    try:
+        from services.product_catalog import find_products
+    except Exception:
+        return text, 0
+    # category → (module, concern_seed) pairs. The first existing,
+    # non-already-linked match in the text gets the inline link.
+    CATEGORIES: list[tuple[str, str, list[str]]] = [
+        # token              module      concerns
+        ("moisturizer",      "skinmax",  ["dryness", "barrier", "moisturizer"]),
+        ("moisturiser",      "skinmax",  ["dryness", "barrier", "moisturizer"]),
+        ("cleanser",         "skinmax",  ["gentle_cleansing", "cleanser"]),
+        ("sunscreen",        "skinmax",  ["sun_protection", "spf"]),
+        ("spf",              "skinmax",  ["sun_protection", "spf"]),
+        ("retinoid",         "skinmax",  ["acne", "anti_aging", "retinoid"]),
+        ("retinol",          "skinmax",  ["anti_aging", "retinol"]),
+        ("vitamin c serum",  "skinmax",  ["pigmentation", "vitc", "anti_aging"]),
+        ("niacinamide",      "skinmax",  ["pigmentation", "barrier"]),
+        ("salicylic",        "skinmax",  ["acne", "blackheads"]),
+        ("benzoyl peroxide", "skinmax",  ["acne"]),
+        ("shampoo",          "hairmax",  ["scalp_health", "shampoo"]),
+        ("conditioner",      "hairmax",  ["scalp_health"]),
+        ("minoxidil",        "hairmax",  ["hair_loss", "regrowth", "minoxidil"]),
+        ("finasteride",      "hairmax",  ["hair_loss"]),
+        ("creatine",         "fitmax",   ["creatine", "muscle_gain", "strength"]),
+        ("protein",          "fitmax",   ["protein", "muscle_gain"]),
+        ("whey",             "fitmax",   ["protein"]),
+        ("multivitamin",     "fitmax",   ["supplement"]),
+        ("pre-workout",      "fitmax",   ["pre_workout"]),
+        ("preworkout",       "fitmax",   ["pre_workout"]),
+        ("electrolyte",      "fitmax",   ["hydration"]),
+        ("mastic gum",       "bonemax",  ["jaw_training", "masseter"]),
+        ("mouth tape",       "bonemax",  ["mewing", "nasal_breathing"]),
+        ("inversion table",  "heightmax",["posture", "decompression"]),
+        ("posture corrector","heightmax",["posture"]),
+    ]
+    inserts = 0
+    out = text
+    link_regions = [(m.start(), m.end()) for m in re.finditer(r"\[[^\]]+\]\([^\)]+\)", out)]
+
+    def _inside_link(pos: int) -> bool:
+        return any(a <= pos < b for a, b in link_regions)
+
+    seen_modules: set[str] = set()
+    for token, module, concerns in CATEGORIES:
+        if inserts >= max_inserts:
+            break
+        if module in seen_modules:
+            continue   # one category-link per module per response
+        pat = re.compile(rf"\b{re.escape(token)}\b", re.IGNORECASE)
+        m = None
+        for hit in pat.finditer(out):
+            if _inside_link(hit.start()):
+                continue
+            # Skip when the brand enricher (or any prior pass) already
+            # parked a link right after this token. Avoids double-linking
+            # tokens like 'minoxidil' / 'creatine' where the distinctive-
+            # token path in _enrich_brand_mentions already inserted a link.
+            tail = out[hit.end(): hit.end() + 24]
+            if re.match(r"\s*\(\[[^\]]+\]\(http", tail):
+                continue
+            m = hit
+            break
+        if not m:
+            continue
+        try:
+            hits = find_products(module=module, concerns=concerns, limit=1)
+        except Exception:
+            hits = []
+        if not hits:
+            continue
+        p = hits[0]
+        ins = f" ([{p.brand or p.name}]({p.display_url}))"
+        out = out[: m.end()] + ins + out[m.end():]
+        link_regions = [(mr.start(), mr.end()) for mr in re.finditer(r"\[[^\]]+\]\([^\)]+\)", out)]
+        inserts += 1
+        seen_modules.add(module)
+    return out, inserts
+
+
 def validate_and_rewrite_links(text: str) -> str:
     """Sanitize an LLM-produced answer:
 
@@ -347,6 +434,9 @@ def validate_and_rewrite_links(text: str) -> str:
          amazon links).
       2. Strip bad bare URLs.
       3. Append catalog direct links to brand mentions that lacked one.
+      4. Append catalog category-pick links to category mentions
+         ('moisturizer', 'creatine', 'shampoo', ...) when no brand-
+         specific link is in the response yet.
 
     Idempotent. Safe to call on every answer.
     """
@@ -358,6 +448,8 @@ def validate_and_rewrite_links(text: str) -> str:
     text, ph_rewrote, ph_stripped = _rewrite_placeholder_links(text)
     text, bare_stripped = _strip_bare_urls(text)
     text, enriched = _enrich_brand_mentions(text)
+    text, cat_enriched = _enrich_category_mentions(text)
+    enriched += cat_enriched
 
     if rewrote or stripped or ph_rewrote or ph_stripped or bare_stripped or enriched:
         logger.info(
