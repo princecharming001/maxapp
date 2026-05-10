@@ -13,6 +13,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { buildMaxxMaps, mergeSchedules, type MergedScheduleTask } from '../../utils/scheduleAggregation';
@@ -439,6 +440,14 @@ export default function MasterScheduleScreen() {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
+    // Life tasks (work / sleep) — local-only toggle. No server schedule
+    // backs them; persist to AsyncStorage and bail out before the API call.
+    if (task.scheduleId === 'life') {
+      const m = /^life-(work|sleep)-(.+)$/.exec(task.task_id);
+      if (m) toggleLifeChecked(`${m[1]}-${m[2]}`);
+      return;
+    }
+
     const nextStatus: 'completed' | 'pending' = task.status === 'completed' ? 'pending' : 'completed';
     const previous = queryClient.getQueryData(queryKeys.schedulesActiveFull) as ActiveSchedulesFullCache | undefined;
     queryClient.setQueryData(queryKeys.schedulesActiveFull, (old) =>
@@ -479,86 +488,82 @@ export default function MasterScheduleScreen() {
     }
   };
 
-  const groupedTasks = useMemo(() => {
-    // Distribute across FOUR buckets, not three.
-    //   Morning  : 4-12   (morning_routine, post_routine, mid_morning)
-    //   Midday   : 12-17  (lunch + afternoon — was buried under "Afternoon"
-    //                      with everything past noon, which made the
-    //                      bucket either 1-task or 5-task depending on
-    //                      where lunch landed)
-    //   Evening  : 17-21  (pre_evening, workout, post_workout)
-    //   Night    : 21-04  (pm_routine, wind_down)
-    // The old 3-bucket split (Morning <12 / Afternoon <17 / Evening 17+)
-    // bunched ~everything into Morning + Evening because lunch landed at
-    // ~11:30 so it went to Morning, leaving Afternoon nearly empty. The
-    // 4-bucket split + the work/sleep block rendering below give a much
-    // more legible day view.
-    const morning: MergedScheduleTask[] = [];
-    const midday:  MergedScheduleTask[] = [];
-    const evening: MergedScheduleTask[] = [];
-    const night:   MergedScheduleTask[] = [];
-    for (const t of tasksForDay) {
-      const parts = parseTimeToHHMM(t.time);
-      const hh = parts ? parts.hh : 8;   // missing time → treat as morning
-      if (hh < 12) morning.push(t);
-      else if (hh < 17) midday.push(t);
-      else if (hh < 21) evening.push(t);
-      else night.push(t);
-    }
-    const groups: { label: string; tasks: MergedScheduleTask[] }[] = [];
-    if (morning.length) groups.push({ label: 'Morning', tasks: morning });
-    if (midday.length)  groups.push({ label: 'Midday',  tasks: midday });
-    if (evening.length) groups.push({ label: 'Evening', tasks: evening });
-    if (night.length)   groups.push({ label: 'Night',   tasks: night });
-    if (groups.length === 0 && tasksForDay.length > 0) groups.push({ label: 'Today', tasks: tasksForDay });
-    return groups;
-  }, [tasksForDay]);
+  /**
+   * Local checked-state for the work + sleep "life tasks". They aren't
+   * persisted to the server (no schedule row backs them) so we keep
+   * status in AsyncStorage keyed by `${kind}-${date}`. Reset implicitly
+   * each new day because the key changes.
+   */
+  const [lifeChecked, setLifeChecked] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    AsyncStorage.getItem('@life_task_checked_v1').then((s) => {
+      if (s) {
+        try { setLifeChecked(JSON.parse(s)); } catch { /* ignore */ }
+      }
+    });
+  }, []);
+  const toggleLifeChecked = useCallback((key: string) => {
+    setLifeChecked((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      void AsyncStorage.setItem('@life_task_checked_v1', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   /**
-   * Block rows interleaved with the task groups so the schedule reads
-   * with real-life context: "you're at work 9–5, sleeping 11–7, here's
-   * what slots in around that". Pulled from onboarding (wake_time,
-   * sleep_time, work_schedule, work_start, work_end). Returns an array
-   * of {kind, label, start, end} entries to be rendered as styled
-   * non-interactive cards between groups.
+   * Build pseudo-tasks for the user's work + sleep windows so they
+   * render inline with regular tasks (same row component, sorted by
+   * time). Pulled from onboarding (wake_time, sleep_time,
+   * work_schedule, work_start, work_end).
    */
-  const blocks = useMemo(() => {
+  const lifeTasks = useMemo(() => {
     const ob = (user?.onboarding || {}) as Record<string, any>;
-    const out: { kind: 'work' | 'sleep'; label: string; start: string; end: string }[] = [];
+    const date = selectedDate || '';
+    const out: MergedScheduleTask[] = [];
     if (ob.work_schedule === 'fixed' && ob.work_start && ob.work_end) {
-      out.push({ kind: 'work',  label: 'Work / school', start: String(ob.work_start),  end: String(ob.work_end) });
+      out.push({
+        task_id: `life-work-${date}`,
+        time: String(ob.work_start),
+        title: `work / school · until ${formatTime12(String(ob.work_end))}`,
+        description: '',
+        task_type: 'life',
+        duration_minutes: 0,
+        status: lifeChecked[`work-${date}`] ? 'completed' : 'pending',
+        scheduleId: 'life',
+        moduleLabel: '',
+        moduleColor: colors.foreground,
+      });
     }
     if (ob.sleep_time && ob.wake_time) {
-      out.push({ kind: 'sleep', label: 'Sleep',         start: String(ob.sleep_time),  end: String(ob.wake_time) });
+      out.push({
+        task_id: `life-sleep-${date}`,
+        time: String(ob.sleep_time),
+        title: `sleep · until ${formatTime12(String(ob.wake_time))}`,
+        description: '',
+        task_type: 'life',
+        duration_minutes: 0,
+        status: lifeChecked[`sleep-${date}`] ? 'completed' : 'pending',
+        scheduleId: 'life',
+        moduleLabel: '',
+        moduleColor: colors.foreground,
+      });
     }
     return out;
-  }, [user?.onboarding]);
+  }, [user?.onboarding, selectedDate, lifeChecked]);
 
-  /**
-   * Pick which block to render after a given task group. Both work
-   * and sleep ALWAYS render somewhere in the day so the user sees
-   * full context, not just whichever group happened to fire:
-   *   - Work goes after Morning. If no Morning group, attach to
-   *     whichever group precedes work hours (Midday or top fallback).
-   *   - Sleep goes after Night. If no Night group, attach to the
-   *     last group of the day so it always closes the schedule.
-   */
-  const blockForGroup = useCallback((groupLabel: string, isLast: boolean) => {
-    const work = blocks.find((b) => b.kind === 'work') ?? null;
-    const sleep = blocks.find((b) => b.kind === 'sleep') ?? null;
-    const hasMorning = groupedTasks.some((g) => g.label === 'Morning');
-    const hasNight = groupedTasks.some((g) => g.label === 'Night');
-    const out: typeof blocks = [];
-    if (work) {
-      const anchor = hasMorning ? 'Morning' : (groupedTasks[0]?.label ?? '');
-      if (groupLabel === anchor) out.push(work);
-    }
-    if (sleep) {
-      const anchor = hasNight ? 'Night' : (groupedTasks[groupedTasks.length - 1]?.label ?? '');
-      if (groupLabel === anchor) out.push(sleep);
-    }
-    return out;
-  }, [blocks, groupedTasks]);
+  /** Single chronological task list — no Morning/Midday/Evening
+   *  buckets. Regular tasks + work/sleep pseudo-tasks merged + sorted
+   *  by HH:MM. Reads as one fluid timeline. */
+  const orderedTasks = useMemo(() => {
+    const all = [...tasksForDay, ...lifeTasks];
+    return all.sort((a, b) => {
+      const ah = parseTimeToHHMM(a.time);
+      const bh = parseTimeToHHMM(b.time);
+      const am = ah ? ah.hh * 60 + ah.mm : 9999;
+      const bm = bh ? bh.hh * 60 + bh.mm : 9999;
+      return am - bm;
+    });
+  }, [tasksForDay, lifeTasks]);
 
   const HeaderChrome = ({
     title,
@@ -693,119 +698,93 @@ export default function MasterScheduleScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
           }
         >
-          {groupedTasks.map((group, gi) => (
-            <View key={group.label}>
-              {gi > 0 && <View style={styles.groupSpacer} />}
-              <Text style={styles.timeGroupLabel}>{group.label}</Text>
-              {group.tasks.map((task, index) => {
-                const isDone = task.status === 'completed';
-                const isExpanded = expandedTaskId === task.task_id;
-                return (
-                  <View key={`${task.scheduleId}-${task.task_id}`}>
-                    {index > 0 && <View style={styles.taskDivider} />}
-                    <TouchableOpacity
-                      style={[styles.taskRow, isDone && styles.taskRowDone]}
-                      onPress={() => setExpandedTaskId((prev) => (prev === task.task_id ? null : task.task_id))}
-                      activeOpacity={0.75}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${isExpanded ? 'Collapse' : 'Expand'} details for ${stripDuplicateModulePrefix(task.title, task.moduleLabel)}`}
-                    >
-                      <View style={[styles.scheduleTaskAccent, { backgroundColor: task.moduleColor }]} />
-                      <TouchableOpacity
-                        style={[styles.taskCheck, isDone && styles.taskCheckDone]}
-                        onPress={(e) => { e.stopPropagation(); void toggleTaskComplete(task); }}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        accessibilityRole="checkbox"
-                        accessibilityLabel={
-                          isDone
-                            ? `Mark task not done: ${stripDuplicateModulePrefix(task.title, task.moduleLabel)}`
-                            : `Mark task done: ${stripDuplicateModulePrefix(task.title, task.moduleLabel)}`
-                        }
-                        accessibilityState={{ checked: isDone }}
+          {/* Single fluid timeline — no Morning/Midday/Evening buckets.
+              Regular tasks + work/sleep pseudo-tasks merged + sorted by
+              time. Life tasks render with the EXACT same row markup as
+              regular tasks (no different format/color); only difference
+              is they toggle local-only state instead of hitting the
+              server, and the accent stripe defaults to foreground when
+              there's no module color. */}
+          {orderedTasks.map((task, index) => {
+            const isDone = task.status === 'completed';
+            const isExpanded = expandedTaskId === task.task_id;
+            const isLife = task.scheduleId === 'life';
+            return (
+              <View key={`${task.scheduleId}-${task.task_id}`}>
+                {index > 0 && <View style={styles.taskDivider} />}
+                <TouchableOpacity
+                  style={[styles.taskRow, isDone && styles.taskRowDone]}
+                  onPress={() => {
+                    if (isLife) return;   // life tasks have no expand-detail
+                    setExpandedTaskId((prev) => (prev === task.task_id ? null : task.task_id));
+                  }}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${isExpanded ? 'Collapse' : 'Expand'} details for ${stripDuplicateModulePrefix(task.title, task.moduleLabel)}`}
+                >
+                  <View style={[styles.scheduleTaskAccent, { backgroundColor: task.moduleColor }]} />
+                  <TouchableOpacity
+                    style={[styles.taskCheck, isDone && styles.taskCheckDone]}
+                    onPress={(e) => { e.stopPropagation(); void toggleTaskComplete(task); }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="checkbox"
+                    accessibilityLabel={
+                      isDone
+                        ? `Mark task not done: ${task.title}`
+                        : `Mark task done: ${task.title}`
+                    }
+                    accessibilityState={{ checked: isDone }}
+                  >
+                    {isDone ? (
+                      <Ionicons name="checkmark" size={11} color={colors.buttonText} />
+                    ) : null}
+                  </TouchableOpacity>
+                  <View style={styles.taskContent}>
+                    <View style={styles.taskTopLine}>
+                      <Text style={[styles.taskTime, isDone && styles.taskTimeDone]}>
+                        {formatTimeTo12Hour(task.time)}
+                      </Text>
+                      <Text
+                        style={[styles.taskTitle, isDone && styles.taskTitleDone]}
+                        numberOfLines={isExpanded ? undefined : 1}
                       >
-                        {isDone ? (
-                          <Ionicons name="checkmark" size={11} color={colors.buttonText} />
+                        {stripDuplicateModulePrefix(task.title, task.moduleLabel)}
+                      </Text>
+                    </View>
+                    {isExpanded && !isLife && (
+                      <>
+                        <Text style={styles.taskMeta} numberOfLines={1}>
+                          {task.moduleLabel}{task.duration_minutes ? `  ·  ${task.duration_minutes}m` : ''}
+                        </Text>
+                        {task.description ? (
+                          <Text style={styles.taskDescription}>
+                            {task.description}
+                          </Text>
                         ) : null}
-                      </TouchableOpacity>
-                      <View style={styles.taskContent}>
-                        <View style={styles.taskTopLine}>
-                          <Text style={[styles.taskTime, isDone && styles.taskTimeDone]}>
-                            {formatTimeTo12Hour(task.time)}
-                          </Text>
-                          <Text
-                            style={[styles.taskTitle, isDone && styles.taskTitleDone]}
-                            numberOfLines={isExpanded ? undefined : 1}
-                          >
-                            {stripDuplicateModulePrefix(task.title, task.moduleLabel)}
-                          </Text>
-                        </View>
-                        {isExpanded && (
-                          <>
-                            <Text style={styles.taskMeta} numberOfLines={1}>
-                              {task.moduleLabel}{task.duration_minutes ? `  ·  ${task.duration_minutes}m` : ''}
-                            </Text>
-                            {task.description ? (
-                              <Text style={styles.taskDescription}>
-                                {task.description}
-                              </Text>
-                            ) : null}
-                            <TouchableOpacity
-                              style={styles.askChatRow}
-                              onPress={(e) => { e.stopPropagation(); goToChatForTask(task); }}
-                              activeOpacity={0.75}
-                              accessibilityRole="button"
-                              accessibilityLabel={`Ask Max about ${stripDuplicateModulePrefix(task.title, task.moduleLabel)}`}
-                            >
-                              <Ionicons name="chatbubble-ellipses-outline" size={13} color={colors.textMuted} />
-                              <Text style={styles.askChatLabel}>Ask Max</Text>
-                            </TouchableOpacity>
-                          </>
-                        )}
-                      </View>
-                      <Ionicons
-                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                        size={14}
-                        color={colors.textMuted}
-                      />
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.askChatRow}
+                          onPress={(e) => { e.stopPropagation(); goToChatForTask(task); }}
+                          activeOpacity={0.75}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Ask Max about ${stripDuplicateModulePrefix(task.title, task.moduleLabel)}`}
+                        >
+                          <Ionicons name="chatbubble-ellipses-outline" size={13} color={colors.textMuted} />
+                          <Text style={styles.askChatLabel}>Ask Max</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
-                );
-              })}
-              {/* Life blocks (work / sleep) styled as task-row clones in
-                  black so the user sees them as part of the timeline,
-                  not floating chrome. Always rendered: work after the
-                  Morning group (or first group if no Morning), sleep
-                  after Night (or last group if no Night). */}
-              {blockForGroup(group.label, gi === groupedTasks.length - 1).map((blk) => (
-                <View key={`${blk.kind}-${blk.start}`}>
-                  <View style={styles.taskDivider} />
-                  <View style={[styles.taskRow, styles.lifeRow]}>
-                    {/* Same accent stripe as task rows, but solid foreground. */}
-                    <View style={[styles.scheduleTaskAccent, { backgroundColor: colors.foreground }]} />
-                    {/* Filled square in the checkbox slot — visually
-                        signals "this isn't checkable, just context". */}
-                    <View style={[styles.taskCheck, styles.lifeCheck]}>
-                      <Ionicons
-                        name={blk.kind === 'sleep' ? 'moon' : 'briefcase'}
-                        size={10}
-                        color={colors.background}
-                      />
-                    </View>
-                    <View style={styles.taskContent}>
-                      <View style={styles.taskTopLine}>
-                        <Text style={[styles.taskTime, styles.lifeTime]}>
-                          {formatTime12(blk.start)}
-                        </Text>
-                        <Text style={[styles.taskTitle, styles.lifeTitle]}>
-                          {blk.label.toLowerCase()} · until {formatTime12(blk.end)}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
-          ))}
+                  {!isLife ? (
+                    <Ionicons
+                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                      size={14}
+                      color={colors.textMuted}
+                    />
+                  ) : null}
+                </TouchableOpacity>
+              </View>
+            );
+          })}
         </ScrollView>
       </View>
     </View>
