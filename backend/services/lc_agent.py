@@ -400,6 +400,18 @@ async def build_agent_system_prompt(
         "narrow; long lines wrap weirdly.\n"
         "6. Lowercase. Direct. No hype words ('amazing', 'incredible', "
         "'fantastic'). Real coach voice.\n"
+        "## NEVER RE-ASK KNOWN FACTS\n"
+        "USER CONTEXT below contains a `KNOWN PROFILE` block listing\n"
+        "every fact the user already gave us (age, sex, height, wake/sleep,\n"
+        "work hours, skin concerns, hair history, training experience,\n"
+        "equipment, dietary restrictions, etc). Treat that as ground\n"
+        "truth — DO NOT re-ask the user for ANY of those answers, even\n"
+        "when they're starting a new module. If a maxx needs a fact\n"
+        "that's already in KNOWN PROFILE, use it silently; only ask\n"
+        "for the small set of new fields specific to the new maxx.\n"
+        "Example: user has wake=07:00 from a previous hairmax onboarding.\n"
+        "They start skinmax. You do NOT ask 'what time do you wake up'\n"
+        "again — you pull 07:00 from KNOWN PROFILE.\n"
         "## PRODUCT LINKS: SURFACE PROACTIVELY\n"
         "Be EAGER with product links — the user shouldn't have to ask\n"
         "'do you have a link?' to get one. Trigger conditions (call\n"
@@ -1861,7 +1873,13 @@ def make_chat_tools(
         edit_schedule_task,
         delete_schedule_task,
         update_schedule_preferences,
-        generate_course_schedule,
+        # generate_course_schedule INTENTIONALLY removed from agent tools.
+        # It's the legacy course/module path (pre-doc-driven architecture);
+        # all real user flows go through generate_maxx_schedule. Keeping
+        # it as a callable function so any direct API caller can still hit
+        # it, but pulling it out of the agent saves ~120 prompt tokens per
+        # request and stops the LLM occasionally picking the wrong one
+        # when the user says "make me a schedule" without naming a maxx.
         update_schedule_context,
         log_check_in,
         set_coaching_mode,

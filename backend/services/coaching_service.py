@@ -284,6 +284,83 @@ def _format_memory_slots(
         f"- tone: {tone or 'default'}",
     ]
 
+    # ------------------------------------------------------------------ #
+    #  KNOWN-PROFILE block — surfaces every onboarding field already      #
+    #  collected, organized by maxx. Contract: the agent must NOT ask     #
+    #  the user for any of these answers again when they start a new      #
+    #  module. Even maxes the user hasn't started yet pull from this     #
+    #  if they share the field (e.g. wake_time fills every schedule).    #
+    # ------------------------------------------------------------------ #
+    def _ob(key: str) -> str:
+        v = onboarding.get(key)
+        if v is None or v == "" or v == []:
+            return ""
+        if isinstance(v, list):
+            return ", ".join(str(x) for x in v if x)
+        return str(v).strip()
+
+    def _section(label: str, pairs: list[tuple[str, str]]) -> str:
+        kept = [(k, v) for k, v in pairs if v]
+        if not kept:
+            return ""
+        joined = "; ".join(f"{k}={v}" for k, v in kept)
+        return f"- {label}: {joined}"
+
+    profile_lines = [
+        _section("identity",  [
+            ("age",     _ob("age")),
+            ("sex",     _ob("gender") or _ob("sex")),
+            ("height",  _ob("height")),
+            ("weight",  _ob("weight")),
+        ]),
+        _section("schedule", [
+            ("wake",         _ob("wake_time")),
+            ("sleep",        _ob("sleep_time")),
+            ("work",         (
+                f'{_ob("work_start")}-{_ob("work_end")}'
+                if (_ob("work_schedule") == "fixed" and _ob("work_start") and _ob("work_end"))
+                else _ob("work_schedule")
+            )),
+            ("workout time", _ob("preferred_workout_time")),
+        ]),
+        _section("skin", [
+            ("primary",   _ob("primary_skin_concern")),
+            ("secondary", _ob("secondary_skin_concern")),
+            ("routine",   _ob("skincare_routine_level")),
+            ("type",      _ob("skin_type")),
+        ]),
+        _section("hair", [
+            ("family loss",  _ob("hair_family_history")),
+            ("current loss", _ob("hair_current_loss")),
+            ("treatments",   _ob("hair_treatments_current")),
+            ("hair type",    _ob("hair_type")),
+            ("sensitivity",  _ob("hair_side_effect_sensitivity")),
+        ]),
+        _section("fitness", [
+            ("primary goal", _ob("fitmax_primary_goal") or _ob("primary_goal")),
+            ("experience",   _ob("fitmax_training_experience") or _ob("training_experience")),
+            ("days/week",    _ob("fitmax_workout_days_per_week")),
+            ("equipment",    _ob("fitmax_equipment")),
+        ]),
+        _section("bone/jaw", [
+            ("tmj history",       _ob("tmj_history")),
+            ("mastic gum daily",  _ob("mastic_gum_regular")),
+        ]),
+        _section("lifestyle", [
+            ("activity",      _ob("activity_level")),
+            ("screen time",   _ob("screen_hours_daily")),
+            ("diet",          _ob("dietary_restrictions")),
+            ("timezone",      _ob("timezone")),
+        ]),
+        _section("priorities", [
+            ("rank", ", ".join(str(x) for x in (onboarding.get("priority_ranking") or []))),
+        ]),
+    ]
+    profile_lines = [p for p in profile_lines if p]
+    if profile_lines:
+        lines.append("KNOWN PROFILE (do NOT re-ask any of these):")
+        lines.extend(profile_lines)
+
     # Optional: Onairos personalization snapshot. Only append when the user has
     # consented and we have a cached trait row — absence is the norm, not an error.
     # We emit two artifacts:
