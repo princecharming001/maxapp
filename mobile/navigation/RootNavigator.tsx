@@ -27,6 +27,7 @@ import ProfileScreen from '../screens/profile/ProfileScreen';
 import SmsSetupScreen from '../screens/profile/SmsSetupScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
 import EditPersonalScreen from '../screens/profile/EditPersonalScreen';
+import DayPlannerScreen from '../screens/profile/DayPlannerScreen';
 import MyProductsScreen from '../screens/profile/MyProductsScreen';
 import ManageSubscriptionScreen from '../screens/profile/ManageSubscriptionScreen';
 import PersonalInfoScreen from '../screens/profile/PersonalInfoScreen';
@@ -145,6 +146,7 @@ export function RootNavigator() {
                     <Stack.Screen name="Profile" component={ProfileScreen} />
                     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="EditPersonal" component={EditPersonalScreen} />
+                    <Stack.Screen name="DayPlanner" component={DayPlannerScreen} />
                     <Stack.Screen name="MyProducts" component={MyProductsScreen} />
                     <Stack.Screen name="ManageSubscription" component={ManageSubscriptionScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="PersonalInfo" component={PersonalInfoScreen} />

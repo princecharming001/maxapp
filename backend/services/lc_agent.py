@@ -350,6 +350,19 @@ async def build_agent_system_prompt(
                 avail_bits.append(f"busy {work_start}–{work_end} (work/school)")
             elif work_sched == "flexible":
                 avail_bits.append("flexible work/school hours")
+            # Custom recurring obligations the user set in the Day Planner
+            # (gym class, school pickup, commute, etc.). Same treatment as
+            # work hours — the bot must never plan a routine on top of them.
+            obligations = ob.get("obligations")
+            if isinstance(obligations, list):
+                for item in obligations:
+                    if not isinstance(item, dict):
+                        continue
+                    o_start = (item.get("start") or "").strip()
+                    o_end = (item.get("end") or "").strip()
+                    o_label = (item.get("label") or "obligation").strip()
+                    if o_start and o_end:
+                        avail_bits.append(f"busy {o_start}–{o_end} ({o_label})")
             if avail_bits:
                 context_str += (
                     f"\nDAILY AVAILABILITY: {' | '.join(avail_bits)}"

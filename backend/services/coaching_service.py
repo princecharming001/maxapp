@@ -306,6 +306,24 @@ def _format_memory_slots(
         joined = "; ".join(f"{k}={v}" for k, v in kept)
         return f"- {label}: {joined}"
 
+    # Custom recurring commitments from the Day Planner. Rendered compactly
+    # ("gym 18:00-19:00, school run 15:00-15:30") so the coach sees them in
+    # the same schedule block as work hours and never plans on top of them.
+    def _obligations_str() -> str:
+        raw = onboarding.get("obligations")
+        if not isinstance(raw, list):
+            return ""
+        parts: list[str] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            s = str(item.get("start") or "").strip()
+            e = str(item.get("end") or "").strip()
+            lbl = str(item.get("label") or "").strip() or "obligation"
+            if s and e:
+                parts.append(f"{lbl} {s}-{e}")
+        return ", ".join(parts)
+
     profile_lines = [
         _section("identity",  [
             ("age",     _ob("age")),
@@ -323,6 +341,7 @@ def _format_memory_slots(
                 else _ob("work_schedule")
             )),
             ("workout time", _ob("preferred_workout_time")),
+            ("obligations",  _obligations_str()),
         ]),
         _section("skin", [
             ("primary",   _ob("primary_skin_concern")),

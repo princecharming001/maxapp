@@ -89,6 +89,15 @@ class OnboardingData(BaseModel):
     )
     work_start: Optional[str] = Field(default=None, description="Work/school start HH:MM (24h)")
     work_end: Optional[str] = Field(default=None, description="Work/school end HH:MM (24h)")
+    # Arbitrary fixed daily commitments the scheduler must work around (in
+    # addition to work hours). Each entry: {"label": str, "start": "HH:MM",
+    # "end": "HH:MM"}. Treated as recurring daily busy blocks — tasks that
+    # would land inside one are pushed out by the validator, and the windows
+    # are surfaced to the coach so it never plans on top of them.
+    obligations: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="Fixed daily commitments to avoid. Each: {label, start 'HH:MM', end 'HH:MM'}.",
+    )
     completed: bool = False
     # Profile questionnaire v2 (collected before pay in app flow) — optional flag for clients
     questionnaire_v2_completed: Optional[bool] = None

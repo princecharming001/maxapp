@@ -416,6 +416,19 @@ def validate_and_fix(
     # spot. Idempotent — running twice is the same as running once.
     fixed_days = _enforce_coherence(fixed_days, errors=errors)
 
+    # Busy-time avoidance — the LAST pass so it operates on final times.
+    # Shifts any task that lands inside the user's fixed obligations (work
+    # hours + custom commitments from the Day Planner) to just after the
+    # busy window ends. Deliberately runs AFTER coherence (re-running
+    # coherence here could pull a pre-workout back into a busy block). Strict
+    # no-op when the user has no fixed busy windows.
+    busy = _busy_intervals_from_ctx(user_ctx)
+    if busy:
+        fixed_days = _avoid_busy_windows(
+            fixed_days, busy,
+            wake_min=to_minutes(wake), sleep_min=sleep_min, errors=errors,
+        )
+
     has_hard = any(e.severity == "hard" for e in errors)
     return (not has_hard), errors, fixed_days
 
@@ -851,6 +864,144 @@ def _enforce_coherence(days: list[dict], *, errors: list[ValidationError]) -> li
 
         # Re-sort tasks by time after the slides so the day stays
         # chronological (mobile renders in array order).
+        tasks.sort(key=lambda t: _parse_time_field(t.get("time")) or 0)
+        day["tasks"] = tasks
+
+    return days
+
+
+def _busy_intervals_from_ctx(user_ctx: dict[str, Any]) -> list[tuple[int, int]]:
+    """Collect the user's fixed daily busy windows as (start_min, end_min).
+
+    Two sources, both optional:
+      1. Work/school hours — only when work_schedule == "fixed" and both
+         work_start/work_end parse and end > start.
+      2. obligations — a list of {label, start "HH:MM", end "HH:MM"} dicts
+         the user added in the Day Planner. Each valid entry becomes a busy
+         window.
+
+    Overlapping/adjacent windows are merged so downstream eviction treats a
+    back-to-back work block + meeting as one continuous busy span. Returns
+    [] when the user has set nothing — the caller then skips the avoidance
+    pass entirely (zero behaviour change for users with no fixed schedule).
+    """
+    if not isinstance(user_ctx, dict):
+        return []
+
+    raw: list[tuple[int, int]] = []
+
+    work_sched = (user_ctx.get("work_schedule") or "").strip().lower()
+    if work_sched == "fixed":
+        ws = _parse_time_field(user_ctx.get("work_start"))
+        we = _parse_time_field(user_ctx.get("work_end"))
+        if ws is not None and we is not None and we > ws:
+            raw.append((ws, we))
+
+    obligations = user_ctx.get("obligations")
+    if isinstance(obligations, list):
+        for ob in obligations:
+            if not isinstance(ob, dict):
+                continue
+            s = _parse_time_field(ob.get("start"))
+            e = _parse_time_field(ob.get("end"))
+            # Skip malformed / zero-length / overnight (end <= start) entries;
+            # v1 only models same-day daytime blocks.
+            if s is None or e is None or e <= s:
+                continue
+            raw.append((s, e))
+
+    if not raw:
+        return []
+
+    raw.sort()
+    merged: list[list[int]] = [list(raw[0])]
+    for s, e in raw[1:]:
+        if s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    return [(s, e) for s, e in merged]
+
+
+def _avoid_busy_windows(
+    days: list[dict],
+    busy: list[tuple[int, int]],
+    *,
+    wake_min: int,
+    sleep_min: int,
+    errors: list[ValidationError],
+) -> list[dict]:
+    """Push any task that lands inside a busy window to just after it ends.
+
+    Runs as the final pass (after coherence) so the times it sees are the
+    ones that would actually be saved. For each day, walks tasks in time
+    order maintaining a `floor` (earliest start the next task may take, =
+    previous task end + MIN_TASK_GAP_MIN). A task is moved when it either
+    (a) falls below the floor — i.e. an earlier eviction now crowds it — or
+    (b) overlaps any busy window, in which case it jumps to that window's
+    end. The two conditions are re-checked together until the task settles,
+    so a task evicted from work hours that then collides with the next
+    obligation keeps moving until it's clear.
+
+    No-op when `busy` is empty (caller already guards) or when a day's tasks
+    never touch a window. Never pulls a task earlier than its original time;
+    only ever shifts forward. `from_minutes` clamps to 23:59, so an
+    over-subscribed day degrades to a late-evening pile-up rather than
+    crashing — acceptable for the rare case where obligations leave no room.
+    """
+    if not busy:
+        return days
+
+    # Cap forward shifts at one minute before midnight so a task can never be
+    # stamped to an out-of-range time even when obligations run late.
+    LAST_SLOT = 24 * 60 - 1
+
+    def _overlapping_window(start: int, dur: int) -> tuple[int, int] | None:
+        for bs, be in busy:
+            if start < be and start + dur > bs:
+                return (bs, be)
+        return None
+
+    for di, day in enumerate(days):
+        tasks: list[dict] = day.get("tasks") or []
+        if not tasks:
+            continue
+        tasks.sort(key=lambda t: _parse_time_field(t.get("time")) or 0)
+
+        floor = -1
+        for t in tasks:
+            original = _parse_time_field(t.get("time")) or 0
+            dur = max(1, int(t.get("duration_min", 1)))
+            start = original
+
+            # Settle the task against the floor and busy windows together.
+            for _ in range(8):
+                moved = False
+                if floor >= 0 and start < floor:
+                    start = floor
+                    moved = True
+                win = _overlapping_window(start, dur)
+                if win is not None:
+                    start = win[1]
+                    moved = True
+                if not moved:
+                    break
+
+            if start > LAST_SLOT:
+                start = LAST_SLOT
+
+            if start != original:
+                new_time = from_minutes(start).strftime("%H:%M")
+                errors.append(ValidationError(
+                    "soft", "busy_avoidance",
+                    f"day {di+1}: moved {t.get('title','?')!r} to {new_time} "
+                    f"(was inside a fixed obligation)",
+                    day_index=di, task_id=t.get("catalog_id"),
+                ))
+                t["time"] = new_time
+
+            floor = start + dur + MIN_TASK_GAP_MIN
+
         tasks.sort(key=lambda t: _parse_time_field(t.get("time")) or 0)
         day["tasks"] = tasks
 

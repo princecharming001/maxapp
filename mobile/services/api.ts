@@ -546,9 +546,12 @@ class ApiService {
         priority_ranking?: string[];
         wake_time?: string;
         sleep_time?: string;
-        work_schedule?: 'fixed' | 'flexible';
+        work_schedule?: 'fixed' | 'flexible' | null;
         work_start?: string | null;
         work_end?: string | null;
+        get_ready_time?: string | null;
+        preferred_workout_time?: string | null;
+        obligations?: Array<{ label: string; start: string; end: string }> | null;
     }) {
         // 12s default was timing out on Edit Lifestyle saves when the
         // server cold-starts (Render free tier wakes ~5-8s) or when the

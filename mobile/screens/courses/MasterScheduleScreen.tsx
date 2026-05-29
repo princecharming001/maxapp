@@ -589,6 +589,45 @@ export default function MasterScheduleScreen() {
 
   const headerStreakRight = <StreakFireBadge streakDays={scheduleStreak.current} />;
 
+  // "Your day" ribbon — a glanceable rail of the four anchors that shape
+  // every routine (wake / shower / workout / sleep), tappable straight into
+  // the Day Planner. Lives in the primary nav (Schedule tab) so the user
+  // always knows — and can change — when their day happens. Optional anchors
+  // (shower / workout) read "Auto" until the user pins a time.
+  const dayOb = (user?.onboarding || {}) as Record<string, any>;
+  const dayAnchors: Array<{ icon: keyof typeof Ionicons.glyphMap; label: string; value: string | null }> = [
+    { icon: 'sunny-outline', label: 'Wake', value: dayOb.wake_time || '07:00' },
+    { icon: 'water-outline', label: 'Shower', value: dayOb.get_ready_time || null },
+    { icon: 'barbell-outline', label: 'Workout', value: dayOb.preferred_workout_time || null },
+    { icon: 'moon-outline', label: 'Sleep', value: dayOb.sleep_time || '23:00' },
+  ];
+  const dayRibbon = (
+    <TouchableOpacity
+      style={styles.ribbon}
+      activeOpacity={0.8}
+      onPress={() => navigation.navigate('DayPlanner')}
+      accessibilityRole="button"
+      accessibilityLabel="View and edit your daily timings"
+    >
+      <View style={styles.ribbonHeaderRow}>
+        <Text style={styles.ribbonKicker}>YOUR DAY</Text>
+        <View style={styles.ribbonEdit}>
+          <Text style={styles.ribbonEditText}>Edit</Text>
+          <Ionicons name="chevron-forward" size={13} color={colors.textMuted} />
+        </View>
+      </View>
+      <View style={styles.ribbonAnchors}>
+        {dayAnchors.map((a) => (
+          <View key={a.label} style={styles.ribbonAnchor}>
+            <Ionicons name={a.icon} size={16} color={colors.foreground} />
+            <Text style={styles.ribbonTime}>{a.value ? formatTime12(String(a.value)) : 'Auto'}</Text>
+            <Text style={styles.ribbonLabel}>{a.label}</Text>
+          </View>
+        ))}
+      </View>
+    </TouchableOpacity>
+  );
+
   if (loading) {
     return <MaxLoadingView />;
   }
@@ -597,6 +636,7 @@ export default function MasterScheduleScreen() {
     return (
       <View style={styles.container}>
         <HeaderChrome title="Schedule" headerRight={headerStreakRight} />
+        <View style={styles.ribbonWrap}>{dayRibbon}</View>
         <View style={[styles.emptyStateMinimal, styles.center]}>
           <View style={styles.emptyIconCircle}>
             <Ionicons name="pulse-outline" size={22} color={colors.textMuted} />
@@ -622,6 +662,7 @@ export default function MasterScheduleScreen() {
           title="Schedule"
           headerRight={headerStreakRight}
         />
+        <View style={styles.ribbonWrap}>{dayRibbon}</View>
         <View style={[styles.emptyStateMinimal, styles.center]}>
           <View style={styles.emptyIconCircle}>
             <Ionicons name="calendar-outline" size={22} color={colors.textMuted} />
@@ -653,6 +694,7 @@ export default function MasterScheduleScreen() {
       </View>
 
       <View style={styles.bodyBelowHeader}>
+        <View style={styles.ribbonWrap}>{dayRibbon}</View>
         {selectedDate ? (
           <Text style={styles.monthLabel}>
             {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
@@ -805,6 +847,43 @@ function formatTime12(hhmm: string): string {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   center: { justifyContent: 'center', alignItems: 'center' },
+  ribbonWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  ribbon: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    paddingHorizontal: spacing.md,
+    paddingTop: 10,
+    paddingBottom: 12,
+    ...(Platform.OS === 'ios'
+      ? { shadowColor: '#0a0a0b', shadowOpacity: 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } }
+      : { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }),
+  },
+  ribbonHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  ribbonKicker: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 9.5,
+    color: colors.textMuted,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    opacity: 0.7,
+  },
+  ribbonEdit: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  ribbonEditText: { fontSize: 11.5, color: colors.textMuted, fontWeight: '600', letterSpacing: 0.2 },
+  ribbonAnchors: { flexDirection: 'row', justifyContent: 'space-between' },
+  ribbonAnchor: { flex: 1, alignItems: 'center', gap: 3 },
+  ribbonTime: { fontSize: 14, color: colors.foreground, fontWeight: '700', letterSpacing: -0.1, marginTop: 2 },
+  ribbonLabel: {
+    fontSize: 9.5,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    fontWeight: '600',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
