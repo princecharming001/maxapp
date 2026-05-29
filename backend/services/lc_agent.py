@@ -271,6 +271,38 @@ async def _persist_user_wake_sleep(user, db, wake_time, sleep_time) -> None:
         logger.warning("regen after wake/sleep change failed (non-fatal): %s", _e)
 
 
+# Map the timing-anchor keys the bot may pass to their canonical onboarding
+# field. These are the precise times that re-anchor whole windows across every
+# active maxx (see schedule_dsl.build_anchor_overrides).
+_TIMING_ANCHOR_KEYS: dict[str, str] = {
+    "preferred_workout_time": "preferred_workout_time",
+    "workout_time": "preferred_workout_time",
+    "get_ready_time": "get_ready_time",
+    "shower_time": "get_ready_time",
+}
+
+
+async def _persist_onboarding_clock(user, db, key: str, value) -> bool:
+    """Persist one HH:MM timing anchor onto user.onboarding — the canonical
+    store the Edit-Lifestyle UI also reads/writes. Returns True if changed.
+    Caller is responsible for triggering schedule regen afterwards."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    if not user:
+        return False
+    norm = _normalize_clock_hhmm(value) if value and str(value).strip() else None
+    if not norm:
+        return False
+    ob = dict(user.onboarding or {})
+    if ob.get(key) == norm:
+        return False
+    ob[key] = norm
+    user.onboarding = ob
+    flag_modified(user, "onboarding")
+    await db.flush()
+    return True
+
+
 # ---------------------------------------------------------------------------
 # System prompt builder
 # ---------------------------------------------------------------------------
@@ -1473,6 +1505,11 @@ def make_chat_tools(
           - morning_friction ("high"|"low"), explicit_avoidances (list)
           - equipment_owned (list), timing_preferences (object)
           - wake_time, sleep_time (also persisted to user profile)
+          - preferred_workout_time (HH:MM) — re-anchors the workout window for
+            FitMax/HeightMax and every other maxx at once
+          - get_ready_time (HH:MM) — when they shower/get ready; re-anchors the
+            morning skin/hair/mewing routine across maxes
+        Pass a clock time like "18:00" or "6:30 pm" for the timing keys.
         """
         try:
             from services.user_context_service import merge_context, append_to_list
@@ -1482,6 +1519,14 @@ def make_chat_tools(
                 sk = value if "sleep" in lk else None
                 async with db_mutation_lock:
                     await _persist_user_wake_sleep(user, db, wk, sk)
+            elif lk in _TIMING_ANCHOR_KEYS:
+                # Precise day anchors (workout / get-ready) — persist to the
+                # canonical onboarding field so the UI and future generations
+                # agree, then fall through to the regen below.
+                canonical = _TIMING_ANCHOR_KEYS[lk]
+                async with db_mutation_lock:
+                    await _persist_onboarding_clock(user, db, canonical, value)
+                lk = canonical
             # Coerce value: if it looks like a JSON literal, parse; else store raw.
             parsed_val: Any = value
             try:

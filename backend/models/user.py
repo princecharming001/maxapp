@@ -111,7 +111,10 @@ class OnboardingData(BaseModel):
     fitmax_equipment: Optional[str] = None
     fitmax_workout_days_per_week: Optional[int] = None
     preferred_workout_time: Optional[str] = Field(
-        default=None, description="HH:MM 24h — pre/post workout notifications"
+        default=None, description="HH:MM 24h — anchors the workout/strength window across all maxes (FitMax, HeightMax, etc.)"
+    )
+    get_ready_time: Optional[str] = Field(
+        default=None, description="HH:MM 24h — when the user gets ready / showers in the morning; anchors the AM bathroom routine (skin/hair/mewing)"
     )
     screen_hours_daily: Optional[str] = None
     scan_suggested_hair_focus: Optional[bool] = Field(

@@ -41,6 +41,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from services.schedule_dsl import (
+    build_anchor_overrides,
     evaluate,
     evaluate_all,
     from_minutes,
@@ -151,6 +152,12 @@ def expand_skeleton(
         win_overrides_resolved["am_active"] = list(win_overrides["am_window"])
     if win_overrides["pm_window"]:
         win_overrides_resolved["pm_active"] = list(win_overrides["pm_window"])
+
+    # User's explicit precise timings (workout time, get-ready/shower time)
+    # win over both the doc-level am/pm windows AND the biology defaults —
+    # they pin the workout + morning windows so every block in those slots,
+    # across every active maxx, lands on the user's real day.
+    win_overrides_resolved.update(build_anchor_overrides(user_state, maxx_id=maxx_id))
 
     days: list[dict] = [
         {"day_index": i, "tasks": []}

@@ -626,8 +626,25 @@ async def save_onboarding(
     onboarding_data["completed"] = True
     user.onboarding = onboarding_data
     user.updated_at = datetime.utcnow()
+    await db.flush()
+
+    # Editing lifestyle (wake/sleep/work hours, workout time, get-ready time)
+    # must propagate to the user's live schedules immediately — otherwise the
+    # precise timings the user just set wouldn't take effect until they touch
+    # the chatbot. Skeleton re-expansion is pure-Python (<100ms) and only
+    # writes when something actually changed, so this is cheap to do eagerly.
+    try:
+        from services.schedule_runtime import regenerate_active_schedules
+        from services.user_context_service import invalidate as _invalidate_ctx
+        _invalidate_ctx(str(user_uuid))
+        await regenerate_active_schedules(
+            user_id=str(user_uuid), db=db, reason="edit_lifestyle",
+        )
+    except Exception as e:
+        logger.warning("post-onboarding schedule regen failed (non-fatal): %s", e)
+
     await db.commit()
-    
+
     return {"message": "Onboarding completed", "data": onboarding_data}
 
 

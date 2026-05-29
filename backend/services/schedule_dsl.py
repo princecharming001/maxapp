@@ -290,3 +290,108 @@ def _sleep_minutes(wake: dtime, sleep: dtime) -> int:
     if s < w:
         s += 24 * 60
     return s
+
+
+# --------------------------------------------------------------------------- #
+#  User precise-timing anchors → window overrides                             #
+# --------------------------------------------------------------------------- #
+#
+# Wake & sleep already drive every window (see _DEFAULT_WINDOWS). But two
+# anchors are too crucial to leave derived: WHEN the user actually works out,
+# and WHEN they get ready / shower in the morning. HeightMax + FitMax hang
+# their whole sequence off the workout time; skin/hair AM routines hang off
+# the get-ready time. When the user pins those explicitly we override the
+# biology-default windows so EVERY module's tasks in those windows shift to
+# the user's real day — across all active maxes at once.
+#
+# We only emit an override when the user gave a REAL clock time. Vague answers
+# ("evening", "after work") return None and the biology defaults stand.
+
+def clock_or_none(v: Any) -> str | None:
+    """Return canonical 'HH:MM' (24h) if v is a real clock time, else None.
+
+    Accepts '18:00', '6:00', '6:30 pm', '6 pm', '6pm', '06:30'. Rejects
+    vague buckets like 'evening'/'after work' (→ None, defaults kept).
+    """
+    if v is None:
+        return None
+    s = str(v).strip().lower()
+    if not s:
+        return None
+    # 24h H:MM / HH:MM
+    m = re.match(r"^(\d{1,2}):(\d{2})$", s)
+    if m:
+        h, mm = int(m.group(1)), int(m.group(2))
+        if 0 <= h <= 23 and 0 <= mm <= 59:
+            return f"{h:02d}:{mm:02d}"
+    # 12h with am/pm: '6pm', '6 pm', '6:30pm'
+    m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$", s)
+    if m:
+        h = int(m.group(1))
+        mm = int(m.group(2) or 0)
+        ap = m.group(3)
+        if 1 <= h <= 12 and 0 <= mm <= 59:
+            if ap == "pm" and h != 12:
+                h += 12
+            if ap == "am" and h == 12:
+                h = 0
+            return f"{h:02d}:{mm:02d}"
+    return None
+
+
+def _shift_clock(hhmm: str, minutes: int) -> str:
+    """Return 'HH:MM' shifted by `minutes` (clamped to 00:00-23:59)."""
+    base = to_minutes(parse_clock(hhmm))
+    return from_minutes(base + minutes).strftime("%H:%M")
+
+
+# Maxes whose evening (`pm_active`) block is PHYSICAL TRAINING — for these the
+# workout anchor also re-times that block (HeightMax's dead-hang / foam-roll,
+# FitMax's form-check). For skin/hair the `pm_active` alias means evening
+# *skincare*, which must stay anchored to sleep — so we never move it there.
+_PHYSICAL_PM_MAXES = {"fitmax", "heightmax"}
+
+
+def build_anchor_overrides(
+    state: dict[str, Any], *, maxx_id: str | None = None
+) -> dict[str, list[str]]:
+    """Translate the user's precise timing answers into window overrides.
+
+    Returns a mapping of window_name -> [start_anchor, end_anchor] suitable
+    for `resolve_window(..., overrides=...)`. Only windows tied to a pinned
+    anchor appear; everything else keeps its biology default.
+
+    `maxx_id` lets us treat the overloaded legacy `pm_active` alias correctly:
+    it's the workout block for physical maxes but evening skincare elsewhere.
+    """
+    out: dict[str, list[str]] = {}
+    mid = (maxx_id or "").strip().lower()
+
+    # --- Workout anchor — drives the strength/training window across maxes.
+    workout = (
+        clock_or_none(state.get("preferred_workout_time"))
+        or clock_or_none(state.get("workout_time"))
+        or clock_or_none(state.get("heightmax_workout_time"))
+    )
+    if workout:
+        # Pre-workout fuel / warm-up in the 45 min before the lift.
+        out["pre_evening"] = [_shift_clock(workout, -45), _shift_clock(workout, -15)]
+        out["workout"] = [workout, _shift_clock(workout, 90)]
+        out["post_workout"] = [_shift_clock(workout, 90), _shift_clock(workout, 120)]
+        # Only remap the overloaded evening alias for physical maxes — leaves
+        # skin/hair evening actives on their sleep-anchored default.
+        if mid in _PHYSICAL_PM_MAXES:
+            out["pm_active"] = [workout, _shift_clock(workout, 90)]
+
+    # --- Morning get-ready / shower anchor — drives the AM bathroom routine.
+    get_ready = (
+        clock_or_none(state.get("get_ready_time"))
+        or clock_or_none(state.get("shower_time"))
+    )
+    if get_ready:
+        out["morning_routine"] = [get_ready, _shift_clock(get_ready, 25)]
+        out["am_open"] = [get_ready, _shift_clock(get_ready, 25)]    # legacy alias
+        out["post_routine"] = [_shift_clock(get_ready, 25), _shift_clock(get_ready, 55)]
+        out["am_active"] = [_shift_clock(get_ready, 25), _shift_clock(get_ready, 75)]  # legacy alias
+
+    return out

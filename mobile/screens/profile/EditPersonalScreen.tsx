@@ -70,11 +70,18 @@ function hydrateFromOnboarding(ob: Record<string, any>) {
       : normalizePriorityOrder(ob.priority_order),
     wakeTime: ob.wake_time || '07:00',
     sleepTime: ob.sleep_time || '23:00',
+    // Precise day anchors — null means "auto" (coach derives from wake/sleep).
+    // We only ever persist a concrete time when the user explicitly picks one,
+    // so users who don't care keep the smart biology-anchored defaults.
+    getReadyTime: (ob.get_ready_time as string | undefined) || null,
+    workoutTime: (ob.preferred_workout_time as string | undefined) || null,
     workSchedule: (ob.work_schedule as 'fixed' | 'flexible' | undefined) || null,
     workStart: ob.work_start || '09:00',
     workEnd: ob.work_end || '17:00',
   };
 }
+
+type TimePickerKey = 'wake' | 'getReady' | 'workout' | 'sleep' | 'workStart' | 'workEnd';
 
 export default function EditPersonalScreen() {
   const navigation = useNavigation<any>();
@@ -136,10 +143,12 @@ export default function EditPersonalScreen() {
   const [priorityRanking, setPriorityRanking] = useState<string[]>(v2.priorityRanking);
   const [wakeTime, setWakeTime] = useState(v2.wakeTime);
   const [sleepTime, setSleepTime] = useState(v2.sleepTime);
+  const [getReadyTime, setGetReadyTime] = useState<string | null>(v2.getReadyTime);
+  const [workoutTime, setWorkoutTime] = useState<string | null>(v2.workoutTime);
   const [workSchedule, setWorkSchedule] = useState<'fixed' | 'flexible' | null>(v2.workSchedule);
   const [workStart, setWorkStart] = useState(v2.workStart);
   const [workEnd, setWorkEnd] = useState(v2.workEnd);
-  const [openTimePicker, setOpenTimePicker] = useState<'wake' | 'sleep' | 'workStart' | 'workEnd' | null>(null);
+  const [openTimePicker, setOpenTimePicker] = useState<TimePickerKey | null>(null);
 
   const movePriority = useCallback((index: number, dir: -1 | 1) => {
     const j = index + dir;
@@ -180,6 +189,8 @@ export default function EditPersonalScreen() {
     setPriorityRanking(h.priorityRanking);
     setWakeTime(h.wakeTime);
     setSleepTime(h.sleepTime);
+    setGetReadyTime(h.getReadyTime);
+    setWorkoutTime(h.workoutTime);
     setWorkSchedule(h.workSchedule);
     setWorkStart(h.workStart);
     setWorkEnd(h.workEnd);
@@ -238,6 +249,10 @@ export default function EditPersonalScreen() {
       priority_ranking: [...priorityRanking],
       wake_time: hhmm(wakeTime),
       sleep_time: hhmm(sleepTime),
+      // Precise anchors — only persist a concrete time when the user set one;
+      // null clears back to auto so the coach derives it from wake/sleep.
+      get_ready_time: getReadyTime ? hhmm(getReadyTime) : null,
+      preferred_workout_time: workoutTime ? hhmm(workoutTime) : null,
       work_schedule: workSchedule || null,
       work_start: workSchedule === 'fixed' ? hhmm(workStart) : null,
       work_end: workSchedule === 'fixed' ? hhmm(workEnd) : null,
@@ -272,7 +287,7 @@ export default function EditPersonalScreen() {
 
   const timeRow = (
     label: string,
-    which: 'wake' | 'sleep' | 'workStart' | 'workEnd',
+    which: TimePickerKey,
     value: string,
     setter: (s: string) => void,
   ) => (
@@ -289,6 +304,68 @@ export default function EditPersonalScreen() {
       {openTimePicker === which ? (
         <View style={styles.timeDropdown}>
           <ScrollView nestedScrollEnabled style={styles.timeDropdownScroll} keyboardShouldPersistTaps="handled">
+            {TIME_OPTIONS.map((t) => {
+              const active = t === value;
+              return (
+                <TouchableOpacity
+                  key={`${which}-${t}`}
+                  style={[styles.timeOption, active && styles.timeOptionOn]}
+                  onPress={() => {
+                    setter(t);
+                    setOpenTimePicker(null);
+                  }}
+                >
+                  <Text style={[styles.timeOptionText, active && styles.timeOptionTextOn]}>{formatTime12h(t)}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
+    </View>
+  );
+
+  // Optional precise anchor (workout / get-ready). null = "Auto": the coach
+  // derives it from wake/sleep. Picking a time pins every related routine to
+  // it across all maxxes; an "Auto" entry at the top clears back to default.
+  const anchorRow = (
+    label: string,
+    which: TimePickerKey,
+    value: string | null,
+    setter: (s: string | null) => void,
+    autoHint: string,
+    iconName: keyof typeof Ionicons.glyphMap,
+  ) => (
+    <View style={styles.timeBlock}>
+      <View style={styles.anchorLabelRow}>
+        <Ionicons name={iconName} size={13} color={colors.textMuted} style={{ marginRight: 6 }} />
+        <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0 }]}>{label}</Text>
+      </View>
+      <TouchableOpacity
+        style={styles.timeTrigger}
+        activeOpacity={0.85}
+        onPress={() => setOpenTimePicker((p) => (p === which ? null : which))}
+      >
+        <Text style={[styles.timeTriggerText, !value && styles.timeTriggerAuto]}>
+          {value ? formatTime12h(value) : 'Auto'}
+        </Text>
+        <Ionicons name={openTimePicker === which ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
+      </TouchableOpacity>
+      {!value && openTimePicker !== which ? (
+        <Text style={styles.anchorAutoHint}>{autoHint}</Text>
+      ) : null}
+      {openTimePicker === which ? (
+        <View style={styles.timeDropdown}>
+          <ScrollView nestedScrollEnabled style={styles.timeDropdownScroll} keyboardShouldPersistTaps="handled">
+            <TouchableOpacity
+              style={[styles.timeOption, !value && styles.timeOptionOn]}
+              onPress={() => {
+                setter(null);
+                setOpenTimePicker(null);
+              }}
+            >
+              <Text style={[styles.timeOptionText, !value && styles.timeOptionTextOn]}>Auto (let coach pick)</Text>
+            </TouchableOpacity>
             {TIME_OPTIONS.map((t) => {
               const active = t === value;
               return (
@@ -519,10 +596,30 @@ export default function EditPersonalScreen() {
               )}
 
               <View style={styles.card}>
-                {sectionKicker('SCHEDULE')}
-                <Text style={styles.cardTitle}>When you're busy</Text>
-                <Text style={styles.cardHint}>Coach plans routines around your sleep + work hours.</Text>
+                {sectionKicker('DAILY TIMINGS')}
+                <Text style={styles.cardTitle}>Your day, hour by hour</Text>
+                <Text style={styles.cardHint}>
+                  These anchor every routine across your maxxes — workouts, skincare,
+                  mewing and stretches all shift to fit your real day. Leave anything
+                  on Auto and the coach picks the best time for you.
+                </Text>
                 {timeRow('Wake', 'wake', wakeTime, setWakeTime)}
+                {anchorRow(
+                  'Get ready / shower',
+                  'getReady',
+                  getReadyTime,
+                  setGetReadyTime,
+                  'Anchors your AM skin, hair & mewing routine.',
+                  'water-outline',
+                )}
+                {anchorRow(
+                  'Workout',
+                  'workout',
+                  workoutTime,
+                  setWorkoutTime,
+                  'Drives FitMax lifts, HeightMax stretches & post-workout fuel.',
+                  'barbell-outline',
+                )}
                 {timeRow('Bed', 'sleep', sleepTime, setSleepTime)}
                 <Text style={[styles.inputLabel, { marginTop: spacing.lg }]}>WORK / SCHOOL HOURS</Text>
                 <View style={[styles.tagWrap, { marginBottom: spacing.md }]}>
@@ -887,6 +984,20 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     fontWeight: '500',
     letterSpacing: 0.05,
+  },
+  /* Muted style when an optional anchor is on "Auto". */
+  timeTriggerAuto: {
+    color: colors.textMuted,
+    fontWeight: '500',
+  },
+  anchorLabelRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.lg, marginBottom: 8 },
+  anchorAutoHint: {
+    fontSize: 11.5,
+    color: colors.textMuted,
+    lineHeight: 15,
+    marginTop: 5,
+    marginLeft: 2,
+    opacity: 0.8,
   },
   timeDropdown: {
     marginTop: 6,

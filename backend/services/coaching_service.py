@@ -315,6 +315,7 @@ def _format_memory_slots(
         ]),
         _section("schedule", [
             ("wake",         _ob("wake_time")),
+            ("get ready",    _ob("get_ready_time")),
             ("sleep",        _ob("sleep_time")),
             ("work",         (
                 f'{_ob("work_start")}-{_ob("work_end")}'
