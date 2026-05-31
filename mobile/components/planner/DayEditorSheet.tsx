@@ -24,7 +24,9 @@ import {
   Pressable,
   Platform,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing, borderRadius } from '../../theme/dark';
 import TimeRangeSlider from './TimeRangeSlider';
@@ -106,6 +108,12 @@ export default function DayEditorSheet({
   onCommit: (scope: Scope, day: DayShape) => void;
   onReset: (scope: Weekday) => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const { height: winH } = useWindowDimensions();
+  // Numeric cap so the sheet has a DEFINITE height — a percentage maxHeight is
+  // ignored when the parent has no fixed height, which let content overflow.
+  const sheetMaxH = Math.round(winH * 0.9);
+
   const [d, setD] = useState<DayShape>(initial);
   const [wakeMode, setWakeMode] = useState<Mode>('range');
   const [sleepMode, setSleepMode] = useState<Mode>('range');
@@ -259,7 +267,7 @@ export default function DayEditorSheet({
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.sheetWrap}
         >
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { maxHeight: sheetMaxH }]}>
             <View style={styles.grabber} />
             <View style={styles.header}>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -270,7 +278,7 @@ export default function DayEditorSheet({
             </View>
 
             <ScrollView
-              style={{ maxHeight: '100%' }}
+              style={{ flexShrink: 1 }}
               contentContainerStyle={styles.content}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
@@ -337,7 +345,7 @@ export default function DayEditorSheet({
 
               {renderOptional({
                 key: 'getReadyTime',
-                title: 'Shower / get ready',
+                title: 'Get ready',
                 icon: 'water-outline',
                 accent: '#06b6d4',
                 domain: [READY_MIN, READY_MAX],
@@ -474,7 +482,7 @@ export default function DayEditorSheet({
               <View style={{ height: 12 }} />
             </ScrollView>
 
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
               <TouchableOpacity style={styles.doneBtn} onPress={done} activeOpacity={0.9}>
                 <Text style={styles.doneText}>Done</Text>
               </TouchableOpacity>
@@ -517,7 +525,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 26,
     paddingHorizontal: spacing.lg,
     paddingTop: 10,
-    maxHeight: '90%',
   },
   grabber: {
     alignSelf: 'center',
@@ -546,8 +553,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.md,
+    flexWrap: 'wrap',
+    rowGap: 10,
   },
-  sectionTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  sectionTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 1, paddingRight: 8 },
   sectionTitle: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 15,
@@ -623,7 +632,6 @@ const styles = StyleSheet.create({
   resetText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, letterSpacing: 0.1 },
   footer: {
     paddingTop: spacing.md,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.borderLight,
   },
