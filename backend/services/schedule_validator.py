@@ -25,6 +25,7 @@ from services.schedule_dsl import (
     from_minutes,
     parse_clock,
     resolve_window,
+    schedulable_anchors,
     to_minutes,
 )
 from services.task_catalog_service import all_tasks, get_task
@@ -964,9 +965,36 @@ def _effective_day_ctx(
         v = ov.get(key)
         return v if v not in (None, "") else default
 
+    # Resolve each rhythm axis (wake / sleep) honoring override precedence:
+    #   1. this weekday set a RANGE  → use it (+ its own midpoint scalar),
+    #   2. this weekday set only the EXACT scalar → use it, drop any inherited
+    #      range (so an exact weekend override isn't widened by the global one),
+    #   3. neither → inherit the global window + global scalar.
+    # `schedulable_anchors` then collapses the axis to the guaranteed-awake
+    # anchor (latest-wake / earliest-sleep), matching generation exactly.
+    def _axis(window_key: str, scalar_key: str, g_scalar: str) -> tuple[Any, Any]:
+        if isinstance(ov.get(window_key), (list, tuple)):
+            return ov[window_key], (ov.get(scalar_key) or g_scalar)
+        if ov.get(scalar_key) not in (None, ""):
+            return None, ov[scalar_key]
+        return user_ctx.get(window_key), (user_ctx.get(scalar_key) or g_scalar)
+
+    wake_win, wake_scalar = _axis("wake_window", "wake_time", global_wake)
+    sleep_win, sleep_scalar = _axis("sleep_window", "sleep_time", global_sleep)
+    eff_wake, eff_sleep = schedulable_anchors(
+        {
+            "wake_window": wake_win,
+            "sleep_window": sleep_win,
+            "wake_time": wake_scalar,
+            "sleep_time": sleep_scalar,
+        },
+        default_wake=global_wake,
+        default_sleep=global_sleep,
+    )
+
     eff: dict[str, Any] = {
-        "wake_time": _pick("wake_time", user_ctx.get("wake_time") or global_wake),
-        "sleep_time": _pick("sleep_time", user_ctx.get("sleep_time") or global_sleep),
+        "wake_time": eff_wake,
+        "sleep_time": eff_sleep,
         "work_schedule": _pick("work_schedule", user_ctx.get("work_schedule")),
         "work_start": _pick("work_start", user_ctx.get("work_start")),
         "work_end": _pick("work_end", user_ctx.get("work_end")),

@@ -216,8 +216,13 @@ async def regenerate_active_schedules(
     onboarding = dict(getattr(user, "onboarding", {}) or {})
     persistent = await get_context(user_id, db)
     state = merged_user_state(onboarding, persistent)
-    wake = str(state.get("wake_time") or "07:00")
-    sleep = str(state.get("sleep_time") or "23:00")
+    # Build the day around the GUARANTEED-awake window when the user expressed
+    # wake/sleep as a RANGE (latest-wake floor, earliest-sleep ceiling) so every
+    # routine lands in time they're reliably free — "fit it in, don't force it".
+    # Collapses to the exact time for a single-point range (no change for
+    # exact-time users). Per-weekday ranges are honored inside the validator.
+    from services.schedule_dsl import schedulable_anchors
+    wake, sleep = schedulable_anchors(state)
 
     res = await db.execute(
         select(UserSchedule).where(

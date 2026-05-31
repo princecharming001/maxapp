@@ -583,6 +583,18 @@ class ScheduleService:
         user = await db.get(User, user_uuid)
         onboarding = (user.onboarding if user else {}) or {}
 
+        # If the user set wake/sleep as a RANGE in the planner, build this first
+        # schedule around the GUARANTEED-awake window (latest-wake floor,
+        # earliest-sleep ceiling) instead of the bare midpoint — so the very
+        # first plan already fits the time they're reliably free. No-ops for
+        # users without a range (keeps the passed-in wake/sleep). The live edit
+        # path (regenerate_active_schedules) applies the same rule on every
+        # subsequent planner change.
+        from services.schedule_dsl import schedulable_anchors
+        wake_time, sleep_time = schedulable_anchors(
+            onboarding, default_wake=wake_time, default_sleep=sleep_time,
+        )
+
         skin_type = onboarding.get("skin_type", "normal")
         protos = guideline.get("protocols") or {}
         if maxx_id == "bonemax":

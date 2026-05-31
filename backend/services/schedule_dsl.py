@@ -339,6 +339,64 @@ def clock_or_none(v: Any) -> str | None:
     return None
 
 
+def _window_endpoint(win: Any, idx: int) -> str | None:
+    """Pick endpoint `idx` (0=start, 1=end) of a [start, end] window of clock
+    strings. Returns canonical 'HH:MM' or None when `win` isn't a usable
+    2-element window. The planner sends windows positionally ordered (start is
+    the earlier bedtime / earlier wake), so we never numerically re-sort — a
+    bedtime range like ['23:00','01:00'] keeps 23:00 as the *earliest* sleep.
+    """
+    if not isinstance(win, (list, tuple)) or len(win) != 2:
+        return None
+    return clock_or_none(win[idx])
+
+
+def schedulable_anchors(
+    state: dict[str, Any] | None,
+    *,
+    default_wake: str = "07:00",
+    default_sleep: str = "23:00",
+) -> tuple[str, str]:
+    """Derive the (wake, sleep) anchors the scheduler should build the day around.
+
+    The planner lets the user give wake & sleep as a RANGE (a [start, end]
+    window) or an exact time (a collapsed range). To fit looksmaxing into a
+    real life *without forcing it*, we schedule only inside the window the user
+    is GUARANTEED to be awake:
+
+        morning floor   = LATEST wake    = wake_window[1]
+        evening ceiling = EARLIEST sleep = sleep_window[0]
+
+    so no routine is ever placed before the user is reliably up or after they
+    might already be in bed. A collapsed range yields the same scalar the
+    backend used before, so exact-time users see zero behaviour change.
+
+    Falls back to the scalar wake_time/sleep_time (the window MIDPOINT the
+    client also sends) when no window is present, then to the defaults. If the
+    derived window is inverted or implausibly short (< 4h of guaranteed-awake
+    time) the range is treated as malformed and we fall back to the midpoints.
+    """
+    if not isinstance(state, dict):
+        return default_wake, default_sleep
+
+    mid_wake = clock_or_none(state.get("wake_time")) or default_wake
+    mid_sleep = clock_or_none(state.get("sleep_time")) or default_sleep
+
+    wake = _window_endpoint(state.get("wake_window"), 1) or mid_wake
+    sleep = _window_endpoint(state.get("sleep_window"), 0) or mid_sleep
+
+    # Guard: a guaranteed-awake span under 4h means the range is malformed (or
+    # a pathological per-weekday override) — fall back to the expected midpoints
+    # so a bad range can never collapse the whole day.
+    w = to_minutes(parse_clock(wake, default_wake))
+    s = to_minutes(parse_clock(sleep, default_sleep))
+    if s <= w:
+        s += 24 * 60
+    if s - w < 240:
+        return mid_wake, mid_sleep
+    return wake, sleep
+
+
 def _shift_clock(hhmm: str, minutes: int) -> str:
     """Return 'HH:MM' shifted by `minutes` (clamped to 00:00-23:59)."""
     base = to_minutes(parse_clock(hhmm))

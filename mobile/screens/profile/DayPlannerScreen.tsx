@@ -26,6 +26,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
@@ -214,7 +215,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           keyboardShouldPersistTaps="handled"
         >
           <Text style={styles.subhead}>
-            Your whole week at a glance. Tap any day to shape its rhythm.
+            Your real week — sleep, work and plans. Tap any day to shape it, and Max fits your
+            routines into the open time.
           </Text>
 
           <View style={styles.card}>
@@ -224,42 +226,48 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           {/* Assistant. */}
           <View style={[styles.card, styles.chatCard]}>
             <View style={styles.chatHead}>
-              <View style={styles.chatIconWrap}>
-                <Ionicons name="sparkles" size={15} color={colors.background} />
-              </View>
+              <LinearGradient
+                colors={['#6366f1', '#8b5cf6', '#a855f7']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.chatIconWrap}
+              >
+                <Ionicons name="sparkles" size={16} color="#fff" />
+              </LinearGradient>
               <View style={{ flex: 1 }}>
                 <Text style={styles.chatTitle}>Ask Max to rearrange</Text>
                 <Text style={styles.chatSub}>
-                  Describe a change in plain words and Max updates the right days.
+                  Describe a change in plain words — Max updates the right days for you.
                 </Text>
               </View>
             </View>
 
             {chatReply ? (
               <View style={styles.chatReply}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={16}
-                  color={colors.foreground}
-                  style={{ marginTop: 1 }}
-                />
+                <View style={styles.chatReplyIcon}>
+                  <Ionicons name="checkmark" size={13} color="#fff" />
+                </View>
                 <Text style={styles.chatReplyText}>{chatReply}</Text>
               </View>
             ) : (
-              <View style={styles.chipsWrap}>
-                {CHAT_EXAMPLES.map((ex) => (
-                  <TouchableOpacity
-                    key={ex}
-                    style={styles.exChip}
-                    activeOpacity={0.8}
-                    onPress={() => {
-                      setChatInput(ex);
-                      chatRef.current?.focus();
-                    }}
-                  >
-                    <Text style={styles.exChipText}>{ex}</Text>
-                  </TouchableOpacity>
-                ))}
+              <View style={styles.suggestWrap}>
+                <Text style={styles.suggestLabel}>TRY ASKING</Text>
+                <View style={styles.chipsWrap}>
+                  {CHAT_EXAMPLES.map((ex) => (
+                    <TouchableOpacity
+                      key={ex}
+                      style={styles.exChip}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setChatInput(ex);
+                        chatRef.current?.focus();
+                      }}
+                    >
+                      <Ionicons name="sparkles-outline" size={11} color={colors.textMuted} />
+                      <Text style={styles.exChipText}>{ex}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             )}
 
@@ -278,15 +286,28 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                 editable={!chatLoading}
               />
               <TouchableOpacity
-                style={[styles.chatSend, (!chatInput.trim() || chatLoading) && styles.chatSendOff]}
                 onPress={sendChat}
                 activeOpacity={0.85}
                 disabled={!chatInput.trim() || chatLoading}
+                style={styles.chatSendWrap}
               >
-                {chatLoading ? (
-                  <ActivityIndicator size="small" color={colors.background} />
+                {!chatInput.trim() || chatLoading ? (
+                  <View style={[styles.chatSend, styles.chatSendOff]}>
+                    {chatLoading ? (
+                      <ActivityIndicator size="small" color={colors.textMuted} />
+                    ) : (
+                      <Ionicons name="arrow-up" size={18} color={colors.textMuted} />
+                    )}
+                  </View>
                 ) : (
-                  <Ionicons name="arrow-up" size={18} color={colors.background} />
+                  <LinearGradient
+                    colors={['#6366f1', '#8b5cf6', '#a855f7']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.chatSend}
+                  >
+                    <Ionicons name="arrow-up" size={18} color="#fff" />
+                  </LinearGradient>
                 )}
               </TouchableOpacity>
             </View>
@@ -352,62 +373,92 @@ const styles = StyleSheet.create({
   },
   // Assistant card.
   chatCard: { backgroundColor: colors.card },
-  chatHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, marginBottom: spacing.md },
+  chatHead: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: spacing.md },
   chatIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.foreground,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
+    ...(Platform.OS === 'ios'
+      ? {
+          shadowColor: '#6366f1',
+          shadowOpacity: 0.35,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 2 },
+        }
+      : {}),
   },
   chatTitle: {
     fontFamily: fonts.sansSemiBold,
-    fontSize: 15,
+    fontSize: 15.5,
     color: colors.foreground,
     letterSpacing: 0.1,
   },
   chatSub: { fontSize: 12.5, color: colors.textMuted, lineHeight: 17, marginTop: 2, letterSpacing: 0.05 },
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md },
+  suggestWrap: { marginBottom: spacing.md },
+  suggestLabel: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 10,
+    color: colors.textMuted,
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   exChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: borderRadius.full,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderLight,
+    borderColor: colors.border,
   },
-  exChipText: { fontSize: 12.5, color: colors.textSecondary, fontWeight: '500', letterSpacing: 0.05 },
+  exChipText: { fontSize: 12.5, color: colors.textSecondary, fontFamily: fonts.sansMedium, letterSpacing: 0.05 },
   chatReply: {
     flexDirection: 'row',
-    gap: 8,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
+    alignItems: 'flex-start',
+    gap: 9,
+    backgroundColor: 'rgba(99,102,241,0.07)',
+    borderRadius: 13,
     padding: spacing.md,
     marginBottom: spacing.md,
+  },
+  chatReplyIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#6366f1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
   },
   chatReplyText: { flex: 1, fontSize: 13.5, color: colors.foreground, lineHeight: 19, letterSpacing: 0.05 },
   chatInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   chatInput: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 46,
     maxHeight: 120,
     backgroundColor: colors.surface,
-    borderRadius: 14,
-    paddingTop: 12,
-    paddingBottom: 12,
-    paddingHorizontal: 14,
+    borderRadius: 15,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingTop: 13,
+    paddingBottom: 13,
+    paddingHorizontal: 15,
     color: colors.foreground,
     fontSize: 15,
     letterSpacing: 0.05,
   },
+  chatSendWrap: { width: 46, height: 46 },
   chatSend: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.foreground,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chatSendOff: { opacity: 0.35 },
+  chatSendOff: { backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
 });
