@@ -9,6 +9,12 @@
  * A natural-language assistant lets you reshape the week by describing the
  * change ("sleep in on weekends", "gym 6-7pm Mon Wed Fri"); the backend
  * translates it into the same structured plan and re-hydrates the canvas.
+ *
+ * Layout note: this is a flat, single-surface page (white throughout) with the
+ * masthead and content separated by hairline rules — no stacked rounded cards,
+ * no drop shadows. One restrained accent (a deep green) marks the assistant and
+ * its replies; everything else is monochrome ink so the canvas reads as the
+ * subject, not the chrome.
  */
 import React, { useRef, useState } from 'react';
 import {
@@ -26,11 +32,10 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
-import { colors, spacing, borderRadius, fonts } from '../../theme/dark';
+import { colors, spacing, fonts } from '../../theme/dark';
 import WeekCanvas from '../../components/planner/WeekCanvas';
 import DayEditorSheet from '../../components/planner/DayEditorSheet';
 import ObligationsManager from '../../components/planner/ObligationsManager';
@@ -49,6 +54,10 @@ import {
   effectiveDay,
   hasOverride,
 } from '../../components/planner/plannerModel';
+
+// One restrained accent for the assistant surface only.
+const ACCENT = '#2F6B4E';
+const ACCENT_WASH = 'rgba(47,107,78,0.10)';
 
 const CHAT_EXAMPLES = [
   'Wake between 6:30 and 7:30 on weekdays',
@@ -204,8 +213,12 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     setSheetVisible(true);
   };
 
+  const sendDisabled = !chatInput.trim() || chatLoading;
+
   return (
     <View style={styles.container}>
+      {/* Minimal top nav: navigation + transient saving status only. The page
+          title lives in the masthead below, where it can carry real weight. */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         {!embedded && navigation.canGoBack() ? (
           <TouchableOpacity
@@ -218,7 +231,6 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         ) : (
           <View style={{ width: 40 }} />
         )}
-        <Text style={styles.headerTitle}>Your week</Text>
         <View style={styles.savingSlot}>
           {saving ? <ActivityIndicator size="small" color={colors.textMuted} /> : null}
         </View>
@@ -233,12 +245,18 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.subhead}>
-            Your real week — sleep, work and plans. Tap any day to shape it, and Max fits your
-            routines into the open time.
-          </Text>
+          {/* Masthead */}
+          <View style={styles.masthead}>
+            <Text style={styles.kicker}>PLANNER</Text>
+            <Text style={styles.title}>Your week</Text>
+            <Text style={styles.subhead}>
+              Your real week — sleep, work and plans. Tap any day to shape it, and Max fits your
+              routines into the open time.
+            </Text>
+          </View>
 
-          <View style={styles.card}>
+          {/* Week canvas */}
+          <View style={styles.section}>
             <WeekCanvas
               defaults={defaults}
               weekly={weekly}
@@ -248,21 +266,16 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           </View>
 
           {/* Commitments — the global, day-scoped obligations list. */}
-          <View style={styles.card}>
+          <View style={styles.section}>
             <ObligationsManager obligations={obligations} onChange={changeObligations} />
           </View>
 
-          {/* Assistant. */}
-          <View style={[styles.card, styles.chatCard]}>
+          {/* Assistant — the one accented surface on the page. */}
+          <View style={styles.section}>
             <View style={styles.chatHead}>
-              <LinearGradient
-                colors={['#6366f1', '#8b5cf6', '#a855f7']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.chatIconWrap}
-              >
-                <Ionicons name="sparkles" size={16} color="#fff" />
-              </LinearGradient>
+              <View style={styles.chatMark}>
+                <Ionicons name="sparkles" size={15} color="#fff" />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.chatTitle}>Ask Max to rearrange</Text>
                 <Text style={styles.chatSub}>
@@ -317,27 +330,20 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               <TouchableOpacity
                 onPress={sendChat}
                 activeOpacity={0.85}
-                disabled={!chatInput.trim() || chatLoading}
+                disabled={sendDisabled}
                 style={styles.chatSendWrap}
               >
-                {!chatInput.trim() || chatLoading ? (
-                  <View style={[styles.chatSend, styles.chatSendOff]}>
-                    {chatLoading ? (
-                      <ActivityIndicator size="small" color={colors.textMuted} />
-                    ) : (
-                      <Ionicons name="arrow-up" size={18} color={colors.textMuted} />
-                    )}
-                  </View>
-                ) : (
-                  <LinearGradient
-                    colors={['#6366f1', '#8b5cf6', '#a855f7']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.chatSend}
-                  >
-                    <Ionicons name="arrow-up" size={18} color="#fff" />
-                  </LinearGradient>
-                )}
+                <View style={[styles.chatSend, sendDisabled ? styles.chatSendOff : styles.chatSendOn]}>
+                  {chatLoading ? (
+                    <ActivityIndicator size="small" color={colors.textMuted} />
+                  ) : (
+                    <Ionicons
+                      name="arrow-up"
+                      size={18}
+                      color={sendDisabled ? colors.textMuted : '#fff'}
+                    />
+                  )}
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -360,63 +366,60 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  // Single white surface, top to bottom — no page/card contrast.
+  container: { flex: 1, backgroundColor: colors.card },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,
-    backgroundColor: colors.background,
-  },
-  headerTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 22,
-    fontWeight: '400',
-    color: colors.foreground,
-    letterSpacing: -0.4,
+    backgroundColor: colors.card,
   },
   backButton: { padding: 4, width: 40 },
   savingSlot: { width: 40, alignItems: 'flex-end', justifyContent: 'center' },
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
+  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
+
+  // Masthead — the page's hero. Kicker + heavy headline + standfirst.
+  masthead: { paddingTop: spacing.xs, paddingBottom: spacing.lg },
+  kicker: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 11,
+    color: colors.textMuted,
+    letterSpacing: 1.6,
+    marginBottom: 8,
+  },
+  title: {
+    fontFamily: fonts.sansBold,
+    fontSize: 30,
+    color: colors.foreground,
+    letterSpacing: -0.8,
+    marginBottom: 10,
+  },
   subhead: {
+    fontFamily: fonts.sans,
     fontSize: 13.5,
     color: colors.textSecondary,
     lineHeight: 19,
     letterSpacing: 0.05,
-    marginBottom: spacing.md,
   },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 18,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    ...(Platform.OS === 'ios'
-      ? {
-          shadowColor: '#0a0a0b',
-          shadowOpacity: 0.04,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 2 },
-        }
-      : { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }),
+
+  // Content sections, separated by hairline rules instead of card edges.
+  section: {
+    paddingVertical: spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
   },
-  // Assistant card.
-  chatCard: { backgroundColor: colors.card },
+
+  // Assistant.
   chatHead: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: spacing.md },
-  chatIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  chatMark: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    ...(Platform.OS === 'ios'
-      ? {
-          shadowColor: '#6366f1',
-          shadowOpacity: 0.35,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: 2 },
-        }
-      : {}),
+    backgroundColor: ACCENT,
   },
   chatTitle: {
     fontFamily: fonts.sansSemiBold,
@@ -424,7 +427,14 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     letterSpacing: 0.1,
   },
-  chatSub: { fontSize: 12.5, color: colors.textMuted, lineHeight: 17, marginTop: 2, letterSpacing: 0.05 },
+  chatSub: {
+    fontFamily: fonts.sans,
+    fontSize: 12.5,
+    color: colors.textMuted,
+    lineHeight: 17,
+    marginTop: 2,
+    letterSpacing: 0.05,
+  },
   suggestWrap: { marginBottom: spacing.md },
   suggestLabel: {
     fontFamily: fonts.sansSemiBold,
@@ -440,44 +450,45 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: borderRadius.full,
+    borderRadius: 9,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  exChipText: { fontSize: 12.5, color: colors.textSecondary, fontFamily: fonts.sansMedium, letterSpacing: 0.05 },
+  exChipText: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.05 },
   chatReply: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 9,
-    backgroundColor: 'rgba(99,102,241,0.07)',
-    borderRadius: 13,
+    backgroundColor: ACCENT_WASH,
+    borderRadius: 10,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
   chatReplyIcon: {
     width: 20,
     height: 20,
-    borderRadius: 10,
-    backgroundColor: '#6366f1',
+    borderRadius: 6,
+    backgroundColor: ACCENT,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
   },
-  chatReplyText: { flex: 1, fontSize: 13.5, color: colors.foreground, lineHeight: 19, letterSpacing: 0.05 },
+  chatReplyText: { flex: 1, fontFamily: fonts.sans, fontSize: 13.5, color: colors.foreground, lineHeight: 19, letterSpacing: 0.05 },
   chatInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   chatInput: {
     flex: 1,
     minHeight: 46,
     maxHeight: 120,
     backgroundColor: colors.surface,
-    borderRadius: 15,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     paddingTop: 13,
     paddingBottom: 13,
     paddingHorizontal: 15,
     color: colors.foreground,
+    fontFamily: fonts.sans,
     fontSize: 15,
     letterSpacing: 0.05,
   },
@@ -485,9 +496,10 @@ const styles = StyleSheet.create({
   chatSend: {
     width: 46,
     height: 46,
-    borderRadius: 23,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  chatSendOn: { backgroundColor: ACCENT },
   chatSendOff: { backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
 });

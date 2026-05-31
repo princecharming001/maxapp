@@ -233,16 +233,14 @@ export function daysKey(days: DayRecurrence): string {
 }
 
 /**
- * A calendar accent colour inferred from an obligation's label, so a "Work"
- * block reads blue, a class violet, a commute amber, etc. (Green stays reserved
- * for the workout.) Used by both the obligations list and the week canvas.
+ * Commitments all render in one graphite ink. The planner is intentionally
+ * monochrome — a single green accent is reserved for the things you actively
+ * add (your workout, Max's suggestions), so fixed commitments read as quiet,
+ * neutral structure and are told apart by their label, not by colour. Kept as a
+ * function so the list and the week canvas share one source of truth.
  */
-export function obligationColor(label: string): string {
-  const l = (label || '').trim().toLowerCase();
-  if (/(work|job|office|shift|meeting)/.test(l)) return '#3b82f6';
-  if (/(school|class|lecture|lab|study|seminar|course|college)/.test(l)) return '#8b5cf6';
-  if (/(commute|drive|bus|travel|transit|carpool)/.test(l)) return '#f59e0b';
-  return '#64748b';
+export function obligationColor(_label: string): string {
+  return '#34343B';
 }
 
 /** Human-readable label for a recurrence, e.g. 'Weekdays', 'Mon, Wed, Fri'. */

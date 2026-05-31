@@ -28,7 +28,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, spacing, borderRadius } from '../../theme/dark';
+import { colors, fonts, spacing } from '../../theme/dark';
 import TimeRangeSlider from './TimeRangeSlider';
 import {
   Obligation,
@@ -352,20 +352,20 @@ const styles = StyleSheet.create({
   headIconWrap: {
     width: 34,
     height: 34,
-    borderRadius: 17,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
   },
   title: { fontFamily: fonts.sansSemiBold, fontSize: 15.5, color: colors.foreground, letterSpacing: 0.1 },
-  sub: { fontSize: 12.5, color: colors.textMuted, lineHeight: 17, marginTop: 2, letterSpacing: 0.05 },
+  sub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, lineHeight: 17, marginTop: 2, letterSpacing: 0.05 },
   empty: {
     backgroundColor: colors.surface,
-    borderRadius: 14,
+    borderRadius: 10,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  emptyText: { fontSize: 12.5, color: colors.textMuted, lineHeight: 18, letterSpacing: 0.05 },
+  emptyText: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, lineHeight: 18, letterSpacing: 0.05 },
   list: { marginBottom: spacing.sm },
   row: {
     flexDirection: 'row',
@@ -378,11 +378,11 @@ const styles = StyleSheet.create({
   rowBar: { width: 4, height: 34, borderRadius: 2, marginRight: 12 },
   rowLabel: { fontSize: 15, color: colors.foreground, fontFamily: fonts.sansSemiBold, letterSpacing: 0.05 },
   rowMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' },
-  rowTime: { fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1 },
+  rowTime: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1 },
   rowDaysChip: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: borderRadius.full,
+    borderRadius: 6,
     backgroundColor: colors.surface,
   },
   rowDaysText: { fontSize: 11, fontFamily: fonts.sansSemiBold, letterSpacing: 0.2 },
@@ -401,12 +401,12 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: spacing.sm,
     paddingVertical: 12,
-    borderRadius: borderRadius.full,
+    borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.foreground,
     backgroundColor: colors.card,
   },
-  addBtnText: { fontSize: 13.5, fontWeight: '600', color: colors.foreground, letterSpacing: 0.2 },
+  addBtnText: { fontFamily: fonts.sansSemiBold, fontSize: 13.5, color: colors.foreground, letterSpacing: 0.2 },
 
   // Sheet
   overlay: { flex: 1, justifyContent: 'flex-end' },
@@ -414,8 +414,8 @@ const styles = StyleSheet.create({
   sheetWrap: { justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.background,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     paddingHorizontal: spacing.lg,
     paddingTop: 10,
   },
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: spacing.md,
   },
-  sheetTitle: { fontFamily: fonts.serif, fontSize: 20, color: colors.foreground, letterSpacing: -0.3 },
+  sheetTitle: { fontFamily: fonts.sansSemiBold, fontSize: 18, color: colors.foreground, letterSpacing: -0.2 },
   fieldLabel: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 11,
@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 13,
     paddingHorizontal: 15,
     color: colors.foreground,
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: 9,
-    borderRadius: borderRadius.full,
+    borderRadius: 9,
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
   dayDot: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
   dayDotOn: { backgroundColor: colors.foreground, borderColor: colors.foreground },
   dayDotText: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.textSecondary },
   dayDotTextOn: { color: colors.background },
-  previewText: { fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1, marginTop: 12 },
+  previewText: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1, marginTop: 12 },
   removeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -488,10 +488,10 @@ const styles = StyleSheet.create({
     gap: 7,
     marginTop: spacing.xl,
     paddingVertical: 12,
-    borderRadius: borderRadius.full,
+    borderRadius: 10,
     backgroundColor: 'rgba(239,68,68,0.08)',
   },
-  removeText: { fontSize: 13, fontWeight: '600', color: '#ef4444', letterSpacing: 0.1 },
+  removeText: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: '#ef4444', letterSpacing: 0.1 },
   footer: {
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     backgroundColor: colors.foreground,
-    borderRadius: borderRadius.full,
+    borderRadius: 12,
     paddingVertical: 15,
     alignItems: 'center',
   },

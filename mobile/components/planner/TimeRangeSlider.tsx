@@ -298,6 +298,7 @@ const styles = StyleSheet.create({
     height: TRACK_H,
     borderRadius: TRACK_H / 2,
   },
+  // De-glossed knob: flat fill with a clean accent ring, no drop shadow.
   thumb: {
     position: 'absolute',
     top: (ROW_H - THUMB) / 2,
@@ -308,11 +309,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0a0a0b',
-    shadowOpacity: 0.18,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
   },
   thumbDot: { width: 7, height: 7, borderRadius: 4 },
 });

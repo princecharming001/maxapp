@@ -30,7 +30,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, spacing, borderRadius } from '../../theme/dark';
+import { colors, fonts, spacing } from '../../theme/dark';
 import TimeRangeSlider from './TimeRangeSlider';
 import {
   DayShape,
@@ -250,7 +250,7 @@ export default function DayEditorSheet({
                   value={wakeVal}
                   onChange={setWake}
                   format={fmtAbs}
-                  accent="#f59e0b"
+                  accent={colors.foreground}
                 />
                 <Text style={styles.hint}>{wakeHint}</Text>
               </View>
@@ -279,7 +279,7 @@ export default function DayEditorSheet({
                   value={sleepVal}
                   onChange={setSleep}
                   format={fmtAbs}
-                  accent="#6366f1"
+                  accent={colors.foreground}
                 />
                 <Text style={styles.hint}>{sleepHint}</Text>
               </View>
@@ -311,7 +311,7 @@ export default function DayEditorSheet({
                     value={[readyMin, readyMin]}
                     onChange={(nv) => setGetReady(minToHHMM(nv[0]))}
                     format={fmtAbs}
-                    accent="#06b6d4"
+                    accent="#5A5A62"
                   />
                 ) : (
                   <Text style={styles.autoHint}>
@@ -346,7 +346,7 @@ export default function DayEditorSheet({
                         value={[toMin(d.workoutWindow[0]), toMin(d.workoutWindow[1])]}
                         onChange={setWorkout}
                         format={fmtAbs}
-                        accent="#22c55e"
+                        accent="#2F6B4E"
                       />
                       <Text style={styles.hint}>
                         Max fits your workout between {fmt12Compact(d.workoutWindow[0])} and{' '}
@@ -387,18 +387,15 @@ const seg = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.full,
+    borderRadius: 9,
     padding: 3,
   },
-  item: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: borderRadius.full },
+  item: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 7 },
   itemCompact: { paddingHorizontal: 12, paddingVertical: 6 },
   itemOn: {
     backgroundColor: colors.card,
-    shadowColor: '#0a0a0b',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   text: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textMuted, letterSpacing: 0.1 },
   textOn: { fontFamily: fonts.sansSemiBold, color: colors.foreground },
@@ -410,8 +407,8 @@ const styles = StyleSheet.create({
   sheetWrap: { justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.background,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     paddingHorizontal: spacing.lg,
     paddingTop: 10,
   },
@@ -430,10 +427,10 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   headerTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 20,
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 18,
     color: colors.foreground,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
   content: { paddingBottom: spacing.md },
   section: { marginTop: spacing.lg },
@@ -472,10 +469,10 @@ const styles = StyleSheet.create({
     gap: 7,
     marginTop: spacing.xl,
     paddingVertical: 12,
-    borderRadius: borderRadius.full,
+    borderRadius: 10,
     backgroundColor: colors.surface,
   },
-  resetText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, letterSpacing: 0.1 },
+  resetText: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.textSecondary, letterSpacing: 0.1 },
   footer: {
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -483,7 +480,7 @@ const styles = StyleSheet.create({
   },
   doneBtn: {
     backgroundColor: colors.foreground,
-    borderRadius: borderRadius.full,
+    borderRadius: 12,
     paddingVertical: 15,
     alignItems: 'center',
   },
