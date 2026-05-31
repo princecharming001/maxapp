@@ -28,7 +28,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, spacing, borderRadius } from '../../theme/dark';
+import { fonts, spacing } from '../../theme/dark';
+import { paper as p, radius } from './plannerTheme';
 import TimeRangeSlider from './TimeRangeSlider';
 import {
   Obligation,
@@ -151,7 +152,7 @@ export default function ObligationsManager({
     <View>
       <View style={styles.head}>
         <View style={styles.headIconWrap}>
-          <Ionicons name="calendar-clear-outline" size={16} color={colors.foreground} />
+          <Ionicons name="calendar-clear-outline" size={16} color={p.ink} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Commitments</Text>
@@ -199,7 +200,7 @@ export default function ObligationsManager({
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   style={styles.rowDelete}
                 >
-                  <Ionicons name="close" size={16} color={colors.textMuted} />
+                  <Ionicons name="close" size={16} color={p.inkFaint} />
                 </TouchableOpacity>
               </TouchableOpacity>
             );
@@ -208,7 +209,7 @@ export default function ObligationsManager({
       )}
 
       <TouchableOpacity style={styles.addBtn} onPress={openAdd} activeOpacity={0.85}>
-        <Ionicons name="add" size={18} color={colors.foreground} />
+        <Ionicons name="add" size={18} color={p.ink} />
         <Text style={styles.addBtnText}>Add commitment</Text>
       </TouchableOpacity>
 
@@ -232,7 +233,7 @@ export default function ObligationsManager({
                   onPress={() => setEditorOpen(false)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="close" size={22} color={colors.textMuted} />
+                  <Ionicons name="close" size={22} color={p.inkFaint} />
                 </TouchableOpacity>
                 <Text style={styles.sheetTitle}>
                   {editIndex === null ? 'New commitment' : 'Edit commitment'}
@@ -252,7 +253,7 @@ export default function ObligationsManager({
                   value={label}
                   onChangeText={setLabel}
                   placeholder="e.g. Work, Biology class, Commute"
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor={p.inkFaint}
                   returnKeyType="done"
                   maxLength={40}
                 />
@@ -321,7 +322,7 @@ export default function ObligationsManager({
                     }}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="trash-outline" size={15} color="#ef4444" />
+                    <Ionicons name="trash-outline" size={15} color={p.accent} />
                     <Text style={styles.removeText}>Remove this commitment</Text>
                   </TouchableOpacity>
                 ) : null}
@@ -350,22 +351,23 @@ export default function ObligationsManager({
 const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, marginBottom: spacing.md },
   headIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: p.inset,
   },
-  title: { fontFamily: fonts.sansSemiBold, fontSize: 15.5, color: colors.foreground, letterSpacing: 0.1 },
-  sub: { fontSize: 12.5, color: colors.textMuted, lineHeight: 17, marginTop: 2, letterSpacing: 0.05 },
+  // Section title carries the serif voice; the deck stays quiet grotesk.
+  title: { fontFamily: fonts.serif, fontSize: 18, color: p.ink, letterSpacing: -0.2 },
+  sub: { fontFamily: fonts.sans, fontSize: 12.5, color: p.inkFaint, lineHeight: 17, marginTop: 3, letterSpacing: 0.05 },
   empty: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
+    backgroundColor: p.inset,
+    borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  emptyText: { fontSize: 12.5, color: colors.textMuted, lineHeight: 18, letterSpacing: 0.05 },
+  emptyText: { fontFamily: fonts.sans, fontSize: 12.5, color: p.inkFaint, lineHeight: 18, letterSpacing: 0.05 },
   list: { marginBottom: spacing.sm },
   row: {
     flexDirection: 'row',
@@ -373,27 +375,28 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingRight: 2,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: p.rule,
   },
-  rowBar: { width: 4, height: 34, borderRadius: 2, marginRight: 12 },
-  rowLabel: { fontSize: 15, color: colors.foreground, fontFamily: fonts.sansSemiBold, letterSpacing: 0.05 },
+  rowBar: { width: 3, height: 34, borderRadius: 1, marginRight: 12 },
+  rowLabel: { fontSize: 15, color: p.ink, fontFamily: fonts.sansSemiBold, letterSpacing: 0.05 },
   rowMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' },
-  rowTime: { fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1 },
+  rowTime: { fontFamily: fonts.sans, fontSize: 12.5, color: p.inkSoft, letterSpacing: 0.1 },
   rowDaysChip: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
+    borderRadius: radius.xs,
+    backgroundColor: p.inset,
   },
   rowDaysText: { fontSize: 11, fontFamily: fonts.sansSemiBold, letterSpacing: 0.2 },
   rowDelete: {
     width: 30,
     height: 30,
-    borderRadius: 15,
+    borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 6,
   },
+  // A squared, hairline-ruled "+ add" row — like a blank line on a form.
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -401,21 +404,21 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: spacing.sm,
     paddingVertical: 12,
-    borderRadius: borderRadius.full,
+    borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.foreground,
-    backgroundColor: colors.card,
+    borderColor: p.ruleStrong,
+    backgroundColor: 'transparent',
   },
-  addBtnText: { fontSize: 13.5, fontWeight: '600', color: colors.foreground, letterSpacing: 0.2 },
+  addBtnText: { fontFamily: fonts.sansSemiBold, fontSize: 13.5, color: p.ink, letterSpacing: 0.2 },
 
   // Sheet
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,22,14,0.40)' },
   sheetWrap: { justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    backgroundColor: p.page,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
     paddingHorizontal: spacing.lg,
     paddingTop: 10,
   },
@@ -424,7 +427,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.border,
+    backgroundColor: p.ruleStrong,
     marginBottom: 8,
   },
   sheetHeader: {
@@ -433,54 +436,54 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: spacing.md,
   },
-  sheetTitle: { fontFamily: fonts.serif, fontSize: 20, color: colors.foreground, letterSpacing: -0.3 },
+  sheetTitle: { fontFamily: fonts.serif, fontSize: 21, color: p.ink, letterSpacing: -0.3 },
   fieldLabel: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 11,
-    color: colors.textMuted,
+    color: p.inkFaint,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: 10,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
+    backgroundColor: p.inset,
+    borderRadius: radius.sm,
     paddingVertical: 13,
     paddingHorizontal: 15,
-    color: colors.foreground,
+    color: p.ink,
     fontSize: 15.5,
     fontFamily: fonts.sansMedium,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: p.ruleStrong,
   },
   quickRow: { flexDirection: 'row', gap: 8, marginBottom: spacing.md },
   quickChip: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: 9,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
+    borderRadius: radius.sm,
+    backgroundColor: 'transparent',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: p.ruleStrong,
   },
-  quickChipOn: { backgroundColor: colors.foreground, borderColor: colors.foreground },
-  quickText: { fontSize: 12.5, fontFamily: fonts.sansMedium, color: colors.textSecondary, letterSpacing: 0.1 },
-  quickTextOn: { color: colors.background, fontFamily: fonts.sansSemiBold },
+  quickChipOn: { backgroundColor: p.ink, borderColor: p.ink },
+  quickText: { fontSize: 12.5, fontFamily: fonts.sansMedium, color: p.inkSoft, letterSpacing: 0.1 },
+  quickTextOn: { color: p.onAccent, fontFamily: fonts.sansSemiBold },
   dayDotsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
   dayDot: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: 'transparent',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: p.ruleStrong,
   },
-  dayDotOn: { backgroundColor: colors.foreground, borderColor: colors.foreground },
-  dayDotText: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.textSecondary },
-  dayDotTextOn: { color: colors.background },
-  previewText: { fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1, marginTop: 12 },
+  dayDotOn: { backgroundColor: p.ink, borderColor: p.ink },
+  dayDotText: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: p.inkSoft },
+  dayDotTextOn: { color: p.onAccent },
+  previewText: { fontFamily: fonts.sans, fontSize: 12.5, color: p.inkSoft, letterSpacing: 0.1, marginTop: 12 },
   removeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -488,21 +491,21 @@ const styles = StyleSheet.create({
     gap: 7,
     marginTop: spacing.xl,
     paddingVertical: 12,
-    borderRadius: borderRadius.full,
-    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderRadius: radius.md,
+    backgroundColor: p.accentWash,
   },
-  removeText: { fontSize: 13, fontWeight: '600', color: '#ef4444', letterSpacing: 0.1 },
+  removeText: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: p.accent, letterSpacing: 0.1 },
   footer: {
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderLight,
+    borderTopColor: p.rule,
   },
   saveBtn: {
-    backgroundColor: colors.foreground,
-    borderRadius: borderRadius.full,
+    backgroundColor: p.ink,
+    borderRadius: radius.md,
     paddingVertical: 15,
     alignItems: 'center',
   },
   saveBtnOff: { opacity: 0.4 },
-  saveText: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.background, letterSpacing: 0.4 },
+  saveText: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: p.onAccent, letterSpacing: 0.4 },
 });

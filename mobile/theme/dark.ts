@@ -1,6 +1,9 @@
 /**
- * Sleek modern SaaS design system
- * Clean, shadowed, typographic
+ * App design tokens. Typography presets are wired to the loaded Matter grotesk
+ * (weight-specific files) so real type renders app-wide instead of the system
+ * font. The planner surface layers its own editorial palette on top of these
+ * neutral tokens (see components/planner/plannerTheme.ts) — the warmer colour /
+ * radius direction is being proven there before any app-wide rollout.
  */
 
 export const colors = {
@@ -63,58 +66,72 @@ export const borderRadius = {
     full: 9999,
 };
 
+export const fonts = {
+    serif: 'PlayfairDisplay',
+    serifItalic: 'PlayfairDisplay-Italic',
+    sans: 'Matter-Regular',
+    sansMedium: 'Matter-Medium',
+    sansSemiBold: 'Matter-SemiBold',
+    sansBold: 'Matter-Bold',
+    sansLight: 'Matter-Light',
+};
+
+// Typography presets map to the loaded Matter weight FILES (not a numeric
+// fontWeight on the system font). Each preset names the specific weight file so
+// the grotesk actually renders — and so iOS/Android never fake-bold a single
+// family. Display/serif (Playfair) stays a per-surface choice, not forced here.
 export const typography = {
     h1: {
+        fontFamily: fonts.sansBold,
         fontSize: 32,
-        fontWeight: '700' as const,
         color: colors.textPrimary,
         letterSpacing: -0.8,
     },
     h2: {
+        fontFamily: fonts.sansSemiBold,
         fontSize: 22,
-        fontWeight: '600' as const,
         color: colors.textPrimary,
         letterSpacing: -0.4,
     },
     h3: {
+        fontFamily: fonts.sansSemiBold,
         fontSize: 17,
-        fontWeight: '600' as const,
         color: colors.textPrimary,
         letterSpacing: -0.2,
     },
     body: {
+        fontFamily: fonts.sans,
         fontSize: 15,
-        fontWeight: '400' as const,
         color: colors.textPrimary,
         lineHeight: 22,
     },
     bodySmall: {
+        fontFamily: fonts.sans,
         fontSize: 13,
-        fontWeight: '400' as const,
         color: colors.textSecondary,
         lineHeight: 18,
     },
     caption: {
+        fontFamily: fonts.sansMedium,
         fontSize: 11,
-        fontWeight: '500' as const,
         color: colors.textMuted,
     },
     label: {
+        fontFamily: fonts.sansSemiBold,
         fontSize: 11,
-        fontWeight: '600' as const,
         color: colors.textMuted,
         letterSpacing: 0.8,
         textTransform: 'uppercase' as const,
     },
     button: {
+        fontFamily: fonts.sansSemiBold,
         fontSize: 15,
-        fontWeight: '600' as const,
         color: colors.buttonText,
         letterSpacing: -0.1,
     },
     hero: {
+        fontFamily: fonts.sans,
         fontSize: 48,
-        fontWeight: '400' as const,
         color: colors.textPrimary,
         letterSpacing: -2,
     },
@@ -149,16 +166,6 @@ export const shadows = {
         shadowRadius: 48,
         elevation: 12,
     },
-};
-
-export const fonts = {
-    serif: 'PlayfairDisplay',
-    serifItalic: 'PlayfairDisplay-Italic',
-    sans: 'Matter-Regular',
-    sansMedium: 'Matter-Medium',
-    sansSemiBold: 'Matter-SemiBold',
-    sansBold: 'Matter-Bold',
-    sansLight: 'Matter-Light',
 };
 
 export default {

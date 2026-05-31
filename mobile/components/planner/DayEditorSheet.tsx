@@ -30,7 +30,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, spacing, borderRadius } from '../../theme/dark';
+import { fonts, spacing } from '../../theme/dark';
+import { paper as p, accents, radius } from './plannerTheme';
 import TimeRangeSlider from './TimeRangeSlider';
 import {
   DayShape,
@@ -214,7 +215,7 @@ export default function DayEditorSheet({
             <View style={styles.grabber} />
             <View style={styles.header}>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close" size={22} color={colors.textMuted} />
+                <Ionicons name="close" size={22} color={p.inkFaint} />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>{scopeLong}</Text>
               <View style={{ width: 22 }} />
@@ -230,7 +231,7 @@ export default function DayEditorSheet({
               <View style={styles.section}>
                 <View style={styles.sectionHead}>
                   <View style={styles.sectionTitleWrap}>
-                    <Ionicons name="sunny-outline" size={16} color={colors.foreground} />
+                    <Ionicons name="sunny-outline" size={16} color={p.ink} />
                     <Text style={styles.sectionTitle}>Wake up</Text>
                   </View>
                   <Segmented
@@ -250,7 +251,7 @@ export default function DayEditorSheet({
                   value={wakeVal}
                   onChange={setWake}
                   format={fmtAbs}
-                  accent="#f59e0b"
+                  accent={accents.wake}
                 />
                 <Text style={styles.hint}>{wakeHint}</Text>
               </View>
@@ -259,7 +260,7 @@ export default function DayEditorSheet({
               <View style={styles.section}>
                 <View style={styles.sectionHead}>
                   <View style={styles.sectionTitleWrap}>
-                    <Ionicons name="moon-outline" size={16} color={colors.foreground} />
+                    <Ionicons name="moon-outline" size={16} color={p.ink} />
                     <Text style={styles.sectionTitle}>Go to sleep</Text>
                   </View>
                   <Segmented
@@ -279,7 +280,7 @@ export default function DayEditorSheet({
                   value={sleepVal}
                   onChange={setSleep}
                   format={fmtAbs}
-                  accent="#6366f1"
+                  accent={accents.sleep}
                 />
                 <Text style={styles.hint}>{sleepHint}</Text>
               </View>
@@ -290,7 +291,7 @@ export default function DayEditorSheet({
               <View style={styles.section}>
                 <View style={styles.sectionHead}>
                   <View style={styles.sectionTitleWrap}>
-                    <Ionicons name="water-outline" size={16} color={colors.foreground} />
+                    <Ionicons name="water-outline" size={16} color={p.ink} />
                     <Text style={styles.sectionTitle}>Get ready</Text>
                   </View>
                   <Segmented
@@ -311,7 +312,7 @@ export default function DayEditorSheet({
                     value={[readyMin, readyMin]}
                     onChange={(nv) => setGetReady(minToHHMM(nv[0]))}
                     format={fmtAbs}
-                    accent="#06b6d4"
+                    accent={accents.ready}
                   />
                 ) : (
                   <Text style={styles.autoHint}>
@@ -325,7 +326,7 @@ export default function DayEditorSheet({
                 <View style={styles.section}>
                   <View style={styles.sectionHead}>
                     <View style={styles.sectionTitleWrap}>
-                      <Ionicons name="barbell-outline" size={16} color={colors.foreground} />
+                      <Ionicons name="barbell-outline" size={16} color={p.ink} />
                       <Text style={styles.sectionTitle}>Workout window</Text>
                     </View>
                     <Segmented
@@ -346,7 +347,7 @@ export default function DayEditorSheet({
                         value={[toMin(d.workoutWindow[0]), toMin(d.workoutWindow[1])]}
                         onChange={setWorkout}
                         format={fmtAbs}
-                        accent="#22c55e"
+                        accent={accents.workout}
                       />
                       <Text style={styles.hint}>
                         Max fits your workout between {fmt12Compact(d.workoutWindow[0])} and{' '}
@@ -363,7 +364,7 @@ export default function DayEditorSheet({
 
               {scope !== 'all' && overridden ? (
                 <TouchableOpacity style={styles.resetBtn} onPress={reset} activeOpacity={0.7}>
-                  <Ionicons name="refresh" size={15} color={colors.textSecondary} />
+                  <Ionicons name="refresh" size={15} color={p.inkSoft} />
                   <Text style={styles.resetText}>Reset {scopeLong} to base rhythm</Text>
                 </TouchableOpacity>
               ) : null}
@@ -384,34 +385,33 @@ export default function DayEditorSheet({
 }
 
 const seg = StyleSheet.create({
+  // A squared, boxed toggle — the selected cell is a flat lifted paper tile with
+  // a hairline edge, not a glossy pill.
   wrap: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.full,
+    backgroundColor: p.inset,
+    borderRadius: radius.sm,
     padding: 3,
   },
-  item: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: borderRadius.full },
+  item: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: radius.xs },
   itemCompact: { paddingHorizontal: 12, paddingVertical: 6 },
   itemOn: {
-    backgroundColor: colors.card,
-    shadowColor: '#0a0a0b',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
+    backgroundColor: p.page,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: p.ruleStrong,
   },
-  text: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textMuted, letterSpacing: 0.1 },
-  textOn: { fontFamily: fonts.sansSemiBold, color: colors.foreground },
+  text: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: p.inkFaint, letterSpacing: 0.1 },
+  textOn: { fontFamily: fonts.sansSemiBold, color: p.ink },
 });
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,22,14,0.40)' },
   sheetWrap: { justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    backgroundColor: p.page,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
     paddingHorizontal: spacing.lg,
     paddingTop: 10,
   },
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.border,
+    backgroundColor: p.ruleStrong,
     marginBottom: 8,
   },
   header: {
@@ -431,8 +431,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontFamily: fonts.serif,
-    fontSize: 20,
-    color: colors.foreground,
+    fontSize: 21,
+    color: p.ink,
     letterSpacing: -0.3,
   },
   content: { paddingBottom: spacing.md },
@@ -449,20 +449,21 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 15,
-    color: colors.foreground,
+    color: p.ink,
     letterSpacing: 0.1,
   },
-  hint: { fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1, marginTop: 2 },
+  hint: { fontFamily: fonts.sans, fontSize: 12.5, color: p.inkSoft, letterSpacing: 0.1, marginTop: 2 },
   autoHint: {
+    fontFamily: fonts.sans,
     fontSize: 12.5,
-    color: colors.textMuted,
+    color: p.inkFaint,
     lineHeight: 17,
     letterSpacing: 0.1,
     marginTop: 2,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.borderLight,
+    backgroundColor: p.rule,
     marginTop: spacing.lg,
   },
   resetBtn: {
@@ -472,25 +473,26 @@ const styles = StyleSheet.create({
     gap: 7,
     marginTop: spacing.xl,
     paddingVertical: 12,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    backgroundColor: p.inset,
   },
-  resetText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, letterSpacing: 0.1 },
+  resetText: { fontFamily: fonts.sansMedium, fontSize: 13, color: p.inkSoft, letterSpacing: 0.1 },
   footer: {
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderLight,
+    borderTopColor: p.rule,
   },
+  // A squared, solid-ink CTA — like a printed button, not a glossy pill.
   doneBtn: {
-    backgroundColor: colors.foreground,
-    borderRadius: borderRadius.full,
+    backgroundColor: p.ink,
+    borderRadius: radius.md,
     paddingVertical: 15,
     alignItems: 'center',
   },
   doneText: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 15,
-    color: colors.background,
+    color: p.onAccent,
     letterSpacing: 0.4,
   },
 });

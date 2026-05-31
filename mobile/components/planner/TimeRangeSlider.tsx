@@ -21,7 +21,8 @@ import {
   LayoutChangeEvent,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors, fonts } from '../../theme/dark';
+import { fonts } from '../../theme/dark';
+import { paper as p } from './plannerTheme';
 
 const THUMB = 26;
 const TRACK_H = 6;
@@ -50,7 +51,7 @@ export default function TimeRangeSlider({
   format,
   step = 15,
   single = false,
-  accent = colors.foreground,
+  accent = p.ink,
   ticksEvery = 60,
 }: TimeRangeSliderProps) {
   const [width, setWidth] = useState(0);
@@ -254,65 +255,65 @@ export default function TimeRangeSlider({
 const styles = StyleSheet.create({
   wrap: { width: '100%' },
   labelRow: { height: 26, marginBottom: 8, position: 'relative' },
+  // A bordered paper tag — like a label clipped to the rail, not a floating chip.
   pill: {
     position: 'absolute',
     top: 0,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 3,
-    borderRadius: 8,
-    backgroundColor: colors.surface,
+    borderRadius: 3,
+    backgroundColor: p.page,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: p.ruleStrong,
   },
   pillText: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 12.5,
-    color: colors.foreground,
+    color: p.ink,
     letterSpacing: 0.1,
     textAlign: 'center',
   },
-  pillDash: { color: colors.textMuted, fontFamily: fonts.sansMedium },
+  pillDash: { color: p.inkGhost, fontFamily: fonts.sansMedium },
   trackRow: {
     height: ROW_H,
     justifyContent: 'center',
     position: 'relative',
   },
+  // A thin, near-square rail reads like a printed ruler rather than a pill track.
   trackBg: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: (ROW_H - TRACK_H) / 2,
     height: TRACK_H,
-    borderRadius: TRACK_H / 2,
-    backgroundColor: colors.surfaceLight,
+    borderRadius: 2,
+    backgroundColor: p.inset,
   },
   tick: {
     position: 'absolute',
     top: ROW_H / 2 - 6,
     width: 1,
-    backgroundColor: colors.textMuted,
+    backgroundColor: p.inkGhost,
     borderRadius: 1,
   },
   fill: {
     position: 'absolute',
     top: (ROW_H - TRACK_H) / 2,
     height: TRACK_H,
-    borderRadius: TRACK_H / 2,
+    borderRadius: 2,
   },
+  // De-glossed knob: paper fill, a clean accent ring, no drop shadow.
   thumb: {
     position: 'absolute',
     top: (ROW_H - THUMB) / 2,
     width: THUMB,
     height: THUMB,
     borderRadius: THUMB / 2,
-    backgroundColor: colors.card,
+    backgroundColor: p.page,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#0a0a0b',
-    shadowOpacity: 0.18,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
   },
   thumbDot: { width: 7, height: 7, borderRadius: 4 },
 });

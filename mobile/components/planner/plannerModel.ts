@@ -25,6 +25,8 @@
  * level only — they are not per-weekday overrides.
  */
 
+import { eventInk } from './plannerTheme';
+
 export type Weekday =
   | 'monday'
   | 'tuesday'
@@ -233,16 +235,18 @@ export function daysKey(days: DayRecurrence): string {
 }
 
 /**
- * A calendar accent colour inferred from an obligation's label, so a "Work"
- * block reads blue, a class violet, a commute amber, etc. (Green stays reserved
- * for the workout.) Used by both the obligations list and the week canvas.
+ * A muted, earthy ink inferred from an obligation's label, so a "Work" block,
+ * its legend swatch and its obligations-list row all read the same. The palette
+ * is deliberately quiet (eucalyptus / umber / ochre / graphite) to sit with the
+ * planner's warm-paper aesthetic — moss stays reserved for the workout. Used by
+ * both the obligations list and the week canvas.
  */
 export function obligationColor(label: string): string {
   const l = (label || '').trim().toLowerCase();
-  if (/(work|job|office|shift|meeting)/.test(l)) return '#3b82f6';
-  if (/(school|class|lecture|lab|study|seminar|course|college)/.test(l)) return '#8b5cf6';
-  if (/(commute|drive|bus|travel|transit|carpool)/.test(l)) return '#f59e0b';
-  return '#64748b';
+  if (/(work|job|office|shift|meeting)/.test(l)) return eventInk.work;
+  if (/(school|class|lecture|lab|study|seminar|course|college)/.test(l)) return eventInk.school;
+  if (/(commute|drive|bus|travel|transit|carpool)/.test(l)) return eventInk.commute;
+  return eventInk.other;
 }
 
 /** Human-readable label for a recurrence, e.g. 'Weekdays', 'Mon, Wed, Fri'. */

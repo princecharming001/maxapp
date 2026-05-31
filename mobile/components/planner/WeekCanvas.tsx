@@ -1,17 +1,16 @@
 /**
- * WeekCanvas — the whole week at a glance, as a calendar-style board.
+ * WeekCanvas — the whole week at a glance, drawn like a printed agenda spread.
  *
- * No tab-switching: every day is its own lane, all visible together on one
+ * No tab-switching: every day is its own ruled lane, all visible together on one
  * shared time axis (4 AM → 4 AM, so late bedtimes sit naturally on the right).
  * Every mark is a REAL thing the schedule tracks:
  *
- *   • a soft "asleep" gradient washes in from each night edge (a moon marks the
- *     long one),
- *   • warm/cool buffer washes sit over the wake & sleep RANGES — the open core
+ *   • a warm "asleep" wash dims each night edge (a moon marks the long one),
+ *   • dawn/dusk buffer washes sit over the wake & sleep RANGES — the open core
  *     between them is the "definitely awake" window the AI builds around,
- *   • rounded, gradient-filled blocks for the fixed things: each commitment
- *     (work, class, commute…), your Workout window and Get-ready — drawn like
- *     polished calendar events.
+ *   • flat, ink-filled blocks for the fixed things: each commitment (work,
+ *     class, commute…), your Workout window and Get-ready — set like type on a
+ *     page, not glossy calendar chips.
  *
  * Obligations are day-scoped: a weekday lane shows only the commitments that
  * actually land on it, while the "Everyday" base lane shows the ones that recur
@@ -22,10 +21,10 @@
  * what you see is exactly what the AI plans around.
  */
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, DimensionValue, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, DimensionValue } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors, fonts, spacing } from '../../theme/dark';
+import { fonts, spacing } from '../../theme/dark';
+import { paper as p, eventInk } from './plannerTheme';
 import {
   DayShape,
   Obligation,
@@ -45,8 +44,8 @@ const ALL_ROW_H = 48;
 const LANE_INSET = 3; // top/bottom inset of the day lane within its row
 const BLOCK_INSET = 6; // top/bottom inset of an event block within the row
 const AXIS_H = 20;
-const LANE_RADIUS = 10;
-const BLOCK_RADIUS = 7;
+const LANE_RADIUS = 4;
+const BLOCK_RADIUS = 3;
 
 // Axis reference marks across the 4 AM → 4 AM window.
 const AXIS_MARKS: { t: string; label: string }[] = [
@@ -56,34 +55,23 @@ const AXIS_MARKS: { t: string; label: string }[] = [
   { t: '00:00', label: '12a' },
 ];
 
-// Event colours map 1:1 to the editor's slider accents & the obligations list.
-const WORKOUT = '#22c55e';
-const READY = '#06b6d4';
-const OBLIG = '#64748b';
-const SLEEP_INK = '#6366f1';
+// Event inks map 1:1 to the editor's slider accents & the obligations list.
+const WORKOUT = eventInk.workout;
+const READY = eventInk.ready;
+const OBLIG = eventInk.other;
+const SLEEP_INK = p.dusk;
 
 // Washes (kept faint so blocks and gridlines read through them).
-const LANE = 'rgba(17,17,19,0.022)';
-const LANE_ALL = 'rgba(17,17,19,0.042)';
-const ASLEEP_DEEP = 'rgba(99,102,241,0.17)';
-const ASLEEP_SOFT = 'rgba(99,102,241,0.02)';
-const WAKE_BUF = 'rgba(245,158,11,0.10)';
-const SLEEP_BUF = 'rgba(99,102,241,0.07)';
+const LANE = p.lane;
+const LANE_ALL = p.laneStrong;
+const ASLEEP = p.asleep;
+const WAKE_BUF = p.dawnWash;
+const SLEEP_BUF = p.duskWash;
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 const pct = (n: number): DimensionValue => `${(clamp01(n) * 100).toFixed(3)}%` as DimensionValue;
-
-/** Lighten a #rrggbb hex toward white by `amt` (0–1) for a gradient top-stop. */
-function lighten(hex: string, amt: number): string {
-  const h = hex.replace('#', '');
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  const mix = (c: number) => Math.round(c + (255 - c) * amt);
-  return `rgb(${mix(r)},${mix(g)},${mix(b)})`;
-}
 
 /** A clamped {left,width} fraction pair, or null when too thin to draw. */
 function seg(left: number, width: number, min = 0.0025): { left: number; width: number } | null {
@@ -125,7 +113,7 @@ function blocksFor(d: DayShape, obs: Obligation[]): Block[] {
     const s = seg(left, width, 0.004);
     if (s) out.push({ ...s, color, icon, label });
   };
-  // Commitments (work, classes, commute…), each in its inferred accent colour.
+  // Commitments (work, classes, commute…), each in its inferred ink colour.
   for (const o of obs) {
     const l = normCanvas(o.start);
     add(l, normCanvas(o.end) - l, obligationColor(o.label), undefined, o.label);
@@ -147,14 +135,12 @@ function EventBlock({ b, rowH }: { b: Block; rowH: number }) {
   const wide = b.width >= 0.12;
   const mid = b.width >= 0.05;
   return (
-    <LinearGradient
+    <View
       pointerEvents="none"
-      colors={[lighten(b.color, 0.18), b.color]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0.6, y: 1 }}
       style={[
         styles.block,
         {
+          backgroundColor: b.color,
           top: BLOCK_INSET,
           height: rowH - BLOCK_INSET * 2 - LANE_INSET,
           left: pct(b.left),
@@ -162,19 +148,17 @@ function EventBlock({ b, rowH }: { b: Block; rowH: number }) {
         },
       ]}
     >
-      {/* Thin top highlight for a glassy, calendar-event feel. */}
-      <View pointerEvents="none" style={styles.blockSheen} />
       {wide && b.label ? (
         <View style={styles.blockLabelRow}>
-          {b.icon ? <Ionicons name={b.icon} size={9.5} color="#fff" style={{ marginRight: 3 }} /> : null}
+          {b.icon ? <Ionicons name={b.icon} size={9.5} color={p.onAccent} style={{ marginRight: 3 }} /> : null}
           <Text style={styles.blockLabel} numberOfLines={1}>
             {b.label}
           </Text>
         </View>
       ) : mid && b.icon ? (
-        <Ionicons name={b.icon} size={11} color="#fff" />
+        <Ionicons name={b.icon} size={11} color={p.onAccent} />
       ) : null}
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -211,23 +195,17 @@ function DayRow({
 
       <View style={styles.track}>
         <View style={[styles.lane, isAll && styles.laneAll]}>
-          {/* Night gradients fading in from each edge (dusk / dawn). */}
+          {/* Warm night wash dimming each edge (dusk / dawn). */}
           {asleepLeft ? (
-            <LinearGradient
+            <View
               pointerEvents="none"
-              colors={[ASLEEP_DEEP, ASLEEP_SOFT]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={{ position: 'absolute', top: 0, bottom: 0, left: pct(asleepLeft.left), width: pct(asleepLeft.width) }}
+              style={{ position: 'absolute', top: 0, bottom: 0, left: pct(asleepLeft.left), width: pct(asleepLeft.width), backgroundColor: ASLEEP }}
             />
           ) : null}
           {asleepRight ? (
-            <LinearGradient
+            <View
               pointerEvents="none"
-              colors={[ASLEEP_SOFT, ASLEEP_DEEP]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={{ position: 'absolute', top: 0, bottom: 0, left: pct(asleepRight.left), width: pct(asleepRight.width) }}
+              style={{ position: 'absolute', top: 0, bottom: 0, left: pct(asleepRight.left), width: pct(asleepRight.width), backgroundColor: ASLEEP }}
             />
           ) : null}
           {/* Soft buffer washes over the wake / sleep ranges. */}
@@ -250,12 +228,12 @@ function DayRow({
               pointerEvents="none"
               style={[styles.sleepMark, { left: pct(sleepMark.left), width: pct(sleepMark.width) }]}
             >
-              <Ionicons name="moon" size={11} color={SLEEP_INK} style={{ opacity: 0.5 }} />
+              <Ionicons name="moon" size={11} color={SLEEP_INK} style={{ opacity: 0.55 }} />
               {sleepMark.width > 0.2 ? <Text style={styles.sleepText}>Sleep</Text> : null}
             </View>
           ) : null}
 
-          {/* Gradient calendar blocks for the fixed, tracked things. */}
+          {/* Flat ink blocks for the fixed, tracked things. */}
           {blocks.map((b, i) => (
             <EventBlock key={`b${i}`} b={b} rowH={rowH} />
           ))}
@@ -369,7 +347,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.sansMedium,
     fontSize: 10,
-    color: colors.textMuted,
+    color: p.inkFaint,
     letterSpacing: 0.2,
   },
   body: { position: 'relative' },
@@ -379,19 +357,19 @@ const styles = StyleSheet.create({
     top: 2,
     bottom: 2,
     width: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
-    opacity: 0.5,
+    backgroundColor: p.rule,
   },
   row: { flexDirection: 'row', alignItems: 'center' },
   gutter: { paddingLeft: 2, paddingRight: 8, justifyContent: 'center' },
   dayLabel: {
     fontFamily: fonts.sansMedium,
     fontSize: 13,
-    color: colors.textSecondary,
+    color: p.inkSoft,
     letterSpacing: 0.2,
   },
-  allLabel: { fontFamily: fonts.sansSemiBold, color: colors.foreground, fontSize: 13 },
-  daySub: { fontSize: 8.5, color: colors.textMuted, letterSpacing: 0.8, marginTop: 1 },
+  // The base lane is anchored with a serif word — a small editorial flourish.
+  allLabel: { fontFamily: fonts.serif, color: p.ink, fontSize: 15, letterSpacing: 0 },
+  daySub: { fontSize: 8.5, color: p.inkGhost, letterSpacing: 0.8, marginTop: 1 },
   overrideDot: {
     position: 'absolute',
     top: '50%',
@@ -400,7 +378,7 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
-    backgroundColor: colors.foreground,
+    backgroundColor: p.accent,
   },
   track: { flex: 1, height: '100%', position: 'relative' },
   lane: {
@@ -414,6 +392,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   laneAll: { backgroundColor: LANE_ALL },
+  // Flat, near-square ink block — printed, not glossy. No sheen, no shadow.
   block: {
     position: 'absolute',
     borderRadius: BLOCK_RADIUS,
@@ -421,28 +400,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
     overflow: 'hidden',
-    ...(Platform.OS === 'ios'
-      ? {
-          shadowColor: '#0a0a0b',
-          shadowOpacity: 0.16,
-          shadowRadius: 3,
-          shadowOffset: { width: 0, height: 1 },
-        }
-      : { elevation: 2 }),
-  },
-  blockSheen: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '45%',
-    backgroundColor: 'rgba(255,255,255,0.16)',
   },
   blockLabelRow: { flexDirection: 'row', alignItems: 'center', maxWidth: '100%' },
   blockLabel: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 9.5,
-    color: '#fff',
+    color: p.onAccent,
     letterSpacing: 0.1,
     flexShrink: 1,
   },
@@ -455,10 +418,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
   },
-  sleepText: { fontSize: 9.5, color: SLEEP_INK, opacity: 0.7, fontFamily: fonts.sansMedium, letterSpacing: 0.3 },
+  sleepText: { fontSize: 9.5, color: SLEEP_INK, opacity: 0.8, fontFamily: fonts.sansMedium, letterSpacing: 0.3 },
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
+    backgroundColor: p.rule,
     marginVertical: 5,
     marginLeft: GUTTER,
   },
@@ -472,12 +435,12 @@ const styles = StyleSheet.create({
     paddingLeft: GUTTER,
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendSwatch: { width: 11, height: 11, borderRadius: 3 },
-  legendSleep: { backgroundColor: ASLEEP_DEEP, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(99,102,241,0.35)' },
-  legendText: { fontSize: 10.5, color: colors.textMuted, letterSpacing: 0.2 },
+  legendSwatch: { width: 11, height: 11, borderRadius: 2 },
+  legendSleep: { backgroundColor: p.asleep, borderWidth: StyleSheet.hairlineWidth, borderColor: p.dusk },
+  legendText: { fontSize: 10.5, color: p.inkFaint, letterSpacing: 0.2 },
   footnote: {
     fontSize: 11.5,
-    color: colors.textMuted,
+    color: p.inkFaint,
     lineHeight: 16,
     letterSpacing: 0.1,
     marginTop: spacing.md,
