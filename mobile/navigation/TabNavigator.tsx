@@ -22,11 +22,17 @@ import ThreadV2Screen from '../screens/forums/ThreadV2Screen';
 import NewThreadV2Screen from '../screens/forums/NewThreadV2Screen';
 import ForumNotificationsV2Screen from '../screens/forums/ForumNotificationsV2Screen';
 import MasterScheduleScreen from '../screens/courses/MasterScheduleScreen';
+import DayPlannerScreen from '../screens/profile/DayPlannerScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 function ScanPlaceholder() { return null; }
+
+// Render the week planner as a tab root (no back button — it isn't pushed).
+function PlannerTab() {
+    return <DayPlannerScreen embedded />;
+}
 
 // Forums are gated behind a "coming soon" screen until the feature ships.
 // The full forum stack (threads, posts, etc.) is preserved below — we just
@@ -250,6 +256,17 @@ export default function TabNavigator() {
                                     <Ionicons name="calendar-outline" size={22} color={color} />
                                 </View>
                             </AttachStep>
+                        ),
+                    }}
+                />
+                <Tab.Screen
+                    name="PlannerTab"
+                    component={PlannerTab}
+                    options={{
+                        title: 'Planner',
+                        tabBarLabel: 'Planner',
+                        tabBarIcon: ({ color }) => (
+                            <Ionicons name="time-outline" size={22} color={color} />
                         ),
                     }}
                 />

@@ -369,6 +369,39 @@ async def build_agent_system_prompt(
                     f"\n(plan routines around the busy window; AM tasks before "
                     f"the busy block, PM tasks after; never schedule during it)"
                 )
+            # Per-weekday overrides from the Planner tab — only days that
+            # differ from the default rhythm. The bot must honor the right
+            # day's window/obligations (e.g. a later weekend wake, MWF class).
+            weekly = ob.get("weekly_timings")
+            if isinstance(weekly, dict):
+                _wk_order = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+                _wk_abbr = {
+                    "monday": "Mon", "tuesday": "Tue", "wednesday": "Wed", "thursday": "Thu",
+                    "friday": "Fri", "saturday": "Sat", "sunday": "Sun",
+                }
+                wk_lines: list[str] = []
+                for d in _wk_order:
+                    ov = weekly.get(d)
+                    if not isinstance(ov, dict) or not ov:
+                        continue
+                    db: list[str] = []
+                    if ov.get("wake_time"):
+                        db.append(f"wakes {ov['wake_time']}")
+                    if ov.get("sleep_time"):
+                        db.append(f"sleeps {ov['sleep_time']}")
+                    if ov.get("preferred_workout_time"):
+                        db.append(f"workout {ov['preferred_workout_time']}")
+                    if ov.get("work_schedule") == "fixed" and ov.get("work_start") and ov.get("work_end"):
+                        db.append(f"busy {ov['work_start']}–{ov['work_end']} (work/school)")
+                    obs = ov.get("obligations")
+                    if isinstance(obs, list):
+                        for it in obs:
+                            if isinstance(it, dict) and it.get("start") and it.get("end"):
+                                db.append(f"busy {it['start']}–{it['end']} ({(it.get('label') or 'obligation').strip()})")
+                    if db:
+                        wk_lines.append(f"{_wk_abbr[d]}: {', '.join(db)}")
+                if wk_lines:
+                    context_str += "\nWEEKLY OVERRIDES (per day): " + " | ".join(wk_lines)
         if user_context.get("active_schedule"):
             schedule = user_context["active_schedule"]
             label = schedule.get("course_title") or schedule.get("maxx_id") or "?"

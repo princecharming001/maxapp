@@ -98,6 +98,23 @@ class OnboardingData(BaseModel):
         default=None,
         description="Fixed daily commitments to avoid. Each: {label, start 'HH:MM', end 'HH:MM'}.",
     )
+    # Per-weekday overrides for the daily rhythm. Keyed by lowercase weekday
+    # name ("monday".."sunday"). Each value may set any of: wake_time,
+    # sleep_time, get_ready_time, preferred_workout_time, work_schedule,
+    # work_start, work_end (all "HH:MM" 24h) and obligations (list of
+    # {label, start, end}). Any field omitted for a weekday inherits the
+    # top-level default above. The scheduler applies the matching day's
+    # window + obligations per weekday, so e.g. a later weekend wake or a
+    # Mon/Wed/Fri class is respected on exactly those days.
+    weekly_timings: Optional[Dict[str, Dict[str, Any]]] = Field(
+        default=None,
+        description=(
+            "Per-weekday rhythm overrides keyed by 'monday'..'sunday'. Each: "
+            "{wake_time, sleep_time, get_ready_time, preferred_workout_time, "
+            "work_schedule, work_start, work_end, obligations:[{label,start,end}]}. "
+            "Omitted fields inherit the top-level defaults."
+        ),
+    )
     completed: bool = False
     # Profile questionnaire v2 (collected before pay in app flow) — optional flag for clients
     questionnaire_v2_completed: Optional[bool] = None

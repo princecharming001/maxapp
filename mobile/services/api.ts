@@ -552,6 +552,7 @@ class ApiService {
         get_ready_time?: string | null;
         preferred_workout_time?: string | null;
         obligations?: Array<{ label: string; start: string; end: string }> | null;
+        weekly_timings?: Record<string, any> | null;
     }) {
         // 12s default was timing out on Edit Lifestyle saves when the
         // server cold-starts (Render free tier wakes ~5-8s) or when the
@@ -559,6 +560,27 @@ class ApiService {
         // headroom without making a stuck request feel infinite.
         const response = await this.client.post('users/onboarding', data, { timeout: 30_000 });
         return response.data;
+    }
+
+    /**
+     * Planner chatbot — send a natural-language change ("sleep in on weekends",
+     * "add gym 6-7pm on Mon Wed Fri") and the server translates it into the
+     * structured weekly plan, persists it (regenerating live schedules), and
+     * returns the new default + per-weekday timings to re-hydrate the editor.
+     */
+    async plannerChat(instruction: string) {
+        const response = await this.client.post(
+            'users/planner/chat',
+            { instruction },
+            { timeout: 45_000 },
+        );
+        return response.data as {
+            message: string;
+            summary: string;
+            defaults?: Record<string, any> | null;
+            weekly_timings?: Record<string, any> | null;
+            changed: boolean;
+        };
     }
 
     async saveOnboardingAnonymous(data: {

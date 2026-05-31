@@ -663,6 +663,208 @@ async def save_onboarding_anonymous(data: OnboardingData):
     return {"message": "Onboarding captured", "data": onboarding_data}
 
 
+# --------------------------------------------------------------------------- #
+#  Planner chatbot — natural-language edits to the weekly daily-rhythm plan   #
+# --------------------------------------------------------------------------- #
+
+_WEEKDAY_KEYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+_HHMM_RE = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
+_DEFAULT_TIME_FIELDS = (
+    "wake_time", "sleep_time", "get_ready_time",
+    "preferred_workout_time", "work_start", "work_end",
+)
+
+
+def _norm_hhmm(v) -> Optional[str]:
+    """Coerce a value to canonical 'HH:MM' 24h, or None if not a valid clock."""
+    if not isinstance(v, str):
+        return None
+    m = _HHMM_RE.match(v.strip())
+    if not m:
+        return None
+    return f"{int(m.group(1)):02d}:{m.group(2)}"
+
+
+def _norm_obligations(raw) -> Optional[List[dict]]:
+    """Normalize an obligations list — drop malformed / zero-length entries."""
+    if not isinstance(raw, list):
+        return None
+    out: List[dict] = []
+    for it in raw:
+        if not isinstance(it, dict):
+            continue
+        s = _norm_hhmm(it.get("start"))
+        e = _norm_hhmm(it.get("end"))
+        if not s or not e or e <= s:
+            continue
+        lbl = (str(it.get("label") or "busy").strip() or "busy")[:40]
+        out.append({"label": lbl, "start": s, "end": e})
+    return out
+
+
+def _norm_day_fields(raw) -> dict:
+    """Normalize one weekday-override dict to only valid, known fields."""
+    if not isinstance(raw, dict):
+        return {}
+    out: dict = {}
+    for k in _DEFAULT_TIME_FIELDS:
+        v = _norm_hhmm(raw.get(k))
+        if v:
+            out[k] = v
+    ws = raw.get("work_schedule")
+    if isinstance(ws, str) and ws.strip().lower() in ("fixed", "flexible"):
+        out["work_schedule"] = ws.strip().lower()
+    if "obligations" in raw:
+        obs = _norm_obligations(raw.get("obligations"))
+        if obs is not None:
+            out["obligations"] = obs
+    return out
+
+
+class PlannerChatBody(BaseModel):
+    instruction: str = Field(..., description="Natural-language change request for the weekly plan.")
+
+
+@router.post("/planner/chat")
+async def planner_chat(
+    body: PlannerChatBody,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Apply a natural-language edit to the user's weekly daily-rhythm plan.
+
+    The user types something like "I sleep in until 10 on weekends" or
+    "add gym 6-7pm on Mon, Wed, Fri" and an LLM translates it into a
+    structured diff over the default timings + per-weekday overrides. We
+    merge the diff into onboarding (presence-based, so unmentioned fields are
+    never touched), persist via the same path as save_onboarding (regenerate
+    live schedules + invalidate coach context), and return the new state.
+    """
+    import asyncio
+    import json
+
+    instruction = (body.instruction or "").strip()
+    if not instruction:
+        raise HTTPException(status_code=400, detail="instruction is required")
+
+    user_uuid = UUID(current_user["id"])
+    user = await db.get(User, user_uuid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    prev = dict(user.onboarding or {})
+    cur_defaults = {
+        k: prev.get(k) for k in (*_DEFAULT_TIME_FIELDS, "work_schedule") if prev.get(k)
+    }
+    if isinstance(prev.get("obligations"), list):
+        cur_defaults["obligations"] = prev["obligations"]
+    cur_weekly = prev.get("weekly_timings") if isinstance(prev.get("weekly_timings"), dict) else {}
+
+    prompt = (
+        "You edit a user's WEEKLY daily-rhythm planner for a self-improvement app.\n"
+        "The user has DEFAULT timings that apply every day, plus optional PER-WEEKDAY\n"
+        "overrides for days that differ (e.g. a weekend lie-in, a Mon/Wed/Fri class).\n\n"
+        "Fields (times are \"HH:MM\" 24-hour):\n"
+        "- wake_time, sleep_time, get_ready_time (shower/get ready), preferred_workout_time\n"
+        "- work_schedule (\"fixed\" or \"flexible\"), work_start, work_end\n"
+        "- obligations: list of {label, start, end} fixed commitments to plan around\n\n"
+        f"CURRENT DEFAULTS:\n{json.dumps(cur_defaults, ensure_ascii=False)}\n\n"
+        f"CURRENT PER-WEEKDAY OVERRIDES:\n{json.dumps(cur_weekly, ensure_ascii=False)}\n\n"
+        f"USER REQUEST: \"{instruction}\"\n\n"
+        "Return STRICT JSON only (no markdown, no commentary):\n"
+        "{\n"
+        "  \"defaults\": { ...only default-level fields you are CHANGING... },\n"
+        "  \"weekly_timings\": { \"saturday\": { ...fields... } ...only weekdays you are CHANGING... },\n"
+        "  \"summary\": \"<one short, friendly sentence describing what you changed>\"\n"
+        "}\n\n"
+        "Rules:\n"
+        "- Include ONLY the fields/days you are CHANGING; leave everything else out.\n"
+        "- To CLEAR a field set it to null. To CLEAR a day's overrides set that day to {}.\n"
+        "- Weekday keys are lowercase full names monday..sunday. \"weekday\"=mon–fri, \"weekend\"=sat+sun.\n"
+        "- If a change applies to EVERY day, put it in \"defaults\", not each weekday.\n"
+        "- Never invent commitments the user didn't mention. Keep obligation labels ≤3 words.\n"
+        "- If the request isn't about timings or is unclear, return empty defaults/weekly_timings and say so in summary.\n"
+    )
+
+    parsed: dict = {}
+    try:
+        from services.llm_sync import async_llm_json_response
+        raw = await asyncio.wait_for(async_llm_json_response(prompt, max_tokens=1200), timeout=30)
+        loaded = json.loads(raw)
+        if isinstance(loaded, dict):
+            parsed = loaded
+    except Exception as e:
+        logger.warning("planner_chat LLM failed: %s", e)
+        raise HTTPException(status_code=502, detail="Couldn't process that — try rephrasing.")
+
+    summary = str(parsed.get("summary") or "").strip()[:240] or "Updated your plan."
+
+    # --- Merge the diff into onboarding (presence-based: unmentioned = keep) --
+    d = parsed.get("defaults") if isinstance(parsed.get("defaults"), dict) else {}
+    changed = False
+    for key in _DEFAULT_TIME_FIELDS:
+        if key in d:
+            prev[key] = _norm_hhmm(d.get(key))  # valid value or None (clear)
+            changed = True
+    if "work_schedule" in d:
+        ws = d.get("work_schedule")
+        prev["work_schedule"] = ws if (isinstance(ws, str) and ws.strip().lower() in ("fixed", "flexible")) else None
+        if prev["work_schedule"]:
+            prev["work_schedule"] = prev["work_schedule"].strip().lower()
+        changed = True
+    if "obligations" in d:
+        prev["obligations"] = _norm_obligations(d.get("obligations")) or None
+        changed = True
+
+    wk_in = parsed.get("weekly_timings") if isinstance(parsed.get("weekly_timings"), dict) else {}
+    wk_out = dict(cur_weekly)
+    for day in _WEEKDAY_KEYS:
+        if day not in wk_in:
+            continue
+        cleaned = _norm_day_fields(wk_in.get(day))
+        if cleaned:
+            wk_out[day] = cleaned
+        else:
+            wk_out.pop(day, None)  # explicit {} → clear this day's override
+        changed = True
+    prev["weekly_timings"] = wk_out or None
+
+    if not changed:
+        # Nothing actionable — return current state untouched, with the
+        # model's explanation (e.g. "I couldn't tell which day you meant").
+        return {
+            "message": "No changes applied",
+            "summary": summary,
+            "defaults": cur_defaults,
+            "weekly_timings": cur_weekly or None,
+            "changed": False,
+        }
+
+    prev["completed"] = True
+    user.onboarding = prev
+    user.updated_at = datetime.utcnow()
+    await db.flush()
+
+    # Propagate to live schedules + coach context, same as save_onboarding.
+    try:
+        from services.schedule_runtime import regenerate_active_schedules
+        from services.user_context_service import invalidate as _invalidate_ctx
+        _invalidate_ctx(str(user_uuid))
+        await regenerate_active_schedules(user_id=str(user_uuid), db=db, reason="planner_chat")
+    except Exception as e:
+        logger.warning("planner_chat schedule regen failed (non-fatal): %s", e)
+
+    await db.commit()
+
+    return {
+        "message": "Plan updated",
+        "summary": summary,
+        "defaults": {k: prev.get(k) for k in (*_DEFAULT_TIME_FIELDS, "work_schedule", "obligations") if prev.get(k)},
+        "weekly_timings": prev.get("weekly_timings"),
+        "changed": True,
+    }
+
+
 @router.post("/me/avatar")
 async def upload_avatar(
     file: UploadFile = File(...),

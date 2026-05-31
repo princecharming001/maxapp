@@ -324,6 +324,44 @@ def _format_memory_slots(
                 parts.append(f"{lbl} {s}-{e}")
         return ", ".join(parts)
 
+    # Per-weekday overrides from the Planner tab. Only days that differ from
+    # the default rhythm are listed, so the coach knows e.g. the user sleeps
+    # in on weekends or has class on Mon/Wed/Fri — and never re-asks.
+    def _weekly_timings_str() -> str:
+        wt = onboarding.get("weekly_timings")
+        if not isinstance(wt, dict):
+            return ""
+        order = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        abbr = {
+            "monday": "Mon", "tuesday": "Tue", "wednesday": "Wed", "thursday": "Thu",
+            "friday": "Fri", "saturday": "Sat", "sunday": "Sun",
+        }
+        day_lines: list[str] = []
+        for d in order:
+            ov = wt.get(d)
+            if not isinstance(ov, dict) or not ov:
+                continue
+            bits: list[str] = []
+            if ov.get("wake_time"):
+                bits.append(f"wake {ov['wake_time']}")
+            if ov.get("get_ready_time"):
+                bits.append(f"ready {ov['get_ready_time']}")
+            if ov.get("preferred_workout_time"):
+                bits.append(f"workout {ov['preferred_workout_time']}")
+            if ov.get("sleep_time"):
+                bits.append(f"sleep {ov['sleep_time']}")
+            if ov.get("work_schedule") == "fixed" and ov.get("work_start") and ov.get("work_end"):
+                bits.append(f"work {ov['work_start']}-{ov['work_end']}")
+            obs = ov.get("obligations")
+            if isinstance(obs, list):
+                for it in obs:
+                    if isinstance(it, dict) and it.get("start") and it.get("end"):
+                        lbl = str(it.get("label") or "busy").strip() or "busy"
+                        bits.append(f"{lbl} {it['start']}-{it['end']}")
+            if bits:
+                day_lines.append(f"{abbr[d]}: " + ", ".join(bits))
+        return " | ".join(day_lines)
+
     profile_lines = [
         _section("identity",  [
             ("age",     _ob("age")),
@@ -342,6 +380,7 @@ def _format_memory_slots(
             )),
             ("workout time", _ob("preferred_workout_time")),
             ("obligations",  _obligations_str()),
+            ("by weekday",   _weekly_timings_str()),
         ]),
         _section("skin", [
             ("primary",   _ob("primary_skin_concern")),

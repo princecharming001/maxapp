@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from datetime import time as dtime
+from datetime import date as _date, time as dtime, timedelta as _timedelta
 from typing import Any
 
 from services.schedule_dsl import (
@@ -336,6 +336,7 @@ def validate_and_fix(
     user_ctx: dict[str, Any],
     expected_day_count: int | None = None,
     daily_task_budget: tuple[int, int] | None = None,
+    start_date: "_date | None" = None,
 ) -> tuple[bool, list[ValidationError], list[dict]]:
     """Validate + fix-where-safe. Returns (clean, errors, fixed_days).
 
@@ -416,17 +417,20 @@ def validate_and_fix(
     # spot. Idempotent — running twice is the same as running once.
     fixed_days = _enforce_coherence(fixed_days, errors=errors)
 
-    # Busy-time avoidance — the LAST pass so it operates on final times.
-    # Shifts any task that lands inside the user's fixed obligations (work
-    # hours + custom commitments from the Day Planner) to just after the
-    # busy window ends. Deliberately runs AFTER coherence (re-running
+    # Per-weekday windows + busy-time avoidance — the LAST pass so it
+    # operates on final times. For each day it (a) resolves that weekday's
+    # effective wake/sleep + obligations (weekly_timings override → global
+    # default), (b) pushes any task landing before that day's wake or inside
+    # a fixed obligation forward to clear it, and (c) keeps tasks inside that
+    # day's waking window. Deliberately runs AFTER coherence (re-running
     # coherence here could pull a pre-workout back into a busy block). Strict
-    # no-op when the user has no fixed busy windows.
-    busy = _busy_intervals_from_ctx(user_ctx)
-    if busy:
-        fixed_days = _avoid_busy_windows(
-            fixed_days, busy,
-            wake_min=to_minutes(wake), sleep_min=sleep_min, errors=errors,
+    # no-op when the user has set no per-weekday overrides and no busy windows.
+    if _has_weekly_overrides(user_ctx) or _busy_intervals_from_ctx(user_ctx):
+        fixed_days = _apply_day_windows(
+            fixed_days, user_ctx,
+            start_date=start_date or _date.today(),
+            global_wake=wake_time, global_sleep=sleep_time,
+            errors=errors,
         )
 
     has_hard = any(e.severity == "hard" for e in errors)
@@ -923,70 +927,175 @@ def _busy_intervals_from_ctx(user_ctx: dict[str, Any]) -> list[tuple[int, int]]:
     return [(s, e) for s, e in merged]
 
 
-def _avoid_busy_windows(
+_WEEKDAY_NAMES = (
+    "monday", "tuesday", "wednesday", "thursday",
+    "friday", "saturday", "sunday",
+)
+
+
+def _has_weekly_overrides(user_ctx: dict[str, Any]) -> bool:
+    """True if the user has set any per-weekday override at all."""
+    if not isinstance(user_ctx, dict):
+        return False
+    wt = user_ctx.get("weekly_timings")
+    if not isinstance(wt, dict):
+        return False
+    return any(isinstance(v, dict) and v for v in wt.values())
+
+
+def _effective_day_ctx(
+    user_ctx: dict[str, Any], weekday_name: str, *, global_wake: str, global_sleep: str,
+) -> dict[str, Any]:
+    """Resolve one weekday's effective rhythm: weekday override → global default.
+
+    Returns a dict shaped like user_ctx (wake_time/sleep_time/work_* /
+    obligations) so it can be fed straight into _busy_intervals_from_ctx.
+    A weekday entry overrides only the fields it sets; everything else falls
+    through to the top-level onboarding value.
+    """
+    ov: dict[str, Any] = {}
+    wt = user_ctx.get("weekly_timings") if isinstance(user_ctx, dict) else None
+    if isinstance(wt, dict):
+        cand = wt.get(weekday_name)
+        if isinstance(cand, dict):
+            ov = cand
+
+    def _pick(key: str, default: Any) -> Any:
+        v = ov.get(key)
+        return v if v not in (None, "") else default
+
+    eff: dict[str, Any] = {
+        "wake_time": _pick("wake_time", user_ctx.get("wake_time") or global_wake),
+        "sleep_time": _pick("sleep_time", user_ctx.get("sleep_time") or global_sleep),
+        "work_schedule": _pick("work_schedule", user_ctx.get("work_schedule")),
+        "work_start": _pick("work_start", user_ctx.get("work_start")),
+        "work_end": _pick("work_end", user_ctx.get("work_end")),
+    }
+    # Obligations: a weekday entry that *includes* the key fully REPLACES the
+    # global list for that day (so a day can clear obligations with []).
+    # Absent → inherit the global recurring obligations.
+    eff["obligations"] = ov["obligations"] if "obligations" in ov else user_ctx.get("obligations")
+    return eff
+
+
+def _merge_intervals(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Sort + merge overlapping/adjacent (start, end) minute intervals."""
+    if not intervals:
+        return []
+    ordered = sorted(intervals)
+    merged: list[list[int]] = [list(ordered[0])]
+    for s, e in ordered[1:]:
+        if s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    return [(s, e) for s, e in merged]
+
+
+def _overlapping_window(
+    start: int, dur: int, windows: list[tuple[int, int]],
+) -> tuple[int, int] | None:
+    for bs, be in windows:
+        if start < be and start + dur > bs:
+            return (bs, be)
+    return None
+
+
+def _apply_day_windows(
     days: list[dict],
-    busy: list[tuple[int, int]],
+    user_ctx: dict[str, Any],
     *,
-    wake_min: int,
-    sleep_min: int,
+    start_date: _date,
+    global_wake: str,
+    global_sleep: str,
     errors: list[ValidationError],
 ) -> list[dict]:
-    """Push any task that lands inside a busy window to just after it ends.
+    """Push tasks to respect each weekday's waking window + fixed obligations.
 
-    Runs as the final pass (after coherence) so the times it sees are the
-    ones that would actually be saved. For each day, walks tasks in time
-    order maintaining a `floor` (earliest start the next task may take, =
-    previous task end + MIN_TASK_GAP_MIN). A task is moved when it either
-    (a) falls below the floor — i.e. an earlier eviction now crowds it — or
-    (b) overlaps any busy window, in which case it jumps to that window's
-    end. The two conditions are re-checked together until the task settles,
-    so a task evicted from work hours that then collides with the next
-    obligation keeps moving until it's clear.
+    day_index 0 == `start_date` (generation always starts "today"), so each
+    day's weekday is `start_date.weekday() + day_index`. For each day we:
+      - resolve that weekday's wake/sleep + busy windows (override → global),
+      - treat [00:00, wake) as busy when the day wakes LATER than the global
+        default (a weekend lie-in pushes the AM routine back),
+      - evict any task overlapping a busy window to just after it ends,
+      - clamp the day inside its bedtime ceiling for weekdays that override
+        the global window.
 
-    No-op when `busy` is empty (caller already guards) or when a day's tasks
-    never touch a window. Never pulls a task earlier than its original time;
-    only ever shifts forward. `from_minutes` clamps to 23:59, so an
-    over-subscribed day degrades to a late-evening pile-up rather than
-    crashing — acceptable for the rare case where obligations leave no room.
+    Per task this only shifts FORWARD (floor + busy), except the final sleep
+    clamp, which pulls a task that would run past that weekday's bedtime back
+    to just before it. Strict no-op for a day with no busy windows and no
+    window override. `from_minutes` clamps to 23:59 so an over-subscribed day
+    degrades to a late pile-up rather than crashing.
     """
-    if not busy:
-        return days
-
-    # Cap forward shifts at one minute before midnight so a task can never be
-    # stamped to an out-of-range time even when obligations run late.
     LAST_SLOT = 24 * 60 - 1
+    global_wake_min = to_minutes(parse_clock(global_wake, "07:00"))
 
-    def _overlapping_window(start: int, dur: int) -> tuple[int, int] | None:
-        for bs, be in busy:
-            if start < be and start + dur > bs:
-                return (bs, be)
-        return None
+    # Cache per-weekday resolution so a 14-day plan resolves each weekday once.
+    cache: dict[str, tuple[int, int, list[tuple[int, int]], bool]] = {}
+
+    def _params(weekday_name: str) -> tuple[int, int, list[tuple[int, int]], bool]:
+        if weekday_name in cache:
+            return cache[weekday_name]
+        eff = _effective_day_ctx(
+            user_ctx, weekday_name, global_wake=global_wake, global_sleep=global_sleep,
+        )
+        wake_dt = parse_clock(eff["wake_time"], "07:00")
+        day_wake_min = to_minutes(wake_dt)
+        day_sleep_min = _sleep_minutes_normalized(wake_dt, parse_clock(eff["sleep_time"], "23:00"))
+        busy = _busy_intervals_from_ctx(eff)
+        window_override = (
+            str(eff.get("wake_time")) != str(global_wake)
+            or str(eff.get("sleep_time")) != str(global_sleep)
+        )
+        cache[weekday_name] = (day_wake_min, day_sleep_min, busy, window_override)
+        return cache[weekday_name]
 
     for di, day in enumerate(days):
         tasks: list[dict] = day.get("tasks") or []
         if not tasks:
             continue
-        tasks.sort(key=lambda t: _parse_time_field(t.get("time")) or 0)
 
+        weekday_name = _WEEKDAY_NAMES[(start_date + _timedelta(days=di)).weekday()]
+        day_wake_min, day_sleep_min, busy, window_override = _params(weekday_name)
+
+        # Build this day's effective busy list. When the day wakes later than
+        # the global default, the pre-wake span counts as busy too.
+        eff_busy = list(busy)
+        if window_override and day_wake_min > global_wake_min:
+            eff_busy.append((0, day_wake_min))
+        eff_busy = _merge_intervals(eff_busy)
+
+        if not eff_busy and not window_override:
+            continue  # nothing to enforce for this weekday
+
+        # Day ceiling: that weekday's bedtime when it overrides the global
+        # window, else just shy of midnight (legacy behaviour).
+        ceil = min(day_sleep_min if window_override else LAST_SLOT, LAST_SLOT)
+
+        tasks.sort(key=lambda t: _parse_time_field(t.get("time")) or 0)
         floor = -1
         for t in tasks:
             original = _parse_time_field(t.get("time")) or 0
             dur = max(1, int(t.get("duration_min", 1)))
             start = original
 
-            # Settle the task against the floor and busy windows together.
+            # Settle against the floor and busy windows together.
             for _ in range(8):
                 moved = False
                 if floor >= 0 and start < floor:
                     start = floor
                     moved = True
-                win = _overlapping_window(start, dur)
+                win = _overlapping_window(start, dur, eff_busy)
                 if win is not None:
                     start = win[1]
                     moved = True
                 if not moved:
                     break
 
+            # Keep the task inside the day's bedtime ceiling — pull it back to
+            # just before sleep rather than letting it spill past.
+            if start + dur > ceil:
+                start = max(day_wake_min if window_override else 0, ceil - dur)
             if start > LAST_SLOT:
                 start = LAST_SLOT
 
@@ -995,7 +1104,7 @@ def _avoid_busy_windows(
                 errors.append(ValidationError(
                     "soft", "busy_avoidance",
                     f"day {di+1}: moved {t.get('title','?')!r} to {new_time} "
-                    f"(was inside a fixed obligation)",
+                    f"({weekday_name} window/obligation)",
                     day_index=di, task_id=t.get("catalog_id"),
                 ))
                 t["time"] = new_time
