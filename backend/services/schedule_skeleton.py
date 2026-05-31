@@ -34,6 +34,7 @@ Performance: pure Python, no I/O. Typical 14-day skinmax schedule:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from datetime import time as dtime
@@ -92,6 +93,26 @@ def _parse_block(raw: dict) -> _Block:
         replaces=[str(r) for r in (raw.get("replaces") or [])],
         not_with_same_day=[str(t) for t in (raw.get("not_with_same_day") or [])],
     )
+
+
+# --------------------------------------------------------------------------- #
+#  Load-spreading                                                             #
+# --------------------------------------------------------------------------- #
+
+def _phase(*parts: str, mod: int) -> int:
+    """Deterministic 0..mod-1 offset from a stable hash of the parts.
+
+    Used to DECORRELATE periodic ("N-times-a-week", "every-N-days") blocks so
+    they don't all land on day 0. The hash includes the maxx_id, so a 3-maxx
+    user's weekly skin / hair / fit habits spread across DIFFERENT weekdays
+    instead of stacking into one 15-task Monday. Stable across regenerations
+    (the same user always gets the same layout) — important because the regen
+    merge is positional and must not reshuffle a user's plan on every edit.
+    """
+    if mod <= 1:
+        return 0
+    h = hashlib.md5(("|".join(parts)).encode("utf-8")).hexdigest()
+    return int(h[:8], 16) % mod
 
 
 # --------------------------------------------------------------------------- #
@@ -231,17 +252,28 @@ def _place_block(
                 )
                 n_val = 1
         n = max(1, min(7, int(n_val or 1)))
-        # Spread evenly across each 7-day window. Keep going for week 2.
+        # Spread evenly across each 7-day window, then PHASE-SHIFT the whole
+        # set by a per-(maxx,block) offset so weekly habits don't all clump on
+        # day 0. Without the shift every `n_per_week=1` block (pillowcase,
+        # exfoliation, mask, weekly review...) across every active maxx lands
+        # on Monday — the 15-task-Monday problem. The shift wraps inside each
+        # 7-day window so the per-week count is preserved exactly.
+        ph = _phase(maxx_id, block.id, mod=7)
         day_indices = []
         for week_start in range(0, n_days, 7):
-            picks = [week_start + round(i * 7 / n) for i in range(n)]
+            base = [round(i * 7 / n) for i in range(n)]
+            picks = [week_start + ((b + ph) % 7) for b in base]
             day_indices.extend(p for p in picks if p < n_days)
+        day_indices = sorted(set(day_indices))
     elif cadence.startswith("every_n_days="):
         try:
             n = max(1, int(cadence.split("=", 1)[1]))
         except ValueError:
             n = 7
-        day_indices = list(range(0, n_days, n))
+        # Phase-shift the start day (bounded by the period) so two every-N
+        # blocks from different maxxes don't perfectly overlap.
+        start = _phase(maxx_id, block.id, mod=n)
+        day_indices = list(range(start, n_days, n))
     elif cadence.startswith("weekly_on="):
         # Pin to a canonical weekday — e.g. weekly_on=sunday for the
         # weekly review. Fires every Sunday inside the window. Defaults to

@@ -24,11 +24,21 @@ from typing import Any
 from services.schedule_validator import MIN_TASK_GAP_MIN
 from services.schedule_dsl import from_minutes
 
-# Cross-module daily cap — sum across all active maxxes. Tighter than the
-# per-module cap because users only have so much attention budget. Coach
-# research puts the mute threshold at ~7/day total. We pick 6 to leave
-# slack for SMS / contextual pushes.
-HARD_DAILY_TASK_CAP = 6
+# Cross-module daily ceiling — a humane SOFT target for the total number of
+# tasks summed across all active maxxes. A committed 3-maxx user genuinely has
+# a non-negotiable hygiene+training floor (~7 essentials on a training day), so
+# a hard "6 and drop the rest" rule would delete their face cleanse to hit an
+# arbitrary number. Instead we KEEP every essential and trim only the
+# lowest-value OPTIONAL extras down toward this target — never below a small
+# allowance, so a busy day still keeps its best non-essential habits.
+TARGET_DAILY_TOTAL = 8
+# Always keep at least this many high-value optional tasks on a day, even when
+# the essential floor alone already meets/exceeds the target — so a heavy day
+# isn't reduced to nothing but chores (e.g. keep the retinoid + workout fuel).
+MIN_OPTIONAL_KEEP = 2
+# Absolute hard ceiling — a real notification-storm guard. Even an all-essential
+# day never shows more than this many tasks.
+HARD_DAILY_TASK_CAP = 11
 
 logger = logging.getLogger(__name__)
 
@@ -110,13 +120,12 @@ def reconcile_schedules(schedules: dict[str, list[dict]]) -> dict[str, list[dict
                 t_min = new_t
             last_end = t_min + dur
 
-    # 4) Daily total cap — drop lowest-intensity OPTIONAL tasks first.
-    # Mirrors the per-module truncation rules in schedule_validator: tasks
-    # tagged essential (cleanse / SPF / foundation / workout) survive cap
-    # truncation regardless of intensity. Without this, blending 3 maxxes
-    # would drop skinmax SPF (intensity 0.1) before bone.symmetry_check
-    # (intensity 0.1, but tied + non-essential), leaving the user with a
-    # broken skin protocol.
+    # 4) Daily total ceiling — keep every essential, trim only low-value
+    # optionals toward TARGET_DAILY_TOTAL. The earlier bug deleted low-intensity
+    # ESSENTIALS (e.g. a user's AM face cleanse) whenever a 3-maxx training day
+    # pushed the essential count over the cap, AND left every optional in place
+    # — so the day stayed huge *and* lost its hygiene floor. We never drop a
+    # hygiene/training essential now; we trim the most-skippable extras instead.
     from services.schedule_validator import _ESSENTIAL_TAGS
 
     def _is_essential(t: dict) -> bool:
@@ -124,27 +133,32 @@ def reconcile_schedules(schedules: dict[str, list[dict]]) -> dict[str, list[dict
 
     for di in range(day_count):
         items = list(by_day[di])
-        if len(items) <= HARD_DAILY_TASK_CAP:
+        if len(items) <= TARGET_DAILY_TOTAL:
             continue
         essentials = [(m, t) for (m, t) in items if _is_essential(t)]
         optionals = [(m, t) for (m, t) in items if not _is_essential(t)]
-        # If essentials alone exceed the cap, drop the LEAST-intense
-        # essentials. Edge case — a 3-maxx user with > cap workout + SPF
-        # + cleanse tasks. Real protocols don't hit this.
-        if len(essentials) > HARD_DAILY_TASK_CAP:
-            essentials.sort(key=lambda x: float(x[1].get("intensity") or 0.0))
-            for maxx_id, task in essentials[:len(essentials) - HARD_DAILY_TASK_CAP]:
-                _remove_task(schedules, maxx_id, di, task)
-                items.remove((maxx_id, task))
-            continue
-        # Common path: drop optionals (lowest intensity first) until at cap.
-        slots_left = HARD_DAILY_TASK_CAP - len(essentials)
-        optionals.sort(key=lambda x: -float(x[1].get("intensity") or 0.0))
-        keep_optional = optionals[:slots_left]
-        drop_optional = optionals[slots_left:]
-        for maxx_id, task in drop_optional:
+
+        # How many optionals may stay: enough to reach the target on top of the
+        # essential floor, but always at least MIN_OPTIONAL_KEEP so a heavy day
+        # keeps its best extras (retinoid, workout fuel) rather than only chores.
+        optional_slots = max(MIN_OPTIONAL_KEEP, TARGET_DAILY_TOTAL - len(essentials))
+        # Rank optionals by value (intensity desc), tie-break earliest first so
+        # a kept extra lands at a sensible time.
+        optionals.sort(key=lambda x: (-float(x[1].get("intensity") or 0.0),
+                                      _time_to_min(x[1].get("time"))))
+        for maxx_id, task in optionals[optional_slots:]:
             _remove_task(schedules, maxx_id, di, task)
             items.remove((maxx_id, task))
+
+        # Absolute storm guard: if the essential floor itself is implausibly
+        # large (pathological multi-maxx overlap), trim the lowest-intensity
+        # essentials down to the hard ceiling — but only as a last resort.
+        if len(items) > HARD_DAILY_TASK_CAP:
+            ess_now = [(m, t) for (m, t) in items if _is_essential(t)]
+            ess_now.sort(key=lambda x: float(x[1].get("intensity") or 0.0))
+            for maxx_id, task in ess_now[:len(items) - HARD_DAILY_TASK_CAP]:
+                _remove_task(schedules, maxx_id, di, task)
+                items.remove((maxx_id, task))
 
     return schedules
 

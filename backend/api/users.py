@@ -3,6 +3,7 @@ Users API - Profile and Onboarding
 """
 
 import base64
+import json
 import logging
 import math
 import re
@@ -721,6 +722,183 @@ def _norm_day_fields(raw) -> dict:
     return out
 
 
+def _loads_lenient(raw: str) -> dict:
+    """Parse an LLM JSON reply tolerantly.
+
+    Providers run in JSON mode so the reply is usually a clean object, but some
+    still wrap it in ```json fences``` or add stray prose. Strip a fence if
+    present, then fall back to scanning for the first balanced {...} block.
+    Returns {} when nothing usable parses (caller treats that as a soft error).
+    """
+    if not isinstance(raw, str):
+        return {}
+    s = raw.strip()
+    if not s:
+        return {}
+    if s.startswith("```"):
+        s = re.sub(r"^```[a-zA-Z0-9]*\s*", "", s)
+        if s.endswith("```"):
+            s = s[:-3]
+        s = s.strip()
+    try:
+        out = json.loads(s)
+        return out if isinstance(out, dict) else {}
+    except Exception:
+        pass
+    # Fall back: extract the first balanced object (handles leading/trailing prose).
+    start = s.find("{")
+    if start == -1:
+        return {}
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(s)):
+        c = s[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+            continue
+        if c == '"':
+            in_str = True
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    out = json.loads(s[start:i + 1])
+                    return out if isinstance(out, dict) else {}
+                except Exception:
+                    return {}
+    return {}
+
+
+def _build_planner_prompt(cur_defaults: dict, cur_weekly: dict, instruction: str) -> str:
+    """Build the planner-chat LLM prompt. Pure (no I/O) so it can be tested /
+    exercised against the live model without going through the HTTP endpoint."""
+    return (
+        "You translate a natural-language request into a STRUCTURED EDIT of a user's\n"
+        "WEEKLY daily-rhythm plan for a self-improvement app whose goal is to fit\n"
+        "healthy routines into a real life — never to force an unrealistic day.\n\n"
+        "DATA MODEL\n"
+        "- DEFAULTS apply to all 7 days.\n"
+        "- PER-WEEKDAY OVERRIDES replace specific fields on specific days (a weekend\n"
+        "  lie-in, a Mon/Wed/Fri class). An override only changes the fields it lists;\n"
+        "  any field it omits falls back to the default for that day.\n"
+        "- Editing is PRESENCE-BASED: only the fields/days you return are touched.\n"
+        "  Everything you omit is kept exactly as it is now.\n\n"
+        "FIELDS (all times are \"HH:MM\", 24-hour):\n"
+        "- wake_time, sleep_time, get_ready_time (shower / get ready), preferred_workout_time\n"
+        "- work_schedule: \"fixed\" or \"flexible\"; work_start, work_end (only meaningful when fixed)\n"
+        "- obligations: a LIST of {label, start, end} fixed commitments to plan around\n\n"
+        f"CURRENT DEFAULTS:\n{json.dumps(cur_defaults, ensure_ascii=False)}\n\n"
+        f"CURRENT PER-WEEKDAY OVERRIDES:\n{json.dumps(cur_weekly, ensure_ascii=False)}\n\n"
+        f"USER REQUEST: \"{instruction}\"\n\n"
+        "HOW TO INTERPRET\n"
+        "- Resolve RELATIVE / FUZZY phrasing against the CURRENT values above. \"sleep in\n"
+        "  an hour on weekends\" = current wake_time + 60 min on sat+sun. \"wake a bit\n"
+        "  earlier\" with no amount ~= 30 min earlier. \"workout in the evening\" ~= 18:00,\n"
+        "  \"morning\" ~= 07:00, \"midday/lunch\" ~= 12:00, \"night\" ~= 21:00.\n"
+        "- MINIMAL DIFF: return ONLY the fields that actually change. Inside a weekday\n"
+        "  override, include ONLY the fields that DIFFER from the default — never echo\n"
+        "  unchanged fields (don't copy sleep_time, work hours, or obligations into a day\n"
+        "  where you're only moving wake_time).\n"
+        "- DEFAULTS vs PER-DAY: if a change applies to ALL 7 days it MUST go in \"defaults\"\n"
+        "  — NEVER enumerate all seven weekdays. Use weekly_timings only for the SUBSET of\n"
+        "  days that differ, one entry per named day. \"weekday\" = monday..friday;\n"
+        "  \"weekend\" = saturday+sunday; never emit a literal \"weekday\"/\"weekend\" key.\n"
+        "- Apply ALL changes in a multi-part request together.\n"
+        "- obligations is REPLACED wholesale, not merged. To ADD or REMOVE one, return the\n"
+        "  COMPLETE new list (re-listing the existing ones you are keeping). To remove\n"
+        "  every obligation, return []. A per-day obligation change goes on that weekday\n"
+        "  and should include the default obligations you still want that day.\n"
+        "- To CLEAR one field, set it to null. To CLEAR a whole day's overrides, set that\n"
+        "  day to {}.\n"
+        "- If the user states explicit work hours, set work_schedule \"fixed\" plus\n"
+        "  work_start/work_end. If they say their hours are flexible or they have none,\n"
+        "  set work_schedule \"flexible\".\n"
+        "- Respect what the user asks even if it seems early/late; it's their day. But do\n"
+        "  NOT invent commitments, labels, or times they didn't state. Labels <= 3 words.\n"
+        "- Make NO changes (return empty defaults and weekly_timings) and explain in the\n"
+        "  summary if the request is ambiguous, isn't about daily timings, or names a\n"
+        "  specific calendar date instead of a weekday — ask for the missing detail.\n\n"
+        "OUTPUT — STRICT JSON ONLY. No markdown, no code fences, no prose outside the JSON:\n"
+        "{\n"
+        "  \"defaults\": { ...only default-level fields you are CHANGING... },\n"
+        "  \"weekly_timings\": { \"saturday\": { ...fields... }, ... only the days you are CHANGING ... },\n"
+        "  \"summary\": \"<one short, friendly sentence naming exactly what changed and on which days>\"\n"
+        "}\n\n"
+        "EXAMPLES (shape only — real current values vary per user):\n"
+        "- \"I sleep in until 10 on weekends\" ->\n"
+        "  {\"weekly_timings\":{\"saturday\":{\"wake_time\":\"10:00\"},\"sunday\":{\"wake_time\":\"10:00\"}},\"summary\":\"You'll now wake at 10:00 on Saturday and Sunday.\"}\n"
+        "- \"move my workout to 7pm and shower at 6:30\" (every day) ->\n"
+        "  {\"defaults\":{\"preferred_workout_time\":\"19:00\",\"get_ready_time\":\"06:30\"},\"summary\":\"Workout moved to 7:00 PM and get-ready to 6:30 AM, every day.\"}\n"
+        "- \"add a dentist appt Tuesday 2-3pm\" (current default obligations: Commute 08:15-09:00) ->\n"
+        "  {\"weekly_timings\":{\"tuesday\":{\"obligations\":[{\"label\":\"Commute\",\"start\":\"08:15\",\"end\":\"09:00\"},{\"label\":\"Dentist\",\"start\":\"14:00\",\"end\":\"15:00\"}]}},\"summary\":\"Added a dentist appointment Tuesday 2-3 PM.\"}\n"
+        "- \"I don't have class on Wednesdays anymore\" ->\n"
+        "  {\"weekly_timings\":{\"wednesday\":{}},\"summary\":\"Cleared your Wednesday overrides.\"}\n"
+        "- \"remove my set workout time\" ->\n"
+        "  {\"defaults\":{\"preferred_workout_time\":null},\"summary\":\"Removed your fixed workout time.\"}\n"
+    )
+
+
+def _apply_planner_diff(prev: dict, cur_weekly: dict, parsed: dict) -> bool:
+    """Merge a parsed planner diff into `prev` (mutated in place).
+
+    Presence-based: only the default fields and weekday keys present in
+    `parsed` are touched; everything omitted is kept. `obligations` (default
+    or per-day) is REPLACED wholesale with the normalized list. Returns True
+    if anything changed. Pure + DB-free so it can be unit-tested directly.
+    """
+    changed = False
+    d = parsed.get("defaults") if isinstance(parsed.get("defaults"), dict) else {}
+    for key in _DEFAULT_TIME_FIELDS:
+        if key not in d:
+            continue
+        raw_v = d.get(key)
+        if raw_v is None:
+            # Explicit null = clear the field.
+            if prev.get(key) is not None:
+                changed = True
+            prev[key] = None
+        else:
+            norm = _norm_hhmm(raw_v)
+            if norm is not None:
+                prev[key] = norm
+                changed = True
+            # else: model emitted an unparseable time — ignore it rather than
+            # silently wiping the user's existing value.
+    if "work_schedule" in d:
+        ws = d.get("work_schedule")
+        prev["work_schedule"] = (
+            ws.strip().lower()
+            if isinstance(ws, str) and ws.strip().lower() in ("fixed", "flexible")
+            else None
+        )
+        changed = True
+    if "obligations" in d:
+        prev["obligations"] = _norm_obligations(d.get("obligations")) or None
+        changed = True
+
+    wk_in = parsed.get("weekly_timings") if isinstance(parsed.get("weekly_timings"), dict) else {}
+    wk_out = dict(cur_weekly or {})
+    for day in _WEEKDAY_KEYS:
+        if day not in wk_in:
+            continue
+        cleaned = _norm_day_fields(wk_in.get(day))
+        if cleaned:
+            wk_out[day] = cleaned
+        else:
+            wk_out.pop(day, None)  # explicit {} → clear this day's override
+        changed = True
+    prev["weekly_timings"] = wk_out or None
+    return changed
+
+
 class PlannerChatBody(BaseModel):
     instruction: str = Field(..., description="Natural-language change request for the weekly plan.")
 
@@ -741,7 +919,6 @@ async def planner_chat(
     live schedules + invalidate coach context), and return the new state.
     """
     import asyncio
-    import json
 
     instruction = (body.instruction or "").strip()
     if not instruction:
@@ -760,74 +937,24 @@ async def planner_chat(
         cur_defaults["obligations"] = prev["obligations"]
     cur_weekly = prev.get("weekly_timings") if isinstance(prev.get("weekly_timings"), dict) else {}
 
-    prompt = (
-        "You edit a user's WEEKLY daily-rhythm planner for a self-improvement app.\n"
-        "The user has DEFAULT timings that apply every day, plus optional PER-WEEKDAY\n"
-        "overrides for days that differ (e.g. a weekend lie-in, a Mon/Wed/Fri class).\n\n"
-        "Fields (times are \"HH:MM\" 24-hour):\n"
-        "- wake_time, sleep_time, get_ready_time (shower/get ready), preferred_workout_time\n"
-        "- work_schedule (\"fixed\" or \"flexible\"), work_start, work_end\n"
-        "- obligations: list of {label, start, end} fixed commitments to plan around\n\n"
-        f"CURRENT DEFAULTS:\n{json.dumps(cur_defaults, ensure_ascii=False)}\n\n"
-        f"CURRENT PER-WEEKDAY OVERRIDES:\n{json.dumps(cur_weekly, ensure_ascii=False)}\n\n"
-        f"USER REQUEST: \"{instruction}\"\n\n"
-        "Return STRICT JSON only (no markdown, no commentary):\n"
-        "{\n"
-        "  \"defaults\": { ...only default-level fields you are CHANGING... },\n"
-        "  \"weekly_timings\": { \"saturday\": { ...fields... } ...only weekdays you are CHANGING... },\n"
-        "  \"summary\": \"<one short, friendly sentence describing what you changed>\"\n"
-        "}\n\n"
-        "Rules:\n"
-        "- Include ONLY the fields/days you are CHANGING; leave everything else out.\n"
-        "- To CLEAR a field set it to null. To CLEAR a day's overrides set that day to {}.\n"
-        "- Weekday keys are lowercase full names monday..sunday. \"weekday\"=mon–fri, \"weekend\"=sat+sun.\n"
-        "- If a change applies to EVERY day, put it in \"defaults\", not each weekday.\n"
-        "- Never invent commitments the user didn't mention. Keep obligation labels ≤3 words.\n"
-        "- If the request isn't about timings or is unclear, return empty defaults/weekly_timings and say so in summary.\n"
-    )
+    prompt = _build_planner_prompt(cur_defaults, cur_weekly, instruction)
 
-    parsed: dict = {}
     try:
         from services.llm_sync import async_llm_json_response
         raw = await asyncio.wait_for(async_llm_json_response(prompt, max_tokens=1200), timeout=30)
-        loaded = json.loads(raw)
-        if isinstance(loaded, dict):
-            parsed = loaded
     except Exception as e:
-        logger.warning("planner_chat LLM failed: %s", e)
-        raise HTTPException(status_code=502, detail="Couldn't process that — try rephrasing.")
+        logger.warning("planner_chat LLM call failed: %s", e)
+        raise HTTPException(status_code=502, detail="Couldn't reach the planner just now — please try again in a moment.")
+
+    parsed = _loads_lenient(raw)
+    if not parsed:
+        logger.warning("planner_chat: unparseable LLM reply (%d chars)", len(raw or ""))
+        raise HTTPException(status_code=502, detail="Couldn't understand that — try rephrasing your request.")
 
     summary = str(parsed.get("summary") or "").strip()[:240] or "Updated your plan."
 
     # --- Merge the diff into onboarding (presence-based: unmentioned = keep) --
-    d = parsed.get("defaults") if isinstance(parsed.get("defaults"), dict) else {}
-    changed = False
-    for key in _DEFAULT_TIME_FIELDS:
-        if key in d:
-            prev[key] = _norm_hhmm(d.get(key))  # valid value or None (clear)
-            changed = True
-    if "work_schedule" in d:
-        ws = d.get("work_schedule")
-        prev["work_schedule"] = ws if (isinstance(ws, str) and ws.strip().lower() in ("fixed", "flexible")) else None
-        if prev["work_schedule"]:
-            prev["work_schedule"] = prev["work_schedule"].strip().lower()
-        changed = True
-    if "obligations" in d:
-        prev["obligations"] = _norm_obligations(d.get("obligations")) or None
-        changed = True
-
-    wk_in = parsed.get("weekly_timings") if isinstance(parsed.get("weekly_timings"), dict) else {}
-    wk_out = dict(cur_weekly)
-    for day in _WEEKDAY_KEYS:
-        if day not in wk_in:
-            continue
-        cleaned = _norm_day_fields(wk_in.get(day))
-        if cleaned:
-            wk_out[day] = cleaned
-        else:
-            wk_out.pop(day, None)  # explicit {} → clear this day's override
-        changed = True
-    prev["weekly_timings"] = wk_out or None
+    changed = _apply_planner_diff(prev, cur_weekly, parsed)
 
     if not changed:
         # Nothing actionable — return current state untouched, with the
