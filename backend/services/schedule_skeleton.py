@@ -43,9 +43,11 @@ from uuid import uuid4
 
 from services.schedule_dsl import (
     build_anchor_overrides,
+    crosses_midnight,
     evaluate,
     evaluate_all,
     from_minutes,
+    order_minutes,
     parse_clock,
     resolve_window,
     to_minutes,
@@ -198,8 +200,18 @@ def expand_skeleton(
         )
 
     # 5) Sort tasks within each day by time so the validator gets a clean list.
+    #    For an overnight (wake>sleep) window, order by minutes-SINCE-WAKE so a
+    #    "before bed" task that lands at 03:30am sorts to the END of that user's
+    #    day, not the top. Day-schedule users keep plain clock order (no-op).
+    overnight = crosses_midnight(wake_t, sleep_t)
+    wake_min = to_minutes(wake_t)
     for d in days:
-        d["tasks"].sort(key=lambda t: _time_to_minutes(t.get("time", "00:00")))
+        if overnight:
+            d["tasks"].sort(
+                key=lambda t: order_minutes(_time_to_minutes(t.get("time", "00:00")), wake_min)
+            )
+        else:
+            d["tasks"].sort(key=lambda t: _time_to_minutes(t.get("time", "00:00")))
 
     return days
 

@@ -33,14 +33,18 @@ import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, borderRadius, fonts } from '../../theme/dark';
 import WeekCanvas from '../../components/planner/WeekCanvas';
 import DayEditorSheet from '../../components/planner/DayEditorSheet';
+import ObligationsManager from '../../components/planner/ObligationsManager';
 import {
   DayShape,
+  Obligation,
   Scope,
   Weekday,
   hydrateDayShape,
   hydrateWeekly,
+  hydrateObligations,
   dayShapeToServer,
   serializeWeekly,
+  obligationsToServer,
   diffDayShape,
   effectiveDay,
   hasOverride,
@@ -63,6 +67,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   const [weekly, setWeekly] = useState<Partial<Record<Weekday, Partial<DayShape>>>>(
     () => hydrateWeekly(ob.weekly_timings),
   );
+  const [obligations, setObligations] = useState<Obligation[]>(() => hydrateObligations(ob));
 
   // Editor sheet: keep the scope set across the close animation to avoid a flash.
   const [editScope, setEditScope] = useState<Scope>('all');
@@ -88,6 +93,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   const buildOnboarding = (
     nd: DayShape,
     nw: Partial<Record<Weekday, Partial<DayShape>>>,
+    no: Obligation[],
   ): Record<string, any> => {
     const base = { ...(user?.onboarding || {}) } as Record<string, any>;
     const tz =
@@ -99,6 +105,12 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
       completed: true,
       timezone: tz,
       ...dayShapeToServer(nd),
+      // Work is just an obligation now — drop the legacy work block so the
+      // scheduler never double-books it alongside the migrated "Work" obligation.
+      obligations: obligationsToServer(no),
+      work_schedule: null,
+      work_start: null,
+      work_end: null,
       weekly_timings: Object.keys(weeklyOut).length ? weeklyOut : null,
     };
   };
@@ -106,10 +118,11 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   const persist = async (
     nd: DayShape,
     nw: Partial<Record<Weekday, Partial<DayShape>>>,
+    no: Obligation[],
   ) => {
     setSaving(true);
     try {
-      await api.saveOnboarding(buildOnboarding(nd, nw) as any);
+      await api.saveOnboarding(buildOnboarding(nd, nw, no) as any);
       await refreshUser();
       invalidateSchedules();
     } catch (error: any) {
@@ -128,7 +141,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   const commitScope = (scope: Scope, day: DayShape) => {
     if (scope === 'all') {
       setDefaults(day);
-      persist(day, weekly);
+      persist(day, weekly, obligations);
       return;
     }
     const partial = diffDayShape(defaults, day);
@@ -136,14 +149,19 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     if (Object.keys(partial).length) nextWeekly[scope] = partial;
     else delete nextWeekly[scope];
     setWeekly(nextWeekly);
-    persist(defaults, nextWeekly);
+    persist(defaults, nextWeekly, obligations);
   };
 
   const resetScope = (day: Weekday) => {
     const nextWeekly = { ...weekly };
     delete nextWeekly[day];
     setWeekly(nextWeekly);
-    persist(defaults, nextWeekly);
+    persist(defaults, nextWeekly, obligations);
+  };
+
+  const changeObligations = (next: Obligation[]) => {
+    setObligations(next);
+    persist(defaults, weekly, next);
   };
 
   const applyServerState = (
@@ -152,6 +170,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   ) => {
     setDefaults(hydrateDayShape(d || {}));
     setWeekly(hydrateWeekly(wk || {}));
+    setObligations(hydrateObligations(d || {}));
   };
 
   const sendChat = async () => {
@@ -162,7 +181,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     try {
       // Flush the current canvas first so the assistant reasons over — and never
       // discards — exactly what's on screen, then re-hydrate from its result.
-      await api.saveOnboarding(buildOnboarding(defaults, weekly) as any);
+      await api.saveOnboarding(buildOnboarding(defaults, weekly, obligations) as any);
       const res = await api.plannerChat(text);
       applyServerState(res.defaults, res.weekly_timings);
       setChatReply(res.summary || res.message || 'Updated your plan.');
@@ -220,7 +239,17 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           </Text>
 
           <View style={styles.card}>
-            <WeekCanvas defaults={defaults} weekly={weekly} onEditScope={openEditor} />
+            <WeekCanvas
+              defaults={defaults}
+              weekly={weekly}
+              obligations={obligations}
+              onEditScope={openEditor}
+            />
+          </View>
+
+          {/* Commitments — the global, day-scoped obligations list. */}
+          <View style={styles.card}>
+            <ObligationsManager obligations={obligations} onChange={changeObligations} />
           </View>
 
           {/* Assistant. */}

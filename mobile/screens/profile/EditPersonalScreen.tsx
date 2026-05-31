@@ -58,30 +58,28 @@ const ACTIVITY_LEVELS = [
 ];
 
 function hydrateFromOnboarding(ob: Record<string, any>) {
-  // Mirrors the live onboarding flow — only the 5 questions we ask there
-  // (gender + age + body + schedule + priority). Older fields like
-  // appearance_concerns / skin / hair / training / screen-time are kept
-  // in user.onboarding as-is on save (via {...base} spread) so notification
-  // engines and schedule generators that still depend on them keep working,
-  // but we no longer surface those edits in the UI.
+  // Mirrors the live onboarding flow — only the basics we ask there
+  // (gender + age + body + the wake/sleep/get-ready anchors + priority).
+  // The workout WINDOW and recurring commitments (work/school) now live in
+  // the Day Planner, not here — work is just an obligation and the workout is
+  // a range, so editing them as a scalar here would fork the planner's data.
+  // Older fields like appearance_concerns / skin / hair / training are kept in
+  // user.onboarding as-is on save (via {...base} spread) so downstream engines
+  // that still depend on them keep working, but we don't surface those edits.
   return {
     priorityRanking: Array.isArray(ob.priority_ranking)
       ? [...ob.priority_ranking]
       : normalizePriorityOrder(ob.priority_order),
     wakeTime: ob.wake_time || '07:00',
     sleepTime: ob.sleep_time || '23:00',
-    // Precise day anchors — null means "auto" (coach derives from wake/sleep).
+    // Precise day anchor — null means "auto" (coach derives from wake/sleep).
     // We only ever persist a concrete time when the user explicitly picks one,
     // so users who don't care keep the smart biology-anchored defaults.
     getReadyTime: (ob.get_ready_time as string | undefined) || null,
-    workoutTime: (ob.preferred_workout_time as string | undefined) || null,
-    workSchedule: (ob.work_schedule as 'fixed' | 'flexible' | undefined) || null,
-    workStart: ob.work_start || '09:00',
-    workEnd: ob.work_end || '17:00',
   };
 }
 
-type TimePickerKey = 'wake' | 'getReady' | 'workout' | 'sleep' | 'workStart' | 'workEnd';
+type TimePickerKey = 'wake' | 'getReady' | 'sleep';
 
 export default function EditPersonalScreen() {
   const navigation = useNavigation<any>();
@@ -144,10 +142,6 @@ export default function EditPersonalScreen() {
   const [wakeTime, setWakeTime] = useState(v2.wakeTime);
   const [sleepTime, setSleepTime] = useState(v2.sleepTime);
   const [getReadyTime, setGetReadyTime] = useState<string | null>(v2.getReadyTime);
-  const [workoutTime, setWorkoutTime] = useState<string | null>(v2.workoutTime);
-  const [workSchedule, setWorkSchedule] = useState<'fixed' | 'flexible' | null>(v2.workSchedule);
-  const [workStart, setWorkStart] = useState(v2.workStart);
-  const [workEnd, setWorkEnd] = useState(v2.workEnd);
   const [openTimePicker, setOpenTimePicker] = useState<TimePickerKey | null>(null);
 
   const movePriority = useCallback((index: number, dir: -1 | 1) => {
@@ -190,10 +184,6 @@ export default function EditPersonalScreen() {
     setWakeTime(h.wakeTime);
     setSleepTime(h.sleepTime);
     setGetReadyTime(h.getReadyTime);
-    setWorkoutTime(h.workoutTime);
-    setWorkSchedule(h.workSchedule);
-    setWorkStart(h.workStart);
-    setWorkEnd(h.workEnd);
   }, [user]);
 
   const handleSave = async () => {
@@ -252,10 +242,12 @@ export default function EditPersonalScreen() {
       // Precise anchors — only persist a concrete time when the user set one;
       // null clears back to auto so the coach derives it from wake/sleep.
       get_ready_time: getReadyTime ? hhmm(getReadyTime) : null,
-      preferred_workout_time: workoutTime ? hhmm(workoutTime) : null,
-      work_schedule: workSchedule || null,
-      work_start: workSchedule === 'fixed' ? hhmm(workStart) : null,
-      work_end: workSchedule === 'fixed' ? hhmm(workEnd) : null,
+      // The workout WINDOW and recurring commitments (work/school) are owned by
+      // the Day Planner now — work is just an obligation, the workout is a range.
+      // We deliberately DON'T write preferred_workout_time / preferred_workout_window
+      // / work_schedule / work_start / work_end / obligations here; the {...base}
+      // spread above preserves whatever the planner stored, so editing lifestyle
+      // can never clobber or fork the planner's schedule data.
     };
 
     if (gender) onboardingData.gender = gender;
@@ -612,38 +604,24 @@ export default function EditPersonalScreen() {
                   'Anchors your AM skin, hair & mewing routine.',
                   'water-outline',
                 )}
-                {anchorRow(
-                  'Workout',
-                  'workout',
-                  workoutTime,
-                  setWorkoutTime,
-                  'Drives FitMax lifts, HeightMax stretches & post-workout fuel.',
-                  'barbell-outline',
-                )}
                 {timeRow('Bed', 'sleep', sleepTime, setSleepTime)}
-                <Text style={[styles.inputLabel, { marginTop: spacing.lg }]}>WORK / SCHOOL HOURS</Text>
-                <View style={[styles.tagWrap, { marginBottom: spacing.md }]}>
-                  {[
-                    { id: 'fixed' as const, label: 'Fixed' },
-                    { id: 'flexible' as const, label: 'Flexible' },
-                  ].map((opt) => (
-                    <TouchableOpacity
-                      key={opt.id}
-                      style={[styles.tag, workSchedule === opt.id && styles.tagOn]}
-                      onPress={() => setWorkSchedule(opt.id)}
-                    >
-                      <Text style={[styles.tagText, workSchedule === opt.id && styles.tagTextOn]}>
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                {workSchedule === 'fixed' ? (
-                  <>
-                    {timeRow('Start', 'workStart', workStart, setWorkStart)}
-                    {timeRow('End', 'workEnd', workEnd, setWorkEnd)}
-                  </>
-                ) : null}
+                <TouchableOpacity
+                  style={styles.plannerPointer}
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('DayPlanner')}
+                >
+                  <View style={styles.plannerPointerIcon}>
+                    <Ionicons name="calendar-outline" size={16} color={colors.foreground} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.plannerPointerTitle}>Workout window & commitments</Text>
+                    <Text style={styles.plannerPointerText}>
+                      Set your workout as a range and add recurring commitments
+                      (work, school, classes) — they can vary by day in the Day Planner.
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </TouchableOpacity>
               </View>
 
               {/* Onairos personalization card — let users connect or refresh
@@ -998,6 +976,38 @@ const styles = StyleSheet.create({
     marginTop: 5,
     marginLeft: 2,
     opacity: 0.8,
+  },
+  /* Tappable pointer into the Day Planner — workout range + commitments live
+     there now (work is an obligation, the workout is a window). */
+  plannerPointer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: spacing.lg,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderLight,
+  },
+  plannerPointerIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  plannerPointerTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.foreground,
+    letterSpacing: 0.05,
+    marginBottom: 2,
+  },
+  plannerPointerText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    lineHeight: 16,
+    letterSpacing: 0.05,
   },
   timeDropdown: {
     marginTop: 6,

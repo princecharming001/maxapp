@@ -551,7 +551,11 @@ class ApiService {
         work_end?: string | null;
         get_ready_time?: string | null;
         preferred_workout_time?: string | null;
-        obligations?: Array<{ label: string; start: string; end: string }> | null;
+        // `days` is the recurrence: 'all' | 'weekdays' | 'weekends' | a list of
+        // weekday names. Typed loosely here (string | string[]) since this is the
+        // JSON serialization boundary — the canonical shape lives in plannerModel
+        // (DayRecurrence) and the backend re-normalises via _norm_days.
+        obligations?: Array<{ label: string; start: string; end: string; days?: string | string[] }> | null;
         weekly_timings?: Record<string, any> | null;
     }) {
         // 12s default was timing out on Edit Lifestyle saves when the

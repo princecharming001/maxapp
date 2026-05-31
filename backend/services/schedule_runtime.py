@@ -88,10 +88,11 @@ async def generate_and_persist(
         user_id=user_id, db=db, replacing_maxx_id=maxx_id, subscription_tier=subscription_tier,
     )
 
+    ob_ctx = onboarding or dict(user.onboarding or {})
     extras = {"wake_time": wake_time, "sleep_time": sleep_time}
     result = await _generate(
         user_id=user_id, maxx_id=maxx_id, db=db,
-        onboarding=onboarding or dict(user.onboarding or {}),
+        onboarding=ob_ctx,
         extras=extras,
     )
     if not result.ok:
@@ -108,10 +109,14 @@ async def generate_and_persist(
     today = _date.today()
     for i, d in enumerate(days):
         d["date"] = (today + _td(days=i)).isoformat()
+    # user_ctx for the busy-window eviction step: the merge re-packs the morning
+    # and can shove a task into a fixed obligation; pass the user's rhythm +
+    # obligations (with resolved wake/sleep) so reconcile can clear them.
+    recon_ctx = {**ob_ctx, "wake_time": wake_time, "sleep_time": sleep_time}
     other_actives = await _load_other_active_days(user_uuid, db, except_maxx=maxx_id)
     if other_actives:
         bundle = {**other_actives, maxx_id: days}
-        bundle = reconcile_schedules(bundle)
+        bundle = reconcile_schedules(bundle, user_ctx=recon_ctx, start_date=today)
         days = bundle[maxx_id]
         # Persist tweaks made to other modules (collision moved/dropped tasks).
         for other_max, other_days in bundle.items():

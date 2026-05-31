@@ -5,9 +5,12 @@
  * Wake & sleep each offer a Range / Exact toggle:
  *   • Range  → a dual-thumb slider; the day's plan floats between the two times.
  *   • Exact  → a single thumb; one precise time.
- * Get-ready & workout are optional single times (Auto lets the coach decide).
- * Work is Off / Flexible / Fixed (fixed reveals an hours slider the scheduler
- * keeps every routine outside of). Obligations are free-form busy blocks.
+ * Get-ready is an optional single time (Auto lets the coach decide). The Workout
+ * is an optional [start, end] WINDOW the scheduler slots training into — it's a
+ * default-level preference, so it only appears when editing "All days".
+ *
+ * Obligations (work, classes, commutes…) are NOT edited here — they're a global,
+ * day-scoped list managed on the planner screen.
  *
  * "Done" hands the edited DayShape back to the orchestrator, which diffs it
  * against the base to store a minimal per-weekday override.
@@ -20,7 +23,6 @@ import {
   StyleSheet,
   Modal,
   ScrollView,
-  TextInput,
   Pressable,
   Platform,
   KeyboardAvoidingView,
@@ -47,14 +49,11 @@ const WAKE_MIN = 240; // 4 AM
 const WAKE_MAX = 780; // 1 PM
 const SLEEP_MIN = 1080; // 6 PM
 const SLEEP_MAX = 1680; // 4 AM (next day, evening-normalised)
-const WORK_MIN = 300; // 5 AM
-const WORK_MAX = 1380; // 11 PM
 const WORKOUT_MIN = 300; // 5 AM
 const WORKOUT_MAX = 1320; // 10 PM
+const WORKOUT_MIN_SPAN = 30; // a workout window stays at least 30 min wide
 const READY_MIN = 240; // 4 AM
 const READY_MAX = 780; // 1 PM
-const OB_MIN = 0;
-const OB_MAX = 1440;
 
 const clampN = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 const fmtAbs = (m: number) => fmt12Compact(minToHHMM(m));
@@ -117,8 +116,6 @@ export default function DayEditorSheet({
   const [d, setD] = useState<DayShape>(initial);
   const [wakeMode, setWakeMode] = useState<Mode>('range');
   const [sleepMode, setSleepMode] = useState<Mode>('range');
-  const [obLabel, setObLabel] = useState('');
-  const [obRange, setObRange] = useState<[number, number]>([540, 600]);
 
   // Re-seed the working copy each time the sheet opens (or the scope changes).
   useEffect(() => {
@@ -126,8 +123,6 @@ export default function DayEditorSheet({
     setD(initial);
     setWakeMode(isExact(initial.wakeWindow) ? 'exact' : 'range');
     setSleepMode(isExact(initial.sleepWindow) ? 'exact' : 'range');
-    setObLabel('');
-    setObRange([540, 600]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, scope]);
 
@@ -183,23 +178,16 @@ export default function DayEditorSheet({
       ? `Asleep by ${fmt12(d.sleepWindow[0])}`
       : `Asleep between ${fmt12Compact(d.sleepWindow[0])} and ${fmt12Compact(d.sleepWindow[1])}`;
 
-  const setOptional = (key: 'getReadyTime' | 'workoutTime', val: string | null) =>
-    setD((p) => ({ ...p, [key]: val }));
+  const setGetReady = (val: string | null) => setD((p) => ({ ...p, getReadyTime: val }));
 
-  const addObligation = () => {
-    if (obRange[1] <= obRange[0]) return;
-    const start = minToHHMM(obRange[0]);
-    const end = minToHHMM(obRange[1]);
-    setD((p) => ({
-      ...p,
-      obligations: [...p.obligations, { label: obLabel.trim() || 'Busy', start, end }],
-    }));
-    setObLabel('');
-    setObRange([540, 600]);
+  // Workout is an optional [start,end] window (default-level only). Reject any
+  // drag that would shrink it below the minimum span so it never collapses.
+  const setWorkout = (v: [number, number]) => {
+    if (v[1] - v[0] < WORKOUT_MIN_SPAN) return;
+    setD((p) => ({ ...p, workoutWindow: [minToHHMM(v[0]), minToHHMM(v[1])] }));
   };
-
-  const removeObligation = (idx: number) =>
-    setD((p) => ({ ...p, obligations: p.obligations.filter((_, i) => i !== idx) }));
+  const toggleWorkout = (on: boolean) =>
+    setD((p) => ({ ...p, workoutWindow: on ? p.workoutWindow || ['17:00', '19:00'] : null }));
 
   const done = () => {
     onCommit(scope, d);
@@ -211,53 +199,8 @@ export default function DayEditorSheet({
     onClose();
   };
 
-  const renderOptional = (opts: {
-    key: 'getReadyTime' | 'workoutTime';
-    title: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    accent: string;
-    domain: [number, number];
-    fallback: string;
-    autoHint: string;
-  }) => {
-    const value = d[opts.key];
-    const isSet = !!value;
-    const v = toMin(value || opts.fallback);
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHead}>
-          <View style={styles.sectionTitleWrap}>
-            <Ionicons name={opts.icon} size={16} color={colors.foreground} />
-            <Text style={styles.sectionTitle}>{opts.title}</Text>
-          </View>
-          <Segmented
-            compact
-            options={[
-              { key: 'auto', label: 'Auto' },
-              { key: 'set', label: 'Set time' },
-            ]}
-            value={isSet ? 'set' : 'auto'}
-            onChange={(k) => setOptional(opts.key, k === 'auto' ? null : value || opts.fallback)}
-          />
-        </View>
-        {isSet ? (
-          <TimeRangeSlider
-            single
-            min={opts.domain[0]}
-            max={opts.domain[1]}
-            value={[v, v]}
-            onChange={(nv) => setOptional(opts.key, minToHHMM(nv[0]))}
-            format={fmtAbs}
-            accent={opts.accent}
-          />
-        ) : (
-          <Text style={styles.autoHint}>{opts.autoHint}</Text>
-        )}
-      </View>
-    );
-  };
-
-  const workValue: 'off' | 'flexible' | 'fixed' = d.workSchedule || 'off';
+  const readyValue = d.getReadyTime;
+  const readyMin = toMin(readyValue || '07:00');
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -343,134 +286,80 @@ export default function DayEditorSheet({
 
               <View style={styles.divider} />
 
-              {renderOptional({
-                key: 'getReadyTime',
-                title: 'Get ready',
-                icon: 'water-outline',
-                accent: '#06b6d4',
-                domain: [READY_MIN, READY_MAX],
-                fallback: '07:00',
-                autoHint: 'Max anchors your AM skin, hair & mewing routine around your wake time.',
-              })}
-
-              {renderOptional({
-                key: 'workoutTime',
-                title: 'Workout',
-                icon: 'barbell-outline',
-                accent: '#22c55e',
-                domain: [WORKOUT_MIN, WORKOUT_MAX],
-                fallback: '18:00',
-                autoHint: 'Max slots lifts, stretches & post-workout fuel into a free part of your day.',
-              })}
-
-              <View style={styles.divider} />
-
-              {/* Work */}
+              {/* Get ready (optional single time) */}
               <View style={styles.section}>
                 <View style={styles.sectionHead}>
                   <View style={styles.sectionTitleWrap}>
-                    <Ionicons name="briefcase-outline" size={16} color={colors.foreground} />
-                    <Text style={styles.sectionTitle}>Work / school</Text>
+                    <Ionicons name="water-outline" size={16} color={colors.foreground} />
+                    <Text style={styles.sectionTitle}>Get ready</Text>
                   </View>
                   <Segmented
                     compact
                     options={[
-                      { key: 'off', label: 'Off' },
-                      { key: 'flexible', label: 'Flexible' },
-                      { key: 'fixed', label: 'Fixed' },
+                      { key: 'auto', label: 'Auto' },
+                      { key: 'set', label: 'Set time' },
                     ]}
-                    value={workValue}
-                    onChange={(k) =>
-                      setD((p) => ({ ...p, workSchedule: k === 'off' ? null : (k as 'flexible' | 'fixed') }))
-                    }
+                    value={readyValue ? 'set' : 'auto'}
+                    onChange={(k) => setGetReady(k === 'auto' ? null : readyValue || '07:00')}
                   />
                 </View>
-                {workValue === 'fixed' ? (
-                  <>
-                    <TimeRangeSlider
-                      min={WORK_MIN}
-                      max={WORK_MAX}
-                      value={[toMin(d.workStart), toMin(d.workEnd)]}
-                      onChange={(v) =>
-                        setD((p) => ({ ...p, workStart: minToHHMM(v[0]), workEnd: minToHHMM(v[1]) }))
-                      }
-                      format={fmtAbs}
-                      accent="#3b82f6"
-                    />
-                    <Text style={styles.hint}>
-                      Busy {fmt12Compact(d.workStart)} – {fmt12Compact(d.workEnd)}. Max keeps routines outside.
-                    </Text>
-                  </>
+                {readyValue ? (
+                  <TimeRangeSlider
+                    single
+                    min={READY_MIN}
+                    max={READY_MAX}
+                    value={[readyMin, readyMin]}
+                    onChange={(nv) => setGetReady(minToHHMM(nv[0]))}
+                    format={fmtAbs}
+                    accent="#06b6d4"
+                  />
                 ) : (
                   <Text style={styles.autoHint}>
-                    {workValue === 'flexible'
-                      ? 'Max spreads routines through the day without a hard work block.'
-                      : 'No work block — your whole day is open.'}
+                    Max anchors your AM skin, hair & mewing routine around your wake time.
                   </Text>
                 )}
               </View>
 
-              <View style={styles.divider} />
-
-              {/* Obligations */}
-              <View style={styles.section}>
-                <View style={styles.sectionTitleWrap}>
-                  <Ionicons name="calendar-clear-outline" size={16} color={colors.foreground} />
-                  <Text style={styles.sectionTitle}>Obligations</Text>
-                </View>
-                <Text style={styles.autoHint}>
-                  Anything that recurs — a class, commute, or pickup. Max works around each.
-                </Text>
-
-                {d.obligations.map((o, idx) => (
-                  <View style={styles.obRow} key={`${o.label}-${idx}`}>
-                    <View style={styles.obDot} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.obLabel}>{o.label}</Text>
-                      <Text style={styles.obTime}>
-                        {fmt12(o.start)} – {fmt12(o.end)}
-                      </Text>
+              {/* Workout window — default-level, so only on "All days". */}
+              {scope === 'all' ? (
+                <View style={styles.section}>
+                  <View style={styles.sectionHead}>
+                    <View style={styles.sectionTitleWrap}>
+                      <Ionicons name="barbell-outline" size={16} color={colors.foreground} />
+                      <Text style={styles.sectionTitle}>Workout window</Text>
                     </View>
-                    <TouchableOpacity
-                      onPress={() => removeObligation(idx)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="close-circle" size={20} color={colors.textMuted} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-
-                <View style={styles.addBox}>
-                  <TextInput
-                    style={styles.addInput}
-                    value={obLabel}
-                    onChangeText={setObLabel}
-                    placeholder="What is it? (e.g. commute)"
-                    placeholderTextColor={colors.textMuted}
-                    returnKeyType="done"
-                  />
-                  <View style={styles.addSlider}>
-                    <TimeRangeSlider
-                      min={OB_MIN}
-                      max={OB_MAX}
-                      value={obRange}
-                      onChange={setObRange}
-                      format={fmtAbs}
-                      accent="#f59e0b"
-                      ticksEvery={180}
+                    <Segmented
+                      compact
+                      options={[
+                        { key: 'auto', label: 'Auto' },
+                        { key: 'set', label: 'Set window' },
+                      ]}
+                      value={d.workoutWindow ? 'set' : 'auto'}
+                      onChange={(k) => toggleWorkout(k === 'set')}
                     />
                   </View>
-                  <TouchableOpacity
-                    style={[styles.addBtn, obRange[1] <= obRange[0] && styles.addBtnOff]}
-                    onPress={addObligation}
-                    disabled={obRange[1] <= obRange[0]}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="add" size={18} color={colors.foreground} />
-                    <Text style={styles.addBtnText}>Add obligation</Text>
-                  </TouchableOpacity>
+                  {d.workoutWindow ? (
+                    <>
+                      <TimeRangeSlider
+                        min={WORKOUT_MIN}
+                        max={WORKOUT_MAX}
+                        value={[toMin(d.workoutWindow[0]), toMin(d.workoutWindow[1])]}
+                        onChange={setWorkout}
+                        format={fmtAbs}
+                        accent="#22c55e"
+                      />
+                      <Text style={styles.hint}>
+                        Max fits your workout between {fmt12Compact(d.workoutWindow[0])} and{' '}
+                        {fmt12Compact(d.workoutWindow[1])}.
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={styles.autoHint}>
+                      Max slots lifts, stretches & post-workout fuel into a free part of your day.
+                    </Text>
+                  )}
                 </View>
-              </View>
+              ) : null}
 
               {scope !== 'all' && overridden ? (
                 <TouchableOpacity style={styles.resetBtn} onPress={reset} activeOpacity={0.7}>
@@ -576,49 +465,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.borderLight,
     marginTop: spacing.lg,
   },
-  obRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 9,
-    marginTop: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderLight,
-  },
-  obDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#f59e0b', marginRight: 12 },
-  obLabel: { fontSize: 14.5, color: colors.foreground, fontWeight: '500', letterSpacing: 0.05 },
-  obTime: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
-  addBox: {
-    marginTop: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: spacing.md,
-  },
-  addInput: {
-    backgroundColor: colors.card,
-    borderRadius: 10,
-    paddingVertical: 11,
-    paddingHorizontal: 14,
-    color: colors.foreground,
-    fontSize: 15,
-    fontWeight: '500',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  addSlider: { marginTop: spacing.md, marginBottom: 2 },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: spacing.sm,
-    paddingVertical: 11,
-    borderRadius: borderRadius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.foreground,
-    backgroundColor: colors.card,
-  },
-  addBtnOff: { opacity: 0.4 },
-  addBtnText: { fontSize: 13.5, fontWeight: '600', color: colors.foreground, letterSpacing: 0.2 },
   resetBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,48 +1,52 @@
 /**
- * WeekCanvas — the whole week at a glance, as a Google-Calendar-style board.
+ * WeekCanvas — the whole week at a glance, as a calendar-style board.
  *
  * No tab-switching: every day is its own lane, all visible together on one
  * shared time axis (4 AM → 4 AM, so late bedtimes sit naturally on the right).
- * Unlike an abstract glow, every mark here is a REAL thing the schedule tracks:
+ * Every mark is a REAL thing the schedule tracks:
  *
- *   • a faint "asleep" wash on the night ends (a moon marks the long one),
- *   • soft warm/cool BUFFER washes over the wake & sleep RANGES — the open
- *     white core between them is the "definitely awake" window the AI builds
- *     around (it matches the backend's guaranteed-awake anchors exactly),
- *   • solid, labelled blocks for the fixed things: Work, each Obligation,
- *     your Workout and Get-ready — drawn like calendar events.
+ *   • a soft "asleep" gradient washes in from each night edge (a moon marks the
+ *     long one),
+ *   • warm/cool buffer washes sit over the wake & sleep RANGES — the open core
+ *     between them is the "definitely awake" window the AI builds around,
+ *   • rounded, gradient-filled blocks for the fixed things: each commitment
+ *     (work, class, commute…), your Workout window and Get-ready — drawn like
+ *     polished calendar events.
  *
- * The open white space inside the awake core is deliberate: that's the free
- * time Max drops your skin / hair / mewing / training routines into. Editing a
- * day here rewrites onboarding, which regenerates every Max schedule — so what
- * you see is exactly what the AI plans around.
+ * Obligations are day-scoped: a weekday lane shows only the commitments that
+ * actually land on it, while the "Everyday" base lane shows the ones that recur
+ * on every single day. The workout WINDOW is a default-level preference, so it
+ * appears on every lane.
  *
- * The first lane is "Everyday" (your base rhythm). Weekday lanes show the
- * effective day (defaults + overrides) and carry a dot when customised.
- * Tapping any lane opens the editor for that scope.
+ * Editing a lane rewrites onboarding, which regenerates every Max schedule — so
+ * what you see is exactly what the AI plans around.
  */
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, DimensionValue, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fonts, spacing } from '../../theme/dark';
 import {
   DayShape,
+  Obligation,
   Scope,
   Weekday,
   WEEKDAYS,
   normCanvas,
   effectiveDay,
   hasOverride,
+  obligationsForDay,
+  obligationColor,
 } from './plannerModel';
 
 const GUTTER = 46;
-const ROW_H = 40;
-const ALL_ROW_H = 46;
+const ROW_H = 42;
+const ALL_ROW_H = 48;
 const LANE_INSET = 3; // top/bottom inset of the day lane within its row
-const BLOCK_INSET = 7; // top/bottom inset of an event block within the row
+const BLOCK_INSET = 6; // top/bottom inset of an event block within the row
 const AXIS_H = 20;
-const LANE_RADIUS = 8;
-const BLOCK_RADIUS = 5;
+const LANE_RADIUS = 10;
+const BLOCK_RADIUS = 7;
 
 // Axis reference marks across the 4 AM → 4 AM window.
 const AXIS_MARKS: { t: string; label: string }[] = [
@@ -52,24 +56,34 @@ const AXIS_MARKS: { t: string; label: string }[] = [
   { t: '00:00', label: '12a' },
 ];
 
-// Event colours map 1:1 to the editor's slider accents, so a block here reads
-// as the same "thing" you dragged in the sheet.
-const WORK = '#3b82f6';
-const OBLIG = '#64748b';
+// Event colours map 1:1 to the editor's slider accents & the obligations list.
 const WORKOUT = '#22c55e';
 const READY = '#06b6d4';
+const OBLIG = '#64748b';
 const SLEEP_INK = '#6366f1';
 
 // Washes (kept faint so blocks and gridlines read through them).
-const LANE = 'rgba(17,17,19,0.028)';
-const ASLEEP = 'rgba(99,102,241,0.09)';
+const LANE = 'rgba(17,17,19,0.022)';
+const LANE_ALL = 'rgba(17,17,19,0.042)';
+const ASLEEP_DEEP = 'rgba(99,102,241,0.17)';
+const ASLEEP_SOFT = 'rgba(99,102,241,0.02)';
 const WAKE_BUF = 'rgba(245,158,11,0.10)';
-const SLEEP_BUF = 'rgba(99,102,241,0.06)';
+const SLEEP_BUF = 'rgba(99,102,241,0.07)';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 const pct = (n: number): DimensionValue => `${(clamp01(n) * 100).toFixed(3)}%` as DimensionValue;
+
+/** Lighten a #rrggbb hex toward white by `amt` (0–1) for a gradient top-stop. */
+function lighten(hex: string, amt: number): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const mix = (c: number) => Math.round(c + (255 - c) * amt);
+  return `rgb(${mix(r)},${mix(g)},${mix(b)})`;
+}
 
 /** A clamped {left,width} fraction pair, or null when too thin to draw. */
 function seg(left: number, width: number, min = 0.0025): { left: number; width: number } | null {
@@ -78,66 +92,66 @@ function seg(left: number, width: number, min = 0.0025): { left: number; width: 
   return w <= min ? null : { left: l, width: w };
 }
 
-type Wash = { left: number; width: number; color: string };
+type Seg = { left: number; width: number } | null;
 
-function washesFor(d: DayShape): { washes: Wash[]; sleepMark: { left: number; width: number } | null } {
+function washesFor(d: DayShape): {
+  asleepLeft: Seg;
+  asleepRight: Seg;
+  wakeBuf: Seg;
+  sleepBuf: Seg;
+  sleepMark: Seg;
+} {
   const wakeE = normCanvas(d.wakeWindow[0]);
   const wakeL = normCanvas(d.wakeWindow[1]);
   const sleepE = normCanvas(d.sleepWindow[0]);
   const sleepL = normCanvas(d.sleepWindow[1]);
 
-  const washes: Wash[] = [];
-  const push = (s: { left: number; width: number } | null, color: string) => {
-    if (s) washes.push({ ...s, color });
-  };
-  // Night on both ends, warm/cool buffers over the chosen ranges, open core.
   const asleepLeft = seg(0, wakeE);
   const asleepRight = seg(sleepL, 1 - sleepL);
-  push(asleepLeft, ASLEEP);
-  push(seg(wakeE, wakeL - wakeE), WAKE_BUF);
-  push(seg(sleepE, sleepL - sleepE), SLEEP_BUF);
-  push(asleepRight, ASLEEP);
+  const wakeBuf = seg(wakeE, wakeL - wakeE);
+  const sleepBuf = seg(sleepE, sleepL - sleepE);
 
-  // Label the wider night block (usually the evening one) with a moon.
   const candidates = [asleepLeft, asleepRight].filter(Boolean) as { left: number; width: number }[];
   candidates.sort((a, b) => b.width - a.width);
   const sleepMark = candidates[0] && candidates[0].width > 0.1 ? candidates[0] : null;
-  return { washes, sleepMark };
+  return { asleepLeft, asleepRight, wakeBuf, sleepBuf, sleepMark };
 }
 
 type Block = { left: number; width: number; color: string; icon?: IconName; label?: string };
 
-function blocksFor(d: DayShape): Block[] {
+function blocksFor(d: DayShape, obs: Obligation[]): Block[] {
   const out: Block[] = [];
   const add = (left: number, width: number, color: string, icon?: IconName, label?: string) => {
     const s = seg(left, width, 0.004);
     if (s) out.push({ ...s, color, icon, label });
   };
-  if (d.workSchedule === 'fixed') {
-    const l = normCanvas(d.workStart);
-    add(l, normCanvas(d.workEnd) - l, WORK, 'briefcase', 'Work');
-  }
-  for (const o of d.obligations) {
+  // Commitments (work, classes, commute…), each in its inferred accent colour.
+  for (const o of obs) {
     const l = normCanvas(o.start);
-    add(l, normCanvas(o.end) - l, OBLIG, undefined, o.label);
+    add(l, normCanvas(o.end) - l, obligationColor(o.label), undefined, o.label);
   }
+  // Get-ready — a small fixed tick around the chosen time.
   if (d.getReadyTime) {
     const c = normCanvas(d.getReadyTime);
-    add(c - 0.021, 0.042, READY, 'water');
+    add(c - 0.025, 0.05, READY, 'water');
   }
-  if (d.workoutTime) {
-    const c = normCanvas(d.workoutTime);
-    add(c - 0.027, 0.054, WORKOUT, 'barbell');
+  // Workout WINDOW (default-level) — drawn on every lane.
+  if (d.workoutWindow) {
+    const l = normCanvas(d.workoutWindow[0]);
+    add(l, normCanvas(d.workoutWindow[1]) - l, WORKOUT, 'barbell', 'Workout');
   }
   return out;
 }
 
 function EventBlock({ b, rowH }: { b: Block; rowH: number }) {
-  const wide = b.width >= 0.13;
+  const wide = b.width >= 0.12;
   const mid = b.width >= 0.05;
   return (
-    <View
+    <LinearGradient
       pointerEvents="none"
+      colors={[lighten(b.color, 0.18), b.color]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0.6, y: 1 }}
       style={[
         styles.block,
         {
@@ -145,10 +159,11 @@ function EventBlock({ b, rowH }: { b: Block; rowH: number }) {
           height: rowH - BLOCK_INSET * 2 - LANE_INSET,
           left: pct(b.left),
           width: pct(b.width),
-          backgroundColor: b.color,
         },
       ]}
     >
+      {/* Thin top highlight for a glassy, calendar-event feel. */}
+      <View pointerEvents="none" style={styles.blockSheen} />
       {wide && b.label ? (
         <View style={styles.blockLabelRow}>
           {b.icon ? <Ionicons name={b.icon} size={9.5} color="#fff" style={{ marginRight: 3 }} /> : null}
@@ -159,7 +174,7 @@ function EventBlock({ b, rowH }: { b: Block; rowH: number }) {
       ) : mid && b.icon ? (
         <Ionicons name={b.icon} size={11} color="#fff" />
       ) : null}
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -167,6 +182,7 @@ function DayRow({
   label,
   sublabel,
   day,
+  obligations,
   overridden,
   isAll,
   onPress,
@@ -174,20 +190,17 @@ function DayRow({
   label: string;
   sublabel?: string;
   day: DayShape;
+  obligations: Obligation[];
   overridden: boolean;
   isAll: boolean;
   onPress: () => void;
 }) {
   const rowH = isAll ? ALL_ROW_H : ROW_H;
-  const { washes, sleepMark } = washesFor(day);
-  const blocks = blocksFor(day);
+  const { asleepLeft, asleepRight, wakeBuf, sleepBuf, sleepMark } = washesFor(day);
+  const blocks = blocksFor(day, obligations);
 
   return (
-    <TouchableOpacity
-      style={[styles.row, { height: rowH }]}
-      activeOpacity={0.65}
-      onPress={onPress}
-    >
+    <TouchableOpacity style={[styles.row, { height: rowH }]} activeOpacity={0.65} onPress={onPress}>
       <View style={[styles.gutter, { width: GUTTER }]}>
         <Text style={[styles.dayLabel, isAll && styles.allLabel]} numberOfLines={1}>
           {label}
@@ -198,14 +211,38 @@ function DayRow({
 
       <View style={styles.track}>
         <View style={[styles.lane, isAll && styles.laneAll]}>
-          {/* Sleep / range washes — the "off" and "maybe" parts of the day. */}
-          {washes.map((w, i) => (
-            <View
-              key={`w${i}`}
+          {/* Night gradients fading in from each edge (dusk / dawn). */}
+          {asleepLeft ? (
+            <LinearGradient
               pointerEvents="none"
-              style={{ position: 'absolute', top: 0, bottom: 0, left: pct(w.left), width: pct(w.width), backgroundColor: w.color }}
+              colors={[ASLEEP_DEEP, ASLEEP_SOFT]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ position: 'absolute', top: 0, bottom: 0, left: pct(asleepLeft.left), width: pct(asleepLeft.width) }}
             />
-          ))}
+          ) : null}
+          {asleepRight ? (
+            <LinearGradient
+              pointerEvents="none"
+              colors={[ASLEEP_SOFT, ASLEEP_DEEP]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ position: 'absolute', top: 0, bottom: 0, left: pct(asleepRight.left), width: pct(asleepRight.width) }}
+            />
+          ) : null}
+          {/* Soft buffer washes over the wake / sleep ranges. */}
+          {wakeBuf ? (
+            <View
+              pointerEvents="none"
+              style={{ position: 'absolute', top: 0, bottom: 0, left: pct(wakeBuf.left), width: pct(wakeBuf.width), backgroundColor: WAKE_BUF }}
+            />
+          ) : null}
+          {sleepBuf ? (
+            <View
+              pointerEvents="none"
+              style={{ position: 'absolute', top: 0, bottom: 0, left: pct(sleepBuf.left), width: pct(sleepBuf.width), backgroundColor: SLEEP_BUF }}
+            />
+          ) : null}
 
           {/* Moon on the long night block. */}
           {sleepMark ? (
@@ -213,12 +250,12 @@ function DayRow({
               pointerEvents="none"
               style={[styles.sleepMark, { left: pct(sleepMark.left), width: pct(sleepMark.width) }]}
             >
-              <Ionicons name="moon" size={11} color={SLEEP_INK} style={{ opacity: 0.55 }} />
+              <Ionicons name="moon" size={11} color={SLEEP_INK} style={{ opacity: 0.5 }} />
               {sleepMark.width > 0.2 ? <Text style={styles.sleepText}>Sleep</Text> : null}
             </View>
           ) : null}
 
-          {/* Solid calendar blocks for the fixed, tracked things. */}
+          {/* Gradient calendar blocks for the fixed, tracked things. */}
           {blocks.map((b, i) => (
             <EventBlock key={`b${i}`} b={b} rowH={rowH} />
           ))}
@@ -236,12 +273,17 @@ function LegendSwatch({ color, sleep }: { color?: string; sleep?: boolean }) {
 export default function WeekCanvas({
   defaults,
   weekly,
+  obligations,
   onEditScope,
 }: {
   defaults: DayShape;
   weekly: Partial<Record<Weekday, Partial<DayShape>>>;
+  obligations: Obligation[];
   onEditScope: (scope: Scope) => void;
 }) {
+  // The base "Everyday" lane shows commitments that recur on EVERY day.
+  const everydayObs = obligations.filter((o) => o.days === 'all');
+
   return (
     <View style={styles.wrap}>
       {/* Axis header — labels line up with the gridlines below. */}
@@ -268,6 +310,7 @@ export default function WeekCanvas({
           label="Everyday"
           sublabel="BASE"
           day={defaults}
+          obligations={everydayObs}
           overridden={false}
           isAll
           onPress={() => onEditScope('all')}
@@ -278,6 +321,7 @@ export default function WeekCanvas({
             key={w.key}
             label={w.short}
             day={effectiveDay(defaults, weekly, w.key)}
+            obligations={obligationsForDay(obligations, w.key)}
             overridden={hasOverride(weekly, w.key)}
             isAll={false}
             onPress={() => onEditScope(w.key)}
@@ -292,12 +336,8 @@ export default function WeekCanvas({
           <Text style={styles.legendText}>asleep</Text>
         </View>
         <View style={styles.legendItem}>
-          <LegendSwatch color={WORK} />
-          <Text style={styles.legendText}>work</Text>
-        </View>
-        <View style={styles.legendItem}>
           <LegendSwatch color={OBLIG} />
-          <Text style={styles.legendText}>obligation</Text>
+          <Text style={styles.legendText}>commitment</Text>
         </View>
         <View style={styles.legendItem}>
           <LegendSwatch color={WORKOUT} />
@@ -373,21 +413,30 @@ const styles = StyleSheet.create({
     backgroundColor: LANE,
     overflow: 'hidden',
   },
-  laneAll: { backgroundColor: 'rgba(17,17,19,0.045)' },
+  laneAll: { backgroundColor: LANE_ALL },
   block: {
     position: 'absolute',
     borderRadius: BLOCK_RADIUS,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
+    overflow: 'hidden',
     ...(Platform.OS === 'ios'
       ? {
           shadowColor: '#0a0a0b',
-          shadowOpacity: 0.12,
-          shadowRadius: 2,
+          shadowOpacity: 0.16,
+          shadowRadius: 3,
           shadowOffset: { width: 0, height: 1 },
         }
-      : {}),
+      : { elevation: 2 }),
+  },
+  blockSheen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '45%',
+    backgroundColor: 'rgba(255,255,255,0.16)',
   },
   blockLabelRow: { flexDirection: 'row', alignItems: 'center', maxWidth: '100%' },
   blockLabel: {
@@ -424,7 +473,7 @@ const styles = StyleSheet.create({
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendSwatch: { width: 11, height: 11, borderRadius: 3 },
-  legendSleep: { backgroundColor: ASLEEP, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(99,102,241,0.35)' },
+  legendSleep: { backgroundColor: ASLEEP_DEEP, borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(99,102,241,0.35)' },
   legendText: { fontSize: 10.5, color: colors.textMuted, letterSpacing: 0.2 },
   footnote: {
     fontSize: 11.5,

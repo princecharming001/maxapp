@@ -1,20 +1,29 @@
 /**
  * Pure model + time helpers for the week planner.
  *
- * The UI works in terms of WINDOWS — wake and sleep are each a [start, end]
- * range. A range collapsed to a single point (start === end) means "an exact
- * time". Everything is persisted into the user's onboarding so the schedule
- * generator and coach see it:
+ * The UI works in terms of WINDOWS — wake, sleep and the workout are each a
+ * [start, end] range. A wake/sleep range collapsed to a single point
+ * (start === end) means "an exact time". Everything is persisted into the
+ * user's onboarding so the schedule generator and coach see it:
  *   - wake_time / sleep_time  → single anchors the backend already understands
  *                               (we send the window MIDPOINT so the scheduler
  *                               builds around the expected time)
  *   - wake_window / sleep_window → the [start,end] arrays, so the planner can
  *                               redraw the exact range the user chose
- * Per-weekday overrides live in onboarding.weekly_timings (presence-based: a
- * day only stores the fields it changes; everything else inherits defaults).
+ *   - preferred_workout_window → [start,end] the scheduler slots the workout in
+ *                               (with preferred_workout_time kept as its midpoint
+ *                               for back-compat with the single-anchor scheduler)
+ *
+ * Obligations are a SINGLE GLOBAL list — there is no separate "work schedule";
+ * work/school is just an obligation. Each obligation carries a `days`
+ * recurrence ("all" | "weekdays" | "weekends" | a list of weekdays) so a
+ * commitment can land on only the days it actually happens.
+ *
+ * Per-weekday timing overrides live in onboarding.weekly_timings (presence-based:
+ * a day only stores the wake/sleep/get-ready fields it changes; everything else
+ * inherits the defaults). The workout window and obligations are default/global
+ * level only — they are not per-weekday overrides.
  */
-
-export type Obligation = { label: string; start: string; end: string };
 
 export type Weekday =
   | 'monday'
@@ -27,15 +36,28 @@ export type Weekday =
 
 export type Scope = 'all' | Weekday;
 
+/**
+ * An obligation's recurrence. Canonical forms mirror the backend `_norm_days`:
+ *   'all'       → every day
+ *   'weekdays'  → Mon–Fri
+ *   'weekends'  → Sat–Sun
+ *   Weekday[]   → a specific, chronologically-sorted set (e.g. Mon/Wed/Fri)
+ */
+export type DayRecurrence = 'all' | 'weekdays' | 'weekends' | Weekday[];
+
+export type Obligation = {
+  label: string;
+  start: string;
+  end: string;
+  days: DayRecurrence;
+};
+
 export type DayShape = {
   wakeWindow: [string, string];
   sleepWindow: [string, string];
   getReadyTime: string | null;
-  workoutTime: string | null;
-  workSchedule: 'fixed' | 'flexible' | null;
-  workStart: string;
-  workEnd: string;
-  obligations: Obligation[];
+  /** Default-level only — the scheduler slots the workout into this window. */
+  workoutWindow: [string, string] | null;
 };
 
 export const WEEKDAYS: { key: Weekday; short: string; letter: string; long: string }[] = [
@@ -48,7 +70,10 @@ export const WEEKDAYS: { key: Weekday; short: string; letter: string; long: stri
   { key: 'sunday', short: 'Sun', letter: 'S', long: 'Sunday' },
 ];
 
-export const WEEKDAY_KEYS = WEEKDAYS.map((w) => w.key);
+export const WEEKDAY_KEYS: Weekday[] = WEEKDAYS.map((w) => w.key);
+
+const MF: Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+const SS: Weekday[] = ['saturday', 'sunday'];
 
 // --------------------------------------------------------------------------- //
 //  Time helpers                                                               //
@@ -71,6 +96,16 @@ export function minToHHMM(min: number): string {
   const m = ((Math.round(min) % 1440) + 1440) % 1440;
   const h = Math.floor(m / 60);
   return `${String(h).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+/** Canonicalise a loose 'H:MM' to zero-padded 'HH:MM'. */
+export function canonHHMM(s: string): string {
+  return minToHHMM(toMin(s));
+}
+
+/** Shift an 'HH:MM' clock by `delta` minutes (wraps within a day). */
+export function addMinutes(s: string, delta: number): string {
+  return minToHHMM(toMin(s) + delta);
 }
 
 /** 24h 'HH:MM' → friendly 12h, e.g. '7:30 AM'. */
@@ -122,6 +157,118 @@ export function normCanvas(s: string): number {
 }
 
 // --------------------------------------------------------------------------- //
+//  Day-recurrence helpers (mirror backend api.users._norm_days)               //
+// --------------------------------------------------------------------------- //
+
+const DAY_ALIASES: Record<string, Weekday> = {
+  mon: 'monday', monday: 'monday',
+  tue: 'tuesday', tues: 'tuesday', tuesday: 'tuesday',
+  wed: 'wednesday', weds: 'wednesday', wednesday: 'wednesday',
+  thu: 'thursday', thur: 'thursday', thurs: 'thursday', thursday: 'thursday',
+  fri: 'friday', friday: 'friday',
+  sat: 'saturday', saturday: 'saturday',
+  sun: 'sunday', sunday: 'sunday',
+};
+
+function sameSet(set: Set<Weekday>, arr: Weekday[]): boolean {
+  return set.size === arr.length && arr.every((d) => set.has(d));
+}
+
+/**
+ * Normalise an obligation's `days` recurrence to a canonical form, mirroring the
+ * backend. Accepts fuzzy tokens ("everyday", "wknd"), day abbreviations ("mon"),
+ * and lists mixing names + tokens. A full Mon–Fri / Sat–Sun / 7-day set collapses
+ * back to its token. Anything unrecognised falls back to "all" so a commitment is
+ * never silently dropped from every day.
+ */
+export function normDays(v: any): DayRecurrence {
+  if (typeof v === 'string') {
+    const t = v.trim().toLowerCase();
+    if (['', 'all', 'everyday', 'every day', 'daily', 'any', 'every'].includes(t)) return 'all';
+    if (['weekday', 'weekdays', 'wkday', 'wkdays'].includes(t)) return 'weekdays';
+    if (['weekend', 'weekends', 'wknd', 'wknds'].includes(t)) return 'weekends';
+    const d = DAY_ALIASES[t];
+    return d ? [d] : 'all';
+  }
+  if (Array.isArray(v)) {
+    const acc = new Set<Weekday>();
+    for (const it of v) {
+      if (typeof it !== 'string') continue;
+      const t = it.trim().toLowerCase();
+      if (t === 'weekday' || t === 'weekdays') MF.forEach((d) => acc.add(d));
+      else if (t === 'weekend' || t === 'weekends') SS.forEach((d) => acc.add(d));
+      else if (t === 'all' || t === 'everyday' || t === 'daily') WEEKDAY_KEYS.forEach((d) => acc.add(d));
+      else {
+        const d = DAY_ALIASES[t];
+        if (d) acc.add(d);
+      }
+    }
+    if (acc.size === 0 || acc.size === 7) return 'all';
+    if (sameSet(acc, MF)) return 'weekdays';
+    if (sameSet(acc, SS)) return 'weekends';
+    return WEEKDAY_KEYS.filter((k) => acc.has(k)); // chronological order
+  }
+  return 'all';
+}
+
+/** Does an obligation with this recurrence apply on the given weekday? */
+export function obligationAppliesTo(days: DayRecurrence, day: Weekday): boolean {
+  if (days === 'all') return true;
+  if (days === 'weekdays') return MF.includes(day);
+  if (days === 'weekends') return SS.includes(day);
+  if (Array.isArray(days)) return days.includes(day);
+  return true;
+}
+
+/** The obligations that land on `day`, sorted chronologically by start time. */
+export function obligationsForDay(obs: Obligation[], day: Weekday): Obligation[] {
+  return obs
+    .filter((o) => obligationAppliesTo(o.days, day))
+    .sort((a, b) => toMin(a.start) - toMin(b.start));
+}
+
+/** A stable string key for a recurrence (for dedupe / equality). */
+export function daysKey(days: DayRecurrence): string {
+  return Array.isArray(days) ? days.join(',') : days;
+}
+
+/**
+ * A calendar accent colour inferred from an obligation's label, so a "Work"
+ * block reads blue, a class violet, a commute amber, etc. (Green stays reserved
+ * for the workout.) Used by both the obligations list and the week canvas.
+ */
+export function obligationColor(label: string): string {
+  const l = (label || '').trim().toLowerCase();
+  if (/(work|job|office|shift|meeting)/.test(l)) return '#3b82f6';
+  if (/(school|class|lecture|lab|study|seminar|course|college)/.test(l)) return '#8b5cf6';
+  if (/(commute|drive|bus|travel|transit|carpool)/.test(l)) return '#f59e0b';
+  return '#64748b';
+}
+
+/** Human-readable label for a recurrence, e.g. 'Weekdays', 'Mon, Wed, Fri'. */
+export function daysLabel(days: DayRecurrence): string {
+  if (days === 'all') return 'Every day';
+  if (days === 'weekdays') return 'Weekdays';
+  if (days === 'weekends') return 'Weekends';
+  if (Array.isArray(days)) {
+    if (days.length === 0) return 'Every day';
+    if (days.length === 7) return 'Every day';
+    return days.map((d) => WEEKDAYS.find((w) => w.key === d)?.short ?? d).join(', ');
+  }
+  return 'Every day';
+}
+
+/** Normalise a [start, end] HH:MM window. null if invalid or non-positive. */
+export function normWindow(v: any): [string, string] | null {
+  if (!Array.isArray(v) || v.length !== 2) return null;
+  if (!isHHMM(v[0]) || !isHHMM(v[1])) return null;
+  const a = canonHHMM(v[0]);
+  const b = canonHHMM(v[1]);
+  if (toMin(b) <= toMin(a)) return null;
+  return [a, b];
+}
+
+// --------------------------------------------------------------------------- //
 //  Obligations                                                                //
 // --------------------------------------------------------------------------- //
 
@@ -129,11 +276,25 @@ export function normObligations(raw: any): Obligation[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((o: any) => o && typeof o === 'object' && isHHMM(o.start) && isHHMM(o.end))
+    .filter((o: any) => toMin(o.end) > toMin(o.start))
     .map((o: any) => ({
-      label: String(o.label || '').trim() || 'Busy',
-      start: String(o.start),
-      end: String(o.end),
+      label: (String(o.label || 'Busy').trim() || 'Busy').slice(0, 40),
+      start: canonHHMM(o.start),
+      end: canonHHMM(o.end),
+      days: normDays(o.days),
     }));
+}
+
+/** Structural equality for two obligation lists (order-sensitive). */
+export function sameObligations(a: Obligation[], b: Obligation[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every(
+    (o, i) =>
+      o.label === b[i].label &&
+      o.start === b[i].start &&
+      o.end === b[i].end &&
+      daysKey(o.days) === daysKey(b[i].days),
+  );
 }
 
 // --------------------------------------------------------------------------- //
@@ -164,8 +325,23 @@ function reconcileWindow(
   return [a, a];
 }
 
+/**
+ * Resolve the default workout window: an explicit [start,end] wins; otherwise a
+ * legacy single `preferred_workout_time` presents as a 90-minute window; else
+ * null (no workout preference).
+ */
+function hydrateWorkoutWindow(ob: Record<string, any>): [string, string] | null {
+  const win = normWindow(ob.preferred_workout_window);
+  if (win) return win;
+  if (isHHMM(ob.preferred_workout_time)) {
+    const t = canonHHMM(ob.preferred_workout_time);
+    return [t, addMinutes(t, 90)];
+  }
+  return null;
+}
+
 // --------------------------------------------------------------------------- //
-//  Hydrate onboarding (snake_case) → DayShape / weekly overrides              //
+//  Hydrate onboarding (snake_case) → DayShape / obligations / weekly overrides //
 // --------------------------------------------------------------------------- //
 
 export function hydrateDayShape(ob: Record<string, any>): DayShape {
@@ -173,16 +349,56 @@ export function hydrateDayShape(ob: Record<string, any>): DayShape {
     wakeWindow: reconcileWindow(ob.wake_window, ob.wake_time, '07:00', false),
     sleepWindow: reconcileWindow(ob.sleep_window, ob.sleep_time, '23:00', true),
     getReadyTime: isHHMM(ob.get_ready_time) ? ob.get_ready_time : null,
-    workoutTime: isHHMM(ob.preferred_workout_time) ? ob.preferred_workout_time : null,
-    workSchedule:
-      ob.work_schedule === 'fixed' || ob.work_schedule === 'flexible' ? ob.work_schedule : null,
-    workStart: isHHMM(ob.work_start) ? ob.work_start : '09:00',
-    workEnd: isHHMM(ob.work_end) ? ob.work_end : '17:00',
-    obligations: normObligations(ob.obligations),
+    workoutWindow: hydrateWorkoutWindow(ob),
   };
 }
 
-/** One weekday override (snake_case, only-changed-fields) → Partial<DayShape>. */
+/**
+ * The single GLOBAL obligations list. Reads the top-level `obligations`, folds
+ * in any legacy per-weekday obligations (scoped to that weekday so nothing the
+ * user set is lost), and migrates a legacy fixed work block
+ * (work_schedule/work_start/work_end) into a weekday "Work" obligation.
+ */
+export function hydrateObligations(ob: Record<string, any>): Obligation[] {
+  if (!ob || typeof ob !== 'object') return [];
+  const out: Obligation[] = normObligations(ob.obligations);
+  const seen = new Set(out.map((o) => `${o.label}|${o.start}|${o.end}|${daysKey(o.days)}`));
+
+  // Fold legacy per-day obligations (old wholesale-per-day model) into the
+  // global list, scoped to their specific weekday.
+  const weekly = ob.weekly_timings;
+  if (weekly && typeof weekly === 'object') {
+    for (const { key } of WEEKDAYS) {
+      const dr = weekly[key];
+      if (!dr || typeof dr !== 'object') continue;
+      for (const o of normObligations(dr.obligations)) {
+        const scoped: Obligation = { ...o, days: [key] };
+        const sig = `${scoped.label}|${scoped.start}|${scoped.end}|${daysKey(scoped.days)}`;
+        if (!seen.has(sig)) {
+          seen.add(sig);
+          out.push(scoped);
+        }
+      }
+    }
+  }
+
+  // Migrate a legacy fixed work block → weekday "Work" obligation (unless a
+  // work/school obligation already exists).
+  const hasWork = out.some((o) => ['work', 'school'].includes(o.label.trim().toLowerCase()));
+  if (ob.work_schedule === 'fixed' && isHHMM(ob.work_start) && isHHMM(ob.work_end) && !hasWork) {
+    out.push({
+      label: 'Work',
+      start: canonHHMM(ob.work_start),
+      end: canonHHMM(ob.work_end),
+      days: 'weekdays',
+    });
+  }
+  return out;
+}
+
+/** One weekday override (snake_case, only-changed-fields) → Partial<DayShape>.
+ *  Weekly overrides only carry wake/sleep/get-ready; workout + obligations are
+ *  global, so they are intentionally not read here. */
 export function dayPartialFromServer(raw: Record<string, any>): Partial<DayShape> {
   const p: Partial<DayShape> = {};
   if (!raw || typeof raw !== 'object') return p;
@@ -193,14 +409,6 @@ export function dayPartialFromServer(raw: Record<string, any>): Partial<DayShape
     p.sleepWindow = reconcileWindow(raw.sleep_window, raw.sleep_time, raw.sleep_time || '23:00', true);
   }
   if ('get_ready_time' in raw) p.getReadyTime = isHHMM(raw.get_ready_time) ? raw.get_ready_time : null;
-  if ('preferred_workout_time' in raw)
-    p.workoutTime = isHHMM(raw.preferred_workout_time) ? raw.preferred_workout_time : null;
-  if ('work_schedule' in raw)
-    p.workSchedule =
-      raw.work_schedule === 'fixed' || raw.work_schedule === 'flexible' ? raw.work_schedule : null;
-  if ('work_start' in raw) p.workStart = isHHMM(raw.work_start) ? raw.work_start : '09:00';
-  if ('work_end' in raw) p.workEnd = isHHMM(raw.work_end) ? raw.work_end : '17:00';
-  if ('obligations' in raw) p.obligations = normObligations(raw.obligations);
   return p;
 }
 
@@ -220,14 +428,16 @@ export function hydrateWeekly(
 }
 
 // --------------------------------------------------------------------------- //
-//  Serialise DayShape / overrides → onboarding (snake_case)                   //
+//  Serialise DayShape / obligations / overrides → onboarding (snake_case)     //
 // --------------------------------------------------------------------------- //
 
-function obsToServer(obs: Obligation[]): Record<string, string>[] {
-  return obs.map((o) => ({ label: o.label, start: o.start, end: o.end }));
+/** The global obligations list → the snake_case array the backend stores. */
+export function obligationsToServer(obs: Obligation[]): Record<string, any>[] {
+  return obs.map((o) => ({ label: o.label, start: o.start, end: o.end, days: o.days }));
 }
 
-/** Full default day → all the snake_case fields onboarding expects. */
+/** Full default day → all the snake_case fields onboarding expects. Obligations
+ *  are global and serialised separately (see obligationsToServer). */
 export function dayShapeToServer(d: DayShape): Record<string, any> {
   return {
     wake_time: windowMid(d.wakeWindow, false),
@@ -235,15 +445,13 @@ export function dayShapeToServer(d: DayShape): Record<string, any> {
     wake_window: [d.wakeWindow[0], d.wakeWindow[1]],
     sleep_window: [d.sleepWindow[0], d.sleepWindow[1]],
     get_ready_time: d.getReadyTime || null,
-    preferred_workout_time: d.workoutTime || null,
-    work_schedule: d.workSchedule || null,
-    work_start: d.workSchedule === 'fixed' ? d.workStart : null,
-    work_end: d.workSchedule === 'fixed' ? d.workEnd : null,
-    obligations: obsToServer(d.obligations),
+    preferred_workout_window: d.workoutWindow ? [d.workoutWindow[0], d.workoutWindow[1]] : null,
+    // Keep the single scalar in sync (midpoint) for the single-anchor scheduler.
+    preferred_workout_time: d.workoutWindow ? windowMid(d.workoutWindow, false) : null,
   };
 }
 
-/** Presence-based: only the fields this day actually overrides. */
+/** Presence-based: only the fields this day actually overrides (wake/sleep/get-ready). */
 export function dayPartialToServer(p: Partial<DayShape>): Record<string, any> {
   const o: Record<string, any> = {};
   if ('wakeWindow' in p && p.wakeWindow) {
@@ -255,11 +463,6 @@ export function dayPartialToServer(p: Partial<DayShape>): Record<string, any> {
     o.sleep_window = [p.sleepWindow[0], p.sleepWindow[1]];
   }
   if ('getReadyTime' in p) o.get_ready_time = p.getReadyTime || null;
-  if ('workoutTime' in p) o.preferred_workout_time = p.workoutTime || null;
-  if ('workSchedule' in p) o.work_schedule = p.workSchedule || null;
-  if ('workStart' in p) o.work_start = p.workStart;
-  if ('workEnd' in p) o.work_end = p.workEnd;
-  if ('obligations' in p) o.obligations = obsToServer(p.obligations || []);
   return o;
 }
 
@@ -302,15 +505,11 @@ export function isExact(win: [string, string]): boolean {
 //  Diff an edited day against the base, to build a minimal weekday override.   //
 //  Only fields that genuinely differ are kept, so a day that's edited back to  //
 //  match the base transparently re-inherits it (no stale pin left behind).     //
+//  Workout + obligations are global, so they are never part of a day override. //
 // --------------------------------------------------------------------------- //
 
 function winEq(a: [string, string], b: [string, string]): boolean {
   return a[0] === b[0] && a[1] === b[1];
-}
-
-function obsEq(a: Obligation[], b: Obligation[]): boolean {
-  if (a.length !== b.length) return false;
-  return a.every((o, i) => o.label === b[i].label && o.start === b[i].start && o.end === b[i].end);
 }
 
 export function diffDayShape(base: DayShape, day: DayShape): Partial<DayShape> {
@@ -318,14 +517,5 @@ export function diffDayShape(base: DayShape, day: DayShape): Partial<DayShape> {
   if (!winEq(day.wakeWindow, base.wakeWindow)) p.wakeWindow = day.wakeWindow;
   if (!winEq(day.sleepWindow, base.sleepWindow)) p.sleepWindow = day.sleepWindow;
   if (day.getReadyTime !== base.getReadyTime) p.getReadyTime = day.getReadyTime;
-  if (day.workoutTime !== base.workoutTime) p.workoutTime = day.workoutTime;
-  if (day.workSchedule !== base.workSchedule) p.workSchedule = day.workSchedule;
-  // Whenever a day IS fixed-hours, carry its hours into the override (so a day
-  // that newly becomes "fixed" never inherits null/again-flexible base hours).
-  if (day.workSchedule === 'fixed') {
-    if (base.workSchedule !== 'fixed' || day.workStart !== base.workStart) p.workStart = day.workStart;
-    if (base.workSchedule !== 'fixed' || day.workEnd !== base.workEnd) p.workEnd = day.workEnd;
-  }
-  if (!obsEq(day.obligations, base.obligations)) p.obligations = day.obligations;
   return p;
 }

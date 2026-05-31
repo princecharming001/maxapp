@@ -675,6 +675,20 @@ _DEFAULT_TIME_FIELDS = (
     "preferred_workout_time", "work_start", "work_end",
 )
 
+# Obligation `days` recurrence — canonical tokens + the weekday-name vocabulary.
+_WEEKDAYS_MF = frozenset(_WEEKDAY_KEYS[:5])
+_WEEKENDS_SS = frozenset(_WEEKDAY_KEYS[5:])
+_WEEKDAY_SET = frozenset(_WEEKDAY_KEYS)
+_DAY_ALIASES = {
+    "mon": "monday", "monday": "monday",
+    "tue": "tuesday", "tues": "tuesday", "tuesday": "tuesday",
+    "wed": "wednesday", "weds": "wednesday", "wednesday": "wednesday",
+    "thu": "thursday", "thur": "thursday", "thurs": "thursday", "thursday": "thursday",
+    "fri": "friday", "friday": "friday",
+    "sat": "saturday", "saturday": "saturday",
+    "sun": "sunday", "sunday": "sunday",
+}
+
 
 def _norm_hhmm(v) -> Optional[str]:
     """Coerce a value to canonical 'HH:MM' 24h, or None if not a valid clock."""
@@ -686,8 +700,79 @@ def _norm_hhmm(v) -> Optional[str]:
     return f"{int(m.group(1)):02d}:{m.group(2)}"
 
 
+def _add_minutes(hhmm: str, delta: int) -> str:
+    """Shift an 'HH:MM' clock by `delta` minutes, wrapping within a day."""
+    total = (int(hhmm[:2]) * 60 + int(hhmm[3:5]) + delta) % 1440
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def _window_mid(win: List[str]) -> str:
+    """Midpoint 'HH:MM' of a [start, end] window (both canonical HH:MM)."""
+    a = int(win[0][:2]) * 60 + int(win[0][3:5])
+    b = int(win[1][:2]) * 60 + int(win[1][3:5])
+    mid = (a + b) // 2
+    return f"{mid // 60:02d}:{mid % 60:02d}"
+
+
+def _norm_window(v) -> Optional[List[str]]:
+    """Normalize a [start, end] HH:MM window. None if invalid or non-positive."""
+    if not isinstance(v, (list, tuple)) or len(v) != 2:
+        return None
+    a = _norm_hhmm(v[0])
+    b = _norm_hhmm(v[1])
+    if not a or not b or b <= a:
+        return None
+    return [a, b]
+
+
+def _norm_days(v) -> object:
+    """Normalize an obligation's `days` recurrence to a canonical form:
+    "all" | "weekdays" | "weekends" | sorted list of weekday names.
+
+    Accepts fuzzy tokens ("everyday", "wknd"), day abbreviations ("mon"), and
+    lists mixing names + tokens. A full Mon-Fri / Sat-Sun / 7-day set collapses
+    back to its token. Anything unrecognized falls back to "all" so a
+    commitment is never silently dropped from every day.
+    """
+    if isinstance(v, str):
+        t = v.strip().lower()
+        if t in ("", "all", "everyday", "every day", "daily", "any", "every"):
+            return "all"
+        if t in ("weekday", "weekdays", "wkday", "wkdays"):
+            return "weekdays"
+        if t in ("weekend", "weekends", "wknd", "wknds"):
+            return "weekends"
+        d = _DAY_ALIASES.get(t)
+        return [d] if d else "all"
+    if isinstance(v, (list, tuple)):
+        acc: set = set()
+        for it in v:
+            if not isinstance(it, str):
+                continue
+            t = it.strip().lower()
+            if t in ("weekday", "weekdays"):
+                acc |= _WEEKDAYS_MF
+            elif t in ("weekend", "weekends"):
+                acc |= _WEEKENDS_SS
+            elif t in ("all", "everyday", "daily"):
+                acc |= _WEEKDAY_SET
+            else:
+                d = _DAY_ALIASES.get(t)
+                if d:
+                    acc.add(d)
+        if not acc or acc == _WEEKDAY_SET:
+            return "all"
+        if acc == _WEEKDAYS_MF:
+            return "weekdays"
+        if acc == _WEEKENDS_SS:
+            return "weekends"
+        return sorted(acc, key=_WEEKDAY_KEYS.index)
+    return "all"
+
+
 def _norm_obligations(raw) -> Optional[List[dict]]:
-    """Normalize an obligations list — drop malformed / zero-length entries."""
+    """Normalize an obligations list — drop malformed / zero-length entries,
+    preserving each item's `days` recurrence (default "all")."""
     if not isinstance(raw, list):
         return None
     out: List[dict] = []
@@ -699,7 +784,7 @@ def _norm_obligations(raw) -> Optional[List[dict]]:
         if not s or not e or e <= s:
             continue
         lbl = (str(it.get("label") or "busy").strip() or "busy")[:40]
-        out.append({"label": lbl, "start": s, "end": e})
+        out.append({"label": lbl, "start": s, "end": e, "days": _norm_days(it.get("days"))})
     return out
 
 
@@ -787,40 +872,47 @@ def _build_planner_prompt(cur_defaults: dict, cur_weekly: dict, instruction: str
         "DATA MODEL\n"
         "- DEFAULTS apply to all 7 days.\n"
         "- PER-WEEKDAY OVERRIDES replace specific fields on specific days (a weekend\n"
-        "  lie-in, a Mon/Wed/Fri class). An override only changes the fields it lists;\n"
+        "  lie-in, a later Monday wake). An override only changes the fields it lists;\n"
         "  any field it omits falls back to the default for that day.\n"
         "- Editing is PRESENCE-BASED: only the fields/days you return are touched.\n"
         "  Everything you omit is kept exactly as it is now.\n\n"
-        "FIELDS (all times are \"HH:MM\", 24-hour):\n"
-        "- wake_time, sleep_time, get_ready_time (shower / get ready), preferred_workout_time\n"
-        "- work_schedule: \"fixed\" or \"flexible\"; work_start, work_end (only meaningful when fixed)\n"
-        "- obligations: a LIST of {label, start, end} fixed commitments to plan around\n\n"
+        "FIELDS\n"
+        "- wake_time, sleep_time, get_ready_time — scalar \"HH:MM\" (24-hour).\n"
+        "- preferred_workout_window — a [\"HH:MM\",\"HH:MM\"] START/END time RANGE reserved\n"
+        "  for working out (NOT a single instant). \"gym at 6pm\" becomes a ~1-hour window\n"
+        "  e.g. [\"18:00\",\"19:00\"]; \"workout 5-7pm\" -> [\"17:00\",\"19:00\"].\n"
+        "- obligations — a LIST of fixed commitments to plan AROUND, each\n"
+        "  {\"label\", \"start\" \"HH:MM\", \"end\" \"HH:MM\", \"days\"}. WORK or SCHOOL is just an\n"
+        "  obligation (e.g. {\"label\":\"Work\",\"start\":\"09:00\",\"end\":\"17:00\",\"days\":\"weekdays\"}).\n"
+        "  `days` is the recurrence — how often that commitment repeats:\n"
+        "    \"all\" (every day), \"weekdays\" (Mon-Fri), \"weekends\" (Sat+Sun),\n"
+        "    or a list of specific lowercase day names, e.g. [\"monday\",\"wednesday\",\"friday\"].\n\n"
         f"CURRENT DEFAULTS:\n{json.dumps(cur_defaults, ensure_ascii=False)}\n\n"
         f"CURRENT PER-WEEKDAY OVERRIDES:\n{json.dumps(cur_weekly, ensure_ascii=False)}\n\n"
         f"USER REQUEST: \"{instruction}\"\n\n"
         "HOW TO INTERPRET\n"
         "- Resolve RELATIVE / FUZZY phrasing against the CURRENT values above. \"sleep in\n"
         "  an hour on weekends\" = current wake_time + 60 min on sat+sun. \"wake a bit\n"
-        "  earlier\" with no amount ~= 30 min earlier. \"workout in the evening\" ~= 18:00,\n"
-        "  \"morning\" ~= 07:00, \"midday/lunch\" ~= 12:00, \"night\" ~= 21:00.\n"
+        "  earlier\" with no amount ~= 30 min earlier. \"workout in the evening\" ~=\n"
+        "  [\"18:00\",\"19:00\"], \"morning\" ~= [\"07:00\",\"08:00\"], \"at lunch\" ~= [\"12:00\",\"13:00\"].\n"
+        "- WHICH DAYS does a commitment repeat on? \"gym Mon Wed Fri\" -> days\n"
+        "  [\"monday\",\"wednesday\",\"friday\"]; \"work 9-5\" (no day said) -> \"weekdays\";\n"
+        "  an everyday routine -> \"all\"; \"on weekends\" -> \"weekends\".\n"
         "- MINIMAL DIFF: return ONLY the fields that actually change. Inside a weekday\n"
         "  override, include ONLY the fields that DIFFER from the default — never echo\n"
-        "  unchanged fields (don't copy sleep_time, work hours, or obligations into a day\n"
-        "  where you're only moving wake_time).\n"
-        "- DEFAULTS vs PER-DAY: if a change applies to ALL 7 days it MUST go in \"defaults\"\n"
-        "  — NEVER enumerate all seven weekdays. Use weekly_timings only for the SUBSET of\n"
-        "  days that differ, one entry per named day. \"weekday\" = monday..friday;\n"
-        "  \"weekend\" = saturday+sunday; never emit a literal \"weekday\"/\"weekend\" key.\n"
-        "- Apply ALL changes in a multi-part request together.\n"
+        "  unchanged fields.\n"
+        "- DEFAULTS vs PER-DAY: a wake / sleep / get-ready / workout change that applies\n"
+        "  to ALL 7 days goes in \"defaults\"; one for only SOME days goes in weekly_timings,\n"
+        "  one entry per named day (NEVER enumerate all seven). Obligations are NOT\n"
+        "  per-day overrides — express their recurrence with each obligation's own `days`\n"
+        "  field and keep the list in defaults.obligations.\n"
         "- obligations is REPLACED wholesale, not merged. To ADD or REMOVE one, return the\n"
-        "  COMPLETE new list (re-listing the existing ones you are keeping). To remove\n"
-        "  every obligation, return []. A per-day obligation change goes on that weekday\n"
-        "  and should include the default obligations you still want that day.\n"
-        "- To CLEAR one field, set it to null. To CLEAR a whole day's overrides, set that\n"
+        "  COMPLETE new list (re-listing the existing ones you keep), each with its `days`.\n"
+        "  To remove every obligation, return [].\n"
+        "- To CLEAR a scalar field, set it to null; to remove the workout, set\n"
+        "  preferred_workout_window to null. To CLEAR a whole day's overrides, set that\n"
         "  day to {}.\n"
-        "- If the user states explicit work hours, set work_schedule \"fixed\" plus\n"
-        "  work_start/work_end. If they say their hours are flexible or they have none,\n"
-        "  set work_schedule \"flexible\".\n"
+        "- Apply ALL changes in a multi-part request together.\n"
         "- Respect what the user asks even if it seems early/late; it's their day. But do\n"
         "  NOT invent commitments, labels, or times they didn't state. Labels <= 3 words.\n"
         "- Make NO changes (return empty defaults and weekly_timings) and explain in the\n"
@@ -835,14 +927,16 @@ def _build_planner_prompt(cur_defaults: dict, cur_weekly: dict, instruction: str
         "EXAMPLES (shape only — real current values vary per user):\n"
         "- \"I sleep in until 10 on weekends\" ->\n"
         "  {\"weekly_timings\":{\"saturday\":{\"wake_time\":\"10:00\"},\"sunday\":{\"wake_time\":\"10:00\"}},\"summary\":\"You'll now wake at 10:00 on Saturday and Sunday.\"}\n"
-        "- \"move my workout to 7pm and shower at 6:30\" (every day) ->\n"
-        "  {\"defaults\":{\"preferred_workout_time\":\"19:00\",\"get_ready_time\":\"06:30\"},\"summary\":\"Workout moved to 7:00 PM and get-ready to 6:30 AM, every day.\"}\n"
-        "- \"add a dentist appt Tuesday 2-3pm\" (current default obligations: Commute 08:15-09:00) ->\n"
-        "  {\"weekly_timings\":{\"tuesday\":{\"obligations\":[{\"label\":\"Commute\",\"start\":\"08:15\",\"end\":\"09:00\"},{\"label\":\"Dentist\",\"start\":\"14:00\",\"end\":\"15:00\"}]}},\"summary\":\"Added a dentist appointment Tuesday 2-3 PM.\"}\n"
-        "- \"I don't have class on Wednesdays anymore\" ->\n"
+        "- \"move my workout to the evening\" ->\n"
+        "  {\"defaults\":{\"preferred_workout_window\":[\"18:00\",\"19:00\"]},\"summary\":\"Moved your workout window to 6-7 PM.\"}\n"
+        "- \"I go to the gym 6-7pm on Mon, Wed and Fri\" (current obligations: Work 09:00-17:00 weekdays) ->\n"
+        "  {\"defaults\":{\"obligations\":[{\"label\":\"Work\",\"start\":\"09:00\",\"end\":\"17:00\",\"days\":\"weekdays\"},{\"label\":\"Gym\",\"start\":\"18:00\",\"end\":\"19:00\",\"days\":[\"monday\",\"wednesday\",\"friday\"]}]},\"summary\":\"Added the gym 6-7 PM on Mon, Wed and Fri.\"}\n"
+        "- \"I work 9 to 5 on weekdays\" (no current obligations) ->\n"
+        "  {\"defaults\":{\"obligations\":[{\"label\":\"Work\",\"start\":\"09:00\",\"end\":\"17:00\",\"days\":\"weekdays\"}]},\"summary\":\"Set work 9-5 on weekdays.\"}\n"
+        "- \"remove my workout\" ->\n"
+        "  {\"defaults\":{\"preferred_workout_window\":null},\"summary\":\"Removed your workout window.\"}\n"
+        "- \"clear my Wednesday changes\" ->\n"
         "  {\"weekly_timings\":{\"wednesday\":{}},\"summary\":\"Cleared your Wednesday overrides.\"}\n"
-        "- \"remove my set workout time\" ->\n"
-        "  {\"defaults\":{\"preferred_workout_time\":null},\"summary\":\"Removed your fixed workout time.\"}\n"
     )
 
 
@@ -872,6 +966,21 @@ def _apply_planner_diff(prev: dict, cur_weekly: dict, parsed: dict) -> bool:
                 changed = True
             # else: model emitted an unparseable time — ignore it rather than
             # silently wiping the user's existing value.
+    if "preferred_workout_window" in d:
+        raw_w = d.get("preferred_workout_window")
+        if raw_w is None:
+            # Explicit null = remove the workout window (and its synced scalar).
+            if prev.get("preferred_workout_window") is not None or prev.get("preferred_workout_time") is not None:
+                changed = True
+            prev["preferred_workout_window"] = None
+            prev["preferred_workout_time"] = None
+        else:
+            nw = _norm_window(raw_w)
+            if nw is not None:
+                prev["preferred_workout_window"] = nw
+                prev["preferred_workout_time"] = _window_mid(nw)  # keep scalar in sync (back-compat)
+                changed = True
+            # else: malformed window — ignore rather than wipe the existing one.
     if "work_schedule" in d:
         ws = d.get("work_schedule")
         prev["work_schedule"] = (
@@ -897,6 +1006,61 @@ def _apply_planner_diff(prev: dict, cur_weekly: dict, parsed: dict) -> bool:
         changed = True
     prev["weekly_timings"] = wk_out or None
     return changed
+
+
+def _migrate_work_to_obligation(prev: dict) -> bool:
+    """Fold a legacy fixed work block (work_schedule/work_start/work_end) into the
+    obligations list as a weekday "Work" item, then drop the legacy work_* fields.
+    Idempotent; mutates `prev`; returns True if anything changed.
+
+    Keeps the planner-chat view consistent with the new "work is just an
+    obligation" model, so an edit can't leave a user with BOTH a work block and a
+    Work obligation (which the scheduler would double-book).
+    """
+    touched = False
+    ws = prev.get("work_schedule")
+    ws = ws.strip().lower() if isinstance(ws, str) else ""
+    start = _norm_hhmm(prev.get("work_start"))
+    end = _norm_hhmm(prev.get("work_end"))
+    if ws == "fixed" and start and end:
+        obs = prev.get("obligations")
+        obs = list(obs) if isinstance(obs, list) else []
+        has_work = any(
+            isinstance(o, dict) and str(o.get("label", "")).strip().lower() in ("work", "school")
+            for o in obs
+        )
+        if not has_work:
+            obs.append({"label": "Work", "start": start, "end": end, "days": "weekdays"})
+            prev["obligations"] = _norm_obligations(obs) or obs
+            touched = True
+    # Drop the legacy work scaffolding (migrated above, or flexible/none → irrelevant now).
+    for k in ("work_schedule", "work_start", "work_end"):
+        if prev.get(k) is not None:
+            prev[k] = None
+            touched = True
+    return touched
+
+
+def _public_defaults(state: dict) -> dict:
+    """The default-level plan we surface to the planner client + LLM, in the new
+    workout-window + obligations(-with-`days`) model. A legacy single workout
+    time is presented as a 90-minute window for a consistent shape."""
+    out: dict = {}
+    for k in ("wake_time", "sleep_time", "get_ready_time"):
+        v = _norm_hhmm(state.get(k))
+        if v:
+            out[k] = v
+    win = _norm_window(state.get("preferred_workout_window"))
+    if not win:
+        wt = _norm_hhmm(state.get("preferred_workout_time"))
+        if wt:
+            win = [wt, _add_minutes(wt, 90)]
+    if win:
+        out["preferred_workout_window"] = win
+    obs = state.get("obligations")
+    if isinstance(obs, list) and obs:
+        out["obligations"] = obs
+    return out
 
 
 class PlannerChatBody(BaseModel):
@@ -930,11 +1094,8 @@ async def planner_chat(
         raise HTTPException(status_code=404, detail="User not found")
 
     prev = dict(user.onboarding or {})
-    cur_defaults = {
-        k: prev.get(k) for k in (*_DEFAULT_TIME_FIELDS, "work_schedule") if prev.get(k)
-    }
-    if isinstance(prev.get("obligations"), list):
-        cur_defaults["obligations"] = prev["obligations"]
+    _migrate_work_to_obligation(prev)  # legacy fixed-work block → weekday "Work" obligation
+    cur_defaults = _public_defaults(prev)
     cur_weekly = prev.get("weekly_timings") if isinstance(prev.get("weekly_timings"), dict) else {}
 
     prompt = _build_planner_prompt(cur_defaults, cur_weekly, instruction)
@@ -986,7 +1147,7 @@ async def planner_chat(
     return {
         "message": "Plan updated",
         "summary": summary,
-        "defaults": {k: prev.get(k) for k in (*_DEFAULT_TIME_FIELDS, "work_schedule", "obligations") if prev.get(k)},
+        "defaults": _public_defaults(prev),
         "weekly_timings": prev.get("weekly_timings"),
         "changed": True,
     }

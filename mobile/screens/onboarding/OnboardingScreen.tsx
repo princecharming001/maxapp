@@ -201,9 +201,12 @@ export default function OnboardingScreen() {
                 // schedule anchors used by chatbot + scheduler
                 wake_time,
                 sleep_time,
-                work_schedule: hasWork === 'yes' ? 'fixed' : 'flexible',
-                work_start,
-                work_end,
+                // Work/school is just a (weekday) obligation now — there is no
+                // separate work_schedule. The scheduler & coach read it from here.
+                obligations:
+                    hasWork === 'yes' && work_start && work_end
+                        ? [{ label: 'Work', start: work_start, end: work_end, days: 'weekdays' }]
+                        : [],
             });
             await refreshUser();
             navigation.reset({ index: 0, routes: [{ name: 'FeaturesIntro' }] });

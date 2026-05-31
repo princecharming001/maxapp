@@ -89,30 +89,30 @@ class OnboardingData(BaseModel):
     )
     work_start: Optional[str] = Field(default=None, description="Work/school start HH:MM (24h)")
     work_end: Optional[str] = Field(default=None, description="Work/school end HH:MM (24h)")
-    # Arbitrary fixed daily commitments the scheduler must work around (in
-    # addition to work hours). Each entry: {"label": str, "start": "HH:MM",
-    # "end": "HH:MM"}. Treated as recurring daily busy blocks — tasks that
-    # would land inside one are pushed out by the validator, and the windows
-    # are surfaced to the coach so it never plans on top of them.
+    # Arbitrary fixed commitments the scheduler must work around. Work / school
+    # is just one of these (e.g. {"label":"Work","start":"09:00","end":"17:00",
+    # "days":"weekdays"}) — preferred over the legacy work_* fields above. Each
+    # entry: {"label": str, "start": "HH:MM", "end": "HH:MM", "days": <recur>}
+    # where `days` is the recurrence: "all" (default) | "weekdays" | "weekends"
+    # | a list of lowercase weekday names. The validator pushes tasks out of
+    # each window only on the days it applies, and surfaces them to the coach.
     obligations: Optional[List[Dict[str, Any]]] = Field(
         default=None,
-        description="Fixed daily commitments to avoid. Each: {label, start 'HH:MM', end 'HH:MM'}.",
+        description="Fixed commitments to avoid. Each: {label, start 'HH:MM', end 'HH:MM', days}.",
     )
     # Per-weekday overrides for the daily rhythm. Keyed by lowercase weekday
-    # name ("monday".."sunday"). Each value may set any of: wake_time,
-    # sleep_time, get_ready_time, preferred_workout_time, work_schedule,
-    # work_start, work_end (all "HH:MM" 24h) and obligations (list of
-    # {label, start, end}). Any field omitted for a weekday inherits the
-    # top-level default above. The scheduler applies the matching day's
-    # window + obligations per weekday, so e.g. a later weekend wake or a
-    # Mon/Wed/Fri class is respected on exactly those days.
+    # name ("monday".."sunday"). Each value may set wake_time, sleep_time,
+    # get_ready_time (all "HH:MM" 24h). Any field omitted for a weekday inherits
+    # the top-level default above; e.g. a later weekend wake is respected on
+    # exactly those days. NOTE: day-specific commitments (a Mon/Wed class, a
+    # weekday work block) are modeled with each obligation's own `days`
+    # recurrence rather than per-weekday overrides — see `obligations`.
     weekly_timings: Optional[Dict[str, Dict[str, Any]]] = Field(
         default=None,
         description=(
             "Per-weekday rhythm overrides keyed by 'monday'..'sunday'. Each: "
-            "{wake_time, sleep_time, get_ready_time, preferred_workout_time, "
-            "work_schedule, work_start, work_end, obligations:[{label,start,end}]}. "
-            "Omitted fields inherit the top-level defaults."
+            "{wake_time, sleep_time, get_ready_time}. Omitted fields inherit the "
+            "top-level defaults. Day-specific commitments use obligations[].days."
         ),
     )
     completed: bool = False
@@ -137,7 +137,10 @@ class OnboardingData(BaseModel):
     fitmax_equipment: Optional[str] = None
     fitmax_workout_days_per_week: Optional[int] = None
     preferred_workout_time: Optional[str] = Field(
-        default=None, description="HH:MM 24h — anchors the workout/strength window across all maxes (FitMax, HeightMax, etc.)"
+        default=None, description="HH:MM 24h — legacy single workout anchor; kept in sync with the midpoint of preferred_workout_window for back-compat."
+    )
+    preferred_workout_window: Optional[List[str]] = Field(
+        default=None, description="[start, end] 'HH:MM' 24h — the time RANGE reserved for the workout/strength block across all maxes (FitMax, HeightMax, etc.). Preferred over preferred_workout_time."
     )
     get_ready_time: Optional[str] = Field(
         default=None, description="HH:MM 24h — when the user gets ready / showers in the morning; anchors the AM bathroom routine (skin/hair/mewing)"

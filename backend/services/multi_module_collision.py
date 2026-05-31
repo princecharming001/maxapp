@@ -56,8 +56,23 @@ _DEDUP_PAIRS = [
 ]
 
 
-def reconcile_schedules(schedules: dict[str, list[dict]]) -> dict[str, list[dict]]:
-    """Apply all collision passes. Returns a new dict — does not mutate input."""
+def reconcile_schedules(
+    schedules: dict[str, list[dict]],
+    *,
+    user_ctx: dict | None = None,
+    start_date: Any = None,
+) -> dict[str, list[dict]]:
+    """Apply all collision passes. Returns a new dict — does not mutate input.
+
+    When `user_ctx` + `start_date` are supplied, a FINAL busy-window eviction
+    runs after the cross-module gap-pack: step 3 densifies the merged morning
+    and can shove a routine task (e.g. SPF) one minute into a fixed obligation
+    (the 8:15 commute). The per-module validator already cleared obligations,
+    but the merge re-packs without that knowledge. The eviction restores it —
+    preferring to PULL a spilled task back flush before the obligation (you
+    apply SPF *before* leaving) rather than dumping it after work. Omitted args
+    → no-op, so the master-view merge and unit tests are unaffected.
+    """
     if not schedules or len(schedules) < 2:
         return schedules
 
@@ -160,7 +175,115 @@ def reconcile_schedules(schedules: dict[str, list[dict]]) -> dict[str, list[dict
                 _remove_task(schedules, maxx_id, di, task)
                 items.remove((maxx_id, task))
 
+    # 5) Final cross-module busy-window eviction (opt-in via user_ctx).
+    if isinstance(user_ctx, dict) and start_date is not None:
+        _evict_busy_windows(schedules, user_ctx, start_date, day_count)
+
     return schedules
+
+
+def _evict_busy_windows(
+    schedules: dict[str, list[dict]],
+    user_ctx: dict,
+    start_date: Any,
+    day_count: int,
+) -> None:
+    """Move any merged task that overlaps a fixed obligation clear of it.
+
+    Per day, resolves that weekday's busy windows (override → global) and walks
+    the cross-module task list in time order. A task landing inside a busy
+    window is repositioned: PREFER flush-before the window (if it still clears
+    the previous task) so a morning routine stays in the morning; otherwise push
+    to just after the window. Min-gap separation is preserved during the walk.
+    Strict no-op for any day with no busy windows. Mutates tasks in place.
+    """
+    from datetime import timedelta as _td
+
+    from services.schedule_validator import (
+        _WEEKDAY_NAMES,
+        _busy_intervals_from_ctx,
+        _effective_day_ctx,
+        _sleep_minutes_normalized,
+    )
+    from services.schedule_dsl import (
+        crosses_midnight,
+        from_minutes,
+        order_minutes,
+        parse_clock,
+        to_minutes,
+    )
+
+    g_wake = str(user_ctx.get("wake_time") or "07:00")
+    g_sleep = str(user_ctx.get("sleep_time") or "23:00")
+
+    cache: dict[str, tuple] = {}
+
+    def _params(wd: str):
+        if wd in cache:
+            return cache[wd]
+        eff = _effective_day_ctx(user_ctx, wd, global_wake=g_wake, global_sleep=g_sleep)
+        wake_dt = parse_clock(eff["wake_time"], "07:00")
+        sleep_dt = parse_clock(eff["sleep_time"], "23:00")
+        busy = _busy_intervals_from_ctx(eff)
+        overnight = crosses_midnight(wake_dt, sleep_dt)
+        wake_min = to_minutes(wake_dt)
+        sleep_rel = _sleep_minutes_normalized(wake_dt, sleep_dt) - wake_min
+        cache[wd] = (wake_min, sleep_rel, busy, overnight)
+        return cache[wd]
+
+    for di in range(day_count):
+        wd = _WEEKDAY_NAMES[(start_date + _td(days=di)).weekday()]
+        wake_min, sleep_rel, busy, overnight = _params(wd)
+        if not busy:
+            continue
+
+        # Working-minute space: minutes-since-wake when overnight, else clock.
+        def _to_work(clock: int) -> int:
+            return order_minutes(clock, wake_min) if overnight else clock
+
+        def _to_clock_str(work: int) -> str:
+            return from_minutes((wake_min + work) if overnight else work).strftime("%H:%M")
+
+        busy_w = sorted((_to_work(s), _to_work(e)) for s, e in busy)
+
+        items: list[dict] = []
+        for days in schedules.values():
+            if di < len(days):
+                items.extend(days[di].get("tasks") or [])
+        if not items:
+            continue
+
+        items.sort(key=lambda t: _to_work(_time_to_min(t.get("time"))))
+        prev_end = -1
+        for t in items:
+            dur = max(1, int(t.get("duration_min") or t.get("duration_minutes") or 1))
+            start = _to_work(_time_to_min(t.get("time")))
+            if prev_end >= 0 and start < prev_end + MIN_TASK_GAP_MIN:
+                start = prev_end + MIN_TASK_GAP_MIN
+            # Settle against busy windows (a few iterations handle back-to-back blocks).
+            for _ in range(8):
+                win = _overlapping(start, dur, busy_w)
+                if win is None:
+                    break
+                before = win[0] - dur
+                floor = prev_end if prev_end >= 0 else 0
+                if before >= floor:
+                    start = before  # flush before the obligation — stays in the morning
+                    break
+                start = win[1]      # can't fit before → just after the obligation
+            new_clock = _to_clock_str(start)
+            if new_clock != t.get("time"):
+                t["time"] = new_clock
+            prev_end = start + dur
+
+
+def _overlapping(start: int, dur: int, windows: list[tuple[int, int]]) -> tuple[int, int] | None:
+    """First (s,e) window that the [start, start+dur) interval intersects."""
+    end = start + max(1, dur)
+    for s, e in windows:
+        if start < e and end > s:
+            return (s, e)
+    return None
 
 
 def _reindex(schedules: dict[str, list[dict]], day_count: int) -> list[list[tuple[str, dict]]]:

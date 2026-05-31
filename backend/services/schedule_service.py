@@ -990,7 +990,23 @@ class ScheduleService:
                         onboarding=ob_m,
                         start_date=start_date,
                     )
-        for day in schedule_data.get("days", []):
+        # Guarantee distinct, monotonically increasing day numbers BEFORE stamping
+        # dates. If the LLM omits day_number (or repeats it), every day would
+        # otherwise default to day 1 and collapse onto a single date — the
+        # "all tasks pushed into one day" bug. Trust the model's numbers only
+        # when they form a valid set of distinct positive integers; otherwise
+        # fall back to array position (which is what the proven skeleton path
+        # uses). This makes day-collapse impossible on the LLM path.
+        days_list = schedule_data.get("days") or []
+        raw_day_nums = [d.get("day_number") for d in days_list]
+        day_nums_valid = all(
+            isinstance(n, int) and n >= 1 for n in raw_day_nums
+        ) and len(set(raw_day_nums)) == len(raw_day_nums)
+        if not day_nums_valid:
+            for idx, day in enumerate(days_list):
+                day["day_number"] = idx + 1
+
+        for day in days_list:
             day_num = day.get("day_number", 1)
             day["date"] = (start_date + timedelta(days=day_num - 1)).isoformat()
             for task in day.get("tasks", []):

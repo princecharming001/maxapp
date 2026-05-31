@@ -22,7 +22,9 @@ from datetime import date as _date, time as dtime, timedelta as _timedelta
 from typing import Any
 
 from services.schedule_dsl import (
+    crosses_midnight,
     from_minutes,
+    order_minutes,
     parse_clock,
     resolve_window,
     schedulable_anchors,
@@ -328,6 +330,68 @@ class ValidationError:
     task_id: str | None = None
 
 
+def _guard_day_distribution(
+    days: list[dict],
+    errors: list["ValidationError"],
+    *,
+    expected_day_count: int | None = None,
+) -> list[dict]:
+    """Day-distribution safety net — guarantees the multi-day SHAPE survives.
+
+    The single worst schedule failure is "every task pushed into one day".
+    Dates are stamped downstream by array position (``enumerate``), so the
+    invariant that protects against collapse is simply: *the day list keeps
+    one distinct, sequentially-indexed entry per planned day*. This pass
+    enforces that, and ONLY that:
+
+      • Re-stamps ``day_index`` to its array position (0..n-1) whenever the
+        incoming indices are missing, non-int, or contain duplicates — the
+        exact structural signature of a collapse. Idempotent: when indices
+        are already ``0,1,2,…`` it changes nothing.
+
+    It deliberately does **not** move tasks between days. On the skeleton
+    path each day's task set is cadence-meaningful (daily vs. periodic
+    tasks), so shuffling tasks to "balance counts" would corrupt the plan.
+    The skeleton builder already emits one distinct-index entry per cadence
+    day, so this is a strict no-op there — it exists purely as a tripwire +
+    repair for any future/legacy producer that regresses the shape.
+
+    Returns the (possibly re-indexed) list; never raises.
+    """
+    if not isinstance(days, list) or not days:
+        return days
+
+    raw_indices = [d.get("day_index") if isinstance(d, dict) else None for d in days]
+    indices_healthy = all(
+        isinstance(ix, int) and ix == pos for pos, ix in enumerate(raw_indices)
+    )
+    if not indices_healthy:
+        # Duplicate / missing / out-of-order indices are the structural
+        # fingerprint of a day-collapse. Re-stamp positionally so each
+        # planned day keeps its own date downstream.
+        dup = len(raw_indices) != len({str(ix) for ix in raw_indices})
+        for pos, d in enumerate(days):
+            if isinstance(d, dict):
+                d["day_index"] = pos
+        errors.append(ValidationError(
+            "soft", "day_index_repaired",
+            "re-stamped day_index positionally (collapse guard): "
+            f"{'duplicate' if dup else 'missing/unordered'} indices",
+        ))
+
+    if expected_day_count and len(days) == 1 and expected_day_count > 1:
+        # A multi-day plan that arrived as a single day entry is the literal
+        # "all tasks in one day" failure. Surface it loudly for observability;
+        # we can't safely re-split (task→day mapping is lost), but the caller
+        # / monitors will see it and the skeleton path will have prevented it.
+        errors.append(ValidationError(
+            "soft", "day_bunching_detected",
+            f"expected {expected_day_count} days but received a single day entry",
+        ))
+
+    return days
+
+
 def validate_and_fix(
     *,
     maxx_id: str,
@@ -349,9 +413,20 @@ def validate_and_fix(
         errors.append(ValidationError("hard", "structure", "days must be a list"))
         return False, errors, []
 
+    # Day-distribution safety net (strict no-op on healthy skeleton output):
+    # guarantee distinct, sequential day_index so the plan can never collapse
+    # onto a single date downstream. Runs first so the per-day loop and all
+    # later passes operate on the corrected shape.
+    days = _guard_day_distribution(days, errors, expected_day_count=expected_day_count)
+
     wake = parse_clock(wake_time, "07:00")
     sleep = parse_clock(sleep_time, "23:00")
     sleep_min = _sleep_minutes_normalized(wake, sleep)
+    # Overnight (wake>sleep) schedules order tasks by minutes-since-wake so
+    # post-midnight "before bed" tasks sort to the END of the day instead of
+    # stacking at 23:59. Day-schedule users: overnight=False → plain clock.
+    overnight = crosses_midnight(wake, sleep)
+    wake_min = to_minutes(wake)
 
     valid_ids = {t.id for t in all_tasks(maxx_id)}
     if expected_day_count and len(days) != expected_day_count:
@@ -377,7 +452,10 @@ def validate_and_fix(
             if fixed is not None:
                 clean_tasks.append(fixed)
 
-        clean_tasks = _enforce_separation(clean_tasks, day_index=di, errors=errors)
+        clean_tasks = _enforce_separation(
+            clean_tasks, day_index=di, errors=errors,
+            wake_min=wake_min, overnight=overnight,
+        )
 
         # Daily task budget
         if daily_task_budget:
@@ -416,7 +494,9 @@ def validate_and_fix(
     # only fires when a task's time was edited (e.g. user moved their
     # workout) and another task that depends on it ends up in the wrong
     # spot. Idempotent — running twice is the same as running once.
-    fixed_days = _enforce_coherence(fixed_days, errors=errors)
+    fixed_days = _enforce_coherence(
+        fixed_days, errors=errors, wake_min=wake_min, overnight=overnight,
+    )
 
     # Per-weekday windows + busy-time avoidance — the LAST pass so it
     # operates on final times. For each day it (a) resolves that weekday's
@@ -433,6 +513,22 @@ def validate_and_fix(
             global_wake=wake_time, global_sleep=sleep_time,
             errors=errors,
         )
+
+    # Authoritative final ordering. A day's task array is what the mobile app
+    # renders top-to-bottom, so the LAST word on order belongs here — after
+    # every placement pass (separation, coherence, day-windows), each of which
+    # works in clock-minute space internally. For an overnight (wake>sleep)
+    # user, re-stamp the array by minutes-since-wake so a 03:30am wind-down
+    # task sits at the END of the lived day instead of floating to the top
+    # (raw clock order would rank 03:30 above the 14:00 wake routine). Gated on
+    # `overnight`, so it's a literal no-op — untouched arrays — for the common
+    # day-schedule case. Times themselves are never changed, only their order.
+    if overnight:
+        for d in fixed_days:
+            tlist = d.get("tasks") or []
+            if isinstance(tlist, list):
+                tlist.sort(key=lambda t: order_minutes(_parse_time_field(t.get("time")) or 0, wake_min))
+                d["tasks"] = tlist
 
     has_hard = any(e.severity == "hard" for e in errors)
     return (not has_hard), errors, fixed_days
@@ -588,7 +684,14 @@ def _routine_score(t: dict) -> int:
     return min(scores) if scores else 200
 
 
-def _enforce_separation(tasks: list[dict], *, day_index: int, errors: list[ValidationError]) -> list[dict]:
+def _enforce_separation(
+    tasks: list[dict],
+    *,
+    day_index: int,
+    errors: list[ValidationError],
+    wake_min: int = 0,
+    overnight: bool = False,
+) -> list[dict]:
     """Sort tasks by (slot bucket, routine priority, original time); push
     later tasks forward to enforce min gap.
 
@@ -598,16 +701,29 @@ def _enforce_separation(tasks: list[dict], *, day_index: int, errors: list[Valid
     cross-block emission order followed declaration order in the .md doc,
     so a hairmax minox AM block declared above a skinmax SPF block could
     fire MINOX FIRST then SPF, causing minox migration to face skin.
+
+    All internal math runs in a "working minute" space. For an overnight
+    (wake>sleep) user that space is minutes-SINCE-WAKE, so a 03:30am bedtime
+    task sorts AFTER a 14:00 wake task and forward-spacing never wraps back
+    onto the morning. For a day-schedule user the transform is the identity
+    (working minute == clock minute), so behaviour is byte-identical.
     """
     if not tasks:
         return tasks
+
+    def _to_work(clock: int) -> int:
+        return order_minutes(clock, wake_min) if overnight else clock
+
+    def _to_clock_str(work: int) -> str:
+        return from_minutes((wake_min + work) if overnight else work).strftime("%H:%M")
+
     # Bucket size: tasks landing within 45 min of each other are treated
     # as the "same routine block" and re-ordered by priority. Beyond
     # that, the original time wins (lunch should not get pulled into the
     # morning routine because it has the lowest score).
     BUCKET_MIN = 45
 
-    timed = [(t, _parse_time_field(t["time"]) or 0) for t in tasks]
+    timed = [(t, _to_work(_parse_time_field(t["time"]) or 0)) for t in tasks]
     timed.sort(key=lambda x: x[1])
 
     # Bucketize: contiguous tasks within BUCKET_MIN of the bucket's first
@@ -628,19 +744,22 @@ def _enforce_separation(tasks: list[dict], *, day_index: int, errors: list[Valid
         anchor = min(p[1] for p in b)
         reordered.extend((t, anchor) for (t, _) in b)
 
-    # Stamp times sequentially with MIN_TASK_GAP_MIN spacing.
+    # Stamp times sequentially with MIN_TASK_GAP_MIN spacing. `start` is in
+    # working-minute space; render it back to a wall-clock string (wrapping
+    # across midnight for overnight users).
     last_end = -1
     out = []
     for t, anchor in reordered:
         start = max(anchor, last_end + MIN_TASK_GAP_MIN if last_end >= 0 else anchor)
-        original_start = _parse_time_field(t["time"]) or 0
+        original_start = _to_work(_parse_time_field(t["time"]) or 0)
         if start != original_start:
+            new_time = _to_clock_str(start)
             errors.append(ValidationError(
                 "soft", "time_collision",
-                f"day {day_index+1}: re-stamped {t['title']!r} to {from_minutes(start)}",
+                f"day {day_index+1}: re-stamped {t['title']!r} to {new_time}",
                 day_index=day_index, task_id=t.get("catalog_id"),
             ))
-            t = {**t, "time": from_minutes(start).strftime("%H:%M")}
+            t = {**t, "time": new_time}
         last_end = start + max(1, int(t.get("duration_min", 1)))
         out.append(t)
     return out
@@ -786,14 +905,29 @@ _PRE_WORKOUT_TARGET_GAP_MIN = 30  # ideal lead time
 _PRE_WORKOUT_MAX_LEAD_MIN = 90    # if more than this far ahead, slide CLOSER
 
 
-def _enforce_coherence(days: list[dict], *, errors: list[ValidationError]) -> list[dict]:
+def _enforce_coherence(
+    days: list[dict],
+    *,
+    errors: list[ValidationError],
+    wake_min: int = 0,
+    overnight: bool = False,
+) -> list[dict]:
     """Slide tasks to satisfy hard ordering rules between specific pairs.
 
     Iterates each day, walks _COHERENCE_RULES, and pushes the dependent
     task forward (or pre-workout backward) when a prerequisite is later
     than expected. Caps the iteration at 5 passes per day to avoid loops
     when rules conflict (would only happen on misconfigured rule sets).
+
+    The final per-day re-sort honors the user's *lived* day: for an
+    overnight (wake>sleep) user it orders by minutes-since-wake, so a
+    03:30am wind-down task lands at the END of the day's task array (where
+    the user actually does it) instead of jumping to the top because 03:30
+    is numerically small. Day-schedule users sort by plain clock (no-op).
     """
+    def _sort_key(t: dict) -> int:
+        clock = _parse_time_field(t.get("time")) or 0
+        return order_minutes(clock, wake_min) if overnight else clock
     for di, day in enumerate(days):
         tasks: list[dict] = day.get("tasks") or []
         if len(tasks) < 2:
@@ -868,8 +1002,9 @@ def _enforce_coherence(days: list[dict], *, errors: list[ValidationError]) -> li
                 break
 
         # Re-sort tasks by time after the slides so the day stays
-        # chronological (mobile renders in array order).
-        tasks.sort(key=lambda t: _parse_time_field(t.get("time")) or 0)
+        # chronological (mobile renders in array order). Overnight users
+        # sort by minutes-since-wake so post-midnight tasks stay at the end.
+        tasks.sort(key=_sort_key)
         day["tasks"] = tasks
 
     return days
@@ -932,6 +1067,55 @@ _WEEKDAY_NAMES = (
     "monday", "tuesday", "wednesday", "thursday",
     "friday", "saturday", "sunday",
 )
+_WEEKDAY_SET = frozenset(_WEEKDAY_NAMES)
+_WEEKDAYS_MF = frozenset(_WEEKDAY_NAMES[:5])
+_WEEKENDS_SS = frozenset(_WEEKDAY_NAMES[5:])
+
+
+def _obligation_applies(ob: Any, weekday_name: str) -> bool:
+    """True if obligation `ob` recurs on `weekday_name`.
+
+    Each obligation may carry a `days` recurrence so it doesn't have to happen
+    every single day. Accepted forms:
+      - absent / None / "all" / "everyday" / "daily"  → every day,
+      - "weekdays" (Mon-Fri),  "weekends" (Sat/Sun),
+      - a single lowercase weekday name ("wednesday"),
+      - a list mixing weekday names and the "weekdays"/"weekends" tokens
+        (e.g. ["monday","wednesday"] or ["weekdays","saturday"]).
+    Unknown / malformed values fall back to applying EVERY day — a commitment
+    is never silently dropped from the schedule.
+    """
+    if not isinstance(ob, dict):
+        return False
+    days = ob.get("days")
+    if days in (None, "", "all", "everyday", "daily"):
+        return True
+    if isinstance(days, str):
+        d = days.strip().lower()
+        if d in ("weekday", "weekdays"):
+            return weekday_name in _WEEKDAYS_MF
+        if d in ("weekend", "weekends"):
+            return weekday_name in _WEEKENDS_SS
+        if d in _WEEKDAY_SET:
+            return weekday_name == d
+        return True  # unknown string token → safe default: every day
+    if isinstance(days, (list, tuple)):
+        names = {str(x).strip().lower() for x in days}
+        if not names:
+            return True
+        if ("weekdays" in names or "weekday" in names) and weekday_name in _WEEKDAYS_MF:
+            return True
+        if ("weekends" in names or "weekend" in names) and weekday_name in _WEEKENDS_SS:
+            return True
+        return weekday_name in names
+    return True
+
+
+def _obligations_for_weekday(obligations: Any, weekday_name: str) -> list:
+    """Filter a recurring-obligations list to those that occur on `weekday_name`."""
+    if not isinstance(obligations, list):
+        return []
+    return [ob for ob in obligations if _obligation_applies(ob, weekday_name)]
 
 
 def _has_weekly_overrides(user_ctx: dict[str, Any]) -> bool:
@@ -999,10 +1183,17 @@ def _effective_day_ctx(
         "work_start": _pick("work_start", user_ctx.get("work_start")),
         "work_end": _pick("work_end", user_ctx.get("work_end")),
     }
-    # Obligations: a weekday entry that *includes* the key fully REPLACES the
-    # global list for that day (so a day can clear obligations with []).
-    # Absent → inherit the global recurring obligations.
-    eff["obligations"] = ov["obligations"] if "obligations" in ov else user_ctx.get("obligations")
+    # Obligations resolution:
+    #   1. a weekday entry that *includes* the key fully REPLACES the global list
+    #      for that day (legacy per-day override; lets a day clear with []),
+    #   2. otherwise inherit the global recurring obligations, FILTERED to those
+    #      whose `days` recurrence includes this weekday (all/weekdays/weekends/
+    #      specific days) — so a Mon/Wed class or a weekday work block only lands
+    #      on the days it actually happens.
+    if "obligations" in ov:
+        eff["obligations"] = ov["obligations"]
+    else:
+        eff["obligations"] = _obligations_for_weekday(user_ctx.get("obligations"), weekday_name)
     return eff
 
 

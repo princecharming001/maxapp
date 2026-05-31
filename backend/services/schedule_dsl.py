@@ -234,8 +234,36 @@ def to_minutes(t: dtime) -> int:
 
 
 def from_minutes(m: int) -> dtime:
-    m = max(0, min(24 * 60 - 1, int(m)))
-    return dtime(m // 60, m % 60)
+    """Minutes-of-day → clock time, WRAPPING across midnight.
+
+    A night-shift / very-late user has a waking window that crosses midnight
+    (wake 14:00, sleep 05:00). Their "before bed" slot resolves to a minute
+    PAST 1440 (e.g. 1650 == 27:30 == 3:30am next day). The old behaviour
+    CLAMPED to 23:59, which silently stacked every post-midnight task at
+    11:59pm. Wrapping (mod 1440) renders the true clock time instead:
+    1650 → 03:30, -30 → 23:30. For day-schedule users nothing ever exceeds
+    [0, 1439] in normal flow, so this is a no-op for them.
+    """
+    return dtime((int(m) % (24 * 60)) // 60, int(m) % 60)
+
+
+def crosses_midnight(wake: dtime, sleep: dtime) -> bool:
+    """True when the waking window wraps past midnight (sleep clock at or
+    before wake clock on the 24h dial, e.g. wake 14:00 / sleep 05:00).
+
+    Callers use this to switch ordering into "minutes-since-wake" space ONLY
+    for genuinely overnight schedules; day-schedule users keep plain clock
+    ordering, so their behaviour is provably unchanged.
+    """
+    return to_minutes(sleep) <= to_minutes(wake)
+
+
+def order_minutes(clock_min: int, wake_min: int) -> int:
+    """Minutes-since-wake (0..1439). Post-midnight times for a late sleeper
+    sort AFTER pre-midnight ones; for a day-schedule user (every task between
+    wake and a pre-midnight bedtime) this is a monotonic shift that preserves
+    clock order. Pair with `crosses_midnight` to decide whether to use it."""
+    return (int(clock_min) - int(wake_min)) % (24 * 60)
 
 
 def resolve_window(
@@ -426,12 +454,27 @@ def build_anchor_overrides(
     mid = (maxx_id or "").strip().lower()
 
     # --- Workout anchor — drives the strength/training window across maxes.
+    # The planner now lets the user give workout as a WINDOW (a [start, end]
+    # range to fit the session anywhere inside — true to "fit into a real life")
+    # or, legacy, a single exact time. Prefer a real window when present and at
+    # least 30 min wide; otherwise fall back to the single anchor expanded into a
+    # 90-min block, so old data and exact-time users see zero behaviour change.
+    win_lo = _window_endpoint(state.get("preferred_workout_window"), 0)
+    win_hi = _window_endpoint(state.get("preferred_workout_window"), 1)
     workout = (
         clock_or_none(state.get("preferred_workout_time"))
         or clock_or_none(state.get("workout_time"))
         or clock_or_none(state.get("heightmax_workout_time"))
     )
-    if workout:
+    if win_lo and win_hi and (to_minutes(parse_clock(win_hi)) - to_minutes(parse_clock(win_lo))) >= 30:
+        # Workout WINDOW — the engine drops the session into free time anywhere
+        # in the user's range, with fuel just before and recovery just after.
+        out["pre_evening"] = [_shift_clock(win_lo, -45), _shift_clock(win_lo, -15)]
+        out["workout"] = [win_lo, win_hi]
+        out["post_workout"] = [win_hi, _shift_clock(win_hi, 30)]
+        if mid in _PHYSICAL_PM_MAXES:
+            out["pm_active"] = [win_lo, win_hi]
+    elif workout:
         # Pre-workout fuel / warm-up in the 45 min before the lift.
         out["pre_evening"] = [_shift_clock(workout, -45), _shift_clock(workout, -15)]
         out["workout"] = [workout, _shift_clock(workout, 90)]
