@@ -1,10 +1,10 @@
 /**
- * DayPlannerScreen — the week planner, set like an editorial agenda page.
+ * DayPlannerScreen — the week planner.
  *
- * The whole week is visible at once as a ruled, all-days-at-once canvas (no
- * tab-switching). Tap any day to open a visual editor: drag sliders to set
- * wake/sleep as a RANGE or an EXACT time, set workouts, work hours and
- * obligations. Edits auto-save and regenerate the live schedule.
+ * The whole week is visible at once as a Google-Calendar-style canvas (no
+ * tab-switching between days). Tap any day to open a visual editor: drag
+ * sliders to set wake/sleep as a RANGE or an EXACT time, set workouts, work
+ * hours and obligations. Edits auto-save and regenerate the live schedule.
  *
  * A natural-language assistant lets you reshape the week by describing the
  * change ("sleep in on weekends", "gym 6-7pm Mon Wed Fri"); the backend
@@ -26,11 +26,11 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
-import { fonts, spacing } from '../../theme/dark';
-import { paper as p, radius } from '../../components/planner/plannerTheme';
+import { colors, spacing, borderRadius, fonts } from '../../theme/dark';
 import WeekCanvas from '../../components/planner/WeekCanvas';
 import DayEditorSheet from '../../components/planner/DayEditorSheet';
 import ObligationsManager from '../../components/planner/ObligationsManager';
@@ -204,30 +204,24 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     setSheetVisible(true);
   };
 
-  const sendDisabled = !chatInput.trim() || chatLoading;
-
   return (
     <View style={styles.container}>
-      {/* Editorial masthead: a clay kicker over a serif title, a hairline rule. */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <View style={styles.headerTopRow}>
-          {!embedded && navigation.canGoBack() ? (
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={styles.backButton}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="arrow-back" size={22} color={p.ink} />
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 40 }} />
-          )}
-          <View style={styles.savingSlot}>
-            {saving ? <ActivityIndicator size="small" color={p.inkFaint} /> : null}
-          </View>
-        </View>
-        <Text style={styles.kicker}>PLANNER</Text>
+        {!embedded && navigation.canGoBack() ? (
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
         <Text style={styles.headerTitle}>Your week</Text>
+        <View style={styles.savingSlot}>
+          {saving ? <ActivityIndicator size="small" color={colors.textMuted} /> : null}
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -239,14 +233,12 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.deck}>
+          <Text style={styles.subhead}>
             Your real week — sleep, work and plans. Tap any day to shape it, and Max fits your
             routines into the open time.
           </Text>
 
-          {/* 01 — the week at a glance */}
-          <View style={styles.panelFirst}>
-            <Text style={styles.sectionKicker}>The week at a glance</Text>
+          <View style={styles.card}>
             <WeekCanvas
               defaults={defaults}
               weekly={weekly}
@@ -255,17 +247,22 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             />
           </View>
 
-          {/* 02 — commitments (the global, day-scoped obligations list). */}
-          <View style={styles.panel}>
+          {/* Commitments — the global, day-scoped obligations list. */}
+          <View style={styles.card}>
             <ObligationsManager obligations={obligations} onChange={changeObligations} />
           </View>
 
-          {/* 03 — assistant. */}
-          <View style={styles.panel}>
+          {/* Assistant. */}
+          <View style={[styles.card, styles.chatCard]}>
             <View style={styles.chatHead}>
-              <View style={styles.chatMark}>
-                <Ionicons name="sparkles" size={15} color={p.onAccent} />
-              </View>
+              <LinearGradient
+                colors={['#6366f1', '#8b5cf6', '#a855f7']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.chatIconWrap}
+              >
+                <Ionicons name="sparkles" size={16} color="#fff" />
+              </LinearGradient>
               <View style={{ flex: 1 }}>
                 <Text style={styles.chatTitle}>Ask Max to rearrange</Text>
                 <Text style={styles.chatSub}>
@@ -277,7 +274,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             {chatReply ? (
               <View style={styles.chatReply}>
                 <View style={styles.chatReplyIcon}>
-                  <Ionicons name="checkmark" size={13} color={p.onAccent} />
+                  <Ionicons name="checkmark" size={13} color="#fff" />
                 </View>
                 <Text style={styles.chatReplyText}>{chatReply}</Text>
               </View>
@@ -295,6 +292,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                         chatRef.current?.focus();
                       }}
                     >
+                      <Ionicons name="sparkles-outline" size={11} color={colors.textMuted} />
                       <Text style={styles.exChipText}>{ex}</Text>
                     </TouchableOpacity>
                   ))}
@@ -309,7 +307,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                 value={chatInput}
                 onChangeText={setChatInput}
                 placeholder="e.g. wake between 6 and 7 on weekdays"
-                placeholderTextColor={p.inkFaint}
+                placeholderTextColor={colors.textMuted}
                 multiline
                 returnKeyType="send"
                 blurOnSubmit
@@ -319,16 +317,27 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               <TouchableOpacity
                 onPress={sendChat}
                 activeOpacity={0.85}
-                disabled={sendDisabled}
+                disabled={!chatInput.trim() || chatLoading}
                 style={styles.chatSendWrap}
               >
-                <View style={[styles.chatSend, sendDisabled ? styles.chatSendOff : styles.chatSendOn]}>
-                  {chatLoading ? (
-                    <ActivityIndicator size="small" color={p.inkFaint} />
-                  ) : (
-                    <Ionicons name="arrow-up" size={18} color={sendDisabled ? p.inkFaint : p.onAccent} />
-                  )}
-                </View>
+                {!chatInput.trim() || chatLoading ? (
+                  <View style={[styles.chatSend, styles.chatSendOff]}>
+                    {chatLoading ? (
+                      <ActivityIndicator size="small" color={colors.textMuted} />
+                    ) : (
+                      <Ionicons name="arrow-up" size={18} color={colors.textMuted} />
+                    )}
+                  </View>
+                ) : (
+                  <LinearGradient
+                    colors={['#6366f1', '#8b5cf6', '#a855f7']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.chatSend}
+                  >
+                    <Ionicons name="arrow-up" size={18} color="#fff" />
+                  </LinearGradient>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -351,129 +360,124 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: p.page },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-    backgroundColor: p.page,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: p.rule,
-  },
-  headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  backButton: { padding: 4, width: 40 },
-  savingSlot: { width: 40, alignItems: 'flex-end', justifyContent: 'center', height: 24 },
-  kicker: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 11,
-    color: p.accent,
-    letterSpacing: 1.6,
-    marginBottom: 3,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.background,
   },
   headerTitle: {
     fontFamily: fonts.serif,
-    fontSize: 30,
-    color: p.ink,
-    letterSpacing: -0.5,
+    fontSize: 22,
+    fontWeight: '400',
+    color: colors.foreground,
+    letterSpacing: -0.4,
   },
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.xxl },
-  // An editorial standfirst in serif italic — sets the voice before the data.
-  deck: {
-    fontFamily: fonts.serifItalic,
-    fontSize: 16,
-    color: p.inkSoft,
-    lineHeight: 24,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  // Sections are ruled bands on the page, not floating cards.
-  panelFirst: { paddingTop: spacing.md, paddingBottom: spacing.lg },
-  panel: {
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: p.rule,
-  },
-  sectionKicker: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 10.5,
-    color: p.inkFaint,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+  backButton: { padding: 4, width: 40 },
+  savingSlot: { width: 40, alignItems: 'flex-end', justifyContent: 'center' },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
+  subhead: {
+    fontSize: 13.5,
+    color: colors.textSecondary,
+    lineHeight: 19,
+    letterSpacing: 0.05,
     marginBottom: spacing.md,
   },
-  // Assistant.
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: 18,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    ...(Platform.OS === 'ios'
+      ? {
+          shadowColor: '#0a0a0b',
+          shadowOpacity: 0.04,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 2 },
+        }
+      : { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border }),
+  },
+  // Assistant card.
+  chatCard: { backgroundColor: colors.card },
   chatHead: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: spacing.md },
-  chatMark: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.sm,
+  chatIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: p.accent,
+    ...(Platform.OS === 'ios'
+      ? {
+          shadowColor: '#6366f1',
+          shadowOpacity: 0.35,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 2 },
+        }
+      : {}),
   },
   chatTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 18,
-    color: p.ink,
-    letterSpacing: -0.2,
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 15.5,
+    color: colors.foreground,
+    letterSpacing: 0.1,
   },
-  chatSub: { fontFamily: fonts.sans, fontSize: 12.5, color: p.inkFaint, lineHeight: 17, marginTop: 3, letterSpacing: 0.05 },
+  chatSub: { fontSize: 12.5, color: colors.textMuted, lineHeight: 17, marginTop: 2, letterSpacing: 0.05 },
   suggestWrap: { marginBottom: spacing.md },
   suggestLabel: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 10,
-    color: p.inkFaint,
-    letterSpacing: 1.4,
+    color: colors.textMuted,
+    letterSpacing: 1,
     marginBottom: 10,
   },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   exChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: radius.sm,
-    backgroundColor: 'transparent',
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: p.ruleStrong,
+    borderColor: colors.border,
   },
-  exChipText: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: p.inkSoft, letterSpacing: 0.05 },
+  exChipText: { fontSize: 12.5, color: colors.textSecondary, fontFamily: fonts.sansMedium, letterSpacing: 0.05 },
   chatReply: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 9,
-    backgroundColor: p.accentWash,
-    borderRadius: radius.md,
+    backgroundColor: 'rgba(99,102,241,0.07)',
+    borderRadius: 13,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
   chatReplyIcon: {
     width: 20,
     height: 20,
-    borderRadius: radius.sm,
-    backgroundColor: p.accent,
+    borderRadius: 10,
+    backgroundColor: '#6366f1',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
   },
-  chatReplyText: { flex: 1, fontFamily: fonts.sans, fontSize: 13.5, color: p.ink, lineHeight: 19, letterSpacing: 0.05 },
+  chatReplyText: { flex: 1, fontSize: 13.5, color: colors.foreground, lineHeight: 19, letterSpacing: 0.05 },
   chatInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   chatInput: {
     flex: 1,
     minHeight: 46,
     maxHeight: 120,
-    backgroundColor: p.inset,
-    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+    borderRadius: 15,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: p.ruleStrong,
+    borderColor: colors.border,
     paddingTop: 13,
     paddingBottom: 13,
     paddingHorizontal: 15,
-    color: p.ink,
-    fontFamily: fonts.sans,
+    color: colors.foreground,
     fontSize: 15,
     letterSpacing: 0.05,
   },
@@ -481,10 +485,9 @@ const styles = StyleSheet.create({
   chatSend: {
     width: 46,
     height: 46,
-    borderRadius: radius.sm,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chatSendOn: { backgroundColor: p.accent },
-  chatSendOff: { backgroundColor: p.inset, borderWidth: StyleSheet.hairlineWidth, borderColor: p.ruleStrong },
+  chatSendOff: { backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
 });
