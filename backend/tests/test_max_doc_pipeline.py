@@ -82,6 +82,49 @@ def test_dsl_unknown_field_is_falsy():
     assert evaluate("missing", ctx) is False
 
 
+def test_dsl_none_is_a_real_enum_value():
+    """`none` is a legitimate enum VALUE across the docs (workout_frequency,
+    routine_level, current_treatment, spine_health, ...), not just Python None.
+    `field == none` must match the stored string "none"; `field != none` must
+    be False for it; and `in [none, ...]` must include it. An unset field is
+    treated the same as an explicit "none" answer."""
+    from services.schedule_dsl import evaluate
+    # explicit "none" answer matches
+    assert evaluate("workout_frequency == none", {"workout_frequency": "none"}) is True
+    assert evaluate("spine_health == none", {"spine_health": "none"}) is True
+    assert evaluate("injury_history != none", {"injury_history": "none"}) is False
+    assert evaluate("workout_frequency in [none, light]", {"workout_frequency": "none"}) is True
+    assert evaluate("workout_frequency in [none, light]", {"workout_frequency": "light"}) is True
+    # a real (non-none) value behaves normally
+    assert evaluate("spine_health == none", {"spine_health": "chronic"}) is False
+    assert evaluate("injury_history != none", {"injury_history": "knee"}) is True
+    # unset is treated as "none"
+    assert evaluate("spine_health == none", {}) is True
+    assert evaluate("injury_history != none", {}) is False
+    # preserved unset semantics for non-none comparisons
+    assert evaluate("tmj_history != true", {}) is True
+    assert evaluate("gum in [weak, painful]", {}) is False
+    assert evaluate("gum not in [weak, painful]", {}) is True
+    assert evaluate("cardiovascular_concerns == true", {}) is False
+
+
+def test_dsl_underscore_digit_enum_tokens_stay_strings():
+    """Enum value keys that are all-digits-with-underscores (the fitmax
+    body-fat bands 10_15 / 15_20 / 20_25) must compare as STRINGS, not get
+    parsed as Python int literals (int("20_25") == 2025). Regression for the
+    cut_phase / lean_bulk_phase modifier conditions that silently never fired."""
+    from services.schedule_dsl import evaluate
+    assert evaluate("estimated_body_fat == 20_25", {"estimated_body_fat": "20_25"}) is True
+    assert evaluate("estimated_body_fat in [20_25, over_25]", {"estimated_body_fat": "20_25"}) is True
+    assert evaluate("estimated_body_fat in [under_10, 10_15]", {"estimated_body_fat": "10_15"}) is True
+    assert evaluate("estimated_body_fat == 20_25", {"estimated_body_fat": "15_20"}) is False
+    # real integer / float thresholds still coerce and compare numerically
+    assert evaluate("age < 18", {"age": 16}) is True
+    assert evaluate("age >= 22", {"age": 30}) is True
+    assert evaluate("sleep_hours < 8", {"sleep_hours": 7}) is True
+    assert evaluate("intensity >= 0.5", {"intensity": 0.8}) is True
+
+
 # --------------------------------------------------------------------------- #
 #  Window resolver                                                            #
 # --------------------------------------------------------------------------- #

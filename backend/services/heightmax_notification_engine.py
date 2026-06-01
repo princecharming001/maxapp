@@ -1,5 +1,5 @@
 """
-HeightMax notification engine — authoritative reference for schedule generation and coaching.
+HeightMax notification engine, authoritative reference for schedule generation and coaching.
 
 Full reference: heightmax_notification_engine_reference.md
 """
@@ -22,13 +22,13 @@ HEIGHTMAX_COACHING_REFERENCE = """## HEIGHTMAX NOTIFICATION ENGINE (condensed)
 
 TIMING (wake + bed; exact HH:MM):
 - Morning decompression = wake + 20 min
-- Midday posture = midpoint(wake+15, bed−60) — same as BoneMax midday
-- Afternoon posture = midday + 3h — only if screen ≥6h/day at onboarding
+- Midday posture = midpoint(wake+15, bed−60), same as BoneMax midday
+- Afternoon posture = midday + 3h, only if screen ≥6h/day at onboarding
 - Evening decompression = bed − 90 min
 - Sleep / GH protocol = bed − 45 min
 - Sprint reminder = 30 min before workout on sprint days (2–3×/week, non-consecutive)
 - Post-sprint eat window ≈ 60 min after session ends
-- Height nutrition = wake+1h or wake+5h — **only if opted in**
+- Height nutrition = wake+1h or wake+5h, **only if opted in**
 - Weekly measure = Sunday wake + 30 min
 - Monthly review = 1st at midday (same as midday posture time)
 - Quiet hours: bed → wake
@@ -39,7 +39,7 @@ BUDGET: Phase 1 ~2–3/day → Phase 2 ~5–6 → Phase 3 ~6–7; **max 10/day**
 
 MERGES: + Bonemax = merge posture + sleep evening + supplements where overlap; + Fitmax = sprint counts as workout; decompress after heavy axial lifting days.
 
-NEVER ask outside_today — HeightMax does not use it.
+NEVER ask outside_today, HeightMax does not use it.
 """
 
 
@@ -90,11 +90,11 @@ def format_heightmax_anchor_times(wake_time: str, sleep_time: str) -> str:
     sleep_h, sleep_m = _add_minutes(sh, sm, -45)
     week_meas_h, week_meas_m = _add_minutes(wh, wm, 30)
     nutr_h, nutr_m = _add_minutes(wh, wm, 60)
-    return f"""## COMPUTED ANCHOR TIMES — HEIGHTMAX (use formulas)
+    return f"""## COMPUTED ANCHOR TIMES, HEIGHTMAX (use formulas)
 - Wake: {wake_time} | Bed: {sleep_time}
 - **Morning decompression** → {_format_hm(morn_dec_h, morn_dec_m)} (wake + 20 min)
 - **Midday posture** → {_format_hm(mid_h, mid_m)} (midpoint of wake+15 and bed−60)
-- **Afternoon posture** → {_format_hm(aft_h, aft_m)} (midday + 3h) — only if 6+ h screen
+- **Afternoon posture** → {_format_hm(aft_h, aft_m)} (midday + 3h), only if 6+ h screen
 - **Evening decompression** → {_format_hm(eve_st_h, eve_st_m)} (bed − 90 min)
 - **Sleep / GH protocol** → {_format_hm(sleep_h, sleep_m)} (bed − 45 min)
 - **Weekly measurement (Sunday)** → {_format_hm(week_meas_h, week_meas_m)} (Sunday wake + 30 min)
@@ -171,14 +171,14 @@ def get_heightmax_slot_times(wake_time: str, sleep_time: str) -> dict[str, str]:
     }
 
 
-HEIGHTMAX_JSON_DIRECTIVES = """## HEIGHTMAX — JSON SCHEDULE OUTPUT (MANDATORY)
+HEIGHTMAX_JSON_DIRECTIVES = """## HEIGHTMAX, JSON SCHEDULE OUTPUT (MANDATORY)
 
 1. Every task uses **HH:MM** 24h from wake_time/sleep_time and COMPUTED ANCHOR TIMES.
-2. **Do NOT** use a generic "morning check-in at wake" as the first HeightMax ping — **morning decompression is wake+20** (unless MULTI-ACTIVE-MODULES requires stagger with another module's wake ping).
+2. **Do NOT** use a generic "morning check-in at wake" as the first HeightMax ping, **morning decompression is wake+20** (unless MULTI-ACTIVE-MODULES requires stagger with another module's wake ping).
 3. **Never** schedule `outside_today` or sunscreen tasks for HeightMax.
 4. **Tier 3 (21+):** copy must not promise skeletal growth beyond posture/decompression reclamation (~0.5–2 cm realistic).
 5. **Quiet hours:** nothing between sleep_time and wake_time.
-6. Respect **enabled HeightMax tracks** in HEIGHTMAX — ENABLED TRACKS ONLY; do not invent tasks for disabled tracks.
+6. Respect **enabled HeightMax tracks** in HEIGHTMAX, ENABLED TRACKS ONLY; do not invent tasks for disabled tracks.
 7. **Phase-in:** weeks 1–2 lighter; ramp decompression, nutrition, sprints per engine.
 8. **Sprint days:** 2–3×/week, not consecutive; 30 min pre workout + post-sprint eat ~60 min after session.
 9. **task_type:** `routine` for stretch/decomp/sleep blocks; `reminder` for posture nudges; `checkpoint` for sprint, weekly measure, monthly review.

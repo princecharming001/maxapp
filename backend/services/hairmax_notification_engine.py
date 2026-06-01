@@ -1,5 +1,5 @@
 """
-HairMax notification engine — schedule generation + coaching reference.
+HairMax notification engine, schedule generation + coaching reference.
 
 Full reference: hairmax_notification_engine_reference.md
 """
@@ -25,12 +25,12 @@ TIMING (wake + bed):
 - Finasteride (daily) = typical **wake + 30–45 min** (or user-picked once daily)
 - Midday = midpoint(wake+15, bed−60) for **monthly check-in (1st)** and tips
 - Ketoconazole = **2–3×/week** on wash days (not daily)
-- Microneedling = **1×/week** user day (default Sunday), **not** same night as minox (24h); **never** same day as **face** microneedling if Skinmax — stagger
-- Bloodwork = **3× year 1** (baseline ~3d after oral fin start, +180d, +365d) — not daily spam
+- Microneedling = **1×/week** user day (default Sunday), **not** same night as minox (24h); **never** same day as **face** microneedling if Skinmax, stagger
+- Bloodwork = **3× year 1** (baseline ~3d after oral fin start, +180d, +365d), not daily spam
 - Bi-weekly **progress photos** (hairline, crown, temples; consistent lighting); optional **shed** log on wash days
 - Quiet hours: bed → wake
 
-DOSE: 0.5mg fin ≈ 85–90% DHT suppression vs 1mg — respect user choice to stay on 0.5mg. Side ladder: 1st nocebo/wait → 2nd lower dose/EOD → 3rd topical or pause/restart 0.25mg. Sexual sides → stop resolves most; drop dose or change route.
+DOSE: 0.5mg fin ≈ 85–90% DHT suppression vs 1mg, respect user choice to stay on 0.5mg. Side ladder: 1st nocebo/wait → 2nd lower dose/EOD → 3rd topical or pause/restart 0.25mg. Sexual sides → stop resolves most; drop dose or change route.
 
 RAMP: M1 fin+keto+tips+photos → M2–3 +minox 2× → M4+ +microneedling → M6/12 escalation per reference. Tier 1: minox optional; Tier 4: oral minox + enzyme angle with derm if topical fails 6+ mo.
 
@@ -72,11 +72,11 @@ def format_hairmax_anchor_times(wake_time: str, sleep_time: str) -> str:
         pm_mins += 24 * 60
     mid_mins = (am_mins + pm_mins) // 2 % (24 * 60)
     mid_h, mid_m = mid_mins // 60, mid_mins % 60
-    return f"""## COMPUTED ANCHOR TIMES — HAIRMAX
+    return f"""## COMPUTED ANCHOR TIMES, HAIRMAX
 - Wake: {wake_time} | Bed: {sleep_time}
 - **Minoxidil AM** → {_format_hm(min_am_h, min_am_m)} (wake + 15 min)
 - **Minoxidil PM** → {_format_hm(min_pm_h, min_pm_m)} (bed − 90 min)
-- **Finasteride (example daily slot)** → {_format_hm(fin_h, fin_m)} (wake + 40 min — adjust to user preference)
+- **Finasteride (example daily slot)** → {_format_hm(fin_h, fin_m)} (wake + 40 min, adjust to user preference)
 - **Midday (monthly 1st, tips)** → {_format_hm(mid_h, mid_m)} (midpoint wake+15 and bed−60)
 """
 
@@ -147,20 +147,20 @@ def get_hairmax_slot_times(wake_time: str, sleep_time: str) -> dict[str, str]:
     }
 
 
-HAIRMAX_JSON_DIRECTIVES = """## HAIRMAX — JSON SCHEDULE OUTPUT (MANDATORY)
+HAIRMAX_JSON_DIRECTIVES = """## HAIRMAX, JSON SCHEDULE OUTPUT (MANDATORY)
 
 1. Use **HH:MM** 24h from wake/sleep; follow COMPUTED ANCHOR TIMES + reference (minox AM **wake+15**, PM **bed−90**).
-2. **Do NOT** add a generic wake check-in as the only HairMax ping — first actionable task is **fin** and/or **minox AM** per ramp phase (merge with Skinmax AM per HAIRMAX+SKINMAX when both active).
+2. **Do NOT** add a generic wake check-in as the only HairMax ping, first actionable task is **fin** and/or **minox AM** per ramp phase (merge with Skinmax AM per HAIRMAX+SKINMAX when both active).
 3. **Quiet hours:** no tasks between sleep_time and wake_time.
 4. **Treatment ramp:** month 1 ≠ full stack; stagger fin → minox → microneedling per engine.
 5. **Microneedling:** weekly; **not** same night as minoxidil (24h separation); if Skinmax face microneedling exists, **different day** from scalp.
 6. **Ketoconazole:** 2–3×/week only, on wash days.
-7. **Bloodwork:** schedule as **checkpoint** tasks on specific dates (baseline ~3d after fin start, +180d, +365d) — not daily.
-8. **Bi-weekly photos** (every ~14 days from day 1) and **monthly check-in** (1st at midday) as **checkpoint** tasks — repeat through the **full** generated day range, not only the first week.
-9. **Side-effect ladder** and **0.5mg vs 1mg** preference — reflect in description copy when relevant.
+7. **Bloodwork:** schedule as **checkpoint** tasks on specific dates (baseline ~3d after fin start, +180d, +365d), not daily.
+8. **Bi-weekly photos** (every ~14 days from day 1) and **monthly check-in** (1st at midday) as **checkpoint** tasks, repeat through the **full** generated day range, not only the first week.
+9. **Side-effect ladder** and **0.5mg vs 1mg** preference, reflect in description copy when relevant.
 10. **task_type:** `routine` for applications; `reminder` for tips; `checkpoint` for photos, bloodwork, monthly review, microneedling session.
 11. Cap **10** notifications/day **across all modules**; merge with Skinmax when instructed.
-12. **Bi-weekly photo** checkpoints: descriptions should ask for **consistent angles** (hairline, crown, left/right temple) and same lighting — per HairMax reference.
+12. **Bi-weekly photo** checkpoints: descriptions should ask for **consistent angles** (hairline, crown, left/right temple) and same lighting, per HairMax reference.
 13. **Tier 1** users: minoxidil optional framing in copy; **Tier 4** / poor response 6+ mo: may mention **oral minoxidil + sulfotransferase** discussion with derm in a checkpoint-style note (not medical prescription).
-14. **Monthly check-in** (1st, midday): task should surface **Thicker/Same/Thinner**, sides, and missed doses — align copy with reference branches.
+14. **Monthly check-in** (1st, midday): task should surface **Thicker/Same/Thinner**, sides, and missed doses, align copy with reference branches.
 """

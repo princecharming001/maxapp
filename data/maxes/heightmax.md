@@ -13,7 +13,7 @@ schedule_design:
     week_2: [0.4, 1.0]
   skeleton:
     blocks:
-      # Daily mobility / decompression — universal.
+      # Daily mobility / decompression, universal.
       - id: am_mobility
         slot: am_open
         cadence: daily
@@ -30,25 +30,25 @@ schedule_design:
       - id: wall_posture
         slot: am_open
         cadence: daily
-        if: "posture_issues == true"
+        if: "posture_issues in [light, heavy]"
         tasks: [height.wall_posture]
       - id: desk_reset
         slot: midday
         cadence: daily
-        if: "posture_issues == true"
+        if: "posture_issues in [light, heavy]"
         tasks: [height.desk_reset_midday]
       - id: chin_tucks
         slot: midday
         cadence: daily
-        if: "posture_issues == true"
+        if: "posture_issues in [light, heavy]"
         tasks: [height.chin_tucks]
-      # Decompression hang (skip if spine_pain).
+      # Decompression hang (skip for chronic / diagnosed spine).
       - id: dead_hang
         slot: pm_active
         cadence: n_per_week=4
-        if: "!spine_pain"
+        if: "spine_health not in [chronic, diagnosed]"
         tasks: [height.dead_hang]
-      # Strength / posture — only if user trains.
+      # Strength / posture, only if user trains.
       - id: face_pulls
         slot: pm_active
         cadence: n_per_week=3
@@ -121,43 +121,36 @@ required_fields:
     why: "Under-18 → growth foundations matter more (sleep, calories, posture). Adult → posture + perceived-height focus."
 
   - id: heightmax_focus
-    question: "Which of these is your main goal?"
+    question: "What's your main goal here?"
     type: enum
     options:
-      posture: "Fix posture / stand taller"
-      retention: "Reduce daily height loss (decompression, mobility)"
-      perceived: "Look taller (fashion, shoes, presence)"
-      growth: "Maximize natural growth (under 22)"
-      all: "All of the above"
+      posture: "Fix my posture and stand taller"
+      retention: "Stop shrinking through the day"
+      perceived: "Just look taller (clothes, shoes, presence)"
+      growth: "Max out natural growth (I'm under 22)"
+      all: "All of it"
     required: true
     why: "Selects which of the three tracks (posture, retention, perceived) get scheduled."
 
   - id: posture_issues
-    question: "Do you sit at a desk / on a phone for most of the day?"
-    type: yes_no
-    required: true
-    why: "Yes → adds desk-reset task and forward-head correction emphasis."
-
-  - id: training_status
-    question: "Do you currently strength train?"
+    question: "How much of your day are you sat at a desk or on your phone?"
     type: enum
     options:
-      yes_regular: "Yes, 3+ times a week"
-      yes_some: "Sometimes, 1–2 times a week"
-      "no": "No"
+      none: "Barely, I'm up and moving most of the day"
+      light: "A few hours, then I'm up and about"
+      heavy: "Most of the day, I'm parked at a screen"
     required: true
-    why: "Strength training builds the frame that holds posture. Gates frame-building tasks."
+    why: "none skips the desk-reset chain. light adds one midday reset + AM/PM forward-head work. heavy adds two midday resets + wall-posture drill."
 
-  - id: desk_hours
-    question: "How many hours a day do you spend at a desk or on your phone?"
-    type: int
-    min: 0
-    max: 16
-    step: 1
-    default: 8
-    unit: "hr"
+  - id: training_status
+    question: "How often can you realistically lift or strength train?"
+    type: enum
+    options:
+      yes_regular: "3+ times a week, no problem"
+      yes_some: "Once or twice a week"
+      "no": "Not right now, bodyweight only"
     required: true
-    why: "Desk-bound users need 2× midday posture resets + forward-head correction at AM and PM. Light desk users get 1 reset. None can skip the reset chain."
+    why: "Strength training builds the frame that holds posture. Gates frame-building tasks like face pulls."
 
   - id: sleep_hours
     question: "Average hours of sleep per night?"
@@ -168,71 +161,71 @@ required_fields:
     default: 7
     unit: "hr"
     required: true
-    why: "For users under 22, sleep extension matters more than any decompression — growth hormone peaks in deep sleep. Under 7hr triggers nightly wind-down + screen cutoff cues."
+    why: "For users under 22, sleep extension matters more than any decompression, growth hormone peaks in deep sleep. Under 7hr triggers nightly wind-down + screen cutoff cues."
 
   - id: spine_health
-    question: "Any back, neck, or spine pain you live with?"
+    question: "Any back, neck, or spine pain you deal with?"
     type: enum
     options:
-      none: "No issues"
-      occasional: "Occasional stiffness or soreness"
-      chronic: "Chronic — see a doctor regularly"
+      none: "Nope, all good"
+      occasional: "Sometimes stiff or sore"
+      chronic: "Chronic pain, I see a doctor for it"
       diagnosed: "Diagnosed condition (herniated disc, scoliosis, etc.)"
     required: true
     why: "Chronic / diagnosed → ONLY gentle decompression + doctor consult reminder. Strip dead hangs, inversions, aggressive stretches. None → full protocol."
 
   - id: equipment_access
-    question: "What do you have access to for decompression work?"
+    question: "What've you got for decompression work?"
     type: enum
     options:
-      none: "Nothing — bodyweight only"
-      pullup_bar: "Pull-up bar / doorway bar"
+      none: "Nothing, just bodyweight"
+      pullup_bar: "Pull-up bar or doorway bar"
       inversion_table: "Inversion table"
-      full_setup: "Bar + inversion + foam roller / mobility tools"
+      full_setup: "Bar, inversion table, foam roller, the works"
     required: true
     why: "Decides which decompression tasks fire. None = lying decompression only. Inversion = full hang + inversion. Full = the works."
 
 optional_context:
   - id: height_current
-    description: "Current height — for perceived-height baseline (not promised growth)"
+    description: "Current height, for perceived-height baseline (not promised growth)"
   - id: outfit_concerns
     description: "User open to fashion advice for proportions"
   - id: shoe_style_pref
-    description: "Boots/sneakers/dress — biases shoe recommendations"
+    description: "Boots/sneakers/dress, biases shoe recommendations"
   - id: cardiovascular_concerns
-    description: "Any heart/BP issues — gates inversion table tasks"
+    description: "Any heart/BP issues, gates inversion table tasks"
   - id: body_fat_high
     description: "User wants leanmaxx → adds body-comp tasks"
   - id: morning_loss_amt
-    description: "How much height user loses through the day (cm) — drives decompression cadence"
+    description: "How much height user loses through the day (cm), drives decompression cadence"
   - id: nutrition_priority
     description: "Open to dietary tweaks for growth (protein, calcium, vitamin D)"
 
 prompt_modifiers:
   - id: under_18_growth
     if: "age < 18"
-    then: "Growth-foundations track is PRIMARY: sleep 8–10 hr emphasis, calorie/protein cue, sunlight exposure prompt, posture work. Frame all language as 'supports natural growth potential' — never promise height."
+    then: "Growth-foundations track is PRIMARY: sleep 8–10 hr emphasis, calorie/protein cue, sunlight exposure prompt, posture work. Frame all language as 'supports natural growth potential', never promise height."
   - id: adult_posture_perceived
     if: "age >= 22"
     then: "Growth track INACTIVE (growth plates closed). Focus posture + retention + perceived. No claims about height growth. Reference 'supports posture / retention / perceived height'."
   - id: heavy_desk
-    if: "posture_issues == true"
-    then: "Add midday desk-reset task daily. Forward-head correction is week-1 priority. Wall posture drill 2×/day."
+    if: "posture_issues in [light, heavy]"
+    then: "Add midday desk-reset task daily. Forward-head correction is week-1 priority. Wall posture drill 2x/day."
   - id: cardiovascular_caution
     if: "cardiovascular_concerns == true"
     then: "EXCLUDE inversion-table tasks. Substitute lying decompression. Add note: 'check with doctor before inversion exercises'."
   - id: spine_pain_caution
-    if: "spine_pain == true"
-    then: "Use ONLY gentle decompression (lying knee-to-chest, doorway hang ≤30s). Skip dead hangs and aggressive stretches. Recommend doctor consult."
+    if: "spine_health == occasional"
+    then: "Keep decompression gentle: lying knee-to-chest and short doorway hangs. Ease into dead hangs only if they feel fine, and back off the moment anything pinches."
   - id: chronic_spine_doctor_only
     if: "spine_health in [chronic, diagnosed]"
     then: "DOCTOR-ONLY DECOMPRESSION. Schedule lying knee-to-chest 2×/day max. Skip ALL hangs, inversions, aggressive stretches. Add weekly doctor / PT check-in reminder. Frame as 'support, not treatment'."
   - id: heavy_desk_double_reset
-    if: "desk_hours >= 8"
-    then: "TWO midday posture resets (mid-morning + mid-afternoon). Add forward-head correction every 90 min as standalone task. Wall posture drill 3×/day. Eye-line check (monitor at eye level) reminder weekly."
+    if: "posture_issues == heavy"
+    then: "TWO midday posture resets (mid-morning + mid-afternoon). Add forward-head correction every 90 min as standalone task. Wall posture drill 3x/day. Eye-line check (monitor at eye level) reminder weekly."
   - id: low_sleep_under_22_critical
     if: "sleep_hours < 7 and age < 22"
-    then: "SLEEP-FIRST PROTOCOL. Bedtime cue 90 min before target sleep. Screen cutoff 60 min before bed. No caffeine after 2pm reminder. Frame: 'growth hormone peaks in first 2 hr of deep sleep — under 7 hr cuts that window in half'."
+    then: "SLEEP-FIRST PROTOCOL. Bedtime cue 90 min before target sleep. Screen cutoff 60 min before bed. No caffeine after 2pm reminder. Frame: 'growth hormone peaks in first 2 hr of deep sleep, under 7 hr cuts that window in half'."
   - id: low_sleep_adult
     if: "sleep_hours < 7 and age >= 22"
     then: "Add bedtime wind-down cue. Frame around recovery + posture muscle repair, not growth. Skip the under-22 framing."
@@ -241,7 +234,7 @@ prompt_modifiers:
     then: "DECOMPRESSION TASKS: lying knee-to-chest, cat-cow, supine spinal twist, child's pose. ZERO standing hang or inversion tasks. Frame as 'gravity-neutral release'."
   - id: equipment_pullup_bar_hangs
     if: "equipment_access in [pullup_bar, full_setup] and spine_health == none"
-    then: "Add dead hang 60s 2×/day (AM after wake, PM before bed). Progress to weighted hangs after week 4 if comfortable. NEVER same day as heavy axial leg work — at least 6 hr gap."
+    then: "Add dead hang 60s 2×/day (AM after wake, PM before bed). Progress to weighted hangs after week 4 if comfortable. NEVER same day as heavy axial leg work, at least 6 hr gap."
   - id: equipment_inversion_full
     if: "equipment_access in [inversion_table, full_setup] and spine_health == none and cardiovascular_concerns != true"
     then: "Inversion table 5 min PM, 4×/wk. Start at 30° angle week 1, progress to 60° by week 4. Always supervised first sessions. Skip if dizziness or BP issues."
@@ -257,12 +250,12 @@ Heightmaxxing covers a few different goals that get conflated:
 - **Perceived height**: using clothing, shoes, body composition, and presence to look taller.
 - **Cosmetic height boosts**: insoles, thicker socks, boot stacking.
 
-This module covers all of the above. It does NOT cover medical interventions — hormones, peptides, aromatase inhibitors, growth hormone, limb lengthening surgery — those require licensed medical supervision and are out of scope.
+This module covers all of the above. It does NOT cover medical interventions, hormones, peptides, aromatase inhibitors, growth hormone, limb lengthening surgery, those require licensed medical supervision and are out of scope.
 
 ## Real height vs perceived height
 
 - **Real (skeletal) height**: mostly genetics + puberty. Cannot be increased after growth plate closure outside of surgery.
-- **Measured height**: affected by posture and spinal compression — varies by 1–3 cm through the day.
+- **Measured height**: affected by posture and spinal compression, varies by 1–3 cm through the day.
 - **Perceived height**: how tall you look. Affected by shoes, clothing, body fat, proportions, hair, confidence, posing, camera angle.
 
 Most "height gains" in this module come from posture + retention + perceived height. Real growth claims belong in adolescence only and even then only through foundations (sleep, nutrition, training).
@@ -298,7 +291,7 @@ Many skinny teens under-eat without realizing. Add meals, milk, eggs, rice, meat
 
 Bone-support foods: dairy, fish, eggs, leafy greens, meat, beans, fortified foods.
 
-Don't claim milk "makes you taller" — say it supports growth potential when diet is lacking. Avoid raw milk recommendations (safety/legal).
+Don't claim milk "makes you taller", say it supports growth potential when diet is lacking. Avoid raw milk recommendations (safety/legal).
 
 ## Training
 
@@ -329,7 +322,7 @@ Fixes: hip flexor stretches, glute bridges, planks, dead bugs, hamstring work.
 
 ## Daily posture routine
 
-5 min morning mobility, 5 min desk reset, 5 min night stretching. Total 15 min — anything more rarely gets done.
+5 min morning mobility, 5 min desk reset, 5 min night stretching. Total 15 min, anything more rarely gets done.
 
 # Spinal decompression and height retention
 
@@ -347,15 +340,15 @@ Stack: cat-cow, cobra, child's pose, hip flexor, hamstring, lat stretch.
 
 ## Inversion tables
 
-Temporary decompression. More useful for back tightness than actual height. **Caution**: blood pressure, eye pressure, spine issues — check with doctor first.
+Temporary decompression. More useful for back tightness than actual height. **Caution**: blood pressure, eye pressure, spine issues, check with doctor first.
 
 ## Joint support supplements
 
-Glucosamine, chondroitin, MSM. Frame as "joint and disc support" — never promise height growth. "May support joint comfort and height retention."
+Glucosamine, chondroitin, MSM. Frame as "joint and disc support", never promise height growth. "May support joint comfort and height retention."
 
-# Fraudmaxxing — cosmetic height boosts
+# Fraudmaxxing, cosmetic height boosts
 
-Cosmetic ways to appear taller. Not real skeletal growth. Best used subtly — goal is to look natural.
+Cosmetic ways to appear taller. Not real skeletal growth. Best used subtly, goal is to look natural.
 
 ## Insoles
 
@@ -421,7 +414,7 @@ Train shoulders and back. Keep waist lean. Athletic V-taper looks taller.
 
 # Hair and grooming
 
-Hair can add perceived height — must still fit the face. Don't make hair absurdly tall just for height.
+Hair can add perceived height, must still fit the face. Don't make hair absurdly tall just for height.
 
 Best: textured fringe with volume, quiff, messy volume, medium textured top, taper/fade sides to elongate face.
 
@@ -456,7 +449,7 @@ Upright posture, long relaxed stride, don't look down constantly. Confidence cha
 - Omega-3
 - Basic multivitamin if diet is poor
 
-Joint support: glucosamine, chondroitin, collagen — frame as joint/posture support, not guaranteed height.
+Joint support: glucosamine, chondroitin, collagen, frame as joint/posture support, not guaranteed height.
 
 ## Claims to avoid
 
@@ -479,7 +472,7 @@ Say instead:
 
 This module does NOT include protocols for: growth hormone, peptides (CJC-1295, GHRP-2, GHRP-6, hexarelin, IGF-1, MK-677), aromatase inhibitors (Aromasin, Arimidex, Letrozole), DHT compounds, insulin manipulation, NSAIDs for bone growth, or limb lengthening surgery.
 
-These are medical-only and require licensed supervision. Self-administration can cause permanent harm to growth, puberty, fertility, mood, bones, heart, and metabolism. The app discusses these only as education in a separate module — never as recommendations.
+These are medical-only and require licensed supervision. Self-administration can cause permanent harm to growth, puberty, fertility, mood, bones, heart, and metabolism. The app discusses these only as education in a separate module, never as recommendations.
 
 When to see a doctor: very delayed puberty, sudden growth stopping early, severe short stature concern, hormonal disorder suspicion, spine/posture pain, eating disorder signs.
 
@@ -501,7 +494,7 @@ When to see a doctor: very delayed puberty, sudden growth stopping early, severe
   duration_min: 5
   default_window: midday
   tags: [posture, desk, midday]
-  applies_when: ["posture_issues == true"]
+  applies_when: ["posture_issues in [light, heavy]"]
   intensity: 0.2
   evidence_section: "Forward head fix"
   frequency: { type: daily, n: 1 }
@@ -524,7 +517,7 @@ When to see a doctor: very delayed puberty, sudden growth stopping early, severe
   default_window: pm_active
   tags: [decompression]
   applies_when: [always]
-  contraindicated_when: ["spine_pain == true"]
+  contraindicated_when: ["spine_health in [chronic, diagnosed]"]
   intensity: 0.4
   evidence_section: "Hanging"
   frequency: { type: n_per_week, n: 4 }
@@ -535,7 +528,7 @@ When to see a doctor: very delayed puberty, sudden growth stopping early, severe
   duration_min: 1
   default_window: am_open
   tags: [posture]
-  applies_when: ["posture_issues == true"]
+  applies_when: ["posture_issues in [light, heavy]"]
   intensity: 0.1
   evidence_section: "Forward head fix"
   frequency: { type: daily, n: 1 }
@@ -634,7 +627,7 @@ When to see a doctor: very delayed puberty, sudden growth stopping early, severe
   duration_min: 1
   default_window: midday
   tags: [posture]
-  applies_when: ["posture_issues == true"]
+  applies_when: ["posture_issues in [light, heavy]"]
   intensity: 0.1
   evidence_section: "Forward head fix"
   frequency: { type: daily, n: 2 }
@@ -652,7 +645,7 @@ When to see a doctor: very delayed puberty, sudden growth stopping early, severe
 
 - id: height.morning_log
   title: "Log AM height"
-  description: "measure first thing AM (no shoes, against wall, marker on top of head). morning is your TRUE height — gravity hasn't compressed yet. log + compare bi-weekly."
+  description: "measure first thing AM (no shoes, against wall, marker on top of head). morning is your TRUE height, gravity hasn't compressed yet. log + compare bi-weekly."
   duration_min: 3
   default_window: am_open
   tags: [tracking, measurement, biweekly]
@@ -698,7 +691,7 @@ When to see a doctor: very delayed puberty, sudden growth stopping early, severe
 
 - id: height.calcium_check
   title: "Calcium-rich meal"
-  description: "Greek yogurt, sardines, leafy greens, fortified milk. for under-22 — building bones now. one calcium-loaded meal/day."
+  description: "Greek yogurt, sardines, leafy greens, fortified milk. for under-22, building bones now. one calcium-loaded meal/day."
   duration_min: 5
   default_window: midday
   tags: [nutrition, calcium, growth]

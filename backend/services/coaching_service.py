@@ -75,7 +75,7 @@ def _authoritative_local_time_block(onboarding: Optional[dict]) -> str:
     now_local = datetime.now(user_tz)
     today_iso = now_local.date().isoformat()
     return (
-        "CURRENT_TIME_FOR_USER (authoritative; use for what time/date it is for this user — do not guess): "
+        "CURRENT_TIME_FOR_USER (authoritative; use for what time/date it is for this user, do not guess): "
         f"{now_local.isoformat(timespec='seconds')} | IANA={tz_name} | local_date={today_iso}"
     )
 
@@ -106,7 +106,8 @@ _COACHING_FITMAX_CHECK_IN_FALLBACK = """You are the Fitmax SMS coach. Write one 
 Tone: direct, knowledgeable, personal. Never generic.
 Max length: 3 sentences.
 Exactly one actionable point.
-Do not narrate that you're texting or reminding — just say the thing.
+Do not narrate that you're texting or reminding. just say the thing.
+Never use em-dashes (the long dash); use a comma or a period.
 
 User name: {name}
 Check-in type: {check_in_type}
@@ -133,27 +134,29 @@ User context:
 
 Check-in type: {check_in_type}{missed_line}
 
-Generate ONE short message (1-2 sentences max). Be casual, direct, no fluff. Match your tone to their situation — if they're slacking, call it out; if they're on a streak, hype them. Sound like a real person texting, not GPT.
-Do not say you're texting, reaching out, or sending a reminder — jump straight into the check-in.
+Generate ONE short message (1-2 sentences max). Be casual, direct, no fluff. Match your tone to their situation: if they're slacking, call it out; if they're on a streak, hype them. Sound like a real person texting, not GPT.
+Do not say you're texting, reaching out, or sending a reminder. jump straight into the check-in.
+Never use em-dashes (the long dash); use a comma or a period. they're the #1 tell that a bot wrote it.
 
 CRITICAL VARIETY RULES:
-- Do NOT open with "yo just checking in", "checking in", "how's it going", "how are you" or any other generic check-in opener — those are banned phrasings.
+- Do NOT open with "yo just checking in", "checking in", "how's it going", "how are you" or any other generic check-in opener. those are banned phrasings.
 - Anchor the message in something specific from their context (a current program, a missed task, a streak, a recent scan, the time of day) instead of being generic.
-- Vary your opener every time: a question, an observation, a callout, a one-word reaction, an instruction — not always the same shape.
+- Vary your opener every time: a question, an observation, a callout, a one-word reaction, an instruction. not always the same shape.
 
 Message:"""
 
-_COACHING_BEDTIME_FALLBACK = """You are Max — the user's lookmaxxing coach. Send ONE text before their bedtime.
+_COACHING_BEDTIME_FALLBACK = """You are Max, the user's lookmaxxing coach. Send ONE text before their bedtime.
 
 User first name or handle: {name}
 
-Context (trim mentally — stay brief):
+Context (trim mentally, stay brief):
 {context_snippet}
 
 Rules:
-- 1–3 short sentences max. Casual, direct, lowercase ok. No corporate tone.
-- Wind-down / almost-bed vibe in a natural way — don't announce "this is your bedtime text".
-- If you mention a progress photo, one casual clause only (e.g. "pic back if you want today logged") — do not explain MMS or "this thread".
+- 1-3 short sentences max. Casual, direct, lowercase ok. No corporate tone.
+- Never use em-dashes (the long dash); use a comma or a period.
+- Wind-down / almost-bed vibe in a natural way. don't announce "this is your bedtime text".
+- If you mention a progress photo, one casual clause only (e.g. "pic back if you want today logged"). do not explain MMS or "this thread".
 - Do not analyze their face; archive-only vibe.
 - Under 300 characters if you can.
 
@@ -170,13 +173,13 @@ _CHECK_IN_FALLBACKS_BY_TYPE: dict[str, list[str]] = {
     "midday": [
         "halfway through. how's the day stacking?",
         "lunch break = perfect time to knock out one task.",
-        "midday gut check — on pace or drifting?",
+        "midday gut check. on pace or drifting?",
         "what's one thing you've crossed off so far?",
     ],
     "night": [
         "wind down. what'd you actually finish today?",
         "before bed: skincare, then phone down.",
-        "scan back in tomorrow — consistency over intensity.",
+        "scan back in tomorrow. consistency over intensity.",
         "one log before sleep, even if today wasn't perfect.",
     ],
     "missed_task": [
@@ -187,16 +190,16 @@ _CHECK_IN_FALLBACKS_BY_TYPE: dict[str, list[str]] = {
     ],
     "weekly": [
         "week's done. what stuck, what slipped?",
-        "seven days in — pick one thing to sharpen next week.",
+        "seven days in. pick one thing to sharpen next week.",
         "weekly reset time. small wins compound.",
-        "review the week honestly — then move forward.",
+        "review the week honestly, then move forward.",
     ],
 }
 
 _CHECK_IN_FALLBACKS_DEFAULT: list[str] = [
     "what's the move right now?",
     "how's today stacking up?",
-    "one task — pick it and go.",
+    "one task. pick it and go.",
     "where you at on today's plan?",
     "give me one thing you'll knock out today.",
 ]
@@ -403,7 +406,7 @@ def _format_memory_slots(
         ]),
         _section("bone/jaw", [
             ("tmj history",       _ob("tmj_history")),
-            ("mastic gum daily",  _ob("mastic_gum_regular")),
+            ("jaw chew tolerance",  _ob("mastic_gum_regular")),
         ]),
         _section("lifestyle", [
             ("activity",      _ob("activity_level")),
@@ -720,7 +723,7 @@ class CoachingService:
             account_bits.append(f"username=@{user.username}")
         if account_bits:
             parts.append(
-                "ACCOUNT — use first name when greeting if present; username is social handle: "
+                "ACCOUNT. use first name when greeting if present; username is social handle: "
                 + " | ".join(account_bits)
             )
             sections.append("account")
@@ -773,7 +776,7 @@ class CoachingService:
                 global_bits.append(f"{k}={val}")
         if global_bits:
             parts.append(
-                "GLOBAL ONBOARDING (from app signup — use as source of truth; do not re-ask unless user wants to change): "
+                "GLOBAL ONBOARDING (from app signup, use as source of truth; do not re-ask unless user wants to change): "
                 + " | ".join(global_bits)
             )
             sections.append("onboarding")
@@ -786,7 +789,7 @@ class CoachingService:
             st = sp.get("sleep_time")
         if wt or st:
             profile_bits.append(
-                f"saved wake/sleep (reuse for new schedules — do not re-ask unless user wants to change; "
+                f"saved wake/sleep (reuse for new schedules, do not re-ask unless user wants to change; "
                 f"never prompt for 24-hour format): "
                 f"wake_time={wt or 'unknown'}, sleep_time={st or 'unknown'}"
             )
@@ -889,7 +892,7 @@ class CoachingService:
                     outside_val = ctx.get("outside_today")
                     sched_str += f" | outside_today: {outside_val}"
                 else:
-                    sched_str += " | outside_today: unknown — ask user each morning"
+                    sched_str += " | outside_today: unknown, ask user each morning"
             parts.append(sched_str)
             if "schedules" not in sections:
                 sections.append("schedules")
@@ -976,7 +979,7 @@ class CoachingService:
                 htf = ""
                 if active_labels:
                     htf = (
-                        "\n## HEIGHTMAX — ENABLED TRACKS ONLY\n"
+                        "\n## HEIGHTMAX: ENABLED TRACKS ONLY\n"
                         f"Enabled tracks: {', '.join(active_labels)}.\n"
                     )
                 wt = ctx.get("wake_time") or onboarding.get("wake_time") or "07:00"
@@ -1136,7 +1139,7 @@ class CoachingService:
         if n_active_schedules > 1:
             multi_module_sms_hint = (
                 "\n\nThey run multiple programs and already get task pings. "
-                "Skip generic 'good morning' / vague check-in — one specific angle only."
+                "Skip generic 'good morning' / vague check-in. one specific angle only."
             )
 
         fitmax_prompt = None
@@ -1227,7 +1230,7 @@ class CoachingService:
         prompt = bed_tmpl.format(name=name, context_snippet=context_str[:2500]) + SMS_OUTBOUND_LLM_APPENDIX
 
         fallback = (
-            f"hey {name} — winding down? pic back if you want today's progress in your archive, no pressure."
+            f"hey {name}, winding down? pic back if you want today's progress in your archive, no pressure."
         )
         return prompt, fallback
 

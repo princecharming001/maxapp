@@ -1,5 +1,5 @@
 """
-FitMax notification engine — schedule generation + coaching reference.
+FitMax notification engine, schedule generation + coaching reference.
 
 Full reference: fitmax_notification_engine_reference.md
 """
@@ -134,7 +134,7 @@ def format_fitmax_anchor_times(
     post_h, post_m = _add_minutes(end_h, end_m, 15)
     mon_wi_h, mon_wi_m = _add_minutes(wh, wm, 15)
     midday = _midpoint_wake15_bed60(wake_time, sleep_time)
-    return f"""## COMPUTED ANCHOR TIMES — FITMAX
+    return f"""## COMPUTED ANCHOR TIMES, FITMAX
 - Wake: {wake_time} | Bed: {sleep_time} | Preferred workout start: {workout_time}
 - **Morning nutrition** → {_format_hm(am_nut_h, am_nut_m)} (wake + 30 min)
 - **Evening nutrition closeout** → {_format_hm(pm_nut_h, pm_nut_m)} (bed − 2 h)
@@ -211,10 +211,10 @@ def get_fitmax_slot_times(
     }
 
 
-FITMAX_JSON_DIRECTIVES = """## FITMAX — JSON SCHEDULE OUTPUT (MANDATORY)
+FITMAX_JSON_DIRECTIVES = """## FITMAX, JSON SCHEDULE OUTPUT (MANDATORY)
 
 1. Use **HH:MM** 24h; follow COMPUTED ANCHOR TIMES + full reference (pre-workout **workout−30m**, post **session_end+15m**).
-2. **Do NOT** use a generic wake-only check-in as the first FitMax ping — first daily anchor is **morning nutrition at wake+30** (merge with Skinmax AM when both active).
+2. **Do NOT** use a generic wake-only check-in as the first FitMax ping, first daily anchor is **morning nutrition at wake+30** (merge with Skinmax AM when both active).
 3. **Quiet hours:** no tasks between sleep_time and wake_time.
 4. **Workout days only:** pre + post training tasks; **rest days:** omit pre/post.
 5. **Monday:** weekly weigh-in at **wake+15** (checkpoint).
@@ -230,14 +230,14 @@ FITMAX_JSON_DIRECTIVES = """## FITMAX — JSON SCHEDULE OUTPUT (MANDATORY)
 
 
 POSTURE_TIPS_10: list[str] = [
-    "Shoulder check: pull shoulders back — rounded shoulders narrow your frame.",
-    "Stomach vacuum: exhale, belly button to spine, 5×20s — trains TVA, narrower waist look.",
-    "APT check: squeeze glutes, slight posterior pelvic tilt — saves waist measurement.",
-    "Creatine: 5g daily monohydrate — strength + fullness (see HairMax caveat if thinning risk).",
-    "Water: ~1 gal / 3.5L — dehydration flattens muscles and dulls skin.",
-    "Sleep: 7–9h — muscle repair peaks in deep sleep.",
-    "Shoulder-to-waist ratio drives the V-taper — wide shoulders + narrow waist.",
-    "Neck thickness frames the jaw — 2–3×/wk if not in BoneMax.",
-    "Face pulls every session: 3×15–20 — posture + rear delts.",
-    "Alcohol: blunts protein synthesis, hurts sleep and face leanness — cut for face gains.",
+    "Shoulder check: pull shoulders back, rounded shoulders narrow your frame.",
+    "Stomach vacuum: exhale, belly button to spine, 5×20s, trains TVA, narrower waist look.",
+    "APT check: squeeze glutes, slight posterior pelvic tilt, saves waist measurement.",
+    "Creatine: 5g daily monohydrate, strength + fullness (see HairMax caveat if thinning risk).",
+    "Water: ~1 gal / 3.5L, dehydration flattens muscles and dulls skin.",
+    "Sleep: 7–9h, muscle repair peaks in deep sleep.",
+    "Shoulder-to-waist ratio drives the V-taper, wide shoulders + narrow waist.",
+    "Neck thickness frames the jaw 2–3×/wk if not in BoneMax.",
+    "Face pulls every session: 3×15–20, posture + rear delts.",
+    "Alcohol: blunts protein synthesis, hurts sleep and face leanness, cut for face gains.",
 ]

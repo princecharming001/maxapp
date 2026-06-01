@@ -165,7 +165,9 @@ def coerce_answer(field_spec: dict, raw: str) -> Optional[Any]:
             "pigmentation": ["pigment", "dark spot", "scar", "uneven", "post-acne"],
             "rosacea": ["rosacea", "redness", "flush", "sensitive"],
             "texture": ["texture", "rough", "pore", "congest"],
+            "aging": ["wrinkle", "fine line", "fine-line", "firmness", "sagging", "aging", "ageing", "anti-aging", "anti aging", "elasticity"],
             "maintenance": ["maintain", "fine", "preventive"],
+            "untested": ["haven't", "havent", "never used", "no clue", "no idea", "not tried", "not sure", "unsure", "don't know", "dont know", "new to"],
             "stable": ["stable", "fine", "tolerate", "not really", "no", "no problem"],
             "sensitive": ["sometimes", "depends", "occasion"],
             "damaged": ["damaged", "irritate", "burn", "sting", "red"],
@@ -173,9 +175,10 @@ def coerce_answer(field_spec: dict, raw: str) -> Optional[Any]:
             "dry": ["dry", "tight", "flaky"],
             "combo": ["combo", "combination", "t-zone", "tzone"],
             "normal": ["normal", "balanced"],
-            "straight": ["straight"],
+            "straight": ["straight", "no curl"],
             "wavy": ["wavy", "wave", "loose"],
             "curly": ["curly", "curl", "spiral"],
+            "coily": ["coily", "coil", "kinky", "kinks", "coarse", "afro", "nappy", "tight curl", "4a", "4b", "4c"],
             "yes_active": ["yes", "yeah", "yep", "want to act", "definitely"],
             "yes_observing": ["maybe", "not sure", "thinking", "watching"],
             "no_but_family": ["family", "runs in", "father", "uncle"],
@@ -187,6 +190,74 @@ def coerce_answer(field_spec: dict, raw: str) -> Optional[Any]:
             "perceived": ["fashion", "look taller", "shoes", "perceived"],
             "growth": ["grow", "growth", "natural"],
             "all": ["all", "everything"],
+            # bonemax jaw chew tolerance (mastic_gum_regular enum). Safety order:
+            # ambiguous free text biases toward the gentler ramp (painful > weak >
+            # average > strong), since a too-cautious ramp is harmless but a
+            # too-aggressive one can flare a sensitive jaw.
+            "painful": ["click", "clicks", "clicking", "ache", "aches", "aching", "pops", "popping", "hurts"],
+            "weak": ["sore", "tired fast", "tires fast", "gets tired", "fatigue", "fatigues", "wears out", "doesn't last", "pretty fast", "quickly"],
+            "average": ["after a while", "after a bit", "eventually", "fine but", "okay but", "bit tired", "tires after"],
+            "strong": ["easily", "all day", "chew tough", "no problem", "no issue", "never sore", "strong jaw", "tough stuff"],
+            # Generic "none / nothing" → the `none` enum value. The `value in
+            # opts` guard limits this to fields that actually have a `none`
+            # option (workout_frequency, mewing_experience, current_treatment,
+            # routine_level, fitmax dietary/injury/supplement, spine_health,
+            # posture_issues, equipment_access). Placed before the fitmax injury
+            # keywords below so a clean negation ("no injuries") wins over a
+            # bare body-part match.
+            "none": ["none", "nothing", "nope", "nada", "not really", "no restriction",
+                     "no injuries", "no injury", "no supplements", "i eat everything",
+                     "eat everything", "all good", "no issues", "no problems"],
+            # --- fitmax: goal (recomp first so "at the same time" beats the
+            # fat_loss / muscle_gain single-intent matches) ---
+            "recomp": ["recomp", "recomposition", "at the same time", "both at once",
+                       "lean out and build", "build and lean", "lose fat and build"],
+            "fat_loss": ["lose fat", "fat loss", "lose", "losing", "cut", "cutting", "shred",
+                         "leaner", "get lean", "lose weight", "slim down", "drop fat", "drop weight"],
+            "muscle_gain": ["build muscle", "gain muscle", "grow muscle", "bulk", "bulking",
+                            "add size", "put on size", "get bigger", "more mass", "pack on"],
+            "performance": ["performance", "athletic", "more athletic", "stronger",
+                            "strength", "explosive", "conditioning", "for sport"],
+            # --- fitmax: equipment ---
+            "full_gym": ["full gym", "commercial gym", "gym membership", "proper gym",
+                         "real gym", "big gym", "machines"],
+            "home_barbell": ["barbell", "rack", "squat rack", "power rack", "garage gym",
+                             "home gym with a barbell", "bar and plates", "home barbell"],
+            "home_dumbbells": ["dumbbell", "dumbbells", "db only", "just dumbbells",
+                               "adjustable dumbbell", "bands at home", "kettlebell"],
+            "bodyweight_only": ["bodyweight", "body weight", "no equipment", "calisthenics",
+                                "no gym", "no weights", "just my body"],
+            # --- fitmax: dietary_restrictions ("other" last as catch-all) ---
+            "vegan": ["vegan", "plant based", "plant-based"],
+            "vegetarian": ["vegetarian", "veggie"],
+            "pescatarian": ["pescatarian", "pescetarian", "fish but no meat",
+                            "only fish", "fish no meat"],
+            "keto": ["keto", "ketogenic", "low carb", "low-carb"],
+            "gluten_free": ["gluten", "celiac", "coeliac", "gluten free", "gluten-free"],
+            "lactose_free": ["lactose", "dairy free", "dairy-free", "no dairy"],
+            "halal_kosher": ["halal", "kosher"],
+            "other": ["paleo", "carnivore", "fasting", "intermittent", "mediterranean",
+                      "custom diet", "something else", "a mix", "mix of"],
+            # --- fitmax: injury_history ---
+            "knee": ["knee pain", "bad knee", "bad knees", "knee issue", "my knees",
+                     "acl", "meniscus", "patella", "trick knee"],
+            "shoulder": ["shoulder pain", "bad shoulder", "rotator cuff", "rotator",
+                         "shoulder issue", "labrum"],
+            "back": ["lower back", "back pain", "bad back", "on my back", "spine",
+                     "sciatica", "herniated", "disc", "lumbar"],
+            "multiple": ["multiple", "a few things", "several", "more than one",
+                         "bunch of", "couple of injuries"],
+            # --- bonemax: sleep_position (the `back` value is served by the
+            # injury keyword above; add the other three positions here) ---
+            "side": ["side sleeper", "on my side", "sleep on my side", "left side",
+                     "right side", "fetal"],
+            "stomach": ["stomach sleeper", "on my stomach", "face down", "front sleeper",
+                        "on my front"],
+            "mixed": ["mixed", "switch sides", "all over the place", "move around",
+                      "different positions", "change positions"],
+            # --- fitmax: estimated_body_fat unknown (guarded; `untested` above
+            # covers the same phrases for skinmax barrier_state) ---
+            "unknown": ["not sure", "no idea", "no clue", "don't know", "dont know", "dunno"],
         }
         for value, kws in keywords.items():
             if value in opts and any(k in low for k in kws):

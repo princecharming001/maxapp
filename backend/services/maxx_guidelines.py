@@ -1,5 +1,5 @@
 """
-Maxx Schedule Guidelines — Protocol definitions for each maxx type.
+Maxx Schedule Guidelines, Protocol definitions for each maxx type.
 Each maxx has a set of skin-concern (or goal-based) protocols the AI uses
 to generate personalised daily/weekly schedules.
 
@@ -66,7 +66,7 @@ SKINMAX_PROTOCOLS = {
     },
 }
 
-# Expandable module cards (Maxx detail UI) — same shape as HEIGHTMAX_MODULES
+# Expandable module cards (Maxx detail UI), same shape as HEIGHTMAX_MODULES
 SKINMAX_MODULES = [
     {
         "title": "Acne / Congestion",
@@ -80,7 +80,7 @@ SKINMAX_MODULES = [
     },
     {
         "title": "Pigmentation / Uneven Tone",
-        "description": "Brighten, fade spots, and block UV — SPF is non-negotiable.",
+        "description": "Brighten, fade spots, and block UV. SPF is non-negotiable.",
         "steps": [
             {"title": "AM routine", "content": SKINMAX_PROTOCOLS["pigmentation"]["am"]},
             {"title": "PM routine", "content": SKINMAX_PROTOCOLS["pigmentation"]["pm"]},
@@ -110,7 +110,7 @@ SKINMAX_MODULES = [
     },
     {
         "title": "Aging / Skin Quality",
-        "description": "Retinoids, antioxidants, daily SPF — aging is a long game.",
+        "description": "Retinoids, antioxidants, daily SPF. Aging is a long game.",
         "steps": [
             {"title": "AM routine", "content": SKINMAX_PROTOCOLS["aging"]["am"]},
             {"title": "PM routine", "content": SKINMAX_PROTOCOLS["aging"]["pm"]},
@@ -290,6 +290,7 @@ HAIR_TYPE_TO_CONCERN = {
     "straight": "wash_routine",
     "wavy": "wash_routine",
     "curly": "wash_routine",
+    "coily": "wash_routine",
     "thinning": "minoxidil",
     "normal": "wash_routine",
 }
@@ -385,7 +386,7 @@ HAIRMAX_MODULES = [
             {"title": "When to use", "content": "For dry/damaged hair, as a pre-wash treatment, or for scalp nourishment."},
             {"title": "Frequency", "content": "Oil treatment 1–2x/week. Deep conditioning mask 1x/week."},
             {"title": "How to oil", "content": "Apply oil to scalp and lengths 30 mins to overnight before washing. Massage into scalp for 5 minutes to stimulate blood flow. Wash out the next morning."},
-            {"title": "Best oils", "content": "Castor oil (thickness), rosemary oil (growth stimulation), argan oil (shine/moisture), coconut oil (penetrates shaft—avoid if protein-sensitive)."},
+            {"title": "Best oils", "content": "Castor oil (thickness), rosemary oil (growth stimulation), argan oil (shine/moisture), coconut oil (penetrates shaft, avoid if protein-sensitive)."},
             {"title": "Hair mask protocol", "content": "After shampooing, apply deep conditioning mask. Leave 5–10 mins. Rinse thoroughly. Do this 1x/week."},
             {"title": "Notification", "content": "Oil your scalp tonight. Massage in, leave overnight, wash tomorrow."},
         ],
@@ -397,7 +398,7 @@ HAIRMAX_MODULES = [
             {"title": "Who needs it", "content": "Anyone with visible hair thinning, receding hairline, temple recession, or crown thinning. If you're losing hair, this is the intervention."},
             {"title": "When to apply", "content": "PM skincare time, before your skincare routine. Let it dry before bed. Optional: morning secondary application if you're advanced and committed."},
             {"title": "Frequency", "content": "Daily. Non-negotiable. This is not optional if you want results."},
-            {"title": "How to apply", "content": "Apply to thinning areas only—hairline, crown, temples. Use dropper or foam. Massage in gently. Let dry completely before sleeping."},
+            {"title": "How to apply", "content": "Apply to thinning areas only, hairline, crown, temples. Use dropper or foam. Massage in gently. Let dry completely before sleeping."},
             {"title": "Notification: Core", "content": "Minoxidil. Thinning areas only."},
             {"title": "Notification: Pressure", "content": "Miss days = lose gains."},
             {"title": "Notification: Identity", "content": "You either maintain your hairline or watch it go."},
@@ -412,7 +413,7 @@ HAIRMAX_MODULES = [
         "steps": [
             {"title": "Who needs it", "content": "Anyone with hair thinning. Used alongside minoxidil for enhanced absorption and direct follicle stimulation."},
             {"title": "When to use", "content": "Evening PM skincare time before bed. Pick the same day each week to lock in the habit (e.g., every Sunday night)."},
-            {"title": "Frequency", "content": "1x/week default. Maximum 2x/week. Never more—you need scalp recovery time."},
+            {"title": "Frequency", "content": "1x/week default. Maximum 2x/week. Never more, you need scalp recovery time."},
             {"title": "How to do it", "content": "Use 0.5–1.5mm needle length. Target hairline and crown only. Roll/stamp in multiple directions. Clean and sterilize device before and after use."},
             {"title": "Minoxidil timing", "content": "Do NOT apply minoxidil immediately after dermastamping. Wait 24 hours. The micro-wounds need to heal first."},
             {"title": "Notification", "content": "Dermastamp tonight. Hairline/crown only."},
@@ -425,7 +426,7 @@ HAIRMAX_MODULES = [
 BONEMAX_MODULES = [
     {
         "title": "Mewing & oral posture",
-        "description": "All-day tongue posture, resets, and optional hard mewing caps — backend turns this into timed cues.",
+        "description": "All-day tongue posture, resets, and optional hard mewing caps. Backend turns this into timed cues.",
         "steps": [
             {"title": "Baseline", "content": "Tongue up, lips sealed, nasal breathing, teeth light touch, jaw relaxed."},
             {"title": "Resets", "content": "Morning 30–60s; midday after screens; night 30s check before sleep."},
@@ -434,7 +435,7 @@ BONEMAX_MODULES = [
     },
     {
         "title": "Chewing posture",
-        "description": "Meal-time form: symmetrical load, premolar bias, no clench — reminders only; schedule has the cadence.",
+        "description": "Meal-time form: symmetrical load, premolar bias, no clench. Reminders only; schedule has the cadence.",
         "steps": [
             {"title": "During meals", "content": "Head upright, lips sealed when possible, slow deliberate chews, alternate sides."},
             {"title": "Non-negotiables", "content": "No one-side-only chewing, no forward-head gnawing, no sloppy open-mouth chewing."},
@@ -442,7 +443,7 @@ BONEMAX_MODULES = [
     },
     {
         "title": "Fascia / lymph",
-        "description": "Light drainage and optional contrast — timed in your schedule, not invented in chat.",
+        "description": "Light drainage and optional contrast. Timed in your schedule, not invented in chat.",
         "steps": [
             {"title": "AM", "content": "Short tapping + drainage paths after cleansing; feather-light pressure."},
             {"title": "PM", "content": "Evening sessions a few nights/week; skip on harsh actives nights."},
@@ -450,9 +451,9 @@ BONEMAX_MODULES = [
     },
     {
         "title": "Bone nutrition · neck · masseter",
-        "description": "Stack with meals, neck work after training days, mastic gum volume with rest logic — all encoded as tasks.",
+        "description": "Stack with meals, neck work after training days, mastic gum volume with rest logic. All encoded as tasks.",
         "steps": [
-            {"title": "Nutrition", "content": "Bone-support stack concept with meals (e.g. D3, K2, magnesium, zinc, boron) — follow your own products."},
+            {"title": "Nutrition", "content": "Bone-support stack concept with meals (e.g. D3, K2, magnesium, zinc, boron). Follow your own products."},
             {"title": "Neck", "content": "Chin tucks + accessory work; scaled if TMJ-sensitive."},
             {"title": "Mastic gum", "content": "One main session/day max, form-first, stop if clicking or pain."},
         ],
@@ -460,36 +461,36 @@ BONEMAX_MODULES = [
 ]
 
 # ---------------------------------------------------------------------------
-# FitMax — phase protocols (Cut / Lean bulk / Recomp / Maintain)
+# FitMax, phase protocols (Cut / Lean bulk / Recomp / Maintain)
 # ---------------------------------------------------------------------------
 FITMAX_PROTOCOLS = {
     "cut": {
-        "label": "Cut — deficit, preserve muscle, face gains",
+        "label": "Cut: deficit, preserve muscle, face gains",
         "cadence": "Train 3–6×/week per user availability; pre-workout −30m, post +15m after session",
         "how_to": "Caloric deficit (~TDEE−500), protein ≥1g/lb, train for hypertrophy with lateral raise + face pull volume every session pattern.",
         "notification": "Anchor protein early; remind session focus + progressive overload when logs show top-of-range reps.",
         "blackpill": "Face leanness is mostly kitchen + consistency; one perfect workout won't outrun a surplus.",
     },
     "lean_bulk": {
-        "label": "Lean bulk — small surplus, keep facial definition",
+        "label": "Lean bulk: small surplus, keep facial definition",
         "cadence": "3–6×/week; monitor scale +0.5–1 lb/wk max",
         "how_to": "TDEE+250–300, protein ~1g/lb, bias shoulders/back volume; deload when stalls.",
         "notification": "Surplus discipline: if weight spikes >1 lb/wk, pull 200 kcal; hit protein every meal.",
         "blackpill": "Fast bulk = fat face; slow surplus keeps jawline in the game.",
     },
     "recomp": {
-        "label": "Recomp — maintenance + high protein (beginner window)",
+        "label": "Recomp: maintenance + high protein (beginner window)",
         "cadence": "3–5×/week full-body or split per equipment",
         "how_to": "Eat at maintenance, protein ~1g/lb, progressive overload on compounds + accessories.",
         "notification": "Protein is the lever; sleep and steps support recomp more than macro perfectionism.",
-        "blackpill": "Recomp is real for novices — not for skipping protein or training like a tourist.",
+        "blackpill": "Recomp is real for novices, not for skipping protein or training like a tourist.",
     },
     "maintain": {
-        "label": "Maintain — sweet spot physique",
+        "label": "Maintain: sweet spot physique",
         "cadence": "Keep training consistent; same notification anchors for habit glue",
         "how_to": "TDEE maintenance, protein ~0.8–1g/lb, keep face pulls + shoulder volume as identity habits.",
         "notification": "Consistency beats novelty; weekly weigh-in + monthly photos catch drift early.",
-        "blackpill": "Maintenance still needs structure — drifting off plan is how people 'accidentally' bulk.",
+        "blackpill": "Maintenance still needs structure. Drifting off plan is how people 'accidentally' bulk.",
     },
 }
 
@@ -529,7 +530,7 @@ MAXX_GUIDELINES = {
         "recurring": True,
         "daily_tasks": True,
         "weekly_tasks": True,
-        "protocol_prompt_template": """## SKINCARE PROTOCOL — {label}
+        "protocol_prompt_template": """## SKINCARE PROTOCOL: {label}
 AM Routine: {am}
 PM Routine: {pm}
 Weekly: {weekly}
@@ -549,18 +550,18 @@ Sunscreen: {sunscreen}
         "schedule_rules": {
             "engine": "heightmax_notification_engine_reference.md",
             "morning_decompression": "wake_time + 20 minutes",
-            "midday_posture": "midpoint(wake+15min, bed−60min) — same as BoneMax midday",
+            "midday_posture": "midpoint(wake+15min, bed−60min), same as BoneMax midday",
             "afternoon_posture": "midday + 3 hours if 6+ hours screen/day at onboarding",
             "evening_decompression": "bed_time − 90 minutes",
             "sleep_gh_protocol": "bed_time − 45 minutes",
             "sprint_reminder": "30 minutes before workout on sprint days (2–3×/week, non-consecutive)",
-            "height_nutrition": "wake+1h or wake+5h — only if user opted in",
+            "height_nutrition": "wake+1h or wake+5h, only if user opted in",
             "weekly_measurement": "Sunday wake + 30 minutes",
             "monthly_checkin": "1st of month at midday posture time",
             "quiet_hours": "No notifications between bed and wake",
             "daily_cap": "Typically 6–7/day full stack; max 10/day with other modules",
             "sprint_spacing": "Sprint sessions 2–3×/week, never consecutive days",
-            "presentation_focus": "Tier 3: no fake inch promises — posture/decompression reclamation only",
+            "presentation_focus": "Tier 3: no fake inch promises, posture/decompression reclamation only",
         },
         "modules": HEIGHTMAX_MODULES,
         "protocols": HEIGHTMAX_PROTOCOLS,
@@ -570,7 +571,7 @@ Sunscreen: {sunscreen}
         "recurring": True,
         "daily_tasks": True,
         "weekly_tasks": True,
-        "protocol_prompt_template": """## HEIGHT PROTOCOL — {label}
+        "protocol_prompt_template": """## HEIGHT PROTOCOL: {label}
 Cadence: {cadence}
 How to do it: {how_to}
 Notification angle: {notification}
@@ -595,7 +596,7 @@ Blackpilled truth: {blackpill}
     },
     "fitmax": {
         "label": "FitMax",
-        "description": "Aesthetic hypertrophy, phased nutrition, body comp tracking, and face-gains framing — not powerlifting-first.",
+        "description": "Aesthetic hypertrophy, phased nutrition, body comp tracking, and face-gains framing, not powerlifting-first.",
         "schedule_rules": {
             "engine": "fitmax_notification_engine_reference.md",
             "pre_workout": "preferred_workout_time − 30 minutes",
@@ -618,7 +619,7 @@ Blackpilled truth: {blackpill}
         "recurring": True,
         "daily_tasks": True,
         "weekly_tasks": True,
-        "protocol_prompt_template": """## FITMAX PROTOCOL — {label}
+        "protocol_prompt_template": """## FITMAX PROTOCOL: {label}
 Cadence: {cadence}
 How to do it: {how_to}
 Notification angle: {notification}
@@ -628,7 +629,7 @@ Blackpilled truth: {blackpill}
 - **Workout days:** pre-workout (−30m) + post-workout (+15m after estimated session end) only on scheduled lift days
 - **Daily:** morning nutrition (wake+30) + evening closeout (bed−2h); merge supplements at wake+30 if opted in
 - **Monday:** weekly weigh-in at wake+15; **1st of month:** body check at midday anchor
-- **Midday:** 10-day rotating aesthetics tip (omit posture overlap if BoneMax active — swap for training/nutrition tips)
+- **Midday:** 10-day rotating aesthetics tip (omit posture overlap if BoneMax active, swap for training/nutrition tips)
 - **Phase routing:** use engine reference (BF% + goal → Cut / Lean bulk / Recomp / Maintain)
 - **No-track users:** portion-based guidance, no macro numbers in copy
 - **TDEE:** Mifflin–St Jeor; tune from weigh-in trends monthly
@@ -647,7 +648,7 @@ Blackpilled truth: {blackpill}
             "ketoconazole": "2–3×/week on wash days only",
             "microneedling": "1×/week; not same night as minoxidil (24h); stagger vs face microneedling if Skinmax active",
             "midday": "midpoint(wake+15, bed−60) for monthly check-in (1st) and rotating tips",
-            "bloodwork": "Baseline ~3d after oral fin start, +180d, +365d — not daily",
+            "bloodwork": "Baseline ~3d after oral fin start, +180d, +365d, not daily",
             "treatment_ramp": "M1 fin+keto → M2–3 +minox 2× → M4+ microneedling",
             "quiet_hours": "No notifications between bed and wake",
             "daily_cap": "~4–5/day full stack; max 10/day with other modules",
@@ -664,7 +665,7 @@ Blackpilled truth: {blackpill}
         "recurring": True,
         "daily_tasks": True,
         "weekly_tasks": True,
-        "protocol_prompt_template": """## HAIR PROTOCOL — {label}
+        "protocol_prompt_template": """## HAIR PROTOCOL: {label}
 
 {protocol_details}
 
@@ -692,9 +693,9 @@ Blackpilled truth: {blackpill}
         "description": "Facial bone / jawline stack: mewing, chewing form, fascia, bone nutrition, neck training, masseter gum.",
         "schedule_rules": {
             "engine": "bonemax_notification_engine_reference.md",
-            "mewing_morning": "wake_time — first ping of the day",
-            "mewing_midday": "midpoint(wake+15min, bed−60min) — same active-day logic as Skinmax midday",
-            "mewing_night": "bed_time − 30 minutes — bundles sleep optimization + nasal night notes",
+            "mewing_morning": "wake_time, first ping of the day",
+            "mewing_midday": "midpoint(wake+15min, bed−60min), same active-day logic as Skinmax midday",
+            "mewing_night": "bed_time − 30 minutes, bundles sleep optimization + nasal night notes",
             "facial_exercises": "wake + 15 minutes",
             "fascia_morning": "wake + 20 minutes",
             "fascia_evening": "bed − 90 minutes, 4–5×/week; skip on Skinmax retinoid/exfol nights when applicable",
@@ -702,7 +703,7 @@ Blackpilled truth: {blackpill}
             "nasal_check": "midday mewing + 2h (2× if screen 6+h, max 2/day)",
             "neck_training": "15 min after workout end on workout days; chin tucks in midday mewing on non-workout days",
             "symmetry": "1×/day between midday and evening, weekly rotating tips",
-            "bone_nutrition": "1×/day at meal only if user opted in — no nag otherwise",
+            "bone_nutrition": "1×/day at meal only if user opted in, no nag otherwise",
             "quiet_hours": "No notifications between bed and wake",
             "daily_cap": "Hard cap 10 notifications/day across all modules; use phased rollout 1→2→3",
             "learn_patterns": True,
@@ -723,7 +724,7 @@ Blackpilled truth: {blackpill}
         "recurring": True,
         "daily_tasks": True,
         "weekly_tasks": True,
-        "protocol_prompt_template": """## BONEMAX PROTOCOL — {label}
+        "protocol_prompt_template": """## BONEMAX PROTOCOL: {label}
 
 {task_families}
 
@@ -734,11 +735,11 @@ Blackpilled truth: {blackpill}
 - Fascia/lymph: morning block; optional midday; evening 4–5x/week not nightly.
 - Bone nutrition reminders: with breakfast/lunch/dinner as appropriate.
 - Neck training: 2–3x/week for most; daily chin tucks as short reminders; place after workout days if workout_frequency is high; reduce if tmj_history is yes.
-- Masseter/mastic: 0–1 main session per day max; shorter duration if mastic_gum_regular is no or tmj_history is yes; never stack multiple hard jaw sessions same day.
+- Masseter/mastic: 0–1 main session per day max; shorter duration and slower ramp if mastic_gum_regular is weak or painful, or tmj_history is yes; treat painful like a TMJ case; never stack multiple hard jaw sessions same day.
 - No sunscreen/outside-today-only tasks. No skin or hair protocols.
 
 ## USER BONEMAX CONTEXT (must personalize task text and intensity)
-Use the profile line that lists: workout frequency, TMJ history, mastic gum experience, heavy screen time.
+Use the profile line that lists: workout frequency, TMJ history, jaw chew tolerance, heavy screen time.
 
 ## OUTPUT
 Return JSON schedule only; motivational lines short and on-brand (casual, direct).
@@ -788,7 +789,7 @@ def build_skinmax_prompt_section(
     protocol = SKINMAX_PROTOCOLS.get(concern) or SKINMAX_PROTOCOLS["aging"]
     onboarding = onboarding or {}
 
-    base = f"""## SKINCARE PROTOCOL — {protocol['label']}
+    base = f"""## SKINCARE PROTOCOL: {protocol['label']}
 AM Routine: {protocol['am']}
 PM Routine: {protocol['pm']}
 Weekly: {protocol['weekly']}
@@ -809,7 +810,7 @@ Sunscreen: {protocol['sunscreen']}
 
 {anchors}
 
-## SKINMAX NOTIFICATION ENGINE — FULL REFERENCE (follow exactly)
+## SKINMAX NOTIFICATION ENGINE: FULL REFERENCE (follow exactly)
 {engine_body}
 
 {json_dirs}
@@ -850,7 +851,7 @@ def build_bonemax_prompt_section(
         try:
             base = template.format(**protocol).strip() + "\n\n"
         except KeyError:
-            base = f"## BONEMAX — {protocol.get('label', 'Bonemax')}\n{protocol.get('task_families', '')}\n\n"
+            base = f"## BONEMAX: {protocol.get('label', 'Bonemax')}\n{protocol.get('task_families', '')}\n\n"
 
     profile = summarize_bonemax_onboarding(onboarding or {}, wake_time, sleep_time)
     anchors = format_bonemax_anchor_times(wake_time, sleep_time) if wake_time and sleep_time else ""
@@ -862,12 +863,12 @@ def build_bonemax_prompt_section(
             "\n## ACTIVE MODULE: SKINMAX\n"
             "Merge overlapping windows per engine: **one** morning notification combining mewing morning reset + Skinmax AM when timing aligns; "
             "**one** evening block combining mewing night check (bed−30) + Skinmax PM when appropriate. "
-            "Hard cap **10** total notifications/day — drop lowest-priority items first.\n"
+            "Hard cap **10** total notifications/day, drop lowest-priority items first.\n"
         )
     if "fitmax" in oids:
         combo += (
             "\n## ACTIVE MODULE: FITMAX\n"
-            "BoneMax owns **neck training** — FitMax programs must **not** prescribe separate neck volume. "
+            "BoneMax owns **neck training**, FitMax programs must **not** prescribe separate neck volume. "
             "FitMax midday **posture** tips should be disabled or swapped for training/nutrition (no duplicate posture coaching). Cap **10**/day.\n"
         )
 
@@ -880,7 +881,7 @@ def build_bonemax_prompt_section(
 
 {anchors}
 {combo}
-## BONEMAX NOTIFICATION ENGINE — FULL REFERENCE (follow exactly)
+## BONEMAX NOTIFICATION ENGINE: FULL REFERENCE (follow exactly)
 {engine_body}
 
 {json_dirs}
@@ -949,7 +950,7 @@ def build_heightmax_prompt_section(
 
 {anchors}
 {combo}
-## HEIGHTMAX NOTIFICATION ENGINE — FULL REFERENCE (follow exactly)
+## HEIGHTMAX NOTIFICATION ENGINE: FULL REFERENCE (follow exactly)
 {engine_body}
 
 {HEIGHTMAX_JSON_DIRECTIVES}
@@ -1004,13 +1005,13 @@ def build_fitmax_prompt_section(
         combo += (
             "\n## ACTIVE MODULE: BONEMAX\n"
             "Remove **neck training** from FitMax workout copy (BoneMax owns neck). "
-            "Replace FitMax **midday posture** tips with **training/nutrition** tips — no duplicate posture coaching. "
+            "Replace FitMax **midday posture** tips with **training/nutrition** tips, no duplicate posture coaching. "
             "**Face pulls** stay in FitMax. Cap **10** pings/day.\n"
         )
     if "heightmax" in oids:
         combo += (
             "\n## ACTIVE MODULE: HEIGHTMAX\n"
-            "HeightMax **sprint** sessions count as cardio — do not add redundant cardio. "
+            "HeightMax **sprint** sessions count as cardio, do not add redundant cardio. "
             "After heavy **squat/deadlift** days, post-workout or evening copy may include **2 min dead hang** for spinal decompression. "
             "Align **protein** messaging with Height nutrition if both apply.\n"
         )
@@ -1018,12 +1019,12 @@ def build_fitmax_prompt_section(
         combo += (
             "\n## ACTIVE MODULE: SKINMAX\n"
             "Merge **morning nutrition** with **Skinmax AM** into **one** notification when windows align. "
-            "Midday FitMax tip may add: leanness lowers systemic inflammation — helps skin clarity. Cap **10**/day.\n"
+            "Midday FitMax tip may add: leanness lowers systemic inflammation, helps skin clarity. Cap **10**/day.\n"
         )
     if "hairmax" in oids:
         combo += (
             "\n## ACTIVE MODULE: HAIRMAX\n"
-            "When scheduling **creatine** reminders, add caveat: mixed evidence on DHT/hair — if hair priority > performance, skip creatine. "
+            "When scheduling **creatine** reminders, add caveat: mixed evidence on DHT/hair, if hair priority > performance, skip creatine. "
             "Cap **10**/day total.\n"
         )
 
@@ -1037,7 +1038,7 @@ def build_fitmax_prompt_section(
 
 {anchors}
 {combo}
-## FITMAX NOTIFICATION ENGINE — FULL REFERENCE (follow exactly)
+## FITMAX NOTIFICATION ENGINE: FULL REFERENCE (follow exactly)
 {engine_body}
 
 {json_dirs}
@@ -1128,7 +1129,7 @@ def build_hairmax_prompt_section(
     json_dirs = resolve_prompt(PromptKey.HAIRMAX_JSON_DIRECTIVES, HAIRMAX_JSON_DIRECTIVES)
 
     details, protocol = _hairmax_protocol_details_block(concern)
-    base = f"""## HAIR PROTOCOL — {protocol['label']}
+    base = f"""## HAIR PROTOCOL: {protocol['label']}
 {details}
 
 ## SCHEDULE RULES (concern-specific baseline)
@@ -1136,7 +1137,7 @@ def build_hairmax_prompt_section(
 - Minoxidil: **AM wake+15**, **PM bed−90** per HairMax engine (not vague "night skincare")
 - Microneedling / dermastamp: 1×/week max; never same night as minoxidil (24h gap); stagger vs Skinmax face microneedling
 - Oil treatments: 1-2x/week, evening before wash day as overnight treatment
-- Anti-dandruff / keto: 2-3x/week when indicated — can align with ketoconazole hair protocol
+- Anti-dandruff / keto: 2-3x/week when indicated, can align with ketoconazole hair protocol
 - Conditioner on strands only unless designed for scalp
 - All tasks MUST use exact HH:MM from wake and sleep times
 
@@ -1144,7 +1145,7 @@ def build_hairmax_prompt_section(
 - Core: "Minoxidil. Thinning areas only."
 - Pressure: "Miss days = lose gains."
 - If skip 5+ PM in a row: offer 1×/day simplification (per engine) vs nagging
-- Prioritize highest ROI; fin dose 0.5mg vs 1mg — respect user preference (0.5mg ≈ 85-90% suppression of 1mg)
+- Prioritize highest ROI; fin dose 0.5mg vs 1mg, respect user preference (0.5mg ≈ 85-90% suppression of 1mg)
 """
 
     profile = summarize_hairmax_onboarding(onboarding or {}, wake_time, sleep_time, concern)
@@ -1157,7 +1158,7 @@ def build_hairmax_prompt_section(
             "\n## ACTIVE MODULE: SKINMAX\n"
             "Merge **AM**: cleanser → **minoxidil on scalp** → **15 min** → skin actives → moisturizer → SPF in **one** notification when windows align. "
             "Merge **PM**: minox → **30 min dry** → PM skincare. "
-            "**Do not** schedule scalp microneedling same day as **face** microneedling — stagger (e.g. scalp Sunday, face Wednesday). "
+            "**Do not** schedule scalp microneedling same day as **face** microneedling, stagger (e.g. scalp Sunday, face Wednesday). "
             "Ketoconazole wash can double as dandruff control. **Max 10** notifications/day total.\n"
         )
 
@@ -1171,7 +1172,7 @@ def build_hairmax_prompt_section(
 
 {anchors}
 {combo}
-## HAIRMAX NOTIFICATION ENGINE — FULL REFERENCE (follow exactly)
+## HAIRMAX NOTIFICATION ENGINE: FULL REFERENCE (follow exactly)
 {engine_body}
 
 {json_dirs}

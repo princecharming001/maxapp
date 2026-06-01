@@ -314,7 +314,7 @@ def generate_maxx_schedule(
         thinning: For HairMax: yes or no — thinning or receding hairline.
         workout_frequency: For BoneMax: e.g. '0', '1-2', '3-4', '5+'.
         tmj_history: For BoneMax: 'yes' or 'no' — TMJ/jaw pain/clicking history.
-        mastic_gum_regular: For BoneMax: 'yes' or 'no' — already uses mastic/hard gum regularly.
+        mastic_gum_regular: For BoneMax: jaw chew tolerance, one of 'strong', 'average', 'weak', 'painful'.
         heavy_screen_time: For BoneMax: 'yes' or 'no' — many hours on computer/phone.
     """
     return {

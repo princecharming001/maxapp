@@ -224,7 +224,7 @@ def _summarise_schedule(schedule: dict) -> str:
     title = (schedule.get("course_title") or schedule.get("maxx_id") or "schedule").strip()
     lines = [f"your {title} schedule is locked in.", "", "day 1:"]
     for t in tasks[:5]:
-        lines.append(f"  {t.get('time', '??:??')} — {t.get('title', 'Task')}")
+        lines.append(f"  {t.get('time', '??:??')}, {t.get('title', 'Task')}")
     if len(tasks) > 5:
         lines.append(f"  +{len(tasks) - 5} more")
     lines.append(f"\n{len(days)} days planned. check Schedule tab.")
@@ -431,12 +431,12 @@ async def build_agent_system_prompt(
                         "supplements, exercises, routines), you MUST filter "
                         "through KNOWN USER FACTS below. NEVER suggest items "
                         "the user said they avoid, are allergic to, or that "
-                        "conflict with their diet — even if a retrieved doc "
+                        "conflict with their diet, even if a retrieved doc "
                         "lists them. Rewrite forbidden items as substitutions "
                         "from the SUBSTITUTION GUIDE.\n\n"
                         "EXAMPLE: User is vegetarian. Doc says 'eat meat, "
                         "fish, eggs, beans'. Your answer: 'eat eggs, beans, "
-                        "lentils, tofu, tempeh' — NOT 'eat meat, fish, eggs, "
+                        "lentils, tofu, tempeh', NOT 'eat meat, fish, eggs, "
                         "beans'.\n\n"
                         f"{facts_str}\n\n"
                         f"{DIET_SUBSTITUTIONS}\n"
@@ -459,9 +459,9 @@ async def build_agent_system_prompt(
         "\n\n## VOICE: SOUND LIKE A REAL PERSON, NOT AN AI\n"
         "Hard rules. Violations are stripped server-side, so just "
         "follow them and save us both the round-trip:\n"
-        "1. NEVER use more than ONE em-dash (—) per reply. Prefer "
-        "commas, colons, or periods. The default LLM voice over-uses "
-        "em-dashes and it's a giveaway. Vary the punctuation.\n"
+        "1. NEVER use em-dashes (—). Not one. Use a comma, a colon, or "
+        "a period instead. Em-dashes are the #1 tell that a bot wrote "
+        "it. Zero exceptions.\n"
         "2. NEVER open with: 'Certainly', 'Of course', 'Absolutely', "
         "'Great question', 'Awesome question', 'I'd be happy to', "
         "'Let me break this down', 'It's important to note', 'As an "
@@ -483,15 +483,15 @@ async def build_agent_system_prompt(
         "every fact the user already gave us (age, sex, height, wake/sleep,\n"
         "work hours, skin concerns, hair history, training experience,\n"
         "equipment, dietary restrictions, etc). Treat that as ground\n"
-        "truth — DO NOT re-ask the user for ANY of those answers, even\n"
+        "truth. DO NOT re-ask the user for ANY of those answers, even\n"
         "when they're starting a new module. If a maxx needs a fact\n"
         "that's already in KNOWN PROFILE, use it silently; only ask\n"
         "for the small set of new fields specific to the new maxx.\n"
         "Example: user has wake=07:00 from a previous hairmax onboarding.\n"
         "They start skinmax. You do NOT ask 'what time do you wake up'\n"
-        "again — you pull 07:00 from KNOWN PROFILE.\n"
+        "again, you pull 07:00 from KNOWN PROFILE.\n"
         "## PRODUCT LINKS: SURFACE PROACTIVELY\n"
-        "Be EAGER with product links — the user shouldn't have to ask\n"
+        "Be EAGER with product links, the user shouldn't have to ask\n"
         "'do you have a link?' to get one. Trigger conditions (call\n"
         "`recommend_product(module, concern)` and link the results):\n"
         "  a. The user explicitly asks for a product, brand, link, or\n"
@@ -501,7 +501,7 @@ async def build_agent_system_prompt(
         "     creatine, minoxidil, etc). Even if user didn't ask.\n"
         "  c. Your reply describes a routine / protocol that includes\n"
         "     a category of product (cleanser, moisturizer, spf,\n"
-        "     shampoo, protein, multivitamin) — surface 1 catalog pick\n"
+        "     shampoo, protein, multivitamin), surface 1 catalog pick\n"
         "     for that category.\n"
         "Catalog has 72 entries with verified /dp/<ASIN> URLs and\n"
         "soft-fallback so it almost always returns relevant products.\n"
@@ -517,11 +517,11 @@ async def build_agent_system_prompt(
         "3. NEVER use placeholder URLs like `[Name](link)`, `[Name](url)`,\n"
         "   `[Name](here)`, `[Name](TBD)`, `[Name](#)`, `[Name](...)`.\n"
         "4. If `recommend_product` returns 'no product recommendations\n"
-        "   available' (rare — catalog truly empty for this module),\n"
+        "   available' (rare, catalog truly empty for this module),\n"
         "   give the protocol with plain-text ingredient names. Do not\n"
         "   apologize.\n"
         "5. If the user has dietary or sensitivity facts (vegan,\n"
-        "   fragrance allergy, etc.), the catalog already filtered —\n"
+        "   fragrance allergy, etc.), the catalog already filtered,\n"
         "   trust it.\n"
     )
     chat_prompt += (
@@ -529,9 +529,9 @@ async def build_agent_system_prompt(
         "When the user's question is too underspecified to answer well, "
         "ask ONE focused clarifying question and offer 2-6 short concrete "
         "options. TWO marker forms:\n"
-        "  Single-pick (radio behavior — user taps one option, it sends):\n"
+        "  Single-pick (radio behavior, user taps one option, it sends):\n"
         "    [CHOICES]option a|option b|option c[/CHOICES]\n"
-        "  Multi-pick (checkboxes + Submit button — user picks any number):\n"
+        "  Multi-pick (checkboxes + Submit button, user picks any number):\n"
         "    [CHOICES_MULTI]option a|option b|option c[/CHOICES_MULTI]\n"
         "Use [CHOICES_MULTI] when the question genuinely allows multiple "
         "answers (concerns, symptoms, equipment available, allergies, "
@@ -557,7 +557,7 @@ async def build_agent_system_prompt(
         "trying web_search first when the question is one a search "
         "engine could answer (ingredient lookups, exercise form, "
         "product comparisons, brand info, dosing references, etc.).\n"
-        "After web_search returns, ground your answer in the snippets — "
+        "After web_search returns, ground your answer in the snippets, "
         "don't make up details. Keep the answer concise and cite at "
         "most one source URL inline if it's helpful. Don't call "
         "web_search for: anything about THIS user's data, schedule "
@@ -589,7 +589,7 @@ async def build_agent_system_prompt(
     elif length_pref == "detailed":
         chat_prompt += (
             "\n\n## USER RESPONSE LENGTH PREFERENCE: DETAILED  (overrides all other length rules)\n"
-            "- Up to ~8 sentences, or a tight bulleted structure. Still lowercase, still Max's voice — length is not license to pad.\n"
+            "- Up to ~8 sentences, or a tight bulleted structure. Still lowercase, still Max's voice, length is not license to pad.\n"
             "- Every expansion must add real info: mechanisms, exact protocols, numbers, evidence. If you catch yourself restating, stop.\n"
             "- Structure: direct answer → specifics (ingredient + %, time, reps, macros) → one sentence on why. No intros, no end-summaries."
         )
@@ -800,7 +800,7 @@ def make_chat_tools(
             except Exception as e:
                 await _safe_rollback()
                 logger.exception("new generator unexpected error for %s: %s", req_maxx_early, e)
-                return "schedule generation failed — try again in a moment"
+                return "schedule generation failed, try again in a moment"
 
         # ---- Legacy path (no max-doc available — kept for migration window) -----
         try:
@@ -903,8 +903,8 @@ def make_chat_tools(
                     wf = wf_norm
                 if not _yes_no_answered(tmj_raw):
                     missing.append("tmj_history (yes/no)")
-                if not _yes_no_answered(gum_raw):
-                    missing.append("mastic_gum_regular (yes/no)")
+                if not (gum_raw is not None and str(gum_raw).strip()):
+                    missing.append("mastic_gum_regular (jaw chew tolerance: strong/average/weak/painful)")
                 if not _yes_no_answered(scr_raw):
                     missing.append("heavy_screen_time (yes/no)")
                 if missing:
@@ -984,9 +984,9 @@ def make_chat_tools(
                 _tmj_n = _normalize_hair_yes_no(tmj_raw)
                 if _tmj_n is not None:
                     yesno_overrides["override_tmj_history"] = _tmj_n
-                _gum_n = _normalize_hair_yes_no(gum_raw)
-                if _gum_n is not None:
-                    yesno_overrides["override_mastic_gum_regular"] = _gum_n
+                _gum_v = str(gum_raw).strip() if gum_raw is not None else ""
+                if _gum_v:
+                    yesno_overrides["override_mastic_gum_regular"] = _gum_v
                 _scr_n = _normalize_hair_yes_no(scr_raw)
                 if _scr_n is not None:
                     yesno_overrides["override_heavy_screen_time"] = _scr_n
@@ -1038,7 +1038,7 @@ def make_chat_tools(
         except Exception as e:
             await _safe_rollback()
             logger.exception("generate_maxx_schedule tool failed: %s", e)
-            return f"schedule generation failed — try again in a moment"
+            return f"schedule generation failed, try again in a moment"
 
     # ------------------------------------------------------------------ #
     #  stop_schedule                                                       #
@@ -1537,7 +1537,7 @@ def make_chat_tools(
         except Exception as e:
             await _safe_rollback()
             logger.exception("generate_course_schedule tool failed: %s", e)
-            return "schedule generation failed — try again in a moment"
+            return "schedule generation failed, try again in a moment"
 
     # ------------------------------------------------------------------ #
     #  update_schedule_context                                             #
@@ -1551,9 +1551,9 @@ def make_chat_tools(
           - morning_friction ("high"|"low"), explicit_avoidances (list)
           - equipment_owned (list), timing_preferences (object)
           - wake_time, sleep_time (also persisted to user profile)
-          - preferred_workout_time (HH:MM) — re-anchors the workout window for
+          - preferred_workout_time (HH:MM), re-anchors the workout window for
             FitMax/HeightMax and every other maxx at once
-          - get_ready_time (HH:MM) — when they shower/get ready; re-anchors the
+          - get_ready_time (HH:MM), when they shower/get ready; re-anchors the
             morning skin/hair/mewing routine across maxes
         Pass a clock time like "18:00" or "6:30 pm" for the timing keys.
         """
@@ -1625,7 +1625,7 @@ def make_chat_tools(
         injury_note: Optional[str] = None,
     ) -> str:
         """
-        Log check-in data ONLY when user explicitly reports their day —
+        Log check-in data ONLY when user explicitly reports their day,
         e.g. 'i did my workout', 'slept 7 hours', 'ate 1800 cals', 'missed today'.
         Do NOT call for questions or casual chat.
         """
@@ -1751,7 +1751,7 @@ def make_chat_tools(
                 chunks = await hybrid_retrieve(db=db, maxx_id=mod, query=query, k=4)
                 if chunks:
                     parts = [
-                        f"[{c['doc_title']} — section {c['chunk_index'] + 1}]\n{c['content']}"
+                        f"[{c['doc_title']}, section {c['chunk_index'] + 1}]\n{c['content']}"
                         for c in chunks
                     ]
                     return "\n\n---\n\n".join(parts)
@@ -1815,7 +1815,7 @@ def make_chat_tools(
                 return "no relevant knowledge found"
             rows.sort(key=lambda c: float(c.get("rrf_score", c.get("similarity", 0.0)) or 0.0), reverse=True)
             parts = [
-                f"[{r.get('_maxx','general')}/{r.get('doc_title','reference')} — section {int(r.get('chunk_index', 0)) + 1}]\n{r.get('content','')}"
+                f"[{r.get('_maxx','general')}/{r.get('doc_title','reference')}, section {int(r.get('chunk_index', 0)) + 1}]\n{r.get('content','')}"
                 for r in rows[:5]
             ]
             return "\n\n---\n\n".join(parts)
@@ -1834,10 +1834,10 @@ def make_chat_tools(
         module: skinmax, hairmax, fitmax, bonemax, heightmax.
 
         Returns BOTH:
-          1. CATALOG-VETTED PRODUCTS — direct product links filtered
+          1. CATALOG-VETTED PRODUCTS, direct product links filtered
              through the user's facts (vegan, allergies, etc.). Quote
-             the URLs verbatim — DO NOT invent or modify them.
-          2. Coaching reference — protocol notes from the doc layer.
+             the URLs verbatim. DO NOT invent or modify them.
+          2. Coaching reference, protocol notes from the doc layer.
         """
         try:
             mod = str(module).lower().strip()
@@ -1940,7 +1940,7 @@ def make_chat_tools(
         Don't use for: schedule operations, anything personal about THIS
         user, or tasks better handled by other tools.
 
-        Pass a tight 3-8 word query — not the user's full message.
+        Pass a tight 3-8 word query, not the user's full message.
         Returns a numbered block of up to 3 results: title · snippet · url.
         """
         try:
@@ -2089,7 +2089,7 @@ async def run_chat_agent(
             except Exception as rb_err:
                 logger.warning("[AGENT] rollback after timeout failed: %s", rb_err)
         raise TimeoutError(
-            "The assistant took too long — please try again. Your message was saved."
+            "The assistant took too long. Please try again. Your message was saved."
         ) from None
 
     response_text = (result.get("output") or "").strip()
@@ -2126,7 +2126,7 @@ async def run_chat_agent(
                     sys_msg = (
                         "You are rewriting a previous answer. The user has "
                         "long-term constraints that the prior draft "
-                        "violated. Produce ONLY the corrected answer — "
+                        "violated. Produce ONLY the corrected answer, "
                         "no apologies, no meta-commentary."
                     )
                     facts_str = ""

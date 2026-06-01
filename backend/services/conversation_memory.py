@@ -106,7 +106,7 @@ def format_recent_turns(
     if not lines:
         return ""
     return (
-        "## RECENT CONVERSATION (most recent last — use for continuity, "
+        "## RECENT CONVERSATION (most recent last, use for continuity, "
         "do NOT contradict)\n" + "\n".join(lines)
     )
 

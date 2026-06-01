@@ -45,7 +45,10 @@ class GenerateMaxxScheduleInput(BaseModel):
     hair_thinning: Optional[str] = Field(default=None)
     workout_frequency: Optional[str] = Field(default=None)
     tmj_history: Optional[str] = Field(default=None)
-    mastic_gum_regular: Optional[str] = Field(default=None)
+    mastic_gum_regular: Optional[str] = Field(
+        default=None,
+        description="BoneMax: jaw chew tolerance, one of 'strong', 'average', 'weak', 'painful'",
+    )
     heavy_screen_time: Optional[str] = Field(default=None)
     body_weight_kg: Optional[float] = Field(
         default=None, description="FitMax: body weight in kg"
@@ -150,7 +153,7 @@ CHAT_TOOLS: list[StructuredTool] = [
     StructuredTool(
         name="log_check_in",
         description=(
-            "Log check-in data ONLY when user explicitly reports their day — e.g. 'i did my workout', "
+            "Log check-in data ONLY when user explicitly reports their day, e.g. 'i did my workout', "
             "'slept 7 hours', 'ate 1800 cals', 'missed today'. Do NOT call for questions or casual chat."
         ),
         args_schema=LogCheckInInput,

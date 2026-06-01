@@ -26,7 +26,7 @@ schedule_design:
         slot: pm_close
         cadence: daily
         tasks: [fit.pm_nutrition]
-      # --- Workout window — N times/week, where N = days_per_week ---
+      # --- Workout window, N times/week, where N = days_per_week ---
       # Pre-workout fuels 30-45 min before lift, lift in main pm window,
       # post-workout protein right after. Three different time slots
       # so they don't cram into the same minute.
@@ -37,7 +37,7 @@ schedule_design:
       # Split-rotation: cycle through programmed workout days based on
       # the user's frequency. Full-body for 2-3 days/wk, Upper/Lower for
       # 4 days/wk, PPL for 5-6 days/wk. Each session has actual exercises,
-      # sets, reps in the description — no more vague "lift per your split".
+      # sets, reps in the description, no more vague "lift per your split".
       - id: workout_fullbody
         slot: workout
         cadence: rotation_per_week=days_per_week
@@ -57,7 +57,7 @@ schedule_design:
         slot: post_workout
         cadence: n_per_week=days_per_week
         tasks: [fit.postworkout]
-      # --- Steps target — required for cut / fat-loss; sedentary users always ---
+      # --- Steps target, required for cut / fat-loss; sedentary users always ---
       - id: daily_steps
         slot: flexible
         cadence: daily
@@ -88,7 +88,7 @@ schedule_design:
         cadence: monthly_on=15
         if: "experience_level in [intermediate, advanced]"
         tasks: [fit.deload_check]
-      # --- Hydration nudge — heavy training or hot conditions ---
+      # --- Hydration nudge, heavy training or hot conditions ---
       - id: hydration_check
         slot: midday
         cadence: daily
@@ -135,39 +135,40 @@ schedule_design:
 
 required_fields:
   - id: goal
-    question: "What's your main fitness goal right now?"
+    question: "What're you chasing right now?"
     type: enum
     options:
-      fat_loss: "Fat loss / cut — drop body fat, get leaner"
-      muscle_gain: "Muscle gain / lean bulk — add size"
-      recomp: "Recomp — lean out and add muscle at the same time"
-      maintenance: "Maintain — hold what I've got"
-      performance: "Performance — strength, conditioning, athletic"
+      fat_loss: "Drop fat, get leaner"
+      muscle_gain: "Build muscle, add size"
+      recomp: "Lean out and build at the same time"
+      maintenance: "Hold what I've got"
+      performance: "Get stronger and more athletic"
     required: true
     why: "Drives the calorie target, training split, and which phase the schedule starts in."
 
   - id: experience_level
-    question: "What's your training experience level?"
+    question: "How long you been lifting?"
     type: enum
     options:
-      beginner: "Beginner — under 1 year of consistent lifting"
-      intermediate: "Intermediate — 1-3 years, know the main lifts"
-      advanced: "Advanced — 3+ years, intentional programming"
+      beginner: "Under a year, still learning the lifts"
+      intermediate: "1 to 3 years, I know the main lifts"
+      advanced: "3+ years, I program on purpose"
     required: true
     why: "Beginners get higher-frequency simpler programs with newbie-gain assumptions; advanced get periodization."
 
   - id: equipment
-    question: "What can you train with?"
+    question: "What're you training with?"
     type: enum
     options:
-      full_gym: "Full gym — barbells, dumbbells, machines"
-      home_dumbbells: "Home with dumbbells (and maybe bands / pull-up bar)"
-      bodyweight_only: "Bodyweight only — no equipment"
+      full_gym: "Full gym, bars and machines"
+      home_barbell: "Home setup with a barbell and rack"
+      home_dumbbells: "Dumbbells at home, maybe bands"
+      bodyweight_only: "Bodyweight, no equipment"
     required: true
-    why: "Schedule task selection (compound lifts vs DB substitutes vs bodyweight progressions) depends entirely on this."
+    why: "Schedule task selection (barbell compounds vs DB substitutes vs bodyweight progressions) depends entirely on this."
 
   - id: days_per_week
-    question: "How many days per week can you realistically train?"
+    question: "How many days a week can you actually train?"
     type: int
     min: 2
     max: 6
@@ -178,7 +179,7 @@ required_fields:
     why: "Determines split (full-body for 2-3, upper/lower for 4, push/pull/legs for 5-6)."
 
   - id: session_minutes
-    question: "How long can you commit to per session, on most days?"
+    question: "How long you got per session, most days?"
     type: int
     min: 30
     max: 90
@@ -186,39 +187,39 @@ required_fields:
     default: 60
     unit: "min"
     required: true
-    why: "Caps total volume per session — short sessions get higher-density circuits; long get traditional rest-pause."
+    why: "Caps total volume per session. Short sessions get higher-density circuits; long ones get traditional rest-pause."
 
   - id: daily_activity_level
-    question: "Outside the gym, how active is your day?"
+    question: "Outside the gym, how much do you move?"
     type: enum
     options:
-      sedentary: "Sedentary — desk job, mostly sitting"
-      lightly_active: "Lightly active — walks, on feet some of the day"
-      moderately_active: "Moderately active — physical job or daily activity"
-      very_active: "Very active — manual work or hard training daily"
+      sedentary: "Desk job, sitting most of the day"
+      lightly_active: "On my feet here and there"
+      moderately_active: "Active job or moving most days"
+      very_active: "Manual work or hard training daily"
     required: true
-    why: "TDEE multiplier — drives calorie target alongside goal."
+    why: "TDEE multiplier. Drives calorie target alongside goal."
 
   - id: estimated_body_fat
-    question: "Roughly what's your body-fat range right now?"
+    question: "Roughly where's your body fat at?"
     type: enum
     options:
-      under_10: "Under 10% — visible abs, vascularity"
-      "10_15": "10–15% — lean, abs faintly visible"
-      "15_20": "15–20% — soft but athletic"
-      "20_25": "20–25% — noticeable softness"
-      over_25: "25%+ — significant softness"
-      unknown: "Honestly not sure"
+      under_10: "Under 10%, abs and veins show"
+      "10_15": "10 to 15%, lean, abs faintly there"
+      "15_20": "15 to 20%, soft but athletic"
+      "20_25": "20 to 25%, noticeably soft"
+      over_25: "25% and up, carrying real softness"
+      unknown: "No clue"
     required: true
     why: "Refines phase selection. Over_25 → cut even if user wants 'recomp' (recomp at higher BF wastes time). Under_10 + bulk = lean bulk; under_10 + maintain = aggressive maintenance."
 
   - id: nutrition_tracking_pref
-    question: "How precise do you want to get with nutrition?"
+    question: "How much do you want to fuss with tracking food?"
     type: enum
     options:
-      full_track: "Full tracking — log calories + macros daily"
-      portion_only: "Portion language — palms / fists, no numbers"
-      no_tracking: "Don't track at all — just eat better intuitively"
+      full_track: "Log it all, calories and macros"
+      portion_only: "Eyeball it, palms and fists"
+      no_tracking: "No tracking, just eat better"
     required: true
     why: "Decides whether the schedule shows calorie/macro tasks (full_track), portion reminders (portion_only), or only food-quality cues (no_tracking)."
 
@@ -234,74 +235,77 @@ required_fields:
     why: "Under 7 hr → recovery is the limiter. Lower training volume on under-7 days, add sleep priority cue 60 min before bed. Over 8 hr → can push higher volume / intensity."
 
   - id: dietary_restrictions
-    question: "Any dietary restrictions you're sticking to?"
+    question: "Anything you don't eat?"
     type: enum
     options:
-      none: "No restrictions"
+      none: "I eat everything"
       vegetarian: "Vegetarian"
       vegan: "Vegan"
+      pescatarian: "Pescatarian, fish but no meat"
       gluten_free: "Gluten-free"
       lactose_free: "Lactose-free"
-      keto: "Keto / very low carb"
+      keto: "Keto or very low carb"
+      halal_kosher: "Halal or kosher"
+      other: "Something else or a mix"
     required: true
-    why: "Drives meal-suggestion bias. Vegan/vegetarian → harder to hit protein, suggest tofu/tempeh/pea protein. Keto → low-carb meal templates. Gluten/lactose-free → exclude wheat/dairy from suggestions."
+    why: "Drives meal-suggestion bias. Vegan/vegetarian/pescatarian shift the protein sources. Keto means low-carb templates. Gluten/lactose-free exclude wheat/dairy. Halal/kosher and other get respectful generic protein picks."
 
   - id: injury_history
-    question: "Any injuries to work around?"
+    question: "Anything banged up I should train around?"
     type: enum
     options:
-      none: "Nothing — full range of motion"
-      knee: "Knees — careful with squats/lunges"
-      shoulder: "Shoulder — careful with overhead pressing"
-      back: "Lower back — careful with deadlifts / squats"
-      multiple: "Multiple — I'll explain in chat"
+      none: "Nope, all good"
+      knee: "Knees, careful with squats and lunges"
+      shoulder: "Shoulder, careful pressing overhead"
+      back: "Lower back, careful on deadlifts"
+      multiple: "A few things, I'll explain in chat"
     required: true
     why: "Substitutes contraindicated lifts. Knee → goblet squat / leg press / split squat. Shoulder → DB landmine press / chest-supported row. Back → trap bar / RDL only / box squat."
 
   - id: supplement_openness
-    question: "How open are you to supplements?"
+    question: "How do you feel about supplements?"
     type: enum
     options:
-      none: "Just food — no supplements"
-      basic: "Basics — protein powder + creatine"
-      full_stack: "Full stack — pre-workout, BCAAs, vitamins, etc."
+      none: "Just food, no supplements"
+      basic: "Basics, protein and creatine"
+      full_stack: "Whatever works, full stack"
     required: true
     why: "Gates supplement reminders. None = no nudges. Basic = protein + creatine timing reminders. Full = pre-workout + EAA timing layered in."
 
 optional_context:
   - id: age
-    description: "User age (from onboarding) — gates training intensity, recovery cadence."
+    description: "User age (from onboarding), gates training intensity, recovery cadence."
   - id: biological_sex
-    description: "Biological sex (from onboarding) — drives baseline calorie + protein targets."
+    description: "Biological sex (from onboarding), drives baseline calorie + protein targets."
   - id: height_cm
-    description: "Height in cm (from onboarding) — used for BMR calculation."
+    description: "Height in cm (from onboarding), used for BMR calculation."
   - id: weight_kg
-    description: "Current bodyweight in kg (from onboarding) — used for protein target and progress tracking."
+    description: "Current bodyweight in kg (from onboarding), used for protein target and progress tracking."
   - id: estimated_body_fat
-    description: "User-stated body-fat band (under 10 / 10-15 / 15-20 / 20-25 / 25-30 / 30+) — refines phase selection."
+    description: "User-stated body-fat band (under 10 / 10-15 / 15-20 / 20-25 / 25-30 / 30+), refines phase selection."
   - id: dietary_restrictions
-    description: "vegan / vegetarian / gluten-free / lactose-free — biases food suggestions."
+    description: "vegan / vegetarian / gluten-free / lactose-free, biases food suggestions."
   - id: training_history
-    description: "Sport / lifting background notes — informs accessory selection."
+    description: "Sport / lifting background notes, informs accessory selection."
   - id: injury_history
-    description: "Injuries to work around — substitutes contraindicated lifts."
+    description: "Injuries to work around, substitutes contraindicated lifts."
   - id: cardio_preference
-    description: "Steady-state vs HIIT preference — biases conditioning blocks."
+    description: "Steady-state vs HIIT preference, biases conditioning blocks."
   - id: home_equipment_extras
-    description: "Pull-up bar, kettlebell, bands — unlocks specific movements at home."
+    description: "Pull-up bar, kettlebell, bands, unlocks specific movements at home."
   - id: tracking_capability
-    description: "Whether the user is willing to log calories / weigh food — drives precise vs portion-based language."
+    description: "Whether the user is willing to log calories / weigh food, drives precise vs portion-based language."
 
 prompt_modifiers:
   - id: cut_phase
-    if: "goal == fat_loss or estimated_body_fat in [20-25, 25-30, 30+]"
+    if: "goal == fat_loss or estimated_body_fat in [20_25, over_25]"
     then: "PHASE: CUT. Calorie target = TDEE − 500. Protein ~1g/lb bodyweight. Add daily step target (8-10k). Conditioning 2×/wk (LISS or low-intensity). Lifts focus on retaining muscle: 4-8 reps, hard sets, do not reduce volume aggressively."
   - id: lean_bulk_phase
-    if: "goal == muscle_gain and estimated_body_fat in [under_10, 10-15]"
-    then: "PHASE: LEAN BULK. Calorie target = TDEE + 250-300. Protein ~1g/lb. Surplus is small — track weight weekly, target +0.25-0.5 lb/wk. Conditioning 1×/wk to maintain cardio without eating into recovery."
+    if: "goal == muscle_gain and estimated_body_fat in [under_10, 10_15]"
+    then: "PHASE: LEAN BULK. Calorie target = TDEE + 250-300. Protein ~1g/lb. Surplus is small, track weight weekly, target +0.25-0.5 lb/wk. Conditioning 1×/wk to maintain cardio without eating into recovery."
   - id: recomp_phase
     if: "goal == recomp and experience_level == beginner"
-    then: "PHASE: RECOMP. Calorie target = TDEE (maintenance). Protein elevated to ~1g/lb. Beginner-gains window — strict program adherence, progressive overload every session. Re-evaluate every 8 weeks."
+    then: "PHASE: RECOMP. Calorie target = TDEE (maintenance). Protein elevated to ~1g/lb. Beginner-gains window, strict program adherence, progressive overload every session. Re-evaluate every 8 weeks."
   - id: maintenance_phase
     if: "goal == maintenance"
     then: "PHASE: MAINTAIN. Calorie target = TDEE. Protein 0.7-0.8g/lb. 3-4 sessions/wk is enough. Track only weekly bodyweight; no calorie counting required."
@@ -311,9 +315,12 @@ prompt_modifiers:
   - id: bodyweight_track
     if: "equipment == bodyweight_only"
     then: "Substitute compound lifts with progressive bodyweight movements: pull-ups → archer / one-arm progression; push-ups → archer / one-arm / planche progression; squats → pistol progression; hinges → single-leg RDL / glute bridge. Volume runs higher (3-5 sets at higher reps)."
+  - id: home_barbell_track
+    if: "equipment == home_barbell"
+    then: "Barbell + rack at home, no machines. Build around barbell compounds: squat, bench, OHP, barbell row, deadlift. Swap machine accessories for DB / band / bodyweight versions (DB curl, band pushdown, ring or inverted row, back extension, chin-ups off the rack). Full progressive overload is on the table, just no cable stack or pin-loaded machines."
   - id: dumbbell_only_track
     if: "equipment == home_dumbbells"
-    then: "Substitute barbell lifts with DB equivalents: bench → DB bench, squat → goblet/DB Bulgarian split squat, deadlift → DB RDL, OHP → DB shoulder press. Add bands for pull patterns if no pull-up bar. Reduce target weight expectations — DBs cap intensity vs barbell."
+    then: "Substitute barbell lifts with DB equivalents: bench → DB bench, squat → goblet/DB Bulgarian split squat, deadlift → DB RDL, OHP → DB shoulder press. Add bands for pull patterns if no pull-up bar. Reduce target weight expectations, DBs cap intensity vs barbell."
   - id: low_frequency_full_body
     if: "days_per_week <= 3"
     then: "Use full-body sessions. Compound lifts every session (squat / hinge / press / row / accessory). 8-12 working sets per session."
@@ -325,7 +332,7 @@ prompt_modifiers:
     then: "Push / pull / legs (or PPL with arm day). Volume 12-16 working sets per body part per week. Add 1-2 dedicated arm/shoulder accessory days if 6/wk."
   - id: short_sessions_density
     if: "session_minutes <= 45"
-    then: "Use density circuits / supersets for accessories. 2-3 main lifts at 3-4 working sets, rest 1.5 min between. No isolation chaos — keep movement count low."
+    then: "Use density circuits / supersets for accessories. 2-3 main lifts at 3-4 working sets, rest 1.5 min between. No isolation chaos, keep movement count low."
   - id: long_sessions_volume
     if: "session_minutes >= 75"
     then: "Traditional split: 4-5 working sets on main lifts, 3-4 sets on accessories, 2-3 min rest on compounds. Add a 10-15 min cardio finisher 1-2× per week."
@@ -334,7 +341,7 @@ prompt_modifiers:
     then: "Add daily 7000-step target. If goal == fat_loss, raise to 8000-10000. Counts as the conditioning quota for cut phases."
   - id: very_active_recovery
     if: "daily_activity_level == very_active"
-    then: "Outside-gym activity already provides cardiovascular stimulus. Skip dedicated steady-state cardio. Prioritize protein and sleep — recovery, not more activity, is the limiter."
+    then: "Outside-gym activity already provides cardiovascular stimulus. Skip dedicated steady-state cardio. Prioritize protein and sleep, recovery, not more activity, is the limiter."
   - id: vegan_protein_bias
     if: "dietary_restrictions == vegan"
     then: "Protein targets harder to hit. Suggest tofu / tempeh / seitan / pea-protein isolate. Add 1 daily reminder for protein quota at lunch."
@@ -343,7 +350,7 @@ prompt_modifiers:
     then: "EXCLUDE neck training. Substitute with banded face pulls + cuffed reverse fly. Avoid heavy front-loaded movements (front squat, Zercher) until cleared."
   - id: bf_high_force_cut
     if: "estimated_body_fat in [over_25] and goal != maintenance"
-    then: "OVERRIDE: regardless of stated goal, this user needs CUT phase. Recomp at >25% BF wastes time. Calorie target = TDEE − 500. Frame supportively: 'lean out first, then build — order matters'."
+    then: "OVERRIDE: regardless of stated goal, this user needs CUT phase. Recomp at >25% BF wastes time. Calorie target = TDEE − 500. Frame supportively: 'lean out first, then build, order matters'."
   - id: bf_low_lean_bulk_ok
     if: "estimated_body_fat == under_10 and goal == muscle_gain"
     then: "Aggressive lean bulk window. TDEE + 350 (vs +250 for higher BF). Less risk of fat gain at this body fat. Daily weigh-in reminder; pull back surplus to +200 if weekly gain >0.5 lb."
@@ -361,7 +368,7 @@ prompt_modifiers:
     then: "RECOVERY-LIMITED. Lower training volume by 1 working set per exercise. Add bedtime cue 60 min before target sleep. Cut PM caffeine entirely. Frame: 'more sleep > more sets, every time'."
   - id: high_sleep_push_volume
     if: "sleep_hours >= 8"
-    then: "RECOVERY-RICH. Can push higher volume / intensity. Add 1 extra working set per exercise on top of phase baseline. Maintain bedtime consistency though — drift wrecks the gain."
+    then: "RECOVERY-RICH. Can push higher volume / intensity. Add 1 extra working set per exercise on top of phase baseline. Maintain bedtime consistency though, drift wrecks the gain."
   - id: vegetarian_protein
     if: "dietary_restrictions == vegetarian"
     then: "Suggest eggs / dairy / Greek yogurt / cottage cheese / whey + plant protein blends. Easier than vegan to hit protein. Daily protein cue at one meal."
@@ -370,7 +377,16 @@ prompt_modifiers:
     then: "MACRO INVERT: fat is primary fuel. Carbs <30g/day. Protein moderate (0.7g/lb to avoid gluconeogenesis). Schedule keto-friendly meal suggestions: meat + fat + green veg. Skip 'add a banana' style copy."
   - id: gluten_free_swap
     if: "dietary_restrictions == gluten_free"
-    then: "Swap wheat suggestions to rice / oats (certified GF) / quinoa / GF pasta. Watch hidden gluten in protein bars / sauces — flag at weekly review."
+    then: "Swap wheat suggestions to rice / oats (certified GF) / quinoa / GF pasta. Watch hidden gluten in protein bars / sauces, flag at weekly review."
+  - id: pescatarian_protein
+    if: "dietary_restrictions == pescatarian"
+    then: "Fish, seafood, eggs, and dairy are all in, no red meat or poultry. Protein is easy: salmon, tuna, shrimp, cod, sardines, plus eggs, Greek yogurt, cottage cheese. Whey is fine. Lean on oily fish for omega-3s."
+  - id: halal_kosher_protein
+    if: "dietary_restrictions == halal_kosher"
+    then: "Keep protein suggestions halal/kosher-friendly. Default to fish, eggs, dairy, legumes, and certified meat the user sources themselves. Don't assume pork or non-certified cuts. No need to mix meat and dairy in kosher meal copy."
+  - id: dietary_other_generic
+    if: "dietary_restrictions == other"
+    then: "Mixed or custom restriction. Keep protein suggestions broad and swappable (fish, eggs, dairy, legumes, lean meat, whey) and tell the user to sub anything that doesn't fit. Ask in chat for specifics if meal copy needs to be precise."
   - id: knee_injury_sub
     if: "injury_history == knee"
     then: "EXCLUDE: barbell back squat, lunges, jump variations. SUBSTITUTE: goblet squat, leg press, Bulgarian split squat (controlled), step-ups (low height). Add quad activation warm-up before any leg session."
@@ -380,9 +396,12 @@ prompt_modifiers:
   - id: back_injury_sub
     if: "injury_history == back"
     then: "EXCLUDE: conventional deadlift, heavy back squat, bent-over barbell row. SUBSTITUTE: trap bar deadlift, box squat, chest-supported row, cable row. Add deadbug + bird-dog core stability warm-up before any compound lift."
+  - id: multiple_injury_caution
+    if: "injury_history == multiple"
+    then: "Multiple injuries flagged. Start conservative: machines, DBs, and controlled tempo over heavy barbell axial loading and ballistic moves until the user confirms specifics. In the first chat, ask them to list each injury so contraindicated lifts get subbed precisely. Default warm-up: full-body mobility before every session."
   - id: supplements_basic_timing
     if: "supplement_openness in [basic, full_stack]"
-    then: "Add creatine 5g/day reminder (any time, but consistency matters). Whey shake post-workout reminder. Both build into the existing post-workout protein task — no new notification, just copy."
+    then: "Add creatine 5g/day reminder (any time, but consistency matters). Whey shake post-workout reminder. Both build into the existing post-workout protein task, no new notification, just copy."
   - id: supplements_full_preworkout
     if: "supplement_openness == full_stack"
     then: "Add pre-workout caffeine reminder 30 min before training. EAA / BCAA during long sessions (>75 min). Multivitamin AM. Vitamin D3 daily if under 22 or northern climate."
@@ -391,7 +410,7 @@ prompt_modifiers:
 
 # Why FitMax matters
 
-Body composition is the foundation looksmaxxing rests on. Lean mass under thin skin reads as health, status, and discipline — every other module compounds on top of this. Fat distribution reshapes the face independently of skin or jawline work; gaining muscle changes posture and proportions in ways no haircut or skincare routine can.
+Body composition is the foundation looksmaxxing rests on. Lean mass under thin skin reads as health, status, and discipline, every other module compounds on top of this. Fat distribution reshapes the face independently of skin or jawline work; gaining muscle changes posture and proportions in ways no haircut or skincare routine can.
 
 The schedule is built from goal + experience + equipment + frequency. Everything else (training split, calorie target, conditioning load) derives from those four answers. Body-fat band and activity level refine the calorie math; injury history gates risky lifts.
 
@@ -401,8 +420,8 @@ The schedule is built from goal + experience + equipment + frequency. Everything
 
 - Progressive overload is non-negotiable: when you hit the top of the prescribed rep range with good form, add 2.5-5 lb the next session.
 - Stay close to failure on the last set of compound lifts (RIR 0-2). Earlier sets at RIR 2-3.
-- Lateral raises and face pulls every session, regardless of split — small posterior delts and rear delts are aesthetics multipliers.
-- Train neck 2-3×/wk via plate-loaded harness or banded resistance — UNLESS the user is also running BoneMax (in which case BoneMax owns neck and we omit it from FitMax).
+- Lateral raises and face pulls every session, regardless of split, small posterior delts and rear delts are aesthetics multipliers.
+- Train neck 2-3×/wk via plate-loaded harness or banded resistance, UNLESS the user is also running BoneMax (in which case BoneMax owns neck and we omit it from FitMax).
 - Compounds before isolation. Big rocks first.
 
 ## Nutrition principles
@@ -453,7 +472,7 @@ Quiet hours: nothing between bed and wake.
 
 - id: fit.midday_tip
   title: "Midday training cue"
-  description: "rotating cue — progressive overload, technique check, recovery focus, or motivation. one specific actionable per day."
+  description: "rotating cue, progressive overload, technique check, recovery focus, or motivation. one specific actionable per day."
   duration_min: 1
   default_window: midday
   tags: [midday, tip, motivation]
@@ -486,7 +505,7 @@ Quiet hours: nothing between bed and wake.
 
 - id: fit.workout_session
   title: "Lift session"
-  description: "lift per your split — compounds first, accessories after. progressive overload: hit top of rep range → add 2.5-5 lb next time."
+  description: "lift per your split, compounds first, accessories after. progressive overload: hit top of rep range → add 2.5-5 lb next time."
   duration_min: 60
   default_window: pm_active
   tags: [workout, training, lift]
@@ -531,7 +550,7 @@ Quiet hours: nothing between bed and wake.
 
 # --- Upper / Lower split (4 days/wk) ---
 - id: fit.workout_upper_a
-  title: "Upper A — push focus"
+  title: "Upper A, push focus"
   description: "warm-up: 5 min bike + band pull-aparts. bench press 4×6, OHP 3×8, incline DB press 3×10, chest-supported row 3×10, lateral raise 3×12, tricep pushdown 3×12, face pull 3×15."
   duration_min: 65
   default_window: workout
@@ -542,7 +561,7 @@ Quiet hours: nothing between bed and wake.
   frequency: { type: n_per_week, n: 1 }
 
 - id: fit.workout_lower_a
-  title: "Lower A — squat focus"
+  title: "Lower A, squat focus"
   description: "warm-up: 5 min bike + 90/90 hip openers. back squat 4×6, romanian deadlift 3×8, leg press 3×10, leg curl 3×12, standing calf raise 4×12, hanging knee raise 3×12."
   duration_min: 65
   default_window: workout
@@ -553,7 +572,7 @@ Quiet hours: nothing between bed and wake.
   frequency: { type: n_per_week, n: 1 }
 
 - id: fit.workout_upper_b
-  title: "Upper B — pull focus"
+  title: "Upper B, pull focus"
   description: "warm-up: 5 min row + band pull-aparts. weighted pull-up 4×6 (or lat pulldown 4×8), DB bench 4×8, barbell row 3×8, DB shoulder press 3×10, hammer curl 3×12, rear delt fly 3×15."
   duration_min: 65
   default_window: workout
@@ -564,7 +583,7 @@ Quiet hours: nothing between bed and wake.
   frequency: { type: n_per_week, n: 1 }
 
 - id: fit.workout_lower_b
-  title: "Lower B — deadlift focus"
+  title: "Lower B, deadlift focus"
   description: "warm-up: 5 min bike + glute activation. trap bar deadlift 3×5 (heavy, RPE 8), bulgarian split squat 3×8 ea, leg extension 3×12, glute-ham raise 3×10, seated calf raise 4×15."
   duration_min: 65
   default_window: workout
@@ -643,7 +662,7 @@ Quiet hours: nothing between bed and wake.
 
 - id: fit.postworkout
   title: "Post-workout protein"
-  description: "30-40g protein within 60 min of finishing — whey shake, chicken, greek yogurt. rehydrate fully before next meal."
+  description: "30-40g protein within 60 min of finishing, whey shake, chicken, greek yogurt. rehydrate fully before next meal."
   duration_min: 5
   default_window: pm_active
   tags: [postworkout, protein, recovery]
@@ -665,7 +684,7 @@ Quiet hours: nothing between bed and wake.
 
 - id: fit.cardio_liss
   title: "LISS cardio (30 min)"
-  description: "low-intensity steady state — incline walk, easy bike, swim. heart rate 60-70% max. burns calories without eating into recovery."
+  description: "low-intensity steady state, incline walk, easy bike, swim. heart rate 60-70% max. burns calories without eating into recovery."
   duration_min: 30
   default_window: flexible
   tags: [cardio, conditioning, liss]
@@ -676,7 +695,7 @@ Quiet hours: nothing between bed and wake.
 
 - id: fit.weekly_weighin
   title: "Weekly weigh-in"
-  description: "monday morning, fasted, after bathroom, before water. average over the week — daily fluctuation is noise. log it."
+  description: "monday morning, fasted, after bathroom, before water. average over the week, daily fluctuation is noise. log it."
   duration_min: 2
   default_window: am_open
   tags: [tracking, weighin]
@@ -697,8 +716,8 @@ Quiet hours: nothing between bed and wake.
   frequency: { type: every_n_days, n: 30 }
 
 - id: fit.deload_check
-  title: "Deload week — drop volume"
-  description: "every 6-8 weeks, drop volume in half for one week. recovery overshoots — strength comes back higher. only intermediates+."
+  title: "Deload week, drop volume"
+  description: "every 6-8 weeks, drop volume in half for one week. recovery overshoots, strength comes back higher. only intermediates+."
   duration_min: 2
   default_window: flexible
   tags: [recovery, deload]
@@ -720,7 +739,7 @@ Quiet hours: nothing between bed and wake.
 
 - id: fit.mobility_warmup
   title: "Mobility warm-up (10 min)"
-  description: "hip openers + thoracic rotations + shoulder dislocates + ankle circles. lubricates the joints you'll load — tax-free injury prevention."
+  description: "hip openers + thoracic rotations + shoulder dislocates + ankle circles. lubricates the joints you'll load, tax-free injury prevention."
   duration_min: 10
   default_window: am_active
   tags: [mobility, prehab, warmup]
@@ -730,8 +749,8 @@ Quiet hours: nothing between bed and wake.
   frequency: { type: n_per_week, n: 3 }
 
 - id: fit.sleep_cue
-  title: "Wind down — bed in 60 min"
-  description: "screens off (or blue-light filter), no caffeine reminder noted, low light. recovery happens in deep sleep — protect the runway."
+  title: "Wind down, bed in 60 min"
+  description: "screens off (or blue-light filter), no caffeine reminder noted, low light. recovery happens in deep sleep, protect the runway."
   duration_min: 5
   default_window: pm_close
   tags: [sleep, recovery, daily]
@@ -742,7 +761,7 @@ Quiet hours: nothing between bed and wake.
 
 - id: fit.protein_check
   title: "Lunch protein hit"
-  description: "30-40g protein at lunch — chicken / fish / tofu / Greek yogurt + a fist of carbs. half-day protein quota done."
+  description: "30-40g protein at lunch, chicken / fish / tofu / Greek yogurt + a fist of carbs. half-day protein quota done."
   duration_min: 5
   default_window: midday
   tags: [nutrition, protein, midday]

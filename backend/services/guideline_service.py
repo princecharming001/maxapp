@@ -100,7 +100,7 @@ def build_protocol_prompt_section(guideline: dict, concern: str) -> str:
 
     # Fallback: generic format if template missing or protocol has different keys
     if isinstance(protocol, dict):
-        parts = [f"## PROTOCOL — {protocol.get('label', concern)}"]
+        parts = [f"## PROTOCOL: {protocol.get('label', concern)}"]
         for k in ["am", "pm", "weekly", "sunscreen"]:
             if k in protocol and protocol[k]:
                 parts.append(f"{k.upper()}: {protocol[k]}")

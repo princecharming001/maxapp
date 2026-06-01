@@ -11,7 +11,7 @@ schedule_design:
   intensity_ramp:
     week_1: [0.0, 0.5]
     week_2: [0.3, 1.0]
-  # Deterministic skeleton — schedule_skeleton.py expands this against the
+  # Deterministic skeleton, schedule_skeleton.py expands this against the
   # user's required_field answers without an LLM call. Block order = render
   # order; each block is independently filtered by `if`. `replaces` lets a
   # phase override a default block (e.g. REPAIR replaces pm_active).
@@ -47,10 +47,10 @@ schedule_design:
         cadence: dynamic
         pick_from:
           # Ordered by priority. Conflicts (`not_with`) are enforced day-by-day.
-          - { id: skin.retinoid_pm,    days_per_week: 4, requires: ["skin_concern in [acne, pigmentation, texture, maintenance]", "barrier_state != damaged"], not_with: [skin.dermastamp_pm] }
-          - { id: skin.dermastamp_pm,  days_per_week: 2, requires: ["skin_concern in [pigmentation, texture]", "barrier_state == stable", "dermastamp_owned == true"], not_with: [skin.retinoid_pm] }
+          - { id: skin.retinoid_pm,    days_per_week: 4, requires: ["skin_concern in [acne, pigmentation, texture, maintenance, aging]", "barrier_state != damaged"], not_with: [skin.dermastamp_pm] }
+          - { id: skin.dermastamp_pm,  days_per_week: 2, requires: ["skin_concern in [pigmentation, texture, aging]", "barrier_state == stable", "dermastamp_owned == true"], not_with: [skin.retinoid_pm] }
           # Rest-night fallback so PM is never under 3 steps. Niacinamide
-          # or hyaluronic on rest nights — barrier maintenance, no actives.
+          # or hyaluronic on rest nights, barrier maintenance, no actives.
           - { id: skin.rest_night_serum, days_per_week: 7, requires: [] }
       - id: pm_circulation
         slot: pm_close
@@ -82,13 +82,13 @@ schedule_design:
       - id: weekly_exfoliation
         slot: pm_active
         cadence: n_per_week=1
-        if: "barrier_state == stable and skin_concern in [acne, pigmentation, texture]"
+        if: "barrier_state == stable and skin_concern in [acne, pigmentation, texture, aging]"
         not_with_same_day: [skin.retinoid_pm, skin.dermastamp_pm]
         tasks: [skin.weekly_exfoliation]
       - id: hydration_mask
         slot: pm_active
         cadence: n_per_week=1
-        if: "skin_concern in [rosacea, maintenance] or skin_type == dry"
+        if: "skin_concern in [rosacea, maintenance, aging] or skin_type == dry"
         tasks: [skin.hydration_mask]
       - id: progress_photo_skin
         slot: am_open
@@ -106,88 +106,90 @@ schedule_design:
 
 required_fields:
   - id: skin_concern
-    question: "What's the one thing you'd most like to change about your skin right now?"
+    question: "What bugs you most about your skin right now?"
     type: enum
     options:
-      acne: "Active breakouts / pimples"
-      pigmentation: "Dark spots, post-acne marks, uneven tone"
-      rosacea: "Persistent redness, flushing, sensitivity"
-      texture: "Rough texture, large pores, congestion"
-      maintenance: "Skin looks fine — I want to keep it that way"
+      acne: "Breakouts and pimples"
+      pigmentation: "Dark spots and uneven tone"
+      rosacea: "Redness and flushing"
+      texture: "Rough texture and big pores"
+      aging: "Fine lines and loss of firmness"
+      maintenance: "It's solid, I just want to keep it that way"
     required: true
-    why: "Determines the protocol track (acne / pigment / rosacea / texture / maintain) and which actives are safe."
+    why: "Sets the protocol track (acne / pigment / rosacea / texture / aging / maintain) and which actives are safe to run."
 
   - id: barrier_state
-    question: "When you apply actives like acids or retinoids, does your skin sting, burn, or get red?"
+    question: "How does your skin handle strong or new products?"
     type: enum
     options:
-      damaged: "Yes — even gentle products often irritate me"
-      sensitive: "Sometimes, depends on the product"
-      stable: "No — my skin tolerates things well"
+      damaged: "Even gentle stuff stings, burns, or turns red"
+      sensitive: "Hit or miss, depends on the product"
+      stable: "Handles almost anything, no drama"
+      untested: "No clue, I haven't really used actives yet"
     required: true
-    why: "Damaged barriers must be repaired BEFORE actives. Skipping this is the #1 cause of skincare failure."
+    why: "Sets ramp pace and which actives are safe. Damaged barriers get repaired BEFORE any active (the #1 cause of skincare failure). Untested means unknown tolerance, so treat cautiously until the skin proves itself."
 
   - id: skin_type
     question: "A few hours after washing, how does your skin feel?"
     type: enum
     options:
-      oily: "Shiny / oily across the whole face"
+      oily: "Shiny and oily all over"
       dry: "Tight, sometimes flaky"
-      combo: "Oily T-zone, normal or dry cheeks"
-      normal: "Comfortable, balanced"
+      combo: "Oily T-zone, drier cheeks"
+      normal: "Comfortable, no real issues"
     required: true
-    why: "Drives moisturizer choice and wash frequency."
+    why: "Drives moisturizer weight and wash frequency."
 
   - id: routine_level
-    question: "Where are you starting from with your skincare routine?"
+    question: "How much do you actually want to do every day?"
     type: enum
     options:
-      none: "Nothing right now — start me from scratch"
-      basic: "Cleanser + moisturizer + SPF"
-      intermediate: "I use 1–2 actives (vitamin C, BHA, etc.)"
-      advanced: "Multiple actives + retinoid in rotation"
+      none: "Bare minimum, in and out"
+      basic: "Keep it simple, the essentials done right"
+      intermediate: "A real routine, a few actives is fine"
+      advanced: "All in, full multi-step, I'm into it"
     required: true
-    why: "Drives ramp speed. Beginners get a slower onboarding to actives; advanced users skip the foundation phase."
+    why: "Drives how DEEP the routine goes (step count and product layers), not how fast actives ramp. Ramp pace comes from barrier_state + tret_history. none = stays minimal even long term; advanced = full layered protocol. Decoupled from experience so a beginner who wants the works still gets a safe, gated active introduction."
 
   - id: outdoor_exposure
-    question: "How much time do you spend outside in direct sun, on a typical day?"
+    question: "How much time do you spend out in the sun on a normal day?"
     type: enum
     options:
-      heavy: "A lot — outdoor work, daily walks, frequent sun"
-      moderate: "Some — commute, errands, weekend outdoors"
-      minimal: "Barely — mostly indoors, drive everywhere"
+      heavy: "A lot, outdoor work or always out and about"
+      moderate: "Some, commute and errands"
+      minimal: "Barely, I'm mostly indoors"
     required: true
     why: "Drives SPF reapply cadence. Heavy = midday + afternoon reapply task. Minimal = AM SPF only."
 
   - id: tret_history
-    question: "Have you ever used tretinoin or a prescription retinoid before?"
+    question: "Ever used tretinoin or a prescription retinoid?"
     type: enum
     options:
-      never: "No, never tried it"
-      tried_quit: "Tried it, but quit (irritation, side effects)"
-      currently_on: "Currently using it"
-      previously_used: "Used it in the past, comfortable with it"
+      never: "Never touched it"
+      tried_quit: "Tried it, quit (too irritating)"
+      currently_on: "On it right now"
+      previously_used: "Used it before, I'm good with it"
     required: true
-    why: "Drives retinoid ramp pace. Never → start at 0.025% 2×/wk and ramp slowly. Currently_on → maintain current cadence. Quit-due-to-irritation → use buffered/sandwich method or skip retinoid track entirely."
+    why: "Primary driver of retinoid ramp pace (with barrier_state). Never = start at 0.025% 2x/wk and ramp slowly. Currently_on = keep current cadence. Quit-from-irritation = buffered/sandwich method or skip the retinoid track entirely."
 
   - id: climate
     question: "What's your climate / weather like, mostly?"
     type: enum
     options:
-      humid: "Humid — sticky, sweaty, high moisture"
-      dry: "Dry — low humidity, arid, indoor heat"
-      temperate: "Mild — neither extreme"
-      cold: "Cold — winter most of the year"
+      humid: "Humid, sticky and sweaty"
+      dry: "Dry, low humidity or indoor heat"
+      temperate: "Mild, neither extreme"
+      cold: "Cold, winter most of the year"
     required: true
     why: "Drives moisturizer weight + hydration emphasis. Dry/cold = heavier moisturizer + occlusive layer at PM. Humid = lightweight gel-cream + extra cleanse cadence."
 
   - id: diet_open
-    question: "Open to small diet tweaks (cutting dairy, sugar, or seed oils) if they'd clear your skin faster?"
+    question: "Down to tweak your diet a bit (less dairy, sugar, seed oils) if it clears your skin faster?"
     type: enum
     options:
-      yes_full: "Yes — willing to cut anything if it helps"
-      yes_some: "Maybe — open to one or two changes"
-      no: "Not interested — keep food separate"
+      yes_full: "Yeah, I'll cut whatever helps"
+      yes_some: "Maybe, open to a change or two"
+      "no": "Nah, leave my food out of it"
     required: true
     why: "Gates internal-support tasks (anti-inflammatory diet reminders, dairy/sugar cuts). Most acne and rosacea respond significantly to dietary changes."
 
@@ -199,18 +201,21 @@ optional_context:
   - id: dermastamp_owned
     description: "Whether user owns a dermastamp (gates that task)"
   - id: hormonal_factors
-    description: "On accutane/birth control/cycle issues — gates aggressive actives"
+    description: "On accutane/birth control/cycle issues, gates aggressive actives"
   - id: routine_complexity_pref
     description: "User prefers a minimalist routine vs. willing to layer many products"
   - id: budget_constraint
     description: "Drugstore-only vs. open to mid-tier vs. open to any price"
   - id: time_per_routine
-    description: "How many minutes user wants to spend per AM/PM routine — drives layering depth"
+    description: "How many minutes user wants to spend per AM/PM routine, drives layering depth"
 
 prompt_modifiers:
   - id: phase_repair
     if: "barrier_state == damaged"
     then: "PHASE: REPAIR for first 2 weeks. NO retinoids, NO acids, NO vitamin C. Foundation only: cleanse, ceramides, panthenol, SPF. Rationale: barrier must heal before actives can work."
+  - id: barrier_untested_cautious
+    if: "barrier_state == untested"
+    then: "UNKNOWN TOLERANCE. Treat like sensitive skin: patch test first, introduce ONE active at a time at the lowest frequency, and watch for stinging or redness. No exfoliating acids and no dermastamp until the skin handles a basic active for 2+ weeks without reacting."
   - id: rosacea_calm
     if: "skin_concern == rosacea"
     then: "PHASE: REPAIR for week 1. Centella + azelaic only. NO retinoid in week 1. Avoid morning heat-exposure tasks. Add internal anti-inflammatory cue 1×/day."
@@ -223,18 +228,21 @@ prompt_modifiers:
   - id: maintenance_simple
     if: "skin_concern == maintenance"
     then: "PROTECT phase from day 1. Minimal routine: cleanse AM/PM, moisturizer, SPF, retinoid PM 3×/wk. No phase ramp needed."
-  - id: routine_none_starter
+  - id: aging_collagen
+    if: "skin_concern == aging and barrier_state != damaged"
+    then: "PHASE: week 1 REPAIR, week 2+ REBUILD. Retinoid PM is the engine for collagen and turnover, pea-sized, ramp per tret_history. Add an antioxidant AM (vitamin C or niacinamide) under SPF. Dermastamp 1-2x/wk on non-retinoid nights only when barrier is stable. SPF AM is the single biggest anti-aging move, no skipping. Flag that sleep and hydration drive overnight collagen repair."
+  - id: routine_minimal_effort
     if: "routine_level == none"
-    then: "ABSOLUTE BEGINNER. Week 1–2 = cleanser + moisturizer + SPF only, no exceptions. Build the habit first. Week 3+ introduce ONE active per fortnight. Skip all PM actives until week 4."
-  - id: routine_advanced_skip_ramp
+    then: "LOW EFFORT BY CHOICE. Keep it to cleanser, moisturizer, SPF AM, and at most one PM active once tolerance allows. Do not stack extra steps, even long term. This is the user's preferred footprint, not a beginner phase. Active introduction is still gated by barrier_state + tret_history."
+  - id: routine_full_depth
     if: "routine_level == advanced"
-    then: "ADVANCED USER. Skip the foundation phase. Start full protocol week 1 at user's existing tolerance level. Lean on prompt_modifiers for concern; assume user knows ingredient interactions."
+    then: "MAX DEPTH. Build the full layered protocol: cleanse, treat, single active, hydrate, moisturize, occlusive when needed, SPF. The user wants the works. BUT still gate active introduction and ramp pace on barrier_state + tret_history. Wanting a full routine does not mean their skin can handle everything on day one."
   - id: heavy_outdoor_spf
     if: "outdoor_exposure == heavy"
     then: "SPF REAPPLY: critical. Schedule midday SPF reapply (AM+3h) every day + afternoon (AM+6h) on weekdays. Use stick or powder format for over-makeup reapply. Add weekly UV-damage scan reminder."
   - id: minimal_outdoor_spf
     if: "outdoor_exposure == minimal"
-    then: "SPF REAPPLY: skip — AM SPF + window-distance only. Save the notification slot for hydration check or evening routine cue."
+    then: "SPF REAPPLY: skip, AM SPF + window-distance only. Save the notification slot for hydration check or evening routine cue."
   - id: tret_never_slow_ramp
     if: "tret_history == never and skin_concern in [acne, pigmentation, texture, aging]"
     then: "RETINOID RAMP: start at adapalene 0.1% (drugstore, gentle) or tretinoin 0.025%, 2×/wk weeks 1–2, 3×/wk weeks 3–4, every-other-night weeks 5–8, nightly week 9+. Add purge reassurance reminder week 2."
@@ -243,10 +251,10 @@ prompt_modifiers:
     then: "RETINOID SANDWICH METHOD: moisturizer first, retinoid 0.025% over the moisturizer (buffered), wait 20 min, moisturizer again. Start 1×/wk only. Slow reintroduction prevents the irritation that caused them to quit before."
   - id: tret_currently_maintain
     if: "tret_history == currently_on"
-    then: "RETINOID: maintain current cadence — do NOT reset the ramp. Schedule retinoid PM at user's existing frequency (default 4×/wk). Skip purge reassurance — user is past that phase."
+    then: "RETINOID: maintain current cadence, do NOT reset the ramp. Schedule retinoid PM at user's existing frequency (default 4×/wk). Skip purge reassurance, user is past that phase."
   - id: dry_climate_occlusive
     if: "climate in [dry, cold]"
-    then: "MOISTURIZER: heavier ceramide cream PM + occlusive seal (squalane oil or petrolatum-based balm) on top. Add hydration check 2×/day during winter months. Skip foaming cleanser AM — too stripping in dry air."
+    then: "MOISTURIZER: heavier ceramide cream PM + occlusive seal (squalane oil or petrolatum-based balm) on top. Add hydration check 2×/day during winter months. Skip foaming cleanser AM, too stripping in dry air."
   - id: humid_climate_lighter
     if: "climate == humid"
     then: "MOISTURIZER: lightweight gel-cream only. Skip oils. Add second cleanse cadence (PM double-cleanse always). Increase BHA frequency to clear sweat-driven congestion."
@@ -260,7 +268,7 @@ prompt_modifiers:
 
 # Why skin matters for appearance
 
-Skin is the foundation of facial attractiveness. Before someone notices your jawline, eyes, or symmetry, they subconsciously register skin clarity, tone, and texture. Good skin acts like a filter — it enhances everything underneath. Bad skin overrides even strong features.
+Skin is the foundation of facial attractiveness. Before someone notices your jawline, eyes, or symmetry, they subconsciously register skin clarity, tone, and texture. Good skin acts like a filter, it enhances everything underneath. Bad skin overrides even strong features.
 
 Most people think skincare is about products. In reality it's about controlling inflammation, protecting the barrier, and maintaining internal balance. When those align, good skin is almost automatic.
 
@@ -268,11 +276,11 @@ Most people think skincare is about products. In reality it's about controlling 
 
 Almost every skin issue falls into one of three buckets. Understanding which one prevents random product use.
 
-**Texture** — surface quality. Rough, bumpy, enlarged pores, acne scars, congestion. Caused by slow turnover, clogged pores, collagen breakdown. Fixed with retinoids, controlled exfoliation, collagen stimulation.
+**Texture**, surface quality. Rough, bumpy, enlarged pores, acne scars, congestion. Caused by slow turnover, clogged pores, collagen breakdown. Fixed with retinoids, controlled exfoliation, collagen stimulation.
 
-**Pigmentation** — color issues. Post-acne marks (PIH), sun spots, uneven tone. Pigmentation is usually a downstream effect of inflammation: treat pigment without calming inflammation and it returns. Fixed with SPF, retinoids, azelaic acid, anti-inflammatory routine.
+**Pigmentation**, color issues. Post-acne marks (PIH), sun spots, uneven tone. Pigmentation is usually a downstream effect of inflammation: treat pigment without calming inflammation and it returns. Fixed with SPF, retinoids, azelaic acid, anti-inflammatory routine.
 
-**Inflammation** — the root cause. Redness, active acne, rosacea, irritation. Driven internally by gut imbalance, insulin spikes (IGF-1 → oil), stress/cortisol, dietary triggers (sugar, seed oils, dairy). Driven externally by over-exfoliation, harsh products, barrier damage, UV exposure.
+**Inflammation**, the root cause. Redness, active acne, rosacea, irritation. Driven internally by gut imbalance, insulin spikes (IGF-1 → oil), stress/cortisol, dietary triggers (sugar, seed oils, dairy). Driven externally by over-exfoliation, harsh products, barrier damage, UV exposure.
 
 Most people try to fix texture or pigment while still inflamed. That's why nothing works long-term.
 
@@ -284,7 +292,7 @@ Damaged skin: collagen breakdown causes sagging and dullness, uneven tone makes 
 
 # The biggest skincare mistakes
 
-Most people don't lack products — they have bad system design.
+Most people don't lack products, they have bad system design.
 
 **Over-exfoliating.** Trying to scrub problems away. Result: damaged barrier, more redness, worse acne, sensitivity. Exfoliating inflamed skin makes everything worse.
 
@@ -298,7 +306,7 @@ Most people don't lack products — they have bad system design.
 
 **Ignoring internal health.** Skin is affected by gut health, insulin, inflammation, sleep quality. External products can't outrun internal chaos.
 
-# The skin barrier — most important concept
+# The skin barrier, most important concept
 
 The skin barrier is the outermost layer (stratum corneum). Skin cells are the bricks; lipids (fats) are the mortar. It controls water retention, protection from bacteria/irritants, regulation of inflammation, and absorption of skincare products.
 
@@ -324,7 +332,7 @@ If skin reacts to basic products, the barrier is compromised.
 
 **Panthenol (Vitamin B5)** is both hydrator and anti-inflammatory. Soothes irritation, speeds barrier repair, reduces redness. Great paired with retinoids.
 
-**Lipid repair** restores ceramides, fatty acids, and cholesterol together — the skin's natural structure.
+**Lipid repair** restores ceramides, fatty acids, and cholesterol together, the skin's natural structure.
 
 ## What to STOP during barrier damage
 
@@ -342,20 +350,20 @@ Skin is designed to block things from entering. Products work only if the barrie
 
 ## The absorption ladder (correct order)
 
-1. **Cleanser** — removes oil, dirt, sunscreen, buildup so actives reach skin.
-2. **Toner / hydrating mist** (optional) — light hydration; expanded skin cells absorb next layers better. Apply on damp skin — the "golden window."
-3. **Active (one at a time)** — azelaic, niacinamide, retinoid (PM only), exfoliating acids (separate nights).
-4. **Treatment serum** — vitamin C (AM) or centella/panthenol (PM). Supports skin after the active.
-5. **Hydrating serum** — hyaluronic acid, beta-glucan, peptides. Pulls water in; improves plumpness.
-6. **Moisturizer** — locks in hydration; ceramides + lipids repair barrier.
-7. **Occlusive (PM, optional)** — Cicaplast or light petrolatum. Seals in. Use only when dry/damaged.
-8. **SPF (AM only)** — blocks UV damage and pigmentation.
+1. **Cleanser**, removes oil, dirt, sunscreen, buildup so actives reach skin.
+2. **Toner / hydrating mist** (optional), light hydration; expanded skin cells absorb next layers better. Apply on damp skin, the "golden window."
+3. **Active (one at a time)**, azelaic, niacinamide, retinoid (PM only), exfoliating acids (separate nights).
+4. **Treatment serum**, vitamin C (AM) or centella/panthenol (PM). Supports skin after the active.
+5. **Hydrating serum**, hyaluronic acid, beta-glucan, peptides. Pulls water in; improves plumpness.
+6. **Moisturizer**, locks in hydration; ceramides + lipids repair barrier.
+7. **Occlusive (PM, optional)**, Cicaplast or light petrolatum. Seals in. Use only when dry/damaged.
+8. **SPF (AM only)**, blocks UV damage and pigmentation.
 
 ## Active timing
 
-AM: azelaic acid, niacinamide, vitamin C — reduce inflammation, protect from environmental stress.
+AM: azelaic acid, niacinamide, vitamin C, reduce inflammation, protect from environmental stress.
 
-PM: retinoids (tretinoin), repair-focused ingredients — collagen production, skin remodeling.
+PM: retinoids (tretinoin), repair-focused ingredients, collagen production, skin remodeling.
 
 ## What destroys absorption
 
@@ -367,9 +375,9 @@ PM: retinoids (tretinoin), repair-focused ingredients — collagen production, s
 
 # Collagen activation and rebuilding
 
-## Retinoids — the foundation
+## Retinoids, the foundation
 
-Retinoids are the primary drivers of collagen production. They stimulate fibroblasts, increase turnover, improve texture and pigmentation. Not "anti-aging products" — cellular architects.
+Retinoids are the primary drivers of collagen production. They stimulate fibroblasts, increase turnover, improve texture and pigmentation. Not "anti-aging products", cellular architects.
 
 Protocol: start 0.05% tretinoin, apply on dry skin, pea-sized amount, gradually increase frequency.
 
@@ -385,9 +393,9 @@ Protocol: depth 0.25mm, 2× per week. Never on the same night as retinoids. Redu
 
 # Hyperpigmentation repair
 
-Pigmentation is not the root problem — it's a symptom of inflammation. Trying to "bleach" it away usually makes it worse.
+Pigmentation is not the root problem, it's a symptom of inflammation. Trying to "bleach" it away usually makes it worse.
 
-## Phase 1 — Repair (2–4 weeks)
+## Phase 1, Repair (2–4 weeks)
 
 Goal: reduce inflammation, rebuild barrier.
 
@@ -397,27 +405,27 @@ Internal: L-glutamine 5g AM (gut lining), probiotics 20B CFU, zinc + collagen, h
 
 Stop: exfoliating acids, scrubs, vitamin C if irritating, retinoids in first 1–2 weeks.
 
-## Phase 2 — Resurface (4–8 weeks)
+## Phase 2, Resurface (4–8 weeks)
 
 Goal: increase turnover so pigmented cells shed.
 
-Retinoid (core driver): 0.05% tretinoin, pea-sized on dry skin, gradually increase. Real retinoids — retinol is weak.
+Retinoid (core driver): 0.05% tretinoin, pea-sized on dry skin, gradually increase. Real retinoids, retinol is weak.
 
 Dermastamping: 0.25mm, 2×/week, never same night as retinoid.
 
 Continue azelaic + barrier support. Avoid high-strength retinoid overdosing and over-exfoliation.
 
-## Phase 3 — Protect (lifelong)
+## Phase 3, Protect (lifelong)
 
-SPF every single day — non-negotiable. UV is the #1 cause of dark spots, uneven tone, collagen breakdown.
+SPF every single day, non-negotiable. UV is the #1 cause of dark spots, uneven tone, collagen breakdown.
 
-Antioxidants: vitamin E, green tea extract — reduce free radical damage.
+Antioxidants: vitamin E, green tea extract, reduce free radical damage.
 
 Sleep & hormone rhythm: deep sleep is when collagen repairs, inflammation resets, pigmentation fades. Poor sleep = high cortisol = slow healing.
 
 # Rosacea and chronic inflammation
 
-Rosacea isn't a texture problem — it's an inflammation problem. Don't attack the skin; calm it, then rebuild.
+Rosacea isn't a texture problem, it's an inflammation problem. Don't attack the skin; calm it, then rebuild.
 
 ## What rosacea is
 
@@ -437,13 +445,13 @@ Damaged or sensitive barrier. Triggered by over-exfoliation, harsh cleansers, al
 
 ## Solutions
 
-**Centella asiatica** — strong anti-inflammatory, repairs barrier, reduces redness. Well tolerated.
+**Centella asiatica**, strong anti-inflammatory, repairs barrier, reduces redness. Well tolerated.
 
-**Azelaic acid** — reduces redness, fights bacteria, helps pigment. Start 2–3×/week, increase gradually. Avoid if skin severely irritated until barrier stabilizes.
+**Azelaic acid**, reduces redness, fights bacteria, helps pigment. Start 2–3×/week, increase gradually. Avoid if skin severely irritated until barrier stabilizes.
 
-**Anti-inflammatory diet** — remove seed oils / sugar / alcohol / processed for 1–3 weeks. Add protein (stable blood sugar), whole foods, hydration.
+**Anti-inflammatory diet**, remove seed oils / sugar / alcohol / processed for 1–3 weeks. Add protein (stable blood sugar), whole foods, hydration.
 
-**Reduced exfoliation** — avoid physical scrubs, frequent acid use, retinoid overuse. Rosacea gets worse when treated like a texture issue.
+**Reduced exfoliation**, avoid physical scrubs, frequent acid use, retinoid overuse. Rosacea gets worse when treated like a texture issue.
 
 ## Avoid completely during flares
 
@@ -485,7 +493,7 @@ Internal: ~3L water daily, collagen, zinc, anti-inflammatory diet.
   applies_when: [always]
   contraindicated_when: []
   intensity: 0.1
-  evidence_section: "The skin barrier — most important concept"
+  evidence_section: "The skin barrier, most important concept"
   cooldown_hours: 0
   frequency: { type: daily, n: 1 }
 
@@ -530,7 +538,7 @@ Internal: ~3L water daily, collagen, zinc, anti-inflammatory diet.
   tags: [am, protect, foundation]
   applies_when: [always]
   intensity: 0.1
-  evidence_section: "Phase 3 — Protect"
+  evidence_section: "Phase 3, Protect"
   frequency: { type: daily, n: 1 }
 
 - id: skin.spf_reapply
@@ -541,7 +549,7 @@ Internal: ~3L water daily, collagen, zinc, anti-inflammatory diet.
   tags: [midday, protect]
   applies_when: ["outdoor_exposure in [heavy, moderate]"]
   intensity: 0.2
-  evidence_section: "Phase 3 — Protect"
+  evidence_section: "Phase 3, Protect"
   frequency: { type: daily, n: 1 }
 
 - id: skin.azelaic_am
@@ -573,10 +581,10 @@ Internal: ~3L water daily, collagen, zinc, anti-inflammatory diet.
   duration_min: 5
   default_window: pm_active
   tags: [pm, active, retinoid]
-  applies_when: ["skin_concern in [acne, pigmentation, texture, maintenance] and barrier_state != damaged"]
+  applies_when: ["skin_concern in [acne, pigmentation, texture, maintenance, aging] and barrier_state != damaged"]
   contraindicated_when: ["barrier_state == damaged", "skin_concern == rosacea"]
   intensity: 0.7
-  evidence_section: "Retinoids — the foundation"
+  evidence_section: "Retinoids, the foundation"
   cooldown_hours: 24
   frequency: { type: n_per_week, n: 4 }
 
@@ -586,7 +594,7 @@ Internal: ~3L water daily, collagen, zinc, anti-inflammatory diet.
   duration_min: 10
   default_window: pm_active
   tags: [pm, treatment, collagen]
-  applies_when: ["skin_concern in [pigmentation, texture] and barrier_state == stable", "dermastamp_owned == true"]
+  applies_when: ["skin_concern in [pigmentation, texture, aging] and barrier_state == stable", "dermastamp_owned == true"]
   contraindicated_when: ["barrier_state == damaged", "skin_concern == rosacea"]
   intensity: 0.8
   evidence_section: "Dermastamping"
@@ -606,7 +614,7 @@ Internal: ~3L water daily, collagen, zinc, anti-inflammatory diet.
   frequency: { type: n_per_week, n: 5 }
 
 - id: skin.hydration_water
-  title: "Drink water — 1L target"
+  title: "Drink water 1L target"
   description: "drink 1L water by midday. internal hydration → barrier function."
   duration_min: 1
   default_window: midday
@@ -635,11 +643,11 @@ Internal: ~3L water daily, collagen, zinc, anti-inflammatory diet.
   tags: [internal, supplement]
   applies_when: ["skin_concern in [acne, pigmentation]"]
   intensity: 0.1
-  evidence_section: "Phase 1 — Repair"
+  evidence_section: "Phase 1, Repair"
   frequency: { type: daily, n: 1 }
 
 - id: skin.barrier_pause
-  title: "Skip actives — barrier rest"
+  title: "Skip actives, barrier rest"
   description: "skip ALL actives today. only cleanse, ceramides, SPF. let barrier recover. critical during repair."
   duration_min: 1
   default_window: flexible
@@ -677,7 +685,7 @@ Internal: ~3L water daily, collagen, zinc, anti-inflammatory diet.
   duration_min: 8
   default_window: pm_active
   tags: [exfoliation, weekly, active]
-  applies_when: ["barrier_state == stable", "skin_concern in [acne, pigmentation, texture]"]
+  applies_when: ["barrier_state == stable", "skin_concern in [acne, pigmentation, texture, aging]"]
   contraindicated_when: ["barrier_state == damaged"]
   intensity: 0.5
   evidence_section: "Active strategy"
@@ -690,14 +698,14 @@ Internal: ~3L water daily, collagen, zinc, anti-inflammatory diet.
   duration_min: 15
   default_window: pm_active
   tags: [hydration, mask, weekly, repair]
-  applies_when: ["skin_concern in [rosacea, maintenance] or skin_type == dry"]
+  applies_when: ["skin_concern in [rosacea, maintenance, aging] or skin_type == dry"]
   intensity: 0.2
   evidence_section: "Repair ingredients"
   frequency: { type: n_per_week, n: 1 }
 
 - id: skin.progress_photo
   title: "Photo: face front + sides"
-  description: "natural light, no makeup, same angle (front + 45° both sides). compare in 30 days, not daily — skin changes are slow."
+  description: "natural light, no makeup, same angle (front + 45° both sides). compare in 30 days, not daily, skin changes are slow."
   duration_min: 5
   default_window: am_open
   tags: [tracking, progress, biweekly]

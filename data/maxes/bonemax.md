@@ -13,7 +13,7 @@ schedule_design:
     week_2: [0.3, 1.0]
   skeleton:
     blocks:
-      # --- Mewing — 3/day backbone, every day ---
+      # --- Mewing 3/day backbone, every day ---
       - id: mewing_am
         slot: am_open
         cadence: daily
@@ -26,16 +26,16 @@ schedule_design:
         slot: pm_close
         cadence: daily
         tasks: [bone.mewing_night]
-      # --- Masseter — TMJ-safe ramp handled by prompt_modifiers ---
+      # --- Masseter, TMJ-safe ramp handled by prompt_modifiers ---
       - id: masseter_session
         slot: am_active
         cadence: daily
-        if: "tmj_history != true"
+        if: "tmj_history != true and mastic_gum_regular not in [weak, painful]"
         tasks: [bone.masseter]
       - id: masseter_ramp
         slot: am_active
         cadence: n_per_week=3
-        if: "tmj_history == true"
+        if: "tmj_history == true or mastic_gum_regular in [weak, painful]"
         tasks: [bone.masseter_ramp]
       # --- Fascia / lymph ---
       - id: fascia_am
@@ -56,7 +56,7 @@ schedule_design:
         cadence: daily
         if: "heavy_screen_time == true or mouth_breather == true"
         tasks: [bone.nasal_check]
-      # --- Neck training — workout-day-coupled ---
+      # --- Neck training, workout-day-coupled ---
       - id: neck_workout_heavy
         slot: pm_active
         cadence: n_per_week=4
@@ -127,121 +127,129 @@ schedule_design:
 
 required_fields:
   - id: workout_frequency
-    question: "How many days per week do you usually work out?"
+    question: "How many days a week do you actually train?"
     type: enum
     options:
-      none: "0 — I'm not training right now"
+      none: "Not training right now"
       light: "1-2 days a week"
       moderate: "3-4 days a week"
       heavy: "5+ days a week"
     required: true
-    why: "Neck training piggybacks on workout days. Determines how often to schedule the full neck protocol vs chin-tuck-only days."
+    why: "Neck training piggybacks on real workout days. Sets how often to schedule the full neck protocol vs chin-tuck-only days."
 
   - id: tmj_history
-    question: "Have you ever had TMJ issues, jaw pain, or clicking?"
+    question: "Ever had jaw pain, clicking, or TMJ issues?"
     type: yes_no
     required: true
-    why: "If yes — strip masseter work from week 1, ramp slowly, watch for flares. If no — start the full protocol from day 1."
+    why: "If yes, strip masseter work from week 1, ramp slowly, watch for flares. If no, start the full protocol from day 1."
 
   - id: mastic_gum_regular
-    question: "Do you already chew mastic gum (or another hard gum) regularly?"
-    type: yes_no
+    question: "How does your jaw handle tough, chewy food?"
+    type: enum
+    options:
+      strong: "Easily, I can chew tough stuff all day"
+      average: "Fine, but it tires after a while"
+      weak: "Gets sore or tired pretty fast"
+      painful: "It clicks or aches when I chew a lot"
     required: true
-    why: "Decides masseter ramp pace. Already-conditioned jaws can start at the standard 1×/day; new jaws ramp from 5 min every other day."
+    why: "Sets masseter ramp pace and safety from actual jaw capacity, not whether they happen to chew gum. strong/average = start near standard cadence. weak = slow ramp from short sessions. painful = treat like TMJ and route to the safe ramp regardless of TMJ history."
 
   - id: heavy_screen_time
-    question: "Do you spend most of your day on a computer or phone?"
+    question: "On a screen most of the day?"
     type: yes_no
     required: true
-    why: "Heavy screen time means forward-head posture all day — schedule adds extra mid-day mewing reset + nasal-breathing checks."
+    why: "Heavy screen time means forward-head posture all day, so the schedule adds an extra midday mewing reset plus nasal-breathing checks."
 
   - id: mewing_experience
-    question: "How familiar are you with mewing?"
+    question: "How much coaching do you want on mewing form?"
     type: enum
     options:
-      none: "Never tried it"
-      heard_of: "Heard of it, never properly done it"
-      occasional: "I do it sometimes"
-      regular: "Daily practice for months+"
+      none: "Start from zero, teach me the form"
+      heard_of: "Quick refresher, then I'm good"
+      occasional: "Got the basics, just keep me consistent"
+      regular: "I'm dialed in, give me the advanced stuff"
     required: true
-    why: "Decides ramp pace + technique-emphasis copy. None → start with form check + basic morning hold; regular → skip basics, layer hard-mewing cues."
+    why: "Sets how much form coaching to layer in and how fast to stack sessions. none = week 1 is form check plus a basic morning hold, then build up. regular = skip the basics and add hard-mewing cues. Asks what they want coached, not whether they already do it, since plenty of people want to start fresh regardless of past habit."
 
   - id: sleep_position
-    question: "How do you sleep, mostly?"
+    question: "How do you sleep most nights?"
     type: enum
     options:
-      back: "Back — face up"
-      side: "Side"
-      stomach: "Stomach — face down"
-      mixed: "Mixed / depends"
+      back: "On my back, face up"
+      side: "On my side"
+      stomach: "On my stomach, face down"
+      mixed: "Mixed, depends on the night"
     required: true
-    why: "Stomach sleeping wrecks tongue posture and pushes the jaw forward asymmetrically. Stomach → bedtime cue includes side-sleep transition. Back → ideal, no extra cue. Side → asymmetric load reminder weekly."
+    why: "Stomach sleeping wrecks tongue posture and pushes the jaw forward unevenly. stomach = bedtime cue pushes a side-sleep transition. back = ideal, no extra cue. side = weekly reminder to alternate sides."
 
   - id: nasal_breather
     question: "Do you breathe through your nose during the day?"
     type: enum
     options:
-      always: "Always — nose only"
-      mostly: "Mostly — sometimes mouth"
+      always: "Always, nose only"
+      mostly: "Mostly, sometimes through my mouth"
       mouth: "Often through my mouth"
       unsure: "Honestly not sure"
     required: true
-    why: "Mouth breathing is the #1 enemy of jaw posture. Mouth → nasal check 3×/day + lip-tape suggestion at bedtime. Mostly → 2×/day. Always → 1×/day form check."
+    why: "Mouth breathing is the biggest enemy of jaw posture. mouth = nasal check 3x/day plus a bedtime lip-tape suggestion. mostly = 2x/day. always = a 1x/day form check."
 
   - id: jaw_priority
-    question: "What matters most to you for your jaw?"
+    question: "What's your main goal for your jaw?"
     type: enum
     options:
-      definition: "Sharper definition / lower body fat at jawline"
-      mass: "Bigger masseter / fuller lower face"
-      structure: "Overall facial structure / posture"
-      symmetry: "Even left/right balance"
+      definition: "Sharper, more defined jawline"
+      mass: "Bigger, fuller jaw and masseter"
+      structure: "Better overall structure and posture"
+      symmetry: "Even left-right balance"
     required: true
-    why: "Drives masseter ramp aggressiveness + which symmetry-check tips rotate. Definition → cardio + chewing gum focus. Mass → harder masseter + creatine optional. Structure → mewing + posture priority. Symmetry → balanced-bite + asymmetric chewing avoidance."
+    why: "Drives how hard the masseter ramps and which symmetry tips rotate in. definition = cardio plus lighter gum work. mass = harder masseter, creatine optional. structure = mewing and posture priority. symmetry = balanced-bite work and breaking one-sided chewing."
 
   - id: nutrition_stack_open
-    question: "Open to a bone-support supplement stack (vitamin D3 + K2 + magnesium)?"
+    question: "Down for a bone-support supplement stack (D3 + K2 + magnesium)?"
     type: yes_no
     required: true
-    why: "Gates the nutrition tasks. If yes → AM D3+K2 with food + PM magnesium. If no → skip those notification slots entirely."
+    why: "Gates the nutrition tasks. yes = AM D3+K2 with food plus PM magnesium. no = skip those notification slots entirely."
 
 optional_context:
   - id: age
-    description: "User age (from onboarding) — under-22 has more growth-plate plasticity for jaw posture changes."
+    description: "User age (from onboarding), under-22 has more growth-plate plasticity for jaw posture changes."
   - id: sleep_position
-    description: "Back / side / stomach — biases the bedtime mewing reset and pillow advice."
+    description: "Back / side / stomach, biases the bedtime mewing reset and pillow advice."
   - id: mouth_breather
-    description: "Self-reported mouth breathing during the day or while sleeping — adds nasal-breathing reminders."
+    description: "Self-reported mouth breathing during the day or while sleeping, adds nasal-breathing reminders."
   - id: jaw_appearance_goal
-    description: "What the user wants to change (jawline definition, masseter size, chin projection) — biases reminder copy."
+    description: "What the user wants to change (jawline definition, masseter size, chin projection), biases reminder copy."
   - id: nutrition_stack_open
-    description: "Whether the user is open to a bone-support supplement stack (vitamin D / K2 / magnesium) — gates the nutrition block."
+    description: "Whether the user is open to a bone-support supplement stack (vitamin D / K2 / magnesium), gates the nutrition block."
   - id: current_habits
-    description: "Already mewing? chewing gum? training neck? — informs ramp pace per module."
+    description: "Already mewing? chewing gum? training neck?, informs ramp pace per module."
   - id: meal_chewing_reminders_opt_in
-    description: "User opted into meal-time chewing posture cues — gates per-meal reminders."
+    description: "User opted into meal-time chewing posture cues, gates per-meal reminders."
   - id: hard_mewing_opt_in
-    description: "User wants advanced mewing (active suction holds vs passive) — biases reminder cadence."
+    description: "User wants advanced mewing (active suction holds vs passive), biases reminder cadence."
 
 prompt_modifiers:
   - id: tmj_caution
     if: "tmj_history == true"
-    then: "PHASE: TMJ-SAFE RAMP. NO masseter / mastic gum in week 1. Week 2: introduce 5 min every other day. Week 3+: standard cadence only if no flare. Add 'jaw check-in' midday: any clicking, pain, fatigue? — log and back off if yes."
+    then: "PHASE: TMJ-SAFE RAMP. NO masseter / mastic gum in week 1. Week 2: introduce 5 min every other day. Week 3+: standard cadence only if no flare. Add 'jaw check-in' midday: any clicking, pain, fatigue?, log and back off if yes."
   - id: workout_neck_train
     if: "workout_frequency in [moderate, heavy]"
     then: "Append neck training (4-way harness or banded) for 5-8 min, 15 min after workout end on training days. On non-training days bundle chin tucks into the midday mewing reset (not a separate notification)."
   - id: light_workout_neck
     if: "workout_frequency == light"
-    then: "Neck training 2× per week regardless of training days — pick fixed weekdays at PM time. Chin tucks bundled into midday mewing on the other 5 days."
+    then: "Neck training 2× per week regardless of training days, pick fixed weekdays at PM time. Chin tucks bundled into midday mewing on the other 5 days."
   - id: no_workout_neck
     if: "workout_frequency == none"
     then: "Neck protocol = chin tucks bundled into midday mewing daily, plus 1 dedicated banded neck session per week at user-set time. No harness recommended (no anchor)."
-  - id: mastic_advanced
-    if: "mastic_gum_regular == true and tmj_history == false"
-    then: "Start at standard cadence: mastic 1× daily at user-chosen time (default wake + 2h). Single piece, 10-15 min chew, balanced left-right. Rest 1 day per week."
-  - id: mastic_beginner
-    if: "mastic_gum_regular == false and tmj_history == false"
-    then: "RAMP. Week 1: half-piece, every other day, 5 min max. Week 2: full piece, every other day, 8-10 min. Week 3+: 1×/day at standard cadence. Rotate sides each session."
+  - id: mastic_strong
+    if: "mastic_gum_regular in [strong, average] and tmj_history == false"
+    then: "Jaw handles load well. Start near standard cadence: mastic 1x daily at user-chosen time (default wake + 2h). Single piece, 10-15 min chew, alternate sides. Rest 1 day per week."
+  - id: mastic_ramp_weak
+    if: "mastic_gum_regular == weak and tmj_history == false"
+    then: "Jaw fatigues fast, so ramp slow. Week 1: half-piece, every other day, 5 min max. Week 2: full piece, every other day, 8-10 min. Week 3+: 1x/day at standard cadence. Alternate sides every session."
+  - id: mastic_painful_caution
+    if: "mastic_gum_regular == painful"
+    then: "Clicking or aching on heavy chewing means treat the jaw like a TMJ case regardless of history. NO mastic week 1. Week 2: 5 min every other day, stop at any click or pain. Week 3+: only build up if zero symptoms. Add a midday jaw check-in: any clicking, pain, fatigue? Log it and back off if yes."
   - id: heavy_screen_extra_resets
     if: "heavy_screen_time == true"
     then: "Add a second mid-afternoon mewing + nasal-breathing reset at midday + 2h. Append screen-forward-head cue to the standard midday reset copy. Cap nasal-breathing reminders at 2/day."
@@ -250,10 +258,10 @@ prompt_modifiers:
     then: "Nasal-breathing checks 2×/day (midday + bed − 60 min). Bedtime: explicit lip-tape suggestion if user opted in; otherwise 'lips sealed, nasal only' nightly cue. Add a weekly check on snoring / mouth-dry mornings."
   - id: under_22_oral_posture_priority
     if: "age < 22"
-    then: "Frame mewing as 'oral posture for facial development' — bone is still adapting. Mewing morning + midday + night every day, no skip days. Hard-mewing cue once a week to reinforce active form."
+    then: "Frame mewing as 'oral posture for facial development', bone is still adapting. Mewing morning + midday + night every day, no skip days. Hard-mewing cue once a week to reinforce active form."
   - id: adult_maintenance_framing
     if: "age >= 25"
-    then: "Frame mewing as 'maintenance + drainage / posture' — fully-fused bone, gains are slower. Same daily cadence but mention realistic timeline (6-12 months for visible jaw posture change). No claims about bone remodeling."
+    then: "Frame mewing as 'maintenance + drainage / posture', fully-fused bone, gains are slower. Same daily cadence but mention realistic timeline (6-12 months for visible jaw posture change). No claims about bone remodeling."
   - id: mewing_none_form_check
     if: "mewing_experience == none"
     then: "WEEK 1: form-check focus. Daily 30s morning hold + mirror check (back third of tongue on palate, lips sealed, teeth touching). No midday or night cue yet. Week 2 add midday. Week 3 add night. Build the habit before stacking."
@@ -274,7 +282,7 @@ prompt_modifiers:
     then: "Nasal breathing 2×/day check. Frame: 'when you catch yourself mouth-breathing, close lips, push tongue up, breathe slow through nose 3x'. No lip-tape suggestion yet."
   - id: jaw_definition_priority
     if: "jaw_priority == definition"
-    then: "DEFINITION FOCUS: emphasize body-fat reduction (link to FitMax if active). Add daily 'jawline reveal' check — front-camera photo at consistent angle / lighting. Lower masseter intensity (avoid bulking the muscle); skip creatine for jaw."
+    then: "DEFINITION FOCUS: emphasize body-fat reduction (link to FitMax if active). Add daily 'jawline reveal' check, front-camera photo at consistent angle / lighting. Lower masseter intensity (avoid bulking the muscle); skip creatine for jaw."
   - id: jaw_mass_priority
     if: "jaw_priority == mass"
     then: "MASS FOCUS: aggressive masseter ramp. Mastic 2× daily (AM + PM) once past TMJ check. Add jaw-specific creatine cue (5g/day). Weekly progress photo at chin / side angle."
@@ -286,7 +294,7 @@ prompt_modifiers:
 
 # Why BoneMax matters
 
-Facial structure reads instantly — jawline angle, midface support, chin projection. Most adults can't change bone, but they CAN change posture, fascia tension, and muscle development around the jaw and neck, which shifts perceived structure significantly. Mewing trains tongue posture; masseter training thickens the jaw musculature; neck training holds the head up and back so the jawline stays sharp instead of soft.
+Facial structure reads instantly, jawline angle, midface support, chin projection. Most adults can't change bone, but they CAN change posture, fascia tension, and muscle development around the jaw and neck, which shifts perceived structure significantly. Mewing trains tongue posture; masseter training thickens the jaw musculature; neck training holds the head up and back so the jawline stays sharp instead of soft.
 
 The schedule is built from workout pattern + TMJ history + chewing experience + screen-time exposure. Those four answers decide how aggressive the masseter ramp is, where neck training plugs in, and how many midday posture resets are needed.
 
@@ -295,7 +303,7 @@ The schedule is built from workout pattern + TMJ history + chewing experience + 
 ## Mewing (3 sessions/day backbone)
 
 - **Morning** at wake: tongue on palate (back third), lips sealed, teeth light touch, chin tucked. 60s active hold, then passive all day.
-- **Midday** at midpoint(wake+15, bed−60): conscious 30s reset — tongue up, lips sealed, jaw unclenched, head over neck.
+- **Midday** at midpoint(wake+15, bed−60): conscious 30s reset, tongue up, lips sealed, jaw unclenched, head over neck.
 - **Night** at bed − 30min: night-set hold + sleep posture cues.
 
 ## Masseter / mastic
@@ -308,7 +316,7 @@ The schedule is built from workout pattern + TMJ history + chewing experience + 
 
 - Workout days only: 5-8 min after workout (harness or banded 4-way).
 - Non-workout days: chin tucks bundled into midday mewing.
-- If user runs FitMax, BoneMax owns neck — FitMax should strip it from its session.
+- If user runs FitMax, BoneMax owns neck, FitMax should strip it from its session.
 
 ## Fascia / lymph
 
@@ -319,7 +327,7 @@ The schedule is built from workout pattern + TMJ history + chewing experience + 
 
 - Vitamin D3 (4000 IU) + K2 (100 mcg) with first fat-containing meal.
 - Magnesium glycinate (300-400 mg) at bed − 60min.
-- Calcium from food (greek yogurt, sardines, leafy greens) — supplement only if dietary gaps.
+- Calcium from food (greek yogurt, sardines, leafy greens), supplement only if dietary gaps.
 
 # Notification cadence
 
@@ -340,7 +348,7 @@ Quiet hours: nothing between bed and wake.
 - **+ FitMax**: BoneMax owns neck training. FitMax sessions strip neck.
 - **+ SkinMax**: Skip evening fascia / lymph on retinoid or exfoliation nights.
 - **+ HairMax**: Morning fascia / lymph stacks AFTER scalp minoxidil dries (15-20 min).
-- **+ HeightMax**: Morning mewing + posture cues coordinate with height posture-reset task — render as one compound notification, not two.
+- **+ HeightMax**: Morning mewing + posture cues coordinate with height posture-reset task, render as one compound notification, not two.
 
 ```yaml task_catalog
 - id: bone.mewing_am
@@ -367,7 +375,7 @@ Quiet hours: nothing between bed and wake.
 
 - id: bone.mewing_night
   title: "Mewing (night set)"
-  description: "tongue up, lips closed, nasal. light suction. settle into sleep posture — tongue stays on palate as you drift off."
+  description: "tongue up, lips closed, nasal. light suction. settle into sleep posture, tongue stays on palate as you drift off."
   duration_min: 2
   default_window: pm_close
   tags: [mewing, pm, sleep]
@@ -382,7 +390,7 @@ Quiet hours: nothing between bed and wake.
   duration_min: 12
   default_window: am_active
   tags: [masseter, jaw]
-  applies_when: ["tmj_history != true"]
+  applies_when: ["tmj_history != true and mastic_gum_regular not in [weak, painful]"]
   intensity: 0.5
   evidence_section: "Masseter"
   cooldown_hours: 18
@@ -394,7 +402,7 @@ Quiet hours: nothing between bed and wake.
   duration_min: 6
   default_window: am_active
   tags: [masseter, jaw, ramp]
-  applies_when: ["tmj_history == true"]
+  applies_when: ["tmj_history == true or mastic_gum_regular in [weak, painful]"]
   contraindicated_when: []
   intensity: 0.3
   evidence_section: "Masseter"
@@ -425,7 +433,7 @@ Quiet hours: nothing between bed and wake.
 
 - id: bone.nasal_check
   title: "Nasal-breathing check"
-  description: "are you breathing through your nose? lips sealed, jaw relaxed? screen forward-head check — chin back, head over shoulders."
+  description: "are you breathing through your nose? lips sealed, jaw relaxed? screen forward-head check, chin back, head over shoulders."
   duration_min: 1
   default_window: midday
   tags: [nasal, posture, breathing]
@@ -436,7 +444,7 @@ Quiet hours: nothing between bed and wake.
 
 - id: bone.neck_workout
   title: "Neck training (full set)"
-  description: "5-8 min: 4-way harness or banded. front, back, left, right — 15 reps each direction, 2 sets. progress only after no soreness."
+  description: "5-8 min: 4-way harness or banded. front, back, left, right 15 reps each direction, 2 sets. progress only after no soreness."
   duration_min: 7
   default_window: pm_active
   tags: [neck, training]
@@ -502,7 +510,7 @@ Quiet hours: nothing between bed and wake.
 
 - id: bone.progress_photo
   title: "Photo: jaw + side profile"
-  description: "front + both 45°s + side. natural light, mouth closed, head level. compare in 30 days — bone changes over months, not days."
+  description: "front + both 45°s + side. natural light, mouth closed, head level. compare in 30 days, bone changes over months, not days."
   duration_min: 5
   default_window: am_open
   tags: [tracking, progress, biweekly]

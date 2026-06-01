@@ -66,7 +66,7 @@ def build_tool_results_prompt_template() -> ChatPromptTemplate:
             (
                 "system",
                 "{system_prompt}\n\n"
-                "[TOOL_RESULTS — use these to write your response to the user]\n"
+                "[TOOL_RESULTS: use these to write your response to the user]\n"
                 "{tool_results}",
             ),
             MessagesPlaceholder(variable_name="history"),

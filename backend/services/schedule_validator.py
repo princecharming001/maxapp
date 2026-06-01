@@ -72,6 +72,25 @@ def _normalize_title_case(raw: str) -> str:
     return out
 
 
+# Em-dash (U+2014) is the single biggest "a bot wrote this" tell in task
+# copy. Strip it from every title/description/motivation that reaches the
+# user (calendar grid AND the SMS reminder path, which reads stored task
+# text directly). En-dashes (U+2013) inside numeric ranges like "30-40g"
+# or "8-12 weeks" are intentionally LEFT ALONE. Rule: if a number follows
+# the dash it's a measure ("dead hang - 60s") so join with a space; every
+# other case is a clause ("rest your barrier - no actives") so use a comma.
+_EM_DASH = "—"
+
+
+def _strip_em_dashes(text: str) -> str:
+    if not text or _EM_DASH not in text:
+        return text
+    out = re.sub(r"\s*" + _EM_DASH + r"\s*(?=\d)", " ", text)   # measure follows
+    out = re.sub(r"\s*" + _EM_DASH + r"\s*", ", ", out)          # clause follows
+    out = re.sub(r"\s{2,}", " ", out)
+    return out.strip()
+
+
 # Title humanization — converts catalog-style technical titles into
 # reminder-style friendly phrases. Called once per task in the validator;
 # every catalog gets the same human pass without needing to maintain
@@ -317,8 +336,8 @@ def _humanize_title(catalog_title: str) -> str:
         m = re.match(pat, base, re.IGNORECASE)
         if m:
             new = re.sub(pat, repl, base, flags=re.IGNORECASE)
-            return _normalize_title_case(new)
-    return base
+            return _strip_em_dashes(_normalize_title_case(new))
+    return _strip_em_dashes(base)
 
 
 @dataclass
@@ -572,6 +591,7 @@ def _validate_task(
         title = catalog_task.title
 
     description = (task.get("description") or catalog_task.description or "").strip()
+    description = _strip_em_dashes(description)
     if len(description) > 380:  # bumped from 220 — bullets give us extra char budget
         description = description[:377].rstrip() + "..."
     description = _format_description(description)

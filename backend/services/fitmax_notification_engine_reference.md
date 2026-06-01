@@ -1,4 +1,4 @@
-# FITMAX NOTIFICATION ENGINE — AI Reference
+# FITMAX NOTIFICATION ENGINE, AI Reference
 
 ## USER INPUTS (onboarding)
 
@@ -21,25 +21,25 @@ Use **body fat band + primary goal** to assign one phase:
 |-------|-----------|
 | **Cut** | BF over ~15%, **or** any BF with goal **get lean** |
 | **Lean bulk** | ~10–15% BF + goal **build muscle** |
-| **Recomp** | ~15–20% BF + **beginner** + goal **both** — maintenance calories, high protein |
-| **Maintain** | ~10–15% BF + goal **maintain** — sweet spot |
+| **Recomp** | ~15–20% BF + **beginner** + goal **both**, maintenance calories, high protein |
+| **Maintain** | ~10–15% BF + goal **maintain**, sweet spot |
 
-## TIMING — when notifications fire
+## TIMING, when notifications fire
 
-- **Pre-workout:** 30 min before preferred workout time — today's training focus.  
+- **Pre-workout:** 30 min before preferred workout time, today's training focus.  
 - **Post-workout:** 15 min after **estimated** session end (session length from program tier, typically ~60–90 min).  
-- **Morning nutrition:** wake + 30 min — macro / portion targets by phase.  
+- **Morning nutrition:** wake + 30 min, macro / portion targets by phase.  
 - **Midday posture / aesthetics tip:** midpoint of active day = midpoint(wake+15m, bed−60m). 10-day rotating tips.  
-- **Evening nutrition closeout:** bed − 2 h — protein + calorie check.  
+- **Evening nutrition closeout:** bed − 2 h, protein + calorie check.  
 - **Weekly weigh-in:** every **Monday** at wake + 15 min (after bathroom, before food).  
 - **Monthly body check:** **1st of month** at midday anchor.  
 - **Quiet hours:** no notifications between bed and wake.  
 
-## MODULE 1 — TRAINING PROGRAM
+## MODULE 1, TRAINING PROGRAM
 
 - **1 pre + 1 post per workout day only.** Aesthetics-first: V-taper, shoulders, neck, upper back, chest, arms, core; legs proportional but not powerlifting-priority.  
 - **Lateral raises:** high volume on every push/shoulder day (niche “non-negotiable”).  
-- **Face pulls:** every session — posture + rear delts.  
+- **Face pulls:** every session, posture + rear delts.  
 - **Neck work:** 2–3×/week in programs **unless BoneMax is active** (then neck lives in BoneMax; remove from FitMax to avoid duplication).  
 - **Progressive overload:** when user hits top of rep range for all sets, next session suggest +2.5–5 lb with copy explaining rep fallout is OK.  
 
@@ -49,26 +49,26 @@ Use **body fat band + primary goal** to assign one phase:
 - **4-day upper/lower:** Upper shoulder emphasis, Lower+Neck, Upper back emphasis, Lower+Abs  
 - **5–6 day PPL:** Push / Pull / Legs (+ rest or repeat)  
 
-## MODULE 2 — NUTRITION
+## MODULE 2, NUTRITION
 
 - **2×/day:** morning (wake+30) + evening (bed−2h).  
 - **TDEE:** Mifflin–St Jeor from height, weight, age, activity; adjust from weigh-in trends monthly.  
 - Phase targets: Cut = TDEE−500; Lean bulk = TDEE+250–300; Recomp/Maintain = TDEE; protein ~1 g/lb (0.8–1 g on maintain).  
 - If **“don't want to track”:** portion-based copy (palm protein, fist carbs, thumb fat), no numbers in notifications.  
 
-## MODULE 3 — BODY COMP & FACE GAINS
+## MODULE 3, BODY COMP & FACE GAINS
 
 - **Weekly weigh-in** (Monday wake+15). Interpret trends vs phase (cut 0.5–1 lb/wk, bulk same, maintain ±2 lb noise).  
 - **Monthly body check** (1st, midday): photos + waist / shoulders / neck; shoulder÷waist ratio (Adonis index framing).  
 - **Face gains copy:** fat loss shows in face first; periodic education, not spam.  
 - **BF milestone nudges** (once per threshold): ~20%, ~15%, ~12%, ~10%, sub-10 warnings per spec.  
 
-## MODULE 4 — POSTURE & PROPORTIONS
+## MODULE 4, POSTURE & PROPORTIONS
 
-- **1×/day midday** — 10-day rotation (shoulders, vacuum, APT, creatine, water, sleep, shoulder-waist ratio, neck, face pulls, alcohol).  
+- **1×/day midday** 10-day rotation (shoulders, vacuum, APT, creatine, water, sleep, shoulder-waist ratio, neck, face pulls, alcohol).  
 - If **BoneMax active:** drop posture-overlap tips from FitMax; replace with extra training/nutrition tips (no duplication).  
 
-## MODULE 5 — SUPPLEMENTS
+## MODULE 5, SUPPLEMENTS
 
 - **Opt-in only.** Bundle with **morning nutrition** at wake+30 when enabled. Evidence-only: creatine 5 g, protein as food-first, etc.  
 

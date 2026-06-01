@@ -76,7 +76,7 @@ Your job is to create a PERSONALISED daily schedule for a user working on a spec
 Title: {module_title}
 Description: {module_description}
 
-## MODULE GUIDELINES (loose — use your expertise to flesh these out)
+## MODULE GUIDELINES (loose, use your expertise to flesh these out)
 Exercises: {exercises}
 Frequency hints: {frequency_hints}
 Duration ranges: {duration_ranges}
@@ -91,27 +91,31 @@ Preferred workout times: {preferred_times}
 Days to generate: {num_days}
 {user_history_context}
 
-## CALENDAR-FRIENDLY TITLES (CRITICAL — users scan these on a calendar grid)
+## CALENDAR-FRIENDLY TITLES (CRITICAL, users scan these on a calendar grid)
 - Title must be ≤ 28 characters, action-first, and specific enough to recognize at a glance.
 - Lead with a concrete verb + object. Good: "mew 15m", "cerave + bha", "scalp microneedle", "3L water check". Bad: "AM Routine", "Midday Tip", "Reminder", "Morning Task".
 - Never reuse the same title twice in one day. If two tasks sit on the same day, differentiate them (e.g. "AM cerave + SPF" vs "PM differin").
 - No vague filler: no "daily", "routine", "check-in" unless paired with a specific object.
-- Never prefix with the time — the calendar already shows it.
+- Never prefix with the time, the calendar already shows it.
 
-## SPECIFICITY (CRITICAL — use every piece of USER CONTEXT above)
-- Descriptions MUST mention the user's concern, tier, scan finding, or stack — not generic advice. If USER CONTEXT says past completion was ≥80%, ramp intensity; if ≤50%, shorten/simplify.
+## VOICE (CRITICAL, titles + descriptions become text reminders)
+- NEVER use em-dashes (the long dash). Use a comma, a period, or a new sentence. Em-dashes are the #1 tell that a bot wrote it. Zero exceptions.
+- Write like a friend who lifts and reads the research, not a wellness app. Plain words, contractions, no fluff. Skip "remember to", "be sure to", "stay consistent" filler.
+
+## SPECIFICITY (CRITICAL, use every piece of USER CONTEXT above)
+- Descriptions MUST mention the user's concern, tier, scan finding, or stack, not generic advice. If USER CONTEXT says past completion was ≥80%, ramp intensity; if ≤50%, shorten/simplify.
 - If past feedback exists, visibly respect it (e.g. user flagged "too much pm time" → shorter PM tasks, earlier starts).
 - For product tasks, reference the specific protocol item the user is on (brand/strength). Never write "use your cleanser".
-- If a piece of USER CONTEXT is missing, skip that tailoring — don't invent stats or history.
+- If a piece of USER CONTEXT is missing, skip that tailoring, don't invent stats or history.
 
 ## INSTRUCTIONS
-1. Create a schedule for {num_days} days (include every day 1…{num_days}). If {num_days} > 7, repeat **weekly** checkpoints (e.g. weigh-in, wash day, progress photo) on the same weekday each week, and **bi-weekly** items every 14 days — not only in the first week.
+1. Create a schedule for {num_days} days (include every day 1…{num_days}). If {num_days} > 7, repeat **weekly** checkpoints (e.g. weigh-in, wash day, progress photo) on the same weekday each week, and **bi-weekly** items every 14 days, not only in the first week.
 2. Space tasks throughout the day between wake and sleep times.
 3. Make each day slightly different to prevent boredom.
 4. Gradually increase intensity / duration over the days.
 5. Include motivational messages for each day.
 6. Each task must have: task_id (uuid), time (HH:MM), title, description, task_type (exercise/routine/reminder/checkpoint), duration_minutes.
-7. Adapt based on user history if provided — if they skip certain tasks, reduce those; if they complete everything, ramp up.
+7. Adapt based on user history if provided. If they skip certain tasks, reduce those; if they complete everything, ramp up.
 
 ## OUTPUT FORMAT
 Return ONLY valid JSON matching this structure (no markdown fences):
@@ -161,8 +165,9 @@ Modify the remaining days of the schedule based on the feedback and completion d
 - If the user runs multiple active modules, avoid adding duplicate generic morning/midday wake-style tasks at the same clock time as before; stagger or merge intent into concrete tasks.
 - Keep the same JSON structure as the input.
 - Preserve task_id for existing tasks so notifications work. For new tasks, generate a uuid string.
+- **Voice:** titles + descriptions become text reminders. NEVER use em-dashes (the long dash); use a comma, a period, or a new sentence. They're the #1 tell that a bot wrote it. Write like a friend who lifts, no fluff.
 - **Brevity (required):** Each task `description` must be **at most 220 characters**. Prefer **minimal edits**: only change tasks/days affected by the feedback (e.g. food or macros → adjust nutrition/meal tasks; do not rewrite unrelated tasks).
-- For meal or macro detail: **one** nutrition-focused task per day or a **short** line in an existing meal task—do **not** paste the same long food list into every task.
+- For meal or macro detail: **one** nutrition-focused task per day or a **short** line in an existing meal task, do **not** paste the same long food list into every task.
 
 Return ONLY valid JSON with this structure (no markdown fences):
 {{
@@ -189,19 +194,23 @@ Outside today: {outside_today}
 {user_profile_context}
 {user_history_context}
 
-## CALENDAR-FRIENDLY TITLES (CRITICAL — users scan these on a calendar grid)
+## CALENDAR-FRIENDLY TITLES (CRITICAL, users scan these on a calendar grid)
 - Title ≤ 28 characters, action-first, and specific enough to recognize at a glance.
 - Lead with a concrete verb + object. Good: "mew 15m", "minox AM", "scalp microneedle", "pillowcase swap", "pre-workout cals". Bad: "AM Routine", "Midday Tip", "Reminder", "Hydration".
 - Never reuse the same title twice in one day. Distinguish AM vs PM vs reapply (e.g. "cerave + bha AM", "differin PM").
-- Never prefix with the time — the calendar already shows it.
+- Never prefix with the time, the calendar already shows it.
 - No stiff "Category: Name — 2:22pm" patterns. Lowercase is fine.
 
-## SPECIFICITY (CRITICAL — use every piece of USER CONTEXT above)
-- Descriptions MUST reference the user's actual concern, tier, scan finding, or stack — not generic advice. "reapply SPF, you're fair-skinned and outside today" beats "reapply SPF".
+## VOICE (CRITICAL, titles + descriptions become text reminders)
+- NEVER use em-dashes (the long dash) anywhere in a title or description. Use a comma, a period, or a new sentence. Em-dashes are the #1 tell that a bot wrote it. Zero exceptions.
+- Write like a friend who lifts and reads the research, not a wellness app. Plain words, contractions, no fluff. Skip "remember to", "be sure to", "stay consistent", and pep-talk filler.
+
+## SPECIFICITY (CRITICAL, use every piece of USER CONTEXT above)
+- Descriptions MUST reference the user's actual concern, tier, scan finding, or stack, not generic advice. "reapply SPF, you're fair-skinned and outside today" beats "reapply SPF".
 - If USER HISTORY shows past completion ≥80%, ramp intensity; if ≤50%, shorten / simplify / push morning tasks later.
 - If past feedback exists, visibly respect it (e.g. user flagged "too many pings" → merge adjacent tasks; "too hard morning" → shift).
-- For product tasks, name the specific brand/strength from the protocol. Never write "use your cleanser" — write the product.
-- If a piece of USER CONTEXT is missing, skip that tailoring — don't invent stats or history.
+- For product tasks, name the specific brand/strength from the protocol. Never write "use your cleanser", write the product.
+- If a piece of USER CONTEXT is missing, skip that tailoring, don't invent stats or history.
 
 {multi_module_instruction}
 
@@ -219,13 +228,13 @@ When building a BoneMax schedule, USE the BoneMax profile lines in USER CONTEXT 
 - Higher workout days/week → place neck training after training days where possible
 - Gum beginners → shorter mastic sessions with same form rules
 
-## MINIMUM TASKS PER DAY — MANDATORY (do NOT generate fewer)
+## MINIMUM TASKS PER DAY (MANDATORY, do NOT generate fewer)
 
 **Skinmax:** minimum **3** tasks/day (AM routine, midday micro-tip, PM routine). Typical day has **4–5** tasks when including SPF reapply and/or hydration check. Weekly adds exfoliation (replaces PM on chosen day) + pillowcase (Sunday). Monthly: progress photo + check-in on the 1st.
 
 **HairMax (thinning/minoxidil stack):** minimum **4** tasks/day (finasteride or topical finasteride per user path, minoxidil AM, minoxidil PM, daily scalp micro-tip). Typical day has **4–5** tasks. Weekly: ketoconazole 2–3x/week on wash days; microneedling 1×/week (after month 4). Bi-weekly: progress photos. Monthly: check-in on the 1st.
 
-**HairMax — NO HALLUCINATED SKIN ROUTINES:** Do **not** put SkinMax-only tasks (face SPF, face retinoid/Differin, generic **AM/PM face skincare** routines) on this schedule **unless** ACTIVE MODULE: SKINMAX is explicitly listed in MULTI-ACTIVE / combo sections. When HairMax runs alone, every task must be scalp/hair/wash/minox/fin/keto/photo/check-in — never a standalone \"AM Skincare Routine\" for the face.
+**HairMax, NO HALLUCINATED SKIN ROUTINES:** Do **not** put SkinMax-only tasks (face SPF, face retinoid/Differin, generic **AM/PM face skincare** routines) on this schedule **unless** ACTIVE MODULE: SKINMAX is explicitly listed in MULTI-ACTIVE / combo sections. When HairMax runs alone, every task must be scalp/hair/wash/minox/fin/keto/photo/check-in, never a standalone \"AM Skincare Routine\" for the face.
 
 **HairMax (non-thinning):** minimum **3** tasks/day (wash routine reminder or oil/mask on treatment days, daily scalp micro-tip, PM hair care). Weekly: wash day tasks per hair type frequency.
 
@@ -235,9 +244,9 @@ When building a BoneMax schedule, USE the BoneMax profile lines in USER CONTEXT 
 
 **FitMax:** minimum **3** tasks on rest days (morning nutrition, midday tip, evening closeout). Workout days: **5–6** (add pre-workout, post-workout, supplements). Weekly: weigh-in. Monthly: body check.
 
-CRITICAL: If the notification engine reference specifies particular tasks as MANDATORY DAILY (e.g. Skinmax AM + midday + PM, or HairMax minoxidil AM + PM), you MUST include them every single day. A schedule with only 1–2 tasks/day is WRONG — go back and re-read the notification engine reference and add all required tasks.
+CRITICAL: If the notification engine reference specifies particular tasks as MANDATORY DAILY (e.g. Skinmax AM + midday + PM, or HairMax minoxidil AM + PM), you MUST include them every single day. A schedule with only 1–2 tasks/day is WRONG. go back and re-read the notification engine reference and add all required tasks.
 
-## MULTI-WEEK CADENCE (REQUIRED — you are generating **{num_days}** consecutive days)
+## MULTI-WEEK CADENCE (REQUIRED, you are generating **{num_days}** consecutive days)
 
 `day_number` 1 = first calendar day (today in the user's timezone). **Do not** pack weekly/biweekly/monthly items only into days 1–7; repeat them on the correct **weekdays and calendar dates** through day {num_days}.
 
@@ -255,20 +264,20 @@ Use `task_type` **`checkpoint`** for weekly/biweekly/monthly items. Keep descrip
 2. Use the protocol and schedule rules for this maxx, not skincare assumptions unless the protocol explicitly says so.
 3. Schedule morning tasks shortly after wake time and evening tasks with enough runway before sleep to actually get done.
 4. Spread weekly or higher-intensity tasks across different days, and **repeat** them each week (or every 14 days for bi-weekly) across the full {num_days}-day window.
-5. If the protocol involves outside exposure reminders, only add them when outside_today is true (Skinmax: follow outdoor_frequency rules in the Skinmax notification engine — not the same as this bullet for other maxxes).
-6. Morning entry: follow MULTI-ACTIVE-MODULES above. If none, include one short morning check-in at wake time; if multi-module rules apply, do NOT duplicate a generic wake/good-morning SMS—stagger or use the first concrete task only. **Exception — Skinmax:** do NOT add a generic wake check-in; the AM routine at wake+15 is the first ping (unless another active module already owns wake — then stagger per MULTI-ACTIVE-MODULES). **Exception — BoneMax:** mewing morning reset at **wake** is the first ping. **Exception — HeightMax:** morning decompression at **wake+20** is the first HeightMax ping (merge with other modules per cross-module instructions when needed). **Exception — HairMax (thinning stack):** do NOT use a generic wake-only check-in; first pings are **finasteride (if oral path)** and/or **minoxidil at wake+15** per ramp phase (merge AM with Skinmax per HAIRMAX+SKINMAX when both active). **Exception — FitMax:** do NOT use a generic wake-only check-in; first daily FitMax anchor is **morning nutrition at wake+30** (merge with Skinmax AM when both active); on workout days add **pre-workout at workout−30m** (not a duplicate wake ping).
+5. If the protocol involves outside exposure reminders, only add them when outside_today is true (Skinmax: follow outdoor_frequency rules in the Skinmax notification engine, not the same as this bullet for other maxxes).
+6. Morning entry: follow MULTI-ACTIVE-MODULES above. If none, include one short morning check-in at wake time; if multi-module rules apply, do NOT duplicate a generic wake/good-morning SMS, stagger or use the first concrete task only. **Exception, Skinmax:** do NOT add a generic wake check-in; the AM routine at wake+15 is the first ping (unless another active module already owns wake, then stagger per MULTI-ACTIVE-MODULES). **Exception, BoneMax:** mewing morning reset at **wake** is the first ping. **Exception, HeightMax:** morning decompression at **wake+20** is the first HeightMax ping (merge with other modules per cross-module instructions when needed). **Exception, HairMax (thinning stack):** do NOT use a generic wake-only check-in; first pings are **finasteride (if oral path)** and/or **minoxidil at wake+15** per ramp phase (merge AM with Skinmax per HAIRMAX+SKINMAX when both active). **Exception, FitMax:** do NOT use a generic wake-only check-in; first daily FitMax anchor is **morning nutrition at wake+30** (merge with Skinmax AM when both active); on workout days add **pre-workout at workout−30m** (not a duplicate wake ping).
 7. Each task must have: task_id (uuid), time (HH:MM in 24h), title, description, task_type (routine/reminder/checkpoint), duration_minutes.
 8. task_type "routine" = core habit block, "reminder" = cue or anti-habit push, "checkpoint" = weekly treatment, harder session, or review.
 9. Keep daily routines consistent but vary weekly treatments, sprint sessions, and review tasks across days.
 10. Avoid stacking duplicate notification intent at the same clock time as generic pings the user may already get from another module (the system dedupes SMS, but schedules should still be sensible).
 11. Include brief motivational messages for each day.
 12. **IMPORTANT:** Every day MUST have at least the minimum number of tasks specified above. Read the NOTIFICATION ENGINE reference and include ALL mandatory daily tasks it lists. Short schedules with 1–2 tasks/day are wrong.
-13. Task descriptions should include specific product names, step-by-step instructions, or actionable copy from the notification engine reference — not vague one-liners.
-14. **SMS / push tone:** Titles and descriptions are used as the basis for text reminders. Write like a casual text from Max — not a dashboard. **Do not** use stiff patterns like `Category: Name — 2:22pm` or `Midday Tip: Hydration Goal` in titles. Prefer short titles (e.g. `water check`, `PM routine`, `sprint warm-up`) and put the real detail in **description** as plain, conversational sentences (lowercase ok). The app shows exact times; SMS copy should read like a normal reminder text (no explicit time prefix).
+13. Task descriptions should include specific product names, step-by-step instructions, or actionable copy from the notification engine reference, not vague one-liners.
+14. **SMS / push tone:** Titles and descriptions are used as the basis for text reminders. Write like a casual text from Max, not a dashboard. **Do not** use stiff patterns like `Category: Name — 2:22pm` or `Midday Tip: Hydration Goal` in titles. Prefer short titles (e.g. `water check`, `PM routine`, `sprint warm-up`) and put the real detail in **description** as plain, conversational sentences (lowercase ok). The app shows exact times; SMS copy should read like a normal reminder text (no explicit time prefix).
 
 ## OUTPUT FORMAT
 Return ONLY valid JSON matching this structure (no markdown fences).
-Each day should have **at least 3–5 tasks** (more for full-stack modules). The example below is abbreviated — your actual output must include ALL mandatory daily tasks per the notification engine reference.
+Each day should have **at least 3–5 tasks** (more for full-stack modules). The example below is abbreviated, your actual output must include ALL mandatory daily tasks per the notification engine reference.
 
 {{
   "days": [
@@ -279,7 +288,7 @@ Each day should have **at least 3–5 tasks** (more for full-stack modules). The
           "task_id": "uuid-string",
           "time": "07:15",
           "title": "AM Skincare Routine",
-          "description": "(1) CeraVe Foaming Cleanser (2) Paula's Choice 2% BHA — thin layer, dry 2 min (3) CeraVe Daily Lotion (4) EltaMD UV Clear SPF 46",
+          "description": "(1) CeraVe Foaming Cleanser (2) Paula's Choice 2% BHA, thin layer, dry 2 min (3) CeraVe Daily Lotion (4) EltaMD UV Clear SPF 46",
           "task_type": "routine",
           "duration_minutes": 12
         }},
@@ -287,7 +296,7 @@ Each day should have **at least 3–5 tasks** (more for full-stack modules). The
           "task_id": "uuid-string",
           "time": "10:15",
           "title": "SPF Reapply",
-          "description": "Reapply SPF — 3h since AM. Especially important if outdoors.",
+          "description": "Reapply SPF, 3h since AM. Especially important if outdoors.",
           "task_type": "reminder",
           "duration_minutes": 3
         }},
@@ -303,20 +312,20 @@ Each day should have **at least 3–5 tasks** (more for full-stack modules). The
           "task_id": "uuid-string",
           "time": "16:37",
           "title": "Hydration Check",
-          "description": "Water check — ~3L target today. Hydration supports skin barrier.",
+          "description": "Water check, ~3L target today. Hydration supports skin barrier.",
           "task_type": "reminder",
           "duration_minutes": 1
         }},
         {{
           "task_id": "uuid-string",
           "time": "22:00",
-          "title": "PM Skincare — Retinoid Night",
-          "description": "(1) CeraVe Foaming Cleanser (2) Differin 0.1% — pea-sized, thin layer (3) Wait 20 min (4) CeraVe PM Lotion",
+          "title": "PM Skincare, Retinoid Night",
+          "description": "(1) CeraVe Foaming Cleanser (2) Differin 0.1%, pea-sized, thin layer (3) Wait 20 min (4) CeraVe PM Lotion",
           "task_type": "routine",
           "duration_minutes": 25
         }}
       ],
-      "motivation_message": "Day 1 — consistency compounds. every AM + PM you don't skip is another day closer."
+      "motivation_message": "Day 1, consistency compounds. every AM + PM you don't skip is another day closer."
     }}
   ]
 }}
@@ -509,6 +518,10 @@ class ScheduleService:
             day_num = day.get("day_number", 1)
             day["date"] = (start_date + timedelta(days=day_num - 1)).isoformat()
 
+        # LLM/fallback course path skips validate_and_fix; SMS reads stored
+        # text directly, so strip em-dashes at the source before persisting.
+        _clean_days_em_dashes(schedule_data.get("days", []))
+
         # Deactivate existing active schedule for this module
         existing_result = await db.execute(
             select(UserSchedule)
@@ -663,7 +676,7 @@ class ScheduleService:
             if tmj:
                 profile_parts.append(f"TMJ / jaw pain / clicking history: {tmj}")
             if gum:
-                profile_parts.append(f"Mastic or hard gum regularly: {gum}")
+                profile_parts.append(f"Jaw chew tolerance (strong/average/weak/painful): {gum}")
             if scr:
                 profile_parts.append(f"Heavy computer/phone screen time: {scr}")
         if maxx_id == "heightmax":
@@ -744,7 +757,7 @@ class ScheduleService:
             multi_module_instruction = (
                 "## MULTI-ACTIVE-MODULES\n"
                 f"The user already has other active module(s): {', '.join(labels)}.\n"
-                "- Do NOT add another generic \"morning check-in\", \"good morning\", or \"let me know you're awake\" SMS in the same wake-time window — omit it or stagger at least 45 minutes from wake.\n"
+                "- Do NOT add another generic \"morning check-in\", \"good morning\", or \"let me know you're awake\" SMS in the same wake-time window, omit it or stagger at least 45 minutes from wake.\n"
                 "- Prefer starting with this module's first concrete actionable habit so the user does not get redundant wake pings from two modules.\n"
                 "- Avoid duplicate generic midday or evening check-in reminders; use task-specific copy instead.\n"
             )
@@ -755,7 +768,7 @@ class ScheduleService:
                 "\n## BONEMAX + SKINMAX\n"
                 "Merge morning mewing reset + Skinmax AM into **one** notification when both would land near wake; "
                 "merge mewing night check (bed−30) + Skinmax PM when both land in the pre-bed window. "
-                "**Max 10 notifications/day** across modules — drop lowest-priority tasks first per BoneMax engine.\n"
+                "**Max 10 notifications/day** across modules, drop lowest-priority tasks first per BoneMax engine.\n"
             )
         elif maxx_id == "skinmax" and "bonemax" in other_maxx_ids:
             multi_module_instruction += (
@@ -788,7 +801,7 @@ class ScheduleService:
             multi_module_instruction += (
                 "\n## HAIRMAX + SKINMAX\n"
                 "Merge AM/PM routines: **scalp (minoxidil) first**, then skin steps with required wait times (15 min AM after minox; 30 min PM). "
-                "**Never** scalp + face microneedling same day — stagger. **Max 10** notifications/day.\n"
+                "**Never** scalp + face microneedling same day, stagger. **Max 10** notifications/day.\n"
             )
         elif maxx_id == "skinmax" and "hairmax" in other_maxx_ids:
             multi_module_instruction += (
@@ -798,13 +811,13 @@ class ScheduleService:
         if maxx_id == "fitmax" and "bonemax" in other_maxx_ids:
             multi_module_instruction += (
                 "\n## FITMAX + BONEMAX\n"
-                "Neck work lives in **BoneMax** — remove neck prescriptions from FitMax workouts. "
+                "Neck work lives in **BoneMax**, remove neck prescriptions from FitMax workouts. "
                 "Replace FitMax **midday posture** tips with **training/nutrition** tips (BoneMax owns posture). **Face pulls** stay in FitMax. Cap **10**/day.\n"
             )
         elif maxx_id == "bonemax" and "fitmax" in other_maxx_ids:
             multi_module_instruction += (
                 "\n## BONEMAX + FITMAX\n"
-                "User lifts with FitMax — coordinate neck training with workout days; FitMax must not duplicate neck volume. Cap **10**/day.\n"
+                "User lifts with FitMax, coordinate neck training with workout days; FitMax must not duplicate neck volume. Cap **10**/day.\n"
             )
         if maxx_id == "fitmax" and "skinmax" in other_maxx_ids:
             multi_module_instruction += (
@@ -840,7 +853,7 @@ class ScheduleService:
                         active_labels.append(p.get("label", k))
             if active_labels:
                 height_track_footer = (
-                    "\n## HEIGHTMAX — ENABLED TRACKS ONLY\n"
+                    "\n## HEIGHTMAX (ENABLED TRACKS ONLY)\n"
                     "Only schedule tasks, reminders, and checkpoints that belong to these user-selected tracks. "
                     "Do not add tasks for tracks the user did not select.\n"
                     f"Enabled tracks: {', '.join(active_labels)}.\n"
@@ -1014,6 +1027,12 @@ class ScheduleService:
                     task["task_id"] = str(uuid.uuid4())
                 task.setdefault("status", "pending")
                 task.setdefault("notification_sent", False)
+
+        # Legacy LLM + fallback path skips validate_and_fix, and the SMS
+        # reminder job reads stored task text straight from storage, so strip
+        # em-dashes here at the source (mutates days_list in place, which is the
+        # same list object persisted via schedule_data["days"]).
+        _clean_days_em_dashes(days_list)
 
         existing_result = await db.execute(
             select(UserSchedule).where(
@@ -2930,6 +2949,10 @@ class ScheduleService:
                 if not task.get("task_id"):
                     task["task_id"] = str(uuid.uuid4())
 
+        # Adaptation is raw LLM output that skips validate_and_fix; the SMS
+        # reminder job reads stored text directly, so strip em-dashes here.
+        _clean_days_em_dashes(adapted_days)
+
         schedule.days = adapted_days
         flag_modified(schedule, "days")
         schedule.updated_at = datetime.utcnow()
@@ -3186,7 +3209,7 @@ class ScheduleService:
 
         if lines:
             return "\n## USER CONTEXT & HISTORY\n" + "\n".join(lines)
-        return "\nNo prior history available — this is the user's first schedule."
+        return "\nNo prior history available, this is the user's first schedule."
 
     def _generate_fallback_schedule(self, module: dict, num_days: int, wake_time: str) -> dict:
         guidelines = module.get("guidelines", {}) or {}
@@ -3258,11 +3281,13 @@ class ScheduleService:
 def _humanize_titles_in_days(days: list[dict]) -> list[dict]:
     """Walk every day's tasks and run titles through the validator's
     _humanize_title so cached schedules from before the humanizer pattern
-    set was complete still render friendly. No-op for tasks with no
-    catalog_id, malformed titles, or titles that don't match a pattern.
+    set was complete still render friendly. Also strips em-dashes from
+    titles, descriptions, and the day's motivation_message so older stored
+    schedules render human on read. No-op for tasks with no catalog_id,
+    malformed titles, or titles that don't match a pattern.
     """
     try:
-        from services.schedule_validator import _humanize_title
+        from services.schedule_validator import _humanize_title, _strip_em_dashes
     except Exception:
         return days
     if not isinstance(days, list):
@@ -3279,19 +3304,58 @@ def _humanize_titles_in_days(days: list[dict]) -> list[dict]:
                 tasks_out.append(t)
                 continue
             raw = t.get("title") or ""
-            if not raw:
-                tasks_out.append(t)
-                continue
-            try:
-                friendly = _humanize_title(raw)
-            except Exception:
-                friendly = raw
-            if friendly and friendly != raw:
-                tasks_out.append({**t, "title": friendly})
-            else:
-                tasks_out.append(t)
-        out.append({**day, "tasks": tasks_out})
+            new_t = dict(t)
+            changed = False
+            if raw:
+                try:
+                    friendly = _humanize_title(raw)
+                except Exception:
+                    friendly = raw
+                if friendly and friendly != raw:
+                    new_t["title"] = friendly
+                    changed = True
+            desc = t.get("description") or ""
+            if desc:
+                clean_desc = _strip_em_dashes(desc)
+                if clean_desc != desc:
+                    new_t["description"] = clean_desc
+                    changed = True
+            tasks_out.append(new_t if changed else t)
+        day_out = {**day, "tasks": tasks_out}
+        motiv = day.get("motivation_message") or ""
+        if motiv:
+            clean_motiv = _strip_em_dashes(motiv)
+            if clean_motiv != motiv:
+                day_out["motivation_message"] = clean_motiv
+        out.append(day_out)
     return out
+
+
+def _clean_days_em_dashes(days: list[dict]) -> None:
+    """Strip em-dashes from task titles/descriptions + motivation_message in
+    place, before a schedule is persisted. The deterministic/validated path
+    is already cleaned inside validate_and_fix, but the legacy LLM + engine
+    fallback paths here persist raw text that the SMS reminder job reads
+    straight from storage, so clean it at the source too."""
+    try:
+        from services.schedule_validator import _strip_em_dashes
+    except Exception:
+        return
+    if not isinstance(days, list):
+        return
+    for day in days:
+        if not isinstance(day, dict):
+            continue
+        motiv = day.get("motivation_message")
+        if isinstance(motiv, str) and "—" in motiv:
+            day["motivation_message"] = _strip_em_dashes(motiv)
+        for t in day.get("tasks") or []:
+            if not isinstance(t, dict):
+                continue
+            for key in ("title", "description"):
+                val = t.get(key)
+                if isinstance(val, str) and "—" in val:
+                    t[key] = _strip_em_dashes(val)
 
 
 schedule_service = ScheduleService()

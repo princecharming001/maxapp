@@ -1,5 +1,5 @@
 """
-BoneMax notification engine — authoritative reference for schedule generation and coaching.
+BoneMax notification engine, authoritative reference for schedule generation and coaching.
 
 Full reference: bonemax_notification_engine_reference.md
 """
@@ -22,21 +22,21 @@ BONEMAX_COACHING_REFERENCE = """## BONEMAX NOTIFICATION ENGINE (condensed)
 
 TIMING (wake_time + sleep_time; exact HH:MM):
 - Mewing morning = wake | Facial = wake+15 | Fascia AM = wake+20 | Masseter default = wake+2h (or user time)
-- Mewing midday = midpoint(wake+15, bed−60) — same active-day logic as Skinmax midday
+- Mewing midday = midpoint(wake+15, bed−60), same active-day logic as Skinmax midday
 - Nasal check = midday mewing +2h (2× if screen 6+h, max 2/day)
-- Mewing night = bed−30 (bundle sleep optimization + nasal night notes here — no standalone sleep SMS)
+- Mewing night = bed−30 (bundle sleep optimization + nasal night notes here, no standalone sleep SMS)
 - Fascia evening = bed−90, 4–5×/week; skip if Skinmax retinoid/exfol that night; if no Skinmax use 5× with Wed+Sun off pattern
 - Neck = 15min after workout END on workout days only; non-workout: chin tucks IN midday mewing; skip chin tucks in midday if full neck done that day
 - Symmetry = 1×/day between midday and evening, weekly rotating tips
 - Quiet hours: nothing between bed and wake
 
-BUDGET: Phase 1 ~6/day, Phase 2 ~8, Phase 3 ~8–9 effective. **Hard cap 10/day** all modules — merge with Skinmax morning/evening when both active; drop lowest-priority first.
+BUDGET: Phase 1 ~6/day, Phase 2 ~8, Phase 3 ~8–9 effective. **Hard cap 10/day** all modules, merge with Skinmax morning/evening when both active; drop lowest-priority first.
 
 TMJ onboarding: masseter cap 15min Falim-only, no progression past safe stack, always disclaimer.
 
 Progression: masseter + neck by week bands; mewing/nasal no auto-escalation; hard mewing only if toggled; facial → 2min version after 5-day skip streak.
 
-Monthly: 1st at midday — photos + neck measure + jaw feel + TMJ month.
+Monthly: 1st at midday, photos + neck measure + jaw feel + TMJ month.
 """
 
 
@@ -75,7 +75,7 @@ def format_bonemax_anchor_times(wake_time: str, sleep_time: str) -> str:
     nasal_h, nasal_m = _add_minutes(mid_h, mid_m, 120)
     mew_night_h, mew_night_m = _add_minutes(sh, sm, -30)
     fascia_eve_h, fascia_eve_m = _add_minutes(sh, sm, -90)
-    return f"""## COMPUTED ANCHOR TIMES FOR THIS USER (BoneMax — use formulas, not guesses)
+    return f"""## COMPUTED ANCHOR TIMES FOR THIS USER (BoneMax, use formulas, not guesses)
 - Wake: {wake_time} | Bed: {sleep_time}
 - **Mewing morning reset** → {_format_hm(wh, wm)}
 - **Facial exercises** → {_format_hm(facial_h, facial_m)} (wake + 15 min)
@@ -117,7 +117,7 @@ def summarize_bonemax_onboarding(
         lines.append(f"- TMJ / jaw issues: {tmj}")
     gum = ob.get("bonemax_mastic_gum_regular")
     if gum:
-        lines.append(f"- Mastic / hard gum experience: {gum}")
+        lines.append(f"- Jaw chew tolerance: {gum}")
     sp = ob.get("bonemax_sleep_position") or ob.get("sleep_position")
     if sp:
         lines.append(f"- Sleep position: {sp}")
@@ -168,15 +168,15 @@ def get_bonemax_slot_times(wake_time: str, sleep_time: str) -> dict[str, str]:
     }
 
 
-BONEMAX_JSON_DIRECTIVES = """## BONEMAX — JSON SCHEDULE OUTPUT (MANDATORY)
+BONEMAX_JSON_DIRECTIVES = """## BONEMAX, JSON SCHEDULE OUTPUT (MANDATORY)
 
 1. Every task **time** is **HH:MM** 24h, computed from wake_time and sleep_time using the reference + COMPUTED ANCHOR TIMES.
-2. **Do NOT** add a generic "morning check-in / let me know you're awake" at wake for BoneMax — **Mewing morning reset AT wake** is the first ping (unless MULTI-ACTIVE-MODULES forces stagger; if Skinmax is also active, **merge** morning mewing + skin AM into one notification when same window).
+2. **Do NOT** add a generic "morning check-in / let me know you're awake" at wake for BoneMax, **Mewing morning reset AT wake** is the first ping (unless MULTI-ACTIVE-MODULES forces stagger; if Skinmax is also active, **merge** morning mewing + skin AM into one notification when same window).
 3. **Quiet hours:** no tasks between sleep_time and wake_time.
 4. Respect **phase budget** (1→2→3) and **hard cap 10 notifications/day** across modules; if Skinmax active, merge evening mewing night + skin PM when appropriate.
 5. **task_type:** `routine` for timed blocks (mewing sets, facial, fascia, masseter session, neck); `reminder` for symmetry / meal chewing / nutrition ping; `checkpoint` for masseter recovery check, monthly bone check.
 6. Encode **workout-day-only** neck tasks using user's workout schedule from context; on non-workout days, put **chin tuck copy inside midday mewing** description (not a duplicate midday task).
-7. **Fascia evening:** not every day — mark fewer evenings or omit tasks on rest pattern / Skinmax conflict nights per reference.
+7. **Fascia evening:** not every day, mark fewer evenings or omit tasks on rest pattern / Skinmax conflict nights per reference.
 8. **TMJ yes:** masseter tasks must reflect 15min cap, Falim-only, permanent disclaimer in description.
 9. **High screen (6+ h):** add screen-forward-head line to midday mewing; optionally second nasal check in afternoon (max 2 nasal/day).
 10. **Monthly bone check:** 1st of month at **mewing midday** time.

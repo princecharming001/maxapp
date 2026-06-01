@@ -13,8 +13,11 @@ Supported forms:
     field < value   field <= value   field > value   field >= value
     field in [a, b, c]
     field not in [a, b, c]
-    expr_a and expr_b   (AND chains; OR is not supported on purpose —
-                         encode disjunctions as multiple list entries)
+    field contains value   (membership: value in a list field, or substring
+                            of a string field)
+    expr_a and expr_b      (AND chains)
+    expr_a or expr_b       (OR chains; lower precedence than AND, so
+                            `a and b or c` parses as `(a and b) or c`)
 
 `evaluate_all(exprs, ctx)` returns True iff every expression is true.
 This lets `applies_when: [a, b]` mean "a AND b".
@@ -37,6 +40,14 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 
 _LIST_RE = re.compile(r"^\[(.*)\]$")
+# Strict numeric shapes. We match these instead of calling int()/float()
+# directly because Python accepts underscores as digit separators
+# (int("20_25") == 2025), which would silently mangle enum value keys like the
+# body-fat bands 10_15 / 15_20 / 20_25 into integers and break comparisons
+# against the stored string. Requiring an all-digits (optionally one dot) shape
+# keeps those enum tokens as strings.
+_INT_RE = re.compile(r"^-?\d+$")
+_FLOAT_RE = re.compile(r"^-?\d*\.\d+$")
 
 
 def evaluate(expr: str, ctx: dict[str, Any]) -> bool:
@@ -48,18 +59,39 @@ def evaluate(expr: str, ctx: dict[str, Any]) -> bool:
     if e.lower() == "always":
         return True
 
+    # OR chain — lowest precedence, so split it FIRST. `a and b or c` becomes
+    # `(a and b) or c`. Any true disjunct wins.
+    or_parts = _split_top_level(e, " or ")
+    if len(or_parts) > 1:
+        return any(evaluate(part, ctx) for part in or_parts)
+
     # AND chain
-    if " and " in e:
-        return all(evaluate(part, ctx) for part in _split_top_level_and(e))
+    and_parts = _split_top_level(e, " and ")
+    if len(and_parts) > 1:
+        return all(evaluate(part, ctx) for part in and_parts)
 
     # in / not in
     m = re.match(r"^(\w[\w\.]*)\s+(not\s+in|in)\s+(\[.*\])$", e)
     if m:
         field, op, list_lit = m.group(1), m.group(2).strip(), m.group(3)
-        values = _parse_list(list_lit)
+        values = [_normalize(v) for v in _parse_list(list_lit)]
         actual = _normalize(ctx.get(field))
         in_list = actual in values
         return (in_list if op == "in" else not in_list)
+
+    # membership: `field contains value`. Field may be a list (membership)
+    # or a string (substring). Used for multi-select fields like
+    # injury_history where one answer can hold several tags.
+    m = re.match(r"^(\w[\w\.]*)\s+contains\s+(.+)$", e)
+    if m:
+        field, raw_val = m.group(1), m.group(2).strip()
+        target = _coerce_literal(raw_val)
+        actual = ctx.get(field)
+        if isinstance(actual, (list, tuple, set)):
+            return _normalize(target) in [_normalize(x) for x in actual]
+        if isinstance(actual, str):
+            return _normalize(str(target)) in _normalize(actual)
+        return False
 
     # comparison (==, !=, <, <=, >, >=)
     m = re.match(r"^(\w[\w\.]*)\s*(==|!=|<=|>=|<|>)\s*(.+)$", e)
@@ -105,22 +137,27 @@ def evaluate_any(exprs: list[str], ctx: dict[str, Any]) -> bool:
     return any(evaluate(x, ctx) for x in exprs)
 
 
-def _split_top_level_and(s: str) -> list[str]:
-    # Naive: respect [...] list literals
+def _split_top_level(s: str, sep: str) -> list[str]:
+    """Split `s` on `sep` only at bracket-depth 0, so list literals like
+    `[a, b]` are never broken apart. `sep` includes its surrounding spaces
+    (e.g. ' and ', ' or '). Returns [s] when the separator never appears at
+    the top level."""
     parts: list[str] = []
     depth = 0
     cur: list[str] = []
     i = 0
+    n = len(sep)
+    sep_l = sep.lower()
     while i < len(s):
         ch = s[i]
         if ch == "[":
             depth += 1
         elif ch == "]":
             depth -= 1
-        if depth == 0 and s[i:i+5].lower() == " and ":
+        if depth == 0 and s[i:i + n].lower() == sep_l:
             parts.append("".join(cur).strip())
             cur = []
-            i += 5
+            i += n
             continue
         cur.append(ch)
         i += 1
@@ -148,17 +185,33 @@ def _coerce_literal(s: str) -> Any:
         return False
     if low in ("null", "none"):
         return None
-    try:
-        if "." in s:
-            return float(s)
+    # Numbers ONLY for a clean integer/float shape (see _INT_RE/_FLOAT_RE).
+    # Tokens like the body-fat bands 10_15 / 20_25 stay strings so they compare
+    # against the stored enum value rather than becoming 1015 / 2025.
+    if _INT_RE.match(s):
         return int(s)
-    except ValueError:
-        return s
+    if _FLOAT_RE.match(s):
+        return float(s)
+    return s
 
 
 def _normalize(v: Any) -> Any:
+    """Canonicalize a value for equality / membership tests.
+
+    Strings are stripped + lowercased. An unset field (None), an empty
+    string, and the literal tokens 'none'/'null' all collapse to the single
+    sentinel "none". This is the key to the `none` enum value: docs write
+    `field == none` to mean "they picked the 'none' choice" (e.g. no routine,
+    no current treatment, healthy spine, no workouts). _coerce_literal turns
+    the bare token `none` into Python None, and this is where it rejoins the
+    stored string "none" so the comparison actually matches — for both an
+    explicit "none" answer AND an unanswered field, which mean the same thing.
+    """
+    if v is None:
+        return "none"
     if isinstance(v, str):
-        return v.strip().lower()
+        s = v.strip().lower()
+        return "none" if s in ("", "null") else s
     return v
 
 

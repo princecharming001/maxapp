@@ -1437,7 +1437,6 @@ def _bonemax_onboarding_known_block(ob: dict) -> str:
         lines.append(f"- workout frequency already in onboarding: {wf} -- pass to generate_maxx_schedule; do NOT ask again.")
     for label, key in (
         ("TMJ / jaw history", "bonemax_tmj_history"),
-        ("mastic gum regularly", "bonemax_mastic_gum_regular"),
         ("heavy screen time", "bonemax_heavy_screen_time"),
     ):
         v = ob.get(key)
@@ -1445,6 +1444,9 @@ def _bonemax_onboarding_known_block(ob: dict) -> str:
             continue
         if _yes_no_answered(v):
             lines.append(f"- {label} already in onboarding: {v} -- use in tool; do NOT ask again.")
+    gum = str(ob.get("bonemax_mastic_gum_regular") or "").strip()
+    if gum:
+        lines.append(f"- jaw chew tolerance already in onboarding: {gum} -- use in tool; do NOT ask again.")
     if not lines:
         return ""
     return (
@@ -3397,9 +3399,17 @@ def _humanize_context_ack(kind: str, value: object) -> str:
     is_truthy = v is True or (isinstance(v, str) and v.lower() in ("true", "yes", "y"))
     is_falsy = v is False or (isinstance(v, str) and v.lower() in ("false", "no", "n"))
 
+    # Posture is now an enum (none / light / heavy), not a bool.
+    if k == "posture_issues":
+        pv = str(v).strip().lower()
+        if pv == "none":
+            return "good, you're up and moving plenty. kept your routines light on desk resets."
+        if pv in ("light", "heavy"):
+            return "got it, lot of sitting. dropped posture resets into your day to fight it."
+        return "noted, posture's on the radar. routines updated to match."
+
     # Boolean-shaped concerns: "you have/don't have X".
     bool_kinds = {
-        "posture_issues":   ("noted, posture is on the radar.",      "good, no posture flags."),
         "outdoor":          ("noted, you're outside a lot.",         "noted, mostly indoors."),
         "thinning":         ("noted, hair thinning is on the list.", "good, no thinning flagged."),
         "hair_thinning":    ("noted, hair thinning is on the list.", "good, no thinning flagged."),

@@ -77,7 +77,7 @@ class ChatState(TypedDict, total=False):
 # --------------------------------------------------------------------------- #
 
 _BLOCKED_RESPONSE = (
-    "i can't help with that — looks like a prompt-injection attempt. "
+    "i can't help with that. looks like a prompt-injection attempt. "
     "if you have a real question about your routine, ask it directly."
 )
 
@@ -212,7 +212,7 @@ async def agent_node(state: ChatState) -> ChatState:
     user_context = dict(state.get("user_context") or {})
     chunks = state.get("retrieved") or []
     if chunks:
-        lines = ["[COURSE CONTEXT — ground answers in this when the user asks about the course. "
+        lines = ["[COURSE CONTEXT: ground answers in this when the user asks about the course. "
                  "If the answer isn't here, say so rather than guessing.]"]
         for i, c in enumerate(chunks, 1):
             title = c.get("doc_title") or "chunk"

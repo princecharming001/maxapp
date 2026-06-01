@@ -13,27 +13,28 @@ schedule_design:
     week_2: [0.4, 1.0]
   skeleton:
     blocks:
-      # Wash cadence depends on hair_type: curly 1×/wk + co-wash, others 2×/wk.
+      # Wash cadence depends on hair_type: curly/coily 1×/wk + co-wash,
+      # straight/wavy 2×/wk.
       - id: wash_curly
         slot: am_active
         cadence: n_per_week=1
-        if: "hair_type == curly"
+        if: "hair_type in [curly, coily]"
         tasks: [hair.shampoo_wash]
       - id: cowash_curly
         slot: am_active
         cadence: n_per_week=1
-        if: "hair_type == curly"
+        if: "hair_type in [curly, coily]"
         tasks: [hair.cowash_curly]
       - id: wash_default
         slot: am_active
         cadence: n_per_week=2
         if: "hair_type in [straight, wavy]"
         tasks: [hair.shampoo_wash]
-      # Hydration / leave-in only for wavy/curly or dry scalp.
+      # Hydration / leave-in for wavy/curly/coily or a dry scalp.
       - id: leavein
         slot: am_active
         cadence: n_per_week=2
-        if: "hair_type in [wavy, curly] or scalp_state == dry"
+        if: "hair_type in [wavy, curly, coily] or scalp_state == dry"
         tasks: [hair.leavein]
       # Daily styling track.
       - id: style_daily
@@ -94,7 +95,7 @@ schedule_design:
         cadence: monthly_on=1
         tasks: [hair.haircut_book]
       # --- Density layer: anti-fungal wash, deep condition, progress photo,
-      # monthly check-in. These give the user a real protocol — not just
+      # monthly check-in. These give the user a real protocol, not just
       # one minox reminder per day.
       - id: ketoconazole_wash
         slot: am_active
@@ -104,7 +105,7 @@ schedule_design:
       - id: deep_condition_weekly
         slot: pm_active
         cadence: n_per_week=1
-        if: "heat_styling in [sometimes, often] or hair_type in [wavy, curly]"
+        if: "heat_styling in [sometimes, often] or hair_type in [wavy, curly, coily]"
         tasks: [hair.deep_condition]
       - id: progress_photo_biweekly
         slot: am_open
@@ -123,12 +124,13 @@ schedule_design:
 
 required_fields:
   - id: hair_type
-    question: "Which best describes your hair?"
+    question: "What're you working with up top?"
     type: enum
     options:
-      straight: "Lies flat, gets oily fast"
-      wavy: "Loose S-bends"
-      curly: "Tight spirals"
+      straight: "Straight, no curl"
+      wavy: "Wavy, loose bends"
+      curly: "Curly, defined spirals"
+      coily: "Coily or kinky, tight coils"
     required: true
     why: "Wash cadence and product choice depend entirely on this."
 
@@ -136,84 +138,84 @@ required_fields:
     question: "Have you noticed any temple recession, crown thinning, or excess shedding?"
     type: enum
     options:
-      yes_active: "Yes — and I want to act on it"
-      yes_observing: "Maybe — I'm not sure yet"
-      "no": "No"
-      no_but_family: "No, but it runs in my family"
+      yes_active: "Yeah, and I want to get ahead of it"
+      yes_observing: "Maybe, hard to tell"
+      "no": "Nope"
+      no_but_family: "Not yet, but it runs in my family"
     required: true
     why: "Determines whether the loss-prevention track activates (minoxidil/microneedle/finasteride reminders)."
 
   - id: scalp_state
-    question: "How does your scalp usually feel?"
+    question: "How's your scalp most days?"
     type: enum
     options:
-      oily: "Oily, gets greasy fast"
-      dry: "Dry, sometimes flaky / itchy"
-      normal: "Comfortable, no issues"
-      sensitive: "Reactive — irritated by many products"
+      oily: "Greasy fast, oily by midday"
+      dry: "Dry, flaky or itchy sometimes"
+      normal: "Comfortable, no real issues"
+      sensitive: "Reactive, lots of products irritate it"
     required: true
-    why: "Drives shampoo choice + wash frequency."
+    why: "Drives shampoo choice and wash frequency."
 
   - id: daily_styling
-    question: "Do you style your hair daily with product (clay / pomade / cream)?"
+    question: "Want your hair styled with product most days?"
     type: yes_no
     required: true
-    why: "Adds wash-out reminders and a styling task."
+    why: "Adds a styling task plus a wash-out reminder on heavy-product days. No just means wash-and-go."
 
   - id: current_treatment
-    question: "Are you on any hair-loss treatments right now?"
+    question: "On any hair-loss treatments right now? (so we don't double up)"
     type: enum
     options:
       none: "Nothing yet"
-      topical_only: "Topical minoxidil (Rogaine / generic)"
-      oral_topical: "Oral finasteride + minoxidil"
-      full_stack: "Fin + min + microneedle / dermastamp"
+      topical_only: "Topical minoxidil (Rogaine or generic)"
+      oral_topical: "Oral finasteride plus minoxidil"
+      full_stack: "Fin, min, and microneedle or dermastamp"
     required: true
-    why: "Decides where to start the user — none = ramp from baseline, full_stack = maintain, drop redundant reminders."
+    why: "Sets the starting point. None ramps from baseline, full_stack maintains, and we drop reminders for whatever you're already on."
 
   - id: heat_styling
-    question: "Do you use heat styling tools (blow dryer, flat iron, curling iron)?"
+    question: "Blow dryer, flat iron, curling iron, how often?"
     type: enum
     options:
-      never: "Never"
+      never: "Never touch them"
       sometimes: "Once or twice a week"
       often: "Most days"
     required: true
-    why: "Heat = need protectant task before each session + weekly deep-condition. Often = mandatory protectant; sometimes = lighter cadence."
+    why: "Heat means a protectant task before each session plus a weekly deep-condition. Most days makes protectant mandatory; a couple times a week runs a lighter cadence."
 
   - id: dermaroller_owned
-    question: "Do you own (or willing to buy) a 0.5mm dermaroller for scalp microneedling?"
+    question: "Got a 0.5mm dermaroller, or down to grab one?"
     type: yes_no
     required: true
-    why: "Gates the weekly microneedling task. If no, suggest hand massage as substitute (less effective but still circulation boost)."
+    why: "Gates the weekly microneedling task. If no, swap in hand massage (less effective but still a circulation boost)."
 
   - id: routine_time_pref
-    question: "How much time do you want to spend on hair / scalp care daily?"
+    question: "How much time do you actually want to put into hair each day?"
     type: enum
     options:
-      minimal: "Under 5 min — wash + go"
-      standard: "5–15 min — basics + product"
-      extensive: "15+ min — full routine, willing to invest"
+      minimal: "Under 5 min, wash and go"
+      standard: "5 to 15 min, basics plus product"
+      extensive: "15+ min, full routine, I'm in"
     required: true
     why: "Drives task density. Minimal = strip to essentials (wash + minox if loss); extensive = layer scalp massage, pre-poo treatments, weekly masks."
 
 optional_context:
   - id: face_shape
-    description: "User-stated face shape — biases haircut suggestions"
+    description: "User-stated face shape, biases haircut suggestions"
   - id: current_haircut
-    description: "What they have now — relevant for transition advice"
+    description: "What they have now, relevant for transition advice"
   - id: minoxidil_using
-    description: "Already using minox? gates microneedle scheduling — superseded by current_treatment"
+    description: "Already using minox? gates microneedle scheduling, superseded by current_treatment"
   - id: finasteride_using
-    description: "On fin/dut already? skip those reminders — superseded by current_treatment"
+    description: "On fin/dut already? skip those reminders, superseded by current_treatment"
   - id: facial_hair_growing
     description: "Adds beard care tasks"
   - id: product_preferences
     description: "Specific shampoos/conditioners they like"
   - id: previous_treatments_quit
-    description: "Previously tried fin/min and quit — informs sensitivity / pace"
+    description: "Previously tried fin/min and quit, informs sensitivity / pace"
   - id: hair_density_goal
-    description: "Maintain vs. regrow vs. transplant-prep — biases aggressiveness"
+    description: "Maintain vs. regrow vs. transplant-prep, biases aggressiveness"
 
 prompt_modifiers:
   - id: loss_prevention_active
@@ -222,11 +224,11 @@ prompt_modifiers:
   - id: family_balding_watchful
     if: "hair_loss_signs == no_but_family"
     then: "Maintenance + scalp-health priority. No minoxidil yet (no current loss). Add monthly photo-check task for early detection."
-  - id: curly_low_wash
-    if: "hair_type == curly"
-    then: "Wash 1–2×/week max. Co-wash midweek. Curl cream + leave-in daily. NO sea salt spray (drying). Minimal brushing."
+  - id: curly_coily_low_wash
+    if: "hair_type in [curly, coily]"
+    then: "Wash 1×/week max, co-wash midweek. Curl cream plus leave-in daily. Coily hair also wants a light oil or butter to seal in moisture. NO sea salt spray (too drying). Minimal brushing, detangle wet."
   - id: oily_scalp_more_wash
-    if: "scalp_state == oily and hair_type != curly"
+    if: "scalp_state == oily and hair_type not in [curly, coily]"
     then: "Wash 3×/week. Sulfate-free or gentle clarifying weekly. Avoid heavy oil-based products."
   - id: dry_sensitive_scalp
     if: "scalp_state in [dry, sensitive]"
@@ -245,16 +247,16 @@ prompt_modifiers:
     then: "MAINTENANCE MODE: minox AM + PM, fin daily, microneedle 1×/wk. Skip ramp reminders, skip 'consider treatment' nudges. Focus reminders on consistency + monthly progress photo."
   - id: heat_protectant_required
     if: "heat_styling == often"
-    then: "Add heat protectant spray task BEFORE every styling session. Add weekly deep-condition mask (hydrating, not protein — protein on damaged hair makes it brittle). Recommend 2-month break from heat 1×/yr."
+    then: "Add heat protectant spray task BEFORE every styling session. Add weekly deep-condition mask (hydrating, not protein, since protein on damaged hair makes it brittle). Recommend a 2-month break from heat once a year."
   - id: heat_occasional
     if: "heat_styling == sometimes"
     then: "Heat protectant on heat days only. Bi-weekly deep-condition. Lower priority than treatment / wash routine."
   - id: dermaroller_microneedle
     if: "dermaroller_owned == true and hair_loss_signs in [yes_active, yes_observing] and scalp_state != sensitive"
-    then: "Schedule microneedle 1×/week PM (NEVER same night as minoxidil — 24hr gap). Pre-clean scalp with alcohol wipe. Apply minox 24hr later. Replace dermaroller every 3 months."
+    then: "Schedule microneedle 1×/week PM (NEVER same night as minoxidil, keep a 24hr gap). Pre-clean scalp with alcohol wipe. Apply minox 24hr later. Replace dermaroller every 3 months."
   - id: routine_minimal_strip
     if: "routine_time_pref == minimal"
-    then: "STRIP to essentials: wash + condition + (minox if loss-prevention). Skip scalp massage task, skip pre-poo, skip weekly mask. Frame everything as 'this is the floor — anything beyond it is bonus'."
+    then: "STRIP to essentials: wash + condition + (minox if loss-prevention). Skip scalp massage task, skip pre-poo, skip weekly mask. Frame everything as 'this is the floor, anything beyond it is bonus'."
   - id: routine_extensive_layer
     if: "routine_time_pref == extensive"
     then: "FULL ROUTINE: layer scalp massage AM (5 min, fingertip circles), pre-poo oil treatment 1×/wk, weekly hydration mask, monthly clarifying wash. Add daily scalp tonic if oily."
@@ -262,7 +264,7 @@ prompt_modifiers:
 
 # Why hair matters for attractiveness
 
-Hair is one of the highest-leverage aesthetic variables for men. It sits directly on the frame of the face — small changes in cut, length, or texture noticeably change how facial structure is perceived. The difference between average and put-together is often just the right haircut and a maintenance routine, not better genetics.
+Hair is one of the highest-leverage aesthetic variables for men. It sits directly on the frame of the face, small changes in cut, length, or texture noticeably change how facial structure is perceived. The difference between average and put-together is often just the right haircut and a maintenance routine, not better genetics.
 
 Most men who think they have "bad hair" actually have one of three problems: wrong cut for their face shape, poor side fullness, or no maintenance routine. The right haircut balances proportions, enhances bone structure, and makes daily styling easier.
 
@@ -277,7 +279,7 @@ Same haircut looks great on one person, terrible on another. Goal: choose a styl
 
 ## How hair affects perceived bone structure
 
-Haircuts don't change bone — they change how it's perceived.
+Haircuts don't change bone, they change how it's perceived.
 
 - Tighter sides → sharper jawline
 - Texture on top → cheekbone definition
@@ -304,25 +306,27 @@ Haircuts don't change bone — they change how it's perceived.
 
 ## Hair texture
 
-**Straight** — lies flat, reflects light, can look shiny but flat. Oils travel down strands fast → gets oily quickly. Best with texture powder, clay, pomade. Layered cuts add volume.
+**Straight**, lies flat, reflects light, can look shiny but flat. Oils travel down strands fast → gets oily quickly. Best with texture powder, clay, pomade. Layered cuts add volume.
 
-**Wavy** — loose S-bends. Frizzy if dried wrong, loses definition if over-brushed. Best with sea salt spray, clay, pomade, leave-in.
+**Wavy**, loose S-bends. Frizzy if dried wrong, loses definition if over-brushed. Best with sea salt spray, clay, pomade, leave-in.
 
-**Curly** — tight spirals, naturally voluminous. Prone to dryness and frizz without hydration. Best with curl cream, leave-in, minimal brushing.
+**Curly**, defined spirals, naturally voluminous. Prone to dryness and frizz without hydration. Best with curl cream, leave-in, minimal brushing.
+
+**Coily / kinky**, tight coils or a zig-zag pattern (Type 4), shrinks a lot when dry. The driest, most fragile texture, so moisture is everything: leave-in plus curl cream daily, and a light oil or butter to seal it in. Wash least often, co-wash between, and only ever detangle wet with conditioner. Never dry-brush.
 
 ## Products
 
-**Texture powder** — volume + matte finish. For short, fine, or flat hair wanting lift. Avoid on very dry or curly hair.
+**Texture powder**, volume + matte finish. For short, fine, or flat hair wanting lift. Avoid on very dry or curly hair.
 
-**Clay** — natural hold, matte. Medium-length, structured styles, most hair types. Avoid very dry or extremely curly.
+**Clay**, natural hold, matte. Medium-length, structured styles, most hair types. Avoid very dry or extremely curly.
 
-**Pomade** — hold + slight shine. Slick-back, controlled styles, medium-thick hair. Avoid fine hair or matte goals.
+**Pomade**, hold + slight shine. Slick-back, controlled styles, medium-thick hair. Avoid fine hair or matte goals.
 
-**Sea salt spray** — enhances waves, adds texture. Wavy hair, medium length, beachy looks. Avoid very dry hair (drying).
+**Sea salt spray**, enhances waves, adds texture. Wavy hair, medium length, beachy looks. Avoid very dry hair (drying).
 
-**Curl cream** — defines curls, reduces frizz. Curly + thick wavy hair. Avoid very fine hair.
+**Curl cream**, defines curls, reduces frizz. Curly, coily, and thick wavy hair. Avoid very fine hair.
 
-**Leave-in conditioner** — hydration + texture. Almost everyone, especially dry / curly / long. Avoid overuse on very oily hair. Most versatile product.
+**Leave-in conditioner**, hydration + texture. Almost everyone, especially dry, curly, coily, or long hair. Avoid overuse on very oily hair. Most versatile product.
 
 ## Daily styling routine
 
@@ -338,6 +342,7 @@ Using too much product is the most common mistake.
 - Straight: 2–3×/week (oils travel fast)
 - Wavy: 2–3×/week
 - Curly: 1–2×/week, midweek co-wash, weekend rinse
+- Coily / kinky: 1×/week or less, co-wash between, condition every time
 
 ## Product rules
 
@@ -355,9 +360,9 @@ Buildup → flat, flakey, greasy hair.
 
 ## Shampoo, conditioner, scalp health
 
-Hair health begins at the scalp. Most "hair problems" are actually scalp problems — frizz, flatness, itch.
+Hair health begins at the scalp. Most "hair problems" are actually scalp problems, frizz, flatness, itch.
 
-Sulfates can strip natural oils if too harsh — many benefit from gentler sulfate-free formulas. Parabens are preservatives; modern formulations often skip them.
+Sulfates can strip natural oils if too harsh, many benefit from gentler sulfate-free formulas. Parabens are preservatives; modern formulations often skip them.
 
 Wash too often → dry scalp. Wash too little → buildup, dandruff. Most people do best with **2 washes per week** (adjusted by hair type and scalp state).
 
@@ -377,7 +382,7 @@ Similar width and height, soft jaw, full cheeks. Goal: add vertical structure, r
 
 ## Square
 
-Strong jaw, wide forehead, angular structure. Already strong — add texture, don't exaggerate angles. Best: textured crop, side part with movement, short fades, crew cuts. Medium sides. Avoid extremely sharp fades.
+Strong jaw, wide forehead, angular structure. Already strong, add texture, don't exaggerate angles. Best: textured crop, side part with movement, short fades, crew cuts. Medium sides. Avoid extremely sharp fades.
 
 ## Rectangular / Oblong
 
@@ -395,7 +400,7 @@ Wide forehead, narrow chin. Goal: balance the wider top with the narrower bottom
 
 Wide jaw, narrower forehead. Goal: add volume to upper face. Best: medium-length textured, side-swept, volume on top. Medium sides. Avoid buzz cuts (emphasizes jaw).
 
-The best haircut isn't the trendiest — it balances your face shape, works with your texture, and is easy to maintain.
+The best haircut isn't the trendiest, it balances your face shape, works with your texture, and is easy to maintain.
 
 # Hair loss and prevention
 
@@ -424,17 +429,17 @@ Early identification → preventative treatments work much better.
 
 Two categories: growth stimulators and DHT blockers. Most effective protocols combine both.
 
-**Minoxidil** — improves blood flow to follicles, stimulates growth, increases thickness, slows loss. Topical (liquid/foam) or oral (low-dose Rx). For early thinning or recession. Caution if cardiovascular conditions or scalp irritation. Results take several months of consistency.
+**Minoxidil**, improves blood flow to follicles, stimulates growth, increases thickness, slows loss. Topical (liquid/foam) or oral (low-dose Rx). For early thinning or recession. Caution if cardiovascular conditions or scalp irritation. Results take several months of consistency.
 
-**Finasteride** — blocks testosterone → DHT conversion (the hormone shrinking follicles). Slows loss, preserves hair, improves thickness. Requires medical supervision. Some users report side effects — consult a doctor.
+**Finasteride**, blocks testosterone → DHT conversion (the hormone shrinking follicles). Slows loss, preserves hair, improves thickness. Requires medical supervision. Some users report side effects, consult a doctor.
 
-**Dutasteride** — similar but stronger. Blocks multiple forms of the conversion enzyme. For non-responders to finasteride. Always under medical supervision.
+**Dutasteride**, similar but stronger. Blocks multiple forms of the conversion enzyme. For non-responders to finasteride. Always under medical supervision.
 
-**Microneedling** — small needles stimulate scalp, improve circulation, increase topical absorption (especially minoxidil). Use with topicals for synergistic effect. Improper technique irritates — careful use required.
+**Microneedling**, small needles stimulate scalp, improve circulation, increase topical absorption (especially minoxidil). Use with topicals for synergistic effect. Improper technique irritates, careful use required.
 
 ## Safety
 
-Hair loss treatments affect biology — consult a healthcare professional before starting finasteride, dutasteride, or oral minoxidil. Individual responses vary.
+Hair loss treatments affect biology, consult a healthcare professional before starting finasteride, dutasteride, or oral minoxidil. Individual responses vary.
 
 # Facial hair and grooming
 
@@ -450,7 +455,7 @@ Used right, facial hair adds contrast, emphasizes strong features, balances the 
 
 Short beard → defined jaw. Goatee → projects a weak chin, adds contrast for poor zygomatic projection. Stubble → sharper features.
 
-Poor maintenance does the opposite — looks unclean, immature.
+Poor maintenance does the opposite, looks unclean, immature.
 
 ## Shave vs grow
 
@@ -469,17 +474,17 @@ Goatees work for weak jaws, longer philtrums, weak chin projection. Shifts atten
 
 ## Shaving technique
 
-1. Prep skin (warm water / post-shower) — softens hair, opens pores.
-2. Shaving cream or gel — reduces friction.
+1. Prep skin (warm water / post-shower), softens hair, opens pores.
+2. Shaving cream or gel, reduces friction.
 3. Shave **with the grain**.
 4. Light pressure, short strokes.
 5. Rinse with cool water.
 
 ## Tools
 
-- Razor — closest shave, for clean-shaven looks. Irritation risk if misused.
-- Electric trimmer — most versatile. Stubble maintenance, beard shaping, adjustable guards.
-- Foil shaver — close shave with less irritation. Great for sensitive skin / razor bump prone.
+- Razor, closest shave, for clean-shaven looks. Irritation risk if misused.
+- Electric trimmer, most versatile. Stubble maintenance, beard shaping, adjustable guards.
+- Foil shaver, close shave with less irritation. Great for sensitive skin / razor bump prone.
 
 ## Preventing irritation
 
@@ -507,7 +512,7 @@ Neckline sits about 1–2 fingers above the Adam's apple. Everything below gets 
   duration_min: 5
   default_window: am_active
   tags: [wash, curly]
-  applies_when: ["hair_type == curly"]
+  applies_when: ["hair_type in [curly, coily]"]
   intensity: 0.2
   evidence_section: "Wash frequency by hair type"
   frequency: { type: n_per_week, n: 1 }
@@ -518,7 +523,7 @@ Neckline sits about 1–2 fingers above the Adam's apple. Everything below gets 
   duration_min: 1
   default_window: am_active
   tags: [post-wash, hydration]
-  applies_when: ["hair_type in [wavy, curly] or scalp_state == dry"]
+  applies_when: ["hair_type in [wavy, curly, coily] or scalp_state == dry"]
   intensity: 0.1
   evidence_section: "Hydration"
   frequency: { type: n_per_week, n: 2 }
@@ -650,7 +655,7 @@ Neckline sits about 1–2 fingers above the Adam's apple. Everything below gets 
 
 - id: hair.ketoconazole_wash
   title: "Ketoconazole shampoo wash"
-  description: "lather Nizoral 1% (or 2% Rx) on scalp, leave 5 min, rinse. anti-fungal + DHT-blocker action — supports the loss-prevention stack on top of minoxidil."
+  description: "lather Nizoral 1% (or 2% Rx) on scalp, leave 5 min, rinse. anti-fungal + DHT-blocker action, supports the loss-prevention stack on top of minoxidil."
   duration_min: 8
   default_window: am_active
   tags: [wash, scalp-health, anti-dandruff]
@@ -665,7 +670,7 @@ Neckline sits about 1–2 fingers above the Adam's apple. Everything below gets 
   duration_min: 15
   default_window: pm_active
   tags: [conditioning, recovery, weekly]
-  applies_when: ["heat_styling in [sometimes, often] or hair_type in [wavy, curly]"]
+  applies_when: ["heat_styling in [sometimes, often] or hair_type in [wavy, curly, coily]"]
   intensity: 0.2
   evidence_section: "Hair care basics"
   frequency: { type: n_per_week, n: 1 }

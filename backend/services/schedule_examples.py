@@ -99,18 +99,18 @@ OUTPUT (excerpt):
 
 _HEIGHTMAX_EXAMPLES = {
     "teen_growth_posture": """
-INPUT: age=16, heightmax_focus=all, posture_issues=true, training_status=yes_some, wake=07:00, sleep=22:30
+INPUT: age=16, heightmax_focus=all, posture_issues=heavy, training_status=yes_some, wake=07:00, sleep=22:30
 OUTPUT (excerpt):
 {
   "days": [
     { "day_index": 0, "tasks": [
         {"catalog_id":"height.am_mobility","time":"07:15","title":"5min AM mobility"},
         {"catalog_id":"height.wall_posture","time":"07:25","title":"wall posture 60s"},
-        {"catalog_id":"height.sunlight_am","time":"07:30","title":"sunlight 10min","description":"morning sunlight — circadian + vit D"},
+        {"catalog_id":"height.sunlight_am","time":"07:30","title":"sunlight 10min","description":"morning sunlight, circadian + vit D"},
         {"catalog_id":"height.desk_reset_midday","time":"13:00","title":"desk reset 5min"},
         {"catalog_id":"height.protein_check","time":"13:15","title":"protein hit"},
         {"catalog_id":"height.pm_decompression","time":"21:30","title":"decompression 5min"},
-        {"catalog_id":"height.sleep_extend","time":"22:15","title":"lights out 22:30","description":"teens: 8-10hr — supports growth foundations"}
+        {"catalog_id":"height.sleep_extend","time":"22:15","title":"lights out 22:30","description":"teens: 8-10hr, supports growth foundations"}
       ]
     }
   ],
@@ -119,7 +119,7 @@ OUTPUT (excerpt):
 """.strip(),
 
     "adult_perceived": """
-INPUT: age=27, heightmax_focus=perceived, posture_issues=true, training_status=yes_regular, wake=07:30, sleep=23:00
+INPUT: age=27, heightmax_focus=perceived, posture_issues=heavy, training_status=yes_regular, wake=07:30, sleep=23:00
 OUTPUT (excerpt):
 {
   "days": [
@@ -133,7 +133,7 @@ OUTPUT (excerpt):
       ]
     }
   ],
-  "summary": "Adult — growth track inactive. Posture + retention + perceived (fashion + shoes). Daily desk reset, hang 4×/wk."
+  "summary": "Adult, growth track inactive. Posture + retention + perceived (fashion + shoes). Daily desk reset, hang 4x/wk."
 }
 """.strip(),
 }

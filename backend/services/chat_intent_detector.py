@@ -159,7 +159,7 @@ def detect_intent(message: str, state: dict) -> Optional[dict]:
 
     # Desk job.
     if _DESK_JOB.search(text):
-        return {"kind": "posture_issues", "value": True}
+        return {"kind": "posture_issues", "value": "heavy"}
 
     # Outdoor.
     if _OUTDOOR.search(text):

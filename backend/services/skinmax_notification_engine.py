@@ -1,5 +1,5 @@
 """
-Skinmax notification engine — authoritative reference for schedule generation and coaching.
+Skinmax notification engine, authoritative reference for schedule generation and coaching.
 
 Full reference: skinmax_notification_engine_reference.md (loaded at import).
 """
@@ -12,15 +12,15 @@ from typing import Any
 
 _REF_FILE = Path(__file__).with_name("skinmax_notification_engine_reference.md")
 
-# Python weekday: Monday=0 … Sunday=6 — matches date.weekday()
+# Python weekday: Monday=0 … Sunday=6, matches date.weekday()
 SKINMAX_MIDDAY_TIPS_BY_WEEKDAY = [
-    "Hands off your face — bacteria transfer causes breakouts.",
-    "Water check — aim for ~3L today. Dehydrated skin looks dull and textured.",
+    "Hands off your face, bacteria transfer causes breakouts.",
+    "Water check, aim for ~3L today. Dehydrated skin looks dull and textured.",
     "Change your pillowcase this week? Dirty fabric causes breakouts and irritation.",
-    "Wipe your phone screen — it touches your face more than you think.",
+    "Wipe your phone screen, it touches your face more than you think.",
     "Stressed today? Cortisol spikes can flare skin. Take 5 deep breaths.",
     "Wearing sunglasses? They protect the thinnest skin on your face from UV.",
-    "Check your diet today — inflammatory foods often show on skin within 24–48 hours.",
+    "Check your diet today, inflammatory foods often show on skin within 24–48 hours.",
 ]
 
 
@@ -29,7 +29,7 @@ def skinmax_midday_tip_for_weekday(weekday: int) -> str:
 
 
 def skinmax_dietary_restriction_keys(onboarding: dict[str, Any]) -> list[str]:
-    """Return ordered unique flags: dairy, sugar, seed_oils — from onboarding dietary_restrictions."""
+    """Return ordered unique flags: dairy, sugar, seed_oils, from onboarding dietary_restrictions."""
     ob = onboarding or {}
     dr = ob.get("dietary_restrictions")
     if dr is None:
@@ -56,9 +56,9 @@ def skinmax_dietary_restriction_keys(onboarding: dict[str, Any]) -> list[str]:
 
 def skinmax_restriction_reminder_body(flag: str) -> str:
     m = {
-        "dairy": "Dairy can spike IGF-1 and trigger breakouts — check what's in your meal.",
-        "sugar": "Added sugar drives inflammation — often shows on skin within ~48 hours.",
-        "seed_oils": "Seed oils can be pro-inflammatory in excess — check what you're cooking with or ordering.",
+        "dairy": "Dairy can spike IGF-1 and trigger breakouts, check what's in your meal.",
+        "sugar": "Added sugar drives inflammation, often shows on skin within ~48 hours.",
+        "seed_oils": "Seed oils can be pro-inflammatory in excess, check what you're cooking with or ordering.",
     }
     return m.get(flag, m["sugar"])
 
@@ -140,14 +140,14 @@ def format_computed_anchor_times(wake_time: str, sleep_time: str) -> str:
     mid_h, mid_m = mid_mins // 60, mid_mins % 60
     hyd_h, hyd_m = _add_minutes(mid_h, mid_m, 120)
     spf_h, spf_m = _add_minutes(am_h, am_m, 180)
-    return f"""## COMPUTED ANCHOR TIMES FOR THIS USER (examples — use these formulas, not guesses)
+    return f"""## COMPUTED ANCHOR TIMES FOR THIS USER (examples, use these formulas, not guesses)
 - Wake (from USER CONTEXT): {wake_time}
 - Bed / sleep (from USER CONTEXT): {sleep_time}
 - **AM Routine** → {_format_hm(am_h, am_m)} (wake + 15 minutes)
 - **PM Routine** → {_format_hm(pm_h, pm_m)} (bed time − 60 minutes)
 - **Midday Tip** → {_format_hm(mid_h, mid_m)} (midpoint between AM Routine and PM Routine)
-- **Hydration Check** → {_format_hm(hyd_h, hyd_m)} (Midday + 2 hours) — omit entirely if user disabled hydration reminders
-- **SPF Reapply** → {_format_hm(spf_h, spf_m)} (AM Routine + 3 hours) — only per outdoor_frequency + sometimes/outside_today rules
+- **Hydration Check** → {_format_hm(hyd_h, hyd_m)} (Midday + 2 hours), omit entirely if user disabled hydration reminders
+- **SPF Reapply** → {_format_hm(spf_h, spf_m)} (AM Routine + 3 hours), only per outdoor_frequency + sometimes/outside_today rules
 """
 
 
@@ -195,20 +195,20 @@ def summarize_skinmax_onboarding(
     return "\n".join(lines)
 
 
-SKINMAX_JSON_DIRECTIVES = """## SKINMAX — JSON SCHEDULE OUTPUT (MANDATORY)
+SKINMAX_JSON_DIRECTIVES = """## SKINMAX, JSON SCHEDULE OUTPUT (MANDATORY)
 
 1. Use **exact HH:MM** (24h) for every task. Derive all times from wake_time and sleep_time using the reference + COMPUTED ANCHOR TIMES above.
-2. **Do NOT** add a generic "morning check-in / let me know you're awake" at wake time for Skinmax — start the day with **AM Routine** at wake+15 (or stagger per MULTI-ACTIVE-MODULES if another module already owns wake).
+2. **Do NOT** add a generic "morning check-in / let me know you're awake" at wake time for Skinmax, start the day with **AM Routine** at wake+15 (or stagger per MULTI-ACTIVE-MODULES if another module already owns wake).
 3. Respect **quiet hours**: no tasks scheduled between sleep_time and wake_time.
 4. Keep **3–5 tasks per calendar day**. Minimum daily: AM routine, Midday tip, PM routine. Add SPF reapply / hydration / restriction only when rules say so.
 5. **Title + description** must reflect the correct concern protocol (AM steps, PM retinoid vs rest, exfoliation night copy when applicable).
-6. On **weekly exfoliation day** (default Wednesday if not in onboarding), PM task = exfoliation routine from reference (not standard PM) — **repeat every week** for the full generated day range (not only week one).
+6. On **weekly exfoliation day** (default Wednesday if not in onboarding), PM task = exfoliation routine from reference (not standard PM), **repeat every week** for the full generated day range (not only week one).
 7. **Sunday**: add pillowcase reminder at midday time (every Sunday in range).
-8. **1st of month**: progress photo at midday; routine check-in 30 min after PM time — on **every** calendar 1st in the generated range.
-9. For `sometimes` outdoor: if outside_today is No, you may still schedule a short "Going outside today?" reminder near AM+3h window or fold into AM description — do **not** schedule SPF reapply unless they would be going out.
+8. **1st of month**: progress photo at midday; routine check-in 30 min after PM time, on **every** calendar 1st in the generated range.
+9. For `sometimes` outdoor: if outside_today is No, you may still schedule a short "Going outside today?" reminder near AM+3h window or fold into AM description, do **not** schedule SPF reapply unless they would be going out.
 10. Use `task_type`: `routine` for AM/PM/exfoliation blocks, `reminder` for SPF/hydration/restriction/pillowcase/photo/check-in style pings.
 11. **Midday tip** descriptions must follow the **7-day rotating micro-tip copy** in the Skinmax notification engine reference (match weekday to the correct tip).
-12. **No AM chase:** do **not** schedule a follow-up task if the user missed AM — the reference forbids nagging after AM slot + 2h.
+12. **No AM chase:** do **not** schedule a follow-up task if the user missed AM, the reference forbids nagging after AM slot + 2h.
 13. **Restriction** tasks: max **1/day**; rotate meal slot (wake+1h / +5h / +9h) and rotate which restriction when several are opted in.
 """
 
