@@ -339,3 +339,132 @@ def test_day_distribution_guard_is_noop_on_healthy_days():
     assert clean, [e.message for e in errs if e.severity == "hard"]
     assert [d.get("day_index") for d in fixed] == [0, 1, 2]
     assert not any(e.code in ("day_index_repaired", "day_bunching_detected") for e in errs)
+
+
+# --------------------------------------------------------------------------- #
+#  #48 — skeleton slot saturation (weekly_exfoliation + am_active picker)      #
+# --------------------------------------------------------------------------- #
+
+def _skin_days(state: dict) -> list[dict]:
+    """Expand a 14-day skinmax skeleton for `state` (catalog already warm)."""
+    from services.schedule_skeleton import expand_skeleton
+    return expand_skeleton(
+        maxx_id="skinmax", user_state=state, wake="07:00", sleep="23:00", cadence_days=14
+    )
+
+
+def _id_counts(days: list[dict]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for d in days:
+        for t in d.get("tasks") or []:
+            cid = t.get("catalog_id")
+            out[cid] = out.get(cid, 0) + 1
+    return out
+
+
+_BASE_SKIN = {
+    "skin_type": "normal", "routine_level": "advanced", "outdoor_exposure": "moderate",
+    "tret_history": "never", "climate": "temperate", "diet_open": "yes_some",
+}
+
+
+def test_weekly_exfoliation_lands_once_a_week_for_stable_pigmentation():
+    """The reported bug: weekly_exfoliation shared the pm_active slot with a
+    picker that filled every night, so its not_with_same_day guard dropped it
+    on every day and it NEVER appeared. It must now land ~1x/week and never
+    share a night with a retinoid or dermastamp."""
+    from services.task_catalog_service import warm_catalog
+    asyncio.run(warm_catalog())
+
+    state = {**_BASE_SKIN, "skin_concern": "pigmentation",
+             "barrier_state": "stable", "dermastamp_owned": True}
+    days = _skin_days(state)
+    counts = _id_counts(days)
+
+    # ~1/week over a 14-day horizon = 2 placements (tolerate 1–3 for phase).
+    assert 1 <= counts.get("skin.weekly_exfoliation", 0) <= 3, (
+        f"weekly_exfoliation should appear ~1x/week, got "
+        f"{counts.get('skin.weekly_exfoliation', 0)}"
+    )
+
+    # Separation guarantee: never on a retinoid or dermastamp night.
+    for d in days:
+        ids = {t.get("catalog_id") for t in d.get("tasks") or []}
+        if "skin.weekly_exfoliation" in ids:
+            assert "skin.retinoid_pm" not in ids, f"exfoliation shares retinoid night (day {d['day_index']})"
+            assert "skin.dermastamp_pm" not in ids, f"exfoliation shares dermastamp night (day {d['day_index']})"
+
+
+def test_weekly_exfoliation_gated_out_for_damaged_barrier():
+    """Damaged-barrier repair lock: exfoliation (and all actives) must be
+    stripped, with the daily barrier-pause taking the pm_active slot."""
+    from services.task_catalog_service import warm_catalog
+    asyncio.run(warm_catalog())
+
+    state = {**_BASE_SKIN, "skin_concern": "pigmentation",
+             "barrier_state": "damaged", "dermastamp_owned": True}
+    counts = _id_counts(_skin_days(state))
+
+    assert counts.get("skin.weekly_exfoliation", 0) == 0, "exfoliation must be gated out on damaged barrier"
+    assert counts.get("skin.retinoid_pm", 0) == 0, "retinoid must be stripped on damaged barrier"
+    assert counts.get("skin.dermastamp_pm", 0) == 0, "dermastamp must be stripped on damaged barrier"
+    assert counts.get("skin.azelaic_am", 0) == 0, "am active must be stripped on damaged barrier"
+    assert counts.get("skin.barrier_pause", 0) == 14, "daily barrier-pause should occupy pm_active"
+
+
+def test_weekly_exfoliation_absent_for_untargeted_concern():
+    """`maintenance` is not in the exfoliation target list, so it must not
+    appear even when the barrier is stable (the `if` gate still rules)."""
+    from services.task_catalog_service import warm_catalog
+    asyncio.run(warm_catalog())
+
+    state = {**_BASE_SKIN, "skin_concern": "maintenance",
+             "barrier_state": "stable", "dermastamp_owned": True}
+    counts = _id_counts(_skin_days(state))
+    assert counts.get("skin.weekly_exfoliation", 0) == 0, "exfoliation must not target 'maintenance'"
+    # Sanity: retinoid still runs for maintenance (it IS in retinoid's list).
+    assert counts.get("skin.retinoid_pm", 0) >= 6
+
+
+def test_am_active_picker_fires_for_daily_cadence():
+    """Second bug found while fixing #48: am_active is `cadence: daily` with a
+    `pick_from` (azelaic/centella) and empty `tasks`, so it used to emit
+    nothing — the morning active silently vanished. The picker must now fire
+    every day, choosing the first eligible item by priority."""
+    from services.task_catalog_service import warm_catalog
+    asyncio.run(warm_catalog())
+
+    # Pigmentation → azelaic eligible every day → daily morning active.
+    counts = _id_counts(_skin_days(
+        {**_BASE_SKIN, "skin_concern": "pigmentation", "barrier_state": "stable", "dermastamp_owned": False}
+    ))
+    assert counts.get("skin.azelaic_am", 0) == 14, (
+        f"am_active picker should place a morning active daily, got {counts.get('skin.azelaic_am', 0)}"
+    )
+
+
+def test_pm_picker_keeps_weekly_mix_and_is_spread():
+    """The picker must honor each item's weekly rate (retinoid 4x, dermastamp
+    2x) per 7-day window AND spread them (no item bunched on consecutive days
+    across the whole window), which is what leaves a rest night open for the
+    exfoliation to claim."""
+    from services.task_catalog_service import warm_catalog
+    asyncio.run(warm_catalog())
+
+    days = _skin_days(
+        {**_BASE_SKIN, "skin_concern": "pigmentation", "barrier_state": "stable", "dermastamp_owned": True}
+    )
+    counts = _id_counts(days)
+    # 4/wk * 2 weeks = 8 retinoid; 2/wk * 2 = 4 dermastamp.
+    assert counts.get("skin.retinoid_pm", 0) == 8, counts.get("skin.retinoid_pm", 0)
+    assert counts.get("skin.dermastamp_pm", 0) == 4, counts.get("skin.dermastamp_pm", 0)
+
+    # Spread check: retinoid must not occupy 4+ consecutive nights (the old
+    # front-loading signature was retinoid on days 0..7 straight).
+    retinoid_days = [d["day_index"] for d in days
+                     if any(t.get("catalog_id") == "skin.retinoid_pm" for t in d.get("tasks") or [])]
+    longest_run = run = 1
+    for a, b in zip(retinoid_days, retinoid_days[1:]):
+        run = run + 1 if b == a + 1 else 1
+        longest_run = max(longest_run, run)
+    assert longest_run <= 3, f"retinoid front-loaded into a run of {longest_run} nights: {retinoid_days}"

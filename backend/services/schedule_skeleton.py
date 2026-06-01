@@ -366,8 +366,15 @@ def _place_block(
         block.slot, wake=wake, sleep=sleep, overrides=window_overrides,
     )
 
-    # Static tasks vs dynamic picker.
-    if cadence == "dynamic":
+    # Picker (`pick_from`) vs static task list. A block carries `pick_from`
+    # whenever it should choose ONE task per eligible day (am_active's
+    # azelaic/centella, pm_active's retinoid/dermastamp/rest) — regardless of
+    # whether its cadence is literally "dynamic" or "daily". Both want the
+    # per-day picker; they differ only in WHICH days are eligible, which is
+    # already encoded in `day_indices` above. (Routing on `pick_from` rather
+    # than cadence=="dynamic" is what makes the `daily` am_active picker fire
+    # at all — previously it emitted block.tasks, which was empty.)
+    if block.pick_from:
         _place_dynamic(
             block=block,
             user_state=user_state,
@@ -376,17 +383,33 @@ def _place_block(
             maxx_id=maxx_id,
             win_start=win_start,
         )
-    else:
-        for di in day_indices:
-            _emit_tasks(
-                catalog_ids=block.tasks,
-                day=days[di],
-                maxx_id=maxx_id,
-                user_state=user_state,
-                start_minute=win_start,
-                block_id=block.id,
-                not_with_same_day=block.not_with_same_day,
-            )
+        return
+
+    # Static task list. Blocks with `not_with_same_day` (e.g. weekly
+    # exfoliation, which must not share a night with a retinoid or dermastamp)
+    # get a displacement search: if the phase-chosen day is already blocked,
+    # slide to the nearest compatible, not-yet-used day in the SAME 7-day
+    # window so the weekly habit still lands instead of silently vanishing.
+    # Without it, a standalone block sharing a slot with a saturating picker
+    # can never place.
+    nws = set(block.not_with_same_day or [])
+    used: set[int] = set()
+    for di in day_indices:
+        target: Optional[int] = di
+        if nws and (di in used or not _day_compatible(days, di, nws)):
+            target = _find_compatible_day(days, di, nws, used, n_days)
+        if target is None:
+            continue
+        used.add(target)
+        _emit_tasks(
+            catalog_ids=block.tasks,
+            day=days[target],
+            maxx_id=maxx_id,
+            user_state=user_state,
+            start_minute=win_start,
+            block_id=block.id,
+            not_with_same_day=block.not_with_same_day,
+        )
 
 
 def _place_dynamic(
@@ -398,42 +421,52 @@ def _place_dynamic(
     maxx_id: str,
     win_start: int,
 ) -> None:
-    """Per-day picker. Walks `pick_from` items in order; the first one whose
-    `requires` are met AND has remaining quota AND doesn't conflict with
-    already-placed-today tasks wins for that day."""
+    """Per-day picker over `pick_from`, filled one 7-day window at a time so
+    the weekly mix is exact and spread out (not front-loaded across the whole
+    horizon, which used to clump 4 retinoid nights in a row and leave every
+    rest night at the very end).
+
+    Two tiers, by `days_per_week`:
+
+      * targeted (days_per_week < 7): items that should appear a SPECIFIC
+        number of days each week (retinoid 4x, dermastamp 2x). Placed evenly
+        across each window via a deadline/stride scheduler so they interleave
+        rather than bunch up, and so each week keeps its leftover "rest"
+        night(s) open.
+      * fallback (days_per_week >= 7): "available every day" items
+        (rest-night serum, the azelaic/centella morning active) that fill
+        whatever days the targeted tier leaves open, in `pick_from` priority
+        order. Keeps the rest-night serum a true fallback instead of
+        out-competing the actives for early days.
+
+    `requires` is evaluated once (it depends only on user_state, not the day);
+    `not_with` and the block's own `not_with_same_day` are still enforced
+    per-day inside the loops / `_emit_tasks`.
+    """
     if not block.pick_from:
         return
 
-    quota_left: dict[str, int] = {}
+    # Resolve which items are eligible for THIS user (requires is day-stable).
+    eligible: list[dict] = []
     for item in block.pick_from:
         cid = str(item.get("id") or "")
         if not cid:
             continue
-        per_week = int(item.get("days_per_week", 7))
-        # Total quota across `len(day_indices)` days, scaled from the
-        # 7-day rate. round-up so high-priority items get their full count.
-        total = max(1, round(per_week * len(day_indices) / 7))
-        quota_left[cid] = total
-
-    for di in day_indices:
-        day_task_ids = {t.get("catalog_id") for t in (days[di].get("tasks") or [])}
-        chosen: Optional[dict] = None
-        for item in block.pick_from:
-            cid = str(item.get("id") or "")
-            if not cid or quota_left.get(cid, 0) <= 0:
-                continue
-            requires = item.get("requires") or []
-            if requires and not evaluate_all(list(requires), user_state):
-                continue
-            not_with = set(item.get("not_with") or [])
-            if not_with & day_task_ids:
-                continue
-            chosen = item
-            break
-        if chosen is None:
+        requires = list(item.get("requires") or [])
+        if requires and not evaluate_all(requires, user_state):
             continue
-        cid = str(chosen["id"])
-        quota_left[cid] = quota_left.get(cid, 0) - 1
+        eligible.append({
+            "id": cid,
+            "per_week": int(item.get("days_per_week", 7)),
+            "not_with": set(item.get("not_with") or []),
+        })
+    if not eligible:
+        return
+
+    targeted = [it for it in eligible if it["per_week"] < 7]
+    fallback = [it for it in eligible if it["per_week"] >= 7]
+
+    def _emit(cid: str, di: int) -> None:
         _emit_tasks(
             catalog_ids=[cid],
             day=days[di],
@@ -443,6 +476,88 @@ def _place_dynamic(
             block_id=block.id,
             not_with_same_day=block.not_with_same_day,
         )
+
+    # Group the eligible days into 7-day windows and fill each independently.
+    windows: dict[int, list[int]] = {}
+    for di in day_indices:
+        windows.setdefault(di // 7, []).append(di)
+
+    for _, win_days in sorted(windows.items()):
+        win_days.sort()
+        n_slots = len(win_days)
+        if not n_slots:
+            continue
+
+        # --- Tier 1: spread targeted items by an even "deadline" stride. ---
+        # next_due starts at stride/2 so the first placement lands mid-stride
+        # (centered), then advances by stride each time it's used. Each day we
+        # place the eligible targeted item that is most "due" (smallest
+        # next_due), breaking ties by pick_from priority.
+        prio = {it["id"]: i for i, it in enumerate(targeted)}
+        quota: dict[str, int] = {}
+        stride: dict[str, float] = {}
+        next_due: dict[str, float] = {}
+        for it in targeted:
+            q = min(n_slots, max(0, round(it["per_week"] * n_slots / 7)))
+            quota[it["id"]] = q
+            stride[it["id"]] = (n_slots / q) if q else float("inf")
+            next_due[it["id"]] = stride[it["id"]] / 2.0
+
+        for di in win_days:
+            day_ids = {t.get("catalog_id") for t in (days[di].get("tasks") or [])}
+            best: Optional[dict] = None
+            best_key: Optional[tuple] = None
+            for it in targeted:
+                cid = it["id"]
+                if quota.get(cid, 0) <= 0 or (it["not_with"] & day_ids):
+                    continue
+                key = (next_due[cid], prio[cid])
+                if best_key is None or key < best_key:
+                    best_key, best = key, it
+            if best is None:
+                continue
+            cid = best["id"]
+            quota[cid] -= 1
+            next_due[cid] += stride[cid]
+            _emit(cid, di)
+
+        # --- Tier 2: fill days with no pick_from task yet using fallbacks. ---
+        if not fallback:
+            continue
+        elig_ids = {it["id"] for it in eligible}
+        for di in win_days:
+            day_ids = {t.get("catalog_id") for t in (days[di].get("tasks") or [])}
+            if elig_ids & day_ids:
+                continue  # a targeted (or already-placed) pick already here
+            for it in fallback:
+                if it["not_with"] & day_ids:
+                    continue
+                _emit(it["id"], di)
+                break
+
+
+def _day_compatible(days: list[dict], di: int, not_with: set[str]) -> bool:
+    """True if day `di` holds none of the `not_with` catalog_ids."""
+    ids = {t.get("catalog_id") for t in (days[di].get("tasks") or [])}
+    return not (not_with & ids)
+
+
+def _find_compatible_day(
+    days: list[dict], di: int, not_with: set[str], used: set[int], n_days: int
+) -> Optional[int]:
+    """Nearest day to `di` inside the SAME 7-day window that is unused by this
+    block and free of any `not_with` catalog_id. Searches forward from `di`
+    first (keeps a weekly habit near its phase slot), then the earlier days of
+    the window. Returns None if every day in the window is blocked."""
+    win_start = (di // 7) * 7
+    win_end = min(win_start + 7, n_days)
+    order = list(range(di, win_end)) + list(range(win_start, di))
+    for d in order:
+        if d in used:
+            continue
+        if _day_compatible(days, d, not_with):
+            return d
+    return None
 
 
 def _emit_tasks(
