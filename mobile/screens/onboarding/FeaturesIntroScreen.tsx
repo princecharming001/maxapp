@@ -78,7 +78,7 @@ export default function FeaturesIntroScreen() {
 
                 <Text style={s.subline}>
                     Three angles. Instant AI analysis.{'\n'}
-                    Discover where you stand — and how to level up.
+                    See where you stand, and how to level up.
                 </Text>
 
                 <View style={s.benefitsRow}>

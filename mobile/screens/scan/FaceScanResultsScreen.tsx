@@ -478,7 +478,7 @@ function ScanProcessingView() {
                 </View>
                 <Text style={styles.loadingSub}>Building your facial ratings…</Text>
                 <Text style={styles.stayInAppNotice}>
-                    Stay in the app until this finishes—leaving can delay or interrupt your results.
+                    Stay in the app until this finishes. Leaving can delay or interrupt your results.
                 </Text>
             </View>
             <ActivityIndicator size="large" color={colors.foreground} style={{ marginTop: spacing.xl }} />
@@ -762,7 +762,7 @@ export default function FaceScanResultsScreen() {
             return;
         }
         if (frontUri && !shareImageReady) {
-            Alert.alert('Almost ready', 'Your scan photo is still loading — try again in a second.');
+            Alert.alert('Almost ready', 'Your scan photo is still loading. Try again in a second.');
             return;
         }
         setShareCaptureBusy(true);
@@ -812,7 +812,7 @@ export default function FaceScanResultsScreen() {
         }
 
         if (frontUri && !shareImageReady) {
-            Alert.alert('Almost ready', 'Your scan photo is still loading — try again in a second.');
+            Alert.alert('Almost ready', 'Your scan photo is still loading. Try again in a second.');
             return;
         }
 
@@ -990,7 +990,7 @@ export default function FaceScanResultsScreen() {
                     </View>
                 ) : null}
 
-                <Text style={styles.disclaimer}>For general wellness only — not medical advice.</Text>
+                <Text style={styles.disclaimer}>For general wellness only. Not medical advice.</Text>
 
                 {/* ── CTA (after shareable content — scroll down to act) ── */}
                 {!viewingHistory ? (

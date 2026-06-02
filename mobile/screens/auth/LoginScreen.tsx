@@ -57,7 +57,7 @@ export default function LoginScreen() {
             >
                 <Animated.View style={[styles.card, { opacity: fadeCard, transform: [{ translateY: slideCard }] }]}>
                     <Text style={styles.wordmark}>max</Text>
-                    <Text style={styles.tagline}>Your personal aesthetic journey</Text>
+                    <Text style={styles.tagline}>Looksmaxing that fits your life</Text>
 
                     <View style={styles.form}>
                         <View style={styles.inputGroup}>

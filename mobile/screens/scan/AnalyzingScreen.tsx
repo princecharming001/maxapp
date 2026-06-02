@@ -197,7 +197,7 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
                 </Animated.Text>
 
                 <Text style={st.hint}>
-                    Keep the app open — this takes a moment.
+                    Keep the app open. This takes a second.
                 </Text>
             </View>
         </View>

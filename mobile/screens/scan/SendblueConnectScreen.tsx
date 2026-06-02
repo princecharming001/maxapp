@@ -193,7 +193,7 @@ export default function SendblueConnectScreen() {
                     </View>
                 ) : (
                     <Text style={styles.confirmedLine}>
-                        You&apos;re linked — tap Continue.
+                        You&apos;re linked. Tap Continue.
                     </Text>
                 )}
 
@@ -213,7 +213,7 @@ export default function SendblueConnectScreen() {
                 <View style={styles.skipSmsWrap}>
                     <Ionicons name="warning-outline" size={15} color={colors.error} style={{ marginTop: 1 }} />
                     <Text style={styles.skipSmsWarning}>
-                        SMS coaching is only available if you complete this step. Skipping is permanent — you cannot add SMS later without deleting your account.
+                        SMS coaching only works if you finish this step. Skipping is permanent. You can&apos;t add SMS later without deleting your account.
                     </Text>
                 </View>
                 <TouchableOpacity

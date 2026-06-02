@@ -323,7 +323,7 @@ export default function WeekCanvas({
       </View>
 
       <Text style={styles.footnote}>
-        The clear band is your free time — Max fits skin, hair, mewing and training there. Change a
+        The clear band is your free time. Max fits skin, hair, mewing and training there. Change a
         day and your Max plans move with it.
       </Text>
     </View>

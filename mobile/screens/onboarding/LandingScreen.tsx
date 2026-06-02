@@ -209,7 +209,7 @@ export default function LandingScreen() {
                                 {demoLoading ? (
                                     <ActivityIndicator size="small" color={colors.textMuted} />
                                 ) : (
-                                    <Text style={styles.demoText}>Try it first — no account needed</Text>
+                                    <Text style={styles.demoText}>Try it first. No account needed</Text>
                                 )}
                             </TouchableOpacity>
                         ) : null}
@@ -260,7 +260,7 @@ export default function LandingScreen() {
                                 {demoLoading ? (
                                     <ActivityIndicator size="small" color={colors.textMuted} />
                                 ) : (
-                                    <Text style={styles.demoText}>Try it first — no account needed</Text>
+                                    <Text style={styles.demoText}>Try it first. No account needed</Text>
                                 )}
                             </TouchableOpacity>
                         ) : null}

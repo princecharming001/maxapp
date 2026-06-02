@@ -58,7 +58,7 @@ const REQUEST_DATA = {
     },
     sentiment_analysis: {
         name: 'Sentiment',
-        description: 'Helps Max read the room — less nag when you\u2019re burnt out.',
+        description: 'Helps Max read the room. Less nagging when you\u2019re burnt out.',
         reward: 'Smarter check-ins.',
     },
 } as const;

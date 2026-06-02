@@ -403,7 +403,7 @@ export default function EditPersonalScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {!onlyGoals ? (
-            <Text style={styles.lead}>Update what you shared at signup — chatbot context updates as you save.</Text>
+            <Text style={styles.lead}>Update what you told us at signup. Max picks up the changes when you save.</Text>
           ) : null}
 
           {/* "Your Maxxes" header is intentionally hidden on the edit-lifestyle
@@ -591,9 +591,9 @@ export default function EditPersonalScreen() {
                 {sectionKicker('DAILY TIMINGS')}
                 <Text style={styles.cardTitle}>Your day, hour by hour</Text>
                 <Text style={styles.cardHint}>
-                  These anchor every routine across your maxxes — workouts, skincare,
+                  These anchor every routine across your maxxes. Workouts, skincare,
                   mewing and stretches all shift to fit your real day. Leave anything
-                  on Auto and the coach picks the best time for you.
+                  on Auto and the coach picks the time for you.
                 </Text>
                 {timeRow('Wake', 'wake', wakeTime, setWakeTime)}
                 {anchorRow(
@@ -617,7 +617,7 @@ export default function EditPersonalScreen() {
                     <Text style={styles.plannerPointerTitle}>Workout window & commitments</Text>
                     <Text style={styles.plannerPointerText}>
                       Set your workout as a range and add recurring commitments
-                      (work, school, classes) — they can vary by day in the Day Planner.
+                      (work, school, classes). They can vary by day in the Day Planner.
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />

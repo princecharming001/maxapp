@@ -138,7 +138,7 @@ export default function ForgotPasswordScreen() {
                                         autoCapitalize="none"
                                     />
                                 </View>
-                                <Text style={styles.phoneHint}>Same format as when you signed up — country + number without the code prefix.</Text>
+                                <Text style={styles.phoneHint}>Same format as when you signed up: country and number, no code prefix.</Text>
                             </View>
                         </View>
                     ) : (

@@ -372,7 +372,7 @@ function OnairosStep({
             {connected ? (
                 <View style={styles.onairosConnected}>
                     <Ionicons name="checkmark-circle" size={20} color={colors.foreground} />
-                    <Text style={styles.onairosConnectedText}>connected — max will use this</Text>
+                    <Text style={styles.onairosConnectedText}>connected. max will use this</Text>
                 </View>
             ) : (
                 <TouchableOpacity
@@ -508,7 +508,7 @@ function PriorityStep({
     };
     return (
         <View style={{ alignSelf: 'stretch' }}>
-            <Text style={styles.helperLine}>tap in order — first = top priority</Text>
+            <Text style={styles.helperLine}>tap in order. first one is top priority</Text>
             <View style={{ gap: 10, marginTop: spacing.lg }}>
                 {PRIORITIES.map((p) => {
                     const idx = value.indexOf(p.id);

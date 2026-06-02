@@ -119,7 +119,7 @@ export default function FaceScanArchiveScreen() {
                     <Text style={styles.hint}>
                         {isPremium
                             ? 'Premium: 1 three-photo scan per day.'
-                            : 'Basic: one face scan included (signup) — no additional scans on this plan.'}
+                            : 'Basic: one face scan, included at signup. No more scans on this plan.'}
                     </Text>
                     {scans.map((s) => (
                         <TouchableOpacity

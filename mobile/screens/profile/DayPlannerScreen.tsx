@@ -201,7 +201,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
       const msg =
         typeof error?.response?.data?.detail === 'string'
           ? error.response.data.detail
-          : error?.message || 'Could not update your plan — try rephrasing.';
+          : error?.message || 'Couldn\'t update your plan. Try rephrasing.';
       setChatReply(msg);
     } finally {
       setChatLoading(false);
@@ -250,7 +250,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             <Text style={styles.kicker}>PLANNER</Text>
             <Text style={styles.title}>Your week</Text>
             <Text style={styles.subhead}>
-              Your real week — sleep, work and plans. Tap any day to shape it, and Max fits your
+              Your real week: sleep, work, and plans. Tap any day to shape it, and Max fits your
               routines into the open time.
             </Text>
           </View>
@@ -279,7 +279,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               <View style={{ flex: 1 }}>
                 <Text style={styles.chatTitle}>Ask Max to rearrange</Text>
                 <Text style={styles.chatSub}>
-                  Describe a change in plain words — Max updates the right days for you.
+                  Describe a change in plain words. Max updates the right days for you.
                 </Text>
               </View>
             </View>

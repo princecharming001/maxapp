@@ -147,7 +147,7 @@ export default function FaceScanScreen() {
                         setAnalyzing(false);
                         Alert.alert(
                             'Try again',
-                            'Your photos need another pass. Tap Analyze again — and don\'t worry, closing the app next time won\'t interrupt it. Enable SMS coaching in Profile for a more integrated experience.',
+                            'Your photos need another pass. Tap Analyze again. Closing the app next time won\'t stop it. You can turn on SMS coaching in Profile.',
                         );
                         return;
                     }
@@ -171,7 +171,7 @@ export default function FaceScanScreen() {
             if (fromForeground) {
                 Alert.alert(
                     'Pick up where you left off',
-                    'Don\'t worry — you can close the app anytime, your analysis keeps running. Open Results from your profile, or tap Analyze again. For a more integrated experience, enable SMS coaching in Profile.',
+                    'You can close the app anytime. Your analysis keeps running. Open Results from your profile, or tap Analyze again. You can turn on SMS coaching in Profile.',
                 );
             }
         },

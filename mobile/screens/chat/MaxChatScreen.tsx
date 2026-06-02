@@ -378,7 +378,7 @@ export default function MaxChatScreen() {
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: serverMsg || 'Something went wrong — try sending again in a moment.' },
+                { role: 'assistant', content: serverMsg || 'Something went wrong. Try sending that again in a sec.' },
             ]);
         } finally {
             setLoading(false);
@@ -484,7 +484,7 @@ export default function MaxChatScreen() {
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: serverMsg || 'Something went wrong — try sending again in a moment.' },
+                { role: 'assistant', content: serverMsg || 'Something went wrong. Try sending that again in a sec.' },
             ]);
         }
         finally { setLoading(false); }

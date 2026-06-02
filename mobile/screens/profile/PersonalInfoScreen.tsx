@@ -96,7 +96,7 @@ export default function PersonalInfoScreen() {
       const nextName = trimmedUsername || '(remove username)';
       Alert.alert(
         'Change username?',
-        `You're about to set your username to "${nextName}". You can only change your username once every 2 weeks after this — make sure it's what you want.`,
+        `You're about to set your username to "${nextName}". You can only change it once every 2 weeks after this, so make sure it's what you want.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {

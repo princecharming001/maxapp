@@ -759,7 +759,7 @@ export default function MasterScheduleScreen() {
           </View>
           <Text style={styles.emptyTitleMinimal}>No schedules yet</Text>
           <Text style={styles.emptySubtitleMinimal}>
-            Start a plan from a Maxx on Home — it will appear here when active.
+            Start a plan from a Maxx on Home. It shows up here once it&apos;s active.
           </Text>
           <TouchableOpacity style={styles.minimalBtn} onPress={goHome} activeOpacity={0.65}>
             <Text style={styles.minimalBtnText}>Go to Home</Text>

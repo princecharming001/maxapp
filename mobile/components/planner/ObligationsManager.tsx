@@ -156,7 +156,7 @@ export default function ObligationsManager({
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Commitments</Text>
           <Text style={styles.sub}>
-            Work, classes, a commute — anything that recurs. Set which days each lands on; Max plans
+            Work, classes, a commute, anything that recurs. Set which days each lands on and Max plans
             around them.
           </Text>
         </View>

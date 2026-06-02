@@ -134,8 +134,8 @@ export default function MyProductsScreen() {
                 }
             >
                 <Text style={styles.lede}>
-                    Curated for your routines. Pull down to refresh after editing
-                    your lifestyle.
+                    The products your routine actually calls for. Pull down to
+                    refresh after you change your plan.
                 </Text>
 
                 {isLoading ? (

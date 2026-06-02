@@ -180,7 +180,7 @@ export default function NewThreadV2Screen() {
                     <View style={[styles.card, styles.cardSecond]}>
                         <Text style={styles.groupLabel}>Optional</Text>
                         <Text style={styles.label}>Tags</Text>
-                        <Text style={styles.hint}>Comma-separated — helps people find your thread.</Text>
+                        <Text style={styles.hint}>Comma-separated. Helps people find your thread.</Text>
                         <TextInput
                             style={styles.input}
                             placeholder="jaw, skin, hair…"

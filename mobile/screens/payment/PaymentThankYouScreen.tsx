@@ -92,10 +92,10 @@ export default function PaymentThankYouScreen() {
                 <View style={styles.iconWrap}>
                     <Ionicons name="checkmark-circle" size={72} color={colors.success} />
                 </View>
-                <Text style={styles.title}>{paid ? 'You’re in' : 'Thanks — almost there'}</Text>
+                <Text style={styles.title}>{paid ? 'You’re in' : 'Thanks. Almost there'}</Text>
                 <Text style={styles.subtitle}>
                     {paid
-                        ? 'Your subscription is active. Everything in Max is unlocked for you.'
+                        ? 'Your subscription is active. The full app is yours now.'
                         : 'If you just paid, Stripe may need a moment to tell us. Tap refresh below, or wait a few seconds and try again.'}
                 </Text>
 

@@ -15,7 +15,7 @@ const BASIC_FEATURES = [
 ];
 
 const PREMIUM_FEATURES = [
-    'Chatbot Pro — deeper, more nuanced coaching',
+    'Chatbot Pro: deeper, sharper coaching',
     '3 active programs',
     'Daily face scans',
     'Full course library',
