@@ -254,16 +254,23 @@ async def edit_task(
 async def delete_task(
     schedule_id: str,
     task_id: str,
+    scope: str = "instance",
     current_user: dict = Depends(require_paid_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a task from the schedule"""
+    """Delete a task from the schedule.
+
+    scope="instance" (default) removes the single tapped occurrence;
+    scope="series" removes the whole recurring part across every day and
+    keeps it from coming back on re-expansion.
+    """
     try:
         result = await schedule_service.delete_task(
             user_id=current_user["id"],
             schedule_id=schedule_id,
             task_id=task_id,
             db=db,
+            scope=scope,
         )
         return result
     except ValueError as e:

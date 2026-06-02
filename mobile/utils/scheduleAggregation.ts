@@ -53,7 +53,67 @@ export type MergedScheduleTask = {
   scheduleId: string;
   moduleLabel: string;
   moduleColor: string;
+  /** Recurring identity shared across days. Used to remove a whole routine part. */
+  catalog_id?: string;
 };
+
+/** One distinct recurring part of the routine (collapsed across every day it
+ *  appears). Backs the plain-language routine review where the user prunes
+ *  parts they don't want. */
+export type RoutinePart = {
+  key: string;
+  scheduleId: string;
+  /** A representative instance's task_id — series-remove resolves the rest. */
+  taskId: string;
+  catalogId?: string;
+  title: string;
+  description: string;
+  time: string;
+  durationMinutes: number;
+  moduleLabel: string;
+  moduleColor: string;
+  /** How many days this part shows up (drives "most days" vs "once a week" copy). */
+  dayCount: number;
+};
+
+/** Collapse the merged per-day tasks into the distinct recurring parts of the
+ *  routine. Dedupes by (schedule, catalog_id) so "SPF every morning" is one
+ *  row, not 14. Skips the work/sleep life pseudo-tasks. */
+export function aggregateRoutineParts(byDate: Record<string, MergedScheduleTask[]>): RoutinePart[] {
+  const map = new Map<string, RoutinePart>();
+  const dates = Object.keys(byDate).sort();
+  for (const d of dates) {
+    for (const t of byDate[d] || []) {
+      if (t.scheduleId === 'life') continue; // work / sleep aren't routine parts
+      const ident = (t.catalog_id && String(t.catalog_id)) || normalizeRoutineTitle(t.title || '');
+      const key = `${t.scheduleId}|${ident}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.dayCount += 1;
+        if ((t.description || '').length > existing.description.length) {
+          existing.description = t.description || '';
+        }
+        continue;
+      }
+      map.set(key, {
+        key,
+        scheduleId: t.scheduleId,
+        taskId: t.task_id,
+        catalogId: t.catalog_id,
+        title: t.title || '',
+        description: t.description || '',
+        time: t.time || '',
+        durationMinutes: t.duration_minutes || 0,
+        moduleLabel: t.moduleLabel,
+        moduleColor: t.moduleColor,
+        dayCount: 1,
+      });
+    }
+  }
+  return Array.from(map.values()).sort(
+    (a, b) => (a.time || '').localeCompare(b.time || '') || a.title.localeCompare(b.title),
+  );
+}
 
 /** When the AI puts skincare copy on the hair schedule (or vice versa), infer display module from task text. */
 const SKIN_TASK_RE =

@@ -3009,29 +3009,78 @@ class ScheduleService:
         return {"status": "updated", "task": updated_task}
 
     async def delete_task(
-        self, user_id: str, schedule_id: str, task_id: str, db: AsyncSession
+        self, user_id: str, schedule_id: str, task_id: str, db: AsyncSession, scope: str = "instance"
     ) -> dict:
+        """Remove a task from a schedule.
+
+        scope="instance" (default): drop the single occurrence the user
+        tapped — each day's copy carries its own task_id, so this only
+        affects one day.
+
+        scope="series": the user pruned a recurring part they don't want at
+        all. Resolve that task's catalog_id, drop EVERY occurrence across all
+        days, and record the catalog_id in schedule_context.excluded_catalog_ids
+        so a later re-expansion (regenerate_active_schedules) never resurrects
+        it. Falls back to instance behaviour for one-off tasks that have no
+        catalog_id.
+        """
         schedule = await self._load_schedule(schedule_id, user_id, db)
         if not schedule:
             raise ValueError("Schedule not found")
 
-        deleted = False
         days = schedule.days or []
+
+        # Resolve the catalog_id of the tapped task so a series removal can
+        # match every day's instance (they each have a distinct task_id).
+        target_catalog_id = None
         for day in days:
-            original_count = len(day.get("tasks", []))
-            day["tasks"] = [t for t in day.get("tasks", []) if t.get("task_id") != task_id]
-            if len(day["tasks"]) < original_count:
-                deleted = True
+            for task in day.get("tasks", []):
+                if task.get("task_id") == task_id:
+                    target_catalog_id = task.get("catalog_id")
+                    break
+            if target_catalog_id is not None:
                 break
 
-        if not deleted:
+        series = (scope or "instance").lower() == "series" and bool(target_catalog_id)
+
+        removed = 0
+        if series:
+            for day in days:
+                before = len(day.get("tasks", []))
+                day["tasks"] = [
+                    t for t in day.get("tasks", []) if t.get("catalog_id") != target_catalog_id
+                ]
+                removed += before - len(day["tasks"])
+            # Durable exclusion: keep the pruned part gone through every future
+            # re-expansion, not just the days currently materialised.
+            ctx = dict(schedule.schedule_context or {})
+            excluded = list(ctx.get("excluded_catalog_ids") or [])
+            if target_catalog_id not in excluded:
+                excluded.append(target_catalog_id)
+            ctx["excluded_catalog_ids"] = excluded
+            schedule.schedule_context = ctx
+            flag_modified(schedule, "schedule_context")
+        else:
+            for day in days:
+                before = len(day.get("tasks", []))
+                day["tasks"] = [t for t in day.get("tasks", []) if t.get("task_id") != task_id]
+                if len(day["tasks"]) < before:
+                    removed += before - len(day["tasks"])
+                    break
+
+        if removed == 0:
             raise ValueError("Task not found in schedule")
 
         schedule.days = days
         flag_modified(schedule, "days")
         schedule.updated_at = datetime.utcnow()
         await db.commit()
-        return {"status": "deleted"}
+        return {
+            "status": "deleted",
+            "scope": "series" if series else "instance",
+            "removed_count": removed,
+            "catalog_id": target_catalog_id if series else None,
+        }
 
     async def get_maxx_schedule(self, user_id: str, maxx_id: str, db: AsyncSession) -> Optional[dict]:
         """Get the user's active schedule for a specific maxx."""

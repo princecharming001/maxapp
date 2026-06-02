@@ -270,6 +270,12 @@ async def regenerate_active_schedules(
         for i, d in enumerate(fixed_new):
             d["date"] = (today + _td(days=i)).isoformat()
 
+        # Honor parts the user explicitly pruned (scope="series" delete) so a
+        # re-expansion never resurrects a habit they killed.
+        excluded = set((sched.schedule_context or {}).get("excluded_catalog_ids") or [])
+        if excluded:
+            fixed_new = _drop_excluded_tasks(fixed_new, excluded)
+
         merged = _merge_preserving_status(old_days=list(sched.days or []), new_days=fixed_new)
         # Only update if anything actually changed (cheap to compare via
         # the fingerprints we already build; here we just compare lengths
@@ -290,6 +296,21 @@ async def regenerate_active_schedules(
         })
     if any(s["changed"] for s in out):
         await db.flush()
+    return out
+
+
+def _drop_excluded_tasks(days: list[dict], excluded: set[str]) -> list[dict]:
+    """Strip tasks whose catalog_id the user pruned (scope="series" delete).
+
+    Used after a fresh skeleton expansion so a part the user explicitly
+    removed stays gone across regenerations. Returns shallow-copied days so
+    the caller's input isn't mutated."""
+    if not excluded:
+        return days
+    out: list[dict] = []
+    for d in days:
+        tasks = [t for t in (d.get("tasks") or []) if t.get("catalog_id") not in excluded]
+        out.append({**d, "tasks": tasks})
     return out
 
 
@@ -376,6 +397,21 @@ async def adapt_and_persist(
         wake_time=wake,
         sleep_time=sleep,
     )
+
+    # An adapt is an EXPLICIT user request, so unlike a silent regen it must
+    # NOT strip parts. Instead reconcile the durable exclusion set: if Max
+    # brought a previously-pruned part back into the schedule, the user clearly
+    # wants it, so stop excluding it. Parts still absent stay excluded so the
+    # next regen won't resurrect them.
+    excluded = list((schedule_row.schedule_context or {}).get("excluded_catalog_ids") or [])
+    if excluded:
+        present = {t.get("catalog_id") for d in result.days for t in (d.get("tasks") or [])}
+        kept = [cid for cid in excluded if cid not in present]
+        if kept != excluded:
+            schedule_row.schedule_context = {
+                **(schedule_row.schedule_context or {}),
+                "excluded_catalog_ids": kept,
+            }
 
     schedule_row.days = result.days
     schedule_row.adapted_count = (schedule_row.adapted_count or 0) + 1

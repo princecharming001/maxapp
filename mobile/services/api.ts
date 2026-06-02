@@ -1531,8 +1531,12 @@ class ApiService {
         return response.data;
     }
 
-    async deleteScheduleTask(scheduleId: string, taskId: string) {
-        const response = await this.client.delete(`schedules/${scheduleId}/tasks/${taskId}`);
+    async deleteScheduleTask(scheduleId: string, taskId: string, scope: 'instance' | 'series' = 'instance') {
+        // scope="series" removes the whole recurring part across every day and
+        // keeps it from coming back on re-expansion (used by the routine review).
+        const response = await this.client.delete(`schedules/${scheduleId}/tasks/${taskId}`, {
+            params: { scope },
+        });
         return response.data;
     }
 

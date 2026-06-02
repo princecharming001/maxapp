@@ -16,7 +16,14 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
-import { buildMaxxMaps, mergeSchedules, type MergedScheduleTask } from '../../utils/scheduleAggregation';
+import {
+  buildMaxxMaps,
+  mergeSchedules,
+  aggregateRoutineParts,
+  type MergedScheduleTask,
+  type RoutinePart,
+} from '../../utils/scheduleAggregation';
+import RoutineReviewSheet from '../../components/RoutineReviewSheet';
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
@@ -119,6 +126,31 @@ function patchSchedulesFullTaskStatus(
   };
 }
 
+/** Optimistically drop a whole recurring part (every day's instance) from the
+ *  active/full cache so the routine review feels instant. Matches by catalog_id
+ *  when present (the recurring identity), else falls back to the single task. */
+function removeSeriesFromSchedulesFullCache(
+  data: ActiveSchedulesFullCache | undefined,
+  scheduleId: string,
+  catalogId: string | undefined,
+  taskId: string,
+): ActiveSchedulesFullCache | undefined {
+  if (!data?.schedules?.length) return data;
+  return {
+    ...data,
+    schedules: data.schedules.map((s) => {
+      if (s.id !== scheduleId) return s;
+      const days = (s.days || []).map((day: { tasks?: any[]; [k: string]: unknown }) => ({
+        ...day,
+        tasks: (day.tasks || []).filter((t: any) =>
+          catalogId ? t.catalog_id !== catalogId : t.task_id !== taskId,
+        ),
+      }));
+      return { ...s, days };
+    }),
+  };
+}
+
 function mergeScheduleStreakFromToggleResponse(
   data: ActiveSchedulesFullCache | undefined,
   res: { schedule_streak?: { current?: number; today_date?: string; last_perfect_date?: string | null } },
@@ -200,6 +232,105 @@ export default function MasterScheduleScreen() {
   const merged = useMemo(
     () => mergeSchedules(schedules, maxxLabels, maxxColorMap),
     [schedules, maxxLabels, maxxColorMap],
+  );
+
+  // --- Plain-language routine review (#50) -------------------------------
+  // The schedule is generated lazily by the coach, so the first time a fresh
+  // (not-yet-reviewed) schedule shows up here we walk the user through it in
+  // human terms and let them prune parts that don't fit. "Reviewed" is tracked
+  // per schedule id so a brand-new Maxx later re-surfaces just its new parts.
+  const reviewStorageKey = user?.id ? `@routine_reviewed_schedule_ids_v1:${user.id}` : '';
+  const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
+  const [reviewedLoaded, setReviewedLoaded] = useState(false);
+  const [reviewActive, setReviewActive] = useState(false);
+  const reviewShownRef = useRef(false);
+
+  const activeScheduleIds = useMemo(
+    () => schedules.map((s: any) => String(s.id)).filter(Boolean),
+    [schedules],
+  );
+  const routineParts = useMemo(() => aggregateRoutineParts(merged.byDate), [merged.byDate]);
+
+  useEffect(() => {
+    if (!reviewStorageKey) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await getItemAsync(reviewStorageKey);
+        const arr = raw ? JSON.parse(raw) : [];
+        if (!cancelled) setReviewedIds(new Set(Array.isArray(arr) ? arr.map(String) : []));
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setReviewedLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reviewStorageKey]);
+
+  useEffect(() => {
+    if (reviewShownRef.current) return;
+    if (!reviewedLoaded || loading) return;
+    if (!user?.is_paid) return;
+    if (activeScheduleIds.length === 0 || routineParts.length === 0) return;
+    if (activeScheduleIds.some((id) => !reviewedIds.has(id))) {
+      reviewShownRef.current = true;
+      setReviewActive(true);
+    }
+  }, [reviewedLoaded, loading, user?.is_paid, activeScheduleIds, routineParts.length, reviewedIds]);
+
+  const handleRemovePart = useCallback(
+    (part: RoutinePart) => {
+      const previous = queryClient.getQueryData(queryKeys.schedulesActiveFull) as
+        | ActiveSchedulesFullCache
+        | undefined;
+      queryClient.setQueryData(queryKeys.schedulesActiveFull, (old) =>
+        removeSeriesFromSchedulesFullCache(
+          old as ActiveSchedulesFullCache | undefined,
+          part.scheduleId,
+          part.catalogId,
+          part.taskId,
+        ),
+      );
+      void (async () => {
+        try {
+          await api.deleteScheduleTask(part.scheduleId, part.taskId, 'series');
+        } catch (e) {
+          console.error('remove routine part', e);
+          queryClient.setQueryData(queryKeys.schedulesActiveFull, previous);
+        }
+      })();
+    },
+    [queryClient],
+  );
+
+  const handleDoneReview = useCallback(() => {
+    setReviewActive(false);
+    if (!reviewStorageKey) return;
+    const next = new Set(reviewedIds);
+    for (const id of activeScheduleIds) next.add(id);
+    setReviewedIds(next);
+    void setItemAsync(reviewStorageKey, JSON.stringify(Array.from(next))).catch(() => undefined);
+  }, [reviewStorageKey, reviewedIds, activeScheduleIds]);
+
+  // "Change with Max" — anything beyond a clean cut (move it, swap it, make it
+  // easier) is a conversation, so hand the part to the coach instead of
+  // building a parallel editor.
+  const handleTweakPart = useCallback(
+    (part: RoutinePart) => {
+      setReviewActive(false);
+      const cleanTitle = stripDuplicateModulePrefix(part.title, part.moduleLabel);
+      const initQuestion = `can you change "${cleanTitle}" in my routine?`;
+      const initContext = `task_help:${part.scheduleId}:${part.taskId}`;
+      if (isTab) {
+        navigation.navigate('Chat', { initQuestion, initContext });
+      } else {
+        navigation.navigate('Main', { screen: 'Chat', params: { initQuestion, initContext } });
+      }
+    },
+    [isTab, navigation],
   );
 
   const refetchAll = useCallback(async () => {
@@ -787,6 +918,15 @@ export default function MasterScheduleScreen() {
           })}
         </ScrollView>
       </View>
+
+      <RoutineReviewSheet
+        visible={reviewActive}
+        parts={routineParts}
+        totalDays={merged.dates.length}
+        onRemovePart={handleRemovePart}
+        onTweakPart={handleTweakPart}
+        onDone={handleDoneReview}
+      />
     </View>
   );
 }
