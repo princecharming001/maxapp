@@ -1034,8 +1034,16 @@ def _busy_intervals_from_ctx(user_ctx: dict[str, Any]) -> list[tuple[int, int]]:
     """Collect the user's fixed daily busy windows as (start_min, end_min).
 
     Two sources, both optional:
-      1. Work/school hours — only when work_schedule == "fixed" and both
-         work_start/work_end parse and end > start.
+      1. Work/school hours — whenever work_start/work_end parse and end >
+         start, REGARDLESS of the work_schedule label. A user who told us
+         concrete hours (06:00-12:00) has those hours blocked whether they
+         called the job "fixed" or "flexible"; placing a routine task mid-shift
+         is forcing looksmaxxing into time the user already gave away. The
+         null-gate keeps this safe: real flexible/no-work users carry null
+         work_start/end (the planner migrates a fixed block into an obligation
+         and nulls these), so nothing is blocked for them. (Pre-Slice-1 this
+         only fired for work_schedule == "fixed", so flexible shift workers
+         got no protection at all.)
       2. obligations — a list of {label, start "HH:MM", end "HH:MM"} dicts
          the user added in the Day Planner. Each valid entry becomes a busy
          window.
@@ -1050,12 +1058,10 @@ def _busy_intervals_from_ctx(user_ctx: dict[str, Any]) -> list[tuple[int, int]]:
 
     raw: list[tuple[int, int]] = []
 
-    work_sched = (user_ctx.get("work_schedule") or "").strip().lower()
-    if work_sched == "fixed":
-        ws = _parse_time_field(user_ctx.get("work_start"))
-        we = _parse_time_field(user_ctx.get("work_end"))
-        if ws is not None and we is not None and we > ws:
-            raw.append((ws, we))
+    ws = _parse_time_field(user_ctx.get("work_start"))
+    we = _parse_time_field(user_ctx.get("work_end"))
+    if ws is not None and we is not None and we > ws:
+        raw.append((ws, we))
 
     obligations = user_ctx.get("obligations")
     if isinstance(obligations, list):

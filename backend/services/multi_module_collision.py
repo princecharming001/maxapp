@@ -7,6 +7,8 @@ Walks every active schedule for the user and applies these passes:
   2. Adjacent same-time push (5-min separation between any two tasks across modules)
   3. Cross-module antagonism split (microneedle + dermastamp → different days)
   4. Daily total cap enforcement (≤ HARD_CAP across all modules — demote lowest-intensity)
+  5. Busy-window eviction (opt-in via user_ctx) — re-place the merged day into
+     its FREE intervals so nothing sits inside the user's real work/commitments
 
 The LLM never reasons about this. Cheap and predictable.
 
@@ -188,13 +190,16 @@ def _evict_busy_windows(
     start_date: Any,
     day_count: int,
 ) -> None:
-    """Move any merged task that overlaps a fixed obligation clear of it.
+    """Re-place the merged task list into the day's FREE intervals.
 
-    Per day, resolves that weekday's busy windows (override → global) and walks
-    the cross-module task list in time order. A task landing inside a busy
-    window is repositioned: PREFER flush-before the window (if it still clears
-    the previous task) so a morning routine stays in the morning; otherwise push
-    to just after the window. Min-gap separation is preserved during the walk.
+    Per day, resolves that weekday's busy windows (override → global), subtracts
+    them from the waking day to get the free gaps, then assigns every
+    cross-module task to the free interval it currently sits nearest and packs
+    each interval in time order. A roomy interval (e.g. the whole evening) keeps
+    its tasks at their natural, spread-out times; a squeezed one (the morning
+    before a commute) compacts toward back-to-back so the WHOLE run — SPF
+    included — still lands before the obligation instead of spilling its last
+    step past the workday. Overflow from a full interval carries into the next.
     Strict no-op for any day with no busy windows. Mutates tasks in place.
     """
     from datetime import timedelta as _td
@@ -246,6 +251,16 @@ def _evict_busy_windows(
 
         busy_w = sorted((_to_work(s), _to_work(e)) for s, e in busy)
 
+        # Free space = the waking day minus the merged busy windows. Tasks are
+        # placed INTO these gaps rather than walked forward and patched, so a
+        # crowded morning compacts to fit before the commute instead of spilling
+        # its last step past the workday.
+        day_start_w = 0 if overnight else wake_min
+        day_end_w = sleep_rel if overnight else (wake_min + sleep_rel)
+        free = _free_intervals(busy_w, day_start_w, day_end_w)
+        if not free:
+            continue  # fully busy day (pathological) — leave tasks untouched
+
         items: list[dict] = []
         for days in schedules.values():
             if di < len(days):
@@ -253,37 +268,137 @@ def _evict_busy_windows(
         if not items:
             continue
 
-        items.sort(key=lambda t: _to_work(_time_to_min(t.get("time"))))
-        prev_end = -1
+        # Assign every cross-module task to the free interval it's nearest to,
+        # carrying its current time as the placement anchor.
+        groups: list[list[tuple[int, int, dict]]] = [[] for _ in free]
         for t in items:
             dur = max(1, int(t.get("duration_min") or t.get("duration_minutes") or 1))
-            start = _to_work(_time_to_min(t.get("time")))
-            if prev_end >= 0 and start < prev_end + MIN_TASK_GAP_MIN:
-                start = prev_end + MIN_TASK_GAP_MIN
-            # Settle against busy windows (a few iterations handle back-to-back blocks).
-            for _ in range(8):
-                win = _overlapping(start, dur, busy_w)
-                if win is None:
-                    break
-                before = win[0] - dur
-                floor = prev_end if prev_end >= 0 else 0
-                if before >= floor:
-                    start = before  # flush before the obligation — stays in the morning
-                    break
-                start = win[1]      # can't fit before → just after the obligation
-            new_clock = _to_clock_str(start)
-            if new_clock != t.get("time"):
-                t["time"] = new_clock
-            prev_end = start + dur
+            start_w = _to_work(_time_to_min(t.get("time")))
+            groups[_nearest_free(start_w, free)].append((start_w, dur, t))
+
+        # Pack each interval in time order. Anything that can't fit even when
+        # compacted overflows into the NEXT interval (a too-full morning sheds
+        # its lowest-priority extra into the afternoon, never into the commute).
+        carry: list[tuple[int, int, dict]] = []
+        for gi, (S, E) in enumerate(free):
+            entries = carry + groups[gi]
+            # Clamp anchors into [S, E] so the forward walk starts sensibly, then
+            # order by anchor to preserve each task's relative time-of-day.
+            entries = [(min(max(a, S), E), d, ref) for (a, d, ref) in entries]
+            entries.sort(key=lambda x: x[0])
+            placed, carry = _pack_interval(entries, S, E, MIN_TASK_GAP_MIN)
+            for start_w, ref in placed:
+                new_clock = _to_clock_str(start_w)
+                if new_clock != ref.get("time"):
+                    ref["time"] = new_clock
+        # Leftover carry (couldn't fit any interval) keeps its original time —
+        # safer than stacking at the day's end. The upstream daily-cap pass makes
+        # this practically unreachable for real users.
 
 
-def _overlapping(start: int, dur: int, windows: list[tuple[int, int]]) -> tuple[int, int] | None:
-    """First (s,e) window that the [start, start+dur) interval intersects."""
-    end = start + max(1, dur)
-    for s, e in windows:
-        if start < e and end > s:
-            return (s, e)
-    return None
+def _free_intervals(
+    busy_w: list[tuple[int, int]], day_start: int, day_end: int
+) -> list[tuple[int, int]]:
+    """[day_start, day_end] minus the busy windows → the free gaps to place in.
+
+    All inputs are in the day's working-minute space (clock for a day schedule,
+    minutes-since-wake for an overnight one). Returns [] if the day is fully
+    busy; the caller then leaves that day's tasks where they are.
+    """
+    free: list[tuple[int, int]] = []
+    cursor = day_start
+    for bs, be in sorted(busy_w):
+        bs = max(bs, day_start)
+        be = min(be, day_end)
+        if be <= bs:
+            continue
+        if bs > cursor:
+            free.append((cursor, bs))
+        cursor = max(cursor, be)
+    if cursor < day_end:
+        free.append((cursor, day_end))
+    return free
+
+
+def _nearest_free(cur: int, free: list[tuple[int, int]]) -> int:
+    """Index of the free interval holding `cur`, else the nearest by distance.
+
+    A task that currently sits INSIDE a busy window (a routine step the merge
+    shoved into the commute) gets assigned to the free interval whose edge it is
+    closest to — so a task that spilled just past the morning's end comes back
+    to the morning, while one near the window's far end flows to the evening.
+    """
+    best, best_d = 0, None
+    for i, (s, e) in enumerate(free):
+        if s <= cur < e:
+            return i
+        d = min(abs(cur - s), abs(cur - e))
+        if best_d is None or d < best_d:
+            best, best_d = i, d
+    return best
+
+
+def _pack_interval(
+    entries: list[tuple[int, int, dict]], S: int, E: int, gap: int
+) -> tuple[list[tuple[int, dict]], list[tuple[int, int, dict]]]:
+    """Place `entries` (each (anchor_start, dur, task_ref), sorted by anchor)
+    inside the free interval [S, E].
+
+    Two passes:
+      1. Natural forward walk anchored to each task's current time. If the run
+         already fits (last task ends by E), keep those times — a roomy interval
+         (e.g. the whole evening) stays at its real, spread-out times.
+      2. If the run overruns E, the interval is squeezed by the next busy window
+         (the classic crowded-morning-before-the-commute case). Compact: shrink
+         the inter-task gap toward back-to-back as needed, then left-align from
+         the natural earliest start, pulling tasks earlier toward S only as far
+         as required so the WHOLE run lands before E. This is what keeps a
+         squeezed morning routine — SPF included — before the commute instead of
+         dumping the last step past the workday.
+
+    Returns (placed, overflow): placed = [(start, ref)]; overflow = entries that
+    don't fit even compressed (handed to the next interval by the caller).
+    """
+    if not entries:
+        return [], []
+    durs = [d for _, d, _ in entries]
+    n = len(entries)
+
+    # Pass 1: natural forward walk.
+    walk: list[int] = []
+    cursor: int | None = None
+    for anchor, d, _ref in entries:
+        s = anchor if cursor is None else max(anchor, cursor + gap)
+        walk.append(s)
+        cursor = s + d
+    if walk[-1] + durs[-1] <= E:
+        return [(walk[i], entries[i][2]) for i in range(n)], []
+
+    # Pass 2: compact to fit before E.
+    total = sum(durs)
+    room = E - S
+    if n > 1:
+        max_gap = (room - total) // (n - 1)
+        g = gap if max_gap >= gap else max(0, max_gap)
+    else:
+        g = 0
+    span = total + g * (n - 1)
+    earliest = entries[0][0]
+    if span <= room:
+        start0 = max(S, min(earliest, E - span))
+    else:
+        start0 = S  # cannot fit even back-to-back; place what we can, overflow rest
+
+    placed: list[tuple[int, dict]] = []
+    overflow: list[tuple[int, int, dict]] = []
+    cursor = start0
+    for i, (anchor, d, ref) in enumerate(entries):
+        if cursor + d <= E:
+            placed.append((cursor, ref))
+            cursor += d + g
+        else:
+            overflow.append(entries[i])
+    return placed, overflow
 
 
 def _reindex(schedules: dict[str, list[dict]], day_count: int) -> list[list[tuple[str, dict]]]:

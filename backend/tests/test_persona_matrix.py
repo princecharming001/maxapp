@@ -595,22 +595,23 @@ def test_lock_exfoliation_never_with_actives(pkey):
     assert ok, f"{pkey}: {detail}"
 
 
-# --------------------------------------------------------------------------- #
-#  Known gaps — xfail today, flipped GREEN by the slice noted in each reason  #
-# --------------------------------------------------------------------------- #
-
-@pytest.mark.xfail(reason="Slice 1: flexible-worker work window is ignored today", strict=False)
-def test_gap_flexible_worker_respects_busy():
+# Slice 1 (constraint-aware placement) flipped these two from xfail GAPs to hard
+# locks: the engine now honors a FLEXIBLE worker's work window (not only
+# work_schedule=="fixed"), and a squeezed morning routine compacts to keep SPF
+# before the commute instead of spilling it past the workday.
+def test_lock_flexible_worker_respects_busy():
     ok, detail = score_respects_busy(PERSONAS_BY_KEY["sam_flexible"])
     assert ok, detail
 
 
-@pytest.mark.xfail(reason="Slice 1: a squeezed morning SPF is evicted past the workday instead "
-                          "of held before the commute", strict=False)
-def test_gap_morning_spf_survives_workday():
+def test_lock_morning_spf_survives_workday():
     ok, detail = score_spf_am(PERSONAS_BY_KEY["maya_9to5"])
     assert ok, detail
 
+
+# --------------------------------------------------------------------------- #
+#  Known gaps — xfail today, flipped GREEN by the slice noted in each reason  #
+# --------------------------------------------------------------------------- #
 
 @pytest.mark.xfail(reason="Slice 2: the live skeleton path has no week-1 load ramp", strict=False)
 def test_gap_load_ramps_week1_to_week2():

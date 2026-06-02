@@ -409,6 +409,7 @@ def _place_block(
             start_minute=win_start,
             block_id=block.id,
             not_with_same_day=block.not_with_same_day,
+            win_end=win_end,
         )
 
 
@@ -569,17 +570,27 @@ def _emit_tasks(
     start_minute: int,
     block_id: str,
     not_with_same_day: list[str],
+    win_end: int | None = None,
 ) -> None:
     """Append catalog_ids to day.tasks at sequential minutes.
     Drops a task if its catalog applies_when fails or contraindicated_when fires.
     Drops the WHOLE block for the day if any not_with_same_day task is already
     present.
+
+    When `win_end` is given and a multi-task block would overrun it under the
+    calm 15-min cadence, the inter-task gap is COMPRESSED so the last task still
+    starts within the window. The start never moves later than `start_minute`,
+    so a morning block stays in the morning (the slot's AM/PM half is preserved)
+    instead of stamping past the window end and getting cascaded later by the
+    validator's separation pass.
     """
     existing_ids = {t.get("catalog_id") for t in (day.get("tasks") or [])}
     if not_with_same_day and any(c in existing_ids for c in not_with_same_day):
         return
 
-    cur = start_minute
+    # Resolve which catalog_ids actually emit (the rest are gated out), so the
+    # window-fit math sees the real task count.
+    resolved = []
     for cid in catalog_ids:
         cat = get_task(maxx_id, cid)
         if cat is None:
@@ -592,6 +603,28 @@ def _emit_tasks(
             evaluate(e, user_state) for e in cat.contraindicated_when
         ):
             continue
+        resolved.append(cat)
+    if not resolved:
+        return
+
+    # Per-task advance. Default keeps a calm 15-minute minimum cadence (was 5 —
+    # too aggressive, produced 4-task notification storms in the 7-7:25am
+    # window). If the run would overrun `win_end`, shrink the gap uniformly so
+    # the whole block fits, pulling tasks earlier rather than past the window.
+    durs = [max(1, int(cat.duration_min)) for cat in resolved]
+    n = len(resolved)
+    steps = [max(int(cat.duration_min) + 1, 15) for cat in resolved]
+    if win_end is not None and n > 1:
+        natural_span = sum(steps[:-1])  # first start -> last start
+        if start_minute + natural_span > win_end:
+            room = max(0, win_end - start_minute)
+            body = sum(durs[:-1])  # back-to-back minimum (last-start floor)
+            g = (room - body) // (n - 1) if body <= room else 0
+            g = max(0, g)
+            steps = [durs[i] + g for i in range(n)]
+
+    cur = start_minute
+    for i, cat in enumerate(resolved):
         time_str = from_minutes(cur).strftime("%H:%M")
         # Emit BOTH duration_min and duration_minutes — mobile reads
         # `duration_minutes` (legacy LLM-path key); skeleton/validator
@@ -609,10 +642,7 @@ def _emit_tasks(
             "status": "pending",
             "intensity": float(cat.intensity),
         })
-        # 15-minute minimum gap between same-block tasks (was 5 — too
-        # aggressive, produced 4-task notification storms in the 7-7:25am
-        # window). Routines feel calmer at 15-min cadence.
-        cur += max(int(cat.duration_min) + 1, 15)
+        cur += steps[i]
 
 
 # --------------------------------------------------------------------------- #
