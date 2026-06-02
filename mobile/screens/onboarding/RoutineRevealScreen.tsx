@@ -96,6 +96,12 @@ export default function RoutineRevealScreen() {
         navigation.navigate('FeaturesIntro');
     };
 
+    // Nothing to reveal — render a blank backdrop while the effect above
+    // redirects, so the user never sees an empty "day one" frame.
+    if (tasks.length === 0) {
+        return <View style={s.container} />;
+    }
+
     if (phase === 'building') {
         return (
             <View style={[s.container, s.centered]}>
