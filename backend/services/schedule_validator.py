@@ -476,7 +476,10 @@ def validate_and_fix(
             wake_min=wake_min, overnight=overnight,
         )
 
-        # Daily task budget
+        # Daily task budget — with a week-1 on-ramp. Foundation steps are the
+        # floor; the OPTIONAL headroom layers in over the first two weeks for
+        # chill/beginner users, so week 1 stays gentle instead of dumping the
+        # full protocol on day 1. Sweatmode/advanced users see no ramp.
         if daily_task_budget:
             mn, mx = daily_task_budget
             if len(clean_tasks) < mn:
@@ -485,12 +488,17 @@ def validate_and_fix(
                     f"day {di+1}: {len(clean_tasks)} tasks < min {mn}",
                     day_index=di,
                 ))
-            if len(clean_tasks) > mx:
-                # Drop lowest-intensity (cosmetic) tasks beyond cap.
-                clean_tasks = _truncate_by_intensity(clean_tasks, maxx_id, mx)
+            ess_count = sum(
+                1 for t in clean_tasks
+                if set(t.get("tags") or []) & _ESSENTIAL_TAGS
+            )
+            eff_max = _ramped_daily_max(mx, di, ess_count, user_ctx)
+            if len(clean_tasks) > eff_max:
+                # Drop lowest-intensity (cosmetic) tasks beyond the day's cap.
+                clean_tasks = _truncate_by_intensity(clean_tasks, maxx_id, eff_max)
                 errors.append(ValidationError(
                     "soft", "above_max_tasks",
-                    f"day {di+1}: trimmed to budget max {mx}",
+                    f"day {di+1}: trimmed to budget max {eff_max}",
                     day_index=di,
                 ))
 
@@ -836,6 +844,55 @@ def _truncate_by_intensity(tasks: list[dict], maxx_id: str, cap: int) -> list[di
         kept = essentials + optional[:slots_left]
 
     return sorted(kept, key=lambda t: _parse_time_field(t["time"]) or 0)
+
+
+def _intensity_week1_optional_frac(user_ctx: dict[str, Any]) -> float:
+    """How much of the OPTIONAL daily load a user carries in week 1 (days 0-6).
+
+    1.0 = no on-ramp (week 1 already at full load); 0.0 = foundation-only week
+    1 (every optional active deferred to week 2). The foundation tasks (cleanse
+    / moisturize / SPF / the lift itself) are NEVER ramped away — only the
+    optional actives layer in over time, which is how a real coach onboards a
+    beginner. Explicit `intensity_preference` wins; absent that we infer from
+    how experienced the user says they are.
+    """
+    pref = str(user_ctx.get("intensity_preference") or "").strip().lower()
+    if pref == "sweatmode":
+        return 1.0
+    if pref == "chill":
+        return 0.0
+    if pref == "standard":
+        return 0.5
+    # No explicit preference: infer a sensible ramp from stated experience.
+    lvl = str(
+        user_ctx.get("routine_level") or user_ctx.get("experience_level") or ""
+    ).strip().lower()
+    if lvl == "advanced":
+        return 1.0
+    if lvl in ("beginner", "none", "basic"):
+        return 0.0
+    return 0.5
+
+
+def _ramped_daily_max(
+    base_max: int, day_index: int, ess_count: int, user_ctx: dict[str, Any]
+) -> int:
+    """Per-day task ceiling with a gentle week-1 on-ramp.
+
+    The foundation steps are always kept (`ess_count` is the hard floor); only
+    the OPTIONAL headroom (`base_max - ess_count`) ramps in. In week 1 a chill /
+    beginner user carries just a fraction of that headroom — often zero, i.e. a
+    foundation-only first week — growing to the full budget from week 2 on.
+    Sweatmode / advanced users get no ramp (full load from day 0). The result is
+    never below `ess_count` (foundation is sacred) nor above `base_max`.
+    """
+    if day_index >= 7:
+        return base_max
+    frac = _intensity_week1_optional_frac(user_ctx)
+    if frac >= 1.0:
+        return base_max
+    room = max(0, base_max - ess_count)
+    return min(base_max, ess_count + int(round(frac * room)))
 
 
 # Pairs of catalog_ids that must NOT appear on the same day.

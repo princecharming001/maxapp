@@ -111,8 +111,10 @@ async def generate_and_persist(
         d["date"] = (today + _td(days=i)).isoformat()
     # user_ctx for the busy-window eviction step: the merge re-packs the morning
     # and can shove a task into a fixed obligation; pass the user's rhythm +
-    # obligations (with resolved wake/sleep) so reconcile can clear them.
-    recon_ctx = {**ob_ctx, "wake_time": wake_time, "sleep_time": sleep_time}
+    # obligations (with resolved wake/sleep) so reconcile can clear them. Routed
+    # through merged_user_state so face-scan gap-fills (e.g. a scan-derived
+    # priority_order) reach the collision trimmer's maxx-priority tie-break.
+    recon_ctx = merged_user_state(ob_ctx, None, {"wake_time": wake_time, "sleep_time": sleep_time})
     other_actives = await _load_other_active_days(user_uuid, db, except_maxx=maxx_id)
     if other_actives:
         bundle = {**other_actives, maxx_id: days}

@@ -131,6 +131,7 @@ PERSONAS: list[Persona] = [
         state={
             "wake_window": ["06:00", "06:30"], "sleep_window": ["22:30", "23:00"],
             "wake_time": "06:15", "sleep_time": "22:45", "get_ready_time": "06:45",
+            "priority_order": ["skin", "hair", "body", "face_structure", "height"],
             "work_schedule": "fixed", "work_start": "09:00", "work_end": "17:00",
             "preferred_workout_window": ["17:30", "19:00"],
             "obligations": [{"label": "Commute", "start": "08:15", "end": "09:00", "days": "weekdays"}],
@@ -156,6 +157,7 @@ PERSONAS: list[Persona] = [
         state={
             "wake_window": ["05:30", "05:30"], "sleep_window": ["21:30", "21:30"],
             "wake_time": "05:30", "sleep_time": "21:30", "get_ready_time": "05:45",
+            "priority_order": ["body", "skin", "hair", "face_structure", "height"],
             "work_schedule": "flexible", "work_start": "06:00", "work_end": "12:00",
             **_skin("acne", "stable", "oily", routine_level="beginner"),
             **_fit("beginner", age=21, days_per_week=3, primary_goal="muscle"),
@@ -196,6 +198,7 @@ PERSONAS: list[Persona] = [
         state={
             "wake_window": ["07:00", "07:00"], "sleep_window": ["23:00", "23:00"],
             "wake_time": "07:00", "sleep_time": "23:00", "get_ready_time": "07:20",
+            "priority_order": ["skin", "hair", "body", "face_structure", "height"],
             "intensity_preference": "chill",
             **_skin("acne", "stable", "combination", routine_level="beginner"),
             **_hair(hair_type="straight", daily_styling=False),
@@ -216,6 +219,7 @@ PERSONAS: list[Persona] = [
         state={
             "wake_window": ["06:00", "06:00"], "sleep_window": ["22:30", "22:30"],
             "wake_time": "06:00", "sleep_time": "22:30", "get_ready_time": "06:20",
+            "priority_order": ["skin", "hair", "body", "face_structure", "height"],
             "intensity_preference": "sweatmode",
             **_skin("pigmentation", "stable", "normal", diet_open="yes_full",
                     routine_level="advanced", tret_history="experienced", dermastamp_owned=True),
@@ -269,7 +273,13 @@ def _pipeline(p: Persona) -> tuple[str, str, dict, dict]:
 
     bundle = copy.deepcopy(solo)
     if len(bundle) >= 2:
-        recon_ctx = {**p.state, "wake_time": wake, "sleep_time": sleep}
+        # Mirror the live path (schedule_runtime.generate_and_persist): the
+        # collision ctx flows through merged_user_state so face-scan gap-fills
+        # (e.g. a scan-derived priority_order) reach the trimmer. For personas
+        # that declare priority_order with no scan, this is byte-identical to
+        # the old {**p.state, wake, sleep}.
+        from services.user_context_service import merged_user_state
+        recon_ctx = merged_user_state(p.state, None, {"wake_time": wake, "sleep_time": sleep})
         bundle = reconcile_schedules(bundle, user_ctx=recon_ctx, start_date=START)
 
     out = (wake, sleep, solo, bundle)
@@ -405,7 +415,14 @@ def score_load_ramp(p: Persona) -> tuple[bool, str]:
     Measured on the SOLO top-maxx plan, not the reconciled bundle — the
     cross-module daily cap pins bundle totals near TARGET_DAILY_TOTAL on every
     day, which would mask a real per-routine on-ramp.
+
+    The strong on-ramp (clearing the 0.8 bar) is expected only for users who
+    asked to take it easy — chill intensity or a beginner. Advanced/sweatmode
+    users intentionally start at full load, so the dimension is n/a for them.
     """
+    from services.schedule_validator import _intensity_week1_optional_frac
+    if _intensity_week1_optional_frac(p.state) > 0.0:
+        return (True, "n/a (full-load start: advanced/sweatmode/intermediate)")
     _, _, solo, _ = _pipeline(p)
     days = solo.get(p.maxxes[0], [])
     totals = [len(d.get("tasks") or []) for d in days]
@@ -418,24 +435,34 @@ def score_load_ramp(p: Persona) -> tuple[bool, str]:
 
 
 def score_priority_respected(p: Persona) -> tuple[bool, str]:
-    """The #1 maxx must not be the worst-hit by reconcile (retention)."""
+    """When a multi-maxx day is over-full, the scarce OPTIONAL slots must go to
+    the user's higher-priority maxxes first.
+
+    We count KEPT OPTIONAL tasks per maxx (essentials are always protected, so
+    they reveal nothing about priority — only the contested optionals do) and
+    require the #1 maxx to keep at least as many as every lower-priority maxx.
+    Total-task retention was the old metric, but it's a tautology (the top is
+    always >= the min) AND it's confounded by essentials (skin is mostly
+    protected essentials, so it always "wins" regardless of priority). The
+    optional count is the honest signal: without priority-aware trimming a
+    fitness-first user (Sam) keeps 4 fit optionals vs 14 skin — the engine
+    ignores his declared #1. Lever C's round-robin flips that."""
     if len(p.maxxes) < 2:
         return (True, "n/a (single maxx)")
-    _, _, solo, bundle = _pipeline(p)
+    from services.schedule_validator import _ESSENTIAL_TAGS
+    _, _, _, bundle = _pipeline(p)
 
-    def total(days: list[dict]) -> int:
-        return sum(len(d.get("tasks") or []) for d in days)
+    def opt_count(days: list[dict]) -> int:
+        return sum(
+            1 for d in days for t in (d.get("tasks") or [])
+            if not (set(t.get("tags") or []) & _ESSENTIAL_TAGS)
+        )
 
-    ret = {}
-    for mid in p.maxxes:
-        s = total(solo.get(mid, []))
-        b = total(bundle.get(mid, []))
-        ret[mid] = (b / s) if s else 1.0
+    kept = {mid: opt_count(bundle.get(mid, [])) for mid in p.maxxes}
     top = p.maxxes[0]
-    worst = min(ret.values())
-    passed = ret[top] >= worst - 1e-9
-    rstr = ", ".join(f"{m}={ret[m]:.2f}" for m in p.maxxes)
-    return (passed, f"top={top} retention[{rstr}]")
+    passed = all(kept[top] >= kept[m] for m in p.maxxes[1:])
+    kstr = ", ".join(f"{m}={kept[m]}" for m in p.maxxes)
+    return (passed, f"top={top} kept-optionals[{kstr}]")
 
 
 def _skin_tasks(p: Persona, cid: str):
@@ -495,6 +522,12 @@ def score_beginner_retinoid_ramp(p: Persona) -> tuple[bool, str]:
     rows = _skin_tasks(p, "skin.retinoid_pm")
     if rows is None or not rows:
         return (True, "n/a")
+    # A beginner builds retinoid up (start low, ramp). An experienced user
+    # (sweatmode/advanced — full-load start) keeps their established cadence,
+    # so a flat week1==week2 is correct for them, not a gap.
+    from services.schedule_validator import _intensity_week1_optional_frac
+    if _intensity_week1_optional_frac(p.state) > 0.0:
+        return (True, "n/a (experienced user keeps an established cadence)")
     w1 = sum(1 for di, _ in rows if (di or 0) < 7)
     w2 = sum(1 for di, _ in rows if (di or 0) >= 7)
     passed = w1 < w2
@@ -509,17 +542,21 @@ DIMENSIONS = {
     "under_cap": (score_under_cap, False, ""),
     "no_time_collisions": (score_no_time_collisions, False, ""),
     "respects_busy": (score_respects_busy, False, ""),
-    "load_ramp": (score_load_ramp, True, "Slice 2"),
-    # Informational only for now: a faithful priority gate depends on Slice 2's
-    # optional-slot-allocation design, and none of today's personas trigger the
-    # antagonism path (hair.microneedle never schedules for the advanced profile).
-    # Slice 2 adds priority-aware resolution + a persona that deterministically
-    # exercises it, and promotes this to a hard assert then.
+    # Slice 2 flipped this GREEN: chill/beginner users now get a real week-1
+    # on-ramp on the live skeleton path (n/a for full-load advanced/sweatmode).
+    "load_ramp": (score_load_ramp, False, ""),
+    # Slice 2 made this real + GREEN: collision trimming now hands scarce optional
+    # slots out round-robin by the user's declared priority_order, so the #1 maxx
+    # keeps >= optionals than every lower-priority one. Sam (fitness-first) is the
+    # deterministic proof — priority-blind trimming kept 4 fit vs 14 skin; the
+    # round-robin flips it to 11/7. Now a hard lock (test_lock_priority_respected).
     "priority_respected": (score_priority_respected, False, ""),
     "retinoid_pm": (score_retinoid_pm, False, ""),
     "spf_am": (score_spf_am, False, ""),
     "exfoliation_spacing": (score_exfoliation_spacing, False, ""),
-    "beginner_retinoid_ramp": (score_beginner_retinoid_ramp, True, "Slice 2"),
+    # Slice 2 flipped this GREEN: a beginner's retinoid builds up week1<week2
+    # (n/a for experienced users who keep an established cadence).
+    "beginner_retinoid_ramp": (score_beginner_retinoid_ramp, False, ""),
 }
 
 
@@ -609,20 +646,110 @@ def test_lock_morning_spf_survives_workday():
     assert ok, detail
 
 
-# --------------------------------------------------------------------------- #
-#  Known gaps — xfail today, flipped GREEN by the slice noted in each reason  #
-# --------------------------------------------------------------------------- #
-
-@pytest.mark.xfail(reason="Slice 2: the live skeleton path has no week-1 load ramp", strict=False)
-def test_gap_load_ramps_week1_to_week2():
+# Slice 2 (personalization signals) flipped these two from xfail GAPs to hard
+# locks: the live skeleton path now gives a chill/beginner user a real week-1
+# on-ramp (foundation first, actives layer in from week 2), and a beginner's
+# retinoid builds up (week 1 lighter than week 2) instead of running flat from
+# day 0. Both are driven by the new intensity_preference signal (with an
+# experience fallback), so advanced/sweatmode users still start at full load.
+def test_lock_load_ramps_week1_to_week2():
     ok, detail = score_load_ramp(PERSONAS_BY_KEY["ravi_beginner"])
     assert ok, detail
 
 
-@pytest.mark.xfail(reason="Slice 2: retinoid runs at a flat weekly rate, no beginner ramp", strict=False)
-def test_gap_beginner_retinoid_ramps():
+def test_lock_beginner_retinoid_ramps():
     ok, detail = score_beginner_retinoid_ramp(PERSONAS_BY_KEY["ravi_beginner"])
     assert ok, detail
+
+
+# Slice 2 also made multi-module collision honor the user's DECLARED maxx
+# priority: when a day is over-full, the scarce optional slots are handed out
+# round-robin in priority order instead of by raw intensity. Sam declares
+# fitness #1, but skin owns the higher-intensity optionals — priority-blind
+# trimming keeps 4 fit optionals vs 14 skin (ignoring his #1); the round-robin
+# flips that to fit=11/skin=7. Lock it for every multi-maxx persona (single-maxx
+# returns n/a). This dimension was a no-op tautology before Slice 2.
+@pytest.mark.parametrize("pkey", ["maya_9to5", "sam_flexible", "ravi_beginner", "alex_advanced"])
+def test_lock_priority_respected(pkey):
+    ok, detail = score_priority_respected(PERSONAS_BY_KEY[pkey])
+    assert ok, f"{pkey}: {detail}"
+
+
+# Slice 2 / Lever D — a finished face scan should bias generation even when the
+# user never answered the priority question. The scan denormalizes
+# `facial_scan_summary.suggested_modules` (weakest-first) onto onboarding; that
+# maps to a gap-fill priority_order which the SAME collision trimmer (Lever C)
+# then respects. These two tests lock (a) the pure mapping + precedence and
+# (b) the end-to-end effect.
+def test_scan_derived_priority_signals():
+    from services.user_context_service import scan_derived_signals, merged_user_state
+
+    # Pure mapping: module ids (weakest-first) -> priority tokens, in order, deduped.
+    scan = {"facial_scan_summary": {"suggested_modules": ["fitmax", "skinmax", "fitmax", "bonemax"]}}
+    assert scan_derived_signals(scan) == {"priority_order": ["body", "skin", "face_structure"]}
+
+    # No scan / empty / unknown ids -> nothing to fill.
+    assert scan_derived_signals({}) == {}
+    assert scan_derived_signals({"facial_scan_summary": {}}) == {}
+    assert scan_derived_signals({"facial_scan_summary": {"suggested_modules": ["bogus"]}}) == {}
+
+    # Gap-fill: a user with only a scan (no declared priority) inherits it.
+    state = merged_user_state({"facial_scan_summary": {"suggested_modules": ["hairmax", "skinmax"]}}, None)
+    assert state["priority_order"] == ["hair", "skin"]
+
+    # Precedence: an EXPLICIT answer is never overridden by the scan.
+    declared = {
+        "priority_order": ["skin", "hair", "body", "face_structure", "height"],
+        "facial_scan_summary": {"suggested_modules": ["fitmax"]},
+    }
+    assert merged_user_state(declared, None)["priority_order"][0] == "skin"
+
+
+def test_lock_scan_biases_collision_trimming():
+    """A fit-first user who only did a face scan (no priority question answered)
+    should still get fitness optionals protected in the collision trim — purely
+    because the scan flagged body/fitmax first. Proven by the negative control:
+    strip the scan and the engine falls back to skin-dominant trimming."""
+    base_state = {
+        "wake_window": ["05:30", "05:30"], "sleep_window": ["21:30", "21:30"],
+        "wake_time": "05:30", "sleep_time": "21:30", "get_ready_time": "05:45",
+        "work_schedule": "flexible", "work_start": "06:00", "work_end": "12:00",
+        **_skin("acne", "stable", "oily", routine_level="beginner"),
+        **_fit("beginner", age=21, days_per_week=3, primary_goal="muscle"),
+    }
+    # WITH scan: suggested_modules puts fitmax first -> gap-fill priority_order.
+    with_scan = Persona(
+        key="scan_fit_first", label="scan-only fit-first",
+        maxxes=["fitmax", "skinmax"],
+        state={**base_state, "facial_scan_summary": {"suggested_modules": ["fitmax", "skinmax"]}},
+    )
+    ok, detail = score_priority_respected(with_scan)
+    assert ok, f"scan should bias trimming toward fitmax: {detail}"
+
+    # NEGATIVE control: identical persona, no scan, no declared priority. The
+    # engine has no priority signal, so fitness is NOT protected (this is the
+    # pre-Lever-C/D behavior). Confirms the scan is what flips the result.
+    no_scan = Persona(
+        key="scan_fit_first_control", label="no-scan control",
+        maxxes=["fitmax", "skinmax"], state=dict(base_state),
+    )
+    from services.schedule_validator import _ESSENTIAL_TAGS
+    _, _, _, bundle = _pipeline(no_scan)
+
+    def _opt(days):
+        return sum(1 for d in days for t in (d.get("tasks") or [])
+                   if not (set(t.get("tags") or []) & _ESSENTIAL_TAGS))
+
+    fit_opt, skin_opt = _opt(bundle.get("fitmax", [])), _opt(bundle.get("skinmax", []))
+    assert fit_opt < skin_opt, (
+        f"control should be skin-dominant without a scan, got fit={fit_opt} skin={skin_opt}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+#  Known gaps — xfail today, flipped GREEN by the slice noted in each reason  #
+#  (none open right now; future slices add their gaps here)                   #
+# --------------------------------------------------------------------------- #
 
 
 # --------------------------------------------------------------------------- #

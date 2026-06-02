@@ -7,7 +7,7 @@ schedule_design:
   cadence_days: 14
   am_window: ["wake+0:10", "wake+1:30"]
   pm_window: ["sleep-2:00", "sleep-0:15"]
-  daily_task_budget: [3, 6]
+  daily_task_budget: [3, 7]
   intensity_ramp:
     week_1: [0.0, 0.5]
     week_2: [0.3, 1.0]
@@ -577,7 +577,7 @@ Internal: ~3L water daily, collagen, zinc, anti-inflammatory diet.
 
 - id: skin.retinoid_pm
   title: "Apply retinoid (pea)"
-  description: "pea-sized tretinoin 0.05% on DRY skin (wait 15 min after cleanse). avoid eye/lip area. follow with moisturizer after 5 min."
+  description: "pea-sized tretinoin 0.05% on DRY skin (wait 15 min after cleanse). avoid eye/lip area. follow with moisturizer after 5 min. NEW TO RETINOIDS: start 2 nights/week and build up as your skin tolerates it, dont jump straight to nightly."
   duration_min: 5
   default_window: pm_active
   tags: [pm, active, retinoid]
@@ -662,7 +662,7 @@ Internal: ~3L water daily, collagen, zinc, anti-inflammatory diet.
   description: "no retinoid tonight. apply niacinamide 10% (or hyaluronic + B5 if dry). gives the barrier a recovery beat between active nights so PM is never bare."
   duration_min: 2
   default_window: pm_active
-  tags: [pm, active, anti-inflammatory, foundation]
+  tags: [pm, active, anti-inflammatory]
   applies_when: [always]
   intensity: 0.2
   evidence_section: "Active strategy"

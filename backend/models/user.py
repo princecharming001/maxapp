@@ -31,6 +31,26 @@ def _coerce_optional_body_metric(value: Any) -> Optional[float]:
     return None
 
 
+_INTENSITY_ALIASES = {
+    "chill": "chill", "easy": "chill", "light": "chill",
+    "relaxed": "chill", "gentle": "chill", "slow": "chill",
+    "standard": "standard", "normal": "standard",
+    "moderate": "standard", "balanced": "standard", "medium": "standard",
+    "sweatmode": "sweatmode", "sweat": "sweatmode", "sweat_mode": "sweatmode",
+    "intense": "sweatmode", "hardcore": "sweatmode", "beast": "sweatmode",
+    "full": "sweatmode", "max": "sweatmode",
+}
+
+
+def normalize_intensity_preference(value: Any) -> Optional[str]:
+    """Map client synonyms onto the canonical chill/standard/sweatmode tokens.
+    Unknown/blank values return None so the scheduler falls back to experience_level."""
+    if value is None or value == "":
+        return None
+    s = str(value).strip().lower().replace("-", "_").replace(" ", "_")
+    return _INTENSITY_ALIASES.get(s)
+
+
 class ExperienceLevel(str, Enum):
     """User experience level with lookmaxxing"""
     BEGINNER = "beginner"
@@ -75,6 +95,14 @@ class OnboardingData(BaseModel):
     weight_kg: Optional[float] = None
     activity_level: Optional[str] = None
     skin_type: Optional[str] = None
+    # Routine intensity preference — gates the week-1 ramp and per-day task cap
+    # across every maxx. "chill" eases in slowly (smallest week-1 load),
+    # "standard" is a moderate ramp, "sweatmode" starts at full load on day one.
+    # When unset, the scheduler falls back to experience_level / routine_level.
+    intensity_preference: Optional[str] = Field(
+        default=None,
+        description="'chill' | 'standard' | 'sweatmode' — how aggressively to ramp the routine in week 1.",
+    )
     equipment: List[str] = Field(default_factory=list)
     unit_system: str = Field(default="imperial", description="metric or imperial")
     timezone: str = Field(default="UTC", description="IANA timezone name, e.g. America/New_York")
@@ -187,6 +215,11 @@ class OnboardingData(BaseModel):
             return max(1, min(7, n))
         except (ValueError, TypeError):
             return None
+
+    @field_validator("intensity_preference", mode="before")
+    @classmethod
+    def _normalize_intensity_preference(cls, v: Any) -> Optional[str]:
+        return normalize_intensity_preference(v)
 
 
 class UserProfile(BaseModel):

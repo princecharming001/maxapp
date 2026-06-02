@@ -102,8 +102,62 @@ def invalidate(user_id: str) -> None:
     _CACHE.pop(user_id, None)
 
 
+# Map a face scan's recommended module ids -> the priority tokens the
+# collision trimmer ranks on (see multi_module_collision._PRIORITY_TOKEN_TO_MAXX,
+# the inverse mapping). Lets a scan that flagged "your jaw + skin are the weak
+# links" bias which optional tasks survive when two maxxes collide.
+_SCAN_MODULE_TO_PRIORITY_TOKEN = {
+    "bonemax": "face_structure",
+    "skinmax": "skin",
+    "hairmax": "hair",
+    "fitmax": "body",
+    "heightmax": "height",
+}
+
+
+def _is_empty(v: Any) -> bool:
+    """A field counts as 'unanswered' (safe to fill from a scan) when it's
+    null or an empty string/list/dict — never when the user gave a real value."""
+    return v is None or v == "" or v == [] or v == {}
+
+
+def scan_derived_signals(state: dict | None) -> dict:
+    """Gap-fill generation signals inferred from the user's latest face scan.
+
+    Reads ONLY the headline `facial_scan_summary` that gets denormalized onto
+    onboarding when the first triple scan completes (see api/scans.py), so this
+    stays a pure, synchronous, DB-free function — usable on every generation
+    path and in tests without a session.
+
+    Today it maps the scan's `suggested_modules` (the analyzer emits these
+    weakest / most-impactful first) into a `priority_order` so the collision
+    trimmer keeps more of the work the scan actually flagged. Returns ONLY the
+    keys worth filling; the caller applies them as the lowest-precedence layer
+    so any explicit answer the user gave always wins.
+    """
+    if not state:
+        return {}
+    out: dict[str, Any] = {}
+    summary = state.get("facial_scan_summary")
+    if isinstance(summary, dict):
+        mods = summary.get("suggested_modules")
+        if isinstance(mods, list):
+            order: list[str] = []
+            for m in mods:
+                tok = _SCAN_MODULE_TO_PRIORITY_TOKEN.get(str(m).strip().lower())
+                if tok and tok not in order:
+                    order.append(tok)
+            if order:
+                out["priority_order"] = order
+    return out
+
+
 def merged_user_state(onboarding: dict | None, context: dict | None, extras: dict | None = None) -> dict:
-    """Single dict the DSL evaluates against. Precedence: extras > context > onboarding."""
+    """Single dict the DSL evaluates against. Precedence: extras > context > onboarding.
+
+    Face-scan signals sit BELOW all of those — they only fill keys the user
+    never answered, so an explicit choice (questionnaire, chat, manual edit)
+    is never overridden by what the scan inferred."""
     out: dict[str, Any] = {}
     if onboarding:
         out.update(onboarding)
@@ -111,4 +165,8 @@ def merged_user_state(onboarding: dict | None, context: dict | None, extras: dic
         out.update(context)
     if extras:
         out.update(extras)
+    # Lowest-precedence layer: only set keys the user left unanswered.
+    for k, v in scan_derived_signals(out).items():
+        if _is_empty(out.get(k)):
+            out[k] = v
     return out

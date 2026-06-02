@@ -57,11 +57,13 @@ schedule_design:
         slot: am_open
         cadence: n_per_week=5
         tasks: [hair.scalp_massage]
-      # Loss-prevention track. Active = both AM+PM minox; observing/family = none.
+      # Loss-prevention track. Minoxidil is a 2x/day protocol (AM + PM) for
+      # ACTIVE loss only — you don't start a lifelong twice-daily drug on a
+      # "maybe". Observing/family monitor instead (scalp check + photos below).
       - id: minox_am
         slot: am_open
         cadence: daily
-        if: "hair_loss_signs in [yes_active, yes_observing] and minoxidil_using != false"
+        if: "hair_loss_signs == yes_active and minoxidil_using != false"
         tasks: [hair.minoxidil_am]
       - id: minox_pm
         slot: pm_close
@@ -563,11 +565,11 @@ Neckline sits about 1–2 fingers above the Adam's apple. Everything below gets 
 
 - id: hair.minoxidil_am
   title: "Apply minoxidil (AM, 1ml)"
-  description: "1ml topical minoxidil to thinning areas on dry scalp. wait 2–4 hr before getting hair wet."
+  description: "1ml topical minoxidil to thinning areas on dry scalp. first of two daily doses. wait 2–4 hr before getting hair wet."
   duration_min: 3
   default_window: am_open
   tags: [loss-prevention, active]
-  applies_when: ["hair_loss_signs in [yes_active, yes_observing]", "minoxidil_using != false"]
+  applies_when: ["hair_loss_signs == yes_active", "minoxidil_using != false"]
   intensity: 0.6
   evidence_section: "Treatments"
   cooldown_hours: 12

@@ -57,6 +57,93 @@ _DEDUP_PAIRS = [
     ("skin.spf", "height.spf_outdoor"),
 ]
 
+# Declared-priority → maxx_id. `priority_order` (onboarding) ranks the user's
+# focus areas first→last using these tokens; we map each to the maxx module it
+# drives so collision passes can favor the user's top maxx. Mirror of the
+# frontend PRIORITY_KEYS (mobile/constants/profileLifestyleQuestionnaire.ts).
+_PRIORITY_TOKEN_TO_MAXX = {
+    "face_structure": "bonemax",
+    "skin": "skinmax",
+    "hair": "hairmax",
+    "body": "fitmax",
+    "height": "heightmax",
+}
+# Rank for any maxx the user didn't rank (or when no priority is declared): sort
+# last, so an unranked module yields to a ranked one but ties stay deterministic.
+_NO_PRIORITY_RANK = 999
+
+
+def _priority_declared(user_ctx: dict | None) -> bool:
+    """True when the user has a usable declared maxx priority order."""
+    return (
+        isinstance(user_ctx, dict)
+        and isinstance(user_ctx.get("priority_order"), list)
+        and len(user_ctx["priority_order"]) > 0
+    )
+
+
+def _maxx_priority_rank(maxx_id: str, user_ctx: dict | None) -> int:
+    """Position of `maxx_id` in the user's declared priority (0 = highest).
+
+    Unranked maxxes — or any call with no declared priority — return
+    `_NO_PRIORITY_RANK` so callers fall back to their legacy tie-break.
+    """
+    if not _priority_declared(user_ctx):
+        return _NO_PRIORITY_RANK
+    for i, tok in enumerate(user_ctx["priority_order"]):  # type: ignore[index]
+        if _PRIORITY_TOKEN_TO_MAXX.get(str(tok).strip().lower()) == maxx_id:
+            return i
+    return _NO_PRIORITY_RANK
+
+
+def _select_optionals_to_keep(
+    optionals: list[tuple[str, dict]], slots: int, user_ctx: dict | None
+) -> set[int]:
+    """Pick which optional tasks survive the daily-cap trim → set of id()s to keep.
+
+    No declared priority → legacy behavior: keep the highest-intensity optionals
+    (earliest-first tie-break), identical to the old global sort.
+
+    Declared priority → round-robin across maxxes in priority order, each maxx
+    contributing its highest-intensity optional in turn. This keeps the scarce
+    slots from being monopolized by whichever maxx happens to own the most
+    intense extras, so the user's #1 maxx always gets first pick and a secondary
+    maxx still keeps its best habit instead of being wiped out.
+    """
+    if slots <= 0:
+        return set()
+    if slots >= len(optionals):
+        return {id(t) for _, t in optionals}
+
+    def _intensity_key(item: tuple[str, dict]):
+        return (-float(item[1].get("intensity") or 0.0), _time_to_min(item[1].get("time")))
+
+    if not _priority_declared(user_ctx):
+        ranked = sorted(optionals, key=_intensity_key)
+        return {id(t) for _, t in ranked[:slots]}
+
+    by_maxx: dict[str, list[tuple[str, dict]]] = defaultdict(list)
+    for m, t in optionals:
+        by_maxx[m].append((m, t))
+    for m in by_maxx:
+        by_maxx[m].sort(key=_intensity_key)
+    ordered = sorted(by_maxx.keys(), key=lambda m: (_maxx_priority_rank(m, user_ctx), m))
+
+    keep: set[int] = set()
+    cursors = {m: 0 for m in ordered}
+    while len(keep) < slots:
+        progressed = False
+        for m in ordered:
+            if len(keep) >= slots:
+                break
+            if cursors[m] < len(by_maxx[m]):
+                keep.add(id(by_maxx[m][cursors[m]][1]))
+                cursors[m] += 1
+                progressed = True
+        if not progressed:
+            break
+    return keep
+
 
 def reconcile_schedules(
     schedules: dict[str, list[dict]],
@@ -109,19 +196,33 @@ def reconcile_schedules(
     # Recompute by_day after dedupe.
     by_day = _reindex(schedules, day_count)
 
-    # 2) Cross-module antagonism: split to different days.
+    # 2) Cross-module antagonism: split to different days. The LOWER-priority
+    # maxx yields its task to another day so the user's top maxx keeps its
+    # planned slot. With no declared priority, fall back to moving the
+    # alphabetically-second id (legacy, deterministic).
     for di in range(day_count):
-        ids_today = {t.get("catalog_id") for _, t in by_day[di]}
+        present: dict[str, tuple[str, dict]] = {}
+        for maxx_id, t in by_day[di]:
+            cid = t.get("catalog_id")
+            if cid and cid not in present:
+                present[cid] = (maxx_id, t)
         for pair in _CROSS_ANTAGONISM:
-            if pair.issubset(ids_today):
-                # Move the second task (alphabetically by id) to next available day.
-                second = sorted(pair)[1]
-                for maxx_id, task in by_day[di]:
-                    if task.get("catalog_id") == second:
-                        target_day = _find_safe_day(by_day, second, start_after=di)
-                        if target_day is not None and target_day != di:
-                            _move_task(schedules, maxx_id, di, target_day, task)
-                        break
+            if not pair.issubset(present.keys()):
+                continue
+            a, b = sorted(pair)
+            ma, _ta = present[a]
+            mb, tb = present[b]
+            ra, rb = _maxx_priority_rank(ma, user_ctx), _maxx_priority_rank(mb, user_ctx)
+            # Default (tie / no priority): move b (alphabetically second). If a's
+            # maxx outranks b's, that's already what we want; if b's outranks a's,
+            # move a instead so the higher-priority maxx keeps its day.
+            if rb < ra:
+                mover_cid, mover_m, mover_t = a, present[a][0], present[a][1]
+            else:
+                mover_cid, mover_m, mover_t = b, mb, tb
+            target_day = _find_safe_day(by_day, mover_cid, start_after=di)
+            if target_day is not None and target_day != di:
+                _move_task(schedules, mover_m, di, target_day, mover_t)
     by_day = _reindex(schedules, day_count)
 
     # 3) Time-gap enforcement across modules.
@@ -159,20 +260,25 @@ def reconcile_schedules(
         # essential floor, but always at least MIN_OPTIONAL_KEEP so a heavy day
         # keeps its best extras (retinoid, workout fuel) rather than only chores.
         optional_slots = max(MIN_OPTIONAL_KEEP, TARGET_DAILY_TOTAL - len(essentials))
-        # Rank optionals by value (intensity desc), tie-break earliest first so
-        # a kept extra lands at a sensible time.
-        optionals.sort(key=lambda x: (-float(x[1].get("intensity") or 0.0),
-                                      _time_to_min(x[1].get("time"))))
-        for maxx_id, task in optionals[optional_slots:]:
+        # Choose which optionals survive. With a declared maxx priority this is a
+        # round-robin so the user's top maxx gets first pick and no single maxx
+        # monopolizes the slots; without one it's the legacy highest-intensity cut.
+        keep_ids = _select_optionals_to_keep(optionals, optional_slots, user_ctx)
+        for maxx_id, task in optionals:
+            if id(task) in keep_ids:
+                continue
             _remove_task(schedules, maxx_id, di, task)
             items.remove((maxx_id, task))
 
         # Absolute storm guard: if the essential floor itself is implausibly
-        # large (pathological multi-maxx overlap), trim the lowest-intensity
-        # essentials down to the hard ceiling — but only as a last resort.
+        # large (pathological multi-maxx overlap), trim essentials down to the
+        # hard ceiling — but only as a last resort. Drop the lowest-priority
+        # maxx's lowest-intensity essentials first; with no declared priority
+        # this collapses to the legacy lowest-intensity-first cut.
         if len(items) > HARD_DAILY_TASK_CAP:
             ess_now = [(m, t) for (m, t) in items if _is_essential(t)]
-            ess_now.sort(key=lambda x: float(x[1].get("intensity") or 0.0))
+            ess_now.sort(key=lambda x: (-_maxx_priority_rank(x[0], user_ctx),
+                                        float(x[1].get("intensity") or 0.0)))
             for maxx_id, task in ess_now[:len(items) - HARD_DAILY_TASK_CAP]:
                 _remove_task(schedules, maxx_id, di, task)
                 items.remove((maxx_id, task))

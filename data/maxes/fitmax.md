@@ -95,9 +95,12 @@ schedule_design:
         if: "days_per_week >= 4 or daily_activity_level == very_active"
         tasks: [fit.hydration_check]
       # --- Density layer: real-routine pieces a coach actually programs ---
+      # Warm-up belongs immediately BEFORE the lift, not in the morning. Slot it
+      # in pre_evening (15-45 min ahead of the workout) with the workout's own
+      # cadence so it lands on training days, same as preworkout/postworkout.
       - id: mobility_warmup
-        slot: am_active
-        cadence: n_per_week=3
+        slot: pre_evening
+        cadence: n_per_week=days_per_week
         if: "experience_level in [intermediate, advanced] or injury_history != none"
         tasks: [fit.mobility_warmup]
       - id: sleep_priority
@@ -739,9 +742,9 @@ Quiet hours: nothing between bed and wake.
 
 - id: fit.mobility_warmup
   title: "Mobility warm-up (10 min)"
-  description: "hip openers + thoracic rotations + shoulder dislocates + ankle circles. lubricates the joints you'll load, tax-free injury prevention."
+  description: "right before you lift: hip openers + thoracic rotations + shoulder dislocates + ankle circles. lubricates the joints you'll load, tax-free injury prevention."
   duration_min: 10
-  default_window: am_active
+  default_window: pre_evening
   tags: [mobility, prehab, warmup]
   applies_when: ["experience_level in [intermediate, advanced] or injury_history != none"]
   intensity: 0.3

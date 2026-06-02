@@ -41,6 +41,7 @@ from models.user import (
     AccountUpdateRequest,
     BlockUserRequest,
     DeleteAccountRequest,
+    normalize_intensity_preference,
 )
 from models.sqlalchemy_models import User, UserProgressPhoto
 from models.rds_models import ChannelMessage
@@ -324,6 +325,10 @@ class ResponseLengthBody(BaseModel):
     length: str = Field(..., description="concise | medium | detailed")
 
 
+class IntensityPreferenceBody(BaseModel):
+    intensity: str = Field(..., description="chill | standard | sweatmode (synonyms accepted)")
+
+
 RESPONSE_LENGTH_VALUES = {"concise", "medium", "detailed"}
 
 
@@ -374,6 +379,46 @@ async def patch_coaching_tone(
     user.updated_at = datetime.utcnow()
     await db.commit()
     return {"message": "ok", "tone": tone}
+
+
+@router.patch("/intensity-preference")
+async def patch_intensity_preference(
+    body: IntensityPreferenceBody,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set how aggressively the routine ramps in week 1 (chill | standard | sweatmode).
+
+    Unlike tone/length, this changes the actual schedule shape, so we eagerly
+    re-expand the user's live schedules (cheap, <100ms) — week 1 re-ramps
+    immediately instead of waiting for the next chat turn.
+    """
+    intensity = normalize_intensity_preference(body.intensity)
+    if intensity is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="intensity must be one of ['chill', 'standard', 'sweatmode']",
+        )
+    user_uuid = UUID(current_user["id"])
+    user = await db.get(User, user_uuid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    ob = dict(user.onboarding or {})
+    ob["intensity_preference"] = intensity
+    user.onboarding = ob
+    user.updated_at = datetime.utcnow()
+    await db.flush()
+    try:
+        from services.schedule_runtime import regenerate_active_schedules
+        from services.user_context_service import invalidate as _invalidate_ctx
+        _invalidate_ctx(str(user_uuid))
+        await regenerate_active_schedules(
+            user_id=str(user_uuid), db=db, reason="intensity_preference",
+        )
+    except Exception as e:
+        logger.warning("intensity-preference schedule regen failed (non-fatal): %s", e)
+    await db.commit()
+    return {"message": "ok", "intensity": intensity}
 
 
 @router.post("/post-subscription-onboarding/dismiss")

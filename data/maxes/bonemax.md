@@ -19,7 +19,10 @@ schedule_design:
         cadence: daily
         tasks: [bone.mewing_am]
       - id: mewing_midday
-        slot: midday
+        # Midday reset is an all-day posture cue with no natural clock anchor
+        # (unlike AM=waking / night=sleep). Float it in `flexible` so it lands
+        # in the user's free time instead of locking to the lunch window.
+        slot: flexible
         cadence: daily
         tasks: [bone.mewing_midday]
       - id: mewing_night
@@ -366,7 +369,7 @@ Quiet hours: nothing between bed and wake.
   title: "Mewing reset (midday, 30s)"
   description: "tongue up? lips sealed? nasal? unclench jaw, head over neck, chin back. 30s conscious then passive."
   duration_min: 1
-  default_window: midday
+  default_window: flexible
   tags: [mewing, midday, posture]
   applies_when: [always]
   intensity: 0.2
