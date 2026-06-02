@@ -250,36 +250,23 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             <Text style={styles.kicker}>PLANNER</Text>
             <Text style={styles.title}>Your week</Text>
             <Text style={styles.subhead}>
-              Your real week: sleep, work, and plans. Tap any day to shape it, and Max fits your
+              Tell Max about your real week in plain words: sleep, work, plans. Max fits your
               routines into the open time.
             </Text>
           </View>
 
-          {/* Week canvas */}
-          <View style={styles.section}>
-            <WeekCanvas
-              defaults={defaults}
-              weekly={weekly}
-              obligations={obligations}
-              onEditScope={openEditor}
-            />
-          </View>
-
-          {/* Commitments — the global, day-scoped obligations list. */}
-          <View style={styles.section}>
-            <ObligationsManager obligations={obligations} onChange={changeObligations} />
-          </View>
-
-          {/* Assistant — the one accented surface on the page. */}
+          {/* Assistant — the primary input (locked decision: natural-language
+              first). Describe the week in words; the canvas below confirms what
+              Max heard, and tapping a day is the structured fallback. */}
           <View style={styles.section}>
             <View style={styles.chatHead}>
               <View style={styles.chatMark}>
                 <Ionicons name="sparkles" size={15} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.chatTitle}>Ask Max to rearrange</Text>
+                <Text style={styles.chatTitle}>Tell Max about your week</Text>
                 <Text style={styles.chatSub}>
-                  Describe a change in plain words. Max updates the right days for you.
+                  Describe it in plain words and Max sets up the right days.
                 </Text>
               </View>
             </View>
@@ -348,6 +335,25 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             </View>
           </View>
 
+          {/* Week canvas — read-only "here's your week" confirmation of what
+              Max heard. Tapping a day opens the structured range editor (the
+              by-hand fallback). */}
+          <View style={styles.section}>
+            <Text style={styles.sectionKicker}>HERE'S YOUR WEEK</Text>
+            <Text style={styles.sectionNote}>Tap any day to adjust it by hand.</Text>
+            <WeekCanvas
+              defaults={defaults}
+              weekly={weekly}
+              obligations={obligations}
+              onEditScope={openEditor}
+            />
+          </View>
+
+          {/* Commitments — the global, day-scoped obligations list. */}
+          <View style={styles.section}>
+            <ObligationsManager obligations={obligations} onChange={changeObligations} />
+          </View>
+
           <View style={{ height: 120 + insets.bottom }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -409,6 +415,21 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
+  },
+  sectionKicker: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 11,
+    color: colors.textMuted,
+    letterSpacing: 1.6,
+    marginBottom: 4,
+  },
+  sectionNote: {
+    fontFamily: fonts.sans,
+    fontSize: 12.5,
+    color: colors.textMuted,
+    lineHeight: 17,
+    marginBottom: spacing.md,
+    letterSpacing: 0.05,
   },
 
   // Assistant.

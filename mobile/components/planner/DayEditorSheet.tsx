@@ -359,7 +359,22 @@ export default function DayEditorSheet({
                     </Text>
                   )}
                 </View>
-              ) : null}
+              ) : (
+                // Workout is a default-level (all-days) setting. Show a quiet
+                // placeholder on a single-day edit so the control doesn't feel
+                // like it vanished, and point to where it lives.
+                <View style={styles.section}>
+                  <View style={styles.sectionHead}>
+                    <View style={styles.sectionTitleWrap}>
+                      <Ionicons name="barbell-outline" size={16} color={colors.textMuted} />
+                      <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Workout window</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.autoHint}>
+                    Set once for all days. Open the All days view to change it.
+                  </Text>
+                </View>
+              )}
 
               {scope !== 'all' && overridden ? (
                 <TouchableOpacity style={styles.resetBtn} onPress={reset} activeOpacity={0.7}>
