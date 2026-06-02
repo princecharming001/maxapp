@@ -14,6 +14,7 @@ import SignupScreen from '../screens/auth/SignupScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
 import FeaturesIntroScreen from '../screens/onboarding/FeaturesIntroScreen';
+import RoutineRevealScreen from '../screens/onboarding/RoutineRevealScreen';
 import FaceScanScreen from '../screens/scan/FaceScanScreen';
 import FaceScanResultsScreen from '../screens/scan/FaceScanResultsScreen';
 import SmsCoachingIntroScreen from '../screens/scan/SmsCoachingIntroScreen';
@@ -124,6 +125,7 @@ export function RootNavigator() {
             ) : !isPaid ? (
                 <>
                     <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+                    <Stack.Screen name="RoutineReveal" component={RoutineRevealScreen} />
                     <Stack.Screen name="FeaturesIntro" component={FeaturesIntroScreen} />
                     <Stack.Screen name="FaceScan" component={FaceScanScreen} />
                     <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} />

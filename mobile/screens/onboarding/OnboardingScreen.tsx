@@ -72,13 +72,21 @@ const STEP_TITLES = [
     "What's your weight?",
     'When are you busy?',
     'What matters most?',
+    'How hard do you want to go?',
     'Personalize further?',
 ] as const;
 
 const STEP_COUNT = STEP_TITLES.length;
-// Onairos step is optional — index 6 (the last). Skipping is fine, so it
+// Onairos step is optional — the last step. Skipping is fine, so it
 // doesn't gate the CTA's enabled state.
-const ONAIROS_STEP_INDEX = 6;
+const ONAIROS_STEP_INDEX = 7;
+
+type Intensity = 'chill' | 'standard' | 'sweatmode';
+const INTENSITIES: { id: Intensity; label: string; blurb: string }[] = [
+    { id: 'chill',     label: 'Chill',     blurb: 'A few key things a day. Easy to keep up.' },
+    { id: 'standard',  label: 'Standard',  blurb: 'A solid daily routine. The default.' },
+    { id: 'sweatmode', label: 'Sweat mode', blurb: 'Pack it in. For people who want max output.' },
+];
 
 /* ── Conversions ──────────────────────────────────────────────────────── */
 
@@ -113,6 +121,7 @@ export default function OnboardingScreen() {
     const [workStartSlot, setWorkStartSlot] = useState(36);
     const [workEndSlot, setWorkEndSlot] = useState(68);
     const [priority, setPriority] = useState<PriorityKey[]>([]);
+    const [intensity, setIntensity] = useState<Intensity | null>(null);
     // Onairos: tracks whether the user opened the connect modal AND
     // whether the connection succeeded. Both feed into the final
     // step's UI state ("Connect" / "Connected ✓").
@@ -128,7 +137,10 @@ export default function OnboardingScreen() {
         // work-status question (Yes or Flexible). Wake/sleep have safe
         // defaults so we don't block on them.
         hasWork !== null && (hasWork === 'flexible' || workEndSlot > workStartSlot),
-        priority.length === PRIORITIES.length,
+        // Top priority is what drives the first routine — we only require #1.
+        // Ranking the rest is optional (no more forced all-five).
+        priority.length >= 1,
+        intensity !== null,
         // Onairos step is optional — always valid so user can skip with one tap.
         true,
     ];
@@ -184,9 +196,10 @@ export default function OnboardingScreen() {
             const sleep_time = slotToHHMM(sleepSlot);
             const work_start = hasWork === 'yes' ? slotToHHMM(workStartSlot) : null;
             const work_end = hasWork === 'yes' ? slotToHHMM(workEndSlot) : null;
-            await api.saveOnboarding({
+            const res = await api.saveOnboarding({
                 goals: top3,
                 experience_level: 'beginner',
+                intensity_preference: intensity || 'standard',
                 gender: gender || undefined,
                 age,
                 height: heightDisplay,
@@ -209,7 +222,15 @@ export default function OnboardingScreen() {
                         : [],
             });
             await refreshUser();
-            navigation.reset({ index: 0, routes: [{ name: 'FeaturesIntro' }] });
+            // Reveal the freshly-built routine before the scan/paywall funnel —
+            // value first. The server hands the preview back inline (the
+            // schedule endpoints are paid-gated). If it couldn't build one,
+            // RoutineReveal forwards straight to FeaturesIntro.
+            const firstRoutine = (res as any)?.first_routine ?? null;
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'RoutineReveal', params: { routine: firstRoutine } }],
+            });
         } catch (e) {
             console.error('onboarding save failed', e);
             setSubmitting(false);
@@ -257,6 +278,8 @@ export default function OnboardingScreen() {
             case 5:
                 return <PriorityStep value={priority} onChange={setPriority} />;
             case 6:
+                return <IntensityStep value={intensity} onChange={setIntensity} />;
+            case 7:
                 return (
                     <OnairosStep
                         connected={onairosConnected}
@@ -508,7 +531,7 @@ function PriorityStep({
     };
     return (
         <View style={{ alignSelf: 'stretch' }}>
-            <Text style={styles.helperLine}>tap in order. first one is top priority</Text>
+            <Text style={styles.helperLine}>tap your top one first. rank the rest if you want</Text>
             <View style={{ gap: 10, marginTop: spacing.lg }}>
                 {PRIORITIES.map((p) => {
                     const idx = value.indexOf(p.id);
@@ -526,6 +549,41 @@ function PriorityStep({
                             <View style={[styles.rankBadge, on && styles.rankBadgeOn]}>
                                 {on ? <Text style={styles.rankBadgeText}>{idx + 1}</Text> : null}
                             </View>
+                        </TouchableOpacity>
+                    );
+                })}
+            </View>
+        </View>
+    );
+}
+
+/* ─────────────────────────────────────────────────────────────────────── */
+/*  Step 6 — intensity                                                     */
+/* ─────────────────────────────────────────────────────────────────────── */
+
+function IntensityStep({
+    value, onChange,
+}: {
+    value: Intensity | null;
+    onChange: (v: Intensity) => void;
+}) {
+    return (
+        <View style={{ alignSelf: 'stretch' }}>
+            <Text style={styles.helperLine}>this sets how full your days are. change it anytime</Text>
+            <View style={{ gap: 10, marginTop: spacing.lg }}>
+                {INTENSITIES.map((opt) => {
+                    const on = value === opt.id;
+                    return (
+                        <TouchableOpacity
+                            key={opt.id}
+                            style={[styles.intensityOption, on && styles.optionOn]}
+                            activeOpacity={0.6}
+                            onPress={() => onChange(opt.id)}
+                        >
+                            <Text style={[styles.optionLabel, on && styles.optionLabelOn]}>
+                                {opt.label}
+                            </Text>
+                            <Text style={styles.intensityBlurb}>{opt.blurb}</Text>
                         </TouchableOpacity>
                     );
                 })}
@@ -919,6 +977,21 @@ const styles = StyleSheet.create({
     },
     optionLabelOn: {
         color: colors.foreground,
+    },
+    intensityOption: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: 14,
+        borderRadius: borderRadius.md,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        backgroundColor: colors.card,
+        gap: 4,
+    },
+    intensityBlurb: {
+        fontFamily: fonts.sans,
+        fontSize: 12.5,
+        color: colors.textSecondary,
+        letterSpacing: 0.05,
     },
     rankBadge: {
         width: 22,

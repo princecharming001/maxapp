@@ -694,15 +694,46 @@ async def save_onboarding(
     # lands them ON a real plan instead of an empty Routine tab. Best-effort and
     # non-fatal — it returns None and changes nothing if a clean plan can't be
     # produced, preserving the prior behavior.
+    first_routine = None
     try:
         from services.schedule_runtime import generate_first_routine_if_absent
-        await generate_first_routine_if_absent(user_id=str(user_uuid), db=db)
+        first_routine = await generate_first_routine_if_absent(user_id=str(user_uuid), db=db)
     except Exception as e:
         logger.warning("post-onboarding first-routine build failed (non-fatal): %s", e)
 
     await db.commit()
 
-    return {"message": "Onboarding completed", "data": onboarding_data}
+    # `first_routine` (when present) lets the client reveal the freshly-built
+    # plan right after onboarding, BEFORE the paywall — the schedule endpoints
+    # are paid-gated, so we hand the preview back inline here instead.
+    return {
+        "message": "Onboarding completed",
+        "data": onboarding_data,
+        "first_routine": _starter_preview(first_routine),
+    }
+
+
+def _starter_preview(routine: Optional[dict]) -> Optional[dict]:
+    """Trim a generated routine to a lightweight reveal payload: the maxx, a
+    title, and the first populated day's tasks (time + title only). Keeps the
+    onboarding response small and free of internal scheduling fields."""
+    if not routine:
+        return None
+    days = routine.get("days") or []
+    first_day = next((d for d in days if (d.get("tasks") or [])), None)
+    tasks = []
+    for t in (first_day or {}).get("tasks", []) if first_day else []:
+        tasks.append({
+            "time": t.get("time"),
+            "title": t.get("title") or t.get("catalog_id") or "Task",
+        })
+    return {
+        "maxx_id": routine.get("maxx_id"),
+        "course_title": routine.get("course_title"),
+        "starter": bool(routine.get("starter")),
+        "day_count": len(days),
+        "sample_day": tasks,
+    }
 
 
 @router.post("/onboarding/anonymous")

@@ -544,6 +544,8 @@ class ApiService {
         timezone?: string;
         completed?: boolean;
         priority_ranking?: string[];
+        // chill | standard | sweatmode — scales daily load + week-1 ramp.
+        intensity_preference?: string;
         wake_time?: string;
         sleep_time?: string;
         work_schedule?: 'fixed' | 'flexible' | null;
