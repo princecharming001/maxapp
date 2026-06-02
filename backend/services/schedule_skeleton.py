@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import time as dtime
 from typing import Any, Optional
@@ -49,6 +50,7 @@ from services.schedule_dsl import (
     from_minutes,
     order_minutes,
     parse_clock,
+    referenced_fields,
     resolve_window,
     to_minutes,
 )
@@ -71,6 +73,26 @@ class _Block:
     pick_from: list[dict] = field(default_factory=list)
     replaces: list[str] = field(default_factory=list)
     not_with_same_day: list[str] = field(default_factory=list)
+
+
+def _block_referenced_fields(b: "_Block") -> set[str]:
+    """Context fields whose VALUE this block's placement depends on: its `if`
+    gate, a field-valued cadence (e.g. `n_per_week=days_per_week`), and any
+    pick_from requires/not_with conditions. Used by `exclude_fields` so a
+    starter routine can drop blocks that hinge on an answer we don't have yet
+    (an unknown answer flips `!=` / `not in` gates TRUE, which would otherwise
+    surface a task we shouldn't show blind)."""
+    out: set[str] = set()
+    if b.if_expr:
+        out |= referenced_fields([b.if_expr])
+    if "=" in b.cadence:
+        rhs = b.cadence.split("=", 1)[1].strip()
+        if rhs and not re.fullmatch(r"-?\d+", rhs):
+            out.add(rhs)
+    for pf in b.pick_from:
+        out |= referenced_fields(list(pf.get("requires") or []))
+        out |= referenced_fields(list(pf.get("not_with") or []))
+    return out
 
 
 def _parse_block(raw: dict) -> _Block:
@@ -128,6 +150,7 @@ def expand_skeleton(
     wake: str,
     sleep: str,
     cadence_days: int = 14,
+    exclude_fields: Optional[set[str]] = None,
 ) -> list[dict]:
     """Return a `cadence_days`-long list of day dicts.
 
@@ -152,6 +175,10 @@ def expand_skeleton(
     blocks: list[_Block] = []
     for raw in raw_blocks:
         b = _parse_block(raw)
+        # Starter mode: drop any block whose placement hinges on an answer we
+        # don't have yet, so we never schedule a task blind off a flipped gate.
+        if exclude_fields and (_block_referenced_fields(b) & exclude_fields):
+            continue
         if b.if_expr and not evaluate(b.if_expr, user_state):
             continue
         blocks.append(b)

@@ -689,6 +689,17 @@ async def save_onboarding(
     except Exception as e:
         logger.warning("post-onboarding schedule regen failed (non-fatal): %s", e)
 
+    # First-run: a brand-new user has no active schedule, so the regen above is
+    # a no-op for them. Build their #1-priority maxx's routine now so onboarding
+    # lands them ON a real plan instead of an empty Routine tab. Best-effort and
+    # non-fatal — it returns None and changes nothing if a clean plan can't be
+    # produced, preserving the prior behavior.
+    try:
+        from services.schedule_runtime import generate_first_routine_if_absent
+        await generate_first_routine_if_absent(user_id=str(user_uuid), db=db)
+    except Exception as e:
+        logger.warning("post-onboarding first-routine build failed (non-fatal): %s", e)
+
     await db.commit()
 
     return {"message": "Onboarding completed", "data": onboarding_data}

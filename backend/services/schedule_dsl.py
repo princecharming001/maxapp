@@ -137,6 +137,59 @@ def evaluate_any(exprs: list[str], ctx: dict[str, Any]) -> bool:
     return any(evaluate(x, ctx) for x in exprs)
 
 
+def _expr_fields(expr: str) -> set[str]:
+    """Return the set of context field ids one expression READS. Mirrors
+    `evaluate`'s grammar exactly (OR/AND split, in/not in, contains,
+    comparison, negation, bare truthiness). The right-hand side of a
+    comparison is a literal, never a field, so only the left token counts.
+
+    Used to decide whether a task/block is safe to schedule before we know
+    a given answer: if a condition reads a field we haven't collected yet,
+    its result isn't trustworthy, so the caller can exclude it.
+    """
+    e = (expr or "").strip()
+    if not e or e.lower() == "always":
+        return set()
+
+    or_parts = _split_top_level(e, " or ")
+    if len(or_parts) > 1:
+        out: set[str] = set()
+        for p in or_parts:
+            out |= _expr_fields(p)
+        return out
+
+    and_parts = _split_top_level(e, " and ")
+    if len(and_parts) > 1:
+        out = set()
+        for p in and_parts:
+            out |= _expr_fields(p)
+        return out
+
+    m = re.match(r"^(\w[\w\.]*)\s+(?:not\s+in|in)\s+\[.*\]$", e)
+    if m:
+        return {m.group(1)}
+    m = re.match(r"^(\w[\w\.]*)\s+contains\s+.+$", e)
+    if m:
+        return {m.group(1)}
+    m = re.match(r"^(\w[\w\.]*)\s*(?:==|!=|<=|>=|<|>)\s*.+$", e)
+    if m:
+        return {m.group(1)}
+    if e.startswith("!"):
+        f = e[1:].strip()
+        return {f} if re.match(r"^\w[\w\.]*$", f) else set()
+    if re.match(r"^\w[\w\.]*$", e):
+        return {e}
+    return set()
+
+
+def referenced_fields(exprs: list[str] | None) -> set[str]:
+    """Union of every context field id read across a list of expressions."""
+    out: set[str] = set()
+    for expr in exprs or []:
+        out |= _expr_fields(expr)
+    return out
+
+
 def _split_top_level(s: str, sep: str) -> list[str]:
     """Split `s` on `sep` only at bracket-depth 0, so list literals like
     `[a, b]` are never broken apart. `sep` includes its surrounding spaces

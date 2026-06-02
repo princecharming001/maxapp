@@ -179,6 +179,200 @@ async def generate_and_persist(
     }
 
 
+def _resolve_top_maxx(state: dict) -> Optional[str]:
+    """The user's #1-priority maxx, from declared priority_order (tokens) or,
+    failing that, the first entry of `goals`. Returns a known maxx_id or None."""
+    from services.multi_module_collision import _PRIORITY_TOKEN_TO_MAXX
+
+    known = set(_PRIORITY_TOKEN_TO_MAXX.values())
+
+    def _coerce(tok: str) -> Optional[str]:
+        t = str(tok).strip().lower()
+        if t in known:
+            return t
+        return _PRIORITY_TOKEN_TO_MAXX.get(t)
+
+    po = state.get("priority_order")
+    if isinstance(po, list):
+        for tok in po:
+            mx = _coerce(tok)
+            if mx:
+                return mx
+    goals = state.get("goals")
+    if isinstance(goals, list):
+        for g in goals:
+            mx = _coerce(g)
+            if mx:
+                return mx
+    return None
+
+
+def _drop_tasks_referencing(days: list[dict], fields: set[str], maxx_id: str) -> list[dict]:
+    """Remove any placed task whose catalog eligibility conditions READ a field
+    in `fields` (an unanswered required question). Defense-in-depth alongside
+    the skeleton's block-level `exclude_fields` filter."""
+    if not fields:
+        return days
+    from services.schedule_dsl import referenced_fields
+    from services.task_catalog_service import get_task
+
+    for d in days:
+        kept = []
+        for t in d.get("tasks") or []:
+            cid = t.get("catalog_id")
+            ct = get_task(maxx_id, cid) if cid else None
+            refs: set[str] = set()
+            if ct is not None:
+                refs |= referenced_fields(list(getattr(ct, "applies_when", []) or []))
+                refs |= referenced_fields(list(getattr(ct, "contraindicated_when", []) or []))
+            if refs & fields:
+                continue
+            kept.append(t)
+        d["tasks"] = kept
+    return days
+
+
+# Minimum tasks a starter routine must carry to be worth persisting. Below
+# this we leave the user with no schedule (today's behavior) rather than a
+# near-empty stub the in-app coach would have to immediately replace.
+_STARTER_MIN_TASKS = 3
+
+
+async def generate_first_routine_if_absent(
+    *,
+    user_id: str,
+    db: AsyncSession,
+) -> Optional[dict]:
+    """Land a brand-new user on a real routine the moment onboarding finishes.
+
+    If the user has NO active schedule, build their #1-priority maxx's plan:
+      - If onboarding already answered everything that maxx requires, generate
+        the full tailored routine (same path the chat uses).
+      - Otherwise generate a STARTER routine: the universal daily-floor tasks
+        only (cleanse/SPF/moisturize, mewing, etc.), dropping anything that
+        hinges on an answer we don't have yet so we can never force a wrong
+        active. The in-app coach fills the specifics and upgrades it later.
+
+    Best-effort and non-fatal: returns None and changes nothing if a clean
+    routine can't be produced, preserving the prior no-op behavior. Never
+    raises (the onboarding write must always succeed)."""
+    try:
+        if not is_loaded():
+            await warm_catalog()
+
+        user_uuid = UUID(user_id)
+        user = await db.get(User, user_uuid)
+        if user is None:
+            return None
+
+        # Only ever runs for a user with zero active schedules.
+        res = await db.execute(
+            select(UserSchedule).where(
+                (UserSchedule.user_id == user_uuid) & (UserSchedule.is_active.is_(True))
+            )
+        )
+        if res.scalars().first() is not None:
+            return None
+
+        onboarding = dict(user.onboarding or {})
+        persistent = await get_context(user_id, db)
+        state = merged_user_state(onboarding, persistent)
+
+        maxx_id = _resolve_top_maxx(state)
+        if not maxx_id:
+            return None
+
+        from services.schedule_dsl import schedulable_anchors
+        from services.schedule_skeleton import expand_skeleton, has_skeleton
+        from services.schedule_validator import validate_and_fix
+
+        if not has_skeleton(maxx_id):
+            return None
+
+        wake, sleep = schedulable_anchors(state)
+
+        # Everything this maxx needs is already answered -> full tailored plan.
+        missing = {str(f.get("id")) for f in missing_required(maxx_id, state) if f.get("id")}
+        if not missing:
+            return await generate_and_persist(
+                user_id=user_id, maxx_id=maxx_id, db=db,
+                onboarding=onboarding, wake_time=wake, sleep_time=sleep,
+            )
+
+        # Starter routine: drop blocks/tasks that depend on unanswered answers.
+        doc = get_doc(maxx_id)
+        sd = (doc.schedule_design or {}) if doc else {}
+        cadence_days = int(sd.get("cadence_days", 14))
+        budget = sd.get("daily_task_budget") or [2, 6]
+
+        days = expand_skeleton(
+            maxx_id=maxx_id, user_state=state, wake=wake, sleep=sleep,
+            cadence_days=cadence_days, exclude_fields=missing,
+        )
+        days = _drop_tasks_referencing(days, missing, maxx_id)
+        _ok, _errs, days = validate_and_fix(
+            maxx_id=maxx_id, days=days, wake_time=wake, sleep_time=sleep,
+            user_ctx=state, expected_day_count=cadence_days,
+            daily_task_budget=tuple(budget),
+        )
+
+        total_tasks = sum(len(d.get("tasks") or []) for d in days)
+        if total_tasks < _STARTER_MIN_TASKS:
+            logger.info(
+                "starter routine for max=%s user=%s too thin (%d tasks) — skipping",
+                maxx_id, user_id, total_tasks,
+            )
+            return None
+
+        from datetime import date as _date, timedelta as _td
+        today = _date.today()
+        for i, d in enumerate(days):
+            d["date"] = (today + _td(days=i)).isoformat()
+
+        doc_title = (doc.display_name if doc else maxx_id) + " Plan"
+        schedule_row = UserSchedule(
+            user_id=user_uuid,
+            schedule_type="maxx",
+            maxx_id=maxx_id,
+            course_title=doc_title,
+            days=days,
+            preferences={"wake_time": wake, "sleep_time": sleep},
+            schedule_context={
+                "summary": "Starter routine — your daily foundation. Answer a few "
+                           "questions in chat and it gets tailored to you.",
+                "starter": True,
+                "starter_pending_fields": sorted(missing),
+            },
+            is_active=True,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            adapted_count=0,
+            user_feedback=[],
+            completion_stats={"completed": 0, "total": 0, "skipped": 0},
+        )
+        db.add(schedule_row)
+        await db.flush()
+        await _log_op(
+            db, user_id=user_uuid, schedule_id=schedule_row.id, maxx_id=maxx_id,
+            op="generate_starter", elapsed_ms=0,
+            task_count=total_tasks, validator_retries=0,
+        )
+        logger.info(
+            "starter routine created for max=%s user=%s (%d tasks, pending=%s)",
+            maxx_id, user_id, total_tasks, sorted(missing),
+        )
+        return {
+            "id": str(schedule_row.id),
+            "maxx_id": maxx_id,
+            "course_title": doc_title,
+            "days": days,
+            "starter": True,
+        }
+    except Exception as e:  # never break the onboarding write
+        logger.warning("generate_first_routine_if_absent failed (non-fatal): %s", e)
+        return None
+
+
 async def regenerate_active_schedules(
     *,
     user_id: str,
