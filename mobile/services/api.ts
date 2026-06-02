@@ -1528,8 +1528,17 @@ class ApiService {
         return response.data;
     }
 
-    async editScheduleTask(scheduleId: string, taskId: string, updates: { time?: string; title?: string; description?: string; duration_minutes?: number }) {
-        const response = await this.client.put(`schedules/${scheduleId}/tasks/${taskId}`, updates);
+    async editScheduleTask(
+        scheduleId: string,
+        taskId: string,
+        updates: { time?: string; title?: string; description?: string; duration_minutes?: number },
+        scope: 'instance' | 'series' = 'instance',
+    ) {
+        // scope="series" applies the change to the recurring part across every
+        // day and durably re-pins a moved time through future re-expansions.
+        const response = await this.client.put(`schedules/${scheduleId}/tasks/${taskId}`, updates, {
+            params: { scope },
+        });
         return response.data;
     }
 

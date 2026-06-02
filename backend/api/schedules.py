@@ -233,10 +233,16 @@ async def edit_task(
     schedule_id: str,
     task_id: str,
     data: EditTaskRequest,
+    scope: str = "instance",
     current_user: dict = Depends(require_paid_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Edit a scheduled task (change time, title, description, duration)"""
+    """Edit a scheduled task (change time, title, description, duration).
+
+    scope="instance" (default) edits the single tapped occurrence;
+    scope="series" applies the change to the recurring part across every day
+    and (for a time change) durably re-pins it through future re-expansions.
+    """
     try:
         result = await schedule_service.edit_task(
             user_id=current_user["id"],
@@ -244,6 +250,7 @@ async def edit_task(
             task_id=task_id,
             db=db,
             updates=data.model_dump(exclude_none=True),
+            scope=scope,
         )
         return result
     except ValueError as e:

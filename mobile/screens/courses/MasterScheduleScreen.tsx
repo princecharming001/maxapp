@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Platform,
+  Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -24,6 +25,7 @@ import {
   type RoutinePart,
 } from '../../utils/scheduleAggregation';
 import RoutineReviewSheet from '../../components/RoutineReviewSheet';
+import TimeRangeSlider from '../../components/planner/TimeRangeSlider';
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
@@ -92,6 +94,20 @@ function parseTimeToHHMM(time: string): { hh: number; mm: number } | null {
   return { hh, mm };
 }
 
+/** "HH:MM" → minutes since midnight (defaults to 7 AM on a bad value). */
+function hhmmToMinutes(time: string): number {
+  const p = parseTimeToHHMM(time);
+  return p ? p.hh * 60 + p.mm : 7 * 60;
+}
+
+/** minutes since midnight → zero-padded "HH:MM". */
+function minutesToHHMM(min: number): string {
+  const m = Math.max(0, Math.min(23 * 60 + 45, Math.round(min)));
+  const hh = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
 type ActiveSchedulesFullCache = {
   schedules: any[];
   schedule_streak?: unknown;
@@ -151,6 +167,34 @@ function removeSeriesFromSchedulesFullCache(
   };
 }
 
+/** Optimistically re-time a recurring part (every day's instance) in the
+ *  active/full cache so an inline time move feels instant. Matches by
+ *  catalog_id when present (the recurring identity), else the single task. */
+function setSeriesTimeInSchedulesFullCache(
+  data: ActiveSchedulesFullCache | undefined,
+  scheduleId: string,
+  catalogId: string | undefined,
+  taskId: string,
+  time: string,
+): ActiveSchedulesFullCache | undefined {
+  if (!data?.schedules?.length) return data;
+  return {
+    ...data,
+    schedules: data.schedules.map((s) => {
+      if (s.id !== scheduleId) return s;
+      const days = (s.days || []).map((day: { tasks?: any[]; [k: string]: unknown }) => ({
+        ...day,
+        tasks: (day.tasks || []).map((t: any) =>
+          (catalogId ? t.catalog_id === catalogId : t.task_id === taskId)
+            ? { ...t, time }
+            : t,
+        ),
+      }));
+      return { ...s, days };
+    }),
+  };
+}
+
 function mergeScheduleStreakFromToggleResponse(
   data: ActiveSchedulesFullCache | undefined,
   res: { schedule_streak?: { current?: number; today_date?: string; last_perfect_date?: string | null } },
@@ -200,6 +244,9 @@ export default function MasterScheduleScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  // Inline "move time" editor — which task row is open + the working minute value.
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editMinutes, setEditMinutes] = useState<number>(7 * 60);
 
   const schedules = schedulesQuery.data?.schedules ?? [];
   const maxxes = maxesQuery.data?.maxes ?? [];
@@ -302,6 +349,86 @@ export default function MasterScheduleScreen() {
           queryClient.setQueryData(queryKeys.schedulesActiveFull, previous);
         }
       })();
+    },
+    [queryClient],
+  );
+
+  // Inline routine editing — direct, not gated behind chat. Both operate at
+  // the routine (series) level when the task is a recurring part (has a
+  // catalog_id), matching how users think about "my morning skincare". The
+  // backend durably re-pins moved times + keeps removed parts gone across
+  // re-expansions, so these edits stick.
+  const handleMoveTaskTime = useCallback(
+    (task: MergedScheduleTask, newTime: string) => {
+      if (task.scheduleId === 'life' || !newTime || newTime === task.time) return;
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const scope: 'instance' | 'series' = task.catalog_id ? 'series' : 'instance';
+      const previous = queryClient.getQueryData(queryKeys.schedulesActiveFull) as
+        | ActiveSchedulesFullCache
+        | undefined;
+      queryClient.setQueryData(queryKeys.schedulesActiveFull, (old) =>
+        setSeriesTimeInSchedulesFullCache(
+          old as ActiveSchedulesFullCache | undefined,
+          task.scheduleId,
+          task.catalog_id,
+          task.task_id,
+          newTime,
+        ),
+      );
+      void (async () => {
+        try {
+          await api.editScheduleTask(task.scheduleId, task.task_id, { time: newTime }, scope);
+        } catch (e) {
+          console.error('move routine task time', e);
+          queryClient.setQueryData(queryKeys.schedulesActiveFull, previous);
+        }
+      })();
+    },
+    [queryClient],
+  );
+
+  const handleRemoveTask = useCallback(
+    (task: MergedScheduleTask) => {
+      if (task.scheduleId === 'life') return;
+      const scope: 'instance' | 'series' = task.catalog_id ? 'series' : 'instance';
+      const cleanTitle = stripDuplicateModulePrefix(task.title, task.moduleLabel);
+      Alert.alert(
+        'Remove from your routine?',
+        scope === 'series'
+          ? `This takes "${cleanTitle}" off every day.`
+          : `This removes "${cleanTitle}".`,
+        [
+          { text: 'Keep it', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: () => {
+              if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              const previous = queryClient.getQueryData(queryKeys.schedulesActiveFull) as
+                | ActiveSchedulesFullCache
+                | undefined;
+              queryClient.setQueryData(queryKeys.schedulesActiveFull, (old) =>
+                removeSeriesFromSchedulesFullCache(
+                  old as ActiveSchedulesFullCache | undefined,
+                  task.scheduleId,
+                  task.catalog_id,
+                  task.task_id,
+                ),
+              );
+              setExpandedTaskId(null);
+              setEditingTaskId(null);
+              void (async () => {
+                try {
+                  await api.deleteScheduleTask(task.scheduleId, task.task_id, scope);
+                } catch (e) {
+                  console.error('remove routine task', e);
+                  queryClient.setQueryData(queryKeys.schedulesActiveFull, previous);
+                }
+              })();
+            },
+          },
+        ],
+      );
     },
     [queryClient],
   );
@@ -840,6 +967,7 @@ export default function MasterScheduleScreen() {
             const isDone = task.status === 'completed';
             const isExpanded = expandedTaskId === task.task_id;
             const isLife = task.scheduleId === 'life';
+            const isEditing = editingTaskId === task.task_id;
             return (
               <View key={`${task.scheduleId}-${task.task_id}`}>
                 {index > 0 && <View style={styles.taskDivider} />}
@@ -892,16 +1020,93 @@ export default function MasterScheduleScreen() {
                             {task.description}
                           </Text>
                         ) : null}
-                        <TouchableOpacity
-                          style={styles.askChatRow}
-                          onPress={(e) => { e.stopPropagation(); goToChatForTask(task); }}
-                          activeOpacity={0.75}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Ask Max about ${stripDuplicateModulePrefix(task.title, task.moduleLabel)}`}
-                        >
-                          <Ionicons name="chatbubble-ellipses-outline" size={13} color={colors.textMuted} />
-                          <Text style={styles.askChatLabel}>Ask Max</Text>
-                        </TouchableOpacity>
+
+                        {isEditing ? (
+                          <View
+                            style={styles.timeEditor}
+                            // Claim stray taps (label / padding) so they don't
+                            // bubble to the row press and collapse it mid-edit.
+                            onStartShouldSetResponder={() => true}
+                          >
+                            <Text style={styles.timeEditorLabel}>
+                              Move to{task.catalog_id ? '  ·  applies every day' : ''}
+                            </Text>
+                            <TimeRangeSlider
+                              single
+                              min={0}
+                              max={23 * 60 + 45}
+                              step={15}
+                              value={[editMinutes, editMinutes]}
+                              onChange={(v) => setEditMinutes(v[0])}
+                              format={(m) => formatTimeTo12Hour(minutesToHHMM(m))}
+                              accent={task.moduleColor || colors.foreground}
+                            />
+                            <View style={styles.timeEditorActions}>
+                              <TouchableOpacity
+                                style={styles.editorCancelBtn}
+                                onPress={(e) => { e.stopPropagation(); setEditingTaskId(null); }}
+                                activeOpacity={0.75}
+                                accessibilityRole="button"
+                                accessibilityLabel="Cancel time change"
+                              >
+                                <Text style={styles.editorCancelText}>Cancel</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.editorSaveBtn}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveTaskTime(task, minutesToHHMM(editMinutes));
+                                  setEditingTaskId(null);
+                                }}
+                                activeOpacity={0.85}
+                                accessibilityRole="button"
+                                accessibilityLabel="Save new time"
+                              >
+                                <Text style={styles.editorSaveText}>Save</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ) : (
+                          <View
+                            style={styles.taskActionRow}
+                            onStartShouldSetResponder={() => true}
+                          >
+                            <TouchableOpacity
+                              style={styles.taskActionChip}
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                setEditMinutes(hhmmToMinutes(task.time));
+                                setEditingTaskId(task.task_id);
+                              }}
+                              activeOpacity={0.75}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Move time for ${stripDuplicateModulePrefix(task.title, task.moduleLabel)}`}
+                            >
+                              <Ionicons name="time-outline" size={13} color={colors.textSecondary} />
+                              <Text style={styles.taskActionLabel}>Move time</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.taskActionChip}
+                              onPress={(e) => { e.stopPropagation(); goToChatForTask(task); }}
+                              activeOpacity={0.75}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Ask Max about ${stripDuplicateModulePrefix(task.title, task.moduleLabel)}`}
+                            >
+                              <Ionicons name="chatbubble-ellipses-outline" size={13} color={colors.textSecondary} />
+                              <Text style={styles.taskActionLabel}>Ask Max</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.taskActionChip}
+                              onPress={(e) => { e.stopPropagation(); handleRemoveTask(task); }}
+                              activeOpacity={0.75}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Remove ${stripDuplicateModulePrefix(task.title, task.moduleLabel)} from your routine`}
+                            >
+                              <Ionicons name="trash-outline" size={13} color={colors.error} />
+                              <Text style={[styles.taskActionLabel, { color: colors.error }]}>Remove</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
                       </>
                     )}
                   </View>
@@ -1123,22 +1328,67 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginLeft: 62 + spacing.sm,
   },
-  askChatRow: {
+  taskActionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+    marginLeft: 62 + spacing.sm,
+  },
+  taskActionChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 10,
-    marginLeft: 62 + spacing.sm,
     paddingVertical: 6,
     paddingHorizontal: 10,
     backgroundColor: colors.surface,
     borderRadius: borderRadius.sm,
-    alignSelf: 'flex-start',
   },
-  askChatLabel: {
+  taskActionLabel: {
     fontSize: 12,
     fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  timeEditor: {
+    marginTop: 12,
+    marginLeft: 62 + spacing.sm,
+    marginRight: spacing.sm,
+  },
+  timeEditorLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
     color: colors.textMuted,
+    marginBottom: 10,
+  },
+  timeEditorActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 6,
+  },
+  editorCancelBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
+  },
+  editorCancelText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  editorSaveBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.foreground,
+  },
+  editorSaveText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.background,
   },
   emptyState: { flex: 1, paddingHorizontal: spacing.xl },
   emptyStateMinimal: {

@@ -472,6 +472,14 @@ async def regenerate_active_schedules(
         if excluded:
             fixed_new = _drop_excluded_tasks(fixed_new, excluded)
 
+        # Honor times the user explicitly moved (scope="series" edit) so a
+        # silent re-expansion re-pins their chosen time instead of snapping
+        # the part back to the skeleton default. Applied AFTER validate_and_fix
+        # so the user's intent wins over the engine's preferred slot.
+        overrides = dict((sched.schedule_context or {}).get("time_overrides") or {})
+        if overrides:
+            fixed_new = _apply_time_overrides(fixed_new, overrides)
+
         merged = _merge_preserving_status(old_days=list(sched.days or []), new_days=fixed_new)
         # Only update if anything actually changed (cheap to compare via
         # the fingerprints we already build; here we just compare lengths
@@ -506,6 +514,29 @@ def _drop_excluded_tasks(days: list[dict], excluded: set[str]) -> list[dict]:
     out: list[dict] = []
     for d in days:
         tasks = [t for t in (d.get("tasks") or []) if t.get("catalog_id") not in excluded]
+        out.append({**d, "tasks": tasks})
+    return out
+
+
+def _apply_time_overrides(days: list[dict], overrides: dict[str, str]) -> list[dict]:
+    """Re-pin user-moved times (scope="series" edit) onto a fresh expansion.
+
+    `overrides` maps catalog_id -> "HH:MM". For every task whose catalog_id is
+    pinned, stamp the user's time (and clear notification_sent so the reminder
+    re-arms). Returns shallow-copied days so the caller's input isn't mutated.
+    """
+    if not overrides:
+        return days
+    out: list[dict] = []
+    for d in days:
+        tasks: list[dict] = []
+        for t in (d.get("tasks") or []):
+            cid = t.get("catalog_id")
+            pinned = overrides.get(cid) if cid else None
+            if pinned:
+                tasks.append({**t, "time": pinned, "notification_sent": False})
+            else:
+                tasks.append(t)
         out.append({**d, "tasks": tasks})
     return out
 

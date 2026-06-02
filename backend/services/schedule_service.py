@@ -2972,32 +2972,79 @@ class ScheduleService:
         return result
 
     async def edit_task(
-        self, user_id: str, schedule_id: str, task_id: str, db: AsyncSession, updates: dict
+        self, user_id: str, schedule_id: str, task_id: str, db: AsyncSession, updates: dict,
+        scope: str = "instance",
     ) -> dict:
+        """Edit a scheduled task.
+
+        scope="instance" (default): change only the single tapped occurrence
+        (each day's copy carries its own task_id).
+
+        scope="series": the user moved a recurring part in their routine.
+        Resolve the catalog_id and apply the change to EVERY day's instance.
+        A time change also writes a durable override into
+        schedule_context.time_overrides[catalog_id] so a later silent
+        re-expansion (regenerate_active_schedules) re-pins the user's time
+        instead of resetting it to the skeleton default. Falls back to
+        instance behaviour for one-off tasks that have no catalog_id.
+        """
         schedule = await self._load_schedule(schedule_id, user_id, db)
         if not schedule:
             raise ValueError("Schedule not found")
 
-        updated = False
-        updated_task = None
         days = schedule.days or []
+
+        # Resolve the tapped task's catalog_id so a series edit can match every
+        # day's instance (they each carry a distinct task_id).
+        target_catalog_id = None
         for day in days:
             for task in day.get("tasks", []):
                 if task.get("task_id") == task_id:
-                    if updates.get("time"):
-                        task["time"] = updates["time"]
-                        task["notification_sent"] = False
-                    if updates.get("title"):
-                        task["title"] = updates["title"]
-                    if updates.get("description"):
-                        task["description"] = updates["description"]
-                    if updates.get("duration_minutes"):
-                        task["duration_minutes"] = updates["duration_minutes"]
-                    updated = True
-                    updated_task = task
+                    target_catalog_id = task.get("catalog_id")
                     break
-            if updated:
+            if target_catalog_id is not None:
                 break
+
+        series = (scope or "instance").lower() == "series" and bool(target_catalog_id)
+
+        def _apply(task: dict) -> None:
+            if updates.get("time"):
+                task["time"] = updates["time"]
+                task["notification_sent"] = False
+            if updates.get("title"):
+                task["title"] = updates["title"]
+            if updates.get("description"):
+                task["description"] = updates["description"]
+            if updates.get("duration_minutes"):
+                task["duration_minutes"] = updates["duration_minutes"]
+
+        updated = False
+        updated_task = None
+        if series:
+            for day in days:
+                for task in day.get("tasks", []):
+                    if task.get("catalog_id") == target_catalog_id:
+                        _apply(task)
+                        updated = True
+                        updated_task = task
+            # Durable time pin: survive future silent regenerations.
+            if updates.get("time"):
+                ctx = dict(schedule.schedule_context or {})
+                overrides = dict(ctx.get("time_overrides") or {})
+                overrides[target_catalog_id] = updates["time"]
+                ctx["time_overrides"] = overrides
+                schedule.schedule_context = ctx
+                flag_modified(schedule, "schedule_context")
+        else:
+            for day in days:
+                for task in day.get("tasks", []):
+                    if task.get("task_id") == task_id:
+                        _apply(task)
+                        updated = True
+                        updated_task = task
+                        break
+                if updated:
+                    break
 
         if not updated:
             raise ValueError("Task not found in schedule")
@@ -3006,7 +3053,12 @@ class ScheduleService:
         flag_modified(schedule, "days")
         schedule.updated_at = datetime.utcnow()
         await db.commit()
-        return {"status": "updated", "task": updated_task}
+        return {
+            "status": "updated",
+            "scope": "series" if series else "instance",
+            "task": updated_task,
+            "catalog_id": target_catalog_id if series else None,
+        }
 
     async def delete_task(
         self, user_id: str, schedule_id: str, task_id: str, db: AsyncSession, scope: str = "instance"
@@ -3058,6 +3110,11 @@ class ScheduleService:
             if target_catalog_id not in excluded:
                 excluded.append(target_catalog_id)
             ctx["excluded_catalog_ids"] = excluded
+            # Drop any stale time pin for the part we just removed.
+            overrides = dict(ctx.get("time_overrides") or {})
+            if target_catalog_id in overrides:
+                overrides.pop(target_catalog_id, None)
+                ctx["time_overrides"] = overrides
             schedule.schedule_context = ctx
             flag_modified(schedule, "schedule_context")
         else:
