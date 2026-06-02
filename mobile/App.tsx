@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { AppState, View, Platform, type AppStateStatus, type ViewStyle } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -27,11 +27,33 @@ import './services/localScheduleNotifications';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
+// Routes a push notification is allowed to deep-link into. Keep this an
+// explicit allow-list — we never navigate to an arbitrary route name handed
+// to us inside a notification payload.
+const NOTIFICATION_DEEP_LINK_ROUTES = new Set<string>(['ProgressArchive']);
+
 function AppNavigator() {
-    const { isAuthenticated, refreshUser, user, isScanUser } = useAuth();
+    const { isAuthenticated, isPaid, refreshUser, user, isScanUser } = useAuth();
     const navRef = useNavigationContainerRef();
     const appStateRef = useRef<AppStateStatus>(AppState.currentState);
     const recoveryRunning = useRef(false);
+    // A deep-link target that arrived from a notification tap before the
+    // navigator (or the stack screen it points at) was mounted — flushed once
+    // navigation is ready. Covers the cold-start-from-tap case.
+    const pendingDeepLinkRef = useRef<string | null>(null);
+
+    const goToNotificationRoute = useCallback(
+        (route: unknown) => {
+            if (typeof route !== 'string' || !NOTIFICATION_DEEP_LINK_ROUTES.has(route)) return;
+            if (navRef.isReady()) {
+                navRef.navigate(route as never);
+                pendingDeepLinkRef.current = null;
+            } else {
+                pendingDeepLinkRef.current = route;
+            }
+        },
+        [navRef],
+    );
 
     // Clear badge count when the app enters the foreground and wire up
     // notification-tap deep-linking.
@@ -46,15 +68,38 @@ function AppNavigator() {
         return () => sub.remove();
     }, []);
 
+    // Notification-tap deep-linking: send the user where the push points. The
+    // bedtime progress-pic push carries { route: 'ProgressArchive' } so a tap
+    // drops them straight into their archive to add tonight's photo.
     useEffect(() => {
-        const sub = Notifications.addNotificationResponseReceivedListener((_response) => {
-            // Future: read _response.notification.request.content.data for
-            // deep-link routing (e.g. navigate to a specific schedule or chat).
-            // For now, opening the app to the foreground is sufficient — the
-            // home screen shows today's tasks.
+        let mounted = true;
+        const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+            goToNotificationRoute(response?.notification?.request?.content?.data?.route);
         });
-        return () => sub.remove();
-    }, []);
+        // Cold-start: the app was launched by tapping a notification while it
+        // wasn't running. The listener above won't fire for that tap.
+        void Notifications.getLastNotificationResponseAsync()
+            .then((response) => {
+                if (mounted) goToNotificationRoute(response?.notification?.request?.content?.data?.route);
+            })
+            .catch(() => undefined);
+        return () => {
+            mounted = false;
+            sub.remove();
+        };
+    }, [goToNotificationRoute]);
+
+    // Flush a deferred deep-link once the navigator and its target stack are
+    // mounted. Re-runs as auth/paid state resolves (the ProgressArchive screen
+    // only exists in the paid stack), which is exactly when a cold-start tap
+    // becomes navigable.
+    useEffect(() => {
+        const pending = pendingDeepLinkRef.current;
+        if (pending && navRef.isReady()) {
+            navRef.navigate(pending as never);
+            pendingDeepLinkRef.current = null;
+        }
+    }, [isAuthenticated, isPaid, user?.id, navRef]);
 
     // Root-level face scan recovery: runs whenever the app comes back to the
     // foreground so a pending upload that was interrupted in the background
@@ -135,7 +180,17 @@ function AppNavigator() {
     }, [isAuthenticated, user?.id, isScanUser, refreshUser, navRef]);
 
     return (
-        <NavigationContainer ref={navRef} key={isAuthenticated ? 'auth' : 'guest'}>
+        <NavigationContainer
+            ref={navRef}
+            key={isAuthenticated ? 'auth' : 'guest'}
+            onReady={() => {
+                const pending = pendingDeepLinkRef.current;
+                if (pending && navRef.isReady()) {
+                    navRef.navigate(pending as never);
+                    pendingDeepLinkRef.current = null;
+                }
+            }}
+        >
             <StatusBar style="dark" />
             <RootNavigator />
             {/* Floating dev drawer — __DEV__ gate inside the component, so

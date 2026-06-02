@@ -312,10 +312,32 @@ def _parse_sleep_hh_mm(raw: str | None) -> tuple[int, int] | None:
     return None
 
 
-def _resolve_user_sleep_time(user, schedules: list) -> tuple[int, int] | None:
-    """sleep_time from onboarding, schedule_preferences, or active schedule preferences."""
+def _resolve_user_sleep_time(
+    user, schedules: list, weekday: str | None = None
+) -> tuple[int, int] | None:
+    """Bedtime for THIS night, preferring the Planner tab's per-weekday override.
+
+    Precedence (first hit wins):
+      1. onboarding.weekly_timings[weekday].sleep_time — the bedtime the user
+         set for this specific weekday in the Planner (e.g. a later Friday).
+      2. onboarding.sleep_time — the global default rhythm.
+      3. schedule_preferences.sleep_time.
+      4. any active schedule's preferences.sleep_time.
+
+    `weekday` is a lowercase day name ("monday".."sunday"); pass it so a user
+    who sleeps in / stays up on certain days gets the prompt at the right hour
+    on those days. Omitted → behaves like the old global-only lookup.
+    """
     ob = user.onboarding or {}
     sp = user.schedule_preferences or {}
+    if weekday:
+        wt = ob.get("weekly_timings")
+        if isinstance(wt, dict):
+            day_ov = wt.get(weekday)
+            if isinstance(day_ov, dict):
+                p = _parse_sleep_hh_mm(day_ov.get("sleep_time"))
+                if p:
+                    return p
     for src in (ob.get("sleep_time"), sp.get("sleep_time")):
         p = _parse_sleep_hh_mm(src)
         if p:
@@ -367,10 +389,6 @@ async def send_bedtime_progress_picture_prompts():
                     if not want_sms and not want_push:
                         continue
 
-                    sleep_hm = _resolve_user_sleep_time(user, schedules)
-                    if not sleep_hm:
-                        continue
-
                     tz_name = (user.onboarding or {}).get("timezone", "UTC")
                     try:
                         user_tz = ZoneInfo(tz_name)
@@ -381,6 +399,16 @@ async def send_bedtime_progress_picture_prompts():
                     today_iso = local_now.date().isoformat()
 
                     if user.last_progress_prompt_date == today_iso:
+                        continue
+
+                    # Bedtime for *tonight* — prefer the Planner's per-weekday
+                    # override so a later-Friday / sleep-in-Sunday user gets the
+                    # prompt at the hour they actually wind down that day. The
+                    # window fires before bed, so the winding-down weekday is
+                    # local_now's (correct for the common pre-midnight bedtime).
+                    weekday = local_now.strftime("%A").lower()  # monday..sunday
+                    sleep_hm = _resolve_user_sleep_time(user, schedules, weekday=weekday)
+                    if not sleep_hm:
                         continue
 
                     sh, sm = sleep_hm
@@ -398,14 +426,23 @@ async def send_bedtime_progress_picture_prompts():
                     apns_tok = (user.apns_device_token or "").strip()
                     user_uuid = user.id
 
-                msg = await coaching_service.generate_bedtime_progress_picture_prompt(
-                    str(user_uuid), None, None
-                )
                 delivered = False
                 if want_sms and phone:
-                    delivered = bool(await sendblue_service.send_coaching_sms(phone, msg))
+                    # SMS users reply to the thread with a photo.
+                    sms_msg = await coaching_service.generate_bedtime_progress_picture_prompt(
+                        str(user_uuid), None, None, channel="sms"
+                    )
+                    delivered = bool(await sendblue_service.send_coaching_sms(phone, sms_msg))
                 if want_push and apns_tok:
-                    ok, http_status = await send_apns_alert(apns_tok, "Max", msg)
+                    # Push users can't reply with a photo, so the copy invites a
+                    # tap and the payload deep-links straight to the progress
+                    # archive where they add tonight's pic.
+                    push_msg = await coaching_service.generate_bedtime_progress_picture_prompt(
+                        str(user_uuid), None, None, channel="push"
+                    )
+                    ok, http_status = await send_apns_alert(
+                        apns_tok, "Max", push_msg, custom={"route": "ProgressArchive"}
+                    )
                     if apns_response_should_invalidate_token(http_status):
                         async with AsyncSessionLocal() as db2:
                             u2 = await db2.get(User, user_uuid)

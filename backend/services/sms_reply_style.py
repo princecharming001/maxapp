@@ -26,6 +26,19 @@ This becomes the user's real message in iMessage/SMS. One peer texting another.
 - Never use em-dashes (the long dash). Use a comma or a period. Em-dashes are the #1 tell that a bot wrote the text.
 """
 
+# Appended to prompts for AI-generated PUSH notifications (e.g. the bedtime
+# progress-pic nudge). A push has NO reply path — tapping the banner opens the
+# app on the relevant screen — so the copy must invite a tap, never a text-back.
+PUSH_OUTBOUND_LLM_APPENDIX = """
+## How this push should read
+This becomes a phone push notification. Tapping it opens the app on their progress archive.
+- No meta: don't announce that you're notifying, reminding, or pinging them.
+- They CANNOT reply to this and there is no thread. Never say "reply", "text back", "pic back", "send a photo", "shoot me", or mention MMS. Opening the app is the only action available.
+- If you invite a progress photo, frame it as a tap (e.g. "tap to add today's pic"), one short casual clause.
+- Never use * or ** (no markdown bold or fake bullets).
+- Never use em-dashes (the long dash). Use a comma or a period.
+"""
+
 
 def sms_chat_appendix(delivery_channel: str) -> str:
     return SMS_CONVERSATION_APPENDIX.strip() if (delivery_channel or "").lower() == "sms" else ""

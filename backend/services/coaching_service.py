@@ -26,7 +26,10 @@ from services.llm_sync import sync_llm_plain_text
 from models.sqlalchemy_models import User, UserCoachingState, UserSchedule, ChatHistory, Scan
 from db.sqlalchemy import AsyncSessionLocal
 from services.prompt_loader import PromptKey, resolve_prompt
-from services.sms_reply_style import SMS_OUTBOUND_LLM_APPENDIX
+from services.sms_reply_style import (
+    PUSH_OUTBOUND_LLM_APPENDIX,
+    SMS_OUTBOUND_LLM_APPENDIX,
+)
 from services.token_budget import count_tokens, trim_context_blob, trim_text_block
 
 
@@ -1215,9 +1218,15 @@ class CoachingService:
             return _pick_check_in_fallback(user_id, check_in_type, missed_today)
 
     async def _prepare_bedtime_prompt(
-        self, user_id: str, db: AsyncSession, rds_db
+        self, user_id: str, db: AsyncSession, rds_db, *, channel: str = "sms"
     ) -> tuple[str, str]:
-        """Returns (gemini_prompt, fallback_sms_with_name_placeholder filled)."""
+        """Returns (gemini_prompt, fallback_with_name_placeholder filled).
+
+        ``channel`` tailors the copy to the delivery medium: SMS users reply
+        with a photo, push users tap the banner to open their archive. The
+        coach voice + context base is shared; only the trailing style rules and
+        the offline fallback differ.
+        """
         context_str = await self.build_full_context(user_id, db, rds_db, intent="OTHER")
         if not context_str:
             context_str = "No context yet."
@@ -1227,11 +1236,17 @@ class CoachingService:
         bed_tmpl = await asyncio.to_thread(
             resolve_prompt, PromptKey.COACHING_BEDTIME, _COACHING_BEDTIME_FALLBACK
         )
-        prompt = bed_tmpl.format(name=name, context_snippet=context_str[:2500]) + SMS_OUTBOUND_LLM_APPENDIX
-
-        fallback = (
-            f"hey {name}, winding down? pic back if you want today's progress in your archive, no pressure."
-        )
+        base = bed_tmpl.format(name=name, context_snippet=context_str[:2500])
+        if channel == "push":
+            prompt = base + PUSH_OUTBOUND_LLM_APPENDIX
+            fallback = (
+                f"hey {name}, winding down? tap to drop today's progress pic in your archive, no pressure."
+            )
+        else:
+            prompt = base + SMS_OUTBOUND_LLM_APPENDIX
+            fallback = (
+                f"hey {name}, winding down? pic back if you want today's progress in your archive, no pressure."
+            )
         return prompt, fallback
 
     async def generate_bedtime_progress_picture_prompt(
@@ -1239,16 +1254,20 @@ class CoachingService:
         user_id: str,
         db: Optional[AsyncSession] = None,
         rds_db=None,
+        *,
+        channel: str = "sms",
     ) -> str:
         """
-        Short SMS before bedtime: casual Max voice + explicit instruction to reply with a photo via MMS.
-        Use db=None from the scheduler so connections are not held during Gemini.
+        Short nudge before bedtime in the casual Max voice. ``channel`` picks the
+        affordance: "sms" invites a photo reply (MMS), "push" invites a tap that
+        opens the progress archive. Use db=None from the scheduler so connections
+        are not held during Gemini.
         """
         if db is not None:
-            prompt, fallback = await self._prepare_bedtime_prompt(user_id, db, rds_db)
+            prompt, fallback = await self._prepare_bedtime_prompt(user_id, db, rds_db, channel=channel)
         else:
             async with AsyncSessionLocal() as inner:
-                prompt, fallback = await self._prepare_bedtime_prompt(user_id, inner, rds_db)
+                prompt, fallback = await self._prepare_bedtime_prompt(user_id, inner, rds_db, channel=channel)
 
         try:
             text = await asyncio.to_thread(sync_llm_plain_text, prompt)
