@@ -62,8 +62,8 @@ const ACCENT_WASH = 'rgba(47,107,78,0.10)';
 const CHAT_EXAMPLES = [
   'Wake between 6:30 and 7:30 on weekdays',
   'Sleep in until 10 on weekends',
-  'Add gym 6–7pm Mon, Wed, Fri',
-  'Work 9–5 on weekdays',
+  'Add gym 6-7pm Mon, Wed, Fri',
+  'Work 9-5 on weekdays',
 ];
 
 export default function DayPlannerScreen({ embedded = false }: { embedded?: boolean }) {

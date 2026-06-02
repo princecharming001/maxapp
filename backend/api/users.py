@@ -949,6 +949,30 @@ def _loads_lenient(raw: str) -> dict:
     return {}
 
 
+def _clean_summary_voice(text: str) -> str:
+    """Blunt-voice guard for the user-facing planner summary.
+
+    The summary is the one line we surface from the LLM after a plan edit.
+    House style: no em-dashes, no markdown emphasis. The model's few-shot
+    examples already follow this, but we enforce it deterministically so a
+    stray em-dash or **bold** never reaches the user. Hyphenated ranges like
+    "6-7 PM" are preserved; a numeric em-dash range collapses to a hyphen,
+    and an em-dash used as a clause break becomes a comma (it's a single
+    sentence, so that's what it always is).
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    t = re.sub(r"(?<=\d)\s*—\s*(?=\d)", "-", text)        # 6—7 -> 6-7 (range)
+    t = t.replace("—", ", ").replace("―", ", ")      # em-dash / bar -> comma
+    t = t.replace("–", "-")                               # en-dash -> hyphen (ranges)
+    t = t.replace("**", "").replace("*", "").replace("`", "")  # strip markdown emphasis/code
+    t = re.sub(r"\s+([,.!?])", r"\1", t)                       # tidy space-before-punctuation
+    t = re.sub(r",\s*([.!?])", r"\1", t)                       # ", ." -> "."
+    t = re.sub(r"\s{2,}", " ", t)                              # collapse runs of spaces
+    t = re.sub(r"\s*,\s*$", "", t)                             # no trailing comma
+    return t.strip()
+
+
 def _build_planner_prompt(cur_defaults: dict, cur_weekly: dict, instruction: str) -> str:
     """Build the planner-chat LLM prompt. Pure (no I/O) so it can be tested /
     exercised against the live model without going through the HTTP endpoint."""
@@ -1009,7 +1033,7 @@ def _build_planner_prompt(cur_defaults: dict, cur_weekly: dict, instruction: str
         "{\n"
         "  \"defaults\": { ...only default-level fields you are CHANGING... },\n"
         "  \"weekly_timings\": { \"saturday\": { ...fields... }, ... only the days you are CHANGING ... },\n"
-        "  \"summary\": \"<one short, friendly sentence naming exactly what changed and on which days>\"\n"
+        "  \"summary\": \"<one short, plain sentence naming exactly what changed and on which days. Blunt and friendly. No em-dashes, no markdown, no asterisks.>\"\n"
         "}\n\n"
         "EXAMPLES (shape only — real current values vary per user):\n"
         "- \"I sleep in until 10 on weekends\" ->\n"
@@ -1192,14 +1216,14 @@ async def planner_chat(
         raw = await asyncio.wait_for(async_llm_json_response(prompt, max_tokens=1200), timeout=30)
     except Exception as e:
         logger.warning("planner_chat LLM call failed: %s", e)
-        raise HTTPException(status_code=502, detail="Couldn't reach the planner just now — please try again in a moment.")
+        raise HTTPException(status_code=502, detail="Couldn't reach the planner just now. Try again in a moment.")
 
     parsed = _loads_lenient(raw)
     if not parsed:
         logger.warning("planner_chat: unparseable LLM reply (%d chars)", len(raw or ""))
-        raise HTTPException(status_code=502, detail="Couldn't understand that — try rephrasing your request.")
+        raise HTTPException(status_code=502, detail="Couldn't understand that. Try rephrasing it.")
 
-    summary = str(parsed.get("summary") or "").strip()[:240] or "Updated your plan."
+    summary = _clean_summary_voice(str(parsed.get("summary") or "").strip())[:240] or "Updated your plan."
 
     # --- Merge the diff into onboarding (presence-based: unmentioned = keep) --
     changed = _apply_planner_diff(prev, cur_weekly, parsed)

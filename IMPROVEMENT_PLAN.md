@@ -96,8 +96,11 @@ Make the skeleton place tasks into **free intervals** (wake..sleep minus work mi
 - **Default to Exact:** verified already satisfied — `reconcileWindow` (plannerModel.ts) collapses to `[a,a]` exact whenever there's no valid stored window, so Range is already opt-in. No change needed.
 - **Disappearing workout control explained:** `DayEditorSheet` single-weekday view (scope !== 'all') now renders a muted "Workout window" header + "Set once for all days. Open the All days view to change it." instead of silently dropping the control.
 
-### Slice 5 — Copy + polish `[low risk]`
-Voice pass on all new strings; blunt coach, no em-dashes, no markdown.
+### Slice 5 — Copy + polish `DONE 2026-06-02`
+**Status:** shipped + verified. Backend `tests/` 205 pass (197 + 8 new `_clean_summary_voice` tests), only the 4 known pre-existing failures. Mobile `tsc` clean, `expo export` ends "Exported: dist".
+- **Voice pass on every new string (Slices 1-4).** Reviewed all the copy this effort introduced: onboarding intensity step + helper lines, RoutineReveal, planner masthead/section/chat copy, the inline edit/remove action bar + alerts, the workout-window explanation. All already blunt and on-voice. Mechanical fixes: en-dashes in the planner's tappable chat examples ("6-7pm", "9-5") swapped to plain hyphens so they read like real typed input; the backend starter-routine summary em-dash dropped ("Your daily foundation. Answer a few questions in chat and it gets tailored to you.").
+- **Live AI replies now deterministically on-voice.** The planner-chat `summary` is the one LLM line surfaced to the user. Added `_clean_summary_voice` (api/users.py): strips markdown emphasis/code marks, turns an em-dash clause break into a comma, collapses numeric em/en-dash ranges to a hyphen (so "6-7 PM" survives), and trims dangling punctuation. Also tightened the prompt's summary instruction ("blunt and friendly, no em-dashes, no markdown, no asterisks") so the model generates clean text in the first place. Two planner-chat error strings had their em-dashes removed too. Backed by 8 new DB-free tests.
+- Existing layers already enforce this elsewhere: the coach prompt (`lc_agent.py`) instructs "NEVER use em-dashes" and post-sanitizes output; the catalog/doc copy was humanized in earlier work (#39-46, #52). No mobile markdown renderer is in the chat reply path (plain `Text`), so server-side stripping is what guarantees the user never sees an asterisk.
 
 ---
 

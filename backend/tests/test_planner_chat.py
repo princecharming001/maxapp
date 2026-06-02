@@ -15,6 +15,7 @@ from __future__ import annotations
 from api.users import (
     _loads_lenient,
     _apply_planner_diff,
+    _clean_summary_voice,
     _norm_days,
     _norm_window,
     _norm_obligations,
@@ -63,6 +64,49 @@ def test_loads_junk_and_empty_return_empty():
     assert _loads_lenient("") == {}
     assert _loads_lenient(None) == {}
     assert _loads_lenient("[1,2,3]") == {}  # array is not a dict
+
+
+# --------------------------------------------------------------------------- #
+#  _clean_summary_voice — house style on the user-facing reply line             #
+# --------------------------------------------------------------------------- #
+
+def test_summary_clean_sentence_untouched():
+    s = "You'll now wake at 10:00 on Saturday and Sunday."
+    assert _clean_summary_voice(s) == s
+
+
+def test_summary_hyphen_range_preserved():
+    # A plain ASCII hyphen range is the house style and must survive intact.
+    assert _clean_summary_voice("Added the gym 6-7 PM on Mon, Wed and Fri.") == (
+        "Added the gym 6-7 PM on Mon, Wed and Fri.")
+
+
+def test_summary_em_dash_clause_becomes_comma():
+    assert _clean_summary_voice("Cleared Wednesday — ask me anything else.") == (
+        "Cleared Wednesday, ask me anything else.")
+
+
+def test_summary_em_dash_numeric_range_becomes_hyphen():
+    assert _clean_summary_voice("Moved your workout to 6—7 PM.") == (
+        "Moved your workout to 6-7 PM.")
+
+
+def test_summary_en_dash_range_becomes_hyphen():
+    assert _clean_summary_voice("Set work 9–5 on weekdays.") == "Set work 9-5 on weekdays."
+
+
+def test_summary_strips_markdown_emphasis():
+    assert _clean_summary_voice("Set **work** 9-5 on *weekdays*.") == (
+        "Set work 9-5 on weekdays.")
+
+
+def test_summary_no_trailing_comma_from_dangling_dash():
+    assert _clean_summary_voice("Updated your plan —") == "Updated your plan"
+
+
+def test_summary_empty_and_non_str_passthrough():
+    assert _clean_summary_voice("") == ""
+    assert _clean_summary_voice(None) is None
 
 
 # --------------------------------------------------------------------------- #

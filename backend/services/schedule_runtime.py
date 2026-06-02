@@ -338,8 +338,8 @@ async def generate_first_routine_if_absent(
             days=days,
             preferences={"wake_time": wake, "sleep_time": sleep},
             schedule_context={
-                "summary": "Starter routine — your daily foundation. Answer a few "
-                           "questions in chat and it gets tailored to you.",
+                "summary": "Your daily foundation. Answer a few questions in chat "
+                           "and it gets tailored to you.",
                 "starter": True,
                 "starter_pending_fields": sorted(missing),
             },
