@@ -176,6 +176,12 @@ export default function TimeRangeSlider({
   const clampLeft = (left: number, w: number) =>
     Math.max(0, Math.min(width - w, left));
 
+  // Text form of the current selection for screen readers.
+  const a11yValueText = single
+    ? format(value[0])
+    : `${format(value[0])} to ${format(value[1])}`;
+  const a11yLabel = single ? 'Time' : 'Time range';
+
   return (
     <View style={styles.wrap}>
       <View style={styles.labelRow}>
@@ -193,7 +199,7 @@ export default function TimeRangeSlider({
             >
               <Text style={styles.pillText}>
                 {format(value[0])}
-                <Text style={styles.pillDash}>  –  </Text>
+                <Text style={styles.pillDash}> to </Text>
                 {format(value[1])}
               </Text>
             </View>
@@ -209,7 +215,16 @@ export default function TimeRangeSlider({
           ))}
       </View>
 
-      <View style={styles.trackRow} onLayout={onLayout} {...pan.panHandlers}>
+      <View
+        style={styles.trackRow}
+        onLayout={onLayout}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel={a11yLabel}
+        accessibilityValue={{ text: a11yValueText }}
+        {...pan.panHandlers}
+      >
         <View style={styles.trackBg} />
 
         {ticks.map((t) => {

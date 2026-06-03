@@ -79,13 +79,12 @@ export default function SendblueConnectScreen() {
 
     const onSkipSms = () => {
         Alert.alert(
-            'Skip SMS permanently?',
-            'SMS coaching from Max (schedule reminders, check-ins, motivation texts) will never be available on this account.\n\nTo get SMS later, you would need to delete your account and create a new one.\n\nAre you sure you want to skip?',
+            'Skip SMS for now?',
+            "You can use Max without SMS. You'll still get reminders and coaching inside the app. You can turn on SMS texts later by texting the Max line.",
             [
                 { text: 'Go back', style: 'cancel' },
                 {
-                    text: 'Skip SMS forever',
-                    style: 'destructive',
+                    text: 'Skip SMS',
                     onPress: async () => {
                         setBusy(true);
                         try {
@@ -211,9 +210,9 @@ export default function SendblueConnectScreen() {
                 </TouchableOpacity>
 
                 <View style={styles.skipSmsWrap}>
-                    <Ionicons name="warning-outline" size={15} color={colors.error} style={{ marginTop: 1 }} />
+                    <Ionicons name="information-circle-outline" size={15} color={colors.textMuted} style={{ marginTop: 1 }} />
                     <Text style={styles.skipSmsWarning}>
-                        SMS coaching only works if you finish this step. Skipping is permanent. You can&apos;t add SMS later without deleting your account.
+                        Texting the Max line turns on SMS coaching: reminders, check-ins, and replies by text. You can skip it and still use the full app.
                     </Text>
                 </View>
                 <TouchableOpacity
@@ -222,7 +221,7 @@ export default function SendblueConnectScreen() {
                     disabled={busy}
                     activeOpacity={0.7}
                 >
-                    <Text style={styles.skipSmsBtnText}>Skip SMS (permanent)</Text>
+                    <Text style={styles.skipSmsBtnText}>Skip for now</Text>
                 </TouchableOpacity>
 
                 {SHOW_DEV_SKIP_CONTROLS ? (
@@ -329,7 +328,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.surface,
         borderRadius: borderRadius.md,
         borderWidth: 1,
-        borderColor: colors.warning + '55',
+        borderColor: colors.border,
         padding: spacing.md,
     },
     skipSmsWarning: {
@@ -345,10 +344,10 @@ const styles = StyleSheet.create({
         paddingVertical: 11,
         borderRadius: borderRadius.md,
         borderWidth: 1,
-        borderColor: colors.error + '99',
+        borderColor: colors.border,
         marginBottom: spacing.lg,
     },
-    skipSmsBtnText: { fontSize: 14, fontWeight: '600', color: colors.error },
+    skipSmsBtnText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
     devSkipBtn: {
         alignItems: 'center',
         justifyContent: 'center',

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import api from '../../services/api';
 import { colors, spacing, borderRadius, typography } from '../../theme/dark';
@@ -14,7 +15,11 @@ export default function ChapterViewScreen() {
     const [completed, setCompleted] = useState(initialCompleted);
     const [marking, setMarking] = useState(false);
 
-    const player = useVideoPlayer(chapter.video_url || '', player => { player.loop = true; player.play(); });
+    // Instructional content shouldn't loop forever — play once. Autoplay kept.
+    const player = useVideoPlayer(chapter.video_url || '', player => { player.loop = false; player.play(); });
+    const { status } = useEvent(player, 'statusChange', { status: player.status });
+    const videoErrored = status === 'error';
+    const videoLoading = status === 'loading' || status === 'idle';
 
     const handleComplete = async () => {
         if (completed) return;
@@ -35,7 +40,21 @@ export default function ChapterViewScreen() {
             <ScrollView contentContainerStyle={styles.content}>
                 {chapter.type === 'video' && chapter.video_url ? (
                     <View style={styles.videoContainer}>
-                        <VideoView style={styles.video} player={player} allowsFullscreen allowsPictureInPicture />
+                        {videoErrored ? (
+                            <View style={styles.videoMessage}>
+                                <Ionicons name="alert-circle-outline" size={28} color={colors.textMuted} />
+                                <Text style={styles.videoMessageText}>Could not load this video. Try again later.</Text>
+                            </View>
+                        ) : (
+                            <>
+                                <VideoView style={styles.video} player={player} allowsFullscreen allowsPictureInPicture />
+                                {videoLoading ? (
+                                    <View style={styles.videoLoadingOverlay} pointerEvents="none">
+                                        <ActivityIndicator color="#fff" />
+                                    </View>
+                                ) : null}
+                            </>
+                        )}
                     </View>
                 ) : chapter.type === 'image' && chapter.image_url ? (
                     <View style={styles.imageContainer}><CachedImage uri={chapter.image_url} style={styles.contentImage} /></View>
@@ -72,6 +91,9 @@ const styles = StyleSheet.create({
     content: { paddingBottom: 100 },
     videoContainer: { width: '100%', height: 220, backgroundColor: '#000', marginBottom: spacing.md },
     video: { flex: 1 },
+    videoMessage: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
+    videoMessageText: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
+    videoLoadingOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
     imageContainer: { width: '100%', height: 250, marginBottom: spacing.md },
     contentImage: { width: '100%', height: '100%', resizeMode: 'contain' },
     textContainer: { padding: spacing.lg },

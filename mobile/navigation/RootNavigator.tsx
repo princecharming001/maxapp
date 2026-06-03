@@ -65,12 +65,13 @@ export function RootNavigator() {
     const postSubscriptionOnboarding = !!(user?.onboarding as Record<string, unknown> | undefined)?.post_subscription_onboarding;
 
     /**
-     * Pre-pay:  Onboarding → FeaturesIntro → FaceScan → FaceScanResults (locked) → Payment.
-     * Post-pay: Main (→ HomeScreen redirects to FaceScanResults postPay) → ModuleSelect → Main.
+     * Pre-pay:  Onboarding -> FeaturesIntro -> FaceScan -> FaceScanResults (locked) -> Payment.
+     * Post-pay: Main (HomeScreen redirects to FaceScanResults postPay) -> ModuleSelect -> Main.
      *
-     * SMS verification + NotificationChannels screens were removed; push
-     * notifications default to ON for paid users (opted in automatically
-     * — they can still toggle device-level via OS settings).
+     * SMS + notification screens (SmsCoachingIntro, SendblueConnect, SmsSetup,
+     * NotificationChannels) stay registered in the paid stack and are reachable
+     * from the post-scan flow. Push notifications default to ON for paid users;
+     * they can still toggle device-level permissions via OS settings.
      */
     const initialRoute = !isAuthenticated
         ? 'Landing'

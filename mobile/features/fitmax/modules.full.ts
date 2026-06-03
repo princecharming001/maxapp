@@ -51,7 +51,7 @@ The scale doesn't tell you composition. Here's what does:
 
  Method Accuracy Cost Best For
 
- DEXA Scan ★★★★ $50–150 per scan Precise baseline and tracking
+ DEXA Scan ★★★★ $50-150 per scan Precise baseline and tracking
  ★
 
  InBody (BIA) ★★★☆ Free at many Trend tracking (same time, same

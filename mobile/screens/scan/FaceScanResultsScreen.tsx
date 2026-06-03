@@ -432,14 +432,28 @@ function PaywallBlurShell({ children, minHeight }: { children: React.ReactNode; 
     );
 }
 
+/** Hard ceiling on how long we show the analyzing spinner before giving the
+ *  user an escape. If the server hangs, the bar otherwise creeps to ~91% forever. */
+const PROCESSING_TIMEOUT_MS = 60_000;
+
 /** Full-screen progress UI — only while server is still analyzing the scan (not for routine GET /latest). */
-function ScanProcessingView() {
+function ScanProcessingView({ onRetry, onBack }: { onRetry: () => void; onBack: () => void }) {
     const insets = useSafeAreaInsets();
     const [trackWidth, setTrackWidth] = useState(0);
     const progressAnim = useRef(new Animated.Value(12)).current;
     const [pctLabel, setPctLabel] = useState(12);
+    const [timedOut, setTimedOut] = useState(false);
 
     useEffect(() => {
+        // Escape hatch: stop the spinner and surface a failure state if the
+        // server never finishes. Cleared on unmount (which also covers success,
+        // since the parent stops rendering this view once status changes).
+        const timeoutId = setTimeout(() => setTimedOut(true), PROCESSING_TIMEOUT_MS);
+        return () => clearTimeout(timeoutId);
+    }, []);
+
+    useEffect(() => {
+        if (timedOut) return;
         const sub = progressAnim.addListener(({ value }) => setPctLabel(Math.min(100, Math.max(0, Math.round(value)))));
         const loop = Animated.loop(
             Animated.sequence([
@@ -452,7 +466,7 @@ function ScanProcessingView() {
             progressAnim.removeListener(sub);
             loop.stop();
         };
-    }, [progressAnim]);
+    }, [progressAnim, timedOut]);
 
     const onTrackLayout = (e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width);
     const fillWidth =
@@ -463,6 +477,29 @@ function ScanProcessingView() {
                   extrapolate: 'clamp',
               })
             : 0;
+
+    if (timedOut) {
+        return (
+            <View style={[styles.root, styles.fetchingRoot]}>
+                <Text style={styles.fetchErrorText}>
+                    This is taking longer than expected. Check your connection and try again.
+                </Text>
+                <TouchableOpacity
+                    style={styles.fetchRetryBtn}
+                    onPress={() => {
+                        setTimedOut(false);
+                        onRetry();
+                    }}
+                    activeOpacity={0.85}
+                >
+                    <Text style={styles.fetchRetryText}>Retry</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.fetchSkipBtn} onPress={onBack} activeOpacity={0.85}>
+                    <Text style={styles.fetchSkipText}>Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     return (
         <View style={[styles.root, styles.loadingRoot]}>
@@ -715,7 +752,7 @@ export default function FaceScanResultsScreen() {
 
     /** Progress bar + copy only while backend is still running analysis — not after upload returns or on revisits. */
     if (serverProcessing) {
-        return <ScanProcessingView />;
+        return <ScanProcessingView onRetry={bootstrap} onBack={headerBack} />;
     }
 
     if ((hydrating && !scan) || (advancing && !scan)) {

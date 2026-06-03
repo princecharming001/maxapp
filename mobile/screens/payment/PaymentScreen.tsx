@@ -44,6 +44,7 @@ import { useStripeSubscription } from '../../hooks/useStripeSubscription';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { borderRadius, colors, fonts, spacing } from '../../theme/dark';
 import { SHOW_DEV_SKIP_CONTROLS } from '../../constants/devSkips';
+import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
 
 /* ── Tier features ────────────────────────────────────────────────────── */
 
@@ -67,7 +68,7 @@ const ACCENT = '#F5F5F4';                  // off-white for premium fill
 export default function PaymentScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const { user, refreshUser, logout } = useAuth();
+    const { user, refreshUser } = useAuth();
 
     const stripe = useStripeSubscription();
     const apple = useAppleSubscription();
@@ -77,6 +78,17 @@ export default function PaymentScreen() {
     const [devLoading, setDevLoading] = useState(false);
     const appleRestoring = 'restoring' in apple ? !!apple.restoring : false;
     const busy = sub.loading !== null || devLoading || appleRestoring;
+
+    // Prefer the real StoreKit localized price on iOS (correct currency/amount
+    // per App Store Connect). Falls back to the listed price on web/Stripe or
+    // before the product list loads. `products` only exists on the iOS hook.
+    const appleProducts: any[] = IS_IOS ? ((apple as any).products ?? []) : [];
+    const priceFor = (sku: string, fallback: string): string => {
+        const p = appleProducts.find((x) => (x?.productId ?? x?.id) === sku);
+        return (p?.displayPrice || p?.localizedPrice || fallback) as string;
+    };
+    const premiumPrice = priceFor(APPLE_IAP_PREMIUM_SKU, '$5.99');
+    const basicPrice = priceFor(APPLE_IAP_BASIC_SKU, '$3.99');
 
     const handleRestore = async () => {
         if (!IS_IOS || busy) return;
@@ -180,6 +192,7 @@ export default function PaymentScreen() {
                 <PremiumCard
                     busy={busy}
                     loadingTier={sub.loading}
+                    price={premiumPrice}
                     onPress={() => handleSubscribe('premium')}
                 />
 
@@ -187,14 +200,39 @@ export default function PaymentScreen() {
                 <BasicCard
                     busy={busy}
                     loadingTier={sub.loading}
+                    price={basicPrice}
                     onPress={() => handleSubscribe('basic')}
                 />
 
-                {/* Restore / Terms / Privacy intentionally removed from
-                    this screen — they live in Settings (legal section +
-                    Manage Subscription → Restore) which is the standard
-                    place. Keep this screen visually focused on the
-                    upgrade decision. */}
+                {/* App Store compliance for auto-renewable subscriptions:
+                    auto-renew disclosure + Restore (iOS) + Terms + Privacy,
+                    required at the point of purchase. */}
+                <Text style={s.disclosure}>
+                    Chad and Chadlite are weekly subscriptions that renew automatically until you cancel.
+                    Cancel anytime in your {IS_IOS ? 'App Store' : 'account'} settings. Payment is charged at confirmation of purchase.
+                </Text>
+
+                <View style={s.legalRow}>
+                    {IS_IOS ? (
+                        <TouchableOpacity onPress={handleRestore} disabled={busy} hitSlop={8} activeOpacity={0.7}>
+                            <Text style={s.legalLink}>{appleRestoring ? 'Restoring' : 'Restore'}</Text>
+                        </TouchableOpacity>
+                    ) : null}
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('LegalDocument', { document: 'terms' })}
+                        hitSlop={8}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={s.legalLink}>Terms</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('LegalDocument', { document: 'privacy' })}
+                        hitSlop={8}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={s.legalLink}>Privacy</Text>
+                    </TouchableOpacity>
+                </View>
 
                 {SHOW_DEV_SKIP_CONTROLS ? (
                     <View style={s.devRow}>
@@ -214,10 +252,11 @@ export default function PaymentScreen() {
 /* ── Premium card (featured, dark-fill glass) ────────────────────────── */
 
 function PremiumCard({
-    busy, loadingTier, onPress,
+    busy, loadingTier, price, onPress,
 }: {
     busy: boolean;
     loadingTier: 'basic' | 'premium' | null;
+    price: string;
     onPress: () => void;
 }) {
     return (
@@ -240,7 +279,7 @@ function PremiumCard({
                 <View style={{ position: 'relative' }}>
                     <Text style={[s.cardName, { color: ACCENT }]}>Chad</Text>
                     <View style={s.priceRow}>
-                        <Text style={[s.priceValue, { color: ACCENT }]}>$5.99</Text>
+                        <Text style={[s.priceValue, { color: ACCENT }]}>{price}</Text>
                         <Text style={s.pricePerLight}>/week</Text>
                     </View>
 
@@ -277,10 +316,11 @@ function PremiumCard({
 /* ── Basic card (translucent glass) ──────────────────────────────────── */
 
 function BasicCard({
-    busy, loadingTier, onPress,
+    busy, loadingTier, price, onPress,
 }: {
     busy: boolean;
     loadingTier: 'basic' | 'premium' | null;
+    price: string;
     onPress: () => void;
 }) {
     return (
@@ -296,7 +336,7 @@ function BasicCard({
 
             <Text style={s.cardName}>Chadlite</Text>
             <View style={s.priceRow}>
-                <Text style={s.priceValue}>$3.99</Text>
+                <Text style={s.priceValue}>{price}</Text>
                 <Text style={s.pricePer}>/week</Text>
             </View>
 
@@ -551,10 +591,29 @@ const s = StyleSheet.create({
     },
     ctaDisabled: { opacity: 0.45 },
 
-    /* (trust strip / restore / legal / sign-out styles removed —
-       those rows lived under the cards and made the screen look
-       crowded. Restore + Terms + Privacy are accessible from
-       Settings → Manage Subscription / Legal.) */
+    /* App Store compliance footer: auto-renew disclosure + Restore/Terms/Privacy. */
+    disclosure: {
+        fontSize: 11,
+        lineHeight: 16,
+        color: colors.textMuted,
+        textAlign: 'center',
+        marginTop: spacing.sm,
+        marginBottom: spacing.md,
+    },
+    legalRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: spacing.lg,
+        marginBottom: spacing.sm,
+    },
+    legalLink: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: colors.textSecondary,
+        textDecorationLine: 'underline',
+    },
 
     devRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
     devBtn: {

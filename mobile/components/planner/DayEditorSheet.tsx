@@ -27,6 +27,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   useWindowDimensions,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -116,6 +117,10 @@ export default function DayEditorSheet({
   const [d, setD] = useState<DayShape>(initial);
   const [wakeMode, setWakeMode] = useState<Mode>('range');
   const [sleepMode, setSleepMode] = useState<Mode>('range');
+  // True once the user changes any value, so dismissing via backdrop / X /
+  // hardware back can warn before silently discarding edits.
+  const [dirty, setDirty] = useState(false);
+  const markDirty = () => setDirty(true);
 
   // Re-seed the working copy each time the sheet opens (or the scope changes).
   useEffect(() => {
@@ -123,6 +128,7 @@ export default function DayEditorSheet({
     setD(initial);
     setWakeMode(isExact(initial.wakeWindow) ? 'exact' : 'range');
     setSleepMode(isExact(initial.sleepWindow) ? 'exact' : 'range');
+    setDirty(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, scope]);
 
@@ -132,13 +138,18 @@ export default function DayEditorSheet({
   const wakeVal: [number, number] = [toMin(d.wakeWindow[0]), toMin(d.wakeWindow[1])];
   const sleepVal: [number, number] = [eveMin(d.sleepWindow[0]), eveMin(d.sleepWindow[1])];
 
-  const setWake = (v: [number, number]) =>
+  const setWake = (v: [number, number]) => {
+    markDirty();
     setD((p) => ({ ...p, wakeWindow: [minToHHMM(v[0]), minToHHMM(v[1])] }));
-  const setSleep = (v: [number, number]) =>
+  };
+  const setSleep = (v: [number, number]) => {
+    markDirty();
     setD((p) => ({ ...p, sleepWindow: [minToHHMM(v[0]), minToHHMM(v[1])] }));
+  };
 
   const switchWakeMode = (m: Mode) => {
     if (m === wakeMode) return;
+    markDirty();
     setD((p) => {
       const a = toMin(p.wakeWindow[0]);
       const b = toMin(p.wakeWindow[1]);
@@ -155,6 +166,7 @@ export default function DayEditorSheet({
 
   const switchSleepMode = (m: Mode) => {
     if (m === sleepMode) return;
+    markDirty();
     setD((p) => {
       const a = eveMin(p.sleepWindow[0]);
       const b = eveMin(p.sleepWindow[1]);
@@ -178,16 +190,22 @@ export default function DayEditorSheet({
       ? `Asleep by ${fmt12(d.sleepWindow[0])}`
       : `Asleep between ${fmt12Compact(d.sleepWindow[0])} and ${fmt12Compact(d.sleepWindow[1])}`;
 
-  const setGetReady = (val: string | null) => setD((p) => ({ ...p, getReadyTime: val }));
+  const setGetReady = (val: string | null) => {
+    markDirty();
+    setD((p) => ({ ...p, getReadyTime: val }));
+  };
 
   // Workout is an optional [start,end] window (default-level only). Reject any
   // drag that would shrink it below the minimum span so it never collapses.
   const setWorkout = (v: [number, number]) => {
     if (v[1] - v[0] < WORKOUT_MIN_SPAN) return;
+    markDirty();
     setD((p) => ({ ...p, workoutWindow: [minToHHMM(v[0]), minToHHMM(v[1])] }));
   };
-  const toggleWorkout = (on: boolean) =>
+  const toggleWorkout = (on: boolean) => {
+    markDirty();
     setD((p) => ({ ...p, workoutWindow: on ? p.workoutWindow || ['17:00', '19:00'] : null }));
+  };
 
   const done = () => {
     onCommit(scope, d);
@@ -199,13 +217,31 @@ export default function DayEditorSheet({
     onClose();
   };
 
+  // Dismiss via backdrop tap, the X, or Android hardware back. Edits only
+  // commit on "Done", so warn before throwing away unsaved changes.
+  const requestClose = () => {
+    if (!dirty) {
+      onClose();
+      return;
+    }
+    Alert.alert(
+      'Discard changes?',
+      'You have unsaved edits.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: onClose },
+      ],
+      { cancelable: true },
+    );
+  };
+
   const readyValue = d.getReadyTime;
   const readyMin = toMin(readyValue || '07:00');
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={requestClose}>
       <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Pressable style={styles.backdrop} onPress={requestClose} />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.sheetWrap}
@@ -213,7 +249,7 @@ export default function DayEditorSheet({
           <View style={[styles.sheet, { maxHeight: sheetMaxH }]}>
             <View style={styles.grabber} />
             <View style={styles.header}>
-              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={requestClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="close" size={22} color={colors.textMuted} />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>{scopeLong}</Text>

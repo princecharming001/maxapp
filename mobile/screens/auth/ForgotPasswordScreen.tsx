@@ -36,11 +36,18 @@ export default function ForgotPasswordScreen() {
 
     const fadeCard = useRef(new Animated.Value(0)).current;
     const slideCard = useRef(new Animated.Value(30)).current;
+    const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => {
         Animated.parallel([
             Animated.timing(fadeCard, { toValue: 1, duration: 600, delay: 200, useNativeDriver: true }),
             Animated.timing(slideCard, { toValue: 0, duration: 600, delay: 200, useNativeDriver: true }),
         ]).start();
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (redirectTimer.current) clearTimeout(redirectTimer.current);
+        };
     }, []);
 
     const sendCode = async () => {
@@ -58,8 +65,9 @@ export default function ForgotPasswordScreen() {
             setInfo(res.message);
             setStep(2);
         } catch (error: any) {
-            const msg = error.response?.data?.detail;
-            setApiError(typeof msg === 'string' ? msg : 'Could not send code');
+            setApiError(
+                'We can only send reset codes by text. If there is no phone on your account, email mog.max123@gmail.com to reset your password.'
+            );
         } finally {
             setLoading(false);
         }
@@ -84,7 +92,7 @@ export default function ForgotPasswordScreen() {
         try {
             const res = await api.confirmPasswordResetSms(phoneE164, code.trim(), newPassword);
             setInfo(res.message);
-            setTimeout(() => navigation.navigate('Login'), 1500);
+            redirectTimer.current = setTimeout(() => navigation.navigate('Login'), 1500);
         } catch (error: any) {
             const msg = error.response?.data?.detail;
             setApiError(typeof msg === 'string' ? msg : 'Reset failed');
@@ -105,7 +113,7 @@ export default function ForgotPasswordScreen() {
                     <Text style={styles.title}>reset password</Text>
                     <Text style={styles.sub}>
                         {step === 1
-                            ? 'We’ll text a code to the phone number on your Max account.'
+                            ? "We'll text a code to the phone number on your Max account."
                             : 'Enter the code and choose a new password.'}
                     </Text>
 
@@ -138,7 +146,7 @@ export default function ForgotPasswordScreen() {
                                         autoCapitalize="none"
                                     />
                                 </View>
-                                <Text style={styles.phoneHint}>Same format as when you signed up: country and number, no code prefix.</Text>
+                                <Text style={styles.phoneHint}>Pick your country above, then enter your number without a country code prefix like +1.</Text>
                             </View>
                         </View>
                     ) : (

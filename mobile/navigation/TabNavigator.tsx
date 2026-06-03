@@ -230,7 +230,7 @@ export default function TabNavigator() {
                             paddingBottom: insets.bottom,
                         },
                     ],
-                    tabBarActiveTintColor: '#000000',
+                    tabBarActiveTintColor: colors.foreground,
                     tabBarInactiveTintColor: colors.textMuted,
                     tabBarLabelStyle: styles.tabLabel,
                 }}
@@ -239,6 +239,8 @@ export default function TabNavigator() {
                     name="Home"
                     component={HomeScreen}
                     options={{
+                        title: 'Home',
+                        tabBarLabel: 'Home',
                         tabBarIcon: ({ color }) => (
                             <Ionicons name="home-outline" size={22} color={color} />
                         ),
@@ -309,17 +311,15 @@ export default function TabNavigator() {
                         ),
                     }}
                 />
+                {/* Forums tab hidden from the bar (permanent "coming soon" dead-end).
+                    Route stays registered so deep links / the forum stack still work —
+                    tabBarButton renders null so no tab button shows. */}
                 <Tab.Screen
                     name="Forums"
                     component={ForumsStack}
                     options={{
-                        tabBarIcon: ({ color }) => (
-                            <AttachStep index={TOUR_STEP.FORUMS_TAB}>
-                                <View style={styles.tourIconWrap}>
-                                    <Ionicons name="people-outline" size={22} color={color} />
-                                </View>
-                            </AttachStep>
-                        ),
+                        tabBarButton: () => null,
+                        tabBarItemStyle: { display: 'none' },
                     }}
                 />
             </Tab.Navigator>

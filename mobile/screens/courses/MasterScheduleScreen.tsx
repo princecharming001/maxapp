@@ -782,7 +782,7 @@ export default function MasterScheduleScreen() {
       out.push({
         task_id: `life-work-${date}`,
         time: String(ob.work_start),
-        title: `work / school · until ${formatTime12(String(ob.work_end))}`,
+        title: `work / school - until ${formatTime12(String(ob.work_end))}`,
         description: '',
         task_type: 'life',
         duration_minutes: 0,
@@ -796,7 +796,7 @@ export default function MasterScheduleScreen() {
       out.push({
         task_id: `life-sleep-${date}`,
         time: String(ob.sleep_time),
-        title: `sleep · until ${formatTime12(String(ob.wake_time))}`,
+        title: `sleep - until ${formatTime12(String(ob.wake_time))}`,
         description: '',
         task_type: 'life',
         duration_minutes: 0,
@@ -1013,7 +1013,7 @@ export default function MasterScheduleScreen() {
                     {isExpanded && !isLife && (
                       <>
                         <Text style={styles.taskMeta} numberOfLines={1}>
-                          {task.moduleLabel}{task.duration_minutes ? `  ·  ${task.duration_minutes}m` : ''}
+                          {task.moduleLabel}{task.duration_minutes ? `  -  ${task.duration_minutes}m` : ''}
                         </Text>
                         {task.description ? (
                           <Text style={styles.taskDescription}>
@@ -1029,7 +1029,7 @@ export default function MasterScheduleScreen() {
                             onStartShouldSetResponder={() => true}
                           >
                             <Text style={styles.timeEditorLabel}>
-                              Move to{task.catalog_id ? '  ·  applies every day' : ''}
+                              Move to{task.catalog_id ? '  -  applies every day' : ''}
                             </Text>
                             <TimeRangeSlider
                               single

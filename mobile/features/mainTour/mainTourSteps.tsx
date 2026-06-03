@@ -11,7 +11,6 @@ export const TOUR_STEP = {
     SCHEDULE_TAB: 2,
     SCAN_TAB: 3,
     CHAT_TAB: 4,
-    FORUMS_TAB: 5,
 } as const;
 
 const TOTAL_STEPS = Object.keys(TOUR_STEP).length;
@@ -131,7 +130,7 @@ const STEP_CONTENT: { title: string; body: string }[] = [
     },
     {
         title: 'Schedule',
-        body: 'Your personalized daily schedule lives here \u2014 tasks, reminders, and streaks.',
+        body: 'Your personalized daily schedule lives here. Tasks, reminders, and streaks.',
     },
     {
         title: 'Face Scan',
@@ -139,11 +138,7 @@ const STEP_CONTENT: { title: string; body: string }[] = [
     },
     {
         title: 'Chat with Max',
-        body: 'Ask Max anything \u2014 coaching tips, schedule help, or questions about your programs.',
-    },
-    {
-        title: 'Forums',
-        body: 'Connect with the community. Share progress, ask questions, and stay motivated.',
+        body: 'Ask Max anything. Coaching tips, schedule help, or questions about your programs.',
     },
 ];
 

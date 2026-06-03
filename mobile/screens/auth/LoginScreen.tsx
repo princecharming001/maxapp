@@ -23,6 +23,8 @@ export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
     const [apiError, setApiError] = useState<string | null>(null);
 
+    const passwordRef = useRef<TextInput>(null);
+
     const fadeCard = useRef(new Animated.Value(0)).current;
     const slideCard = useRef(new Animated.Value(20)).current;
     useEffect(() => {
@@ -57,7 +59,7 @@ export default function LoginScreen() {
             >
                 <Animated.View style={[styles.card, { opacity: fadeCard, transform: [{ translateY: slideCard }] }]}>
                     <Text style={styles.wordmark}>max</Text>
-                    <Text style={styles.tagline}>Looksmaxing that fits your life</Text>
+                    <Text style={styles.tagline}>Looksmaxxing that fits your life</Text>
 
                     <View style={styles.form}>
                         <View style={styles.inputGroup}>
@@ -74,12 +76,17 @@ export default function LoginScreen() {
                                 keyboardType="default"
                                 autoCapitalize="none"
                                 autoCorrect={false}
+                                textContentType="username"
+                                autoComplete="username"
+                                returnKeyType="next"
+                                onSubmitEditing={() => passwordRef.current?.focus()}
                             />
                         </View>
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>PASSWORD</Text>
                             <View style={styles.passwordRow}>
                                 <TextInput
+                                    ref={passwordRef}
                                     style={styles.passwordInput}
                                     placeholder="Enter your password"
                                     placeholderTextColor={colors.textMuted}
@@ -91,6 +98,10 @@ export default function LoginScreen() {
                                     secureTextEntry={!showPassword}
                                     autoCapitalize="none"
                                     autoCorrect={false}
+                                    textContentType="password"
+                                    autoComplete="current-password"
+                                    returnKeyType="go"
+                                    onSubmitEditing={handleLogin}
                                 />
                                 <TouchableOpacity
                                     style={styles.viewPasswordBtn}
@@ -119,6 +130,8 @@ export default function LoginScreen() {
                             onPress={handleLogin}
                             disabled={loading}
                             activeOpacity={0.7}
+                            accessibilityRole="button"
+                            accessibilityLabel="Sign in"
                         >
                             <Text style={styles.buttonText}>{loading ? 'Signing in…' : 'Sign In'}</Text>
                         </TouchableOpacity>
@@ -127,12 +140,20 @@ export default function LoginScreen() {
                             onPress={() => navigation.navigate('ForgotPassword')}
                             activeOpacity={0.6}
                             style={styles.forgotLink}
+                            accessibilityRole="button"
+                            accessibilityLabel="Forgot password"
                         >
                             <Text style={styles.forgotText}>Forgot password?</Text>
                         </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity onPress={() => navigation.navigate('Signup')} activeOpacity={0.6} style={styles.linkContainer}>
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('Signup')}
+                        activeOpacity={0.6}
+                        style={styles.linkContainer}
+                        accessibilityRole="button"
+                        accessibilityLabel="Create account"
+                    >
                         <Text style={styles.linkText}>
                             <Text style={styles.linkBold}>Create account</Text>
                         </Text>

@@ -88,6 +88,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [chatReply, setChatReply] = useState<string | null>(null);
+  // Reply tone drives ONLY the bubble styling: 'success' shows the green check,
+  // 'warn' is used for failures and no-op replies so they never look applied.
+  const [chatReplyTone, setChatReplyTone] = useState<'success' | 'warn'>('success');
   const chatRef = useRef<TextInput>(null);
 
   const invalidateSchedules = () => {
@@ -187,12 +190,16 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     if (!text || chatLoading) return;
     setChatLoading(true);
     setChatReply(null);
+    setChatReplyTone('success');
     try {
       // Flush the current canvas first so the assistant reasons over — and never
       // discards — exactly what's on screen, then re-hydrate from its result.
       await api.saveOnboarding(buildOnboarding(defaults, weekly, obligations) as any);
       const res = await api.plannerChat(text);
       applyServerState(res.defaults, res.weekly_timings);
+      // A no-op result ("couldn't tell which day you meant") must not read as a
+      // success, so flag the bubble as a warning when nothing changed.
+      setChatReplyTone(res.changed === false ? 'warn' : 'success');
       setChatReply(res.summary || res.message || 'Updated your plan.');
       setChatInput('');
       await refreshUser();
@@ -202,6 +209,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         typeof error?.response?.data?.detail === 'string'
           ? error.response.data.detail
           : error?.message || 'Couldn\'t update your plan. Try rephrasing.';
+      setChatReplyTone('warn');
       setChatReply(msg);
     } finally {
       setChatLoading(false);
@@ -272,9 +280,13 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             </View>
 
             {chatReply ? (
-              <View style={styles.chatReply}>
-                <View style={styles.chatReplyIcon}>
-                  <Ionicons name="checkmark" size={13} color="#fff" />
+              <View style={[styles.chatReply, chatReplyTone === 'warn' && styles.chatReplyWarn]}>
+                <View style={[styles.chatReplyIcon, chatReplyTone === 'warn' && styles.chatReplyIconWarn]}>
+                  <Ionicons
+                    name={chatReplyTone === 'warn' ? 'alert' : 'checkmark'}
+                    size={13}
+                    color="#fff"
+                  />
                 </View>
                 <Text style={styles.chatReplyText}>{chatReply}</Text>
               </View>
@@ -495,6 +507,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 1,
   },
+  // Warning tone for failures / no-op replies: a neutral amber wash and icon so
+  // it never reads as an applied success.
+  chatReplyWarn: { backgroundColor: 'rgba(180,120,20,0.10)' },
+  chatReplyIconWarn: { backgroundColor: '#B47814' },
   chatReplyText: { flex: 1, fontFamily: fonts.sans, fontSize: 13.5, color: colors.foreground, lineHeight: 19, letterSpacing: 0.05 },
   chatInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   chatInput: {

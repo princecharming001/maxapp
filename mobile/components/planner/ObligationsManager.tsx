@@ -25,6 +25,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   useWindowDimensions,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -107,6 +108,28 @@ export default function ObligationsManager({
 
   const remove = (idx: number) => onChange(obligations.filter((_, i) => i !== idx));
 
+  // Confirm before deleting so a stray tap on the "x" or "Remove" never wipes a
+  // commitment instantly. Runs `after` (e.g. close the editor) once removed.
+  const confirmRemove = (idx: number, after?: () => void) => {
+    const name = obligations[idx]?.label || 'this commitment';
+    Alert.alert(
+      'Remove commitment?',
+      `This takes "${name}" off your week.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            remove(idx);
+            after?.();
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  };
+
   const toggleDay = (k: Weekday) =>
     setDayset((prev) => {
       const next = new Set(prev);
@@ -187,7 +210,7 @@ export default function ObligationsManager({
                   </Text>
                   <View style={styles.rowMeta}>
                     <Text style={styles.rowTime}>
-                      {fmt12Compact(o.start)} – {fmt12Compact(o.end)}
+                      {fmt12Compact(o.start)} - {fmt12Compact(o.end)}
                     </Text>
                     <View style={styles.rowDaysChip}>
                       <Text style={[styles.rowDaysText, { color: accent }]}>{daysLabel(o.days)}</Text>
@@ -195,9 +218,11 @@ export default function ObligationsManager({
                   </View>
                 </View>
                 <TouchableOpacity
-                  onPress={() => remove(idx)}
+                  onPress={() => confirmRemove(idx)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   style={styles.rowDelete}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${o.label}`}
                 >
                   <Ionicons name="close" size={16} color={colors.textMuted} />
                 </TouchableOpacity>
@@ -315,10 +340,7 @@ export default function ObligationsManager({
                 {editIndex !== null ? (
                   <TouchableOpacity
                     style={styles.removeBtn}
-                    onPress={() => {
-                      remove(editIndex);
-                      setEditorOpen(false);
-                    }}
+                    onPress={() => confirmRemove(editIndex, () => setEditorOpen(false))}
                     activeOpacity={0.7}
                   >
                     <Ionicons name="trash-outline" size={15} color="#ef4444" />

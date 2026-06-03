@@ -85,6 +85,13 @@ export default function SettingsScreen() {
         void Linking.openURL(`mailto:${encodeURIComponent(supportEmail)}?${q}`);
     };
 
+    const confirmSignOut = () => {
+        Alert.alert('Sign out?', '', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Sign out', style: 'destructive', onPress: logout },
+        ]);
+    };
+
     const confirmDeleteAccount = async () => {
         if (!deletePassword.trim()) {
             Alert.alert('Password required', 'Enter your password to delete your account.');
@@ -185,13 +192,13 @@ export default function SettingsScreen() {
                     <Row
                         label="Sign out"
                         labelColor={colors.textSecondary}
-                        onPress={logout}
+                        onPress={confirmSignOut}
                         trailing={null}
                     />
                 </View>
 
                 <Text style={st.version}>
-                    v{Constants.expoConfig?.version ?? '–'}
+                    v{Constants.expoConfig?.version ?? '-'}
                     {Constants.expoConfig?.ios?.buildNumber ? ` (${Constants.expoConfig.ios.buildNumber})` : ''}
                 </Text>
 

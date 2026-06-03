@@ -452,7 +452,7 @@ export default function ProgressArchiveScreen() {
                                                     <>
                                                         <View style={styles.scanStatRow}>
                                                             <Text style={styles.scanStatLabel}>Tier</Text>
-                                                            <Text style={styles.scanStatValue}>{tier || '—'}</Text>
+                                                            <Text style={styles.scanStatValue}>{tier || 'No data'}</Text>
                                                         </View>
                                                         {!Number.isNaN(appeal) && (
                                                             <View style={styles.scanStatRow}>
@@ -472,17 +472,17 @@ export default function ProgressArchiveScreen() {
                                                         )}
                                                         <View style={styles.scanStatRow}>
                                                             <Text style={styles.scanStatLabel}>Archetype</Text>
-                                                            <Text style={styles.scanStatValue}>{arch || '—'}</Text>
+                                                            <Text style={styles.scanStatValue}>{arch || 'No data'}</Text>
                                                         </View>
                                                         <View style={styles.scanStatRow}>
                                                             <Text style={styles.scanStatLabel}>Ascension time</Text>
                                                             <Text style={styles.scanStatValue}>
-                                                                {ascMonths > 0 ? `${ascMonths} months` : '—'}
+                                                                {ascMonths > 0 ? `${ascMonths} months` : '-'}
                                                             </Text>
                                                         </View>
                                                         <View style={styles.scanStatRow}>
                                                             <Text style={styles.scanStatLabel}>Facial age</Text>
-                                                            <Text style={styles.scanStatValue}>{ageSc > 0 ? `${ageSc}` : '—'}</Text>
+                                                            <Text style={styles.scanStatValue}>{ageSc > 0 ? `${ageSc}` : '-'}</Text>
                                                         </View>
                                                         {mogPct !== null && (
                                                             <View style={styles.scanStatRow}>

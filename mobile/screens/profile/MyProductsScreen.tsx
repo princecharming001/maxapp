@@ -163,7 +163,7 @@ export default function MyProductsScreen() {
                                 >
                                     <View style={styles.cardTop}>
                                         <View style={{ flex: 1, marginRight: 12 }}>
-                                            <Text style={styles.brand} numberOfLines={1}>{p.brand || '—'}</Text>
+                                            <Text style={styles.brand} numberOfLines={1}>{p.brand || 'Unknown'}</Text>
                                             <Text style={styles.name} numberOfLines={2}>{p.name}</Text>
                                         </View>
                                         <View style={styles.tierPill}>

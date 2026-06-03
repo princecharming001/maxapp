@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { AppState, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Linking } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
+
+const SUPPORT_EMAIL = (Constants.expoConfig?.extra as Record<string, unknown> | undefined)?.supportEmail as string | undefined ?? 'mog.max123@gmail.com';
 
 const UNLOCKED = [
     'All courses & Maxx programs',
@@ -18,14 +21,16 @@ export default function PaymentThankYouScreen() {
     const { refreshUser, user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [pollGaveUp, setPollGaveUp] = useState(false);
     const pollCount = useRef(0);
 
     const paid = user?.is_paid === true;
 
-    /** Webhook can lag — refresh with backoff until paid, then navigator switches to main app. */
+    /** Webhook can lag. Refresh with backoff until paid, then navigator switches to main app. */
     useEffect(() => {
         if (paid) return;
         pollCount.current = 0;
+        setPollGaveUp(false);
         const appStateRef = { current: AppState.currentState };
         let timer: ReturnType<typeof setTimeout> | null = null;
         let cancelled = false;
@@ -38,7 +43,10 @@ export default function PaymentThankYouScreen() {
         };
         const doPoll = async () => {
             pollCount.current += 1;
-            if (pollCount.current > POLL_MAX) return;
+            if (pollCount.current > POLL_MAX) {
+                if (!cancelled) setPollGaveUp(true);
+                return;
+            }
             try { await refreshUser(); } catch { /* ignore */ }
             if (!cancelled) timer = setTimeout(tick, nextDelay());
         };
@@ -92,11 +100,11 @@ export default function PaymentThankYouScreen() {
                 <View style={styles.iconWrap}>
                     <Ionicons name="checkmark-circle" size={72} color={colors.success} />
                 </View>
-                <Text style={styles.title}>{paid ? 'You’re in' : 'Thanks. Almost there'}</Text>
+                <Text style={styles.title}>{paid ? "You're in" : 'Thanks. Almost there'}</Text>
                 <Text style={styles.subtitle}>
                     {paid
                         ? 'Your subscription is active. The full app is yours now.'
-                        : 'If you just paid, Stripe may need a moment to tell us. Tap refresh below, or wait a few seconds and try again.'}
+                        : 'If you just paid, it can take a moment to confirm. Tap refresh below, or wait a few seconds and try again.'}
                 </Text>
 
                 <View style={styles.list}>
@@ -137,6 +145,18 @@ export default function PaymentThankYouScreen() {
                         <Text style={styles.secondaryText}>Payment still pending? Tap to refresh account</Text>
                     )}
                 </TouchableOpacity>
+
+                {!paid && pollGaveUp && (
+                    <TouchableOpacity
+                        style={styles.supportRow}
+                        onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Payment%20not%20showing%20up`)}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={styles.supportText}>
+                            Still not active after a minute? Email {SUPPORT_EMAIL} and we will sort it out.
+                        </Text>
+                    </TouchableOpacity>
+                )}
             </View>
         </ScrollView>
     );
@@ -224,6 +244,16 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: colors.textSecondary,
+        textAlign: 'center',
+    },
+    supportRow: {
+        marginTop: spacing.md,
+        paddingHorizontal: spacing.md,
+    },
+    supportText: {
+        fontSize: 13,
+        lineHeight: 19,
+        color: colors.textMuted,
         textAlign: 'center',
     },
 });

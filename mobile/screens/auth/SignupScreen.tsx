@@ -37,7 +37,7 @@ function signupErrorMessage(error: any): string {
                 return "Can't reach the API from the browser. Start the backend (uvicorn on port 8000 from maxapp/backend), keep EXPO_PUBLIC_API_BASE_URL as http://127.0.0.1:8000/api/, and restart Metro. If the server is up, check the browser Network tab for blocked requests (CORS).";
             }
             if (local) {
-                return "Can't reach the API. On a real phone, localhost doesn't point to your Mac — set EXPO_PUBLIC_API_BASE_URL to your Mac's LAN IP (e.g. http://192.168.x.x:8000/api/) and use `npx expo start --lan`, or use the production API URL. Then restart Metro.";
+                return "Can't reach the API. On a real phone, localhost doesn't point to your Mac. Set EXPO_PUBLIC_API_BASE_URL to your Mac's LAN IP (e.g. http://192.168.x.x:8000/api/) and use `npx expo start --lan`, or use the production API URL. Then restart Metro.";
             }
             return "Can't reach the server. Check your connection, that the API is running, and EXPO_PUBLIC_API_BASE_URL in mobile/.env, then restart Metro with --clear.";
         }
@@ -81,6 +81,13 @@ export default function SignupScreen() {
     const fadeCard = useRef(new Animated.Value(0)).current;
     const slideCard = useRef(new Animated.Value(30)).current;
 
+    const lastNameRef = useRef<TextInput>(null);
+    const usernameRef = useRef<TextInput>(null);
+    const emailRef = useRef<TextInput>(null);
+    const passwordRef = useRef<TextInput>(null);
+    const confirmPasswordRef = useRef<TextInput>(null);
+    const phoneRef = useRef<TextInput>(null);
+
     useEffect(() => {
         Animated.parallel([
             Animated.timing(fadeCard, { toValue: 1, duration: 600, delay: 200, useNativeDriver: true }),
@@ -89,29 +96,45 @@ export default function SignupScreen() {
     }, []);
 
     const pickImage = async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-        if (!result.canceled) setAvatarUri(result.assets[0].uri);
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+            if (!result.canceled) setAvatarUri(result.assets[0].uri);
+        } catch {
+            Alert.alert(
+                "Can't open your photos",
+                "We could not open your photo library. Check that Max has photo access in Settings, then try again. You can also add a picture later in Profile."
+            );
+            return;
+        }
     };
 
     const handleSignup = async () => {
         const err: Record<string, boolean> = {};
-        if (!firstName.trim()) err.firstName = true;
-        if (!lastName.trim()) err.lastName = true;
-        if (!username.trim()) err.username = true;
+        const msgs: Record<string, string> = {};
+        if (!firstName.trim()) { err.firstName = true; msgs.firstName = 'Name is required.'; }
+        if (!lastName.trim()) { err.lastName = true; msgs.lastName = 'Name is required.'; }
+        if (!username.trim()) { err.username = true; msgs.username = 'Username is required.'; }
         if (username.trim() && username.length < 3) err.username = true;
         if (username.trim() && !/^[a-zA-Z0-9_]+$/.test(username)) err.username = true;
-        if (!email.trim()) err.email = true;
-        if (!password) err.password = true;
+        if (!email.trim()) {
+            err.email = true;
+            msgs.email = 'Email is required.';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+            err.email = true;
+            msgs.email = 'Enter a valid email address.';
+        }
+        if (!password) { err.password = true; msgs.password = 'Password is required.'; }
         if (password && password.length < 8) err.password = true;
-        if (!confirmPassword) err.confirmPassword = true;
+        if (!confirmPassword) { err.confirmPassword = true; msgs.confirmPassword = 'Confirm your password.'; }
         const pwdMismatch = !!(password && confirmPassword && password !== confirmPassword);
         if (pwdMismatch) { err.password = true; err.confirmPassword = true; }
         const nationalDigits = phoneNational.replace(/\D/g, '');
-        if (nationalDigits.length > 0 && nationalDigits.length < 7) err.phone = true;
+        if (nationalDigits.length > 0 && nationalDigits.length < 7) { err.phone = true; msgs.phone = 'Enter a valid phone number.'; }
+        if (nationalDigits.length > 15) { err.phone = true; msgs.phone = 'Phone number is too long.'; }
 
         setFieldErrors(err);
         setApiError(null);
-        setFieldErrorMessages({});
+        setFieldErrorMessages(msgs);
         setPasswordMismatch(pwdMismatch);
         if (Object.keys(err).length > 0) return;
 
@@ -177,40 +200,44 @@ export default function SignupScreen() {
 
                             <View style={styles.inputGroup}>
                                 <Text style={[styles.label, fieldErrors.firstName && styles.labelError]}>FIRST NAME</Text>
-                                <TextInput style={[styles.input, fieldErrors.firstName && styles.inputError]} placeholder="First name" placeholderTextColor={colors.textMuted} value={firstName} onChangeText={(t) => { setFirstName(t); setFieldErrors((p) => ({ ...p, firstName: false })); setApiError(null); }} autoCapitalize="words" />
+                                <TextInput style={[styles.input, fieldErrors.firstName && styles.inputError]} placeholder="First name" placeholderTextColor={colors.textMuted} value={firstName} onChangeText={(t) => { setFirstName(t); setFieldErrors((p) => ({ ...p, firstName: false })); setFieldErrorMessages((p) => ({ ...p, firstName: '' })); setApiError(null); }} autoCapitalize="words" textContentType="givenName" autoComplete="name-given" returnKeyType="next" onSubmitEditing={() => lastNameRef.current?.focus()} />
+                                {fieldErrorMessages.firstName ? <Text style={styles.helperError}>{fieldErrorMessages.firstName}</Text> : null}
                             </View>
                             <View style={styles.inputGroup}>
                                 <Text style={[styles.label, fieldErrors.lastName && styles.labelError]}>LAST NAME</Text>
-                                <TextInput style={[styles.input, fieldErrors.lastName && styles.inputError]} placeholder="Last name" placeholderTextColor={colors.textMuted} value={lastName} onChangeText={(t) => { setLastName(t); setFieldErrors((p) => ({ ...p, lastName: false })); setApiError(null); }} autoCapitalize="words" />
+                                <TextInput ref={lastNameRef} style={[styles.input, fieldErrors.lastName && styles.inputError]} placeholder="Last name" placeholderTextColor={colors.textMuted} value={lastName} onChangeText={(t) => { setLastName(t); setFieldErrors((p) => ({ ...p, lastName: false })); setFieldErrorMessages((p) => ({ ...p, lastName: '' })); setApiError(null); }} autoCapitalize="words" textContentType="familyName" autoComplete="name-family" returnKeyType="next" onSubmitEditing={() => usernameRef.current?.focus()} />
+                                {fieldErrorMessages.lastName ? <Text style={styles.helperError}>{fieldErrorMessages.lastName}</Text> : null}
                             </View>
                             <View style={styles.inputGroup}>
                                 <Text style={[styles.label, fieldErrors.username && styles.labelError]}>USERNAME</Text>
-                                <TextInput style={[styles.input, fieldErrors.username && styles.inputError]} placeholder="Username" placeholderTextColor={colors.textMuted} value={username} onChangeText={(t) => { setUsername(t); setFieldErrors((p) => ({ ...p, username: false })); setFieldErrorMessages((p) => ({ ...p, username: '' })); setApiError(null); }} autoCapitalize="none" />
+                                <TextInput ref={usernameRef} style={[styles.input, fieldErrors.username && styles.inputError]} placeholder="Username" placeholderTextColor={colors.textMuted} value={username} onChangeText={(t) => { setUsername(t); setFieldErrors((p) => ({ ...p, username: false })); setFieldErrorMessages((p) => ({ ...p, username: '' })); setApiError(null); }} autoCapitalize="none" autoCorrect={false} textContentType="username" autoComplete="username" returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} />
                                 {fieldErrorMessages.username ? <Text style={styles.helperError}>{fieldErrorMessages.username}</Text> : null}
                             </View>
                             <View style={styles.inputGroup}>
                                 <Text style={[styles.label, fieldErrors.email && styles.labelError]}>EMAIL</Text>
-                                <TextInput style={[styles.input, fieldErrors.email && styles.inputError]} placeholder="Email address" placeholderTextColor={colors.textMuted} value={email} onChangeText={(t) => { setEmail(t); setFieldErrors((p) => ({ ...p, email: false })); setFieldErrorMessages((p) => ({ ...p, email: '' })); setApiError(null); }} keyboardType="email-address" autoCapitalize="none" />
+                                <TextInput ref={emailRef} style={[styles.input, fieldErrors.email && styles.inputError]} placeholder="Email address" placeholderTextColor={colors.textMuted} value={email} onChangeText={(t) => { setEmail(t); setFieldErrors((p) => ({ ...p, email: false })); setFieldErrorMessages((p) => ({ ...p, email: '' })); setApiError(null); }} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" autoComplete="email" returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
                                 {fieldErrorMessages.email ? <Text style={styles.helperError}>{fieldErrorMessages.email}</Text> : null}
                             </View>
                             <View style={styles.inputGroup}>
                                 <Text style={[styles.label, fieldErrors.password && styles.labelError]}>PASSWORD</Text>
                                 <View style={[styles.passwordRow, fieldErrors.password && styles.inputError]}>
-                                    <TextInput style={[styles.input, styles.passwordInput]} placeholder="Password" placeholderTextColor={colors.textMuted} value={password} onChangeText={(t) => { setPassword(t); setFieldErrors((p) => ({ ...p, password: false, confirmPassword: false })); setPasswordMismatch(false); setApiError(null); }} secureTextEntry={!showPassword} />
+                                    <TextInput ref={passwordRef} style={[styles.input, styles.passwordInput]} placeholder="Password" placeholderTextColor={colors.textMuted} value={password} onChangeText={(t) => { setPassword(t); setFieldErrors((p) => ({ ...p, password: false, confirmPassword: false })); setFieldErrorMessages((p) => ({ ...p, password: '' })); setPasswordMismatch(false); setApiError(null); }} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} textContentType="newPassword" autoComplete="new-password" returnKeyType="next" onSubmitEditing={() => confirmPasswordRef.current?.focus()} />
                                     <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword((p) => !p)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                                         <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.textMuted} />
                                     </TouchableOpacity>
                                 </View>
+                                {fieldErrorMessages.password ? <Text style={styles.helperError}>{fieldErrorMessages.password}</Text> : null}
                             </View>
                             <View style={styles.inputGroup}>
                                 <Text style={[styles.label, fieldErrors.confirmPassword && styles.labelError]}>CONFIRM PASSWORD</Text>
                                 <View style={[styles.passwordRow, fieldErrors.confirmPassword && styles.inputError]}>
-                                    <TextInput style={[styles.input, styles.passwordInput]} placeholder="Confirm password" placeholderTextColor={colors.textMuted} value={confirmPassword} onChangeText={(t) => { setConfirmPassword(t); setFieldErrors((p) => ({ ...p, confirmPassword: false, password: false })); setPasswordMismatch(false); setApiError(null); }} secureTextEntry={!showConfirmPassword} />
+                                    <TextInput ref={confirmPasswordRef} style={[styles.input, styles.passwordInput]} placeholder="Confirm password" placeholderTextColor={colors.textMuted} value={confirmPassword} onChangeText={(t) => { setConfirmPassword(t); setFieldErrors((p) => ({ ...p, confirmPassword: false, password: false })); setFieldErrorMessages((p) => ({ ...p, confirmPassword: '' })); setPasswordMismatch(false); setApiError(null); }} secureTextEntry={!showConfirmPassword} autoCapitalize="none" autoCorrect={false} textContentType="newPassword" autoComplete="new-password" returnKeyType="next" onSubmitEditing={() => phoneRef.current?.focus()} />
                                     <TouchableOpacity style={styles.eyeButton} onPress={() => setShowConfirmPassword((p) => !p)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                                         <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.textMuted} />
                                     </TouchableOpacity>
                                 </View>
                                 {passwordMismatch && <Text style={styles.helperError}>Passwords don&apos;t match</Text>}
+                                {!passwordMismatch && fieldErrorMessages.confirmPassword ? <Text style={styles.helperError}>{fieldErrorMessages.confirmPassword}</Text> : null}
                             </View>
                             <View style={styles.inputGroup}>
                                 <Text style={[styles.label, fieldErrors.phone && styles.labelError]}>
@@ -229,6 +256,7 @@ export default function SignupScreen() {
                                         <Ionicons name="chevron-down" size={16} color={colors.textMuted} />
                                     </TouchableOpacity>
                                     <TextInput
+                                        ref={phoneRef}
                                         style={styles.phoneNationalInput}
                                         placeholder="Phone number (optional)"
                                         placeholderTextColor={colors.textMuted}
@@ -236,9 +264,14 @@ export default function SignupScreen() {
                                         onChangeText={(t) => {
                                             setPhoneNational(t);
                                             setFieldErrors((p) => ({ ...p, phone: false }));
+                                            setFieldErrorMessages((p) => ({ ...p, phone: '' }));
                                             setApiError(null);
                                         }}
                                         keyboardType="phone-pad"
+                                        autoCapitalize="none"
+                                        textContentType="telephoneNumber"
+                                        autoComplete="tel"
+                                        returnKeyType="done"
                                     />
                                 </View>
                                 {fieldErrorMessages.phone ? (
@@ -334,7 +367,7 @@ export default function SignupScreen() {
 
                             {apiError && (
                                 <View style={styles.apiErrorBox}>
-                                    <Ionicons name="alert-circle-outline" size={18} color="#ef4444" />
+                                    <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
                                     <Text style={styles.apiErrorText}>{apiError}</Text>
                                 </View>
                             )}
@@ -403,11 +436,11 @@ const styles = StyleSheet.create({
     labelError: { color: colors.error },
     helperError: { fontSize: 12, color: colors.error, marginTop: 4, marginLeft: 2 },
     apiErrorBox: {
-        backgroundColor: 'rgba(139, 58, 58, 0.06)',
+        backgroundColor: colors.error + '0F',
         padding: spacing.md,
         borderRadius: borderRadius.sm,
         borderWidth: 1,
-        borderColor: 'rgba(139, 58, 58, 0.15)',
+        borderColor: colors.error + '26',
     },
     apiErrorText: { fontSize: 13, color: colors.error, fontWeight: '400' },
     textArea: { minHeight: 64, textAlignVertical: 'top' },

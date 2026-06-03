@@ -22,8 +22,9 @@
  *   completed:        true
  */
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    Alert,
     Animated,
     Easing,
     PanResponder,
@@ -145,6 +146,15 @@ export default function OnboardingScreen() {
         true,
     ];
 
+    // Guards the gender step's auto-advance so rapid taps can't queue
+    // multiple setStep calls. Holds the single pending advance timeout id.
+    const genderAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        return () => {
+            if (genderAdvanceTimer.current) clearTimeout(genderAdvanceTimer.current);
+        };
+    }, []);
+
     /* Soft fade between steps — no horizontal motion. Quieter than a slide,
        reads as a gentle transition rather than navigation. */
     const fade = useRef(new Animated.Value(1)).current;
@@ -234,6 +244,10 @@ export default function OnboardingScreen() {
         } catch (e) {
             console.error('onboarding save failed', e);
             setSubmitting(false);
+            Alert.alert(
+                'Could not finish setup',
+                'Something went wrong saving your answers. Check your connection and try again.'
+            );
         }
     };
 
@@ -245,8 +259,11 @@ export default function OnboardingScreen() {
                         value={gender}
                         onChange={(g) => {
                             setGender(g);
-                            // light delay so the selection registers visually
-                            setTimeout(goNext, 200);
+                            // light delay so the selection registers visually.
+                            // Guard against rapid taps queuing multiple advances:
+                            // clear any pending advance before scheduling a new one.
+                            if (genderAdvanceTimer.current) clearTimeout(genderAdvanceTimer.current);
+                            genderAdvanceTimer.current = setTimeout(goNext, 200);
                         }}
                     />
                 );
@@ -346,6 +363,9 @@ export default function OnboardingScreen() {
                                 : 'Next'}
                     </Text>
                 </TouchableOpacity>
+                {!valid[step] && !submitting ? (
+                    <Text style={styles.ctaHint}>Pick an option to continue.</Text>
+                ) : null}
             </View>
 
             {/* Onairos modal — opens from the OnairosStep button. */}
@@ -450,7 +470,7 @@ function AgeStep({ value, onChange }: { value: number; onChange: (n: number) => 
         <View style={styles.numberStep}>
             <Text style={styles.bigNumber}>{value}</Text>
             <Text style={styles.unit}>years</Text>
-            <Slider min={13} max={100} value={value} onChange={onChange} />
+            <Slider min={13} max={100} value={value} onChange={onChange} accessibilityLabel="Age in years" />
         </View>
     );
 }
@@ -484,7 +504,7 @@ function HeightStep({
                     <Text style={[styles.unit, styles.unitInline]}>in</Text>
                 </View>
             )}
-            <Slider min={120} max={230} value={cm} onChange={onChangeCm} />
+            <Slider min={120} max={230} value={cm} onChange={onChangeCm} accessibilityLabel="Height in centimeters" />
         </View>
     );
 }
@@ -507,7 +527,7 @@ function WeightStep({
             <UnitToggle unit={unit} onChange={onChangeUnit} labels={['kg', 'lb']} />
             <Text style={styles.bigNumber}>{display}</Text>
             <Text style={styles.unit}>{unit === 'metric' ? 'kg' : 'lb'}</Text>
-            <Slider min={30} max={230} value={kg} onChange={onChangeKg} />
+            <Slider min={30} max={230} value={kg} onChange={onChangeKg} accessibilityLabel="Weight in kilograms" />
         </View>
     );
 }
@@ -748,7 +768,7 @@ function TimeRow({
                 <Text style={styles.scheduleLabel}>{label}</Text>
                 <Text style={styles.timeValue}>{formatSlot(slot)}</Text>
             </View>
-            <Slider min={min} max={max} value={slot} onChange={snap} compact />
+            <Slider min={min} max={max} value={slot} onChange={snap} compact accessibilityLabel={label} />
         </View>
     );
 }
@@ -762,13 +782,15 @@ function TimeRow({
  * haptic tick on each integer step.
  */
 function Slider({
-    min, max, value, onChange, compact = false,
+    min, max, value, onChange, compact = false, accessibilityLabel,
 }: {
     min: number; max: number; value: number; onChange: (n: number) => void;
     /** Use the tight inline layout (no big top margin) — for stacked rows
      * where each row is its own sub-control. Default style keeps the wide
      * spacing used on the dedicated number steps (age, height, weight). */
     compact?: boolean;
+    /** Spoken label for screen readers (e.g. "Age", "Height in centimeters"). */
+    accessibilityLabel?: string;
 }) {
     const [trackWidth, setTrackWidth] = useState(0);
     const onLayout = (e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width);
@@ -831,6 +853,9 @@ function Slider({
         <View
             style={[styles.sliderHitArea, compact && styles.sliderHitAreaCompact]}
             onLayout={onLayout}
+            accessibilityRole="adjustable"
+            accessibilityLabel={accessibilityLabel}
+            accessibilityValue={{ now: Math.round(value), min, max }}
             {...panResponder.panHandlers}
         >
             <View style={styles.sliderTrack} pointerEvents="none">
@@ -1216,5 +1241,12 @@ const styles = StyleSheet.create({
         fontSize: 13,
         letterSpacing: 0.4,
         color: colors.buttonText,
+    },
+    ctaHint: {
+        fontFamily: fonts.sans,
+        fontSize: 12,
+        color: colors.textMuted,
+        textAlign: 'center',
+        marginTop: spacing.sm,
     },
 });

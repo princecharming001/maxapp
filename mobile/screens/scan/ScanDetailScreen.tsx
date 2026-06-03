@@ -25,11 +25,13 @@ export default function ScanDetailScreen() {
     if (a.ai_recommendations?.recommendations) { recommendations = a.ai_recommendations.recommendations.map((r: any) => ({ area: r.title || 'General', suggestion: r.description || r.suggestion || '' })); }
     else { recommendations = a.improvements || a.recommendations || []; }
 
-    const getMetricValue = (key: string): number => {
+    // Returns undefined when a metric is genuinely absent (vs a real 0) so the
+    // UI can show "No data" instead of drawing a zero-length bar as a score.
+    const getMetricValue = (key: string): number | undefined => {
         if (a.measurements) { const f = a.measurements.front_view || {}; const p = a.measurements.profile_view || {};
-            switch (key) { case 'midface_ratio': return f.midface_ratio?.score ?? 0; case 'canthal_tilt': return f.canthal_tilt_left?.score ?? 0; case 'jaw_cheek_ratio': return f.jaw_cheek_ratio?.score ?? 0; case 'nose_width_ratio': return f.nose_width_ratio?.score ?? 0; case 'gonial_angle': return p.gonial_angle?.score ?? 0; case 'nasolabial_angle': return p.nasolabial_angle?.score ?? 0; case 'mentolabial_angle': return p.mentolabial_angle?.score ?? 0; case 'facial_convexity': return p.facial_convexity?.score ?? 0; } }
+            switch (key) { case 'midface_ratio': return f.midface_ratio?.score ?? undefined; case 'canthal_tilt': return f.canthal_tilt_left?.score ?? undefined; case 'jaw_cheek_ratio': return f.jaw_cheek_ratio?.score ?? undefined; case 'nose_width_ratio': return f.nose_width_ratio?.score ?? undefined; case 'gonial_angle': return p.gonial_angle?.score ?? undefined; case 'nasolabial_angle': return p.nasolabial_angle?.score ?? undefined; case 'mentolabial_angle': return p.mentolabial_angle?.score ?? undefined; case 'facial_convexity': return p.facial_convexity?.score ?? undefined; } }
         const m = a.metrics || a;
-        switch (key) { case 'facial_symmetry': return m.proportions?.overall_symmetry ?? m.harmony_score ?? 0; case 'jawline_definition': return m.jawline?.definition_score ?? 0; case 'skin_quality': return m.skin?.overall_quality ?? 0; case 'facial_fat': return m.body_fat?.facial_leanness ?? 0; case 'eye_area': return m.eye_area?.symmetry_score ?? 0; case 'nose_proportion': return m.nose?.overall_harmony ?? 0; case 'lip_ratio': return m.lips?.lip_symmetry ?? 0; default: return 0; }
+        switch (key) { case 'facial_symmetry': return m.proportions?.overall_symmetry ?? m.harmony_score ?? undefined; case 'jawline_definition': return m.jawline?.definition_score ?? undefined; case 'skin_quality': return m.skin?.overall_quality ?? undefined; case 'facial_fat': return m.body_fat?.facial_leanness ?? undefined; case 'eye_area': return m.eye_area?.symmetry_score ?? undefined; case 'nose_proportion': return m.nose?.overall_harmony ?? undefined; case 'lip_ratio': return m.lips?.lip_symmetry ?? undefined; default: return undefined; }
     };
 
     const metricItems = a.measurements ? [
@@ -58,10 +60,14 @@ export default function ScanDetailScreen() {
 
             <Text style={styles.sectionLabel}>DETAILED ANALYSIS</Text>
             <View style={styles.metricsCard}>
-                {metricItems.map((item) => { const value = getMetricValue(item.key); return (
+                {metricItems.map((item) => { const value = getMetricValue(item.key); const hasValue = value !== undefined && value !== null; return (
                     <View key={item.key} style={styles.metricItem}>
                         <View style={styles.metricLeft}><Ionicons name={item.icon as any} size={18} color={colors.textSecondary} /><Text style={styles.metricLabel}>{item.label}</Text></View>
-                        <View style={styles.metricRight}><View style={styles.metricBar}><View style={[styles.metricFill, { width: `${value * 10}%`, backgroundColor: getScoreColor(value) }]} /></View><Text style={[styles.metricValue, { color: getScoreColor(value) }]}>{safeToFixed(value)}</Text></View>
+                        {hasValue ? (
+                            <View style={styles.metricRight}><View style={styles.metricBar}><View style={[styles.metricFill, { width: `${value * 10}%`, backgroundColor: getScoreColor(value) }]} /></View><Text style={[styles.metricValue, { color: getScoreColor(value) }]}>{safeToFixed(value)}</Text></View>
+                        ) : (
+                            <Text style={styles.metricNoData}>No data</Text>
+                        )}
                     </View>
                 ); })}
             </View>
@@ -127,6 +133,7 @@ const styles = StyleSheet.create({
     metricBar: { flex: 1, height: 4, backgroundColor: colors.borderLight, borderRadius: 2 },
     metricFill: { height: '100%', borderRadius: 2 },
     metricValue: { fontSize: 14, fontWeight: '700', width: 35, textAlign: 'right' },
+    metricNoData: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic' },
     recommendationsCard: {
         marginHorizontal: spacing.xl,
         backgroundColor: colors.card,

@@ -181,7 +181,7 @@ export default function PersonalInfoScreen() {
             value={user?.phone_number || ''}
             editable={false}
             placeholderTextColor={colors.textMuted}
-            placeholder="—"
+            placeholder="Not set"
           />
 
           <View style={{ height: 100 }} />

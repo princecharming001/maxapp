@@ -233,7 +233,7 @@ function parseRecoveryTable(lines: string[]): ParsedGridTable | null {
 
 function parseMethodTable(lines: string[]): ParsedGridTable | null {
   const rows: string[][] = [];
-  const costTokens = ['$50–150 per scan', 'Free at many gyms', 'Cheap', 'Free'];
+  const costTokens = ['$50-150 per scan', 'Free at many gyms', 'Cheap', 'Free'];
 
   for (const rowText of lines.slice(1)) {
     const starMatch = rowText.match(/([★☆]{2,})/);

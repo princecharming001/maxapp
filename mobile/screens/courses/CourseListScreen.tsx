@@ -36,10 +36,14 @@ export default function CourseListScreen() {
     const renderItem = ({ item }: { item: any }) => (
         <TouchableOpacity style={styles.courseCard} onPress={() => handlePress(item)} activeOpacity={0.85}>
             <View style={styles.thumbWrap}>
-                <CachedImage
-                    uri={item.thumbnail_url || 'https://via.placeholder.com/300'}
-                    style={[styles.thumbnail, isLocked && styles.thumbnailLocked]}
-                />
+                {item.thumbnail_url ? (
+                    <CachedImage
+                        uri={item.thumbnail_url}
+                        style={[styles.thumbnail, isLocked && styles.thumbnailLocked]}
+                    />
+                ) : (
+                    <View style={[styles.thumbnail, styles.thumbnailPlaceholder, isLocked && styles.thumbnailLocked]} />
+                )}
                 {isLocked ? (
                     <View pointerEvents="none" style={styles.lockOverlay}>
                         <View style={styles.lockBadge}>
@@ -101,6 +105,12 @@ export default function CourseListScreen() {
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.list}
                 showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                    <View style={styles.emptyWrap}>
+                        <Ionicons name="book-outline" size={40} color={colors.textMuted} />
+                        <Text style={styles.emptyText}>No courses yet. Check back soon.</Text>
+                    </View>
+                }
             />
         </View>
     );
@@ -123,6 +133,8 @@ const styles = StyleSheet.create({
     },
     thumbWrap: { position: 'relative' },
     thumbnail: { width: '100%', height: 180, resizeMode: 'cover' },
+    /** Neutral surface fill when a course has no thumbnail — avoids a 404 / external request. */
+    thumbnailPlaceholder: { backgroundColor: colors.surface },
     /** Subtle, not punitive — preserves the design while signalling locked. */
     thumbnailLocked: { opacity: 0.55 },
     lockOverlay: {
@@ -175,5 +187,16 @@ const styles = StyleSheet.create({
         fontSize: 12.5,
         color: colors.textSecondary,
         letterSpacing: 0.1,
+    },
+    emptyWrap: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: spacing.xxxl,
+        gap: spacing.md,
+    },
+    emptyText: {
+        fontSize: 14,
+        color: colors.textMuted,
+        textAlign: 'center',
     },
 });

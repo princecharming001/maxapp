@@ -18,7 +18,7 @@ export default function FitmaxWorkoutTrackerScreen() {
 
   const activeWorkout = workouts.Push;
   const current = activeWorkout[Math.min(exerciseIndex, activeWorkout.length - 1)];
-  const totalSets = Number((current.setsReps || '3').split('�')[0].trim() || 3);
+  const totalSets = parseInt(current.setsReps || '3', 10) || 3;
 
   const logSet = async () => {
     if (showRest) return;

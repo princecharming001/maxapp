@@ -66,18 +66,18 @@ export function defaultFitmaxMacroSummary(): FitmaxMacroSummary {
     protein: 185,
     carbs: 245,
     fat: 70,
-    goalLabel: 'Fat Loss · 500 cal deficit',
+    goalLabel: 'Fat Loss - 500 cal deficit',
   };
 }
 
 export function defaultFitmaxSplit(): FitmaxWorkoutDay[] {
   return [
-    { day: 'Mon', short: 'Push', full: 'Push (Chest · Shoulders · Triceps)', type: 'training' },
-    { day: 'Tue', short: 'Pull', full: 'Pull (Back · Rear Delts · Biceps)', type: 'training' },
-    { day: 'Wed', short: 'Legs', full: 'Legs (Quads · Hamstrings · Glutes)', type: 'training' },
+    { day: 'Mon', short: 'Push', full: 'Push (Chest, Shoulders, Triceps)', type: 'training' },
+    { day: 'Tue', short: 'Pull', full: 'Pull (Back, Rear Delts, Biceps)', type: 'training' },
+    { day: 'Wed', short: 'Legs', full: 'Legs (Quads, Hamstrings, Glutes)', type: 'training' },
     { day: 'Thu', short: 'Rest', full: 'Recovery + Steps', type: 'rest' },
-    { day: 'Fri', short: 'Push', full: 'Push (Chest · Shoulders · Triceps)', type: 'training' },
-    { day: 'Sat', short: 'Pull', full: 'Pull (Back · Rear Delts · Biceps)', type: 'training' },
+    { day: 'Fri', short: 'Push', full: 'Push (Chest, Shoulders, Triceps)', type: 'training' },
+    { day: 'Sat', short: 'Pull', full: 'Pull (Back, Rear Delts, Biceps)', type: 'training' },
     { day: 'Sun', short: 'Rest', full: 'Recovery + Mobility', type: 'rest' },
   ];
 }
@@ -85,25 +85,25 @@ export function defaultFitmaxSplit(): FitmaxWorkoutDay[] {
 export function defaultWorkoutLibrary(): Record<string, FitmaxExercise[]> {
   return {
     Push: [
-      { name: 'Incline Dumbbell Press', setsReps: '4 × 6-10', formNote: 'Control the lowering phase for 2-3 seconds.', equipment: 'Dumbbells' },
-      { name: 'Flat Bench Press', setsReps: '3 × 6-8', formNote: 'Keep shoulder blades packed and elbows ~60°.', equipment: 'Barbell' },
-      { name: 'Seated Overhead Press', setsReps: '3 × 8-10', formNote: 'Brace hard and press in a straight line.', equipment: 'Dumbbells' },
-      { name: 'Cable Lateral Raise', setsReps: '3 × 12-15', formNote: 'Lead with elbows; avoid shrugging.', equipment: 'Cable' },
-      { name: 'Rope Pressdown', setsReps: '3 × 10-12', formNote: 'Lock elbows to your side and fully extend.', equipment: 'Cable' },
+      { name: 'Incline Dumbbell Press', setsReps: '4 x 6-10', formNote: 'Control the lowering phase for 2-3 seconds.', equipment: 'Dumbbells' },
+      { name: 'Flat Bench Press', setsReps: '3 x 6-8', formNote: 'Keep shoulder blades packed and elbows ~60 degrees.', equipment: 'Barbell' },
+      { name: 'Seated Overhead Press', setsReps: '3 x 8-10', formNote: 'Brace hard and press in a straight line.', equipment: 'Dumbbells' },
+      { name: 'Cable Lateral Raise', setsReps: '3 x 12-15', formNote: 'Lead with elbows; avoid shrugging.', equipment: 'Cable' },
+      { name: 'Rope Pressdown', setsReps: '3 x 10-12', formNote: 'Lock elbows to your side and fully extend.', equipment: 'Cable' },
     ],
     Pull: [
-      { name: 'Lat Pulldown', setsReps: '4 × 8-12', formNote: 'Depress scapula first, then drive elbows down.', equipment: 'Machine' },
-      { name: 'Chest-Supported Row', setsReps: '3 × 8-10', formNote: 'Pause and squeeze upper back each rep.', equipment: 'Machine' },
-      { name: 'Single-Arm Dumbbell Row', setsReps: '3 × 10-12', formNote: 'Pull to the hip, not the chest.', equipment: 'Dumbbells' },
-      { name: 'Rear Delt Fly', setsReps: '3 × 12-15', formNote: 'Move through full range, don\'t swing.', equipment: 'Cable' },
-      { name: 'EZ-Bar Curl', setsReps: '3 × 8-12', formNote: 'Control both directions, no torso sway.', equipment: 'EZ bar' },
+      { name: 'Lat Pulldown', setsReps: '4 x 8-12', formNote: 'Depress scapula first, then drive elbows down.', equipment: 'Machine' },
+      { name: 'Chest-Supported Row', setsReps: '3 x 8-10', formNote: 'Pause and squeeze upper back each rep.', equipment: 'Machine' },
+      { name: 'Single-Arm Dumbbell Row', setsReps: '3 x 10-12', formNote: 'Pull to the hip, not the chest.', equipment: 'Dumbbells' },
+      { name: 'Rear Delt Fly', setsReps: '3 x 12-15', formNote: 'Move through full range, don\'t swing.', equipment: 'Cable' },
+      { name: 'EZ-Bar Curl', setsReps: '3 x 8-12', formNote: 'Control both directions, no torso sway.', equipment: 'EZ bar' },
     ],
     Legs: [
-      { name: 'Back Squat', setsReps: '4 × 5-8', formNote: 'Knees track out; hit at least parallel.', equipment: 'Barbell' },
-      { name: 'Romanian Deadlift', setsReps: '3 × 6-10', formNote: 'Hinge at hips and keep lats tight.', equipment: 'Barbell' },
-      { name: 'Leg Press', setsReps: '3 × 10-12', formNote: 'Lower controlled and keep heels planted.', equipment: 'Machine' },
-      { name: 'Walking Lunge', setsReps: '2 × 20 steps', formNote: 'Keep torso tall and stride consistent.', equipment: 'Dumbbells' },
-      { name: 'Seated Calf Raise', setsReps: '4 × 10-15', formNote: 'Pause at stretch and peak contraction.', equipment: 'Machine' },
+      { name: 'Back Squat', setsReps: '4 x 5-8', formNote: 'Knees track out; hit at least parallel.', equipment: 'Barbell' },
+      { name: 'Romanian Deadlift', setsReps: '3 x 6-10', formNote: 'Hinge at hips and keep lats tight.', equipment: 'Barbell' },
+      { name: 'Leg Press', setsReps: '3 x 10-12', formNote: 'Lower controlled and keep heels planted.', equipment: 'Machine' },
+      { name: 'Walking Lunge', setsReps: '2 x 20 steps', formNote: 'Keep torso tall and stride consistent.', equipment: 'Dumbbells' },
+      { name: 'Seated Calf Raise', setsReps: '4 x 10-15', formNote: 'Pause at stretch and peak contraction.', equipment: 'Machine' },
     ],
   };
 }

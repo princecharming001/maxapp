@@ -44,31 +44,37 @@ export default function FaceScanArchiveScreen() {
             );
             return;
         }
-        try {
-            if (isPremium) {
-                const latest = await api.getLatestScan().catch((err: any) => {
-                    if (err?.response?.status === 404) return null;
-                    return null;
-                });
-                if (latest?.created_at) {
-                    const ts = new Date(latest.created_at);
-                    if (!Number.isNaN(ts.getTime())) {
-                        const now = new Date();
-                        const sameDay =
-                            ts.getFullYear() === now.getFullYear() &&
-                            ts.getMonth() === now.getMonth() &&
-                            ts.getDate() === now.getDate();
-                        if (sameDay) {
-                            alert('You already used today’s face scan. Come back tomorrow.');
-                            return;
-                        }
+        if (isPremium) {
+            let latest: any;
+            try {
+                latest = await api.getLatestScan();
+            } catch (err: any) {
+                // A 404 means no prior scan — that's the legitimate first-scan
+                // case, so let it through. Any other error (network/server) must
+                // NOT fail open and bypass the one-per-day rule.
+                if (err?.response?.status === 404) {
+                    navigation.navigate('FaceScan', { source: 'archive' });
+                    return;
+                }
+                Alert.alert('Could not check your scans', 'Check your connection and try again.');
+                return;
+            }
+            if (latest?.created_at) {
+                const ts = new Date(latest.created_at);
+                if (!Number.isNaN(ts.getTime())) {
+                    const now = new Date();
+                    const sameDay =
+                        ts.getFullYear() === now.getFullYear() &&
+                        ts.getMonth() === now.getMonth() &&
+                        ts.getDate() === now.getDate();
+                    if (sameDay) {
+                        Alert.alert('Face scans', "You already used today's face scan. Come back tomorrow.");
+                        return;
                     }
                 }
             }
-            navigation.navigate('FaceScan', { source: 'archive' });
-        } catch {
-            navigation.navigate('FaceScan', { source: 'archive' });
         }
+        navigation.navigate('FaceScan', { source: 'archive' });
     };
 
     if (loading) {

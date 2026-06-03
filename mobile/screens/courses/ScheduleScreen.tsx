@@ -77,6 +77,9 @@ export default function ScheduleScreen() {
   const [generating, setGenerating] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  // Tracks a real load failure so a network error doesn't look identical to
+  // "you have no schedule" (which renders the Generate state).
+  const [loadError, setLoadError] = useState(false);
 
   
   const maxxesQuery = useMaxxesQuery();
@@ -97,6 +100,7 @@ export default function ScheduleScreen() {
   }, []);
 
   const loadSchedule = async () => {
+    setLoadError(false);
     try {
       let result;
       if (paramScheduleId) {
@@ -122,6 +126,7 @@ export default function ScheduleScreen() {
       }
     } catch (e) {
       console.error('Failed to load schedule:', e);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -193,21 +198,32 @@ export default function ScheduleScreen() {
     }
   };
 
+  const runAdapt = async (feedback: string) => {
+    if (!schedule) return;
+    try {
+      const result = await api.adaptSchedule(schedule.id, feedback);
+      setSchedule(result.schedule);
+      Alert.alert('Schedule Adapted', 'Max adjusted your schedule.');
+    } catch (e) {
+      Alert.alert('Error', 'Failed to adapt schedule');
+    }
+  };
+
   const handleAdapt = () => {
     if (!schedule) return;
-    Alert.prompt?.(
+    // Alert.prompt is iOS-only. On Android (no prompt) skip the free-text note
+    // and adapt with a default so the action still works instead of no-opping.
+    if (Platform.OS !== 'ios' || typeof Alert.prompt !== 'function') {
+      void runAdapt('Make this schedule fit me better.');
+      return;
+    }
+    Alert.prompt(
       'Adapt Schedule',
-      'Tell the AI how to adjust your schedule (e.g., "too intense", "need more morning tasks")',
-      async (feedback: string) => {
+      'Tell Max what to change. Try too intense or more morning tasks.',
+      (feedback: string) => {
         if (!feedback) return;
-        try {
-          const result = await api.adaptSchedule(schedule.id, feedback);
-          setSchedule(result.schedule);
-          Alert.alert('✅ Schedule Adapted', 'Your schedule has been adjusted based on your feedback.');
-        } catch (e) {
-          Alert.alert('Error', 'Failed to adapt schedule');
-        }
-      }
+        void runAdapt(feedback);
+      },
     );
   };
 
@@ -252,6 +268,39 @@ export default function ScheduleScreen() {
     return (
       <View style={[styles.container, styles.center]}>
         <ActivityIndicator size="large" color={colors.foreground} />
+      </View>
+    );
+  }
+
+  // Real load failure — distinct from the no-schedule case so a dropped
+  // connection doesn't masquerade as "you have nothing scheduled".
+  if (loadError && !schedule) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={22} color={colors.foreground} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Schedule</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={[styles.emptyState, styles.center]}>
+          <Ionicons name="cloud-offline-outline" size={36} color={colors.textMuted} style={{ marginBottom: spacing.lg }} />
+          <Text style={styles.emptyTitle}>Could not load</Text>
+          <Text style={styles.errorBody}>
+            Could not load your schedule. Check your connection and try again.
+          </Text>
+          <TouchableOpacity
+            style={styles.generateButton}
+            onPress={() => {
+              setLoading(true);
+              loadSchedule();
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.generateButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -410,6 +459,15 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     letterSpacing: -0.3,
     marginBottom: spacing.lg,
+  },
+  errorBody: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: -spacing.sm,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.md,
   },
   generateButton: {
     paddingVertical: 10,

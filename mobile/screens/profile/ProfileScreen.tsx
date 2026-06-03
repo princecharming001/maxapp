@@ -153,6 +153,7 @@ export default function ProfileScreen() {
 
     const saveProfile = async () => {
         setSaveLoading(true);
+        let avatarFailed = false;
         try {
             let newAvatarUrl = user?.profile?.avatar_url;
             if (editAvatarUri) {
@@ -161,6 +162,9 @@ export default function ProfileScreen() {
                     newAvatarUrl = res.avatar_url;
                 } catch (avatarError: any) {
                     console.error('Avatar upload error:', avatarError);
+                    // Don't pretend the new photo saved — flag it so we can tell
+                    // the user after the rest of their changes go through.
+                    avatarFailed = true;
                 }
             }
 
@@ -217,6 +221,14 @@ export default function ProfileScreen() {
 
             await refreshUser();
             setEditModalVisible(false);
+            if (avatarFailed) {
+                const photoMsg = 'We could not upload your new photo. Your other changes were saved.';
+                if (Platform.OS === 'web') {
+                    window.alert(photoMsg);
+                } else {
+                    Alert.alert('Photo not uploaded', photoMsg);
+                }
+            }
         } catch (e: any) {
             console.error('Save profile error:', e);
             const errorMsg = e?.response?.data?.detail || e?.message || 'Failed to update profile';

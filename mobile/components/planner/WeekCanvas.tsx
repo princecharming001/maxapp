@@ -21,7 +21,7 @@
  * from the typical day. Editing rewrites onboarding, which regenerates every Max
  * schedule, so what you see is exactly what the AI plans around.
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../../theme/dark';
@@ -139,12 +139,14 @@ function blocksFor(d: DayShape, obs: Obligation[]): Block[] {
 
 function DayColumn({
   day,
+  label,
   obligations,
   isToday,
   isLast,
   onPress,
 }: {
   day: DayShape;
+  label: string;
   obligations: Obligation[];
   isToday: boolean;
   isLast: boolean;
@@ -163,10 +165,19 @@ function DayColumn({
 
   return (
     <TouchableOpacity
-      style={[styles.col, !isLast && styles.colBorder, isToday && styles.colToday]}
+      style={[styles.col, !isLast && styles.colBorder, isToday && styles.colToday, isToday && styles.colTodayRing]}
       activeOpacity={0.6}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={isToday ? `Edit ${label} (today)` : `Edit ${label}`}
     >
+      {/* Non-color "today" cue: a small label, so it doesn't rely on the tint alone. */}
+      {isToday ? (
+        <View pointerEvents="none" style={styles.todayTag}>
+          <Text style={styles.todayTagText}>Today</Text>
+        </View>
+      ) : null}
+
       {/* Night washes at the top and bottom edges. */}
       {washStyle(asleepTop, ASLEEP)}
       {washStyle(asleepBottom, ASLEEP)}
@@ -217,11 +228,18 @@ export default function WeekCanvas({
   obligations: Obligation[];
   onEditScope: (scope: Scope) => void;
 }) {
+  // Tick the clock every 60s so the now-line (and today highlight) stay live
+  // while this tab stays mounted, instead of freezing at mount time.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
   // Today's weekday in our Mon-first order (JS getDay is Sun-first).
-  const todayIdx = (new Date().getDay() + 6) % 7;
+  const todayIdx = (now.getDay() + 6) % 7;
 
   // Current-time line, mapped onto the 4 AM → 4 AM axis.
-  const now = new Date();
   const nowStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const nowTop = yPx(nowStr);
 
@@ -287,6 +305,7 @@ export default function WeekCanvas({
               <DayColumn
                 key={w.key}
                 day={effectiveDay(defaults, weekly, w.key)}
+                label={w.long}
                 obligations={obligationsForDay(obligations, w.key)}
                 isToday={i === todayIdx}
                 isLast={i === WEEKDAYS.length - 1}
@@ -411,6 +430,27 @@ const styles = StyleSheet.create({
   col: { flex: 1, height: GRID_H, position: 'relative', overflow: 'hidden' },
   colBorder: { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.border },
   colToday: { backgroundColor: TODAY_TINT },
+  // Non-color cue: a bold-ish ring frames today's column so it reads without
+  // relying on the tint or any single hue.
+  colTodayRing: {
+    borderWidth: 1.5,
+    borderColor: WORKOUT,
+  },
+  todayTag: {
+    position: 'absolute',
+    top: 2,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  todayTagText: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 8,
+    color: WORKOUT,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
   block: {
     position: 'absolute',
     left: COL_GAP_INSET,

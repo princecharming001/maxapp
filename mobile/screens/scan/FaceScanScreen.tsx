@@ -8,6 +8,7 @@ import {
     AppState,
     ActivityIndicator,
     Platform,
+    Linking,
     type AppStateStatus,
 } from 'react-native';
 import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -375,6 +376,26 @@ export default function FaceScanScreen() {
         }
     };
 
+    const onEnableCamera = async () => {
+        // If iOS won't prompt again, requestPermission() no-ops and the user is
+        // stuck. Send them to Settings instead. We know this up front via
+        // canAskAgain === false, or after a fresh request still isn't granted.
+        if (permission?.canAskAgain === false) {
+            Alert.alert('Camera is off', 'Turn on camera access for Max in Settings to scan your face.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]);
+            return;
+        }
+        const res = await requestPermission();
+        if (!res?.granted && res?.canAskAgain === false) {
+            Alert.alert('Camera is off', 'Turn on camera access for Max in Settings to scan your face.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]);
+        }
+    };
+
     const goNext = () => {
         if (stepIndex < STEPS.length - 1) setStepIndex((s) => s + 1);
     };
@@ -458,7 +479,7 @@ export default function FaceScanScreen() {
         return (
             <View style={[styles.container, styles.permWrap]}>
                 <Text style={styles.permText}>Camera access is needed for your face scan.</Text>
-                <TouchableOpacity style={styles.permBtn} onPress={() => requestPermission()}>
+                <TouchableOpacity style={styles.permBtn} onPress={() => void onEnableCamera()}>
                     <Text style={styles.permBtnText}>Allow camera</Text>
                 </TouchableOpacity>
             </View>

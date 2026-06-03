@@ -102,13 +102,16 @@ export default function CourseDetailScreen() {
                             <View style={styles.chapterList}>
                                 {mod.chapters.map((chap: any) => {
                                     const isDone = completedChapters.includes(chap.chapter_id);
+                                    // Chapters are locked until the course is started — show the
+                                    // lock up front so the row reads as gated before it's tapped.
+                                    const isLocked = !isStarted;
                                     return (
-                                        <TouchableOpacity key={chap.chapter_id} style={[styles.chapterItem, isDone && styles.chapterDone]} onPress={() => handleChapterPress(chap, mod.module_number)} activeOpacity={0.7}>
+                                        <TouchableOpacity key={chap.chapter_id} style={[styles.chapterItem, isDone && styles.chapterDone, isLocked && styles.chapterLocked]} onPress={() => handleChapterPress(chap, mod.module_number)} activeOpacity={0.7}>
                                             <View style={styles.chapterLeft}>
-                                                <Ionicons name={isDone ? "checkmark-circle" : (chap.type === 'video' ? 'play-circle' : chap.type === 'image' ? 'image' : 'document-text')} size={20} color={isDone ? colors.foreground : colors.textSecondary} />
-                                                <View><Text style={[styles.chapterTitle, isDone && styles.textDone]}>{chap.title}</Text><Text style={styles.chapterDuration}>{chap.duration_minutes} min</Text></View>
+                                                <Ionicons name={isLocked ? "lock-closed" : isDone ? "checkmark-circle" : (chap.type === 'video' ? 'play-circle' : chap.type === 'image' ? 'image' : 'document-text')} size={20} color={isLocked ? colors.textMuted : isDone ? colors.foreground : colors.textSecondary} />
+                                                <View><Text style={[styles.chapterTitle, isDone && styles.textDone, isLocked && styles.chapterTitleLocked]}>{chap.title}</Text><Text style={styles.chapterDuration}>{chap.duration_minutes} min</Text></View>
                                             </View>
-                                            {isDone && <Text style={styles.doneLabel}>Done</Text>}
+                                            {isDone ? <Text style={styles.doneLabel}>Done</Text> : isLocked ? <Text style={styles.lockedLabel}>Locked</Text> : null}
                                         </TouchableOpacity>
                                     );
                                 })}
@@ -172,9 +175,12 @@ const styles = StyleSheet.create({
     chapterList: { padding: spacing.sm },
     chapterItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.md, borderRadius: borderRadius.md, marginBottom: 4 },
     chapterDone: { backgroundColor: colors.accentMuted },
+    chapterLocked: { opacity: 0.55 },
     chapterLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 },
     chapterTitle: { fontSize: 14, fontWeight: '500', color: colors.foreground },
+    chapterTitleLocked: { color: colors.textSecondary },
     chapterDuration: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
     textDone: { color: colors.textSecondary, textDecorationLine: 'line-through' },
     doneLabel: { fontSize: 11, color: colors.foreground, fontWeight: '600' },
+    lockedLabel: { fontSize: 11, color: colors.textMuted, fontWeight: '600' },
 });
