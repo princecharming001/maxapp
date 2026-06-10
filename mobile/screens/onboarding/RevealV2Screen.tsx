@@ -27,6 +27,7 @@ import RevealChoreography, {
 } from '../../components/reveal/RevealChoreography';
 import { useAuth } from '../../context/AuthContext';
 import { getIosApnsDeviceTokenForBackend } from '../../services/registerIosPushToken';
+import { track } from '../../lib/analytics';
 import api from '../../services/api';
 
 const INK = '#111113';
@@ -147,7 +148,10 @@ export default function RevealV2Screen() {
                                     rows={rows}
                                     scope="first-day"
                                     closeLine={closeLine}
-                                    onComplete={() => setRevealSettled(true)}
+                                    onComplete={() => {
+                                        setRevealSettled(true);
+                                        track('reveal_completed', { tasks: taskCount });
+                                    }}
                                 />
                             </View>
                         )}

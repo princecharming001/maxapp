@@ -468,6 +468,26 @@ class UserSchedule(Base):
     )
 
 
+class AppEvent(Base):
+    """Lightweight product analytics event (spec 0.9). One row per event;
+    without this nothing in the funnel is measurable. Allowlisted names only
+    (see api/analytics.py); props is a small JSON bag, never raw user content."""
+    __tablename__ = "app_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=True)
+    event = Column(String(64), nullable=False)
+    props = Column(JSON, default=dict)
+    source = Column(String(16), default="app")  # app | server
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_app_events_user_id", user_id),
+        Index("idx_app_events_event", event),
+        Index("idx_app_events_created_at", created_at),
+    )
+
+
 class RagDocument(Base):
     """Chunked knowledge documents for RAG retrieval, namespaced by maxx_id."""
     __tablename__ = "rag_documents"

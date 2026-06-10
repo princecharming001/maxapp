@@ -22,6 +22,7 @@ import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
 import { useQuery } from '@tanstack/react-query';
+import { track } from '../../lib/analytics';
 import api, { type MarketplaceItem } from '../../services/api';
 
 const INK = '#111113';
@@ -152,7 +153,7 @@ export default function MarketplaceScreen() {
                 <Text style={styles.sectionSub}>Built by Max. $3.99 a week each.</Text>
                 <View style={{ gap: 12, marginTop: 10 }}>
                     {maxxes.map((m) => (
-                        <ItemCard key={m.id} item={m} onPress={() => setDetail(m)} />
+                        <ItemCard key={m.id} item={m} onPress={() => { track('paywall_view', { item: m.id }); setDetail(m); }} />
                     ))}
                 </View>
 
@@ -160,7 +161,7 @@ export default function MarketplaceScreen() {
                 <Text style={styles.sectionSub}>From coaches and pros. Fit to your schedule.</Text>
                 <View style={{ gap: 12, marginTop: 10 }}>
                     {courses.map((c) => (
-                        <ItemCard key={c.id} item={c} onPress={() => setDetail(c)} />
+                        <ItemCard key={c.id} item={c} onPress={() => { track('paywall_view', { item: c.id }); setDetail(c); }} />
                     ))}
                 </View>
             </ScrollView>
@@ -226,6 +227,7 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
         setBusy(true);
         try {
             await api.enterMarketplaceItem(item.id);
+            track('enter', { item: item.id, kind: item.native ? 'maxx' : 'course' });
             onEntered(item.id);
             // Post-purchase mini-reveal: the new program lands on the user's
             // real week (data from the same feasibility sim, cached).

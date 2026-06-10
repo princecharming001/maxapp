@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
+import { track } from '../../lib/analytics';
 import api from '../../services/api';
 
 const INK = '#111113';
@@ -34,7 +35,10 @@ export default function WeeklyReviewScreen() {
     const confirmMutation = useMutation({
         mutationFn: (c: { id: string; accepted: boolean; value?: string }) =>
             api.confirmWeeklyFacts([c]),
-        onMutate: (c) => setAnswered((a) => ({ ...a, [c.id]: true })),
+        onMutate: (c) => {
+            track('review_confirmed', { fact: c.id, accepted: c.accepted });
+            setAnswered((a) => ({ ...a, [c.id]: true }));
+        },
         onSettled: () => queryClient.invalidateQueries({ queryKey: ['weeklyReview'] }),
     });
 

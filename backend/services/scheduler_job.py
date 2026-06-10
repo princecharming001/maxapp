@@ -282,6 +282,11 @@ async def send_due_notifications():
                                 len(push_unsent),
                                 _key,
                             )
+                            from services.analytics_log import log_server_event
+                            await log_server_event(
+                                user.id, "nudge_sent",
+                                {"channel": "push", "task_count": len(push_unsent)},
+                            )
 
                 for schedule in touched_schedules:
                     flag_modified(schedule, "days")

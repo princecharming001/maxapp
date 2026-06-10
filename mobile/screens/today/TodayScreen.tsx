@@ -28,6 +28,7 @@ import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
 import SlideToConfirm from '../../components/today/SlideToConfirm';
+import { track } from '../../lib/analytics';
 import api from '../../services/api';
 
 const INK = '#111113';
@@ -153,6 +154,11 @@ export default function TodayScreen() {
         onMutate: async (t) => {
             haptic('success');
             patchTaskStatus(t.task_id, 'completed');
+            track('done_tapped', { program: t.maxx_id });
+            // Last open task of the day -> the day is closed.
+            if (pending.length === 1 && pending[0]?.task_id === t.task_id) {
+                track('day_closed', { done: completed.length + 1 });
+            }
             if (undoTimer.current) clearTimeout(undoTimer.current);
             setUndo({ task: t });
             undoTimer.current = setTimeout(() => setUndo(null), 4000);
@@ -194,6 +200,7 @@ export default function TodayScreen() {
                       }
                     : old,
             );
+            track('snooze', { program: t.maxx_id });
             setToast(`Moved to ${fmtTime(newTime)}`);
             setTimeout(() => setToast(null), 3000);
         },
@@ -207,11 +214,19 @@ export default function TodayScreen() {
     const lockInMutation = useMutation({
         mutationFn: () => api.plannerLockIn(),
         onMutate: async () => {
+            track('lock_in');
             queryClient.setQueryData(TODAY_QK, (old: any) =>
                 old ? { ...old, locked_in: true } : old,
             );
         },
     });
+
+    // Freeze-used card shown = the freeze event happened (once per day).
+    const freezeTracked = useRef(false);
+    if ((data as any)?.freeze_used_yesterday && !freezeTracked.current) {
+        freezeTracked.current = true;
+        track('freeze_used');
+    }
 
     const snooze = (t: PlannerTask) => {
         const cur = toMin(t.time);

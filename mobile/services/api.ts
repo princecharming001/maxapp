@@ -1035,6 +1035,13 @@ class ApiService {
         return response.data;
     }
 
+    async trackEvents(
+        events: { event: string; props?: Record<string, unknown> }[],
+    ): Promise<{ stored: number; dropped: number }> {
+        const response = await this.client.post('analytics/track', { events });
+        return response.data;
+    }
+
     async getPlannerFeasibility(programId: string): Promise<{
         verdict: 'green' | 'amber' | 'red';
         fits_n_of_m: { fits: number; of: number };
