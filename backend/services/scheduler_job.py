@@ -242,7 +242,55 @@ async def send_due_notifications():
                 for c in candidates:
                     groups[c["key"]].append(c)
 
+                # CONDUCTOR HARD GATES (spec 4.4): pure functions of
+                # deterministic inputs - quiet hours in the user's tz, daily
+                # nudge budget, min interval, per-task ignore floor. Per-user
+                # conductor state lives in user.profile["jitai"].
+                from services.conductor import (
+                    GateContext,
+                    budget_for,
+                    hard_gates,
+                    ignore_count,
+                    minutes_since_last,
+                    record_send,
+                )
+
+                jitai = dict((user.profile or {}).get("jitai") or {})
+                ob_g = dict(user.onboarding or {})
+                wake_parts = _parse_task_time_parts(str(ob_g.get("wake_time") or "07:00")) or (7, 0)
+                sleep_parts = _parse_task_time_parts(str(ob_g.get("sleep_time") or "23:00")) or (23, 0)
+                nudges_today, checkins_today = budget_for(jitai, local_now.date())
+                now_min_local = local_now.hour * 60 + local_now.minute
+
+                gated_groups: dict[tuple, list[dict]] = {}
+                for _key, group in groups.items():
+                    first_task = group[0]["task"]
+                    ctx = GateContext(
+                        now_min=now_min_local,
+                        wake_min=wake_parts[0] * 60 + wake_parts[1],
+                        sleep_min=sleep_parts[0] * 60 + sleep_parts[1],
+                        nudges_sent_today=nudges_today,
+                        checkins_sent_today=checkins_today,
+                        minutes_since_last_nudge=minutes_since_last(
+                            jitai, local_now.replace(tzinfo=None)
+                        ),
+                        task_already_nudged=schedule_push_marked_sent(first_task)
+                        and schedule_sms_marked_sent(first_task),
+                        task_ignore_count=ignore_count(
+                            jitai, str(first_task.get("task_uuid") or "")
+                        ),
+                    )
+                    allowed, reason = hard_gates(ctx)
+                    if not allowed and not _sms_fast_mode():
+                        logger.debug(
+                            "Conductor gate blocked nudge for %s (%s)", user.id, reason
+                        )
+                        continue
+                    gated_groups[_key] = group
+                groups = gated_groups
+
                 touched_schedules: set = set()
+                sent_any_group = False
                 for _key, group in groups.items():
                     sms_unsent = [it for it in group if not schedule_sms_marked_sent(it["task"])]
                     push_unsent = [it for it in group if not schedule_push_marked_sent(it["task"])]
@@ -287,10 +335,25 @@ async def send_due_notifications():
                                 user.id, "nudge_sent",
                                 {"channel": "push", "task_count": len(push_unsent)},
                             )
+                            # Spend conductor budget for this decision point.
+                            jitai = record_send(
+                                jitai, local_now.date(),
+                                is_checkin=False,
+                                now=local_now.replace(tzinfo=None),
+                            )
+                            nudges_today += 1
+                            sent_any_group = True
 
                 for schedule in touched_schedules:
                     flag_modified(schedule, "days")
                     schedule.updated_at = datetime.utcnow()
+
+                # Persist conductor budget/interval state per user.
+                if sent_any_group:
+                    p2 = dict(user.profile or {})
+                    p2["jitai"] = jitai
+                    user.profile = p2
+                    flag_modified(user, "profile")
 
             await db.commit()
 
