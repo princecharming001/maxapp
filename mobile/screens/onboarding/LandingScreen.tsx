@@ -1,46 +1,30 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
-    FlatList,
-    Dimensions,
-    NativeSyntheticEvent,
-    NativeScrollEvent,
     Platform,
     ActivityIndicator,
     Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { useAuth } from '../../context/AuthContext';
+import { GlassCard } from '../../components/glass/GlassCard';
+import { GlassButton } from '../../components/glass/GlassButton';
 
 const isWeb = Platform.OS === 'web';
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const WEB_MAX_SLIDE_WIDTH = 440;
-const SLIDE_WIDTH = isWeb ? Math.min(SCREEN_WIDTH, WEB_MAX_SLIDE_WIDTH) : SCREEN_WIDTH;
-const SLIDE_HEIGHT = SCREEN_HEIGHT * 0.72;
-
-const SLIDES = [
-    {
-        id: 'hero',
-        type: 'hero',
-        title: 'max',
-        line1: 'Your AI looksmaxxing coach.',
-        line2: 'Personalized advice, texted daily.',
-    },
-];
+const WEB_MAX_WIDTH = 440;
 
 export default function LandingScreen() {
     const navigation = useNavigation<any>();
     const { fauxSignup, fauxSkipSignup, fauxFreshSignup } = useAuth();
-    const [currentIndex, setCurrentIndex] = useState(0);
     const [demoLoading, setDemoLoading] = useState(false);
     const [skipLoading, setSkipLoading] = useState(false);
     const [freshLoading, setFreshLoading] = useState(false);
-    const flatListRef = useRef<FlatList>(null);
 
     const handleTryNow = async () => {
         if (demoLoading) return;
@@ -111,112 +95,75 @@ export default function LandingScreen() {
         }
     };
 
-    const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-        const index = Math.min(
-            Math.round(e.nativeEvent.contentOffset.x / SLIDE_WIDTH),
-            SLIDES.length - 1
-        );
-        setCurrentIndex(index);
-    };
-
-    const goNext = () => {
-        if (currentIndex < SLIDES.length - 1) {
-            flatListRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
-        }
-    };
-
-    const renderSlide = ({ item }: { item: typeof SLIDES[0] }) => {
-        if (item.type === 'hero') {
-            return (
-                <View style={styles.slide}>
-                    <View style={styles.heroContent}>
-                        <Text style={styles.heroLogo}>{item.title}</Text>
-                        <Text style={styles.heroLine1}>{item.line1}</Text>
-                        <Text style={styles.heroLine2}>{item.line2}</Text>
-                    </View>
-                </View>
-            );
-        }
-
-        return null;
-    };
-
     return (
-        <View style={styles.container}>
+        <View style={styles.root}>
+            {/* Backdrop: soft vertical gradient + two color orbs, veiled by a
+                light blur so the orbs read as glows. Gives the frosted glass
+                surfaces above something to refract. */}
+            <LinearGradient
+                colors={['#F7F8FC', '#E9ECF2']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+            />
+            <View pointerEvents="none" style={[styles.orb, styles.orbGold]} />
+            <View pointerEvents="none" style={[styles.orb, styles.orbBlue]} />
+            <BlurView pointerEvents="none" intensity={50} tint="light" style={StyleSheet.absoluteFill} />
+
             {isWeb ? (
                 <TouchableOpacity
                     style={styles.skipPill}
-                    activeOpacity={0.7}
+                    activeOpacity={0.8}
                     onPress={handleSkip}
                     disabled={skipLoading}
                     accessibilityRole="button"
                     accessibilityLabel="Skip to home"
                 >
-                    {skipLoading ? (
-                        <ActivityIndicator size="small" color={colors.textPrimary} />
-                    ) : (
-                        <>
-                            <Text style={styles.skipPillText}>Skip</Text>
-                            <Ionicons name="chevron-forward" size={14} color={colors.textPrimary} />
-                        </>
-                    )}
+                    <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} />
+                    <View style={styles.skipPillInner}>
+                        {skipLoading ? (
+                            <ActivityIndicator size="small" color="#111113" />
+                        ) : (
+                            <>
+                                <Text style={styles.skipPillText}>Skip</Text>
+                                <Ionicons name="chevron-forward" size={14} color="#111113" />
+                            </>
+                        )}
+                    </View>
                 </TouchableOpacity>
             ) : null}
 
-            <View style={styles.carouselWrap}>
-                <FlatList
-                    ref={flatListRef}
-                    data={SLIDES}
-                    renderItem={renderSlide}
-                    keyExtractor={(item) => item.id}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    onScroll={onScroll}
-                    scrollEventThrottle={16}
-                    getItemLayout={(_, index) => ({
-                        length: SLIDE_WIDTH,
-                        offset: SLIDE_WIDTH * index,
-                        index,
-                    })}
-                />
-            </View>
+            <View style={styles.content}>
+                <View style={styles.hero}>
+                    <Text style={styles.heroLogo}>max</Text>
+                    <Text style={styles.heroLine1}>Your AI looksmaxxing coach.</Text>
+                    <Text style={styles.heroLine2}>Personalized advice, texted daily.</Text>
+                </View>
 
-            <View style={styles.footer}>
-                {currentIndex === SLIDES.length - 1 ? (
-                    <View style={styles.actions}>
-                        <TouchableOpacity
-                            style={styles.primaryButton}
-                            activeOpacity={0.85}
+                <GlassCard radius={28} intensity={42} style={styles.ctaCard}>
+                    <View style={styles.ctaInner}>
+                        <GlassButton
+                            variant="primary"
+                            label="Sign In"
                             onPress={() => navigation.navigate('Login')}
-                        >
-                            <Text style={styles.primaryText}>Sign In</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.secondaryButton}
-                            activeOpacity={0.85}
+                        />
+                        <GlassButton
+                            variant="glass"
+                            label="Create account"
                             onPress={() => navigation.navigate('Signup')}
-                        >
-                            <Text style={styles.secondaryText}>Create account</Text>
-                        </TouchableOpacity>
+                        />
                         {isWeb ? (
-                            <TouchableOpacity
-                                style={styles.demoButton}
-                                activeOpacity={0.7}
+                            <GlassButton
+                                variant="ghost"
+                                label="Try it first. No account needed"
                                 onPress={handleTryNow}
-                                disabled={demoLoading}
-                            >
-                                {demoLoading ? (
-                                    <ActivityIndicator size="small" color={colors.textMuted} />
-                                ) : (
-                                    <Text style={styles.demoText}>Try it first. No account needed</Text>
-                                )}
-                            </TouchableOpacity>
+                                loading={demoLoading}
+                            />
                         ) : null}
-                        {/* DEV-only buttons: bypass signup form to test
-                            specific app states. Compiled out in prod builds. */}
+                        {/* DEV-only buttons: bypass signup form to test specific
+                            app states. Compiled out in prod builds. */}
                         {__DEV__ ? (
-                            <View style={styles.devButtonStack}>
+                            <View style={styles.devStack}>
                                 <TouchableOpacity
                                     style={styles.devButton}
                                     activeOpacity={0.7}
@@ -244,258 +191,83 @@ export default function LandingScreen() {
                             </View>
                         ) : null}
                     </View>
-                ) : (
-                    <View style={styles.actions}>
-                        <TouchableOpacity style={styles.nextButton} onPress={goNext} activeOpacity={0.85}>
-                            <Text style={styles.nextButtonText}>Next</Text>
-                            <Ionicons name="arrow-forward" size={18} color={colors.buttonText} />
-                        </TouchableOpacity>
-                        {isWeb ? (
-                            <TouchableOpacity
-                                style={styles.demoButton}
-                                activeOpacity={0.7}
-                                onPress={handleTryNow}
-                                disabled={demoLoading}
-                            >
-                                {demoLoading ? (
-                                    <ActivityIndicator size="small" color={colors.textMuted} />
-                                ) : (
-                                    <Text style={styles.demoText}>Try it first. No account needed</Text>
-                                )}
-                            </TouchableOpacity>
-                        ) : null}
-                    </View>
-                )}
+                </GlassCard>
             </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
+    root: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: '#F7F8FC',
         ...(isWeb && { alignItems: 'center' as const }),
     },
-    skipPill: {
+    orb: {
         position: 'absolute',
-        top: Platform.OS === 'ios' ? 60 : 40,
-        right: spacing.lg,
-        zIndex: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 2,
-        paddingVertical: 6,
-        paddingLeft: 12,
-        paddingRight: 8,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.surface,
-        minWidth: 64,
-        minHeight: 30,
-        justifyContent: 'center',
-        ...(isWeb && { cursor: 'pointer' as const }),
+        width: 380,
+        height: 380,
+        borderRadius: 190,
     },
-    skipPillText: {
-        fontSize: 12,
-        fontWeight: '500',
-        letterSpacing: 0.3,
-        color: colors.textPrimary,
+    orbGold: {
+        backgroundColor: 'rgba(212,160,23,0.42)',
+        top: -90,
+        right: -70,
     },
-    carouselWrap: {
+    orbBlue: {
+        backgroundColor: 'rgba(120,150,205,0.40)',
+        bottom: 20,
+        left: -100,
+    },
+    content: {
         flex: 1,
-        ...(isWeb && { width: '100%', maxWidth: WEB_MAX_SLIDE_WIDTH }),
-    },
-    slide: {
-        width: SLIDE_WIDTH,
-        minHeight: SLIDE_HEIGHT,
-        paddingHorizontal: spacing.xl + spacing.sm,
-        paddingTop: 96,
-        paddingBottom: spacing.xl + spacing.md,
+        width: '100%',
+        paddingHorizontal: 28,
+        paddingTop: 104,
+        paddingBottom: 56,
         justifyContent: 'space-between',
+        ...(isWeb && { maxWidth: WEB_MAX_WIDTH }),
     },
-    heroContent: {
-        alignItems: 'center',
+    hero: {
         flex: 1,
+        alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: spacing.lg,
     },
     heroLogo: {
-        fontFamily: fonts.serif,
-        fontSize: 62,
+        fontFamily: 'PlayfairDisplay',
+        fontSize: 66,
         fontWeight: '300',
-        color: colors.textPrimary,
+        color: '#111113',
         letterSpacing: -2,
-        marginBottom: spacing.xl,
-        lineHeight: 68,
+        marginBottom: 28,
+        lineHeight: 72,
     },
     heroLine1: {
+        fontFamily: 'Matter-Medium',
         fontSize: 16,
-        color: colors.textSecondary,
-        marginBottom: spacing.sm,
+        color: '#3A3A3F',
+        marginBottom: 8,
         textAlign: 'center',
         letterSpacing: 0.2,
         lineHeight: 24,
     },
     heroLine2: {
+        fontFamily: 'Matter-Regular',
         fontSize: 16,
-        color: colors.textMuted,
+        color: '#8A8A92',
         textAlign: 'center',
         letterSpacing: 0.2,
         lineHeight: 24,
     },
-    coachingContent: {
-        flex: 1,
+    ctaCard: {
+        width: '100%',
     },
-    coachingLabel: {
-        fontSize: 11,
-        fontWeight: '500',
-        color: colors.textMuted,
-        letterSpacing: 2,
-        marginBottom: spacing.md,
-    },
-    coachingTitle: {
-        fontFamily: fonts.serif,
-        fontSize: 26,
-        fontWeight: '400',
-        color: colors.textPrimary,
-        letterSpacing: -0.4,
-        marginBottom: spacing.lg,
-        lineHeight: 32,
-    },
-    coachingDescription: {
-        fontSize: 15,
-        color: colors.textSecondary,
-        lineHeight: 24,
-        marginBottom: spacing.xl + spacing.sm,
-    },
-    chatPreview: {
-        backgroundColor: colors.surface,
-        borderRadius: borderRadius.md,
-        padding: spacing.lg,
-        gap: spacing.md,
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    chatBubble: {
-        maxWidth: '90%',
-        paddingVertical: spacing.sm + 2,
-        paddingHorizontal: spacing.md,
-        borderRadius: borderRadius.sm,
-        alignSelf: 'flex-start',
-        borderWidth: 1,
-    },
-    chatBubbleMax: {
-        backgroundColor: colors.card,
-        borderColor: colors.border,
-        borderBottomLeftRadius: borderRadius.sm,
-    },
-    chatBubbleUser: {
-        alignSelf: 'flex-end',
-        backgroundColor: colors.background,
-        borderColor: colors.border,
-        borderBottomRightRadius: borderRadius.sm,
-    },
-    chatBubbleText: {
-        fontSize: 14,
-        color: colors.textPrimary,
-        lineHeight: 21,
-    },
-    chatBubbleTextUser: {
-        color: colors.textPrimary,
-    },
-    chatTime: {
-        fontSize: 11,
-        color: colors.textMuted,
-        marginTop: 4,
-    },
-    footer: {
-        paddingHorizontal: spacing.xl,
-        paddingBottom: spacing.xxxl + spacing.md,
-        paddingTop: spacing.xl,
-        gap: spacing.xl,
-        ...(isWeb && { width: '100%', maxWidth: WEB_MAX_SLIDE_WIDTH }),
-    },
-    dots: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
+    ctaInner: {
+        padding: 16,
         gap: 10,
     },
-    dot: {
-        width: 5,
-        height: 5,
-        borderRadius: 2.5,
-        backgroundColor: colors.border,
-    },
-    dotActive: {
-        backgroundColor: colors.textPrimary,
-        width: 18,
-        height: 4,
-        borderRadius: 2,
-    },
-    actions: {
-        gap: spacing.sm,
-    },
-    primaryButton: {
-        backgroundColor: colors.foreground,
-        borderRadius: borderRadius.sm,
-        paddingVertical: spacing.sm + 6,
-        paddingHorizontal: spacing.lg,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.foreground,
-        ...(isWeb && { cursor: 'pointer' as const }),
-    },
-    primaryText: {
-        ...typography.button,
-        fontSize: 13,
-        letterSpacing: 0.8,
-    },
-    secondaryButton: {
-        borderRadius: borderRadius.sm,
-        paddingVertical: spacing.sm + 6,
-        paddingHorizontal: spacing.lg,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: 'transparent',
-        ...(isWeb && { cursor: 'pointer' as const }),
-    },
-    secondaryText: {
-        fontSize: 13,
-        color: colors.textSecondary,
-        fontWeight: '500',
-        letterSpacing: 0.5,
-    },
-    nextButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: spacing.sm,
-        backgroundColor: colors.foreground,
-        borderRadius: borderRadius.sm,
-        paddingVertical: spacing.sm + 6,
-        paddingHorizontal: spacing.lg,
-        borderWidth: 1,
-        borderColor: colors.foreground,
-        ...(isWeb && { cursor: 'pointer' as const }),
-    },
-    nextButtonText: {
-        ...typography.button,
-        fontSize: 13,
-        letterSpacing: 0.8,
-    },
-    demoButton: {
-        paddingVertical: spacing.sm + 4,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 40,
-    },
-    /* DEV-only stack — only mounts in __DEV__ so production never sees it. */
-    devButtonStack: {
-        marginTop: spacing.sm,
+    devStack: {
+        marginTop: 6,
         gap: 6,
     },
     devButton: {
@@ -509,15 +281,37 @@ const styles = StyleSheet.create({
     },
     devButtonText: {
         color: '#fff',
+        fontFamily: 'Matter-Bold',
         fontSize: 11,
-        fontWeight: '700',
         letterSpacing: 1.2,
     },
-    demoText: {
-        fontSize: 13,
-        color: colors.textMuted,
-        fontWeight: '400',
-        letterSpacing: 0.2,
-        textDecorationLine: 'underline',
+    skipPill: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 60 : 28,
+        right: 20,
+        zIndex: 10,
+        borderRadius: 999,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.6)',
+        minWidth: 70,
+        minHeight: 34,
+        ...(isWeb && { cursor: 'pointer' as const }),
+    },
+    skipPillInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 2,
+        paddingVertical: 7,
+        paddingLeft: 14,
+        paddingRight: 10,
+        backgroundColor: 'rgba(255,255,255,0.45)',
+    },
+    skipPillText: {
+        fontFamily: 'Matter-Medium',
+        fontSize: 12,
+        letterSpacing: 0.3,
+        color: '#111113',
     },
 });

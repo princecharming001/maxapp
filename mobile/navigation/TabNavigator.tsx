@@ -23,6 +23,7 @@ import NewThreadV2Screen from '../screens/forums/NewThreadV2Screen';
 import ForumNotificationsV2Screen from '../screens/forums/ForumNotificationsV2Screen';
 import MasterScheduleScreen from '../screens/courses/MasterScheduleScreen';
 import DayPlannerScreen from '../screens/profile/DayPlannerScreen';
+import MarketplaceScreen from '../screens/marketplace/MarketplaceScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -273,28 +274,13 @@ export default function TabNavigator() {
                     }}
                 />
                 <Tab.Screen
-                    name="ScanTab"
-                    component={ScanPlaceholder}
-                    listeners={({ navigation: nav }) => ({
-                        tabPress: (e) => {
-                            e.preventDefault();
-                            if (!isPaid) {
-                                nav.navigate('Payment');
-                            } else if (!isPremium) {
-                                setShowGate(true);
-                            } else {
-                                nav.navigate('FaceScan');
-                            }
-                        },
-                    })}
+                    name="Explore"
+                    component={MarketplaceScreen}
                     options={{
-                        title: 'Scan',
+                        title: 'Explore',
+                        tabBarLabel: 'Explore',
                         tabBarIcon: ({ color }) => (
-                            <AttachStep index={TOUR_STEP.SCAN_TAB}>
-                                <View style={styles.tourIconWrap}>
-                                    <Ionicons name="scan-outline" size={22} color={color} />
-                                </View>
-                            </AttachStep>
+                            <Ionicons name="compass-outline" size={22} color={color} />
                         ),
                     }}
                 />

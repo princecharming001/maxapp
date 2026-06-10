@@ -7,6 +7,26 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { getItemAsync, setItemAsync, deleteItemAsync } from './storage';
 
+export interface MarketplaceItem {
+    type: 'maxx' | 'course';
+    id: string;
+    title: string;
+    tagline: string;
+    icon: string;
+    color: string;
+    price_cents: number;
+    price_model: 'weekly' | 'flat';
+    price_label: string;
+    weeks?: number;
+    creator: { name: string; handle: string; verified: boolean };
+    native: boolean;
+    entered: boolean;
+    category?: string;
+    rating?: number;
+    participants?: number;
+    completion_rate?: number;
+}
+
 function envTargetsLoopback(url: string): boolean {
     return /localhost|127\.0\.0\.1|\[::1\]/i.test(url);
 }
@@ -958,6 +978,22 @@ class ApiService {
 
     async getMaxx(maxxId: string) {
         const response = await this.client.get(`maxes/${maxxId}`);
+        return response.data;
+    }
+
+    // Marketplace
+    async getMarketplace(): Promise<{ maxxes: MarketplaceItem[]; courses: MarketplaceItem[] }> {
+        const response = await this.client.get('marketplace');
+        return response.data;
+    }
+
+    async getMarketplaceItem(itemId: string): Promise<MarketplaceItem> {
+        const response = await this.client.get(`marketplace/item/${itemId}`);
+        return response.data;
+    }
+
+    async enterMarketplaceItem(itemId: string): Promise<{ entered: boolean; item_id: string; kind: string }> {
+        const response = await this.client.post(`marketplace/enter/${itemId}`);
         return response.data;
     }
 

@@ -15,6 +15,9 @@ import { colors } from './theme/dark';
 import MaxLoadingView from './components/MaxLoadingView';
 import { StripeProviderGate } from './components/StripeProviderGate';
 import DevDrawer from './components/DevDrawer';
+import { TamaguiProvider } from 'tamagui';
+import tamaguiConfig from './tamagui.config';
+import PlannerMockups from './screens/_mocks/PlannerMockups';
 import api from './services/api';
 import {
     getPendingFaceScanSubmit,
@@ -26,6 +29,9 @@ import {
 import './services/localScheduleNotifications';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+// DEV: set true to render the planner redesign mockups (design review only).
+const SHOW_PLANNER_MOCKS = false;
 
 // Routes a push notification is allowed to deep-link into. Keep this an
 // explicit allow-list — we never navigate to an arbitrary route name handed
@@ -228,11 +234,22 @@ export default function App() {
         return null;
     }
 
+    if (__DEV__ && SHOW_PLANNER_MOCKS) {
+        return (
+            <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+                <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
+                    <PlannerMockups />
+                </TamaguiProvider>
+            </GestureHandlerRootView>
+        );
+    }
+
     const webContainerStyle: ViewStyle =
         Platform.OS === 'web' ? { maxWidth: 1200, width: '100%', alignSelf: 'center' } : {};
 
     return (
         <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+            <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
             <StripeProviderGate>
                 <QueryClientProvider client={queryClient}>
                     <SafeAreaProvider style={{ flex: 1, backgroundColor: colors.background }}>
@@ -244,6 +261,7 @@ export default function App() {
                     </SafeAreaProvider>
                 </QueryClientProvider>
             </StripeProviderGate>
+            </TamaguiProvider>
         </GestureHandlerRootView>
     );
 }

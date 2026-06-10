@@ -9,10 +9,16 @@ import {
     Platform,
     Animated,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
+import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
+import { GlassCard } from '../../components/glass/GlassCard';
+import { GlassButton } from '../../components/glass/GlassButton';
+import { GlassInput } from '../../components/glass/GlassInput';
+
+const isWeb = Platform.OS === 'web';
 
 export default function LoginScreen() {
     const navigation = useNavigation<any>();
@@ -52,206 +58,193 @@ export default function LoginScreen() {
     };
 
     return (
-        <View style={styles.safe}>
+        <ScreenBackdrop style={isWeb ? styles.webCenter : undefined}>
             <KeyboardAvoidingView
                 style={styles.keyboardView}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
-                <Animated.View style={[styles.card, { opacity: fadeCard, transform: [{ translateY: slideCard }] }]}>
-                    <Text style={styles.wordmark}>max</Text>
-                    <Text style={styles.tagline}>Looksmaxxing that fits your life</Text>
+                <Animated.View
+                    style={[styles.cardWrap, { opacity: fadeCard, transform: [{ translateY: slideCard }] }]}
+                >
+                    <GlassCard radius={30} intensity={44}>
+                        <View style={styles.cardInner}>
+                            <Text style={styles.wordmark}>max</Text>
+                            <Text style={styles.tagline}>Looksmaxxing that fits your life</Text>
 
-                    <View style={styles.form}>
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>EMAIL, USERNAME, OR PHONE</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="you@example.com"
-                                placeholderTextColor={colors.textMuted}
-                                value={identifier}
-                                onChangeText={(t) => {
-                                    setIdentifier(t);
-                                    setApiError(null);
-                                }}
-                                keyboardType="default"
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                textContentType="username"
-                                autoComplete="username"
-                                returnKeyType="next"
-                                onSubmitEditing={() => passwordRef.current?.focus()}
-                            />
-                        </View>
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>PASSWORD</Text>
-                            <View style={styles.passwordRow}>
-                                <TextInput
-                                    ref={passwordRef}
-                                    style={styles.passwordInput}
-                                    placeholder="Enter your password"
-                                    placeholderTextColor={colors.textMuted}
-                                    value={password}
-                                    onChangeText={(t) => {
-                                        setPassword(t);
-                                        setApiError(null);
-                                    }}
-                                    secureTextEntry={!showPassword}
-                                    autoCapitalize="none"
-                                    autoCorrect={false}
-                                    textContentType="password"
-                                    autoComplete="current-password"
-                                    returnKeyType="go"
-                                    onSubmitEditing={handleLogin}
-                                />
-                                <TouchableOpacity
-                                    style={styles.viewPasswordBtn}
-                                    onPress={() => setShowPassword((v) => !v)}
-                                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-                                >
-                                    <Ionicons
-                                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                                        size={20}
-                                        color={colors.textMuted}
+                            <View style={styles.form}>
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>EMAIL, USERNAME, OR PHONE</Text>
+                                    <GlassInput
+                                        placeholder="you@example.com"
+                                        value={identifier}
+                                        onChangeText={(t) => {
+                                            setIdentifier(t);
+                                            setApiError(null);
+                                        }}
+                                        keyboardType="default"
+                                        autoCapitalize="none"
+                                        autoCorrect={false}
+                                        textContentType="username"
+                                        autoComplete="username"
+                                        returnKeyType="next"
+                                        onSubmitEditing={() => passwordRef.current?.focus()}
                                     />
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>PASSWORD</Text>
+                                    <View style={styles.glassField}>
+                                        <BlurView intensity={24} tint="light" style={StyleSheet.absoluteFill} />
+                                        <View style={styles.glassFieldInner}>
+                                            <TextInput
+                                                ref={passwordRef}
+                                                style={styles.passwordInput}
+                                                placeholder="Enter your password"
+                                                placeholderTextColor="#9A9AA2"
+                                                value={password}
+                                                onChangeText={(t) => {
+                                                    setPassword(t);
+                                                    setApiError(null);
+                                                }}
+                                                secureTextEntry={!showPassword}
+                                                autoCapitalize="none"
+                                                autoCorrect={false}
+                                                textContentType="password"
+                                                autoComplete="current-password"
+                                                returnKeyType="go"
+                                                onSubmitEditing={handleLogin}
+                                            />
+                                            <TouchableOpacity
+                                                style={styles.viewPasswordBtn}
+                                                onPress={() => setShowPassword((v) => !v)}
+                                                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                                accessibilityRole="button"
+                                                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                                            >
+                                                <Ionicons
+                                                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                                                    size={20}
+                                                    color="#8A8A92"
+                                                />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </View>
+
+                                {apiError && (
+                                    <View style={styles.apiErrorBox}>
+                                        <Text style={styles.apiErrorText}>{apiError}</Text>
+                                    </View>
+                                )}
+
+                                <GlassButton
+                                    variant="primary"
+                                    label={loading ? 'Signing in…' : 'Sign In'}
+                                    onPress={handleLogin}
+                                    loading={loading}
+                                    style={styles.submit}
+                                />
+
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate('ForgotPassword')}
+                                    activeOpacity={0.6}
+                                    style={styles.forgotLink}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Forgot password"
+                                >
+                                    <Text style={styles.forgotText}>Forgot password?</Text>
                                 </TouchableOpacity>
                             </View>
+
+                            <TouchableOpacity
+                                onPress={() => navigation.navigate('Signup')}
+                                activeOpacity={0.6}
+                                style={styles.linkContainer}
+                                accessibilityRole="button"
+                                accessibilityLabel="Create account"
+                            >
+                                <Text style={styles.linkText}>
+                                    New here? <Text style={styles.linkBold}>Create account</Text>
+                                </Text>
+                            </TouchableOpacity>
                         </View>
-
-                        {apiError && (
-                            <View style={styles.apiErrorBox}>
-                                <Text style={styles.apiErrorText}>{apiError}</Text>
-                            </View>
-                        )}
-
-                        <TouchableOpacity
-                            style={[styles.button, loading && styles.buttonDisabled]}
-                            onPress={handleLogin}
-                            disabled={loading}
-                            activeOpacity={0.7}
-                            accessibilityRole="button"
-                            accessibilityLabel="Sign in"
-                        >
-                            <Text style={styles.buttonText}>{loading ? 'Signing in…' : 'Sign In'}</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate('ForgotPassword')}
-                            activeOpacity={0.6}
-                            style={styles.forgotLink}
-                            accessibilityRole="button"
-                            accessibilityLabel="Forgot password"
-                        >
-                            <Text style={styles.forgotText}>Forgot password?</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <TouchableOpacity
-                        onPress={() => navigation.navigate('Signup')}
-                        activeOpacity={0.6}
-                        style={styles.linkContainer}
-                        accessibilityRole="button"
-                        accessibilityLabel="Create account"
-                    >
-                        <Text style={styles.linkText}>
-                            <Text style={styles.linkBold}>Create account</Text>
-                        </Text>
-                    </TouchableOpacity>
+                    </GlassCard>
                 </Animated.View>
             </KeyboardAvoidingView>
-        </View>
+        </ScreenBackdrop>
     );
 }
 
 const styles = StyleSheet.create({
-    safe: {
-        flex: 1,
-        backgroundColor: colors.background,
-    },
+    webCenter: { alignItems: 'center' },
     keyboardView: {
         flex: 1,
         justifyContent: 'center',
-        paddingHorizontal: spacing.xl,
-        backgroundColor: colors.background,
+        paddingHorizontal: 24,
+        width: '100%',
+        ...(isWeb && { maxWidth: 460, alignSelf: 'center' }),
     },
-    card: {
-        backgroundColor: colors.card,
-        borderRadius: borderRadius.xl,
-        padding: spacing.xl,
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
+    cardWrap: { width: '100%' },
+    cardInner: { padding: 26 },
     wordmark: {
-        fontFamily: fonts.serif,
-        fontSize: 48,
-        fontWeight: '400',
-        color: colors.foreground,
+        fontFamily: 'PlayfairDisplay',
+        fontSize: 50,
+        color: '#111113',
         letterSpacing: -1.5,
         textAlign: 'center',
-        marginBottom: spacing.xs,
+        marginBottom: 6,
     },
     tagline: {
+        fontFamily: 'Matter-Regular',
         fontSize: 13,
-        color: colors.textMuted,
+        color: '#8A8A92',
         textAlign: 'center',
-        marginBottom: spacing.xxl,
-        letterSpacing: 0.5,
+        marginBottom: 30,
+        letterSpacing: 0.4,
     },
-    form: { gap: spacing.md + 4 },
-    inputGroup: { gap: spacing.xs + 2 },
-    label: { ...typography.label, marginLeft: 2 },
-    input: {
-        backgroundColor: colors.surface,
-        borderRadius: borderRadius.sm,
-        paddingVertical: 14,
-        paddingHorizontal: spacing.md,
-        color: colors.textPrimary,
-        fontSize: 15,
+    form: { gap: 16 },
+    inputGroup: { gap: 7 },
+    label: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 10.5,
+        letterSpacing: 1.4,
+        color: '#8A8A92',
+        marginLeft: 2,
+    },
+    glassField: {
+        borderRadius: 16,
+        overflow: 'hidden',
         borderWidth: 1,
-        borderColor: colors.borderLight,
+        borderColor: 'rgba(255,255,255,0.6)',
+        borderCurve: 'continuous',
     },
-    passwordRow: {
+    glassFieldInner: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.surface,
-        borderRadius: borderRadius.sm,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
+        backgroundColor: 'rgba(255,255,255,0.78)',
     },
     passwordInput: {
         flex: 1,
-        paddingVertical: 14,
-        paddingLeft: spacing.md,
+        height: 54,
+        paddingLeft: 16,
         paddingRight: 8,
-        color: colors.textPrimary,
+        fontFamily: 'Matter-Regular',
         fontSize: 15,
+        color: '#111113',
     },
-    viewPasswordBtn: {
-        paddingVertical: 12,
-        paddingHorizontal: spacing.sm,
-        marginRight: spacing.xs,
-    },
+    viewPasswordBtn: { paddingVertical: 12, paddingHorizontal: 12, marginRight: 4 },
     apiErrorBox: {
-        backgroundColor: 'rgba(139, 58, 58, 0.06)',
-        padding: spacing.md,
-        borderRadius: borderRadius.sm,
+        backgroundColor: 'rgba(178,58,58,0.08)',
+        padding: 12,
+        borderRadius: 12,
         borderWidth: 1,
-        borderColor: 'rgba(139, 58, 58, 0.15)',
+        borderColor: 'rgba(178,58,58,0.18)',
     },
-    apiErrorText: { fontSize: 13, color: colors.error, fontWeight: '400' },
-    button: {
-        backgroundColor: colors.foreground,
-        borderRadius: borderRadius.sm,
-        paddingVertical: 14,
-        alignItems: 'center',
-        marginTop: spacing.sm,
-    },
-    buttonDisabled: { opacity: 0.4 },
-    buttonText: { ...typography.button },
-    forgotLink: { marginTop: spacing.md, alignItems: 'center' },
-    forgotText: { fontSize: 13, color: colors.textMuted, fontWeight: '400' },
-    linkContainer: { marginTop: spacing.xl, alignItems: 'center' },
-    linkText: { fontSize: 13, color: colors.textMuted },
-    linkBold: { color: colors.foreground, fontWeight: '500' },
+    apiErrorText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#B23A3A' },
+    submit: { marginTop: 4 },
+    forgotLink: { marginTop: 10, alignItems: 'center' },
+    forgotText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#8A8A92' },
+    linkContainer: { marginTop: 22, alignItems: 'center' },
+    linkText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#8A8A92' },
+    linkBold: { fontFamily: 'Matter-SemiBold', color: '#111113' },
 });

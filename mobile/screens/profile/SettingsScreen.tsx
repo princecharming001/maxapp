@@ -86,6 +86,15 @@ export default function SettingsScreen() {
     };
 
     const confirmSignOut = () => {
+        // react-native-web does not render Alert button dialogs, so the native
+        // Alert path below never fires its onPress on web. Use a real browser
+        // confirm there so sign-out actually works on the web build.
+        if (Platform.OS === 'web') {
+            if (typeof window !== 'undefined' && window.confirm('Sign out?')) {
+                void logout();
+            }
+            return;
+        }
         Alert.alert('Sign out?', '', [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Sign out', style: 'destructive', onPress: logout },
