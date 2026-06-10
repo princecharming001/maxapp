@@ -50,11 +50,21 @@ import LegalDocumentScreen from '../screens/legal/LegalDocumentScreen';
 import AdminNavigator from './AdminNavigator';
 import ScanOnlyNavigator from './ScanOnlyNavigator';
 import { userHasSignupPhone } from '../utils/userPhone';
+import OnboardingV2Screen from '../screens/onboarding/OnboardingV2Screen';
+import RevealV2Screen from '../screens/onboarding/RevealV2Screen';
+import { useFlag } from '../constants/featureFlags';
 
 const Stack = createNativeStackNavigator();
 
 export function RootNavigator() {
     const { user, isLoading, isAuthenticated, isPaid, isScanUser } = useAuth();
+    // Pivot flags: onboardingV2 = free-until-marketplace funnel (completed
+    // unpaid users land on Main, not the legacy tier paywall); revealV2 swaps
+    // the reveal behind its existing route name.
+    const onboardingV2 = useFlag('onboardingV2');
+    const revealV2 = useFlag('revealV2');
+    const OnboardingComponent = onboardingV2 ? OnboardingV2Screen : OnboardingScreen;
+    const RevealComponent = revealV2 ? RevealV2Screen : RoutineRevealScreen;
 
     if (isLoading) {
         return <MaxLoadingView />;
@@ -73,19 +83,24 @@ export function RootNavigator() {
      * from the post-scan flow. Push notifications default to ON for paid users;
      * they can still toggle device-level permissions via OS settings.
      */
+    // Under onboardingV2 the paywall lives in the marketplace: a user who
+    // finished onboarding gets the full app (Main/Today) whether or not they
+    // ever pay. The legacy tier funnel stays intact when the flag is off.
+    const treatAsFull = isPaid || (onboardingV2 && onboardingCompleted);
+
     const initialRoute = !isAuthenticated
         ? 'Landing'
         : isScanUser
             ? 'ScanOnly'
             : user?.is_admin
                 ? 'Admin'
-                : !isPaid
+                : !treatAsFull
                     ? !onboardingCompleted
                         ? 'Onboarding'
                         : firstScanDone
                             ? 'FaceScanResults'
                             : 'FeaturesIntro'
-                    : postSubscriptionOnboarding
+                    : postSubscriptionOnboarding && isPaid
                         ? 'ModuleSelect'
                         : 'Main';
 
@@ -95,7 +110,7 @@ export function RootNavigator() {
             ? 'scan'
             : user?.is_admin
                 ? 'admin'
-                : isPaid
+                : treatAsFull
                     ? 'auth-paid'
                     : 'auth-unpaid';
 
@@ -123,10 +138,10 @@ export function RootNavigator() {
                 <>
                     <Stack.Screen name="Admin" component={AdminNavigator} />
                 </>
-            ) : !isPaid ? (
+            ) : !treatAsFull ? (
                 <>
-                    <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-                    <Stack.Screen name="RoutineReveal" component={RoutineRevealScreen} />
+                    <Stack.Screen name="Onboarding" component={OnboardingComponent} />
+                    <Stack.Screen name="RoutineReveal" component={RevealComponent} />
                     <Stack.Screen name="FeaturesIntro" component={FeaturesIntroScreen} />
                     <Stack.Screen name="FaceScan" component={FaceScanScreen} />
                     <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} />
