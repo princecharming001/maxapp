@@ -290,6 +290,22 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Webhook error: {e}")
 
+    # Marketplace purchases (per-item Checkout) carry marketplace_item_id in
+    # metadata and are fulfilled as purchases + entitlements - NOT as legacy
+    # account-tier activations.
+    if event.type == "checkout.session.completed":
+        meta = dict(getattr(event.data.object, "metadata", {}) or {})
+        mk_item = meta.get("marketplace_item_id")
+        mk_uid = meta.get("user_id")
+        if mk_item and mk_uid:
+            from api.marketplace import fulfill_marketplace_purchase
+            sub_ref = getattr(event.data.object, "subscription", None)
+            await fulfill_marketplace_purchase(
+                db, mk_uid, mk_item, "stripe",
+                str(sub_ref) if sub_ref else str(getattr(event.data.object, "id", "")),
+            )
+            return {"status": "ok", "fulfilled": mk_item}
+
     result = await stripe_service.handle_webhook_event(event)
     action = result.get("action")
     uid = result.get("user_id")

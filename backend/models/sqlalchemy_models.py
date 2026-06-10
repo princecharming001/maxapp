@@ -468,6 +468,33 @@ class UserSchedule(Base):
     )
 
 
+class Purchase(Base):
+    """Marketplace purchase record (spec 4.7) - the commerce spine. One row
+    per entered/bought item; status drives entitlement at schedule
+    generation. Refund requests route to support and are NEVER auto-denied
+    by adherence data."""
+    __tablename__ = "purchases"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+    item_id = Column(String(64), nullable=False)   # maxx id or course id
+    kind = Column(String(16), nullable=False)      # "maxx" | "course"
+    price_cents = Column(Integer, default=0)
+    price_model = Column(String(16), default="weekly")  # "weekly" | "flat"
+    provider = Column(String(16), default="stub")  # "stripe" | "apple" | "stub"
+    provider_ref = Column(String(255), nullable=True)
+    status = Column(String(16), default="active")  # pending|active|paused|canceled|refunded
+    period_end = Column(DateTime(timezone=True), nullable=True)
+    paused_until = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_purchases_user_id", user_id),
+        Index("idx_purchases_item_id", item_id),
+    )
+
+
 class AppEvent(Base):
     """Lightweight product analytics event (spec 0.9). One row per event;
     without this nothing in the funnel is measurable. Allowlisted names only

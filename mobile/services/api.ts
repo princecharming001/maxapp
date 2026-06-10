@@ -992,8 +992,21 @@ class ApiService {
         return response.data;
     }
 
-    async enterMarketplaceItem(itemId: string): Promise<{ entered: boolean; item_id: string; kind: string }> {
+    async enterMarketplaceItem(itemId: string): Promise<{
+        entered: boolean;
+        item_id: string;
+        kind?: string;
+        checkout_url?: string;
+    }> {
         const response = await this.client.post(`marketplace/enter/${itemId}`);
+        return response.data;
+    }
+
+    async cancelMarketplaceItem(
+        itemId: string,
+        pause = false,
+    ): Promise<{ status: string; access_until?: string | null; until?: string }> {
+        const response = await this.client.post(`marketplace/cancel/${itemId}`, { pause });
         return response.data;
     }
 

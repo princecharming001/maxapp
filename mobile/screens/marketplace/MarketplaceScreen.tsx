@@ -226,7 +226,18 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
         if (busy || item.entered) return;
         setBusy(true);
         try {
-            await api.enterMarketplaceItem(item.id);
+            const res = await api.enterMarketplaceItem(item.id);
+            if (res.checkout_url) {
+                // Real capture: hand off to hosted Stripe Checkout. The
+                // webhook grants the entitlement on completion.
+                if (Platform.OS === 'web') {
+                    window.location.href = res.checkout_url;
+                } else {
+                    const { Linking } = require('react-native');
+                    await Linking.openURL(res.checkout_url);
+                }
+                return;
+            }
             track('enter', { item: item.id, kind: item.native ? 'maxx' : 'course' });
             onEntered(item.id);
             // Post-purchase mini-reveal: the new program lands on the user's

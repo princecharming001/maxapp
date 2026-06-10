@@ -177,27 +177,173 @@ async def get_item(
     raise HTTPException(status_code=404, detail="Item not found")
 
 
+def _item_meta(item_id: str) -> tuple[bool, int, str, "int | None", str]:
+    """(is_course, price_cents, price_model, weeks, title) or raises 404."""
+    if item_id in _MAXX_DISPLAY:
+        return False, MAXX_PRICE_CENTS, "weekly", None, _MAXX_DISPLAY[item_id]["label"]
+    for c in _SEED_COURSES:
+        if c["id"] == item_id:
+            return True, int(c["price_cents"]), str(c["price_model"]), c.get("weeks"), c["title"]
+    raise HTTPException(status_code=404, detail="Unknown item")
+
+
+def _set_entitlement(user: User, item_id: str, is_course: bool, granted: bool) -> None:
+    ob = dict(user.onboarding or {})
+    key = "entered_courses" if is_course else "entered_maxxes"
+    lst = [x for x in (ob.get(key) or []) if x != item_id]
+    if granted:
+        lst.append(item_id)
+    ob[key] = lst
+    user.onboarding = ob  # reassign so SQLAlchemy flushes the JSON change
+
+
+async def fulfill_marketplace_purchase(
+    db: AsyncSession, user_id: str, item_id: str, provider: str, provider_ref: "str | None",
+) -> None:
+    """Capture fulfillment (webhook or stub): record the purchase + grant the
+    entitlement. Idempotent on (user, item, active/pending)."""
+    from datetime import datetime, timedelta
+    from models.sqlalchemy_models import Purchase
+
+    user = (await db.execute(select(User).where(User.id == UUID(user_id)))).scalar_one_or_none()
+    if user is None:
+        return
+    is_course, price_cents, price_model, weeks, _title = _item_meta(item_id)
+    existing = (await db.execute(
+        select(Purchase).where(
+            (Purchase.user_id == user.id)
+            & (Purchase.item_id == item_id)
+            & (Purchase.status.in_(("active", "pending")))
+        )
+    )).scalars().first()
+    period_end = None
+    if price_model == "weekly":
+        period_end = datetime.utcnow() + timedelta(days=7)
+    elif weeks:
+        period_end = datetime.utcnow() + timedelta(weeks=int(weeks))
+    if existing:
+        existing.status = "active"
+        existing.provider = provider
+        existing.provider_ref = provider_ref or existing.provider_ref
+        existing.period_end = existing.period_end or period_end
+        existing.updated_at = datetime.utcnow()
+    else:
+        db.add(Purchase(
+            user_id=user.id, item_id=item_id,
+            kind="course" if is_course else "maxx",
+            price_cents=price_cents, price_model=price_model,
+            provider=provider, provider_ref=provider_ref,
+            status="active", period_end=period_end,
+        ))
+    _set_entitlement(user, item_id, is_course, granted=True)
+    await db.commit()
+
+
 @router.post("/enter/{item_id}")
 async def enter(
     item_id: str,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Grant the entitlement for a maxx or course and persist it. (Payment
-    capture is the next slice; this unblocks the end-to-end marketplace flow.)"""
-    is_course = item_id.startswith("course_")
-    if not is_course and item_id not in _MAXX_DISPLAY:
-        raise HTTPException(status_code=404, detail="Unknown item")
-    if is_course and not any(c["id"] == item_id for c in _SEED_COURSES):
-        raise HTTPException(status_code=404, detail="Unknown course")
+    """Enter/buy an item. With Stripe configured this returns a hosted
+    Checkout url (capture-first; the webhook grants the entitlement). Without
+    Stripe (local dev / pre-launch) it grants directly with a stub purchase
+    row so the marketplace stays runnable end-to-end."""
+    from config import settings
 
-    user, _ = await _load_entered(db, _uid(current_user))
-    ob = dict(user.onboarding or {})
-    key = "entered_courses" if is_course else "entered_maxxes"
-    lst = list(ob.get(key) or [])
-    if item_id not in lst:
-        lst.append(item_id)
-    ob[key] = lst
-    user.onboarding = ob  # reassign so SQLAlchemy flushes the JSON change
-    await db.commit()
+    is_course, price_cents, price_model, weeks, title = _item_meta(item_id)
+    uid = _uid(current_user)
+    user, entered = await _load_entered(db, uid)
+    if item_id in entered:
+        return {"entered": True, "item_id": item_id, "kind": "course" if is_course else "maxx"}
+
+    if settings.stripe_secret_key:
+        import stripe
+        from models.sqlalchemy_models import Purchase
+        price_data: dict[str, Any] = {
+            "currency": "usd",
+            "product_data": {"name": f"Max - {title}"},
+            "unit_amount": price_cents,
+        }
+        mode = "payment"
+        if price_model == "weekly":
+            price_data["recurring"] = {"interval": "week"}
+            mode = "subscription"
+        base = getattr(settings, "frontend_url", "") or "https://usemaxapp.com"
+        session = stripe.checkout.Session.create(
+            mode=mode,
+            line_items=[{"price_data": price_data, "quantity": 1}],
+            success_url=f"{base}/purchase-complete?item={item_id}",
+            cancel_url=f"{base}/explore",
+            metadata={"user_id": str(uid), "marketplace_item_id": item_id},
+        )
+        db.add(Purchase(
+            user_id=uid, item_id=item_id,
+            kind="course" if is_course else "maxx",
+            price_cents=price_cents, price_model=price_model,
+            provider="stripe", provider_ref=session.id, status="pending",
+        ))
+        await db.commit()
+        return {"entered": False, "checkout_url": session.url, "item_id": item_id}
+
+    # Stub capture (no Stripe configured): grant directly, record the purchase.
+    await fulfill_marketplace_purchase(db, str(uid), item_id, "stub", None)
     return {"entered": True, "item_id": item_id, "kind": "course" if is_course else "maxx"}
+
+
+@router.post("/cancel/{item_id}")
+async def cancel(
+    item_id: str,
+    payload: "dict | None" = None,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Period-end cancel (spec 4.6): access continues to period_end, never an
+    instant cut-off. pause=true instead pauses one month, keeping the
+    entitlement and the streak (the ONE deflection offer; 'Cancel anyway'
+    stays visible in the UI)."""
+    from datetime import datetime, timedelta
+    from models.sqlalchemy_models import Purchase
+
+    pause = bool((payload or {}).get("pause"))
+    uid = _uid(current_user)
+    user, _ = await _load_entered(db, uid)
+    is_course = _item_meta(item_id)[0]
+
+    purchase = (await db.execute(
+        select(Purchase).where(
+            (Purchase.user_id == uid)
+            & (Purchase.item_id == item_id)
+            & (Purchase.status.in_(("active", "paused")))
+        )
+    )).scalars().first()
+    if purchase is None:
+        raise HTTPException(status_code=404, detail="No active purchase for this item")
+
+    if pause:
+        purchase.status = "paused"
+        purchase.paused_until = datetime.utcnow() + timedelta(days=30)
+        purchase.updated_at = datetime.utcnow()
+        await db.commit()
+        return {"status": "paused", "until": purchase.paused_until.isoformat()}
+
+    purchase.status = "canceled"
+    purchase.updated_at = datetime.utcnow()
+    if purchase.provider == "stripe" and purchase.provider_ref:
+        try:
+            from services.stripe_service import stripe_service
+            await stripe_service.cancel_subscription(purchase.provider_ref, at_period_end=True)
+        except Exception:
+            pass  # provider_ref may be a checkout session id for flat purchases
+    # Entitlement survives until period_end; stub/expired revoke now.
+    from datetime import timezone as _tz
+    pe = purchase.period_end
+    if pe is not None and pe.tzinfo is None:
+        pe = pe.replace(tzinfo=_tz.utc)
+    if pe is None or pe <= datetime.now(_tz.utc):
+        _set_entitlement(user, item_id, is_course, granted=False)
+    await db.commit()
+    return {
+        "status": "canceled",
+        "access_until": purchase.period_end.isoformat() if purchase.period_end else None,
+    }
