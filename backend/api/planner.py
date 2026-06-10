@@ -193,6 +193,53 @@ async def planner_today(
     profile = dict(user.profile or {}) if user else {}
     streak = streak_payload_from_profile(profile, target)
 
+    # Learner surfaces (spec 4.5): lazy nightly recompute, slip detection with
+    # a streak-safe reflow suggestion, welcome-back mode, fresh insights.
+    from services.learner import (
+        detect_slips,
+        fresh_insights,
+        recompute_learned_prefs,
+        suggest_reflow,
+        welcome_back_state,
+    )
+    from models.sqlalchemy_models import UserLearnedPrefs
+
+    if user is not None:
+        prefs_row = (await db.execute(
+            select(UserLearnedPrefs).where(UserLearnedPrefs.user_id == uid)
+        )).scalars().first()
+        last_recomputed = prefs_row.last_recomputed if prefs_row else None
+        stale = (
+            last_recomputed is None
+            or (datetime.utcnow() - last_recomputed.replace(tzinfo=None)) > timedelta(hours=24)
+        )
+        if stale:
+            try:
+                await recompute_learned_prefs(user, db)
+            except Exception:
+                pass  # learning is never allowed to break Today
+
+    now_local = datetime.utcnow()  # client passes day; slips use device-now param
+    now_param = None
+    tasks_today = today_entry.get("tasks") or []
+    slipped_payload: list[dict[str, Any]] = []
+    if target == date.today():
+        now_min = now_local.hour * 60 + now_local.minute
+        sleep_min = _parse_hm_minutes(ob.get("sleep_time"), 23 * 60)
+        for slipped in detect_slips(tasks_today, now_min):
+            suggestion = suggest_reflow(
+                slipped, tasks_today, structure, now_min, sleep_min
+            )
+            slipped_payload.append({
+                "task_id": slipped.get("task_id"),
+                "title": slipped.get("title"),
+                "from_time": slipped.get("time"),
+                "suggested_time": suggestion,  # None -> "tomorrow stays the same"
+            })
+
+    welcome_back = welcome_back_state(profile, target)
+    insights = await fresh_insights(user, db) if user else []
+
     return {
         "date": target.isoformat(),
         "tasks": today_entry.get("tasks") or [],
@@ -206,6 +253,9 @@ async def planner_today(
         "held_back_count": len(held_back),
         "locked_in": locked_in,
         "calendar_event_count": len(calendar_events),
+        "slipped": slipped_payload,
+        "welcome_back": welcome_back,
+        "insights": insights,
         "streak_armed_freeze": streak["armed_freezes"] > 0,
         "freeze_used_yesterday": streak["freeze_used_yesterday"],
     }
@@ -242,6 +292,23 @@ async def lock_in(
     user.onboarding = ob  # reassign so SQLAlchemy flushes the JSON change
     await db.commit()
     return {"locked_in": True, "date": target.isoformat()}
+
+
+@router.get("/life-model")
+async def life_model(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """The assembled Life Model (spec 4.1) - every field with value,
+    confidence, and provenance. Doubles as the trust surface ('what Max
+    knows about you') for Settings > Privacy."""
+    from services.life_model import build_life_model
+
+    uid = _uid(current_user)
+    user = await db.get(User, uid)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return await build_life_model(user, db)
 
 
 @router.get("/places")
@@ -651,6 +718,21 @@ async def weekly_review(
             "value": "true",
         })
 
+    # Learner facts (real inference): wake drift, best window - confirm-first.
+    from services.learner import fresh_insights
+    if user is not None:
+        for ins in await fresh_insights(user, db, limit=3):
+            if ins["id"] in confirmed or any(f["id"] == ins["id"] for f in facts):
+                continue
+            from models.sqlalchemy_models import UserLearnedPrefs
+            prefs = (await db.execute(
+                select(UserLearnedPrefs).where(UserLearnedPrefs.user_id == uid)
+            )).scalars().first()
+            value = ""
+            if ins["id"] == "wake_drift" and prefs and prefs.learned_wake:
+                value = prefs.learned_wake
+            facts.append({"id": ins["id"], "text": ins["text"], "value": value})
+
     return {
         "days": days,
         "closed_count": closed_count,
@@ -678,19 +760,38 @@ async def confirm_weekly_facts(
         raise HTTPException(status_code=422, detail="confirmations must be a list")
     ob = dict(user.onboarding or {})
     stored = dict(ob.get("confirmed_facts") or {})
+    plan_changed = False
     for c in confirmations:
         fid = str(c.get("id") or "").strip()
         if not fid:
             continue
+        accepted = bool(c.get("accepted"))
         stored[fid] = {
-            "accepted": bool(c.get("accepted")),
+            "accepted": accepted,
             "value": c.get("value"),
             "at": datetime.utcnow().isoformat(),
         }
+        # Confirm-first plan mutation: a [Yep] on wake drift updates the
+        # stated wake and re-expands active schedules around the real morning.
+        if fid == "wake_drift" and accepted:
+            value = str(c.get("value") or "").strip()
+            if len(value) == 5 and ":" in value:
+                ob["wake_time"] = value
+                plan_changed = True
     ob["confirmed_facts"] = stored
     user.onboarding = ob
     await db.commit()
-    return {"stored": len(confirmations)}
+
+    if plan_changed:
+        try:
+            from services.schedule_runtime import regenerate_active_schedules
+            await regenerate_active_schedules(
+                user_id=str(uid), db=db, reason="confirmed_wake_drift"
+            )
+            await db.commit()
+        except Exception:
+            pass  # regen failure must not lose the confirmation
+    return {"stored": len(confirmations), "plan_changed": plan_changed}
 
 
 @router.get("/held-back")
