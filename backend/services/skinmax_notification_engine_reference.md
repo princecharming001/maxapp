@@ -134,13 +134,13 @@ At **PM Routine** time on the chosen weekday.
 
 Use as **Midday Tip** task body; same rotation for all concerns.
 
-- **Monday:** Hands off your face, bacteria transfer causes breakouts.
-- **Tuesday:** Water check, aim for ~3L today. Dehydrated skin looks dull and textured.
-- **Wednesday:** Change your pillowcase this week? Dirty fabric causes breakouts and irritation.
-- **Thursday:** Wipe your phone screen, it touches your face more than you think.
-- **Friday:** Stressed today? Cortisol spikes can flare skin. Take 5 deep breaths.
-- **Saturday:** Wearing sunglasses? They protect the thinnest skin on your face from UV.
-- **Sunday:** Check your diet today, inflammatory foods often show on skin within 24–48 hours.
+- **Monday:** Hands off your face today. That's the whole tip.
+- **Tuesday:** Water check. Aim for about 3 liters today.
+- **Wednesday:** Fresh pillowcase this week? Swap it tonight if not.
+- **Thursday:** Wipe your phone screen. It spends a lot of time on your face.
+- **Friday:** If today's heavy, take five slow breaths. That's the whole task.
+- **Saturday:** Sunglasses on if you're out. Easy win for the skin around your eyes.
+- **Sunday:** Keep meals simple today. Your skin runs on the basics.
 
 ---
 
@@ -148,9 +148,9 @@ Use as **Midday Tip** task body; same rotation for all concerns.
 
 Rotate copy if multiple restrictions:
 
-- **Dairy:** Dairy can spike IGF-1 and trigger breakouts, check what’s in your meal.
-- **Sugar:** Added sugar drives inflammation, often shows on skin within ~48 hours.
-- **Seed oils:** Many seed oils are pro-inflammatory in excess, check what you’re cooking with or ordering.
+- **Dairy:** You flagged dairy. Quick label check before you eat.
+- **Sugar:** You flagged sugar. Worth a glance at what's in this meal.
+- **Seed oils:** You flagged seed oils. Check what it's cooked in.
 
 ---
 

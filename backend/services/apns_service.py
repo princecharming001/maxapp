@@ -97,6 +97,12 @@ async def send_apns_alert(
         logger.error("APNs JWT build failed: %s", e)
         return False, None
 
+    # Voice gate: every push that leaves the server passes the copy filter.
+    from services.copy_filter import filter_text
+
+    title = filter_text(title, fallback="Max", context="apns_title")
+    body = filter_text(body, context="apns_body")
+
     aps: dict[str, Any] = {"alert": {"title": title, "body": body}, "sound": "default"}
     if badge is not None:
         aps["badge"] = badge

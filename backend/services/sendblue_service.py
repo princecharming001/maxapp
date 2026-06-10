@@ -10,6 +10,7 @@ from typing import Optional
 import httpx
 
 from config import settings
+from services.copy_filter import filter_text
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def _core_text_for_reminder(task_title: str, task_description: str) -> str:
         return _trim_sms_body(f"{t}: {d}", 260)
     if t:
         return _trim_sms_body(t, 260)
-    return "heads up — you've got this on your list today."
+    return "heads up, you've got this on your list today."
 
 
 def _lowercase_casual_opening(s: str) -> str:
@@ -216,13 +217,13 @@ class SendblueService:
             return None
 
     async def send_sms(self, to_phone: str, message: str) -> Optional[str]:
-        """Same as send_message with text only (SMS/iMessage)."""
-        return await self.send_message(to_phone, message)
+        """Same as send_message with text only (SMS/iMessage). Voice-gated."""
+        return await self.send_message(to_phone, filter_text(message, context="sms"))
 
     async def send_welcome(self, phone: str, first_name: str | None = None) -> bool:
         name = first_name or "there"
         msg = (
-            f"yo {name}, welcome to max — you're in. "
+            f"yo {name}, welcome to max, you're in. "
             f"hop in the app to turn on your programs; ping me here anytime after that."
         )
         return bool(await self.send_sms(phone, msg))
@@ -255,6 +256,12 @@ class SendblueService:
         Schedule JSON title/description remain the source of truth in the app; this is delivery tone only.
         """
         core = _lowercase_casual_opening(_core_text_for_reminder(task_title, task_description))
+        fallback = _strip_schedule_title_labels(task_title) or "your next task"
+        core = filter_text(
+            core,
+            fallback=f"{fallback} at {task_time}.",
+            context="schedule_reminder",
+        )
         return _trim_sms_body(core, 300)
 
     async def send_schedule_reminder(
@@ -291,7 +298,7 @@ class SendblueService:
             )
             lines.append(line)
         n = len(lines)
-        intro = "hey — a few things:" if n == 2 else f"hey — {n} things:"
+        intro = "hey, a few things:" if n == 2 else f"hey, {n} things:"
         body = intro + "\n\n" + "\n\n".join(lines)
         if len(body) > 900:
             body = body[:897] + "…"
@@ -321,14 +328,14 @@ class SendblueService:
             )
             lines.append(line)
         n = len(lines)
-        intro = "hey — a few things:" if n == 2 else f"hey — {n} things:"
+        intro = "hey, a few things:" if n == 2 else f"hey, {n} things:"
         body = intro + "\n\n" + "\n\n".join(lines)
         if len(body) > 900:
             body = body[:897] + "…"
         return "Max", body
 
     async def send_coaching_sms(self, phone: str, message: str) -> bool:
-        return bool(await self.send_sms(phone, message))
+        return bool(await self.send_sms(phone, filter_text(message, context="coaching_sms")))
 
 
 sendblue_service = SendblueService()

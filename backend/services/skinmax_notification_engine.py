@@ -14,13 +14,13 @@ _REF_FILE = Path(__file__).with_name("skinmax_notification_engine_reference.md")
 
 # Python weekday: Monday=0 … Sunday=6, matches date.weekday()
 SKINMAX_MIDDAY_TIPS_BY_WEEKDAY = [
-    "Hands off your face, bacteria transfer causes breakouts.",
-    "Water check, aim for ~3L today. Dehydrated skin looks dull and textured.",
-    "Change your pillowcase this week? Dirty fabric causes breakouts and irritation.",
-    "Wipe your phone screen, it touches your face more than you think.",
-    "Stressed today? Cortisol spikes can flare skin. Take 5 deep breaths.",
-    "Wearing sunglasses? They protect the thinnest skin on your face from UV.",
-    "Check your diet today, inflammatory foods often show on skin within 24–48 hours.",
+    "Hands off your face today. That's the whole tip.",
+    "Water check. Aim for about 3 liters today.",
+    "Fresh pillowcase this week? Swap it tonight if not.",
+    "Wipe your phone screen. It spends a lot of time on your face.",
+    "If today's heavy, take five slow breaths. That's the whole task.",
+    "Sunglasses on if you're out. Easy win for the skin around your eyes.",
+    "Keep meals simple today. Your skin runs on the basics.",
 ]
 
 
@@ -56,9 +56,9 @@ def skinmax_dietary_restriction_keys(onboarding: dict[str, Any]) -> list[str]:
 
 def skinmax_restriction_reminder_body(flag: str) -> str:
     m = {
-        "dairy": "Dairy can spike IGF-1 and trigger breakouts, check what's in your meal.",
-        "sugar": "Added sugar drives inflammation, often shows on skin within ~48 hours.",
-        "seed_oils": "Seed oils can be pro-inflammatory in excess, check what you're cooking with or ordering.",
+        "dairy": "You flagged dairy. Quick label check before you eat.",
+        "sugar": "You flagged sugar. Worth a glance at what's in this meal.",
+        "seed_oils": "You flagged seed oils. Check what it's cooked in.",
     }
     return m.get(flag, m["sugar"])
 
