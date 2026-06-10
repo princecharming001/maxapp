@@ -25,6 +25,7 @@ import MasterScheduleScreen from '../screens/courses/MasterScheduleScreen';
 import DayPlannerScreen from '../screens/profile/DayPlannerScreen';
 import MarketplaceScreen from '../screens/marketplace/MarketplaceScreen';
 import YouScreen from '../screens/you/YouScreen';
+import TodayV2Screen from '../screens/today/TodayScreen';
 import { useFlag } from '../constants/featureFlags';
 
 const Tab = createBottomTabNavigator();
@@ -201,6 +202,10 @@ function TourTrigger() {
 // editor lives under You (ONE source of truth). Route names that other code
 // navigates to are preserved: MasterScheduleTab, Explore, Chat.
 function NewTabNavigator({ insets }: { insets: { bottom: number } }) {
+    // Today v2 ships behind its own flag; the 1457-line MasterScheduleScreen
+    // stays the fallback so newNav can ship without todayV2.
+    const todayV2 = useFlag('todayV2');
+    const TodayComponent = todayV2 ? TodayV2Screen : MasterScheduleScreen;
     return (
         <Tab.Navigator
             screenOptions={{
@@ -216,7 +221,7 @@ function NewTabNavigator({ insets }: { insets: { bottom: number } }) {
         >
             <Tab.Screen
                 name="MasterScheduleTab"
-                component={MasterScheduleScreen}
+                component={TodayComponent}
                 options={{
                     title: 'Today',
                     tabBarLabel: 'Today',

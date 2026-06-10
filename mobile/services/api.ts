@@ -997,6 +997,33 @@ class ApiService {
         return response.data;
     }
 
+    // Planner (Today Loop)
+    async getPlannerToday(day?: string): Promise<{
+        date: string;
+        tasks: any[];
+        structure: { time: string; label: string; end?: string }[];
+        today_read: { level: 'green' | 'yellow' | 'red'; icon: string; color: string; line: string };
+        held_back_count: number;
+        locked_in: boolean;
+        streak_armed_freeze: boolean;
+    }> {
+        const response = await this.client.get('planner/today', { params: day ? { day } : {} });
+        return response.data;
+    }
+
+    async getPlannerHeldBack(day?: string): Promise<{
+        date: string;
+        items: { title: string; program_id: string; reason: string; returns_on?: string | null }[];
+    }> {
+        const response = await this.client.get('planner/held-back', { params: day ? { day } : {} });
+        return response.data;
+    }
+
+    async plannerLockIn(date?: string): Promise<{ locked_in: boolean; date: string }> {
+        const response = await this.client.post('planner/lock-in', date ? { date } : {});
+        return response.data;
+    }
+
     // Courses
     async getCourses() {
         const response = await this.client.get('courses');
