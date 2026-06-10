@@ -11,6 +11,7 @@ import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RootNavigator } from './navigation/RootNavigator';
 import { queryClient } from './lib/queryClient';
+import { navigationRef } from './lib/navigationRef';
 import { colors } from './theme/dark';
 import MaxLoadingView from './components/MaxLoadingView';
 import { StripeProviderGate } from './components/StripeProviderGate';
@@ -40,7 +41,7 @@ const NOTIFICATION_DEEP_LINK_ROUTES = new Set<string>(['ProgressArchive']);
 
 function AppNavigator() {
     const { isAuthenticated, isPaid, refreshUser, user, isScanUser } = useAuth();
-    const navRef = useNavigationContainerRef();
+    const navRef = navigationRef;
     const appStateRef = useRef<AppStateStatus>(AppState.currentState);
     const recoveryRunning = useRef(false);
     // A deep-link target that arrived from a notification tap before the
@@ -203,7 +204,7 @@ function AppNavigator() {
                 production builds compile it to nothing. Mounted here (inside
                 NavigationContainer) so its 'jump to' buttons can use the
                 navigation prop. */}
-            {isAuthenticated ? <DevDrawer /> : null}
+            <DevDrawer />
         </NavigationContainer>
     );
 }
