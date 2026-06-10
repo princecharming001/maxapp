@@ -28,6 +28,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { queryKeys } from '../lib/queryClient';
+import { setFlag, useFlag, type FlagName } from '../constants/featureFlags';
 import { navigationRef } from '../lib/navigationRef';
 
 const MUTED = '#7c7c80';
@@ -218,6 +219,8 @@ function DevDrawerInner() {
                                 </Row>
                             </Section>
 
+                            <FlagsSection />
+
                             {GROUPS.map((g) => (
                                 <Section key={g.label} label={g.label}>
                                     {g.items.map((it) => (
@@ -261,6 +264,29 @@ function DevDrawerInner() {
             ) : null}
         </>
     );
+}
+
+// Runtime feature-flag toggles (pivot slices ship dark behind these).
+function FlagsSection() {
+    const names: FlagName[] = ['newNav', 'todayV2', 'onboardingV2', 'revealV2', 'streakV2'];
+    return (
+        <Section label="Feature flags">
+            <Row>
+                {names.slice(0, 3).map((n) => (
+                    <FlagPill key={n} name={n} />
+                ))}
+            </Row>
+            <Row>
+                {names.slice(3).map((n) => (
+                    <FlagPill key={n} name={n} />
+                ))}
+            </Row>
+        </Section>
+    );
+}
+function FlagPill({ name }: { name: FlagName }) {
+    const on = useFlag(name);
+    return <Pill label={`${name} ${on ? 'ON' : 'off'}`} active={on} onPress={() => setFlag(name, !on)} />;
 }
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {

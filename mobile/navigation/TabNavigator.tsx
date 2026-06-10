@@ -24,6 +24,8 @@ import ForumNotificationsV2Screen from '../screens/forums/ForumNotificationsV2Sc
 import MasterScheduleScreen from '../screens/courses/MasterScheduleScreen';
 import DayPlannerScreen from '../screens/profile/DayPlannerScreen';
 import MarketplaceScreen from '../screens/marketplace/MarketplaceScreen';
+import YouScreen from '../screens/you/YouScreen';
+import { useFlag } from '../constants/featureFlags';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -194,11 +196,78 @@ function TourTrigger() {
     return null;
 }
 
+// The 4-tab pivot nav (spec 3.1): Today / Explore / Coach / You. No Forums
+// registration, no ScanTab remnant, no duplicate Planner tab - the week
+// editor lives under You (ONE source of truth). Route names that other code
+// navigates to are preserved: MasterScheduleTab, Explore, Chat.
+function NewTabNavigator({ insets }: { insets: { bottom: number } }) {
+    return (
+        <Tab.Navigator
+            screenOptions={{
+                headerShown: false,
+                tabBarStyle: [
+                    styles.tabBarGlass,
+                    { height: 52 + insets.bottom, paddingBottom: insets.bottom },
+                ],
+                tabBarActiveTintColor: colors.foreground,
+                tabBarInactiveTintColor: colors.textMuted,
+                tabBarLabelStyle: styles.tabLabel,
+            }}
+        >
+            <Tab.Screen
+                name="MasterScheduleTab"
+                component={MasterScheduleScreen}
+                options={{
+                    title: 'Today',
+                    tabBarLabel: 'Today',
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="today-outline" size={22} color={color} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="Explore"
+                component={MarketplaceScreen}
+                options={{
+                    title: 'Explore',
+                    tabBarLabel: 'Explore',
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="compass-outline" size={22} color={color} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="Chat"
+                component={MaxChatScreen}
+                options={{
+                    title: 'Coach',
+                    tabBarLabel: 'Coach',
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="chatbubble-outline" size={22} color={color} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="YouTab"
+                component={YouScreen}
+                options={{
+                    title: 'You',
+                    tabBarLabel: 'You',
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="person-outline" size={22} color={color} />
+                    ),
+                }}
+            />
+        </Tab.Navigator>
+    );
+}
+
 export default function TabNavigator() {
     const insets = useSafeAreaInsets();
     const { isPaid, isPremium, refreshUser } = useAuth();
     const [showGate, setShowGate] = useState(false);
     const navigation = useNavigation<any>();
+    const newNav = useFlag('newNav');
 
     useEffect(() => {
         prefetchMainTabData(queryClient);
@@ -210,6 +279,10 @@ export default function TabNavigator() {
             await refreshUser();
         } catch { /* non-fatal */ }
     }, [refreshUser]);
+
+    if (newNav) {
+        return <NewTabNavigator insets={insets} />;
+    }
 
     return (
         <>
@@ -328,6 +401,15 @@ const styles = StyleSheet.create({
     tabBar: {
         backgroundColor: 'rgba(255, 255, 255, 0.88)',
         borderTopWidth: 0,
+        paddingTop: spacing.xs,
+        ...shadows.lg,
+        ...(Platform.OS === 'web' ? { backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' } : {}),
+    } as any,
+    // Glass tab bar for the 4-tab nav: blur + 90% opaque fill (spec 3.1).
+    tabBarGlass: {
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: 'rgba(17,17,19,0.06)',
         paddingTop: spacing.xs,
         ...shadows.lg,
         ...(Platform.OS === 'web' ? { backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' } : {}),
