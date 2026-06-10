@@ -294,6 +294,51 @@ async def lock_in(
     return {"locked_in": True, "date": target.isoformat()}
 
 
+@router.post("/task/skip")
+async def skip_task(
+    payload: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark a task skipped for today (spec 3.6: 'Skip today' is a first-class
+    choice - never guilt, never a fake Done). A skipped task does not block
+    the day's close, but a day of only skips earns no streak."""
+    uid = _uid(current_user)
+    schedule_id = str(payload.get("schedule_id") or "")
+    task_id = str(payload.get("task_id") or "")
+    if not schedule_id or not task_id:
+        raise HTTPException(status_code=422, detail="schedule_id and task_id required")
+    try:
+        sid = UUID(schedule_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Bad schedule id")
+
+    sched = (await db.execute(
+        select(UserSchedule).where(
+            (UserSchedule.id == sid) & (UserSchedule.user_id == uid)
+        )
+    )).scalars().first()
+    if sched is None:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    from sqlalchemy.orm.attributes import flag_modified
+    found = False
+    days = list(sched.days or [])
+    for d in days:
+        for t in d.get("tasks") or []:
+            if str(t.get("task_id")) == task_id:
+                t["status"] = "skipped"
+                t["skipped_at"] = datetime.utcnow().isoformat()
+                found = True
+    if not found:
+        raise HTTPException(status_code=404, detail="Task not found")
+    sched.days = days
+    flag_modified(sched, "days")
+    sched.updated_at = datetime.utcnow()
+    await db.commit()
+    return {"skipped": True, "task_id": task_id}
+
+
 @router.get("/life-model")
 async def life_model(
     current_user: dict = Depends(get_current_user),

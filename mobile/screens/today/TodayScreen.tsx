@@ -228,6 +228,21 @@ export default function TodayScreen() {
         track('freeze_used');
     }
 
+    const skipMutation = useMutation({
+        mutationFn: (t: PlannerTask) => api.skipPlannerTask(t.schedule_id!, t.task_id!),
+        onMutate: async (t) => {
+            haptic('light');
+            patchTaskStatus(t.task_id, 'skipped');
+            track('snooze', { program: t.maxx_id, kind: 'skip_today' });
+            setToast('Skipped for today. Tomorrow stays the same.');
+            setTimeout(() => setToast(null), 3000);
+        },
+        onError: (_e, t) => {
+            patchTaskStatus(t.task_id, 'pending');
+        },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: TODAY_QK }),
+    });
+
     const snooze = (t: PlannerTask) => {
         const cur = toMin(t.time);
         const next = Math.min(cur + 90, 23 * 60 + 30);
@@ -288,6 +303,85 @@ export default function TodayScreen() {
                             <Ionicons name={read.icon as any} size={15} color={read.color} />
                             <Text style={[styles.readText, { color: read.color }]}>{read.line}</Text>
                         </View>
+                    ) : null}
+
+                    {/* welcome back (spec 3.7): ramp reset, no backlog dump */}
+                    {data?.welcome_back ? (
+                        <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
+                            <View style={styles.noticeCard}>
+                                <Ionicons name="hand-left-outline" size={17} color={GOLD} />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.noticeTitle}>{data.welcome_back.line}</Text>
+                                    <Text style={styles.noticeText}>{data.welcome_back.sub}</Text>
+                                </View>
+                            </View>
+                        </GlassCard>
+                    ) : null}
+
+                    {/* adaptive reschedule (spec mock 7): slipped task, no stress */}
+                    {!todayQ.isLoading && (data?.slipped?.length ?? 0) > 0 ? (
+                        (() => {
+                            const slip = data!.slipped[0];
+                            const slippedTask = tasks.find((t) => t.task_id === slip.task_id);
+                            return (
+                                <GlassCard radius={20} intensity={40} style={{ marginTop: 12 }}>
+                                    <View style={{ padding: 16 }}>
+                                        <Text style={styles.slipKicker}>NO STRESS</Text>
+                                        <Text style={styles.slipTitle}>
+                                            Missed {slip.title?.toLowerCase() || 'one'}
+                                        </Text>
+                                        <Text style={styles.noticeText}>
+                                            {slip.suggested_time
+                                                ? 'Happens. Here is the fix. Tomorrow stays the same.'
+                                                : 'Happens. Tomorrow stays exactly the same. Your streak is safe.'}
+                                        </Text>
+                                        {slip.suggested_time && slippedTask ? (
+                                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                                                <View style={{ flex: 1 }}>
+                                                    <GlassButton
+                                                        variant="primary"
+                                                        label={`Do it at ${fmtTime(slip.suggested_time)}`}
+                                                        onPress={() =>
+                                                            snoozeMutation.mutate({
+                                                                t: slippedTask,
+                                                                newTime: slip.suggested_time!,
+                                                            })
+                                                        }
+                                                    />
+                                                </View>
+                                                <GlassButton
+                                                    variant="glass"
+                                                    label="Skip today"
+                                                    style={{ width: 110 }}
+                                                    onPress={() => skipMutation.mutate(slippedTask)}
+                                                />
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                </GlassCard>
+                            );
+                        })()
+                    ) : null}
+
+                    {/* Max learned (real, dated, used once) */}
+                    {!todayQ.isLoading && (data?.insights?.length ?? 0) > 0 ? (
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('WeeklyReview')}
+                            activeOpacity={0.8}
+                            accessibilityRole="button"
+                            accessibilityLabel="Max learned something about you"
+                        >
+                            <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
+                                <View style={styles.noticeCard}>
+                                    <Ionicons name="bulb-outline" size={17} color={GOLD} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.noticeTitle}>Max noticed something</Text>
+                                        <Text style={styles.noticeText}>{data!.insights[0].text}</Text>
+                                    </View>
+                                    <Ionicons name="chevron-forward" size={16} color={MUTE} />
+                                </View>
+                            </GlassCard>
+                        </TouchableOpacity>
                     ) : null}
 
                     {/* streak v2: freeze-used card (locked copy, spec 3.5) */}
@@ -615,6 +709,8 @@ const styles = StyleSheet.create({
     },
     stateChipText: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE },
     noticeCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
+    slipKicker: { fontFamily: 'Matter-SemiBold', fontSize: 10.5, letterSpacing: 1.6, color: GOLD },
+    slipTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 22, color: INK, marginTop: 3 },
     noticeTitle: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK },
     noticeText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#3A3A3F', flexShrink: 1 },
     bannerWrap: {

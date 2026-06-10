@@ -153,6 +153,12 @@ export default function YouScreen() {
                             sub: 'Edit your week. One source of truth.',
                             onPress: () => navigation.navigate('DayPlanner'),
                         },
+                        {
+                            icon: 'map-outline',
+                            label: 'Calendar & places',
+                            sub: 'Busy blocks and the places in your day.',
+                            onPress: () => navigation.navigate('DaySetup'),
+                        },
                     ]}
                 />
 

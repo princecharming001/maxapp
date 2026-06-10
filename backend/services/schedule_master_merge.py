@@ -182,7 +182,12 @@ def collect_merged_tasks_for_date(schedules: list[dict], target_date: str) -> li
 
 
 def merged_day_all_completed(schedules: list[dict], target_date: str) -> bool:
+    """A day closes when every task is resolved. An explicitly SKIPPED task
+    (the user said 'not today', a first-class choice per spec 3.6) does not
+    hold the day hostage - but a day of only skips earns nothing."""
     tasks = collect_merged_tasks_for_date(schedules, target_date)
     if not tasks:
         return False
-    return all(t.get("status") == "completed" for t in tasks)
+    if not any(t.get("status") == "completed" for t in tasks):
+        return False
+    return all(t.get("status") in ("completed", "skipped") for t in tasks)

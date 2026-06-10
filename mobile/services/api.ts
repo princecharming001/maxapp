@@ -1014,13 +1014,55 @@ class ApiService {
     async getPlannerToday(day?: string): Promise<{
         date: string;
         tasks: any[];
-        structure: { time: string; label: string; end?: string }[];
+        structure: { time: string; label: string; end?: string; source?: string }[];
         today_read: { level: 'green' | 'yellow' | 'red'; icon: string; color: string; line: string };
         held_back_count: number;
         locked_in: boolean;
+        calendar_event_count: number;
+        slipped: { task_id?: string; title?: string; from_time?: string; suggested_time?: string | null }[];
+        welcome_back: { gap_days: number; line: string; sub: string } | null;
+        insights: { id: string; text: string; kind: string }[];
         streak_armed_freeze: boolean;
+        freeze_used_yesterday?: boolean;
     }> {
         const response = await this.client.get('planner/today', { params: day ? { day } : {} });
+        return response.data;
+    }
+
+    async skipPlannerTask(scheduleId: string, taskId: string): Promise<{ skipped: boolean }> {
+        const response = await this.client.post('planner/task/skip', {
+            schedule_id: scheduleId,
+            task_id: taskId,
+        });
+        return response.data;
+    }
+
+    async getLifeModel(): Promise<any> {
+        const response = await this.client.get('planner/life-model');
+        return response.data;
+    }
+
+    async getPlaces(): Promise<{ places: { id: string; name: string; kind: string; radius_m: number; source: string }[] }> {
+        const response = await this.client.get('planner/places');
+        return response.data;
+    }
+
+    async addPlace(name: string, kind: string): Promise<{ id: string; name: string; kind: string }> {
+        const response = await this.client.post('planner/places', { name, kind });
+        return response.data;
+    }
+
+    async removePlace(placeId: string): Promise<{ removed: boolean }> {
+        const response = await this.client.delete(`planner/places/${placeId}`);
+        return response.data;
+    }
+
+    async pushPlannerSignals(payload: {
+        calendar?: { provider: string; events: { starts_at: string; ends_at: string; title?: string }[]; window_from?: string; window_to?: string };
+        geofence_events?: any[];
+        derived_prefs?: Record<string, string>;
+    }): Promise<{ stored: Record<string, number> }> {
+        const response = await this.client.post('planner/signals', payload);
         return response.data;
     }
 
