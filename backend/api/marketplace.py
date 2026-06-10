@@ -45,7 +45,7 @@ _MAXX_DISPLAY: dict[str, dict[str, str]] = {
 # Creator-set price + cadence. Replaced by real creator listings later.
 _SEED_COURSES: list[dict[str, Any]] = [
     {
-        "id": "course_glowup_30", "title": "30-Day Glow Up", "category": "skinmax",
+        "id": "course_glowup_30", "schedule_hints": {"sessions_per_week": 7, "minutes": 15, "window": "evening"}, "title": "30-Day Glow Up", "category": "skinmax",
         "creator": {"name": "Dr. Lena Park", "handle": "drlenapark", "verified": True},
         "price_cents": 2499, "price_model": "flat", "weeks": 4,
         "rating": 4.8, "participants": 12400, "completion_rate": 0.82,
@@ -53,7 +53,7 @@ _SEED_COURSES: list[dict[str, Any]] = [
         "icon": "sparkles-outline", "color": "#8B5CF6",
     },
     {
-        "id": "course_lift101", "title": "Lift 101: Your First 8 Weeks", "category": "fitmax",
+        "id": "course_lift101", "schedule_hints": {"sessions_per_week": 3, "minutes": 40, "window": "any"}, "title": "Lift 101: Your First 8 Weeks", "category": "fitmax",
         "creator": {"name": "Marcus Reed", "handle": "coachmreed", "verified": True},
         "price_cents": 399, "price_model": "weekly", "weeks": 8,
         "rating": 4.9, "participants": 30100, "completion_rate": 0.74,
@@ -61,7 +61,7 @@ _SEED_COURSES: list[dict[str, Any]] = [
         "icon": "barbell-outline", "color": "#10B981",
     },
     {
-        "id": "course_posture_reset", "title": "Posture Reset", "category": "heightmax",
+        "id": "course_posture_reset", "schedule_hints": {"sessions_per_week": 7, "minutes": 10, "window": "any"}, "title": "Posture Reset", "category": "heightmax",
         "creator": {"name": "Aria Vance", "handle": "ariamoves", "verified": False},
         "price_cents": 1499, "price_model": "flat", "weeks": 3,
         "rating": 4.6, "participants": 5300, "completion_rate": 0.79,
@@ -69,7 +69,7 @@ _SEED_COURSES: list[dict[str, Any]] = [
         "icon": "resize-outline", "color": "#6366F1",
     },
     {
-        "id": "course_jaw_basics", "title": "Jaw + Tongue Basics", "category": "bonemax",
+        "id": "course_jaw_basics", "schedule_hints": {"sessions_per_week": 5, "minutes": 10, "window": "any"}, "title": "Jaw + Tongue Basics", "category": "bonemax",
         "creator": {"name": "Sam Cole", "handle": "samcole", "verified": False},
         "price_cents": 999, "price_model": "flat", "weeks": 6,
         "rating": 4.4, "participants": 8800, "completion_rate": 0.71,

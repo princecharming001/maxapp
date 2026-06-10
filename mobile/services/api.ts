@@ -1035,6 +1035,16 @@ class ApiService {
         return response.data;
     }
 
+    async getPlannerFeasibility(programId: string): Promise<{
+        verdict: 'green' | 'amber' | 'red';
+        fits_n_of_m: { fits: number; of: number };
+        minutes_per_session: number;
+        ghost_week: { day: string; slots: string[] }[];
+    }> {
+        const response = await this.client.post('planner/feasibility', { program_id: programId });
+        return response.data;
+    }
+
     async confirmWeeklyFacts(
         confirmations: { id: string; accepted: boolean; value?: string }[],
     ): Promise<{ stored: number }> {

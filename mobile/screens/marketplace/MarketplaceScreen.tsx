@@ -21,11 +21,70 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
+import { useQuery } from '@tanstack/react-query';
 import api, { type MarketplaceItem } from '../../services/api';
 
 const INK = '#111113';
 const MUTE = '#8A8A92';
 const SUB = '#3A3A3F';
+const GOLD = '#D4A017';
+
+const VERDICT_META = {
+    green: { color: '#3D8B4F', icon: 'checkmark-circle' as const, line: 'Fits your real week' },
+    amber: { color: '#B07D10', icon: 'alert-circle' as const, line: 'Tight, but workable' },
+    red: { color: '#C0452C', icon: 'remove-circle' as const, line: 'Your week is packed' },
+};
+
+/** Schedule-fit sim (spec 3.4) - the moat made visible, shown BEFORE buying. */
+function FeasibilityBlock({ programId }: { programId: string }) {
+    const q = useQuery({
+        queryKey: ['feasibility', programId],
+        queryFn: () => api.getPlannerFeasibility(programId),
+        staleTime: 5 * 60_000,
+    });
+    if (q.isLoading) {
+        return (
+            <View style={styles.feasWrap}>
+                <View style={styles.feasSkeleton} />
+            </View>
+        );
+    }
+    const d = q.data;
+    if (!d) return null;
+    const meta = VERDICT_META[d.verdict] ?? VERDICT_META.amber;
+    return (
+        <View style={styles.feasWrap}>
+            <View style={styles.feasHeader}>
+                <Ionicons name={meta.icon} size={15} color={meta.color} />
+                <Text style={[styles.feasVerdict, { color: meta.color }]}>{meta.line}</Text>
+            </View>
+            <Text style={styles.feasLine}>
+                Max can fit {d.fits_n_of_m.fits} of {d.fits_n_of_m.of} weekly sessions into
+                your real week.
+            </Text>
+            <View style={styles.ghostStrip}>
+                {d.ghost_week.map((g) => (
+                    <View key={g.day} style={styles.ghostDay}>
+                        <View
+                            style={[
+                                styles.ghostDot,
+                                g.slots.length
+                                    ? { backgroundColor: GOLD }
+                                    : { backgroundColor: 'rgba(17,17,19,0.12)' },
+                            ]}
+                        />
+                        <Text style={styles.ghostDayLabel}>{g.day[0]}</Text>
+                        {g.slots.length ? (
+                            <Text style={styles.ghostSlot}>{g.slots[0]}</Text>
+                        ) : (
+                            <Text style={styles.ghostSlot}> </Text>
+                        )}
+                    </View>
+                ))}
+            </View>
+        </View>
+    );
+}
 
 export default function MarketplaceScreen() {
     const insets = useSafeAreaInsets();
@@ -150,8 +209,17 @@ function ItemCard({ item, onPress }: { item: MarketplaceItem; onPress: () => voi
 
 function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | null; onClose: () => void; onEntered: (id: string) => void }) {
     const [busy, setBusy] = useState(false);
+    const [miniReveal, setMiniReveal] = useState<{ count: number; first: string } | null>(null);
     if (!item) return null;
     const isWeekly = item.price_model === 'weekly';
+
+    // Honest price display (spec 3.4): total is the big number for flat, with
+    // the weekly equivalent small; weekly shows cancel-anytime. Never hidden.
+    const priceSub = isWeekly
+        ? 'cancel anytime'
+        : item.weeks
+          ? `about $${(item.price_cents / 100 / item.weeks).toFixed(2)} a week`
+          : null;
 
     const enter = async () => {
         if (busy || item.entered) return;
@@ -159,6 +227,18 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
         try {
             await api.enterMarketplaceItem(item.id);
             onEntered(item.id);
+            // Post-purchase mini-reveal: the new program lands on the user's
+            // real week (data from the same feasibility sim, cached).
+            try {
+                const feas = await api.getPlannerFeasibility(item.id);
+                const firstDay = feas.ghost_week.find((g) => g.slots.length);
+                setMiniReveal({
+                    count: feas.fits_n_of_m.fits,
+                    first: firstDay ? `${firstDay.day} ${firstDay.slots[0]}` : 'tomorrow',
+                });
+            } catch {
+                setMiniReveal({ count: 1, first: 'tomorrow' });
+            }
         } catch {
             // keep modal open; user can retry
         } finally {
@@ -173,6 +253,25 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
                 <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
                 <View style={styles.sheet}>
                     <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+                    {miniReveal ? (
+                        <View style={styles.sheetInner}>
+                            <View style={styles.grabber} />
+                            <View style={[styles.iconWrapLg, { backgroundColor: hexA(item.color, 0.18) }]}>
+                                <Ionicons name="sparkles" size={30} color={GOLD} />
+                            </View>
+                            <Text style={styles.sheetTitle}>You're in</Text>
+                            <Text style={styles.sheetTagline}>
+                                {miniReveal.count} new thing{miniReveal.count === 1 ? '' : 's'} landed on
+                                your week. First one {miniReveal.first}.
+                            </Text>
+                            <View style={{ marginTop: 18 }}>
+                                <GlassButton variant="primary" label="See my day" onPress={onClose} />
+                            </View>
+                            <TouchableOpacity onPress={onClose} style={{ paddingVertical: 12, alignItems: 'center' }} activeOpacity={0.6}>
+                                <Text style={styles.closeText}>Close</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
                     <View style={styles.sheetInner}>
                         <View style={styles.grabber} />
                         <View style={[styles.iconWrapLg, { backgroundColor: hexA(item.color, 0.18) }]}>
@@ -186,9 +285,32 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
 
                         {!item.native ? (
                             <View style={styles.statsRow}>
-                                {item.rating ? <Stat label="rating" value={`★ ${item.rating.toFixed(1)}`} /> : null}
                                 {item.participants ? <Stat label="on plan" value={fmtK(item.participants)} /> : null}
                                 {item.completion_rate ? <Stat label="finish wk 1" value={`${Math.round(item.completion_rate * 100)}%`} /> : null}
+                                {item.rating ? <Stat label="rating" value={`★ ${item.rating.toFixed(1)}`} /> : null}
+                            </View>
+                        ) : null}
+
+                        <FeasibilityBlock programId={item.id} />
+
+                        {!item.native && item.weeks ? (
+                            <View style={styles.previewWrap}>
+                                <Text style={styles.previewLabel}>WHAT'S INSIDE</Text>
+                                <View style={styles.previewRow}>
+                                    <Ionicons name="play-circle-outline" size={16} color={GOLD} />
+                                    <Text style={styles.previewText}>Week 1 - free preview</Text>
+                                </View>
+                                {Array.from({ length: Math.min(3, item.weeks - 1) }, (_, i) => (
+                                    <View key={i} style={styles.previewRow}>
+                                        <Ionicons name="lock-closed-outline" size={14} color={MUTE} />
+                                        <Text style={[styles.previewText, { color: MUTE }]}>
+                                            Week {i + 2}
+                                        </Text>
+                                    </View>
+                                ))}
+                                {item.weeks > 4 ? (
+                                    <Text style={styles.previewMore}>+ {item.weeks - 4} more weeks</Text>
+                                ) : null}
                             </View>
                         ) : null}
 
@@ -199,7 +321,10 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
                         </View>
 
                         <View style={styles.priceLine}>
-                            <Text style={styles.priceBig}>{item.price_label}</Text>
+                            <View>
+                                <Text style={styles.priceBig}>{item.price_label}</Text>
+                                {priceSub ? <Text style={styles.priceSub}>{priceSub}</Text> : null}
+                            </View>
                             {item.entered ? <Text style={styles.enteredTag}>You're in</Text> : null}
                         </View>
 
@@ -213,6 +338,7 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
                             <Text style={styles.closeText}>Close</Text>
                         </TouchableOpacity>
                     </View>
+                    )}
                 </View>
             </View>
         </Modal>
@@ -246,6 +372,30 @@ function fmtK(n: number): string {
 }
 
 const styles = StyleSheet.create({
+    feasWrap: {
+        marginTop: 14,
+        padding: 14,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.55)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.6)',
+        alignSelf: 'stretch',
+    },
+    feasSkeleton: { height: 52, borderRadius: 10, backgroundColor: 'rgba(17,17,19,0.06)' },
+    feasHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    feasVerdict: { fontFamily: 'Matter-SemiBold', fontSize: 13.5 },
+    feasLine: { fontFamily: 'Matter-Regular', fontSize: 13, color: SUB, marginTop: 4, lineHeight: 19 },
+    ghostStrip: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+    ghostDay: { alignItems: 'center', gap: 3, flex: 1 },
+    ghostDot: { width: 8, height: 8, borderRadius: 4 },
+    ghostDayLabel: { fontFamily: 'Matter-Medium', fontSize: 10, color: MUTE },
+    ghostSlot: { fontFamily: 'Matter-Regular', fontSize: 9, color: MUTE },
+    previewWrap: { alignSelf: 'stretch', marginTop: 14 },
+    previewLabel: { fontFamily: 'Matter-SemiBold', fontSize: 10.5, letterSpacing: 1.4, color: MUTE, marginBottom: 6 },
+    previewRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 5 },
+    previewText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: INK },
+    previewMore: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 2, marginLeft: 22 },
+    priceSub: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 2 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
     loadingText: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE },
     kicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.4, color: MUTE },

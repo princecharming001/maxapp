@@ -200,6 +200,118 @@ async def lock_in(
     return {"locked_in": True, "date": target.isoformat()}
 
 
+# Per-native-maxx placement requirements for the feasibility sim. Creator
+# courses carry schedule_hints on their marketplace records instead.
+_NATIVE_REQUIREMENTS: dict[str, dict[str, Any]] = {
+    "skinmax": {"sessions_per_week": 7, "minutes": 12, "window": "any"},
+    "fitmax": {"sessions_per_week": 4, "minutes": 45, "window": "any"},
+    "hairmax": {"sessions_per_week": 7, "minutes": 10, "window": "any"},
+    "heightmax": {"sessions_per_week": 7, "minutes": 15, "window": "any"},
+    "bonemax": {"sessions_per_week": 7, "minutes": 10, "window": "any"},
+}
+
+
+def _free_minutes_intervals(
+    busy: list[tuple[int, int]], wake_min: int, sleep_min: int
+) -> list[tuple[int, int]]:
+    """Waking day minus busy windows (same-day model, matching the validator)."""
+    if sleep_min <= wake_min:
+        sleep_min = 23 * 60 + 59  # overnight sleepers: treat day as wake..midnight
+    free: list[tuple[int, int]] = []
+    cursor = wake_min
+    for s, e in sorted(busy):
+        s, e = max(s, wake_min), min(e, sleep_min)
+        if e <= s:
+            continue
+        if s > cursor:
+            free.append((cursor, s))
+        cursor = max(cursor, e)
+    if cursor < sleep_min:
+        free.append((cursor, sleep_min))
+    return free
+
+
+def _window_bounds(window: str) -> tuple[int, int]:
+    if window == "morning":
+        return (5 * 60, 12 * 60)
+    if window == "evening":
+        return (17 * 60, 24 * 60)
+    return (0, 24 * 60)
+
+
+@router.post("/feasibility")
+async def feasibility(
+    payload: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Schedule-fit sim (spec 3.4) - BEFORE purchase, dry-run the program's
+    sessions against the user's real wake/sleep/obligations per weekday.
+    Returns {verdict, fits_n_of_m, ghost_week} for the detail sheet chip +
+    ghosted 7-day mini-strip. Deterministic; no LLM."""
+    from services.schedule_validator import (
+        _WEEKDAY_NAMES,
+        _busy_intervals_from_ctx,
+        _effective_day_ctx,
+    )
+    from api.marketplace import _SEED_COURSES
+    from services.user_context_service import merged_user_state
+
+    program_id = str(payload.get("program_id") or "").strip().lower()
+    if not program_id:
+        raise HTTPException(status_code=422, detail="program_id required")
+
+    req = _NATIVE_REQUIREMENTS.get(program_id)
+    if req is None:
+        for c in _SEED_COURSES:
+            if c["id"] == program_id:
+                req = c.get("schedule_hints") or {"sessions_per_week": 3, "minutes": 20, "window": "any"}
+                break
+    if req is None:
+        raise HTTPException(status_code=404, detail="Unknown program")
+
+    uid = _uid(current_user)
+    user = await db.get(User, uid)
+    ob = dict(user.onboarding or {}) if user else {}
+    state = merged_user_state(ob, None)
+    g_wake = str(state.get("wake_time") or "07:00")
+    g_sleep = str(state.get("sleep_time") or "23:00")
+    minutes = int(req.get("minutes") or 20)
+    sessions = max(1, int(req.get("sessions_per_week") or 3))
+    win_lo, win_hi = _window_bounds(str(req.get("window") or "any"))
+
+    ghost_week: list[dict[str, Any]] = []
+    fittable_days = 0
+    for wd in _WEEKDAY_NAMES:
+        eff = _effective_day_ctx(state, wd, global_wake=g_wake, global_sleep=g_sleep)
+        wake_min = _parse_hm_minutes(eff.get("wake_time"), 7 * 60)
+        sleep_min = _parse_hm_minutes(eff.get("sleep_time"), 23 * 60)
+        busy = _busy_intervals_from_ctx(eff)
+        slots: list[str] = []
+        for s, e in _free_minutes_intervals(busy, wake_min, sleep_min):
+            s2, e2 = max(s, win_lo), min(e, win_hi)
+            if e2 - s2 >= minutes:
+                slots.append(f"{s2 // 60:02d}:{s2 % 60:02d}")
+        if slots:
+            fittable_days += 1
+        ghost_week.append({"day": wd[:3].capitalize(), "slots": slots[:2]})
+
+    fits = min(sessions, fittable_days)
+    if fits >= sessions:
+        verdict = "green"
+    elif fits * 3 >= sessions * 2:  # >= 2/3 of required sessions fit
+        verdict = "amber"
+    else:
+        verdict = "red"
+
+    return {
+        "verdict": verdict,
+        "fits_n_of_m": {"fits": fits, "of": sessions},
+        "minutes_per_session": minutes,
+        "ghost_week": ghost_week,
+    }
+
+
 def _window_for_time(hhmm: str | None) -> str:
     m = _parse_hm_minutes(hhmm, 12 * 60)
     if m < 12 * 60:
