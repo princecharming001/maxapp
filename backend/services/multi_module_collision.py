@@ -25,6 +25,11 @@ from typing import Any
 
 from services.schedule_validator import MIN_TASK_GAP_MIN
 from services.schedule_dsl import from_minutes
+from services.task_fields import (
+    TIER_OPTIONAL,
+    normalize_days,
+    protection_tier,
+)
 
 # Cross-module daily ceiling — a humane SOFT target for the total number of
 # tasks summed across all active maxxes. A committed 3-maxx user genuinely has
@@ -96,6 +101,53 @@ def _maxx_priority_rank(maxx_id: str, user_ctx: dict | None) -> int:
     return _NO_PRIORITY_RANK
 
 
+# Suppression-ledger reason codes (the user-visible "held back" vocabulary).
+REASON_DUPLICATE = "duplicate"
+REASON_ANTAGONISM = "moved_conflict"
+REASON_DAY_FULL = "day_full"
+REASON_DAY_FULL_HARD = "day_full_hard"
+
+
+def _suppress_task(
+    schedules: dict[str, list[dict]],
+    maxx_id: str,
+    di: int,
+    task: dict,
+    *,
+    reason_code: str,
+    beaten_by: str | None = None,
+    deferred_to: int | None = None,
+) -> None:
+    """Remove a task from its day AND write a ledger entry on that day.
+
+    Replaces the old silent _remove_task: every drop is now visible to the
+    user via GET /api/planner/held-back ("Held back today" chip). Deferred
+    tasks carry an aging counter so a repeatedly-skipped habit rises in
+    priority instead of starving forever.
+    """
+    days = schedules.get(maxx_id) or []
+    if di >= len(days):
+        return
+    tasks = days[di].get("tasks") or []
+    days[di]["tasks"] = [t for t in tasks if t is not task]
+    entry = {
+        "task_uuid": task.get("task_uuid"),
+        "catalog_id": task.get("catalog_id"),
+        "title": task.get("title"),
+        "program_id": maxx_id,
+        "reason_code": reason_code,
+        "beaten_by": beaten_by,
+        "deferred_to": deferred_to,
+        "deferral_age": int(task.get("deferral_age") or 0) + 1,
+    }
+    days[di].setdefault("held_back", []).append(entry)
+
+
+def _task_sort_uuid(task: dict) -> str:
+    """Stable per-task tiebreak - never rely on dict insertion order."""
+    return str(task.get("task_uuid") or task.get("catalog_id") or task.get("title") or "")
+
+
 def _select_optionals_to_keep(
     optionals: list[tuple[str, dict]], slots: int, user_ctx: dict | None
 ) -> set[int]:
@@ -116,7 +168,14 @@ def _select_optionals_to_keep(
         return {id(t) for _, t in optionals}
 
     def _intensity_key(item: tuple[str, dict]):
-        return (-float(item[1].get("intensity") or 0.0), _time_to_min(item[1].get("time")))
+        # Aged (previously-deferred) tasks sort ahead of equal-intensity peers so
+        # a habit skipped period after period eventually wins a slot back.
+        return (
+            -float(item[1].get("intensity") or 0.0),
+            -int(item[1].get("deferral_age") or 0),
+            _time_to_min(item[1].get("time")),
+            _task_sort_uuid(item[1]),
+        )
 
     if not _priority_declared(user_ctx):
         ranked = sorted(optionals, key=_intensity_key)
@@ -165,6 +224,11 @@ def reconcile_schedules(
     if not schedules or len(schedules) < 2:
         return schedules
 
+    # Canonical task fields (task_uuid, importance, provenance, deferral_age...)
+    # so every pass below can rely on them. Additive; legacy keys untouched.
+    for maxx_id, days in schedules.items():
+        normalize_days(days, maxx_id)
+
     # Normalize day count across modules — assume all schedules share length.
     day_count = max(len(d) for d in schedules.values())
 
@@ -176,22 +240,39 @@ def reconcile_schedules(
             for t in day.get("tasks") or []:
                 by_day[di].append((maxx_id, t))
 
-    # 1) Dedupe identical (catalog_id) across modules — keep the first.
+    # 1) Dedupe identical (catalog_id) across modules — keep the stricter/paid
+    # one (highest protection tier wins; stable uuid tiebreak, never dict order).
     for di, items in enumerate(by_day):
-        seen_ids: set[str] = set()
-        for maxx_id, task in list(items):
+        by_cid: dict[str, list[tuple[str, dict]]] = defaultdict(list)
+        for maxx_id, task in items:
             cid = task.get("catalog_id")
-            if not cid:
+            if cid:
+                by_cid[cid].append((maxx_id, task))
+        for cid, owners in by_cid.items():
+            if len(owners) < 2:
                 continue
-            if cid in seen_ids:
-                _remove_task(schedules, maxx_id, di, task)
-                continue
-            seen_ids.add(cid)
+            owners.sort(
+                key=lambda mt: (
+                    -protection_tier(mt[0], mt[1], user_ctx),
+                    _task_sort_uuid(mt[1]),
+                )
+            )
+            keeper_m, keeper_t = owners[0]
+            for m, t in owners[1:]:
+                _suppress_task(
+                    schedules, m, di, t,
+                    reason_code=REASON_DUPLICATE,
+                    beaten_by=f"{keeper_m}:{keeper_t.get('title') or cid}",
+                )
         for keep_a, drop_b in _DEDUP_PAIRS:
             cids = {t.get("catalog_id"): (m, t) for m, t in items}
             if keep_a in cids and drop_b in cids:
                 m, t = cids[drop_b]
-                _remove_task(schedules, m, di, t)
+                _suppress_task(
+                    schedules, m, di, t,
+                    reason_code=REASON_DUPLICATE,
+                    beaten_by=f"{cids[keep_a][0]}:{keep_a}",
+                )
 
     # Recompute by_day after dedupe.
     by_day = _reindex(schedules, day_count)
@@ -223,6 +304,20 @@ def reconcile_schedules(
             target_day = _find_safe_day(by_day, mover_cid, start_after=di)
             if target_day is not None and target_day != di:
                 _move_task(schedules, mover_m, di, target_day, mover_t)
+                # Ledger: a move is a visible deferral, not a silent reshuffle.
+                days_m = schedules.get(mover_m) or []
+                if di < len(days_m):
+                    days_m[di].setdefault("held_back", []).append({
+                        "task_uuid": mover_t.get("task_uuid"),
+                        "catalog_id": mover_t.get("catalog_id"),
+                        "title": mover_t.get("title"),
+                        "program_id": mover_m,
+                        "reason_code": REASON_ANTAGONISM,
+                        "beaten_by": None,
+                        "deferred_to": target_day,
+                        "deferral_age": int(mover_t.get("deferral_age") or 0) + 1,
+                    })
+                    mover_t["deferral_age"] = int(mover_t.get("deferral_age") or 0) + 1
     by_day = _reindex(schedules, day_count)
 
     # 3) Time-gap enforcement across modules.
@@ -238,49 +333,79 @@ def reconcile_schedules(
                 t_min = new_t
             last_end = t_min + dur
 
-    # 4) Daily total ceiling — keep every essential, trim only low-value
-    # optionals toward TARGET_DAILY_TOTAL. The earlier bug deleted low-intensity
-    # ESSENTIALS (e.g. a user's AM face cleanse) whenever a 3-maxx training day
-    # pushed the essential count over the cap, AND left every optional in place
-    # — so the day stayed huge *and* lost its hygiene floor. We never drop a
-    # hygiene/training essential now; we trim the most-skippable extras instead.
-    from services.schedule_validator import _ESSENTIAL_TAGS
-
-    def _is_essential(t: dict) -> bool:
-        return bool(set(t.get("tags") or []) & _ESSENTIAL_TAGS)
+    # 4) Daily total ceiling — protection-tier-aware. Tier 2 (purchased/required,
+    # native maxx OR creator course alike) is never trimmed while anything of a
+    # lower tier survives; tier 1 (native-essential hygiene floor) survives the
+    # soft trim; tier 0 optionals are trimmed toward TARGET_DAILY_TOTAL. This
+    # replaces the old hardcoded native-tag logic that gave creator courses
+    # priority 999 and trimmed their tasks first.
+    def _tier(m: str, t: dict) -> int:
+        return protection_tier(m, t, user_ctx)
 
     for di in range(day_count):
         items = list(by_day[di])
         if len(items) <= TARGET_DAILY_TOTAL:
             continue
-        essentials = [(m, t) for (m, t) in items if _is_essential(t)]
-        optionals = [(m, t) for (m, t) in items if not _is_essential(t)]
+        protected = [(m, t) for (m, t) in items if _tier(m, t) > TIER_OPTIONAL]
+        optionals = [(m, t) for (m, t) in items if _tier(m, t) == TIER_OPTIONAL]
 
         # How many optionals may stay: enough to reach the target on top of the
-        # essential floor, but always at least MIN_OPTIONAL_KEEP so a heavy day
+        # protected floor, but always at least MIN_OPTIONAL_KEEP so a heavy day
         # keeps its best extras (retinoid, workout fuel) rather than only chores.
-        optional_slots = max(MIN_OPTIONAL_KEEP, TARGET_DAILY_TOTAL - len(essentials))
-        # Choose which optionals survive. With a declared maxx priority this is a
-        # round-robin so the user's top maxx gets first pick and no single maxx
-        # monopolizes the slots; without one it's the legacy highest-intensity cut.
+        optional_slots = max(MIN_OPTIONAL_KEEP, TARGET_DAILY_TOTAL - len(protected))
         keep_ids = _select_optionals_to_keep(optionals, optional_slots, user_ctx)
+
+        # PAID FLOOR: every purchased program keeps >=1 task on a day it had
+        # any, even over budget. If the trim would zero a paid program's day,
+        # force-keep its best remaining task (highest importance, uuid tiebreak).
+        from services.task_fields import entered_programs as _entered
+        paid_programs = _entered(user_ctx)
+        surviving_by_program: dict[str, int] = defaultdict(int)
+        for m, t in protected:
+            surviving_by_program[m] += 1
+        for m, t in optionals:
+            if id(t) in keep_ids:
+                surviving_by_program[m] += 1
+        for prog in paid_programs:
+            had_any = any(m == prog for m, _ in items)
+            if had_any and surviving_by_program.get(prog, 0) == 0:
+                candidates = [(m, t) for (m, t) in optionals if m == prog]
+                candidates.sort(
+                    key=lambda mt: (-int(mt[1].get("importance") or 3), _task_sort_uuid(mt[1]))
+                )
+                if candidates:
+                    keep_ids.add(id(candidates[0][1]))
+                    surviving_by_program[prog] += 1
+
         for maxx_id, task in optionals:
             if id(task) in keep_ids:
                 continue
-            _remove_task(schedules, maxx_id, di, task)
+            _suppress_task(
+                schedules, maxx_id, di, task,
+                reason_code=REASON_DAY_FULL,
+                deferred_to=di + 1 if di + 1 < day_count else None,
+            )
             items.remove((maxx_id, task))
 
-        # Absolute storm guard: if the essential floor itself is implausibly
-        # large (pathological multi-maxx overlap), trim essentials down to the
-        # hard ceiling — but only as a last resort. Drop the lowest-priority
-        # maxx's lowest-intensity essentials first; with no declared priority
-        # this collapses to the legacy lowest-intensity-first cut.
+        # Absolute storm guard: trim down to the hard ceiling as a last resort.
+        # Drop lowest-tier first, then lowest intensity; NEVER drop a tier-2
+        # (paid/required) task while anything of a lower tier survives. With no
+        # entitlements/priority this collapses to the legacy lowest-intensity cut.
         if len(items) > HARD_DAILY_TASK_CAP:
-            ess_now = [(m, t) for (m, t) in items if _is_essential(t)]
-            ess_now.sort(key=lambda x: (-_maxx_priority_rank(x[0], user_ctx),
-                                        float(x[1].get("intensity") or 0.0)))
-            for maxx_id, task in ess_now[:len(items) - HARD_DAILY_TASK_CAP]:
-                _remove_task(schedules, maxx_id, di, task)
+            over = len(items) - HARD_DAILY_TASK_CAP
+            ranked = sorted(
+                items,
+                key=lambda mt: (
+                    _tier(mt[0], mt[1]),
+                    float(mt[1].get("intensity") or 0.0),
+                    _task_sort_uuid(mt[1]),
+                ),
+            )
+            for maxx_id, task in ranked[:over]:
+                _suppress_task(
+                    schedules, maxx_id, di, task,
+                    reason_code=REASON_DAY_FULL_HARD,
+                )
                 items.remove((maxx_id, task))
 
     # 5) Final cross-module busy-window eviction (opt-in via user_ctx).
@@ -515,13 +640,6 @@ def _reindex(schedules: dict[str, list[dict]], day_count: int) -> list[list[tupl
                 by_day[di].append((maxx_id, t))
     return by_day
 
-
-def _remove_task(schedules: dict[str, list[dict]], maxx_id: str, di: int, task: dict) -> None:
-    days = schedules.get(maxx_id) or []
-    if di >= len(days):
-        return
-    tasks = days[di].get("tasks") or []
-    days[di]["tasks"] = [t for t in tasks if t is not task]
 
 
 def _move_task(schedules: dict[str, list[dict]], maxx_id: str, from_di: int, to_di: int, task: dict) -> None:

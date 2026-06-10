@@ -18,3 +18,4 @@ from .maxes import router as maxes_router
 from .sendblue_webhook import router as sendblue_webhook_router
 from .onairos import router as onairos_router
 from .marketplace import router as marketplace_router
+from .planner import router as planner_router

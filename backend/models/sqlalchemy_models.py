@@ -456,6 +456,9 @@ class UserSchedule(Base):
     adapted_count = Column(Integer, default=0)
     user_feedback = Column(JSON, default=list)
     completion_stats = Column(JSON, default=dict)
+    # Planner state (spec 4.7): reflow bookkeeping + JITAI nudge-brain state.
+    reflow_state = Column(JSON, default=dict)
+    jitai_state = Column(JSON, default=dict)
 
     __table_args__ = (
         Index("idx_user_schedules_user_id", user_id),

@@ -89,6 +89,17 @@ async def generate_and_persist(
     )
 
     ob_ctx = onboarding or dict(user.onboarding or {})
+
+    # Entitlement gate: once a user has entered programs via the marketplace,
+    # only entered programs generate. Users with no entered_* keys at all are
+    # legacy (pre-marketplace) and stay ungated so existing flows keep working.
+    from services.task_fields import entered_programs
+    entered = entered_programs(ob_ctx)
+    if entered and maxx_id.strip().lower() not in entered:
+        raise ValueError(
+            f"{maxx_id} is not in your programs. Enter it in Explore first."
+        )
+
     extras = {"wake_time": wake_time, "sleep_time": sleep_time}
     result = await _generate(
         user_id=user_id, maxx_id=maxx_id, db=db,
@@ -109,6 +120,10 @@ async def generate_and_persist(
     today = _date.today()
     for i, d in enumerate(days):
         d["date"] = (today + _td(days=i)).isoformat()
+    # Canonical task fields on every persisted task (task_uuid, importance,
+    # provenance...) even when this is the user's only program (no merge pass).
+    from services.task_fields import normalize_days
+    normalize_days(days, maxx_id)
     # user_ctx for the busy-window eviction step: the merge re-packs the morning
     # and can shove a task into a fixed obligation; pass the user's rhythm +
     # obligations (with resolved wake/sleep) so reconcile can clear them. Routed

@@ -23,6 +23,7 @@ from api import (
     sendblue_webhook_router,
     onairos_router,
     marketplace_router,
+    planner_router,
 )
 
 
@@ -147,6 +148,7 @@ app.include_router(maxes_router, prefix="/api")
 app.include_router(sendblue_webhook_router, prefix="/api")
 app.include_router(onairos_router, prefix="/api")
 app.include_router(marketplace_router, prefix="/api")
+app.include_router(planner_router, prefix="/api")
 
 # Mount uploads directory
 uploads_dir = os.path.join(os.path.dirname(__file__), "uploads")
