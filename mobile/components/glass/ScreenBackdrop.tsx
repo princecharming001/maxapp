@@ -10,6 +10,7 @@ import React from 'react';
 import { View, StyleSheet, type ViewStyle, type StyleProp } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import { useReduceTransparency } from '../../hooks/useA11y';
 
 export function ScreenBackdrop({
     children,
@@ -18,6 +19,7 @@ export function ScreenBackdrop({
     children?: React.ReactNode;
     style?: StyleProp<ViewStyle>;
 }) {
+    const reduceTransparency = useReduceTransparency();
     return (
         <View style={[styles.root, style]}>
             <LinearGradient
@@ -26,9 +28,20 @@ export function ScreenBackdrop({
                 end={{ x: 0, y: 1 }}
                 style={StyleSheet.absoluteFill}
             />
-            <View pointerEvents="none" style={[styles.orb, styles.orbGold]} />
-            <View pointerEvents="none" style={[styles.orb, styles.orbBlue]} />
-            <BlurView pointerEvents="none" intensity={50} tint="light" style={StyleSheet.absoluteFill} />
+            {/* Reduced transparency: drop the glow orbs + blur veil entirely so
+                content always sits on a calm, near-solid gradient. */}
+            {!reduceTransparency && (
+                <>
+                    <View pointerEvents="none" style={[styles.orb, styles.orbGold]} />
+                    <View pointerEvents="none" style={[styles.orb, styles.orbBlue]} />
+                    <BlurView
+                        pointerEvents="none"
+                        intensity={50}
+                        tint="light"
+                        style={StyleSheet.absoluteFill}
+                    />
+                </>
+            )}
             {children}
         </View>
     );

@@ -20,8 +20,11 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { View } from 'tamagui';
+import { useReduceTransparency } from '../../hooks/useA11y';
 
 type Variant = 'primary' | 'glass' | 'ghost';
+
+const SOLID_FALLBACK_FILL = 'rgba(255,255,255,0.94)';
 
 export function GlassButton({
     label,
@@ -41,6 +44,12 @@ export function GlassButton({
     const radius = 16;
     const isGhost = variant === 'ghost';
     const textColor = variant === 'primary' ? '#FFFFFF' : isGhost ? '#6B7280' : '#111113';
+    const reduceTransparency = useReduceTransparency();
+    const a11yProps = {
+        accessibilityRole: 'button' as const,
+        accessibilityLabel: label,
+        accessibilityState: { disabled: disabled || loading, busy: loading },
+    };
 
     const content = (
         <View
@@ -68,6 +77,7 @@ export function GlassButton({
                 onPress={onPress}
                 disabled={disabled || loading}
                 style={[styles.shadow, style]}
+                {...a11yProps}
             >
                 <View
                     borderRadius={radius}
@@ -76,8 +86,14 @@ export function GlassButton({
                     borderColor="$glassBorder"
                     style={{ borderCurve: 'continuous' }}
                 >
-                    <BlurView intensity={28} tint="light" style={StyleSheet.absoluteFill} />
-                    <View backgroundColor="$glassStrong">{content}</View>
+                    {!reduceTransparency && (
+                        <BlurView intensity={28} tint="light" style={StyleSheet.absoluteFill} />
+                    )}
+                    <View
+                        backgroundColor={reduceTransparency ? SOLID_FALLBACK_FILL : '$glassStrong'}
+                    >
+                        {content}
+                    </View>
                 </View>
             </TouchableOpacity>
         );
@@ -90,6 +106,7 @@ export function GlassButton({
                 onPress={onPress}
                 disabled={disabled || loading}
                 style={style}
+                {...a11yProps}
             >
                 {content}
             </TouchableOpacity>
@@ -102,6 +119,7 @@ export function GlassButton({
             onPress={onPress}
             disabled={disabled || loading}
             style={[styles.shadow, style]}
+            {...a11yProps}
         >
             <View backgroundColor="$ink" borderRadius={radius} style={{ borderCurve: 'continuous' }}>
                 {content}

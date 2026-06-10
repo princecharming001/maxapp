@@ -20,7 +20,7 @@
 import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { A11yBlurView as BlurView } from './glass/SolidFallback';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, fonts } from '../theme/dark';
 

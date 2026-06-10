@@ -10,12 +10,17 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { View } from 'tamagui';
+import { useReduceTransparency } from '../../hooks/useA11y';
 
 type GlassCardProps = React.ComponentProps<typeof View> & {
     intensity?: number;
     tint?: 'light' | 'dark' | 'default';
     radius?: number;
 };
+
+// SolidFallback: when the OS asks for reduced transparency, frost becomes a
+// near-opaque solid so text never sits on a translucent surface.
+const SOLID_FALLBACK_FILL = 'rgba(255,255,255,0.94)';
 
 export function GlassCard({
     children,
@@ -24,6 +29,7 @@ export function GlassCard({
     radius = 26,
     ...rest
 }: GlassCardProps) {
+    const reduceTransparency = useReduceTransparency();
     return (
         <View
             borderRadius={radius}
@@ -41,8 +47,14 @@ export function GlassCard({
                 borderColor="$glassBorder"
                 style={{ borderCurve: 'continuous' }}
             >
-                <BlurView intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />
-                <View backgroundColor="$glass">{children}</View>
+                {!reduceTransparency && (
+                    <BlurView intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />
+                )}
+                <View
+                    backgroundColor={reduceTransparency ? SOLID_FALLBACK_FILL : '$glass'}
+                >
+                    {children}
+                </View>
             </View>
         </View>
     );
