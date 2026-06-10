@@ -495,6 +495,125 @@ class Purchase(Base):
     )
 
 
+class UserPlace(Base):
+    """A place in the user's life (spec 4.7, P2). Resolved from typed
+    addresses now; geofence-learned later (confirm-first). Coordinates are
+    the only location data stored - never raw GPS trails."""
+    __tablename__ = "user_places"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(80), nullable=False)
+    kind = Column(String(16), default="custom")  # home|work|gym|grocery|custom
+    google_place_id = Column(String(255), nullable=True)
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
+    radius_m = Column(Integer, default=150)
+    source = Column(String(16), default="typed")  # typed|learned|confirmed
+    confidence = Column(Float, default=1.0)
+    visit_count = Column(Integer, default=0)
+    last_visited_at = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_user_places_user_id", user_id),
+    )
+
+
+class CalendarConnection(Base):
+    """Calendar source (spec 4.7, P1). v1 = iOS EventKit ON-DEVICE only:
+    tokens stay NULL, the device reads events and POSTs busy projections to
+    /planner/signals. Google cloud sync is Phase 4+."""
+    __tablename__ = "calendar_connections"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+    provider = Column(String(24), default="ios_eventkit")  # ios_eventkit|google|manual
+    selected_calendar_ids = Column(JSON, default=list)
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_calendar_connections_user_id", user_id),
+    )
+
+
+class CalendarEvent(Base):
+    """A projected busy block (spec 4.7, P1). PROJECTED into obligations at
+    plan/today time - never written into onboarding.obligations. Raw titles
+    are optional and never sent to any LLM."""
+    __tablename__ = "calendar_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+    connection_id = Column(UUID(as_uuid=True), ForeignKey("calendar_connections.id", ondelete="CASCADE"), nullable=True)
+    external_event_id = Column(String(255), nullable=True)
+    title = Column(String(255), nullable=True)
+    starts_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at = Column(DateTime(timezone=True), nullable=False)
+    all_day = Column(Boolean, default=False)
+    location = Column(String(255), nullable=True)
+    place_id = Column(UUID(as_uuid=True), nullable=True)
+    is_busy = Column(Boolean, default=True)
+    recurrence_rule = Column(String(255), nullable=True)
+    status = Column(String(16), default="confirmed")
+    raw = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_calendar_events_user_id", user_id),
+        Index("idx_calendar_events_starts_at", starts_at),
+    )
+
+
+class GeofenceEvent(Base):
+    """Enter/exit/dwell at a known place (spec 4.7, P2). Device-pushed via
+    /planner/signals; pruned on a rolling window. Never raw GPS."""
+    __tablename__ = "geofence_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+    place_id = Column(UUID(as_uuid=True), nullable=True)
+    event_type = Column(String(8), default="enter")  # enter|exit|dwell
+    source = Column(String(16), default="device")
+    occurred_at = Column(DateTime(timezone=True), nullable=False)
+    dwell_min = Column(Integer, nullable=True)
+    processed = Column(Boolean, default=False)
+    device_event_id = Column(String(64), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_geofence_events_user_id", user_id),
+        Index("idx_geofence_events_occurred_at", occurred_at),
+    )
+
+
+class UserLearnedPrefs(Base):
+    """ONE row per user (spec 4.7, P3) - DERIVED values only, with per-field
+    confidence. Never raw GPS or health samples. Inferred values never mutate
+    the plan without user confirmation (weekly review) - confirm-first."""
+    __tablename__ = "user_learned_prefs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    learned_wake = Column(String(5), nullable=True)        # "HH:MM"
+    learned_sleep = Column(String(5), nullable=True)
+    learned_workout_window = Column(String(16), nullable=True)  # morning|midday|evening
+    commute_windows = Column(JSON, default=list)
+    task_best_times = Column(JSON, default=dict)           # task_kind -> "HH:MM"
+    energy_zones = Column(JSON, default=dict)
+    place_refs = Column(JSON, default=dict)
+    confidences = Column(JSON, default=dict)               # field -> 0..1
+    last_recomputed = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_user_learned_prefs_user_id", user_id),
+    )
+
+
 class AppEvent(Base):
     """Lightweight product analytics event (spec 0.9). One row per event;
     without this nothing in the funnel is measurable. Allowlisted names only
