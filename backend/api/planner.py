@@ -11,7 +11,7 @@ Later slices add: /planner/today, /planner/task/{id}/done|snooze|lock,
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -148,6 +148,11 @@ async def planner_today(
     sleep_hours = _stated_sleep_hours(ob)
     locked_in = bool((ob.get("lock_ins") or {}).get(target.isoformat()))
 
+    # Streak v2 state for the ring glyph + freeze-used card.
+    from services.schedule_streak import streak_payload_from_profile
+    profile = dict(user.profile or {}) if user else {}
+    streak = streak_payload_from_profile(profile, target)
+
     return {
         "date": target.isoformat(),
         "tasks": today_entry.get("tasks") or [],
@@ -157,7 +162,8 @@ async def planner_today(
         ),
         "held_back_count": len(held_back),
         "locked_in": locked_in,
-        "streak_armed_freeze": False,  # streak v2 (slice 0.7) fills this in
+        "streak_armed_freeze": streak["armed_freezes"] > 0,
+        "freeze_used_yesterday": streak["freeze_used_yesterday"],
     }
 
 
@@ -192,6 +198,121 @@ async def lock_in(
     user.onboarding = ob  # reassign so SQLAlchemy flushes the JSON change
     await db.commit()
     return {"locked_in": True, "date": target.isoformat()}
+
+
+def _window_for_time(hhmm: str | None) -> str:
+    m = _parse_hm_minutes(hhmm, 12 * 60)
+    if m < 12 * 60:
+        return "morning"
+    if m < 17 * 60:
+        return "midday"
+    return "evening"
+
+
+@router.get("/reviews/weekly")
+async def weekly_review(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """'This week with Max' - completion framed by what got DONE, plus
+    confirm-first learned facts (T1 schedule facts only in Phase 0; deeper
+    inference joins with the Learner). I never change the plan without asking.
+    """
+    from services.schedule_master_merge import merged_day_all_completed
+    from services.schedule_service import schedule_service
+
+    uid = _uid(current_user)
+    user = await db.get(User, uid)
+    ob = dict(user.onboarding or {}) if user else {}
+    schedules = await schedule_service.get_all_active_schedules(str(uid), db)
+
+    today = date.today()
+    days: list[dict[str, Any]] = []
+    window_hits: dict[str, int] = {"morning": 0, "midday": 0, "evening": 0}
+    for offset in range(6, -1, -1):
+        d = today - timedelta(days=offset)
+        diso = d.isoformat()
+        done = 0
+        total = 0
+        for sched in schedules:
+            for day in sched.get("days") or []:
+                if day.get("date") != diso:
+                    continue
+                for t in day.get("tasks") or []:
+                    total += 1
+                    if (t.get("status") or "") == "completed":
+                        done += 1
+                        window_hits[_window_for_time(t.get("time"))] += 1
+        days.append({
+            "date": diso,
+            "weekday": d.strftime("%a"),
+            "closed": bool(total) and merged_day_all_completed(schedules, diso),
+            "done": done,
+            "total": total,
+        })
+
+    closed_count = sum(1 for d in days if d["closed"])
+    active_days = sum(1 for d in days if d["total"] > 0)
+    strongest = max(window_hits, key=lambda k: window_hits[k]) if any(window_hits.values()) else None
+
+    # Confirm-first T1 facts - each one true, dated, derived from actual data.
+    confirmed = set((ob.get("confirmed_facts") or {}).keys())
+    facts: list[dict[str, str]] = []
+    if strongest and window_hits[strongest] >= 3 and "strongest_window" not in confirmed:
+        line = {
+            "morning": "You show up strongest in the morning. Lean the plan that way?",
+            "midday": "Midday is your window. Lean the plan that way?",
+            "evening": "You show up strongest in the evening. Lean the plan that way?",
+        }[strongest]
+        facts.append({"id": "strongest_window", "text": line, "value": strongest})
+    lock_ins = ob.get("lock_ins") or {}
+    if len(lock_ins) >= 3 and "locks_in_mornings" not in confirmed:
+        facts.append({
+            "id": "locks_in_mornings",
+            "text": "You lock in your day most mornings. Keep the morning check-in?",
+            "value": "true",
+        })
+
+    return {
+        "days": days,
+        "closed_count": closed_count,
+        "active_days": active_days,
+        "strongest_window": strongest,
+        "facts": facts,
+    }
+
+
+@router.post("/reviews/weekly")
+async def confirm_weekly_facts(
+    payload: dict = Body(default={}),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Store [Yep]/[Not quite] answers. Confirm-first is the ONLY way
+    inference changes the plan; rejected facts are remembered so they are
+    never re-asked."""
+    uid = _uid(current_user)
+    user = await db.get(User, uid)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    confirmations = payload.get("confirmations") or []
+    if not isinstance(confirmations, list):
+        raise HTTPException(status_code=422, detail="confirmations must be a list")
+    ob = dict(user.onboarding or {})
+    stored = dict(ob.get("confirmed_facts") or {})
+    for c in confirmations:
+        fid = str(c.get("id") or "").strip()
+        if not fid:
+            continue
+        stored[fid] = {
+            "accepted": bool(c.get("accepted")),
+            "value": c.get("value"),
+            "at": datetime.utcnow().isoformat(),
+        }
+    ob["confirmed_facts"] = stored
+    user.onboarding = ob
+    await db.commit()
+    return {"stored": len(confirmations)}
 
 
 @router.get("/held-back")

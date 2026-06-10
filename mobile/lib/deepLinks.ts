@@ -33,8 +33,7 @@ export function openDeepLink(link: DeepLink): boolean {
             });
             return true;
         case 'weekly_review':
-            // Weekly review ships in slice 0.7; until then land on Today.
-            nav.navigate('Main', { screen: 'MasterScheduleTab' });
+            nav.navigate('WeeklyReview');
             return true;
         case 'marketplace_item':
             nav.navigate('Main', { screen: 'Explore', params: { itemId: link.itemId } });

@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_rds_db_optional
-from middleware.auth_middleware import require_paid_user
+from middleware.auth_middleware import get_current_user
 from models.rds_models import Maxx
 from services.maxx_guidelines import MAXX_GUIDELINES, get_maxx_guideline
 
@@ -35,7 +35,7 @@ _DISPLAY: dict[str, dict[str, str]] = {
 
 @router.get("")
 async def list_maxes(
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
     """Return all active maxxes. RDS-backed when available, falls back to
@@ -55,7 +55,7 @@ async def list_maxes(
 @router.get("/{maxx_id}")
 async def get_maxx(
     maxx_id: str,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
     """Return a single maxx by id (e.g. 'fitmax')"""

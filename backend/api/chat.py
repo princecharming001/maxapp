@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db, get_rds_db_optional
-from middleware.auth_middleware import require_paid_user
+from middleware.auth_middleware import get_current_user
 from models.leaderboard import ChatRequest, ChatResponse
 from models.sqlalchemy_models import ChatHistory, Scan, User, UserSchedule
 from services.coaching_service import coaching_service
@@ -3863,7 +3863,7 @@ async def _extract_facts_bg(user_id: str, user_msg: str, assistant_response: str
 async def send_message(
     data: ChatRequest,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     rds_db: AsyncSession | None = Depends(get_rds_db_optional),
 ):
@@ -4044,7 +4044,7 @@ async def _send_message_locked(
 async def trigger_check_in(
     check_in_type: str = "midday",
     missed_today: int = 0,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     rds_db: AsyncSession | None = Depends(get_rds_db_optional),
 ):
@@ -4078,7 +4078,7 @@ async def get_chat_history(
     limit: int = 50,
     offset: int = 0,
     conversation_id: Optional[str] = None,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get in-app chat history.
@@ -4214,7 +4214,7 @@ class ConversationRenameBody(BaseModel):
 async def list_chat_conversations(
     include_archived: bool = False,
     limit: int = 50,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Return this user's chat threads, most recent first."""
@@ -4231,7 +4231,7 @@ async def list_chat_conversations(
 @router.post("/conversations")
 async def create_chat_conversation(
     body: ConversationCreateBody,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new chat thread. Returns the thread for immediate use."""
@@ -4249,7 +4249,7 @@ async def create_chat_conversation(
 async def rename_chat_conversation(
     conversation_id: str,
     body: ConversationRenameBody,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     from services import chat_conversations_service as _conv
@@ -4267,7 +4267,7 @@ async def rename_chat_conversation(
 @router.delete("/conversations/{conversation_id}")
 async def delete_chat_conversation(
     conversation_id: str,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Permanently delete the thread and its messages."""

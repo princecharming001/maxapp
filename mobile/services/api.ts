@@ -1024,6 +1024,24 @@ class ApiService {
         return response.data;
     }
 
+    async getWeeklyReview(): Promise<{
+        days: { date: string; weekday: string; closed: boolean; done: number; total: number }[];
+        closed_count: number;
+        active_days: number;
+        strongest_window: 'morning' | 'midday' | 'evening' | null;
+        facts: { id: string; text: string; value?: string }[];
+    }> {
+        const response = await this.client.get('planner/reviews/weekly');
+        return response.data;
+    }
+
+    async confirmWeeklyFacts(
+        confirmations: { id: string; accepted: boolean; value?: string }[],
+    ): Promise<{ stored: number }> {
+        const response = await this.client.post('planner/reviews/weekly', { confirmations });
+        return response.data;
+    }
+
     // Courses
     async getCourses() {
         const response = await this.client.get('courses');

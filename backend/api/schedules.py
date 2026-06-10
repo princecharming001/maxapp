@@ -15,7 +15,7 @@ from models.schedule import (
     AdaptScheduleRequest,
     EditTaskRequest,
 )
-from middleware.auth_middleware import require_paid_user
+from middleware.auth_middleware import get_current_user
 from services.schedule_service import schedule_service, ScheduleLimitError
 from services.schedule_streak import sync_master_schedule_streak
 from models.sqlalchemy_models import User
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/schedules", tags=["Schedules"])
 @router.post("/generate")
 async def generate_schedule(
     data: GenerateScheduleRequest,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     rds_db: AsyncSession = Depends(get_rds_db),
 ):
@@ -55,7 +55,7 @@ async def generate_schedule(
 @router.post("/generate-maxx")
 async def generate_maxx_schedule(
     data: GenerateMaxxScheduleRequest,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     rds_db: AsyncSession = Depends(get_rds_db),
 ):
@@ -86,7 +86,7 @@ async def generate_maxx_schedule(
 @router.get("/maxx/{maxx_id}")
 async def get_maxx_schedule(
     maxx_id: str,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get the user's active schedule for a specific maxx"""
@@ -100,7 +100,7 @@ async def get_maxx_schedule(
 async def get_current_schedule(
     course_id: str = None,
     module_number: int = None,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get the user's current active schedule, optionally filtered by course/module"""
@@ -114,7 +114,7 @@ async def get_current_schedule(
 
 @router.get("/active/all")
 async def get_all_active_schedules(
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get count and labels of all active schedules for the user."""
@@ -128,7 +128,7 @@ async def get_all_active_schedules(
 
 @router.get("/active/full")
 async def get_all_active_schedules_full(
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Full schedule documents for all active modules (master schedule / merged week view)."""
@@ -142,7 +142,7 @@ async def get_all_active_schedules_full(
 async def get_master_schedule(
     days: int = 14,
     today: Optional[str] = None,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Date-anchored master view across every active max.
@@ -176,7 +176,7 @@ async def get_master_schedule(
 @router.get("/{schedule_id}")
 async def get_schedule(
     schedule_id: str,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a specific schedule by ID"""
@@ -191,7 +191,7 @@ async def complete_task(
     schedule_id: str,
     task_id: str,
     data: CompleteTaskRequest = None,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Mark a scheduled task as completed"""
@@ -212,7 +212,7 @@ async def complete_task(
 async def uncomplete_task(
     schedule_id: str,
     task_id: str,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Mark a completed task as pending again (toggle off)."""
@@ -234,7 +234,7 @@ async def edit_task(
     task_id: str,
     data: EditTaskRequest,
     scope: str = "instance",
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Edit a scheduled task (change time, title, description, duration).
@@ -262,7 +262,7 @@ async def delete_task(
     schedule_id: str,
     task_id: str,
     scope: str = "instance",
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a task from the schedule.
@@ -287,7 +287,7 @@ async def delete_task(
 @router.put("/preferences")
 async def update_preferences(
     prefs: SchedulePreferences,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update schedule notification/time preferences"""
@@ -301,7 +301,7 @@ async def update_preferences(
 async def adapt_schedule(
     schedule_id: str,
     data: AdaptScheduleRequest,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Ask AI to adapt the schedule based on feedback"""
@@ -320,7 +320,7 @@ async def adapt_schedule(
 @router.post("/{schedule_id}/stop")
 async def stop_schedule(
     schedule_id: str,
-    current_user: dict = Depends(require_paid_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Deactivate/stop a schedule."""

@@ -275,6 +275,41 @@ export default function TodayScreen() {
                         </View>
                     ) : null}
 
+                    {/* streak v2: freeze-used card (locked copy, spec 3.5) */}
+                    {(data as any)?.freeze_used_yesterday ? (
+                        <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
+                            <View style={styles.noticeCard}>
+                                <Ionicons name="snow-outline" size={17} color={GOLD} />
+                                <Text style={styles.noticeText}>
+                                    Used a freeze for yesterday. Streak's safe.
+                                </Text>
+                            </View>
+                        </GlassCard>
+                    ) : null}
+
+                    {/* retention bridge: Max's first read, days 2-3 (spec 3.7) */}
+                    {streak > 0 && streak <= 3 && tasks.length > 0 ? (
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('WeeklyReview')}
+                            activeOpacity={0.8}
+                            accessibilityRole="button"
+                            accessibilityLabel="Max's first read on you"
+                        >
+                            <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
+                                <View style={styles.noticeCard}>
+                                    <Ionicons name="sparkles-outline" size={17} color={GOLD} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.noticeTitle}>Max's first read on you</Text>
+                                        <Text style={styles.noticeText}>
+                                            Day {streak} closed. See what Max noticed so far.
+                                        </Text>
+                                    </View>
+                                    <Ionicons name="chevron-forward" size={16} color={MUTE} />
+                                </View>
+                            </GlassCard>
+                        </TouchableOpacity>
+                    ) : null}
+
                     {/* loading skeleton: quiet anchor rails, never a spinner */}
                     {todayQ.isLoading ? (
                         <View style={{ marginTop: 16, gap: 14 }}>
@@ -564,6 +599,9 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.7)',
     },
     stateChipText: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE },
+    noticeCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
+    noticeTitle: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK },
+    noticeText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#3A3A3F', flexShrink: 1 },
     bannerWrap: {
         borderRadius: 24,
         overflow: 'hidden',

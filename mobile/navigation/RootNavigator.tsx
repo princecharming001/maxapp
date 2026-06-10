@@ -52,6 +52,7 @@ import ScanOnlyNavigator from './ScanOnlyNavigator';
 import { userHasSignupPhone } from '../utils/userPhone';
 import OnboardingV2Screen from '../screens/onboarding/OnboardingV2Screen';
 import RevealV2Screen from '../screens/onboarding/RevealV2Screen';
+import WeeklyReviewScreen from '../screens/review/WeeklyReviewScreen';
 import { useFlag } from '../constants/featureFlags';
 
 const Stack = createNativeStackNavigator();
@@ -170,6 +171,7 @@ export function RootNavigator() {
                     <Stack.Screen name="PersonalInfo" component={PersonalInfoScreen} />
                     <Stack.Screen name="ProgressArchive" component={ProgressArchiveScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FaceScanArchive" component={FaceScanArchiveScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="WeeklyReview" component={WeeklyReviewScreen} options={{ headerShown: false }} />
 
                     <Stack.Screen name="CourseList" component={CourseListScreen} />
                     <Stack.Screen name="CourseDetail" component={CourseDetailScreen} options={{ headerShown: false }} />

@@ -12,8 +12,11 @@ import Animated, {
   useSharedValue,
   withRepeat,
   withSequence,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { useFlag } from '../constants/featureFlags';
 
 const AnimatedView = Animated.createAnimatedComponent(View);
 
@@ -37,7 +40,27 @@ export function StreakFireBadge({ streakDays, variant = 'header' }: Props) {
   const narrow = display.length >= 3;
 
   const floatY = useSharedValue(0);
+  const pop = useSharedValue(1);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const streakV2 = useFlag('streakV2');
+  const prevStreak = React.useRef(streakDays);
+
+  // Streak v2 (spec 3.5): the badge celebrates the INCREMENT, not just idle
+  // float - scale pop 1 -> 1.18 -> 1 (damping 12) + one Success haptic.
+  useEffect(() => {
+    const prev = prevStreak.current;
+    prevStreak.current = streakDays;
+    if (!streakV2 || streakDays <= prev) return;
+    if (!reduceMotion) {
+      pop.value = withSequence(
+        withSpring(1.18, { damping: 12, stiffness: 220 }),
+        withSpring(1, { damping: 12, stiffness: 200 }),
+      );
+    }
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
+  }, [streakDays, streakV2, reduceMotion, pop]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +90,7 @@ export function StreakFireBadge({ streakDays, variant = 'header' }: Props) {
   }, [floatY, reduceMotion]);
 
   const flameMotion = useAnimatedStyle(() => ({
-    transform: [{ translateY: floatY.value }],
+    transform: [{ translateY: floatY.value }, { scale: pop.value }],
   }));
 
   const fontSize = narrow ? dim.numSize - 1 : dim.numSize;
