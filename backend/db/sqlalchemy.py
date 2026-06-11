@@ -315,6 +315,8 @@ async def _run_column_migrations():
         "ALTER TABLE user_schedules ALTER COLUMN module_number DROP NOT NULL",
         "ALTER TABLE user_schedules ADD COLUMN IF NOT EXISTS reflow_state JSONB DEFAULT '{}'",
         "ALTER TABLE user_schedules ADD COLUMN IF NOT EXISTS jitai_state JSONB DEFAULT '{}'",
+        "ALTER TABLE calendar_connections ADD COLUMN IF NOT EXISTS tokens JSONB DEFAULT '{}'",
+        "ALTER TABLE user_places ADD COLUMN IF NOT EXISTS address VARCHAR",
     ]
     applied = 0
     for sql in migrations:

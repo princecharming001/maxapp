@@ -505,6 +505,7 @@ class UserPlace(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(80), nullable=False)
     kind = Column(String(16), default="custom")  # home|work|gym|grocery|custom
+    address = Column(String(255), nullable=True)
     google_place_id = Column(String(255), nullable=True)
     lat = Column(Float, nullable=True)
     lng = Column(Float, nullable=True)
@@ -531,6 +532,9 @@ class CalendarConnection(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
     provider = Column(String(24), default="ios_eventkit")  # ios_eventkit|google|manual
     selected_calendar_ids = Column(JSON, default=list)
+    # OAuth tokens for cloud providers (google). EventKit/manual stay empty -
+    # the on-device path never stores tokens (spec 4.8).
+    tokens = Column(JSON, default=dict)
     last_synced_at = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)

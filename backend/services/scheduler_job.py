@@ -948,6 +948,34 @@ async def send_winback_pushes():
         logger.error(f"Win-back job error: {e}", exc_info=True)
 
 
+async def sync_google_calendars():
+    """Poll Google Calendar for every connected user (30-min cadence). The
+    events land in the same calendar_events table the device path uses, so
+    the merge/today-read/feasibility logic is identical either way."""
+    try:
+        from models.sqlalchemy_models import CalendarConnection
+        from services.google_integration import google_oauth_available, sync_google_calendar
+
+        if not google_oauth_available():
+            return
+        async with AsyncSessionLocal() as db:
+            res = await db.execute(
+                select(CalendarConnection).where(
+                    (CalendarConnection.provider == "google")
+                    & (CalendarConnection.is_active.is_(True))
+                )
+            )
+            user_ids = [c.user_id for c in res.scalars().all()]
+        for uid in user_ids:
+            try:
+                async with AsyncSessionLocal() as db:
+                    await sync_google_calendar(uid, db)
+            except Exception as e:
+                logger.warning("google calendar poll failed for %s: %s", uid, e)
+    except Exception as e:
+        logger.error(f"Google calendar poll job error: {e}", exc_info=True)
+
+
 def start_scheduler(app):
     """Start the APScheduler background job."""
     try:
@@ -1002,6 +1030,13 @@ def start_scheduler(app):
             "interval",
             minutes=weekly_m,
             id="weekly_resets",
+            **job_defaults,
+        )
+        scheduler.add_job(
+            sync_google_calendars,
+            "interval",
+            minutes=30,
+            id="google_calendar_poll",
             **job_defaults,
         )
         scheduler.add_job(

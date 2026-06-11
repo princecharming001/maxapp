@@ -240,6 +240,43 @@ async def planner_today(
     welcome_back = welcome_back_state(profile, target)
     insights = await fresh_insights(user, db) if user else []
 
+    # Leave-by hint (Maps Distance Matrix, cached, honest fallback): for the
+    # first pending gym-bound task today, "leave by" = slot - commute - 10min.
+    leave_by = None
+    if target == date.today():
+        from models.sqlalchemy_models import UserPlace
+        gym_task = next(
+            (t for t in tasks_today
+             if (t.get("status") or "pending") != "completed"
+             and set(t.get("tags") or []) & {"workout", "training", "lift", "gym"}),
+            None,
+        )
+        if gym_task is not None:
+            places = {(p.kind): p for p in (await db.execute(
+                select(UserPlace).where(
+                    (UserPlace.user_id == uid) & (UserPlace.is_active.is_(True))
+                )
+            )).scalars().all()}
+            home, gym = places.get("home"), places.get("gym")
+            if home is not None and gym is not None:
+                try:
+                    from services.google_integration import commute_minutes, maps_available
+                    minutes = await commute_minutes(home, gym)
+                    slot = _parse_hm_minutes(gym_task.get("time"), -1)
+                    if slot > 0:
+                        lb = max(0, slot - minutes - 10)
+                        leave_by = {
+                            "task_id": gym_task.get("task_id"),
+                            "time": f"{lb // 60:02d}:{lb % 60:02d}",
+                            "estimated": not maps_available(),
+                            "line": (
+                                f"Leave by {lb // 60 % 12 or 12}:{lb % 60:02d}"
+                                f"{'p' if lb >= 12 * 60 else 'a'} to make your session."
+                            ),
+                        }
+                except Exception:
+                    leave_by = None
+
     return {
         "date": target.isoformat(),
         "tasks": today_entry.get("tasks") or [],
@@ -256,6 +293,7 @@ async def planner_today(
         "slipped": slipped_payload,
         "welcome_back": welcome_back,
         "insights": insights,
+        "leave_by": leave_by,
         "streak_armed_freeze": streak["armed_freezes"] > 0,
         "freeze_used_yesterday": streak["freeze_used_yesterday"],
     }
@@ -379,6 +417,9 @@ async def list_places(
                 "kind": p.kind,
                 "radius_m": p.radius_m,
                 "source": p.source,
+                "lat": p.lat,
+                "lng": p.lng,
+                "resolved": p.lat is not None and p.lng is not None,
             }
             for p in res.scalars().all()
         ]
@@ -417,7 +458,16 @@ async def upsert_place(
     else:
         place = UserPlace(user_id=uid, name=name, kind=kind, source="typed")
         db.add(place)
+    if payload.get("address"):
+        place.address = str(payload["address"])[:255]
     await db.commit()
+    # Best-effort Google Places resolution (no-op without a Maps key). The
+    # commute/leave-by features light up once lat/lng exist.
+    try:
+        from services.google_integration import resolve_place
+        await resolve_place(place, db)
+    except Exception:
+        pass
     return {"id": str(place.id), "name": place.name, "kind": place.kind}
 
 

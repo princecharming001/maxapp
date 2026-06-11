@@ -1022,6 +1022,7 @@ class ApiService {
         slipped: { task_id?: string; title?: string; from_time?: string; suggested_time?: string | null }[];
         welcome_back: { gap_days: number; line: string; sub: string } | null;
         insights: { id: string; text: string; kind: string }[];
+        leave_by: { task_id?: string; time: string; estimated: boolean; line: string } | null;
         streak_armed_freeze: boolean;
         freeze_used_yesterday?: boolean;
     }> {
@@ -1042,7 +1043,48 @@ class ApiService {
         return response.data;
     }
 
-    async getPlaces(): Promise<{ places: { id: string; name: string; kind: string; radius_m: number; source: string }[] }> {
+    // Google integrations
+    async getGoogleStatus(): Promise<{
+        oauth_available: boolean;
+        maps_available: boolean;
+        gmail_available: boolean;
+        connected: boolean;
+        last_synced_at: string | null;
+    }> {
+        const response = await this.client.get('google/status');
+        return response.data;
+    }
+
+    async getGoogleAuthUrl(includeGmail = false): Promise<{ auth_url: string }> {
+        const response = await this.client.get('google/connect', {
+            params: { include_gmail: includeGmail },
+        });
+        return response.data;
+    }
+
+    async googleSyncNow(): Promise<{ synced: number }> {
+        const response = await this.client.post('google/sync');
+        return response.data;
+    }
+
+    async googleGmailScan(): Promise<{ proposed: number }> {
+        const response = await this.client.post('google/gmail/scan');
+        return response.data;
+    }
+
+    async getGoogleProposed(): Promise<{
+        proposed: { id: string; title: string; starts_at: string; ends_at: string }[];
+    }> {
+        const response = await this.client.get('google/proposed');
+        return response.data;
+    }
+
+    async resolveGoogleProposed(eventId: string, confirm: boolean): Promise<{ status: string }> {
+        const response = await this.client.post(`google/proposed/${eventId}`, { confirm });
+        return response.data;
+    }
+
+    async getPlaces(): Promise<{ places: { id: string; name: string; kind: string; radius_m: number; source: string; lat?: number | null; lng?: number | null; resolved?: boolean }[] }> {
         const response = await this.client.get('planner/places');
         return response.data;
     }

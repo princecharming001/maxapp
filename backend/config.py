@@ -148,6 +148,19 @@ class Settings(BaseSettings):
     # External Facial Analysis API (cannon_facial_analysis service)
     facial_analysis_api_url: str = Field(default="http://13.236.183.141:8001/api")
     
+    # Google integrations (Calendar / Gmail OAuth + Maps Platform). All
+    # default-empty: every Google feature no-ops gracefully until keys land.
+    google_client_id: str = Field(default="")
+    google_client_secret: str = Field(default="")
+    google_redirect_uri: str = Field(
+        default="", description="OAuth callback, e.g. https://api.usemaxapp.com/api/google/callback"
+    )
+    google_maps_api_key: str = Field(default="", description="Places + Distance Matrix (server-side)")
+    gmail_scan_enabled: bool = Field(
+        default=False,
+        description="Gmail commitment scanning (restricted scope - enable only after CASA review)",
+    )
+
     # Stripe -- secret key stays server-side; publishable key is only for reference / admin.
     stripe_secret_key: str = Field(default="")
     stripe_publishable_key: str = Field(default="")

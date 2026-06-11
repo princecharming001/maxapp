@@ -463,6 +463,15 @@ export default function TodayScreen() {
                                         {nextUp.why ? `  ·  ${nextUp.why}` : ''}
                                     </Text>
                                     <Text style={styles.heroTitle}>{nextUp.title}</Text>
+                                    {data?.leave_by && data.leave_by.task_id === nextUp.task_id ? (
+                                        <View style={styles.leaveByRow}>
+                                            <Ionicons name="navigate-outline" size={13} color={GOLD} />
+                                            <Text style={styles.leaveByText}>
+                                                {data.leave_by.line}
+                                                {data.leave_by.estimated ? ' (rough estimate)' : ''}
+                                            </Text>
+                                        </View>
+                                    ) : null}
                                     {nextUp.description ? (
                                         <Text style={styles.heroDesc} numberOfLines={2}>
                                             {nextUp.description}
@@ -709,6 +718,8 @@ const styles = StyleSheet.create({
     },
     stateChipText: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE },
     noticeCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
+    leaveByRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
+    leaveByText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: '#8a6a10' },
     slipKicker: { fontFamily: 'Matter-SemiBold', fontSize: 10.5, letterSpacing: 1.6, color: GOLD },
     slipTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 22, color: INK, marginTop: 3 },
     noticeTitle: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK },

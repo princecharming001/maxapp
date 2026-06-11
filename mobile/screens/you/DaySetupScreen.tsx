@@ -85,6 +85,197 @@ function StepTime({
     );
 }
 
+/** Google Calendar / Gmail connect + the confirm-first proposed commitments. */
+function GoogleSection() {
+    const queryClient = useQueryClient();
+    const statusQ = useQuery({ queryKey: ['googleStatus'], queryFn: () => api.getGoogleStatus() });
+    const proposedQ = useQuery({
+        queryKey: ['googleProposed'],
+        queryFn: () => api.getGoogleProposed(),
+        enabled: !!statusQ.data?.connected,
+    });
+
+    const connect = useMutation({
+        mutationFn: () => api.getGoogleAuthUrl(statusQ.data?.gmail_available ?? false),
+        onSuccess: ({ auth_url }) => {
+            if (Platform.OS === 'web') {
+                window.open(auth_url, '_blank');
+            } else {
+                const { Linking } = require('react-native');
+                Linking.openURL(auth_url);
+            }
+        },
+    });
+    const sync = useMutation({
+        mutationFn: () => api.googleSyncNow(),
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['plannerToday'] });
+            queryClient.invalidateQueries({ queryKey: ['googleStatus'] });
+        },
+    });
+    const scan = useMutation({
+        mutationFn: () => api.googleGmailScan(),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['googleProposed'] }),
+    });
+    const resolve = useMutation({
+        mutationFn: ({ id, confirm }: { id: string; confirm: boolean }) =>
+            api.resolveGoogleProposed(id, confirm),
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['googleProposed'] });
+            queryClient.invalidateQueries({ queryKey: ['plannerToday'] });
+        },
+    });
+
+    const s = statusQ.data;
+    if (!s) return null;
+
+    return (
+        <>
+            <Text style={styles.label}>GOOGLE</Text>
+            <GlassCard radius={20} style={{ marginTop: 8 }}>
+                <View style={{ padding: 16 }}>
+                    {!s.oauth_available ? (
+                        <View style={styles.deviceNote}>
+                            <Ionicons name="logo-google" size={14} color={MUTE} />
+                            <Text style={styles.deviceNoteText}>
+                                Google Calendar sync is ready to turn on server-side.
+                                Until then, add blocks by hand below.
+                            </Text>
+                        </View>
+                    ) : s.connected ? (
+                        <>
+                            <View style={styles.deviceNote}>
+                                <Ionicons name="checkmark-circle" size={15} color="#3D8B4F" />
+                                <Text style={[styles.deviceNoteText, { color: '#3D8B4F' }]}>
+                                    Google Calendar connected.
+                                    {s.last_synced_at ? ' Synced recently.' : ''}
+                                </Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                                <View style={{ flex: 1 }}>
+                                    <GlassButton
+                                        variant="glass"
+                                        label="Sync now"
+                                        loading={sync.isPending}
+                                        onPress={() => sync.mutate()}
+                                    />
+                                </View>
+                                {s.gmail_available ? (
+                                    <View style={{ flex: 1 }}>
+                                        <GlassButton
+                                            variant="glass"
+                                            label="Scan Gmail"
+                                            loading={scan.isPending}
+                                            onPress={() => scan.mutate()}
+                                        />
+                                    </View>
+                                ) : null}
+                            </View>
+                        </>
+                    ) : (
+                        <>
+                            <Text style={styles.deviceNoteText}>
+                                Connect Google Calendar so Max plans around your real
+                                events automatically. Read-only.
+                            </Text>
+                            <View style={{ marginTop: 10 }}>
+                                <GlassButton
+                                    variant="primary"
+                                    label="Connect Google Calendar"
+                                    loading={connect.isPending}
+                                    onPress={() => connect.mutate()}
+                                />
+                            </View>
+                        </>
+                    )}
+
+                    {(proposedQ.data?.proposed?.length ?? 0) > 0 ? (
+                        <>
+                            <View style={styles.hairline} />
+                            <Text style={[styles.deviceNoteText, { marginBottom: 6 }]}>
+                                Found in your inbox. Add to your plan?
+                            </Text>
+                            {proposedQ.data!.proposed.map((p) => (
+                                <View key={p.id} style={styles.proposedRow}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.blockText} numberOfLines={1}>
+                                            {p.title}
+                                        </Text>
+                                        <Text style={styles.deviceNoteText}>
+                                            {new Date(p.starts_at).toLocaleString('en-US', {
+                                                weekday: 'short',
+                                                hour: 'numeric',
+                                                minute: '2-digit',
+                                            })}
+                                        </Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        onPress={() => resolve.mutate({ id: p.id, confirm: true })}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Add ${p.title}`}
+                                        style={styles.proposedBtn}
+                                    >
+                                        <Ionicons name="checkmark" size={16} color="#3D8B4F" />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => resolve.mutate({ id: p.id, confirm: false })}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Dismiss ${p.title}`}
+                                        style={styles.proposedBtn}
+                                    >
+                                        <Ionicons name="close" size={16} color={MUTE} />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </>
+                    ) : null}
+                </View>
+            </GlassCard>
+        </>
+    );
+}
+
+/** iOS EventKit sync: reads stay on the phone, only busy projections leave. */
+function AppleCalendarSync() {
+    const queryClient = useQueryClient();
+    const [result, setResult] = useState<string | null>(null);
+    const sync = useMutation({
+        mutationFn: async () => {
+            const { syncDeviceCalendar } = require('../../services/deviceCalendar');
+            return syncDeviceCalendar() as Promise<{ synced: number; reason?: string }>;
+        },
+        onSuccess: (r) => {
+            if (r.synced > 0) {
+                setResult(`Synced ${r.synced} event${r.synced === 1 ? '' : 's'}. Reads stay on your phone.`);
+                queryClient.invalidateQueries({ queryKey: ['plannerToday'] });
+            } else if (r.reason === 'permission_denied') {
+                setResult('Calendar access is off. Enable it in Settings whenever.');
+            } else if (r.reason === 'module_unavailable') {
+                setResult('Apple Calendar sync activates with the next app update.');
+            } else {
+                setResult('Nothing new to sync.');
+            }
+        },
+    });
+    return (
+        <View style={{ marginBottom: 10 }}>
+            <View style={styles.deviceNote}>
+                <Ionicons name="logo-apple" size={14} color={MUTE} />
+                <Text style={styles.deviceNoteText}>
+                    Apple Calendar reads stay on your phone. Only busy times reach Max.
+                </Text>
+            </View>
+            <GlassButton
+                variant="glass"
+                label="Sync Apple Calendar"
+                loading={sync.isPending}
+                onPress={() => sync.mutate()}
+            />
+            {result ? <Text style={styles.note}>{result}</Text> : null}
+        </View>
+    );
+}
+
 export default function DaySetupScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
@@ -166,19 +357,14 @@ export default function DaySetupScreen() {
                     actually holds.
                 </Text>
 
+                {/* Google connect */}
+                <GoogleSection />
+
                 {/* calendar */}
                 <Text style={styles.label}>TODAY'S BUSY BLOCKS</Text>
                 <GlassCard radius={20} style={{ marginTop: 8 }}>
                     <View style={{ padding: 16 }}>
-                        {Platform.OS === 'ios' ? (
-                            <View style={styles.deviceNote}>
-                                <Ionicons name="logo-apple" size={14} color={MUTE} />
-                                <Text style={styles.deviceNoteText}>
-                                    Apple Calendar sync arrives with the next app update.
-                                    Reads stay on your phone.
-                                </Text>
-                            </View>
-                        ) : null}
+                        {Platform.OS === 'ios' ? <AppleCalendarSync /> : null}
                         {calendarRows.length ? (
                             calendarRows.map((r, i) => (
                                 <View key={i} style={styles.blockRow}>
@@ -336,5 +522,12 @@ const styles = StyleSheet.create({
     kindChipActive: { borderColor: GOLD, backgroundColor: 'rgba(212,160,23,0.12)' },
     kindChipText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: '#3A3A3F' },
     note: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: '#3D8B4F', marginTop: 8, textAlign: 'center' },
+    proposedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+    proposedBtn: {
+        width: 32, height: 32, borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.8)',
+        alignItems: 'center', justifyContent: 'center',
+        borderWidth: 1, borderColor: 'rgba(17,17,19,0.08)',
+    },
     fineNote: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 16, lineHeight: 18, textAlign: 'center' },
 });
