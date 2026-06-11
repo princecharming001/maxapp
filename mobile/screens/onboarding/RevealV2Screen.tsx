@@ -142,6 +142,23 @@ export default function RevealV2Screen() {
                         <Text style={styles.title}>Here's your{'\n'}next 24 hours</Text>
                         {todayQ.isLoading ? (
                             <RevealRailSkeleton />
+                        ) : todayQ.isError || taskCount === 0 ? (
+                            <View style={{ marginTop: 24 }}>
+                                <Text style={styles.sub}>
+                                    {todayQ.isError
+                                        ? "Couldn't load your day. Check your connection and try again."
+                                        : 'Your day is set up. Tasks land as soon as you pick a program in Explore.'}
+                                </Text>
+                                {todayQ.isError ? (
+                                    <View style={{ marginTop: 14 }}>
+                                        <GlassButton
+                                            variant="glass"
+                                            label="Try again"
+                                            onPress={() => todayQ.refetch()}
+                                        />
+                                    </View>
+                                ) : null}
+                            </View>
                         ) : (
                             <View style={{ marginTop: 20 }}>
                                 <RevealChoreography
@@ -158,8 +175,8 @@ export default function RevealV2Screen() {
                         <View style={{ marginTop: 'auto', paddingTop: 24 }}>
                             <GlassButton
                                 variant="primary"
-                                label="Looks right"
-                                disabled={todayQ.isLoading || !revealSettled}
+                                label={taskCount === 0 && !todayQ.isLoading && !todayQ.isError ? 'Continue' : 'Looks right'}
+                                disabled={todayQ.isLoading || (taskCount > 0 && !revealSettled)}
                                 onPress={() => setPhase('notifications')}
                             />
                         </View>
@@ -204,8 +221,16 @@ export default function RevealV2Screen() {
                                 label="Scan now"
                                 loading={busy}
                                 onPress={async () => {
+                                    // Completing onboarding swaps the root stack
+                                    // (this navigator unmounts) - navigate via the
+                                    // shared ref AFTER the new stack mounts.
                                     await completeOnboarding();
-                                    navigation.navigate('FaceScan');
+                                    const { navigationRef } = require('../../lib/navigationRef');
+                                    setTimeout(() => {
+                                        if (navigationRef.isReady()) {
+                                            (navigationRef as any).navigate('FaceScan');
+                                        }
+                                    }, 400);
                                 }}
                             />
                             <GlassButton

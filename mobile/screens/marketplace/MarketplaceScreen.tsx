@@ -18,6 +18,7 @@ import {
 import { A11yBlurView as BlurView } from '../../components/glass/SolidFallback';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
@@ -89,12 +90,36 @@ function FeasibilityBlock({ programId }: { programId: string }) {
 
 export default function MarketplaceScreen() {
     const insets = useSafeAreaInsets();
+    const navigation = useNavigation<any>();
+    const route = useRoute<any>();
     const [maxxes, setMaxxes] = useState<MarketplaceItem[]>([]);
     const [courses, setCourses] = useState<MarketplaceItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [detail, setDetail] = useState<MarketplaceItem | null>(null);
+
+    // Deep links / You > Purchases pass itemId - open that detail sheet.
+    useEffect(() => {
+        const itemId = route.params?.itemId;
+        if (!itemId || loading) return;
+        const item = [...maxxes, ...courses].find((i) => i.id === itemId);
+        if (item) {
+            setDetail(item);
+            navigation.setParams({ itemId: undefined });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [route.params?.itemId, loading]);
+
+    // Returning from Stripe checkout (or anywhere): refetch entitlements so
+    // a completed purchase shows as entered without a manual reload.
+    useEffect(() => {
+        const unsub = navigation.addListener?.('focus', () => {
+            if (!loading) void load();
+        });
+        return unsub;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [navigation, loading]);
 
     const load = useCallback(async () => {
         try {
@@ -278,7 +303,19 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
                                 your week. First one {miniReveal.first}.
                             </Text>
                             <View style={{ marginTop: 18 }}>
-                                <GlassButton variant="primary" label="See my day" onPress={onClose} />
+                                <GlassButton
+                                    variant="primary"
+                                    label="See my day"
+                                    onPress={() => {
+                                        onClose();
+                                        const { navigationRef } = require('../../lib/navigationRef');
+                                        if (navigationRef.isReady()) {
+                                            (navigationRef as any).navigate('Main', {
+                                                screen: 'MasterScheduleTab',
+                                            });
+                                        }
+                                    }}
+                                />
                             </View>
                             <TouchableOpacity onPress={onClose} style={{ paddingVertical: 12, alignItems: 'center' }} activeOpacity={0.6}>
                                 <Text style={styles.closeText}>Close</Text>
@@ -292,7 +329,7 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
                         </View>
                         <Text style={styles.sheetTitle}>{item.title}</Text>
                         <Text style={styles.sheetCreator}>
-                            {item.native ? 'by Max' : `by ${item.creator.name}  @${item.creator.handle}${item.creator.verified ? '  ✓' : ''}`}
+                            {item.native ? 'by Max' : `by ${item.creator.name}  @${item.creator.handle}${item.creator.verified ? '  (verified)' : ''}`}
                         </Text>
                         <Text style={styles.sheetTagline}>{item.tagline}</Text>
 
@@ -300,7 +337,7 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
                             <View style={styles.statsRow}>
                                 {item.participants ? <Stat label="on plan" value={fmtK(item.participants)} /> : null}
                                 {item.completion_rate ? <Stat label="finish wk 1" value={`${Math.round(item.completion_rate * 100)}%`} /> : null}
-                                {item.rating ? <Stat label="rating" value={`★ ${item.rating.toFixed(1)}`} /> : null}
+                                {item.rating ? <Stat label="rating" value={`${item.rating.toFixed(1)} / 5`} /> : null}
                             </View>
                         ) : null}
 

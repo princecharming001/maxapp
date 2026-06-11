@@ -8,8 +8,9 @@
  * why-lines and provenance) -> held-back chip -> evening close-out.
  * Old MasterScheduleScreen stays the fallback when the flag is off.
  */
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    AppState,
     Platform,
     RefreshControl,
     ScrollView,
@@ -80,15 +81,44 @@ export default function TodayScreen() {
     const insets = useSafeAreaInsets();
     const queryClient = useQueryClient();
     const [showHeldBack, setShowHeldBack] = useState(false);
-    const [undo, setUndo] = useState<{ task: PlannerTask } | null>(null);
+    const [undo, setUndo] = useState<{ task: PlannerTask; promise?: Promise<unknown> } | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // A living clock: time-derived UI (lock-in banner, NEXT UP, close-out)
+    // follows the real clock instead of freezing at first render. Foreground
+    // also refetches, so a phone left open overnight wakes to the new day.
+    const [now, setNow] = useState(() => new Date());
 
     const todayQ = useQuery({
         queryKey: TODAY_QK,
         queryFn: () => api.getPlannerToday(),
         staleTime: 30_000,
     });
+
+    useEffect(() => {
+        const tick = setInterval(() => setNow(new Date()), 60_000);
+        const sub = AppState.addEventListener('change', (state) => {
+            if (state === 'active') {
+                setNow(new Date());
+                todayQ.refetch();
+            }
+        });
+        return () => {
+            clearInterval(tick);
+            sub.remove();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // New-day / timezone-jump detection: the server's plan date no longer
+    // matches the device's local date -> refetch rather than show yesterday.
+    const deviceDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    useEffect(() => {
+        if (todayQ.data?.date && todayQ.data.date !== deviceDate) {
+            todayQ.refetch();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [deviceDate, todayQ.data?.date]);
     const streakQ = useQuery({
         queryKey: ['activeSchedulesFull'],
         queryFn: () => api.getActiveSchedulesFull(),
@@ -118,53 +148,67 @@ export default function TodayScreen() {
     }, [data]);
 
     const tasks = (data?.tasks ?? []) as PlannerTask[];
-    const pending = tasks.filter((t) => (t.status || 'pending') !== 'completed');
+    const pending = tasks.filter(
+        (t) => !['completed', 'skipped'].includes(t.status || 'pending'),
+    );
     const completed = tasks.filter((t) => t.status === 'completed');
     const programCount = new Set(tasks.map((t) => t.maxx_id).filter(Boolean)).size;
 
-    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
     const nextUp =
         pending.find((t) => toMin(t.time) >= nowMin) ?? pending[0] ?? null;
 
-    const hour = new Date().getHours();
+    const hour = now.getHours();
     const isMorning = hour < 12;
-    const isEvening = hour >= 20 || (tasks.length > 0 && pending.length === 0);
+    // Close-out is COMPLETION-driven, never clock-driven: 8pm with open tasks
+    // keeps the NEXT UP hero (a 9pm wind-down still needs its Done button)
+    // instead of congratulating over unchecked rows.
+    const isEvening = tasks.length > 0 && pending.length === 0;
 
     // --- mutations (optimistic, instant, never network-gated) ---------------
 
-    const patchTaskStatus = useCallback(
-        (taskId: string | undefined, status: string) => {
-            queryClient.setQueryData(TODAY_QK, (old: any) =>
-                old
-                    ? {
-                          ...old,
-                          tasks: old.tasks.map((t: PlannerTask) =>
-                              t.task_id === taskId ? { ...t, status } : t,
-                          ),
-                      }
-                    : old,
-            );
+    // Canonical optimistic pattern for EVERY mutation: cancel in-flight
+    // refetches (so a stale response can't clobber the patch a moment later),
+    // snapshot, patch, and roll the snapshot back on error.
+    const snapshotAndPatch = useCallback(
+        async (patch: (old: any) => any) => {
+            await queryClient.cancelQueries({ queryKey: TODAY_QK });
+            const prev = queryClient.getQueryData(TODAY_QK);
+            queryClient.setQueryData(TODAY_QK, (old: any) => (old ? patch(old) : old));
+            return { prev };
         },
         [queryClient],
     );
+    const rollback = useCallback(
+        (ctx?: { prev?: unknown }) => {
+            if (ctx?.prev !== undefined) {
+                queryClient.setQueryData(TODAY_QK, ctx.prev);
+            }
+        },
+        [queryClient],
+    );
+    const patchStatus = (taskId: string | undefined, status: string) => (old: any) => ({
+        ...old,
+        tasks: old.tasks.map((t: PlannerTask) =>
+            t.task_id === taskId ? { ...t, status } : t,
+        ),
+    });
 
     const doneMutation = useMutation({
         mutationFn: (t: PlannerTask) =>
             api.completeScheduleTask(t.schedule_id!, t.task_id!),
         onMutate: async (t) => {
             haptic('success');
-            patchTaskStatus(t.task_id, 'completed');
+            const ctx = await snapshotAndPatch(patchStatus(t.task_id, 'completed'));
             track('done_tapped', { program: t.maxx_id });
             // Last open task of the day -> the day is closed.
             if (pending.length === 1 && pending[0]?.task_id === t.task_id) {
                 track('day_closed', { done: completed.length + 1 });
             }
-            if (undoTimer.current) clearTimeout(undoTimer.current);
-            setUndo({ task: t });
-            undoTimer.current = setTimeout(() => setUndo(null), 4000);
+            return ctx;
         },
-        onError: (_e, t) => {
-            patchTaskStatus(t.task_id, 'pending');
+        onError: (_e, _t, ctx) => {
+            rollback(ctx);
             setUndo(null);
             haptic('warning');
             setToast("Couldn't save. Tap the task to retry.");
@@ -180,32 +224,48 @@ export default function TodayScreen() {
             api.uncompleteScheduleTask(t.schedule_id!, t.task_id!),
         onMutate: async (t) => {
             haptic('light');
-            patchTaskStatus(t.task_id, 'pending');
             setUndo(null);
+            return snapshotAndPatch(patchStatus(t.task_id, 'pending'));
         },
+        onError: (_e, _t, ctx) => rollback(ctx),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: TODAY_QK }),
     });
+
+    const markDone = (t: PlannerTask) => {
+        if (undoTimer.current) clearTimeout(undoTimer.current);
+        // The undo button waits for the in-flight complete to land before
+        // firing uncomplete - otherwise the two PUTs race and the server can
+        // finish in the wrong order.
+        const promise = doneMutation.mutateAsync(t).catch(() => {});
+        setUndo({ task: t, promise });
+        undoTimer.current = setTimeout(() => setUndo(null), 4000);
+    };
+
+    const fireUndo = () => {
+        if (!undo) return;
+        const { task, promise } = undo;
+        setUndo(null);
+        (promise ?? Promise.resolve()).then(() => undoMutation.mutate(task));
+    };
 
     const snoozeMutation = useMutation({
         mutationFn: ({ t, newTime }: { t: PlannerTask; newTime: string }) =>
             api.editScheduleTask(t.schedule_id!, t.task_id!, { time: newTime }, 'instance'),
         onMutate: async ({ t, newTime }) => {
             haptic('light');
-            queryClient.setQueryData(TODAY_QK, (old: any) =>
-                old
-                    ? {
-                          ...old,
-                          tasks: old.tasks.map((x: PlannerTask) =>
-                              x.task_id === t.task_id ? { ...x, time: newTime } : x,
-                          ),
-                      }
-                    : old,
-            );
+            const ctx = await snapshotAndPatch((old: any) => ({
+                ...old,
+                tasks: old.tasks.map((x: PlannerTask) =>
+                    x.task_id === t.task_id ? { ...x, time: newTime } : x,
+                ),
+            }));
             track('snooze', { program: t.maxx_id });
             setToast(`Moved to ${fmtTime(newTime)}`);
             setTimeout(() => setToast(null), 3000);
+            return ctx;
         },
-        onError: () => {
-            queryClient.invalidateQueries({ queryKey: TODAY_QK });
+        onError: (_e, _v, ctx) => {
+            rollback(ctx);
             setToast("Couldn't move it. Try again.");
             setTimeout(() => setToast(null), 3000);
         },
@@ -215,9 +275,13 @@ export default function TodayScreen() {
         mutationFn: () => api.plannerLockIn(),
         onMutate: async () => {
             track('lock_in');
-            queryClient.setQueryData(TODAY_QK, (old: any) =>
-                old ? { ...old, locked_in: true } : old,
-            );
+            return snapshotAndPatch((old: any) => ({ ...old, locked_in: true }));
+        },
+        onError: (_e, _v, ctx) => {
+            rollback(ctx);
+            haptic('warning');
+            setToast("Couldn't lock in. Try again.");
+            setTimeout(() => setToast(null), 3000);
         },
     });
 
@@ -232,14 +296,13 @@ export default function TodayScreen() {
         mutationFn: (t: PlannerTask) => api.skipPlannerTask(t.schedule_id!, t.task_id!),
         onMutate: async (t) => {
             haptic('light');
-            patchTaskStatus(t.task_id, 'skipped');
+            const ctx = await snapshotAndPatch(patchStatus(t.task_id, 'skipped'));
             track('snooze', { program: t.maxx_id, kind: 'skip_today' });
             setToast('Skipped for today. Tomorrow stays the same.');
             setTimeout(() => setToast(null), 3000);
+            return ctx;
         },
-        onError: (_e, t) => {
-            patchTaskStatus(t.task_id, 'pending');
-        },
+        onError: (_e, _t, ctx) => rollback(ctx),
         onSettled: () => queryClient.invalidateQueries({ queryKey: TODAY_QK }),
     });
 
@@ -251,7 +314,7 @@ export default function TodayScreen() {
     };
 
     const read = data?.today_read;
-    const dateLabel = new Date()
+    const dateLabel = now
         .toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
         .toUpperCase();
 
@@ -280,7 +343,7 @@ export default function TodayScreen() {
                     <View style={styles.stateChip}>
                         <Ionicons name="cloud-offline-outline" size={13} color={MUTE} />
                         <Text style={styles.stateChipText}>
-                            You're offline. Today's plan is still here, changes sync.
+                            You're offline. Today's plan is still here, changes sync when you're back.
                         </Text>
                     </View>
                 ) : null}
@@ -384,6 +447,18 @@ export default function TodayScreen() {
                         </TouchableOpacity>
                     ) : null}
 
+                    {/* streak v2: fresh-start card (locked copy, spec 3.5) */}
+                    {(data as any)?.fresh_start_today ? (
+                        <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
+                            <View style={styles.noticeCard}>
+                                <Ionicons name="sunny-outline" size={17} color={GOLD} />
+                                <Text style={styles.noticeText}>
+                                    Yesterday got away. Today's a fresh one.
+                                </Text>
+                            </View>
+                        </GlassCard>
+                    ) : null}
+
                     {/* streak v2: freeze-used card (locked copy, spec 3.5) */}
                     {(data as any)?.freeze_used_yesterday ? (
                         <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
@@ -482,7 +557,7 @@ export default function TodayScreen() {
                                             <GlassButton
                                                 variant="primary"
                                                 label="Done"
-                                                onPress={() => doneMutation.mutate(nextUp)}
+                                                onPress={() => markDone(nextUp)}
                                             />
                                         </View>
                                         <GlassButton
@@ -547,7 +622,7 @@ export default function TodayScreen() {
                                                 accessibilityLabel={`${t.title}${isDone ? ', done' : ''}`}
                                                 onPressIn={() => haptic('selection')}
                                                 onPress={() =>
-                                                    isDone ? undoMutation.mutate(t) : doneMutation.mutate(t)
+                                                    isDone ? undoMutation.mutate(t) : markDone(t)
                                                 }
                                             >
                                                 <Text style={styles.trTime}>{fmtTime(t.time)}</Text>
@@ -588,8 +663,30 @@ export default function TodayScreen() {
                         </>
                     ) : null}
 
+                    {/* failed first load: never lie with the empty state */}
+                    {todayQ.isError && !data ? (
+                        <GlassCard radius={24} intensity={36} style={{ marginTop: 16 }}>
+                            <View style={{ padding: 24, alignItems: 'center' }}>
+                                <Ionicons name="cloud-offline-outline" size={22} color={MUTE} />
+                                <Text style={[styles.heroTitle, { fontSize: 22, marginTop: 10 }]}>
+                                    Couldn't load your day
+                                </Text>
+                                <Text style={[styles.heroDesc, { textAlign: 'center' }]}>
+                                    Your plan is safe. Check your connection and try again.
+                                </Text>
+                                <View style={{ marginTop: 14, alignSelf: 'stretch' }}>
+                                    <GlassButton
+                                        variant="primary"
+                                        label="Try again"
+                                        onPress={() => todayQ.refetch()}
+                                    />
+                                </View>
+                            </View>
+                        </GlassCard>
+                    ) : null}
+
                     {/* empty day */}
-                    {!todayQ.isLoading && tasks.length === 0 ? (
+                    {todayQ.isSuccess && tasks.length === 0 ? (
                         <GlassCard radius={24} intensity={36} style={{ marginTop: 16 }}>
                             <View style={{ padding: 24, alignItems: 'center' }}>
                                 <Ionicons name="calendar-outline" size={22} color={MUTE} />
@@ -634,7 +731,12 @@ export default function TodayScreen() {
                 {undo ? (
                     <View style={[styles.snackbar, { bottom: 70 + insets.bottom }]}>
                         <Text style={styles.snackText}>Done</Text>
-                        <TouchableOpacity onPress={() => undoMutation.mutate(undo.task)}>
+                        <TouchableOpacity
+                            onPress={fireUndo}
+                            accessibilityRole="button"
+                            accessibilityLabel="Undo"
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        >
                             <Text style={styles.snackUndo}>Undo</Text>
                         </TouchableOpacity>
                     </View>

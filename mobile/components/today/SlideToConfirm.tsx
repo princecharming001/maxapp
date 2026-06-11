@@ -5,7 +5,7 @@
  * >=85% with a Success haptic and the track filling gold; release below
  * threshold springs back with a light bounce. Reduced motion: no overshoot.
  */
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -48,14 +48,28 @@ export function SlideToConfirm({
     const x = useSharedValue(0);
     const done = useSharedValue(confirmed ? 1 : 0);
     const reducedMotion = useReducedMotion();
-    const firedQuarter = useRef(false);
-    const firedThreeQuarter = useRef(false);
+    // Shared values, NOT React refs: the gesture callbacks run as UI-thread
+    // worklets, where a ref mutation only hits the worklet's captured copy.
+    const firedQuarter = useSharedValue(0);
+    const firedThreeQuarter = useSharedValue(0);
     const maxX = Math.max(0, trackW - KNOB - 8);
 
     const finish = () => {
         haptic('success');
         onConfirm();
     };
+
+    // Un-wedge: if the parent reverts `confirmed` (lock-in API failure), the
+    // knob must come back to life instead of staying inert forever.
+    React.useEffect(() => {
+        if (!confirmed && done.value === 1) {
+            done.value = 0;
+            firedQuarter.value = 0;
+            firedThreeQuarter.value = 0;
+            x.value = withTiming(0, { duration: 150 });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [confirmed]);
 
     const pan = Gesture.Pan()
         .enabled(!confirmed)
@@ -66,12 +80,12 @@ export function SlideToConfirm({
             const next = Math.min(Math.max(e.translationX, 0), maxX);
             x.value = next;
             const frac = maxX > 0 ? next / maxX : 0;
-            if (frac >= 0.25 && !firedQuarter.current) {
-                firedQuarter.current = true;
+            if (frac >= 0.25 && firedQuarter.value === 0) {
+                firedQuarter.value = 1;
                 runOnJS(haptic)('selection');
             }
-            if (frac >= 0.75 && !firedThreeQuarter.current) {
-                firedThreeQuarter.current = true;
+            if (frac >= 0.75 && firedThreeQuarter.value === 0) {
+                firedThreeQuarter.value = 1;
                 runOnJS(haptic)('selection');
             }
         })
@@ -84,8 +98,8 @@ export function SlideToConfirm({
                     : withSpring(maxX, { damping: 14, stiffness: 160 });
                 runOnJS(finish)();
             } else {
-                firedQuarter.current = false;
-                firedThreeQuarter.current = false;
+                firedQuarter.value = 0;
+                firedThreeQuarter.value = 0;
                 x.value = reducedMotion
                     ? withTiming(0, { duration: 150 })
                     : withSpring(0, { damping: 12, stiffness: 140 });
@@ -116,7 +130,16 @@ export function SlideToConfirm({
                 style={[styles.track, trackStyle]}
                 accessibilityRole="button"
                 accessibilityLabel={isDone ? confirmedLabel : label}
-                accessibilityHint="Slide right to confirm your day"
+                accessibilityHint="Slide right or double tap to confirm your day"
+                accessibilityState={{ disabled: isDone }}
+                accessibilityActions={[{ name: 'activate' }]}
+                onAccessibilityAction={(e) => {
+                    if (e.nativeEvent.actionName === 'activate' && !isDone) {
+                        done.value = 1;
+                        x.value = maxX;
+                        finish();
+                    }
+                }}
             >
                 <Text style={[styles.label, isDone && styles.labelDone]}>
                     {isDone ? confirmedLabel : label}

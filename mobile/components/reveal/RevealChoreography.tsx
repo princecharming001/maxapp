@@ -51,7 +51,7 @@ function haptic(kind: 'light' | 'success') {
 function TaskRow({ row, index, reduced }: { row: RevealRow; index: number; reduced: boolean }) {
     const isTask = row.kind === 'task';
     // ACT 2 timing: first task lands well under 900ms, ~180ms stagger after.
-    const delay = isTask ? 650 + index * 180 : 80 + index * 60;
+    const delay = isTask ? 550 + index * 180 : 80 + index * 60;
     const opacity = useSharedValue(0);
     const translateY = useSharedValue(isTask ? 18 : 6);
     const whyOpacity = useSharedValue(0);
@@ -127,11 +127,17 @@ export function RevealChoreography({
     const announced = useRef(false);
 
     const taskCount = useMemo(() => rows.filter((r) => r.kind === 'task').length, [rows]);
-    const lastLanding = 650 + Math.max(0, taskCount - 1) * 180 + 300;
+    const lastLanding = 550 + Math.max(0, taskCount - 1) * 180 + 320;
+    const settledOnce = useRef(false);
 
     useEffect(() => {
+        // ACT 3 fires exactly ONCE - a refetch that changes `rows` must not
+        // replay the success haptic / breath / onComplete.
+        if (settledOnce.current) return;
         const settleAt = reduced ? 400 : lastLanding;
         const t = setTimeout(() => {
+            if (settledOnce.current) return;
+            settledOnce.current = true;
             // ACT 3: breath + success + ring.
             if (!reduced) {
                 scale.value = withSequence(

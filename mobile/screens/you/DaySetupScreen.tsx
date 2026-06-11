@@ -293,9 +293,11 @@ export default function DaySetupScreen() {
 
     const calendarRows = (todayQ.data?.structure ?? []).filter((s) => s.source === 'calendar');
 
+    const blockValid = endMin > startMin;
     const addBlock = useMutation({
         mutationFn: () => {
-            const today = new Date().toISOString().slice(0, 10);
+            const d = new Date();
+            const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             const hh = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:00`;
             return api.pushPlannerSignals({
                 calendar: {
@@ -303,7 +305,7 @@ export default function DaySetupScreen() {
                     events: [
                         {
                             starts_at: `${today}T${hh(startMin)}`,
-                            ends_at: `${today}T${hh(endMin >= startMin ? endMin : startMin + 30)}`,
+                            ends_at: `${today}T${hh(endMin)}`,
                             title: blockTitle.trim() || 'Busy',
                         },
                     ],
@@ -318,9 +320,19 @@ export default function DaySetupScreen() {
         },
     });
 
+    const removeBlock = useMutation({
+        mutationFn: (eventId: string) => api.removeCalendarEvent(eventId),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['plannerToday'] }),
+    });
+
     const addPlaceMutation = useMutation({
         mutationFn: () => api.addPlace(placeName.trim(), placeKind),
         onSuccess: () => {
+            // Non-custom kinds replace the existing entry of that kind - say so
+            // instead of silently swapping.
+            const had = placesQ.data?.places?.some((p) => p.kind === placeKind && placeKind !== 'custom');
+            setNote(had ? `Updated your ${placeKind}.` : 'Place added.');
+            setTimeout(() => setNote(null), 2500);
             setPlaceName('');
             queryClient.invalidateQueries({ queryKey: ['plannerPlaces'] });
         },
@@ -367,12 +379,22 @@ export default function DaySetupScreen() {
                         {Platform.OS === 'ios' ? <AppleCalendarSync /> : null}
                         {calendarRows.length ? (
                             calendarRows.map((r, i) => (
-                                <View key={i} style={styles.blockRow}>
+                                <View key={r.event_id || i} style={styles.blockRow}>
                                     <Ionicons name="time-outline" size={15} color={MUTE} />
-                                    <Text style={styles.blockText}>
+                                    <Text style={[styles.blockText, { flex: 1 }]}>
                                         {r.label}  ·  {fmt12(r.time)}
                                         {r.end ? ` to ${fmt12(r.end)}` : ''}
                                     </Text>
+                                    {r.event_id ? (
+                                        <TouchableOpacity
+                                            onPress={() => removeBlock.mutate(r.event_id!)}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={`Remove ${r.label}`}
+                                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                        >
+                                            <Ionicons name="close" size={16} color={MUTE} />
+                                        </TouchableOpacity>
+                                    ) : null}
                                 </View>
                             ))
                         ) : (
@@ -390,11 +412,17 @@ export default function DaySetupScreen() {
                         />
                         <StepTime label="From" value={startMin} onChange={setStartMin} />
                         <StepTime label="To" value={endMin} onChange={setEndMin} />
+                        {!blockValid ? (
+                            <Text style={styles.invalidNote}>
+                                The end time needs to come after the start.
+                            </Text>
+                        ) : null}
                         <View style={{ marginTop: 10 }}>
                             <GlassButton
                                 variant="primary"
                                 label="Add busy block"
                                 loading={addBlock.isPending}
+                                disabled={!blockValid}
                                 onPress={() => addBlock.mutate()}
                             />
                         </View>
@@ -522,6 +550,7 @@ const styles = StyleSheet.create({
     kindChipActive: { borderColor: GOLD, backgroundColor: 'rgba(212,160,23,0.12)' },
     kindChipText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: '#3A3A3F' },
     note: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: '#3D8B4F', marginTop: 8, textAlign: 'center' },
+    invalidNote: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: '#C0452C', marginTop: 8 },
     proposedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
     proposedBtn: {
         width: 32, height: 32, borderRadius: 12,

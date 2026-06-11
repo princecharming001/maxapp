@@ -92,11 +92,20 @@ export default function WeeklyReviewScreen() {
                                 <View
                                     key={d.date}
                                     style={[styles.dayRing, d.closed && { borderColor: GOLD }]}
-                                    accessibilityLabel={`${d.weekday}${d.closed ? ', closed' : ''}`}
+                                    accessibilityLabel={`${d.weekday}${d.closed ? ', closed' : d.total > 0 ? ', open' : ', no plan'}`}
                                 >
-                                    <Text style={[styles.dayRingText, d.closed && { color: GOLD }]}>
-                                        {d.weekday[0]}
-                                    </Text>
+                                    {d.closed ? (
+                                        <Ionicons name="checkmark" size={14} color={GOLD} />
+                                    ) : (
+                                        <Text
+                                            style={[
+                                                styles.dayRingText,
+                                                d.total === 0 && { color: MUTE },
+                                            ]}
+                                        >
+                                            {d.weekday.slice(0, 2)}
+                                        </Text>
+                                    )}
                                 </View>
                             ))}
                         </View>

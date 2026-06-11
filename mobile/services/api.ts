@@ -217,7 +217,11 @@ class ApiService {
                 // the user is watching a spinner).
                 const isNetErr = !error.response;
                 const skip = (cfg as any)?._skipNetRetry === true;
-                if (isNetErr && cfg && !skip) {
+                // ONLY idempotent GETs replay: a timeout can fire AFTER the
+                // server processed the request, and replaying a POST would
+                // double-create checkout sessions, calendar events, analytics.
+                const method = String(cfg?.method || 'get').toLowerCase();
+                if (isNetErr && cfg && !skip && method === 'get') {
                     cfg._netRetries = (cfg._netRetries ?? 0) + 1;
                     if (cfg._netRetries <= 1) {
                         await new Promise((r) => setTimeout(r, 500));
@@ -1014,7 +1018,7 @@ class ApiService {
     async getPlannerToday(day?: string): Promise<{
         date: string;
         tasks: any[];
-        structure: { time: string; label: string; end?: string; source?: string }[];
+        structure: { time: string; label: string; end?: string; source?: string; event_id?: string }[];
         today_read: { level: 'green' | 'yellow' | 'red'; icon: string; color: string; line: string };
         held_back_count: number;
         locked_in: boolean;
@@ -1081,6 +1085,11 @@ class ApiService {
 
     async resolveGoogleProposed(eventId: string, confirm: boolean): Promise<{ status: string }> {
         const response = await this.client.post(`google/proposed/${eventId}`, { confirm });
+        return response.data;
+    }
+
+    async removeCalendarEvent(eventId: string): Promise<{ removed: boolean }> {
+        const response = await this.client.delete(`planner/calendar-events/${eventId}`);
         return response.data;
     }
 
