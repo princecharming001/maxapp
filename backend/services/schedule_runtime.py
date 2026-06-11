@@ -116,8 +116,9 @@ async def generate_and_persist(
     days = result.days
     # Stamp ISO dates on each day so the master view + UI calendars work.
     # Day 0 = today, day N = today + N days.
-    from datetime import date as _date, timedelta as _td
-    today = _date.today()
+    from datetime import timedelta as _td
+    from services.schedule_streak import local_today_date
+    today = local_today_date(ob_ctx)
     for i, d in enumerate(days):
         d["date"] = (today + _td(days=i)).isoformat()
     # Canonical task fields on every persisted task (task_uuid, importance,
@@ -320,9 +321,11 @@ async def generate_first_routine_if_absent(
         cadence_days = int(sd.get("cadence_days", 14))
         budget = sd.get("daily_task_budget") or [2, 6]
 
+        from services.schedule_streak import local_today_date as _ltd
         days = expand_skeleton(
             maxx_id=maxx_id, user_state=state, wake=wake, sleep=sleep,
             cadence_days=cadence_days, exclude_fields=missing,
+            start_date=_ltd(state),
         )
         days = _drop_tasks_referencing(days, missing, maxx_id)
         _ok, _errs, days = validate_and_fix(
@@ -448,7 +451,8 @@ async def regenerate_active_schedules(
     actives = list(res.scalars().all())
 
     out: list[dict] = []
-    today = _date.today()
+    from services.schedule_streak import local_today_date as _ltd2
+    today = _ltd2(state)
     for sched in actives:
         mid = sched.maxx_id or ""
         if only_max and mid != only_max:
@@ -466,6 +470,7 @@ async def regenerate_active_schedules(
             new_days = expand_skeleton(
                 maxx_id=mid, user_state=state, wake=wake, sleep=sleep,
                 cadence_days=cadence_days,
+                start_date=today,
             )
             _, _errs, fixed_new = validate_and_fix(
                 maxx_id=mid, days=new_days,
@@ -513,6 +518,24 @@ async def regenerate_active_schedules(
             "schedule_id": str(sched.id),
             "changed": changed,
         })
+    # Cross-module reconcile after regen: each module re-expanded alone above,
+    # so without this pass the persisted days are un-merged and the read-time
+    # merge becomes the only (and unprotected) merge running.
+    if len(actives) >= 2 and any(s["changed"] for s in out):
+        try:
+            bundle = {
+                s.maxx_id: list(s.days or []) for s in actives if s.maxx_id and s.days
+            }
+            if len(bundle) >= 2:
+                recon_ctx = merged_user_state(onboarding, persistent)
+                bundle = reconcile_schedules(bundle, user_ctx=recon_ctx, start_date=today)
+                for s in actives:
+                    if s.maxx_id in bundle:
+                        s.days = bundle[s.maxx_id]
+                        s.updated_at = datetime.utcnow()
+        except Exception as e:
+            logger.warning("post-regen reconcile failed (non-fatal): %s", e)
+
     if any(s["changed"] for s in out):
         await db.flush()
     return out

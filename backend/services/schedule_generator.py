@@ -169,6 +169,7 @@ async def generate_schedule(
     # drops from ~60s LLM call to <100ms pure-Python pass.
     try:
         from services.schedule_skeleton import expand_skeleton, has_skeleton
+        from services.schedule_streak import local_today_date
         if has_skeleton(maxx_id):
             days = expand_skeleton(
                 maxx_id=maxx_id,
@@ -176,6 +177,7 @@ async def generate_schedule(
                 wake=wake_str,
                 sleep=sleep_str,
                 cadence_days=cadence_days,
+                start_date=local_today_date(user_state),
             )
             _, errors, fixed_days = validate_and_fix(
                 maxx_id=maxx_id,

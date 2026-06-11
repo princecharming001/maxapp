@@ -34,7 +34,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.sqlalchemy_models import UserSchedule
+from models.sqlalchemy_models import User, UserSchedule
 from services.multi_module_collision import reconcile_schedules
 
 logger = logging.getLogger(__name__)
@@ -66,29 +66,39 @@ async def build_master_view(
     if not actives:
         return _empty_window(days, today_iso)
 
-    # 1) Bucket each schedule's days by absolute date.
+    # 1) Bucket each schedule's days by absolute date. DEEP-copy days AND
+    # tasks: the collision pass mutates task dicts (times, deferral_age) and
+    # appends held_back entries, and a shallow copy would silently mutate the
+    # persisted ORM JSON without flag_modified.
     by_max: dict[str, list[dict]] = {}
     for sched in actives:
         if not sched.maxx_id:
             continue
-        # Each day already has a `date` field stamped at generation time.
-        # If for any reason a schedule has fewer days than the master
-        # window, we just leave gaps; callers fill from `_empty_window`.
         clean: list[dict] = []
         for d in (sched.days or []):
             d2 = dict(d)
-            # Ensure each task carries its source max — needed for collision
-            # pass + UI grouping.
+            tasks2 = []
             for t in (d2.get("tasks") or []):
-                t.setdefault("maxx_id", sched.maxx_id)
-                t.setdefault("schedule_id", str(sched.id))
+                t2 = dict(t)
+                t2.setdefault("maxx_id", sched.maxx_id)
+                t2.setdefault("schedule_id", str(sched.id))
+                tasks2.append(t2)
+            d2["tasks"] = tasks2
+            d2["held_back"] = list(d2.get("held_back") or [])
             clean.append(d2)
         by_max[sched.maxx_id] = clean
 
-    # 2) Run collision pass on the per-max schedules. The reconciler walks
-    #    by day_index (positional) — fine here because every active schedule
-    #    is generated against the same start anchor (today at activation).
-    by_max = reconcile_schedules(by_max)
+    # 2) Run the collision pass WITH the user's context: without it the
+    # entitlement-aware protection tiers and paid floor silently turn off at
+    # read time (a purchased course's session could be trimmed from the very
+    # surface the user sees). Date-keyed alignment inside reconcile handles
+    # programs anchored on different start dates.
+    user_row = await db.get(User, user_uuid)
+    user_ctx = None
+    if user_row is not None:
+        from services.user_context_service import merged_user_state
+        user_ctx = merged_user_state(dict(user_row.onboarding or {}), None)
+    by_max = reconcile_schedules(by_max, user_ctx=user_ctx)
 
     # 3) Bucket by date.
     by_date: dict[str, list[dict]] = {}

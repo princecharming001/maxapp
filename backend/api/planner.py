@@ -73,21 +73,35 @@ def _today_read(
     hard_trim = any(e.get("reason_code") == "day_full_hard" for e in held_back)
     packed_calendar = calendar_busy_minutes >= 8 * 60
     busy_calendar = calendar_busy_minutes >= 5 * 60
-    if (sleep_hours < 6 and task_count >= 6) or hard_trim or (packed_calendar and task_count >= 6):
+
+    # RED needs a real day signal (a hard trim or a packed calendar with a
+    # full plan) - stated sleep alone is a constant and would pin honest
+    # short-sleepers at red forever, which trains them to ignore the verdict.
+    if hard_trim or (packed_calendar and task_count >= 6):
         return {
             "level": "red",
             "icon": "battery-half-outline",
             "color": "#C0452C",
             "line": "Rough runway. Kept it to the essentials.",
         }
-    if held_back or task_count > 8 or sleep_hours < 6.5 or busy_calendar:
+    # YELLOW: the line states the ACTUAL trigger - never claim a trim that
+    # did not happen.
+    if busy_calendar:
+        line = "Packed calendar. Plan fits around it."
+    elif held_back:
+        line = "Held a few things back today."
+    elif task_count > 8:
+        line = "Full day. Everything fits, tightly."
+    elif sleep_hours < 6.5:
+        line = "Short night planned. Go easy."
+    else:
+        line = None
+    if line:
         return {
             "level": "yellow",
             "icon": "partly-sunny-outline",
             "color": "#B07D10",
-            "line": "Packed calendar. Trimmed to what matters."
-            if busy_calendar
-            else "Lighter day. Trimmed to what matters.",
+            "line": line,
         }
     return {
         "level": "green",
@@ -111,10 +125,16 @@ async def planner_today(
     stated onboarding. next-up selection happens client-side in device tz.
     """
     from services.master_schedule import build_master_view
+    from services.schedule_streak import local_today_date
 
     uid = _uid(current_user)
+    user = await db.get(User, uid)
+    ob = dict(user.onboarding or {}) if user else {}
+    # "Today" means the USER'S today: after ~5pm US time the server-UTC date
+    # is already tomorrow, which served the wrong day to every evening user.
+    local_today = local_today_date(ob)
     try:
-        target = date.fromisoformat(day) if day else date.today()
+        target = date.fromisoformat(day) if day else local_today
     except ValueError:
         raise HTTPException(status_code=422, detail="Bad date; use YYYY-MM-DD")
 
@@ -123,18 +143,13 @@ async def planner_today(
     )
     today_entry = window[0] if window else {"tasks": [], "task_count": 0}
 
-    user = await db.get(User, uid)
-    ob = dict(user.onboarding or {}) if user else {}
-
     # Structure rows for the quiet timeline: wake, today's obligations, sleep.
     weekday = target.strftime("%A").lower()
     structure: list[dict[str, Any]] = [
         {"time": ob.get("wake_time") or "07:00", "label": "Wake"},
     ]
-    for o in ob.get("obligations") or []:
-        days_list = [str(d).lower() for d in (o.get("days") or [])]
-        if days_list and weekday not in days_list:
-            continue
+    from services.schedule_validator import _obligations_for_weekday
+    for o in _obligations_for_weekday(ob.get("obligations"), weekday):
         structure.append({
             "time": o.get("start") or "09:00",
             "label": str(o.get("label") or "Busy").capitalize(),
@@ -157,21 +172,25 @@ async def planner_today(
         ).order_by(CalendarEvent.starts_at)
     )
     calendar_events = cal_res.scalars().all()
-    calendar_busy_minutes = 0
-    last_synced: datetime | None = None
+    cal_spans: list[tuple[int, int]] = []
     for ev in calendar_events:
         s = ev.starts_at.replace(tzinfo=None) if ev.starts_at.tzinfo else ev.starts_at
         e = ev.ends_at.replace(tzinfo=None) if ev.ends_at.tzinfo else ev.ends_at
         s, e = max(s, day_start), min(e, day_end)
         if e <= s:
             continue
-        calendar_busy_minutes += int((e - s).total_seconds() // 60)
+        cal_spans.append((s.hour * 60 + s.minute, e.hour * 60 + e.minute or 24 * 60))
         structure.append({
             "time": f"{s.hour:02d}:{s.minute:02d}",
             "label": (ev.title or "Busy")[:40],
             "end": f"{e.hour:02d}:{e.minute:02d}",
             "source": "calendar",
+            "event_id": str(ev.id),
         })
+    # UNION of busy intervals, never a sum: a block that two calendars both
+    # mark busy is one block, and the total is bounded by the day itself.
+    from services.schedule_validator import _merge_intervals
+    calendar_busy_minutes = sum(e - s for s, e in _merge_intervals(cal_spans))
 
     # Persisted suppression ledger for the day (generation-time merge).
     held_back: list[dict] = []
@@ -219,16 +238,23 @@ async def planner_today(
             except Exception:
                 pass  # learning is never allowed to break Today
 
-    now_local = datetime.utcnow()  # client passes day; slips use device-now param
-    now_param = None
+    # Slips run on the USER'S clock (server UTC flagged every pre-1pm task
+    # "missed" for west-coast users) and handle overnight sleepers.
+    from services.schedule_streak import _user_tz
+    now_local = datetime.now(_user_tz(ob))
     tasks_today = today_entry.get("tasks") or []
     slipped_payload: list[dict[str, Any]] = []
-    if target == date.today():
+    if target == local_today:
         now_min = now_local.hour * 60 + now_local.minute
+        wake_min = _parse_hm_minutes(ob.get("wake_time"), 7 * 60)
         sleep_min = _parse_hm_minutes(ob.get("sleep_time"), 23 * 60)
-        for slipped in detect_slips(tasks_today, now_min):
+        overnight = sleep_min <= wake_min
+        for slipped in detect_slips(
+            tasks_today, now_min, wake_min=wake_min, overnight=overnight
+        ):
             suggestion = suggest_reflow(
-                slipped, tasks_today, structure, now_min, sleep_min
+                slipped, tasks_today, structure, now_min, sleep_min,
+                wake_min=wake_min,
             )
             slipped_payload.append({
                 "task_id": slipped.get("task_id"),
@@ -243,7 +269,7 @@ async def planner_today(
     # Leave-by hint (Maps Distance Matrix, cached, honest fallback): for the
     # first pending gym-bound task today, "leave by" = slot - commute - 10min.
     leave_by = None
-    if target == date.today():
+    if target == local_today:
         from models.sqlalchemy_models import UserPlace
         gym_task = next(
             (t for t in tasks_today
@@ -296,6 +322,7 @@ async def planner_today(
         "leave_by": leave_by,
         "streak_armed_freeze": streak["armed_freezes"] > 0,
         "freeze_used_yesterday": streak["freeze_used_yesterday"],
+        "fresh_start_today": streak.get("fresh_start_today", False),
     }
 
 
@@ -307,19 +334,19 @@ async def lock_in(
 ):
     """Morning lock-in: the user confirmed today's plan. Idempotent."""
     uid = _uid(current_user)
-    try:
-        target = (
-            date.fromisoformat(str(payload.get("date")))
-            if payload.get("date")
-            else date.today()
-        )
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Bad date; use YYYY-MM-DD")
-
     user = await db.get(User, uid)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     ob = dict(user.onboarding or {})
+    from services.schedule_streak import local_today_date
+    try:
+        target = (
+            date.fromisoformat(str(payload.get("date")))
+            if payload.get("date")
+            else local_today_date(ob)
+        )
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Bad date; use YYYY-MM-DD")
     lock_ins = dict(ob.get("lock_ins") or {})
     lock_ins[target.isoformat()] = datetime.utcnow().isoformat()
     # Keep the map small: only the last 14 days matter.
@@ -494,6 +521,33 @@ async def remove_place(
     return {"removed": True}
 
 
+@router.delete("/calendar-events/{event_id}")
+async def remove_calendar_event(
+    event_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove a busy block the user added (or a synced event they want gone
+    locally). User-owned rows only."""
+    from models.sqlalchemy_models import CalendarEvent
+
+    uid = _uid(current_user)
+    try:
+        eid = UUID(event_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Bad event id")
+    ev = (await db.execute(
+        select(CalendarEvent).where(
+            (CalendarEvent.id == eid) & (CalendarEvent.user_id == uid)
+        )
+    )).scalars().first()
+    if ev is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    await db.delete(ev)
+    await db.commit()
+    return {"removed": True}
+
+
 @router.post("/signals")
 async def ingest_signals(
     payload: dict = Body(...),
@@ -567,6 +621,20 @@ async def ingest_signals(
                 ends = _wall(e["ends_at"])
             except (KeyError, ValueError):
                 continue
+            if ends <= starts:
+                continue  # zero/negative-length blocks are never stored
+            # Dedupe: an identical block (title + exact times) already stored
+            # for this user is skipped, so double-taps don't double-book.
+            dup = (await db.execute(
+                select(CalendarEvent.id).where(
+                    (CalendarEvent.user_id == uid)
+                    & (CalendarEvent.starts_at == starts)
+                    & (CalendarEvent.ends_at == ends)
+                    & (CalendarEvent.title == (str(e.get("title") or "")[:255] or None))
+                )
+            )).first()
+            if dup:
+                continue
             db.add(CalendarEvent(
                 user_id=uid,
                 connection_id=conn.id,
@@ -598,9 +666,25 @@ async def ingest_signals(
                 occurred = datetime.fromisoformat(str(g["occurred_at"]))
             except (KeyError, TypeError, ValueError):
                 continue
+            place_ref = None
+            raw_pid = g.get("place_id")
+            if raw_pid:
+                try:
+                    candidate = UUID(str(raw_pid))
+                except ValueError:
+                    candidate = None
+                if candidate is not None:
+                    from models.sqlalchemy_models import UserPlace as _UP
+                    owned = (await db.execute(
+                        select(_UP.id).where(
+                            (_UP.id == candidate) & (_UP.user_id == uid)
+                        )
+                    )).first()
+                    if owned:
+                        place_ref = candidate
             db.add(GeofenceEvent(
                 user_id=uid,
-                place_id=g.get("place_id"),
+                place_id=place_ref,
                 event_type=str(g.get("event_type") or "enter")[:8],
                 occurred_at=occurred,
                 dwell_min=g.get("dwell_min"),
@@ -708,18 +792,49 @@ async def feasibility(
     sessions = max(1, int(req.get("sessions_per_week") or 3))
     win_lo, win_hi = _window_bounds(str(req.get("window") or "any"))
 
+    # HONEST dry-run: the sim must see the user's EXISTING programs, not just
+    # their anchors - otherwise a 3-maxx user at the daily cap gets a green
+    # verdict for a program the merge will immediately hold back.
+    from services.master_schedule import build_master_view
+    from services.multi_module_collision import TARGET_DAILY_TOTAL
+    from services.schedule_streak import local_today_date
+
+    merged_week = await build_master_view(
+        user_id=str(uid), db=db, days=7,
+        today_iso=local_today_date(ob).isoformat(),
+    )
+    existing_by_weekday: dict[str, tuple[list[tuple[int, int]], int]] = {}
+    for entry in merged_week:
+        try:
+            wd_name = date.fromisoformat(entry["date"]).strftime("%A").lower()
+        except (KeyError, ValueError):
+            continue
+        spans = []
+        for t in entry.get("tasks") or []:
+            t_min = _parse_hm_minutes(t.get("time"), -1)
+            if t_min >= 0:
+                dur = int(t.get("duration_min") or t.get("duration_minutes") or 10)
+                spans.append((t_min, t_min + dur))
+        existing_by_weekday[wd_name] = (spans, int(entry.get("task_count") or 0))
+
     ghost_week: list[dict[str, Any]] = []
     fittable_days = 0
     for wd in _WEEKDAY_NAMES:
         eff = _effective_day_ctx(state, wd, global_wake=g_wake, global_sleep=g_sleep)
         wake_min = _parse_hm_minutes(eff.get("wake_time"), 7 * 60)
         sleep_min = _parse_hm_minutes(eff.get("sleep_time"), 23 * 60)
-        busy = _busy_intervals_from_ctx(eff)
+        busy = list(_busy_intervals_from_ctx(eff))
+        task_spans, existing_count = existing_by_weekday.get(wd, ([], 0))
+        busy.extend(task_spans)
+        busy.sort()
         slots: list[str] = []
-        for s, e in _free_minutes_intervals(busy, wake_min, sleep_min):
-            s2, e2 = max(s, win_lo), min(e, win_hi)
-            if e2 - s2 >= minutes:
-                slots.append(f"{s2 // 60:02d}:{s2 % 60:02d}")
+        # A day with no cap headroom cannot take another program's session
+        # no matter how much clock-time is free.
+        if existing_count < TARGET_DAILY_TOTAL:
+            for s, e in _free_minutes_intervals(busy, wake_min, sleep_min):
+                s2, e2 = max(s, win_lo), min(e, win_hi)
+                if e2 - s2 >= minutes:
+                    slots.append(f"{s2 // 60:02d}:{s2 % 60:02d}")
         if slots:
             fittable_days += 1
         ghost_week.append({"day": wd[:3].capitalize(), "slots": slots[:2]})
@@ -766,7 +881,8 @@ async def weekly_review(
     ob = dict(user.onboarding or {}) if user else {}
     schedules = await schedule_service.get_all_active_schedules(str(uid), db)
 
-    today = date.today()
+    from services.schedule_streak import local_today_date
+    today = local_today_date(ob)
     days: list[dict[str, Any]] = []
     window_hits: dict[str, int] = {"morning": 0, "midday": 0, "evening": 0}
     for offset in range(6, -1, -1):
@@ -856,10 +972,13 @@ async def confirm_weekly_facts(
     ob = dict(user.onboarding or {})
     stored = dict(ob.get("confirmed_facts") or {})
     plan_changed = False
-    for c in confirmations:
+    stored_count = 0
+    _KNOWN_FACTS = {"strongest_window", "locks_in_mornings", "wake_drift", "best_window"}
+    for c in confirmations[:10]:
         fid = str(c.get("id") or "").strip()
-        if not fid:
+        if not fid or fid not in _KNOWN_FACTS:
             continue
+        stored_count += 1
         accepted = bool(c.get("accepted"))
         stored[fid] = {
             "accepted": accepted,
@@ -870,7 +989,12 @@ async def confirm_weekly_facts(
         # stated wake and re-expands active schedules around the real morning.
         if fid == "wake_drift" and accepted:
             value = str(c.get("value") or "").strip()
-            if len(value) == 5 and ":" in value:
+            try:
+                h, m = value.split(":", 1)
+                valid = 0 <= int(h) <= 23 and 0 <= int(m) <= 59 and len(value) == 5
+            except (ValueError, AttributeError):
+                valid = False
+            if valid:
                 ob["wake_time"] = value
                 plan_changed = True
     ob["confirmed_facts"] = stored
@@ -886,7 +1010,7 @@ async def confirm_weekly_facts(
             await db.commit()
         except Exception:
             pass  # regen failure must not lose the confirmation
-    return {"stored": len(confirmations), "plan_changed": plan_changed}
+    return {"stored": stored_count, "plan_changed": plan_changed}
 
 
 @router.get("/held-back")
@@ -897,8 +1021,14 @@ async def held_back(
 ):
     """Everything the Merge held back on `day`, across active programs."""
     uid = _uid(current_user)
+    user = await db.get(User, uid)
+    from services.schedule_streak import local_today_date
     try:
-        target = date.fromisoformat(day) if day else date.today()
+        target = (
+            date.fromisoformat(day)
+            if day
+            else local_today_date(dict(user.onboarding or {}) if user else {})
+        )
     except ValueError:
         raise HTTPException(status_code=422, detail="Bad date; use YYYY-MM-DD")
 

@@ -229,6 +229,48 @@ def reconcile_schedules(
     for maxx_id, days in schedules.items():
         normalize_days(days, maxx_id)
 
+    # DATE-KEYED ALIGNMENT: active schedules are anchored to different start
+    # dates (skinmax generated Monday, a course entered Thursday), so a
+    # positional index-by-index merge compares tasks on DIFFERENT calendar
+    # days - real collisions missed, phantom ones invented. When every day
+    # carries a date (production), align all modules onto one shared date
+    # axis with empty padding days; pure positional input (unit fixtures,
+    # legacy rows) keeps the old behavior.
+    from datetime import date as _adate, timedelta as _atd
+
+    all_dated = all(
+        all(isinstance(d.get("date"), str) and d.get("date") for d in days)
+        for days in schedules.values()
+        if days
+    )
+    aligned_anchor: Any = None
+    if all_dated:
+        try:
+            anchors = {
+                m: _adate.fromisoformat(days[0]["date"])
+                for m, days in schedules.items() if days
+            }
+            ends = {
+                m: _adate.fromisoformat(days[-1]["date"])
+                for m, days in schedules.items() if days
+            }
+            aligned_anchor = min(anchors.values())
+            max_end = max(ends.values())
+            for m, days in schedules.items():
+                existing = {d["date"]: d for d in days}
+                unified: list[dict] = []
+                cur = aligned_anchor
+                while cur <= max_end:
+                    iso = cur.isoformat()
+                    if iso in existing:
+                        unified.append(existing[iso])
+                    else:
+                        unified.append({"date": iso, "tasks": [], "_pad": True})
+                    cur += _atd(days=1)
+                schedules[m] = unified
+        except (ValueError, KeyError):
+            aligned_anchor = None  # malformed dates -> positional fallback
+
     # Normalize day count across modules — assume all schedules share length.
     day_count = max(len(d) for d in schedules.values())
 
@@ -320,16 +362,32 @@ def reconcile_schedules(
                     mover_t["deferral_age"] = int(mover_t.get("deferral_age") or 0) + 1
     by_day = _reindex(schedules, day_count)
 
-    # 3) Time-gap enforcement across modules.
+    # 3) Time-gap enforcement across modules. For overnight sleepers (sleep
+    # crosses midnight) sort and walk in minutes-since-wake space, exactly
+    # like _evict_busy_windows - otherwise a 00:30 task sorts FIRST in the
+    # day and genuinely adjacent 23:55/00:05 tasks read as 24h apart.
+    _gap_overnight = False
+    _gap_wake = 7 * 60
+    if isinstance(user_ctx, dict):
+        from services.schedule_dsl import crosses_midnight as _xm, parse_clock as _pc, to_minutes as _tm
+        _w_dt = _pc(str(user_ctx.get("wake_time") or "07:00"), "07:00")
+        _s_dt = _pc(str(user_ctx.get("sleep_time") or "23:00"), "23:00")
+        _gap_overnight = _xm(_w_dt, _s_dt)
+        _gap_wake = _tm(_w_dt)
+
+    def _gap_work(clock: int) -> int:
+        return (clock - _gap_wake) % (24 * 60) if _gap_overnight else clock
+
     for di in range(day_count):
-        items = sorted(by_day[di], key=lambda x: _time_to_min(x[1].get("time")))
+        items = sorted(by_day[di], key=lambda x: _gap_work(_time_to_min(x[1].get("time"))))
         last_end = -1
         for maxx_id, task in items:
-            t_min = _time_to_min(task.get("time"))
+            t_min = _gap_work(_time_to_min(task.get("time")))
             dur = int(task.get("duration_min") or 1)
             if t_min < last_end + MIN_TASK_GAP_MIN:
                 new_t = last_end + MIN_TASK_GAP_MIN
-                task["time"] = from_minutes(new_t).strftime("%H:%M")
+                clock_t = (new_t + _gap_wake) % (24 * 60) if _gap_overnight else new_t
+                task["time"] = from_minutes(clock_t).strftime("%H:%M")
                 t_min = new_t
             last_end = t_min + dur
 
@@ -380,11 +438,43 @@ def reconcile_schedules(
         for maxx_id, task in optionals:
             if id(task) in keep_ids:
                 continue
-            _suppress_task(
-                schedules, maxx_id, di, task,
-                reason_code=REASON_DAY_FULL,
-                deferred_to=di + 1 if di + 1 < day_count else None,
-            )
+            # REAL deferral, not a silent drop: move the task to the next day
+            # that (a) doesn't already run this catalog_id and (b) has cap
+            # headroom, and age it so it wins a slot back next time. Only when
+            # no day in the window has room does it become a plain drop
+            # (deferred_to=None -> "when your day opens up").
+            target = None
+            cid = task.get("catalog_id")
+            for dj in range(di + 1, day_count):
+                ids_there = {t.get("catalog_id") for _, t in by_day[dj]}
+                if cid and cid in ids_there:
+                    continue
+                if len(by_day[dj]) >= TARGET_DAILY_TOTAL:
+                    continue
+                target = dj
+                break
+            if target is not None:
+                _move_task(schedules, maxx_id, di, target, task)
+                task["deferral_age"] = int(task.get("deferral_age") or 0) + 1
+                by_day[target].append((maxx_id, task))
+                days_m = schedules.get(maxx_id) or []
+                if di < len(days_m):
+                    days_m[di].setdefault("held_back", []).append({
+                        "task_uuid": task.get("task_uuid"),
+                        "catalog_id": cid,
+                        "title": task.get("title"),
+                        "program_id": maxx_id,
+                        "reason_code": REASON_DAY_FULL,
+                        "beaten_by": None,
+                        "deferred_to": target,
+                        "deferral_age": int(task.get("deferral_age") or 0),
+                    })
+            else:
+                _suppress_task(
+                    schedules, maxx_id, di, task,
+                    reason_code=REASON_DAY_FULL,
+                    deferred_to=None,
+                )
             items.remove((maxx_id, task))
 
         # Absolute storm guard: trim down to the hard ceiling as a last resort.
@@ -409,8 +499,20 @@ def reconcile_schedules(
                 items.remove((maxx_id, task))
 
     # 5) Final cross-module busy-window eviction (opt-in via user_ctx).
-    if isinstance(user_ctx, dict) and start_date is not None:
-        _evict_busy_windows(schedules, user_ctx, start_date, day_count)
+    eviction_anchor = aligned_anchor if aligned_anchor is not None else start_date
+    if isinstance(user_ctx, dict) and eviction_anchor is not None:
+        _evict_busy_windows(schedules, user_ctx, eviction_anchor, day_count)
+
+    # Strip padding days that stayed empty; a pad that RECEIVED a task or a
+    # ledger entry becomes a real, correctly-dated day and is kept.
+    if aligned_anchor is not None:
+        for m, days in schedules.items():
+            kept: list[dict] = []
+            for d in days:
+                if d.pop("_pad", False) and not (d.get("tasks") or d.get("held_back")):
+                    continue
+                kept.append(d)
+            schedules[m] = kept
 
     return schedules
 

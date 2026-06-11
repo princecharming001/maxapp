@@ -151,6 +151,7 @@ def expand_skeleton(
     sleep: str,
     cadence_days: int = 14,
     exclude_fields: Optional[set[str]] = None,
+    start_date: Any = None,  # datetime.date; the ONE user-local anchor for cadences + stamping
 ) -> list[dict]:
     """Return a `cadence_days`-long list of day dicts.
 
@@ -224,6 +225,7 @@ def expand_skeleton(
             wake=wake_t,
             sleep=sleep_t,
             window_overrides=win_overrides_resolved,
+            start_date=start_date,
         )
 
     # 5) Sort tasks within each day by time so the validator gets a clean list.
@@ -256,6 +258,7 @@ def _place_block(
     wake: dtime,
     sleep: dtime,
     window_overrides: dict[str, list[str]],
+    start_date: Any = None,
 ) -> None:
     """Mutate `days` to add this block's tasks at the right cadence."""
     n_days = len(days)
@@ -323,7 +326,8 @@ def _place_block(
             "friday": 4, "saturday": 5, "sunday": 6,
         }
         target_wd = wd_map.get(cadence.split("=", 1)[1].strip().lower(), 6)
-        today_wd = _date.today().weekday()
+        anchor = start_date or _date.today()
+        today_wd = anchor.weekday()
         # Day offset from today to the next target weekday (could be 0).
         first_offset = (target_wd - today_wd) % 7
         day_indices = list(range(first_offset, n_days, 7))
@@ -336,7 +340,7 @@ def _place_block(
             target_dom = max(1, min(28, int(cadence.split("=", 1)[1].strip())))
         except ValueError:
             target_dom = 1
-        today = _date.today()
+        today = start_date or _date.today()
         day_indices = []
         for i in range(n_days):
             if (today + _td(days=i)).day == target_dom:

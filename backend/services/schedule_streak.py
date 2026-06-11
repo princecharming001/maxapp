@@ -23,6 +23,7 @@ LAST_PERFECT_KEY = "master_schedule_streak_last_perfect_date"
 # safe." Never the words lost/broke/failed/missed near the streak number.
 FREEZES_KEY = "master_schedule_streak_freezes"
 FREEZE_USED_ON_KEY = "master_schedule_streak_freeze_used_on"
+RESET_ON_KEY = "master_schedule_streak_reset_on"
 MAX_ARMED_FREEZES = 2
 
 
@@ -65,6 +66,9 @@ def _reconcile_missed(profile: dict[str, Any], today: date) -> bool:
 
     profile[STREAK_KEY] = 0
     profile[LAST_PERFECT_KEY] = None
+    # Drives the locked next-open card: "Yesterday got away. Today's a fresh
+    # one." - the reset is never silent, and never shamed.
+    profile[RESET_ON_KEY] = today.isoformat()
     return True
 
 
@@ -107,6 +111,7 @@ def _credit_if_perfect_day(
 def streak_payload_from_profile(profile: dict[str, Any], today: date) -> dict[str, Any]:
     freeze_used_on = profile.get(FREEZE_USED_ON_KEY)
     yesterday = (today - timedelta(days=1)).isoformat()
+    reset_on = profile.get(RESET_ON_KEY)
     return {
         "current": int(profile.get(STREAK_KEY) or 0),
         "last_perfect_date": profile.get(LAST_PERFECT_KEY),
@@ -116,6 +121,8 @@ def streak_payload_from_profile(profile: dict[str, Any], today: date) -> dict[st
         # yesterday - drives the "Used a freeze for yesterday. Streak's safe."
         # card. Locked copy lives client-side.
         "freeze_used_yesterday": freeze_used_on == yesterday,
+        # True on the first open after a no-freeze reset (today only).
+        "fresh_start_today": reset_on == today.isoformat(),
     }
 
 

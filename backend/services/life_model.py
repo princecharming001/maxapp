@@ -44,7 +44,9 @@ def _field(value: Any, confidence: float, provenance: str, freshness: str | None
     }
 
 
-def _completion_stats(schedules: list[UserSchedule], days_back: int = 14) -> dict:
+def _completion_stats(
+    schedules: list[UserSchedule], days_back: int = 14, ob: dict | None = None
+) -> dict:
     """Behavioral profile from real completion data: per-window completion
     rates and active behavior days."""
     cutoff = (date.today() - timedelta(days=days_back)).isoformat()
@@ -75,11 +77,11 @@ def _completion_stats(schedules: list[UserSchedule], days_back: int = 14) -> dic
                     behavior_days.add(diso)
                     ca = t.get("completed_at")
                     if ca:
-                        try:
-                            dt = datetime.fromisoformat(str(ca))
-                            completion_clock.append(dt.hour * 60 + dt.minute)
-                        except ValueError:
-                            pass
+                        # Server stamps are UTC; read the USER'S clock.
+                        from services.learner import _local_minutes
+                        minutes = _local_minutes(ca, ob or {})
+                        if minutes is not None:
+                            completion_clock.append(minutes)
 
     rates = {
         w: round(done / total, 2) if total else None
@@ -108,7 +110,7 @@ async def build_life_model(user: User, db: AsyncSession) -> dict[str, Any]:
             (UserSchedule.user_id == uid) & (UserSchedule.is_active.is_(True))
         )
     )).scalars().all())
-    behavior = _completion_stats(schedules)
+    behavior = _completion_stats(schedules, ob=ob)
     degraded = behavior["behavior_days"] < MIN_BEHAVIOR_DAYS
 
     # --- time skeleton -------------------------------------------------------
@@ -136,12 +138,21 @@ async def build_life_model(user: User, db: AsyncSession) -> dict[str, Any]:
     }
 
     # --- fixed commitments ---------------------------------------------------
-    week_ahead = datetime.utcnow() + timedelta(days=7)
+    # Calendar events are stored as WALL-CLOCK tagged UTC; compare with the
+    # user's wall clock in the same space, not a true-UTC instant.
+    from zoneinfo import ZoneInfo
+    from datetime import timezone as _tz
+    try:
+        user_zone = ZoneInfo(str(ob.get("timezone") or "UTC"))
+    except Exception:
+        user_zone = ZoneInfo("UTC")
+    now_wall = datetime.now(user_zone).replace(tzinfo=_tz.utc)
+    week_ahead = now_wall + timedelta(days=7)
     cal_count = len((await db.execute(
         select(CalendarEvent.id).where(
             (CalendarEvent.user_id == uid)
             & (CalendarEvent.starts_at < week_ahead)
-            & (CalendarEvent.ends_at > datetime.utcnow() - timedelta(days=1))
+            & (CalendarEvent.ends_at > now_wall - timedelta(days=1))
         )
     )).all())
     commitments = {
@@ -178,7 +189,8 @@ async def build_life_model(user: User, db: AsyncSession) -> dict[str, Any]:
     }
 
     # --- live state ----------------------------------------------------------
-    today_iso = date.today().isoformat()
+    from services.schedule_streak import local_today_date
+    today_iso = local_today_date(ob).isoformat()
     done_today = 0
     total_today = 0
     for sched in schedules:
