@@ -72,6 +72,7 @@ async def generate_and_persist(
     wake_time: str = "07:00",
     sleep_time: str = "23:00",
     subscription_tier: str | None = None,
+    cap: int | None = None,
 ) -> dict:
     """Run the new generator and persist as UserSchedule. Returns a dict
     matching the shape lc_agent expects (id, maxx_id, course_title, days)."""
@@ -86,6 +87,7 @@ async def generate_and_persist(
     # Limit check before LLM call.
     await _enforce_active_schedule_limit(
         user_id=user_id, db=db, replacing_maxx_id=maxx_id, subscription_tier=subscription_tier,
+        cap=cap,
     )
 
     ob_ctx = onboarding or dict(user.onboarding or {})

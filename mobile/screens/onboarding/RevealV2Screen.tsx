@@ -15,7 +15,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -59,11 +59,13 @@ function toMin(hhmm?: string): number {
 
 export default function RevealV2Screen() {
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
     const insets = useSafeAreaInsets();
     const { user, refreshUser } = useAuth();
     const [phase, setPhase] = useState<'reveal' | 'notifications' | 'scan'>('reveal');
     const [revealSettled, setRevealSettled] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [saveError, setSaveError] = useState(false);
 
     const todayQ = useQuery({
         queryKey: ['plannerToday', 'reveal'],
@@ -71,7 +73,9 @@ export default function RevealV2Screen() {
         staleTime: 0,
     });
 
-    const ob = (user?.onboarding ?? {}) as Record<string, any>;
+    // Prefer the answers passed by the funnel (fresh, race-free); fall back
+    // to the persisted user record.
+    const ob = (route.params?.ob ?? user?.onboarding ?? {}) as Record<string, any>;
 
     const rows: RevealRow[] = useMemo(() => {
         const data = todayQ.data;
@@ -105,9 +109,17 @@ export default function RevealV2Screen() {
         try {
             await api.saveOnboarding({ ...(ob as any), completed: true });
             await refreshUser();
-            // With onboardingV2 on, the root navigator now swaps to Main (Today).
+            // The root stack swaps on completion; steer explicitly to Main so
+            // web URL-linking can't restore this (now-stale) reveal route.
+            const { navigationRef } = require('../../lib/navigationRef');
+            setTimeout(() => {
+                if (navigationRef.isReady()) {
+                    (navigationRef as any).navigate('Main');
+                }
+            }, 350);
         } catch {
             setBusy(false);
+            setSaveError(true);
         }
     };
 
@@ -215,6 +227,11 @@ export default function RevealV2Screen() {
                             It sharpens the skin and jaw parts of your routine. Do it later
                             or never. Your plan works either way.
                         </Text>
+                        {saveError ? (
+                            <Text style={[styles.sub, { color: '#C0452C', marginTop: 10 }]}>
+                                Couldn't save. Check your connection and tap again.
+                            </Text>
+                        ) : null}
                         <View style={{ gap: 10, marginTop: 28 }}>
                             <GlassButton
                                 variant="primary"

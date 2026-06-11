@@ -669,7 +669,13 @@ async def save_onboarding(
 
     onboarding_data["height_cm"] = height_cm
     onboarding_data["weight_kg"] = weight_kg
-    onboarding_data["completed"] = True
+    # Legacy clients never send `completed` and rely on the save marking the
+    # funnel done. Onboarding v2 saves mid-funnel with an EXPLICIT
+    # completed=false (the reveal + permission steps still follow) - honor it,
+    # otherwise the root navigator swaps stacks mid-flow and the reveal is
+    # silently skipped for every new user.
+    if "completed" not in data.model_fields_set:
+        onboarding_data["completed"] = True
     user.onboarding = onboarding_data
     user.updated_at = datetime.utcnow()
     await db.flush()

@@ -60,6 +60,11 @@ function fmtTime(hhmm?: string): string {
     return `${h}:${ms}${suffix}`;
 }
 
+function displayTitle(s?: string): string {
+    if (!s) return '';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function toMin(hhmm?: string): number {
     if (!hhmm || !hhmm.includes(':')) return 0;
     const [h, m] = hhmm.split(':');
@@ -155,8 +160,14 @@ export default function TodayScreen() {
     const programCount = new Set(tasks.map((t) => t.maxx_id).filter(Boolean)).size;
 
     const nowMin = now.getHours() * 60 + now.getMinutes();
+    // Upcoming first; otherwise the NEAREST pending by clock distance - at
+    // 10pm that's tonight's wind-down, not this morning's missed cleanse.
     const nextUp =
-        pending.find((t) => toMin(t.time) >= nowMin) ?? pending[0] ?? null;
+        pending.find((t) => toMin(t.time) >= nowMin) ??
+        [...pending].sort(
+            (a, b) => Math.abs(toMin(a.time) - nowMin) - Math.abs(toMin(b.time) - nowMin),
+        )[0] ??
+        null;
 
     const hour = now.getHours();
     const isMorning = hour < 12;
@@ -537,7 +548,7 @@ export default function TodayScreen() {
                                         {fmtTime(nextUp.time)}
                                         {nextUp.why ? `  ·  ${nextUp.why}` : ''}
                                     </Text>
-                                    <Text style={styles.heroTitle}>{nextUp.title}</Text>
+                                    <Text style={styles.heroTitle}>{displayTitle(nextUp.title)}</Text>
                                     {data?.leave_by && data.leave_by.task_id === nextUp.task_id ? (
                                         <View style={styles.leaveByRow}>
                                             <Ionicons name="navigate-outline" size={13} color={GOLD} />
@@ -582,7 +593,7 @@ export default function TodayScreen() {
                                         {completed.map((t) => (
                                             <View key={t.task_id} style={{ flexDirection: 'row', alignItems: 'center' }}>
                                                 <Ionicons name="checkmark-circle" size={15} color={GOLD} />
-                                                <Text style={styles.closeoutItem}>  {t.title}</Text>
+                                                <Text style={styles.closeoutItem}>  {displayTitle(t.title)}</Text>
                                             </View>
                                         ))}
                                     </View>
@@ -635,7 +646,7 @@ export default function TodayScreen() {
                                                                 isDone && { color: MUTE, textDecorationLine: 'line-through' },
                                                             ]}
                                                         >
-                                                            {t.title}
+                                                            {displayTitle(t.title)}
                                                         </Text>
                                                         {t.locked ? (
                                                             <Ionicons name="lock-closed" size={12} color={MUTE} style={{ marginLeft: 6 }} />

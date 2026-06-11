@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db
 from middleware.auth_middleware import get_current_user
 from models.sqlalchemy_models import User
+from models.sqlalchemy_models import UserSchedule as _PurchaseProbe
 from services.maxx_guidelines import get_maxx_guideline
 
 router = APIRouter(prefix="/marketplace", tags=["Marketplace"])
@@ -197,6 +198,168 @@ def _set_entitlement(user: User, item_id: str, is_course: bool, granted: bool) -
     user.onboarding = ob  # reassign so SQLAlchemy flushes the JSON change
 
 
+# Under the marketplace model, admission control is the feasibility sim +
+# the merge's paid floor - not the legacy 2/3 account-tier cap.
+_MARKETPLACE_ACTIVE_CAP = 5
+
+
+async def _build_course_schedule(
+    db: AsyncSession, user: User, course: dict[str, Any]
+) -> None:
+    """A REAL schedule for a creator course, from its schedule_hints: the
+    promised sessions actually land on the user's week (the mini-reveal must
+    never over-promise). Sessions are placed into free time around stated
+    wake/sleep/obligations; the cross-module merge then reconciles them
+    against the user's other programs."""
+    from datetime import timedelta
+    from models.sqlalchemy_models import UserSchedule
+    from services.multi_module_collision import reconcile_schedules
+    from services.schedule_streak import local_today_date
+    from services.schedule_validator import (
+        _busy_intervals_from_ctx,
+        _effective_day_ctx,
+        _WEEKDAY_NAMES,
+    )
+    from services.task_fields import normalize_days
+    from services.user_context_service import merged_user_state
+
+    item_id = course["id"]
+    hints = course.get("schedule_hints") or {}
+    sessions_per_week = max(1, min(7, int(hints.get("sessions_per_week") or 3)))
+    minutes = max(5, int(hints.get("minutes") or 20))
+
+    ob = dict(user.onboarding or {})
+    state = merged_user_state(ob, None)
+    g_wake = str(state.get("wake_time") or "07:00")
+    g_sleep = str(state.get("sleep_time") or "23:00")
+
+    # Spread N sessions across the week deterministically (0=first day).
+    stride = 7 / sessions_per_week
+    session_offsets = sorted({int(i * stride) for i in range(sessions_per_week)})
+
+    today = local_today_date(ob)
+    days: list[dict[str, Any]] = []
+    for i in range(14):
+        d = today + timedelta(days=i)
+        tasks: list[dict[str, Any]] = []
+        if (i % 7) in session_offsets:
+            wd = _WEEKDAY_NAMES[d.weekday()]
+            eff = _effective_day_ctx(state, wd, global_wake=g_wake, global_sleep=g_sleep)
+            def _hm_min(s, default):
+                try:
+                    h, m = str(s).split(":", 1)
+                    return int(h) * 60 + int(m[:2])
+                except (ValueError, AttributeError):
+                    return default
+            wake_min = _hm_min(eff.get("wake_time"), 7 * 60)
+            sleep_min = _hm_min(eff.get("sleep_time"), 23 * 60)
+            busy = sorted(_busy_intervals_from_ctx(eff))
+            # First free gap that fits the session.
+            slot = None
+            cursor = wake_min + 30
+            for bs, be in busy:
+                if bs - cursor >= minutes:
+                    slot = cursor
+                    break
+                cursor = max(cursor, be + 10)
+            if slot is None and sleep_min - cursor >= minutes:
+                slot = cursor
+            if slot is not None:
+                handle = (course.get("creator") or {}).get("handle") or "creator"
+                tasks.append({
+                    "task_id": f"{item_id}-{d.isoformat()}",
+                    "catalog_id": f"{item_id}.session",
+                    "title": f"{course['title']} session",
+                    "description": f"Today's session. From {course['title']} by @{handle}.",
+                    "time": f"{slot // 60:02d}:{slot % 60:02d}",
+                    "duration_min": minutes,
+                    "task_type": "routine",
+                    "status": "pending",
+                    "importance": 5,
+                    "task_kind": "fixed",
+                    "tags": ["workout"] if course.get("category") == "fitmax" else [],
+                    "provenance": {"program_id": item_id, "creator_handle": handle},
+                })
+        days.append({"date": d.isoformat(), "day_index": i, "tasks": tasks})
+
+    normalize_days(days, item_id)
+
+    # Deactivate a prior schedule for this course, persist the new one.
+    prior = (await db.execute(
+        select(UserSchedule).where(
+            (UserSchedule.user_id == user.id)
+            & (UserSchedule.maxx_id == item_id)
+            & (UserSchedule.is_active.is_(True))
+        )
+    )).scalars().all()
+    for p in prior:
+        p.is_active = False
+
+    row = UserSchedule(
+        user_id=user.id,
+        schedule_type="course",
+        maxx_id=item_id,
+        course_title=course["title"],
+        days=days,
+        preferences={"wake_time": g_wake, "sleep_time": g_sleep},
+        schedule_context={"source": "marketplace_hints"},
+        is_active=True,
+        completion_stats={"completed": 0, "total": 0, "skipped": 0},
+    )
+    db.add(row)
+    await db.flush()
+
+    # Reconcile against the user's other active programs (paid floor etc.).
+    others = (await db.execute(
+        select(UserSchedule).where(
+            (UserSchedule.user_id == user.id)
+            & (UserSchedule.is_active.is_(True))
+            & (UserSchedule.maxx_id != item_id)
+        )
+    )).scalars().all()
+    if others:
+        bundle = {item_id: list(days)}
+        for s in others:
+            if s.maxx_id and s.days:
+                bundle[s.maxx_id] = list(s.days)
+        bundle = reconcile_schedules(bundle, user_ctx=state, start_date=today)
+        row.days = bundle.get(item_id, days)
+        for s in others:
+            if s.maxx_id in bundle:
+                s.days = bundle[s.maxx_id]
+    await db.commit()
+
+
+async def _generate_program_schedule(
+    db: AsyncSession, user: User, item_id: str, is_course: bool
+) -> bool:
+    """Make the entitlement REAL: build the program's schedule right away so
+    'N things landed on your week' is true the moment the sheet says it.
+    Best-effort - a generation failure never blocks the purchase."""
+    try:
+        if is_course:
+            course = next((c for c in _SEED_COURSES if c["id"] == item_id), None)
+            if course is None:
+                return False
+            await _build_course_schedule(db, user, course)
+            return True
+        from services.schedule_runtime import generate_and_persist
+        await generate_and_persist(
+            user_id=str(user.id), maxx_id=item_id, db=db,
+            wake_time=str((user.onboarding or {}).get("wake_time") or "07:00"),
+            sleep_time=str((user.onboarding or {}).get("sleep_time") or "23:00"),
+            cap=_MARKETPLACE_ACTIVE_CAP,
+        )
+        await db.commit()
+        return True
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "post-enter schedule generation failed for %s (non-fatal): %s", item_id, e
+        )
+        return False
+
+
 async def fulfill_marketplace_purchase(
     db: AsyncSession, user_id: str, item_id: str, provider: str, provider_ref: "str | None",
 ) -> None:
@@ -237,6 +400,15 @@ async def fulfill_marketplace_purchase(
         ))
     _set_entitlement(user, item_id, is_course, granted=True)
     await db.commit()
+    # Make it real: the program's tasks land on the week NOW.
+    if (await db.execute(
+        select(_PurchaseProbe.id).where(
+            (_PurchaseProbe.user_id == user.id)
+            & (_PurchaseProbe.maxx_id == item_id)
+            & (_PurchaseProbe.is_active.is_(True))
+        )
+    )).first() is None:
+        await _generate_program_schedule(db, user, item_id, is_course)
 
 
 @router.post("/enter/{item_id}")

@@ -194,12 +194,14 @@ async def planner_today(
 
     # Persisted suppression ledger for the day (generation-time merge).
     held_back: list[dict] = []
+    schedule_created: dict[str, Any] = {}
     res = await db.execute(
         select(UserSchedule).where(
             (UserSchedule.user_id == uid) & (UserSchedule.is_active.is_(True))
         )
     )
     for sched in res.scalars().all():
+        schedule_created[str(sched.id)] = sched.created_at
         for d in sched.days or []:
             if d.get("date") == target.isoformat():
                 held_back.extend(d.get("held_back") or [])
@@ -249,9 +251,24 @@ async def planner_today(
         wake_min = _parse_hm_minutes(ob.get("wake_time"), 7 * 60)
         sleep_min = _parse_hm_minutes(ob.get("sleep_time"), 23 * 60)
         overnight = sleep_min <= wake_min
+        # A task can't be "missed" before its plan existed: on the schedule's
+        # first day, slots earlier than the creation moment never slip (a 5pm
+        # signup must not open to "Missed wash your face" three times over).
+        def _born_after_slot(t: dict) -> bool:
+            created = schedule_created.get(str(t.get("schedule_id")))
+            if created is None:
+                return False
+            c = created.replace(tzinfo=_utc_tz.utc) if created.tzinfo is None else created
+            c_local = c.astimezone(_user_tz(ob))
+            if c_local.date() != target:
+                return False
+            return (c_local.hour * 60 + c_local.minute) > _parse_hm_minutes(t.get("time"), 0)
+
         for slipped in detect_slips(
             tasks_today, now_min, wake_min=wake_min, overnight=overnight
         ):
+            if _born_after_slot(slipped):
+                continue
             suggestion = suggest_reflow(
                 slipped, tasks_today, structure, now_min, sleep_min,
                 wake_min=wake_min,

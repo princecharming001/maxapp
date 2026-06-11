@@ -132,7 +132,7 @@ export default function OnboardingV2Screen() {
             const tokens = goals
                 .map((id) => MAXX_TILES.find((t) => t.id === id)?.token)
                 .filter(Boolean) as string[];
-            await api.saveOnboarding({
+            const payload = {
                 goals,
                 priority_order: tokens,
                 motivation,
@@ -144,9 +144,13 @@ export default function OnboardingV2Screen() {
                 anchor_cues: anchors,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
                 completed: false,
-            } as any);
-            await refreshUser();
-            navigation.navigate('RoutineReveal');
+            };
+            await api.saveOnboarding(payload as any);
+            // Navigate FIRST (with the answers as params so the reveal does
+            // not depend on a user refetch), THEN refresh auth state - a
+            // refresh that swaps the root stack would eat the navigation.
+            navigation.navigate('RoutineReveal', { ob: payload });
+            refreshUser().catch(() => {});
         } catch (e: any) {
             setError("Couldn't save. Check your connection and try again.");
         } finally {

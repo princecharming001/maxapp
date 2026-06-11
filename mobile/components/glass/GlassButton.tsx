@@ -45,6 +45,9 @@ export function GlassButton({
     const isGhost = variant === 'ghost';
     const textColor = variant === 'primary' ? '#FFFFFF' : isGhost ? '#6B7280' : '#111113';
     const reduceTransparency = useReduceTransparency();
+    // A disabled button must LOOK disabled - otherwise taps silently no-op
+    // and the user blames the app.
+    const dimStyle = disabled && !loading ? { opacity: 0.45 } : null;
     const a11yProps = {
         accessibilityRole: 'button' as const,
         accessibilityLabel: label,
@@ -76,7 +79,7 @@ export function GlassButton({
                 activeOpacity={0.85}
                 onPress={onPress}
                 disabled={disabled || loading}
-                style={[styles.shadow, style]}
+                style={[styles.shadow, style, dimStyle]}
                 {...a11yProps}
             >
                 <View
@@ -105,7 +108,7 @@ export function GlassButton({
                 activeOpacity={0.6}
                 onPress={onPress}
                 disabled={disabled || loading}
-                style={style}
+                style={[style, dimStyle]}
                 {...a11yProps}
             >
                 {content}
@@ -118,7 +121,7 @@ export function GlassButton({
             activeOpacity={0.9}
             onPress={onPress}
             disabled={disabled || loading}
-            style={[styles.shadow, style]}
+            style={[styles.shadow, style, dimStyle]}
             {...a11yProps}
         >
             <View backgroundColor="$ink" borderRadius={radius} style={{ borderCurve: 'continuous' }}>

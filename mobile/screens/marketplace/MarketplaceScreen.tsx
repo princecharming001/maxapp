@@ -22,7 +22,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { track } from '../../lib/analytics';
 import api, { type MarketplaceItem } from '../../services/api';
 
@@ -236,6 +236,9 @@ function ItemCard({ item, onPress }: { item: MarketplaceItem; onPress: () => voi
 function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | null; onClose: () => void; onEntered: (id: string) => void }) {
     const [busy, setBusy] = useState(false);
     const [miniReveal, setMiniReveal] = useState<{ count: number; first: string } | null>(null);
+    const [manageOpen, setManageOpen] = useState(false);
+    const [manageNote, setManageNote] = useState<string | null>(null);
+    const queryClient = useQueryClient();
     if (!item) return null;
     const isWeekly = item.price_model === 'weekly';
 
@@ -252,6 +255,11 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
         setBusy(true);
         try {
             const res = await api.enterMarketplaceItem(item.id);
+            // The program's schedule generates server-side on enter - flush
+            // the Today/week caches so "See my day" shows the landed tasks.
+            queryClient.invalidateQueries({ queryKey: ['plannerToday'] });
+            queryClient.invalidateQueries({ queryKey: ['plannerHeldBack'] });
+            queryClient.invalidateQueries({ queryKey: ['activeSchedulesFull'] });
             if (res.checkout_url) {
                 // Real capture: hand off to hosted Stripe Checkout. The
                 // webhook grants the entitlement on completion.
@@ -384,6 +392,66 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
                             onPress={item.entered ? onClose : enter}
                             loading={busy}
                         />
+                        {item.entered && !manageOpen ? (
+                            <TouchableOpacity
+                                onPress={() => setManageOpen(true)}
+                                style={{ paddingVertical: 10, alignItems: 'center' }}
+                                activeOpacity={0.6}
+                                accessibilityRole="button"
+                                accessibilityLabel="Manage this program"
+                            >
+                                <Text style={styles.closeText}>Manage</Text>
+                            </TouchableOpacity>
+                        ) : null}
+                        {item.entered && manageOpen ? (
+                            <View style={{ marginTop: 10, alignSelf: 'stretch' }}>
+                                {manageNote ? (
+                                    <Text style={styles.manageNote}>{manageNote}</Text>
+                                ) : (
+                                    <>
+                                        <GlassButton
+                                            variant="glass"
+                                            label="Pause a month, keep my streak"
+                                            loading={busy}
+                                            onPress={async () => {
+                                                setBusy(true);
+                                                try {
+                                                    await api.cancelMarketplaceItem(item.id, true);
+                                                    setManageNote('Paused for a month. Your streak holds. Come back whenever.');
+                                                } catch {
+                                                    setManageNote("Couldn't reach Max. Try again in a bit.");
+                                                } finally {
+                                                    setBusy(false);
+                                                }
+                                            }}
+                                        />
+                                        <TouchableOpacity
+                                            onPress={async () => {
+                                                setBusy(true);
+                                                try {
+                                                    const res = await api.cancelMarketplaceItem(item.id, false);
+                                                    setManageNote(
+                                                        res.access_until
+                                                            ? 'Canceled. Everything stays yours until the period ends.'
+                                                            : 'Canceled.',
+                                                    );
+                                                } catch {
+                                                    setManageNote("Couldn't reach Max. Try again in a bit.");
+                                                } finally {
+                                                    setBusy(false);
+                                                }
+                                            }}
+                                            style={{ paddingVertical: 12, alignItems: 'center' }}
+                                            activeOpacity={0.6}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Cancel anyway"
+                                        >
+                                            <Text style={styles.closeText}>Cancel anyway</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
+                            </View>
+                        ) : null}
                         <TouchableOpacity onPress={onClose} style={{ paddingVertical: 12, alignItems: 'center' }} activeOpacity={0.6}>
                             <Text style={styles.closeText}>Close</Text>
                         </TouchableOpacity>
@@ -446,6 +514,7 @@ const styles = StyleSheet.create({
     previewText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: INK },
     previewMore: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 2, marginLeft: 22 },
     priceSub: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 2 },
+    manageNote: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: '#3A3A3F', textAlign: 'center', paddingVertical: 8 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
     loadingText: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE },
     kicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.4, color: MUTE },

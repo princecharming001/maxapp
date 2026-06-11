@@ -174,6 +174,7 @@ export function RootNavigator() {
                     <Stack.Screen name="FaceScanArchive" component={FaceScanArchiveScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="WeeklyReview" component={WeeklyReviewScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="DaySetup" component={DaySetupScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="RoutineReveal" component={RevealComponent} />
 
                     <Stack.Screen name="CourseList" component={CourseListScreen} />
                     <Stack.Screen name="CourseDetail" component={CourseDetailScreen} options={{ headerShown: false }} />
