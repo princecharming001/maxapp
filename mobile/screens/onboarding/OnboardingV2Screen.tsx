@@ -116,6 +116,8 @@ export default function OnboardingV2Screen() {
     const [sleepMin, setSleepMin] = useState(23 * 60);
     const [works95, setWorks95] = useState(true);
     const [anchors, setAnchors] = useState<string[]>([]);
+    const [workoutChoice, setWorkoutChoice] = useState<string>('after_work');
+    const [weekendShift, setWeekendShift] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -142,6 +144,8 @@ export default function OnboardingV2Screen() {
                     ? [{ label: 'Work', start: '09:00', end: '17:00', days: 'weekdays' }]
                     : [],
                 anchor_cues: anchors,
+                workout_window_choice: workoutChoice,
+                weekend_shift: weekendShift,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
                 completed: false,
             };
@@ -256,6 +260,56 @@ export default function OnboardingV2Screen() {
                         />
                         <Text style={styles.workChipText}>I work 9-5 weekdays</Text>
                     </TouchableOpacity>
+
+                    <Text style={styles.anchorLabel}>WHEN WOULD A WORKOUT ACTUALLY HAPPEN?</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                        {([
+                            ['before_work', 'Before work'],
+                            ['lunch', 'Lunch'],
+                            ['after_work', 'After work'],
+                            ['evening', 'Evenings'],
+                        ] as const).map(([id, label]) => {
+                            const active = workoutChoice === id;
+                            return (
+                                <TouchableOpacity
+                                    key={id}
+                                    style={[styles.anchorChip, active && styles.anchorChipActive]}
+                                    onPress={() => setWorkoutChoice(id)}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: active }}
+                                    accessibilityLabel={label}
+                                >
+                                    <Text style={[styles.anchorChipText, active && { color: '#8a6a10' }]}>
+                                        {label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+
+                    <Text style={styles.anchorLabel}>WEEKENDS?</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                        {([
+                            [true, 'I sleep in'],
+                            [false, 'Same rhythm'],
+                        ] as const).map(([val, label]) => {
+                            const active = weekendShift === val;
+                            return (
+                                <TouchableOpacity
+                                    key={label}
+                                    style={[styles.anchorChip, active && styles.anchorChipActive]}
+                                    onPress={() => setWeekendShift(val)}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: active }}
+                                    accessibilityLabel={label}
+                                >
+                                    <Text style={[styles.anchorChipText, active && { color: '#8a6a10' }]}>
+                                        {label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
 
                     <Text style={styles.anchorLabel}>WHAT DO YOU ALREADY DO EVERY DAY?</Text>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>

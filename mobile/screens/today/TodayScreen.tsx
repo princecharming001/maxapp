@@ -60,6 +60,15 @@ function fmtTime(hhmm?: string): string {
     return `${h}:${ms}${suffix}`;
 }
 
+function relativeLine(slotMin: number, nowMin: number): string | null {
+    const d = slotMin - nowMin;
+    if (d <= -90 || d > 12 * 60) return null;
+    if (d <= 0) return 'now is good';
+    if (d < 60) return `in about ${Math.max(5, Math.round(d / 5) * 5)} min`;
+    const h = Math.round(d / 30) / 2;
+    return `in about ${h === 1 ? 'an hour' : `${h} hours`}`;
+}
+
 function displayTitle(s?: string): string {
     if (!s) return '';
     return s.charAt(0).toUpperCase() + s.slice(1);
@@ -88,6 +97,7 @@ export default function TodayScreen() {
     const [showHeldBack, setShowHeldBack] = useState(false);
     const [undo, setUndo] = useState<{ task: PlannerTask; promise?: Promise<unknown> } | null>(null);
     const [toast, setToast] = useState<string | null>(null);
+    const [toastAction, setToastAction] = useState<{ label: string; run: () => void } | null>(null);
     const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     // A living clock: time-derived UI (lock-in banner, NEXT UP, close-out)
     // follows the real clock instead of freezing at first render. Foreground
@@ -272,7 +282,24 @@ export default function TodayScreen() {
             }));
             track('snooze', { program: t.maxx_id });
             setToast(`Moved to ${fmtTime(newTime)}`);
-            setTimeout(() => setToast(null), 3000);
+            // The human follow-up: a wrong time is usually wrong EVERY day.
+            setToastAction({
+                label: 'Keep daily',
+                run: () => {
+                    api.editScheduleTask(t.schedule_id!, t.task_id!, { time: newTime }, 'series')
+                        .then(() => {
+                            setToast(`Done. ${fmtTime(newTime)} every day now.`);
+                            setToastAction(null);
+                            setTimeout(() => setToast(null), 2500);
+                        })
+                        .catch(() => {
+                            setToast("Couldn't save that. Try again.");
+                            setToastAction(null);
+                            setTimeout(() => setToast(null), 2500);
+                        });
+                },
+            });
+            setTimeout(() => { setToast(null); setToastAction(null); }, 6000);
             return ctx;
         },
         onError: (_e, _v, ctx) => {
@@ -546,8 +573,13 @@ export default function TodayScreen() {
                                 <View style={{ padding: 20 }}>
                                     <Text style={styles.heroTime}>
                                         {fmtTime(nextUp.time)}
-                                        {nextUp.why ? `  ·  ${nextUp.why}` : ''}
+                                        {relativeLine(toMin(nextUp.time), nowMin)
+                                            ? `  ·  ${relativeLine(toMin(nextUp.time), nowMin)}`
+                                            : ''}
                                     </Text>
+                                    {nextUp.why ? (
+                                        <Text style={styles.heroWhy}>{nextUp.why}</Text>
+                                    ) : null}
                                     <Text style={styles.heroTitle}>{displayTitle(nextUp.title)}</Text>
                                     {data?.leave_by && data.leave_by.task_id === nextUp.task_id ? (
                                         <View style={styles.leaveByRow}>
@@ -752,9 +784,19 @@ export default function TodayScreen() {
                         </TouchableOpacity>
                     </View>
                 ) : null}
-                {toast ? (
+                {toast && !undo ? (
                     <View style={[styles.snackbar, { bottom: 70 + insets.bottom }]}>
                         <Text style={styles.snackText}>{toast}</Text>
+                        {toastAction ? (
+                            <TouchableOpacity
+                                onPress={toastAction.run}
+                                accessibilityRole="button"
+                                accessibilityLabel={toastAction.label}
+                                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            >
+                                <Text style={styles.snackUndo}>{toastAction.label}</Text>
+                            </TouchableOpacity>
+                        ) : null}
                     </View>
                 ) : null}
 
@@ -848,6 +890,7 @@ const styles = StyleSheet.create({
     bannerTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 22, color: INK },
     bannerSub: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#3A3A3F', marginTop: 4, lineHeight: 20 },
     heroTime: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: GOLD, letterSpacing: 0.3 },
+    heroWhy: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 2 },
     heroTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 28, color: INK, marginTop: 4, letterSpacing: -0.4 },
     heroDesc: { fontFamily: 'Matter-Regular', fontSize: 14, color: MUTE, marginTop: 6, lineHeight: 21 },
     closeoutItem: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: INK },

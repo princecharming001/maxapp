@@ -188,6 +188,8 @@ async def generate_schedule(
                 expected_day_count=cadence_days,
                 daily_task_budget=(min_tasks, max_tasks),
             )
+            from services.human_time import humanize_days
+            humanize_days(fixed_days, user_state)
             summary = _skeleton_summary(doc, fixed_days, modifiers)
             elapsed = int((time.perf_counter() - t0) * 1000)
             return GenerationResult(

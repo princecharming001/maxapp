@@ -335,6 +335,8 @@ async def generate_first_routine_if_absent(
             user_ctx=state, expected_day_count=cadence_days,
             daily_task_budget=tuple(budget),
         )
+        from services.human_time import humanize_days
+        humanize_days(days, state)
 
         total_tasks = sum(len(d.get("tasks") or []) for d in days)
         if total_tasks < _STARTER_MIN_TASKS:
@@ -480,6 +482,8 @@ async def regenerate_active_schedules(
                 user_ctx=state, expected_day_count=cadence_days,
                 daily_task_budget=tuple(budget),
             )
+            from services.human_time import humanize_days
+            humanize_days(fixed_new, state)
         except Exception as e:
             logger.warning("regen failed for max=%s user=%s: %s", mid, user_id, e)
             continue

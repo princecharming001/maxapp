@@ -234,13 +234,35 @@ def suggest_reflow(
             busy.append((w(slot), w(slot) + dur))
     busy.sort()
 
+    from services.human_time import friendly_time, life_windows, nudge_out_of_protected
+
+    # Build the day's life windows from the REAL structure rows (work,
+    # calendar blocks) so the suggestion respects crunch/settle-in/dinner.
+    day_obligations = [
+        {"start": s.get("time"), "end": s.get("end")}
+        for s in structure
+        if s.get("end") and s.get("label") not in ("Wake", "Sleep")
+    ]
+    lw = life_windows({
+        "wake_time": _hm(wake_min),
+        "sleep_time": _hm(sleep_min % (24 * 60)),
+        "obligations": day_obligations,
+    })
     dur = int(slipped.get("duration_min") or 10)
     cursor = w(now_min) + 15  # a beat of breathing room, never "right now"
     while cursor + dur <= sleep_w:
         conflict = next((b for b in busy if b[0] < cursor + dur and b[1] > cursor), None)
         if conflict is None:
-            # Convert back to clock space (wraps past midnight cleanly).
-            return _hm((wake_min + cursor) if overnight else cursor)
+            clock = ((wake_min + cursor) if overnight else cursor) % (24 * 60)
+            clock = nudge_out_of_protected(clock, lw, dur)
+            clock = friendly_time(clock)
+            # Re-check the humanized slot against busy intervals.
+            cw = w(clock)
+            still = next((b for b in busy if b[0] < cw + dur and b[1] > cw), None)
+            if still is None and cw + dur <= sleep_w:
+                return _hm(clock)
+            cursor = (still[1] + 5) if still is not None else cursor + 15
+            continue
         cursor = conflict[1] + 5
     return None
 

@@ -676,6 +676,31 @@ async def save_onboarding(
     # silently skipped for every new user.
     if "completed" not in data.model_fields_set:
         onboarding_data["completed"] = True
+
+    # Fits-your-life resolution: the human answers ("workout after work",
+    # "I sleep in on weekends") become concrete windows derived from the
+    # user's OWN anchors, so every placement pass downstream honors them.
+    choice = str(onboarding_data.get("workout_window_choice") or "").strip()
+    if choice:
+        from services.human_time import hm as _ht_hm, resolve_workout_window
+        lo, hi = resolve_workout_window(onboarding_data, choice)
+        onboarding_data["preferred_workout_window"] = [
+            _ht_hm(lo % (24 * 60)), _ht_hm(hi % (24 * 60)),
+        ]
+    if onboarding_data.get("weekend_shift") and not (
+        onboarding_data.get("weekly_timings") or {}
+    ).get("saturday"):
+        from services.human_time import hm as _ht_hm2, to_min as _ht_to_min
+        wake_m = _ht_to_min(onboarding_data.get("wake_time"), 7 * 60)
+        sleep_m = _ht_to_min(onboarding_data.get("sleep_time"), 23 * 60)
+        weekend = {
+            "wake_time": _ht_hm2((wake_m + 60) % (24 * 60)),
+            "sleep_time": _ht_hm2((sleep_m + 60) % (24 * 60)),
+        }
+        wt = dict(onboarding_data.get("weekly_timings") or {})
+        wt["saturday"] = {**weekend, **(wt.get("saturday") or {})}
+        wt["sunday"] = {**weekend, **(wt.get("sunday") or {})}
+        onboarding_data["weekly_timings"] = wt
     user.onboarding = onboarding_data
     user.updated_at = datetime.utcnow()
     await db.flush()

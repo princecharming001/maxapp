@@ -254,22 +254,54 @@ async def _build_course_schedule(
             wake_min = _hm_min(eff.get("wake_time"), 7 * 60)
             sleep_min = _hm_min(eff.get("sleep_time"), 23 * 60)
             busy = sorted(_busy_intervals_from_ctx(eff))
-            # First free gap that fits the session.
+
+            # WORKOUT-SHAPED sessions (40+ min, fitness-y category) go in the
+            # user's stated workout window - never wedged into the morning
+            # get-ready crunch just because a gap exists. Short habit
+            # sessions still take the first sensible free gap, but skip the
+            # crunch / settle-in / dinner buffers.
+            from services.human_time import (
+                friendly_time,
+                life_windows,
+                nudge_out_of_protected,
+                resolve_workout_window,
+            )
+            day_state = {**state, **{k: v for k, v in eff.items() if v is not None}}
+            w = life_windows(day_state)
+            is_workout_shaped = minutes >= 40 or course.get("category") in (
+                "fitmax", "heightmax",
+            )
             slot = None
-            cursor = wake_min + 30
-            for bs, be in busy:
-                if bs - cursor >= minutes:
+            if is_workout_shaped:
+                win_lo, win_hi = resolve_workout_window(day_state)
+                cursor = win_lo
+                for bs, be in busy:
+                    if be <= cursor:
+                        continue
+                    if bs - cursor >= minutes:
+                        break
+                    cursor = max(cursor, be + 10)
+                if cursor + minutes <= win_hi:
                     slot = cursor
-                    break
-                cursor = max(cursor, be + 10)
-            if slot is None and sleep_min - cursor >= minutes:
-                slot = cursor
+            if slot is None:
+                cursor = wake_min + 30
+                for bs, be in busy:
+                    if bs - cursor >= minutes:
+                        break
+                    cursor = max(cursor, be + 10)
+                cursor = nudge_out_of_protected(cursor, w, minutes)
+                if cursor + minutes <= (sleep_min if sleep_min > wake_min else sleep_min + 1440) - 30:
+                    slot = cursor
+            if slot is not None:
+                slot = friendly_time(slot)
             if slot is not None:
                 handle = (course.get("creator") or {}).get("handle") or "creator"
+                from services.human_time import why_line as _why
                 tasks.append({
                     "task_id": f"{item_id}-{d.isoformat()}",
                     "catalog_id": f"{item_id}.session",
                     "title": f"{course['title']} session",
+                    "why": _why(slot % 1440, w),
                     "description": f"Today's session. From {course['title']} by @{handle}.",
                     "time": f"{slot // 60:02d}:{slot % 60:02d}",
                     "duration_min": minutes,
