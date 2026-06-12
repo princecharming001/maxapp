@@ -95,6 +95,7 @@ export default function TodayScreen() {
     const insets = useSafeAreaInsets();
     const queryClient = useQueryClient();
     const [showHeldBack, setShowHeldBack] = useState(false);
+    const [taskSheet, setTaskSheet] = useState<PlannerTask | null>(null);
     const [undo, setUndo] = useState<{ task: PlannerTask; promise?: Promise<unknown> } | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const [toastAction, setToastAction] = useState<{ label: string; run: () => void } | null>(null);
@@ -365,8 +366,9 @@ export default function TodayScreen() {
                         <Text style={styles.kicker}>{dateLabel}</Text>
                         <Text style={styles.title}>Today</Text>
                     </View>
+                    {streak > 0 ? (
                     <View style={{ alignItems: 'center' }}>
-                        <View style={[styles.ring, streak > 0 && { borderColor: GOLD }]}>
+                        <View style={[styles.ring, { borderColor: GOLD }]}>
                             <Text style={styles.ringText}>{streak}</Text>
                             {data?.streak_armed_freeze ? (
                                 <Ionicons name="snow-outline" size={11} color={GOLD} style={styles.freezeGlyph} />
@@ -374,6 +376,7 @@ export default function TodayScreen() {
                         </View>
                         <Text style={styles.streakCap}>day streak</Text>
                     </View>
+                    ) : null}
                 </View>
 
                 {/* status chips */}
@@ -406,22 +409,49 @@ export default function TodayScreen() {
                         </View>
                     ) : null}
 
-                    {/* welcome back (spec 3.7): ramp reset, no backlog dump */}
-                    {data?.welcome_back ? (
-                        <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
-                            <View style={styles.noticeCard}>
-                                <Ionicons name="hand-left-outline" size={17} color={GOLD} />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.noticeTitle}>{data.welcome_back.line}</Text>
-                                    <Text style={styles.noticeText}>{data.welcome_back.sub}</Text>
-                                </View>
-                            </View>
-                        </GlassCard>
-                    ) : null}
-
-                    {/* adaptive reschedule (spec mock 7): slipped task, no stress */}
-                    {!todayQ.isLoading && (data?.slipped?.length ?? 0) > 0 ? (
-                        (() => {
+                    {/* ONE attention slot: the coach says one thing at a time.
+                        Priority: welcome-back > fresh-start > freeze-used >
+                        missed task > insight > first-read bridge. Never a
+                        wall of competing cards. */}
+                    {!todayQ.isLoading ? (() => {
+                        if (data?.welcome_back) {
+                            return (
+                                <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
+                                    <View style={styles.noticeCard}>
+                                        <Ionicons name="hand-left-outline" size={17} color={GOLD} />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.noticeTitle}>{data.welcome_back.line}</Text>
+                                            <Text style={styles.noticeText}>{data.welcome_back.sub}</Text>
+                                        </View>
+                                    </View>
+                                </GlassCard>
+                            );
+                        }
+                        if ((data as any)?.fresh_start_today) {
+                            return (
+                                <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
+                                    <View style={styles.noticeCard}>
+                                        <Ionicons name="sunny-outline" size={17} color={GOLD} />
+                                        <Text style={styles.noticeText}>
+                                            Yesterday got away. Today's a fresh one.
+                                        </Text>
+                                    </View>
+                                </GlassCard>
+                            );
+                        }
+                        if ((data as any)?.freeze_used_yesterday) {
+                            return (
+                                <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
+                                    <View style={styles.noticeCard}>
+                                        <Ionicons name="snow-outline" size={17} color={GOLD} />
+                                        <Text style={styles.noticeText}>
+                                            Used a freeze for yesterday. Streak's safe.
+                                        </Text>
+                                    </View>
+                                </GlassCard>
+                            );
+                        }
+                        if ((data?.slipped?.length ?? 0) > 0) {
                             const slip = data!.slipped[0];
                             const slippedTask = tasks.find((t) => t.task_id === slip.task_id);
                             return (
@@ -461,76 +491,53 @@ export default function TodayScreen() {
                                     </View>
                                 </GlassCard>
                             );
-                        })()
-                    ) : null}
-
-                    {/* Max learned (real, dated, used once) */}
-                    {!todayQ.isLoading && (data?.insights?.length ?? 0) > 0 ? (
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate('WeeklyReview')}
-                            activeOpacity={0.8}
-                            accessibilityRole="button"
-                            accessibilityLabel="Max learned something about you"
-                        >
-                            <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
-                                <View style={styles.noticeCard}>
-                                    <Ionicons name="bulb-outline" size={17} color={GOLD} />
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.noticeTitle}>Max noticed something</Text>
-                                        <Text style={styles.noticeText}>{data!.insights[0].text}</Text>
-                                    </View>
-                                    <Ionicons name="chevron-forward" size={16} color={MUTE} />
-                                </View>
-                            </GlassCard>
-                        </TouchableOpacity>
-                    ) : null}
-
-                    {/* streak v2: fresh-start card (locked copy, spec 3.5) */}
-                    {(data as any)?.fresh_start_today ? (
-                        <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
-                            <View style={styles.noticeCard}>
-                                <Ionicons name="sunny-outline" size={17} color={GOLD} />
-                                <Text style={styles.noticeText}>
-                                    Yesterday got away. Today's a fresh one.
-                                </Text>
-                            </View>
-                        </GlassCard>
-                    ) : null}
-
-                    {/* streak v2: freeze-used card (locked copy, spec 3.5) */}
-                    {(data as any)?.freeze_used_yesterday ? (
-                        <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
-                            <View style={styles.noticeCard}>
-                                <Ionicons name="snow-outline" size={17} color={GOLD} />
-                                <Text style={styles.noticeText}>
-                                    Used a freeze for yesterday. Streak's safe.
-                                </Text>
-                            </View>
-                        </GlassCard>
-                    ) : null}
-
-                    {/* retention bridge: Max's first read, days 2-3 (spec 3.7) */}
-                    {streak > 0 && streak <= 3 && tasks.length > 0 ? (
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate('WeeklyReview')}
-                            activeOpacity={0.8}
-                            accessibilityRole="button"
-                            accessibilityLabel="Max's first read on you"
-                        >
-                            <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
-                                <View style={styles.noticeCard}>
-                                    <Ionicons name="sparkles-outline" size={17} color={GOLD} />
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.noticeTitle}>Max's first read on you</Text>
-                                        <Text style={styles.noticeText}>
-                                            Day {streak} closed. See what Max noticed so far.
-                                        </Text>
-                                    </View>
-                                    <Ionicons name="chevron-forward" size={16} color={MUTE} />
-                                </View>
-                            </GlassCard>
-                        </TouchableOpacity>
-                    ) : null}
+                        }
+                        if ((data?.insights?.length ?? 0) > 0) {
+                            return (
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate('WeeklyReview')}
+                                    activeOpacity={0.8}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Max learned something about you"
+                                >
+                                    <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
+                                        <View style={styles.noticeCard}>
+                                            <Ionicons name="bulb-outline" size={17} color={GOLD} />
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.noticeTitle}>Max noticed something</Text>
+                                                <Text style={styles.noticeText}>{data!.insights[0].text}</Text>
+                                            </View>
+                                            <Ionicons name="chevron-forward" size={16} color={MUTE} />
+                                        </View>
+                                    </GlassCard>
+                                </TouchableOpacity>
+                            );
+                        }
+                        if (streak > 0 && streak <= 3 && tasks.length > 0) {
+                            return (
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate('WeeklyReview')}
+                                    activeOpacity={0.8}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Max's first read on you"
+                                >
+                                    <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
+                                        <View style={styles.noticeCard}>
+                                            <Ionicons name="sparkles-outline" size={17} color={GOLD} />
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.noticeTitle}>Max's first read on you</Text>
+                                                <Text style={styles.noticeText}>
+                                                    Day {streak} closed. See what Max noticed so far.
+                                                </Text>
+                                            </View>
+                                            <Ionicons name="chevron-forward" size={16} color={MUTE} />
+                                        </View>
+                                    </GlassCard>
+                                </TouchableOpacity>
+                            );
+                        }
+                        return null;
+                    })() : null}
 
                     {/* loading skeleton: quiet anchor rails, never a spinner */}
                     {todayQ.isLoading ? (
@@ -554,6 +561,9 @@ export default function TodayScreen() {
                                     {data?.held_back_count
                                         ? `Looks right. ${data.held_back_count} thing${data.held_back_count > 1 ? 's' : ''} held for a lighter day.`
                                         : 'Looks right. Your day is built around your real schedule.'}
+                                </Text>
+                                <Text style={styles.lockExplainer}>
+                                    One slide and your morning's set. Counts toward your streak.
                                 </Text>
                                 <View style={{ marginTop: 12 }}>
                                     <SlideToConfirm
@@ -644,47 +654,68 @@ export default function TodayScreen() {
                                 <View style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
                                     {timeline.map((row, i) => {
                                         if (row.kind === 'struct') {
+                                            const range = (row as any).end
+                                                ? `${fmtTime(row.time)} - ${fmtTime((row as any).end)}`
+                                                : fmtTime(row.time);
                                             return (
                                                 <View key={`s${i}`} style={styles.trow}>
                                                     <Text style={styles.trTime}>{fmtTime(row.time)}</Text>
                                                     <View style={[styles.trDot, { backgroundColor: 'rgba(17,17,19,0.2)' }]} />
-                                                    <Text style={[styles.trTitle, { color: MUTE, fontFamily: 'Matter-Medium' }]}>
-                                                        {row.label}
-                                                    </Text>
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={[styles.trTitle, { color: MUTE, fontFamily: 'Matter-Medium' }]}>
+                                                            {row.label}
+                                                        </Text>
+                                                        {(row as any).end ? (
+                                                            <Text style={styles.trWhy}>{range}</Text>
+                                                        ) : null}
+                                                    </View>
                                                 </View>
                                             );
                                         }
                                         const t = row.task!;
                                         const isDone = t.status === 'completed';
+                                        const isSkipped = t.status === 'skipped';
                                         return (
-                                            <TouchableOpacity
-                                                key={t.task_id || `t${i}`}
-                                                style={styles.trow}
-                                                activeOpacity={0.7}
-                                                accessibilityRole="button"
-                                                accessibilityLabel={`${t.title}${isDone ? ', done' : ''}`}
-                                                onPressIn={() => haptic('selection')}
-                                                onPress={() =>
-                                                    isDone ? undoMutation.mutate(t) : markDone(t)
-                                                }
-                                            >
+                                            <View key={t.task_id || `t${i}`} style={styles.trow}>
                                                 <Text style={styles.trTime}>{fmtTime(t.time)}</Text>
-                                                <View style={[styles.trDot, { backgroundColor: GOLD }]} />
-                                                <View style={{ flex: 1 }}>
+                                                {/* The check circle IS the completion control -
+                                                    explicit, familiar, 44pt. Tapping the row body
+                                                    opens actions instead of silently completing. */}
+                                                <TouchableOpacity
+                                                    onPressIn={() => haptic('selection')}
+                                                    onPress={() =>
+                                                        isDone ? undoMutation.mutate(t) : markDone(t)
+                                                    }
+                                                    accessibilityRole="checkbox"
+                                                    accessibilityState={{ checked: isDone }}
+                                                    accessibilityLabel={`${t.title}, ${isDone ? 'done, tap to undo' : 'mark done'}`}
+                                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}
+                                                    style={styles.checkWrap}
+                                                >
+                                                    <Ionicons
+                                                        name={isDone ? 'checkmark-circle' : isSkipped ? 'remove-circle-outline' : 'ellipse-outline'}
+                                                        size={22}
+                                                        color={isDone ? GOLD : isSkipped ? MUTE : 'rgba(17,17,19,0.35)'}
+                                                    />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={{ flex: 1 }}
+                                                    activeOpacity={0.7}
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel={`${t.title}, options`}
+                                                    onPress={() => setTaskSheet(t)}
+                                                >
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                                                         <Text
                                                             style={[
                                                                 styles.trTitle,
-                                                                isDone && { color: MUTE, textDecorationLine: 'line-through' },
+                                                                (isDone || isSkipped) && { color: MUTE, textDecorationLine: 'line-through' },
                                                             ]}
                                                         >
                                                             {displayTitle(t.title)}
                                                         </Text>
                                                         {t.locked ? (
                                                             <Ionicons name="lock-closed" size={12} color={MUTE} style={{ marginLeft: 6 }} />
-                                                        ) : null}
-                                                        {isDone ? (
-                                                            <Ionicons name="checkmark-circle" size={15} color={GOLD} style={{ marginLeft: 6 }} />
                                                         ) : null}
                                                         {programCount > 1 && (t.provenance?.creator_handle || t.maxx_id) ? (
                                                             <View style={styles.provBadge}>
@@ -697,8 +728,8 @@ export default function TodayScreen() {
                                                         ) : null}
                                                     </View>
                                                     {t.why ? <Text style={styles.trWhy}>{t.why}</Text> : null}
-                                                </View>
-                                            </TouchableOpacity>
+                                                </TouchableOpacity>
+                                            </View>
                                         );
                                     })}
                                 </View>
@@ -758,7 +789,7 @@ export default function TodayScreen() {
                         >
                             <Ionicons name="moon-outline" size={13} color={MUTE} />
                             <Text style={styles.heldChipText}>
-                                Held back today · {data!.held_back_count}
+                                Lightened today · {data!.held_back_count}
                             </Text>
                         </TouchableOpacity>
                     ) : null}
@@ -800,6 +831,63 @@ export default function TodayScreen() {
                     </View>
                 ) : null}
 
+                {/* task action sheet: row tap = choices, never a silent toggle */}
+                {taskSheet ? (
+                    <View style={styles.sheetBackdrop}>
+                        <TouchableOpacity
+                            style={StyleSheet.absoluteFill}
+                            onPress={() => setTaskSheet(null)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Close"
+                        />
+                        <View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}>
+                            <Text style={styles.sheetTitle}>{displayTitle(taskSheet.title)}</Text>
+                            <Text style={styles.sheetSub}>
+                                {fmtTime(taskSheet.time)}
+                                {taskSheet.why ? `  ·  ${taskSheet.why}` : ''}
+                            </Text>
+                            {taskSheet.description ? (
+                                <Text style={[styles.sheetSub, { marginTop: 8 }]} numberOfLines={3}>
+                                    {taskSheet.description}
+                                </Text>
+                            ) : null}
+                            <View style={{ gap: 10, marginTop: 18 }}>
+                                {taskSheet.status !== 'completed' ? (
+                                    <GlassButton
+                                        variant="primary"
+                                        label="Done"
+                                        onPress={() => { const t = taskSheet; setTaskSheet(null); if (t) markDone(t); }}
+                                    />
+                                ) : (
+                                    <GlassButton
+                                        variant="primary"
+                                        label="Undo done"
+                                        onPress={() => { const t = taskSheet; setTaskSheet(null); if (t) undoMutation.mutate(t); }}
+                                    />
+                                )}
+                                {taskSheet.status !== 'completed' ? (
+                                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                                        <View style={{ flex: 1 }}>
+                                            <GlassButton
+                                                variant="glass"
+                                                label="Move later today"
+                                                onPress={() => { const t = taskSheet; setTaskSheet(null); if (t) snooze(t); }}
+                                            />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <GlassButton
+                                                variant="glass"
+                                                label="Skip today"
+                                                onPress={() => { const t = taskSheet; setTaskSheet(null); if (t) skipMutation.mutate(t); }}
+                                            />
+                                        </View>
+                                    </View>
+                                ) : null}
+                            </View>
+                        </View>
+                    </View>
+                ) : null}
+
                 {/* held-back sheet (plain overlay - RN Modal is broken on web) */}
                 {showHeldBack ? (
                     <View style={styles.sheetBackdrop}>
@@ -810,7 +898,7 @@ export default function TodayScreen() {
                             accessibilityLabel="Close"
                         />
                         <View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}>
-                            <Text style={styles.sheetTitle}>Held back today</Text>
+                            <Text style={styles.sheetTitle}>Moved to keep today doable</Text>
                             <Text style={styles.sheetSub}>
                                 Nothing disappears silently. Here's what moved and why.
                             </Text>
@@ -889,6 +977,7 @@ const styles = StyleSheet.create({
     bannerInner: { padding: 18, backgroundColor: 'rgba(255,255,255,0.55)' },
     bannerTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 22, color: INK },
     bannerSub: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#3A3A3F', marginTop: 4, lineHeight: 20 },
+    lockExplainer: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 8 },
     heroTime: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: GOLD, letterSpacing: 0.3 },
     heroWhy: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 2 },
     heroTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 28, color: INK, marginTop: 4, letterSpacing: -0.4 },
@@ -897,6 +986,7 @@ const styles = StyleSheet.create({
     trow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 9, minHeight: 44 },
     trTime: { fontFamily: 'Matter-Medium', fontSize: 12, color: MUTE, width: 52, paddingTop: 1 },
     trDot: { width: 7, height: 7, borderRadius: 3.5, marginTop: 5, marginRight: 12 },
+    checkWrap: { marginRight: 10, marginTop: -1, minWidth: 28, alignItems: 'center' },
     trTitle: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK },
     trWhy: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 1 },
     provBadge: {

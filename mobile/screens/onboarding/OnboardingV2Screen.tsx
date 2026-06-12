@@ -165,7 +165,7 @@ export default function OnboardingV2Screen() {
     const steps = [
         // 1 - goals
         {
-            kicker: 'STEP 1 OF 3',
+            kicker: 'STEP 1 OF 4',
             title: 'What are we\nworking on?',
             sub: 'Pick up to 3. Your first pick leads.',
             canNext: goals.length > 0,
@@ -204,7 +204,7 @@ export default function OnboardingV2Screen() {
         },
         // 2 - motivation
         {
-            kicker: 'STEP 2 OF 3',
+            kicker: 'STEP 2 OF 4',
             title: "What's pulling\nyou here?",
             sub: 'One tap. It helps Max talk to you straight.',
             canNext: !!motivation,
@@ -232,9 +232,9 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 3 - day shape
+        // 3 - day shape (just the skeleton - breathing room over density)
         {
-            kicker: 'STEP 3 OF 3',
+            kicker: 'STEP 3 OF 4',
             title: 'The shape of\nyour day',
             sub: 'Max builds around your real schedule, not over it.',
             canNext: true,
@@ -260,8 +260,18 @@ export default function OnboardingV2Screen() {
                         />
                         <Text style={styles.workChipText}>I work 9-5 weekdays</Text>
                     </TouchableOpacity>
-
-                    <Text style={styles.anchorLabel}>WHEN WOULD A WORKOUT ACTUALLY HAPPEN?</Text>
+                </View>
+            ),
+        },
+        // 4 - rhythm (workout window, weekends, daily anchors)
+        {
+            kicker: 'STEP 4 OF 4',
+            title: 'Your rhythm',
+            sub: 'So things land when they would actually happen.',
+            canNext: true,
+            body: (
+                <View style={{ marginTop: 18 }}>
+                    <Text style={[styles.anchorLabel, { marginTop: 0 }]}>WHEN WOULD A WORKOUT ACTUALLY HAPPEN?</Text>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                         {([
                             ['before_work', 'Before work'],

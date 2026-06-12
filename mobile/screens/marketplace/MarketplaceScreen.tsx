@@ -343,8 +343,8 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
 
                         {!item.native ? (
                             <View style={styles.statsRow}>
-                                {item.participants ? <Stat label="on plan" value={fmtK(item.participants)} /> : null}
-                                {item.completion_rate ? <Stat label="finish wk 1" value={`${Math.round(item.completion_rate * 100)}%`} /> : null}
+                                {item.participants ? <Stat label="members" value={fmtK(item.participants)} /> : null}
+                                {item.completion_rate ? <Stat label="finish week 1" value={`${Math.round(item.completion_rate * 100)}%`} /> : null}
                                 {item.rating ? <Stat label="rating" value={`${item.rating.toFixed(1)} / 5`} /> : null}
                             </View>
                         ) : null}
@@ -388,7 +388,13 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
 
                         <GlassButton
                             variant="primary"
-                            label={item.entered ? 'Open' : busy ? 'One sec' : item.native ? 'Enter this max' : 'Get this plan'}
+                            label={
+                                item.entered
+                                    ? 'Open my plan'
+                                    : busy
+                                      ? 'One sec'
+                                      : `Start ${item.native ? item.title : 'this plan'} · ${item.price_label.replace(' / week', '/wk')}`
+                            }
                             onPress={item.entered ? onClose : enter}
                             loading={busy}
                         />
