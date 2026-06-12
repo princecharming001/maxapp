@@ -181,13 +181,26 @@ def collect_merged_tasks_for_date(schedules: list[dict], target_date: str) -> li
     return _dedupe_master_tasks(rows)
 
 
+# A day counts as closed at this resolved fraction. All-or-nothing streaks
+# punish exactly the most committed users: a 3-program day has 9+ tasks, and
+# 8-of-9 losing the streak teaches people the system is rigged. 80% resolved
+# (done or consciously skipped) with at least one real completion = the day
+# was lived with the plan. Duolingo-grade mechanics, Finch-grade tone.
+DAY_CLOSE_RESOLVED_FRACTION = 0.8
+
+
 def merged_day_all_completed(schedules: list[dict], target_date: str) -> bool:
-    """A day closes when every task is resolved. An explicitly SKIPPED task
-    (the user said 'not today', a first-class choice per spec 3.6) does not
-    hold the day hostage - but a day of only skips earns nothing."""
+    """A day closes when it was substantially lived: >=80% of tasks resolved
+    (completed or explicitly skipped - 'not today' is a first-class choice
+    per spec 3.6) AND at least one real completion. A day of only skips
+    earns nothing; one straggler no longer kills a 9-task day."""
     tasks = collect_merged_tasks_for_date(schedules, target_date)
     if not tasks:
         return False
-    if not any(t.get("status") == "completed" for t in tasks):
+    completed = sum(1 for t in tasks if t.get("status") == "completed")
+    if completed == 0:
         return False
-    return all(t.get("status") in ("completed", "skipped") for t in tasks)
+    resolved = sum(
+        1 for t in tasks if t.get("status") in ("completed", "skipped")
+    )
+    return resolved / len(tasks) >= DAY_CLOSE_RESOLVED_FRACTION

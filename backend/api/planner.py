@@ -138,6 +138,23 @@ async def planner_today(
     except ValueError:
         raise HTTPException(status_code=422, detail="Bad date; use YYYY-MM-DD")
 
+    # Horizon keeper: a paying customer must never open the app to an empty
+    # week because the generated window ran out. At most once per local day.
+    if user is not None:
+        try:
+            marker = f"horizon:{local_today.isoformat()}"
+            profile = dict(user.profile or {})
+            if profile.get("horizon_checked") != marker:
+                from services.horizon import ensure_plan_horizon
+                await ensure_plan_horizon(user, db)
+                profile["horizon_checked"] = marker
+                user.profile = profile
+                from sqlalchemy.orm.attributes import flag_modified as _fm
+                _fm(user, "profile")
+                await db.commit()
+        except Exception:
+            pass  # the keeper is best-effort by contract
+
     window = await build_master_view(
         user_id=str(uid), db=db, days=1, today_iso=target.isoformat()
     )
@@ -808,6 +825,18 @@ async def feasibility(
     minutes = int(req.get("minutes") or 20)
     sessions = max(1, int(req.get("sessions_per_week") or 3))
     win_lo, win_hi = _window_bounds(str(req.get("window") or "any"))
+    # Workout-shaped programs (40+ min sessions, or fitness categories) are
+    # simmed inside the user's OWN workout window - the chip must predict
+    # where the session will genuinely land, not just that minutes exist.
+    _workout_shaped = minutes >= 40 or program_id in ("fitmax", "heightmax")
+    if not _workout_shaped:
+        for c in _SEED_COURSES:
+            if c["id"] == program_id and c.get("category") in ("fitmax", "heightmax"):
+                _workout_shaped = True
+                break
+    if _workout_shaped:
+        from services.human_time import resolve_workout_window
+        win_lo, win_hi = resolve_workout_window(state)
 
     # HONEST dry-run: the sim must see the user's EXISTING programs, not just
     # their anchors - otherwise a 3-maxx user at the daily cap gets a green
@@ -848,10 +877,14 @@ async def feasibility(
         # A day with no cap headroom cannot take another program's session
         # no matter how much clock-time is free.
         if existing_count < TARGET_DAILY_TOTAL:
+            from services.human_time import friendly_time
             for s, e in _free_minutes_intervals(busy, wake_min, sleep_min):
                 s2, e2 = max(s, win_lo), min(e, win_hi)
                 if e2 - s2 >= minutes:
-                    slots.append(f"{s2 // 60:02d}:{s2 % 60:02d}")
+                    f = friendly_time(s2)
+                    if f < s2:  # rounding must never promise an earlier start
+                        f = friendly_time(s2 + 4)
+                    slots.append(f"{f // 60:02d}:{f % 60:02d}")
         if slots:
             fittable_days += 1
         ghost_week.append({"day": wd[:3].capitalize(), "slots": slots[:2]})

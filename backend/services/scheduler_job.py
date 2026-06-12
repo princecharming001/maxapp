@@ -976,6 +976,29 @@ async def sync_google_calendars():
         logger.error(f"Google calendar poll job error: {e}", exc_info=True)
 
 
+async def keep_plan_horizons():
+    """Backstop for users who haven't opened the app: extend any active
+    schedule whose runway is nearly out (the lazy check in /planner/today
+    covers active users)."""
+    try:
+        from services.horizon import HORIZON_MIN_DAYS, ensure_plan_horizon
+        async with AsyncSessionLocal() as db:
+            res = await db.execute(
+                select(UserSchedule.user_id).where(UserSchedule.is_active.is_(True)).distinct()
+            )
+            user_ids = [r[0] for r in res.all()]
+        for uid in user_ids:
+            try:
+                async with AsyncSessionLocal() as db:
+                    user = await db.get(User, uid)
+                    if user is not None:
+                        await ensure_plan_horizon(user, db)
+            except Exception as e:
+                logger.warning("horizon keep failed for %s: %s", uid, e)
+    except Exception as e:
+        logger.error(f"Horizon job error: {e}", exc_info=True)
+
+
 def start_scheduler(app):
     """Start the APScheduler background job."""
     try:
@@ -1030,6 +1053,13 @@ def start_scheduler(app):
             "interval",
             minutes=weekly_m,
             id="weekly_resets",
+            **job_defaults,
+        )
+        scheduler.add_job(
+            keep_plan_horizons,
+            "interval",
+            minutes=120,
+            id="plan_horizons",
             **job_defaults,
         )
         scheduler.add_job(
