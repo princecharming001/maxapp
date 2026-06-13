@@ -24,13 +24,13 @@ export const config = createTamagui({
             // and `glass*` now carry flat-paper surfaces, no blur.)
             ink: '#1C1A17',
             gold: '#2C6BED',
-            // Deeper warm paper so white cards clearly lift off the page
-            // (figure-ground contrast — the home screen's separation problem).
-            canvas: '#EDE7DD',
+            // Craft-style warm cream canvas — light + airy. White cards lift via
+            // soft shadows + hairlines rather than a heavy background contrast.
+            canvas: '#F7F0EA',
             // Flat paper surfaces (no translucency — Craft is matte, not glass)
             glass: '#FFFFFF',
             glassStrong: '#FFFFFF',
-            glassBorder: '#E2DBCD',
+            glassBorder: '#E8E0D3',
             glassHairline: 'rgba(28,26,23,0.07)',
         },
     },

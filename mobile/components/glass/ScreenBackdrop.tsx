@@ -8,7 +8,7 @@
 import React from 'react';
 import { View, StyleSheet, type ViewStyle, type StyleProp } from 'react-native';
 
-export const CRAFT_CANVAS = '#EDE7DD';
+export const CRAFT_CANVAS = '#F7F0EA';
 
 export function ScreenBackdrop({
     children,

@@ -28,7 +28,7 @@ import { useQuery } from '@tanstack/react-query';
 import api, { type MarketplaceItem } from '../../services/api';
 import { track } from '../../lib/analytics';
 
-const CANVAS = '#EDE7DD';
+const CANVAS = '#F7F0EA';
 const INK = '#1C1A17';
 const MUTE = '#97928A';
 const SUB = '#5C574E';
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
         position: 'absolute', left: 0, right: 0, bottom: 0,
         flexDirection: 'row', alignItems: 'center', gap: 14,
         paddingHorizontal: 20, paddingTop: 12,
-        backgroundColor: 'rgba(237,231,221,0.96)',
+        backgroundColor: 'rgba(247,240,234,0.96)',
         borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: HAIRLINE,
     },
     ctaPrice: { fontFamily: 'Matter-Bold', fontSize: 18, color: INK },

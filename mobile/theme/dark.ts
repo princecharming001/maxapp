@@ -6,9 +6,9 @@
 // Craft-inspired palette: warm paper canvas, white surfaces, warm ink, one
 // calm blue accent. Flat and matte - no glass, no glow.
 export const colors = {
-    background: '#EDE7DD',    // warm paper canvas (deeper, so cards float)
-    surface: '#E5DECF',      // subtle inset
-    surfaceLight: '#F2EDE4',
+    background: '#F7F0EA',    // Craft-style warm cream canvas (light + airy)
+    surface: '#EFE7DC',      // subtle inset
+    surfaceLight: '#F9F3EC',
     card: '#FFFFFF',
 
     foreground: '#1C1A17',   // warm near-black ink
@@ -33,17 +33,17 @@ export const colors = {
     premiumLight: '#2C6BED18',
     premiumBorder: '#2C6BED40',
 
-    border: '#E2DBCD',       // warm hairline
-    borderLight: '#EBE5DA',
-    divider: '#E2DBCD',
+    border: '#E8E0D3',       // warm hairline
+    borderLight: '#F0E9DE',
+    divider: '#E8E0D3',
 
-    gradientStart: '#EDE7DD',
-    gradientEnd: '#E5DECF',
+    gradientStart: '#F7F0EA',
+    gradientEnd: '#F0E8DD',
 
     buttonText: '#FFFFFF',
 
     overlay: 'rgba(28, 26, 23, 0.40)',
-    blur: 'rgba(237, 231, 221, 0.88)',
+    blur: 'rgba(247, 240, 234, 0.9)',
 };
 
 export const spacing = {
@@ -155,8 +155,9 @@ export const shadows = {
 };
 
 export const fonts = {
-    serif: 'PlayfairDisplay',
-    serifItalic: 'PlayfairDisplay-Italic',
+    serif: 'Fraunces',
+    serifSemiBold: 'Fraunces-SemiBold',
+    serifItalic: 'Fraunces-Italic',
     sans: 'Matter-Regular',
     sansMedium: 'Matter-Medium',
     sansSemiBold: 'Matter-SemiBold',
