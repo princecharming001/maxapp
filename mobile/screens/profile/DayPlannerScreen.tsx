@@ -1,20 +1,19 @@
 /**
- * DayPlannerScreen — the week planner.
+ * DayPlannerScreen — the planner.
  *
- * The whole week is visible at once as a Google-Calendar-style canvas (no
- * tab-switching between days). Tap any day to open a visual editor: drag
- * sliders to set wake/sleep as a RANGE or an EXACT time, set workouts, work
- * hours and obligations. Edits auto-save and regenerate the live schedule.
+ * Direct manipulation first: pick a scope (Every day, or one weekday) with clear
+ * labelled pills, then SEE that day as a vertical timeline and tap any block to
+ * adjust it. Wake / get-ready / workout / wind-down open the visual range editor;
+ * commitments live in their own list right below. Edits auto-save and regenerate
+ * the live schedule.
  *
- * A natural-language assistant lets you reshape the week by describing the
- * change ("sleep in on weekends", "gym 6-7pm Mon Wed Fri"); the backend
- * translates it into the same structured plan and re-hydrates the canvas.
+ * A natural-language assistant is still here — demoted to an "or just tell Max in
+ * words" panel you can open — so power users can reshape the week by describing
+ * it, but it is no longer the thing you meet first.
  *
- * Layout note: this is a flat, single-surface page (white throughout) with the
- * masthead and content separated by hairline rules — no stacked rounded cards,
- * no drop shadows. One restrained accent (a deep green) marks the assistant and
- * its replies; everything else is monochrome ink so the canvas reads as the
- * subject, not the chrome.
+ * Layout: a flat, single white surface with hairline rules between sections — no
+ * stacked cards, no shadows. One restrained green accent marks the workout and
+ * the assistant; everything else is monochrome ink.
  */
 import React, { useRef, useState } from 'react';
 import {
@@ -38,12 +37,14 @@ import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, fonts } from '../../theme/dark';
 import WeekCanvas from '../../components/planner/WeekCanvas';
 import DayEditorSheet from '../../components/planner/DayEditorSheet';
+import DayTimeline from '../../components/planner/DayTimeline';
 import ObligationsManager from '../../components/planner/ObligationsManager';
 import {
   DayShape,
   Obligation,
   Scope,
   Weekday,
+  WEEKDAYS,
   hydrateDayShape,
   hydrateWeekly,
   hydrateObligations,
@@ -78,13 +79,18 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   );
   const [obligations, setObligations] = useState<Obligation[]>(() => hydrateObligations(ob));
 
+  // The day the timeline + editor act on. "Every day" edits the base; a weekday
+  // edits just that day (a minimal override diffed against the base).
+  const [scope, setScope] = useState<Scope>('all');
+
   // Editor sheet: keep the scope set across the close animation to avoid a flash.
   const [editScope, setEditScope] = useState<Scope>('all');
   const [sheetVisible, setSheetVisible] = useState(false);
 
   const [saving, setSaving] = useState(false);
 
-  // Assistant state.
+  // Assistant (demoted): collapsed until asked for.
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [chatReply, setChatReply] = useState<string | null>(null);
@@ -150,16 +156,16 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
   // Commit one scope's edits: defaults for "All days", else a minimal per-weekday
   // override (diffed against defaults so editing back to base clears it).
-  const commitScope = (scope: Scope, day: DayShape) => {
-    if (scope === 'all') {
+  const commitScope = (s: Scope, day: DayShape) => {
+    if (s === 'all') {
       setDefaults(day);
       persist(day, weekly, obligations);
       return;
     }
     const partial = diffDayShape(defaults, day);
     const nextWeekly: Partial<Record<Weekday, Partial<DayShape>>> = { ...weekly };
-    if (Object.keys(partial).length) nextWeekly[scope] = partial;
-    else delete nextWeekly[scope];
+    if (Object.keys(partial).length) nextWeekly[s] = partial;
+    else delete nextWeekly[s];
     setWeekly(nextWeekly);
     persist(defaults, nextWeekly, obligations);
   };
@@ -216,17 +222,21 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     }
   };
 
-  const openEditor = (scope: Scope) => {
-    setEditScope(scope);
+  const openEditor = (s: Scope) => {
+    setEditScope(s);
     setSheetVisible(true);
   };
 
   const sendDisabled = !chatInput.trim() || chatLoading;
 
+  const scopeLabel =
+    scope === 'all' ? 'Every day' : WEEKDAYS.find((w) => w.key === scope)?.long ?? 'Day';
+  const scopeOverridden = scope !== 'all' && hasOverride(weekly, scope);
+  const dayForScope = effectiveDay(defaults, weekly, scope);
+
   return (
     <View style={styles.container}>
-      {/* Minimal top nav: navigation + transient saving status only. The page
-          title lives in the masthead below, where it can carry real weight. */}
+      {/* Minimal top nav: navigation + transient saving status only. */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         {!embedded && navigation.canGoBack() ? (
           <TouchableOpacity
@@ -258,112 +268,166 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             <Text style={styles.kicker}>PLANNER</Text>
             <Text style={styles.title}>Your week</Text>
             <Text style={styles.subhead}>
-              Tell Max about your real week in plain words: sleep, work, plans. Max fits your
-              routines into the open time.
+              Tap anything to adjust it. Max fits your routines into the open time around it.
             </Text>
           </View>
 
-          {/* Assistant — the primary input (locked decision: natural-language
-              first). Describe the week in words; the canvas below confirms what
-              Max heard, and tapping a day is the structured fallback. */}
-          <View style={styles.section}>
-            <View style={styles.chatHead}>
-              <View style={styles.chatMark}>
-                <Ionicons name="sparkles" size={15} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.chatTitle}>Tell Max about your week</Text>
-                <Text style={styles.chatSub}>
-                  Describe it in plain words and Max sets up the right days.
-                </Text>
-              </View>
-            </View>
-
-            {chatReply ? (
-              <View style={[styles.chatReply, chatReplyTone === 'warn' && styles.chatReplyWarn]}>
-                <View style={[styles.chatReplyIcon, chatReplyTone === 'warn' && styles.chatReplyIconWarn]}>
-                  <Ionicons
-                    name={chatReplyTone === 'warn' ? 'alert' : 'checkmark'}
-                    size={13}
-                    color="#fff"
-                  />
-                </View>
-                <Text style={styles.chatReplyText}>{chatReply}</Text>
-              </View>
-            ) : (
-              <View style={styles.suggestWrap}>
-                <Text style={styles.suggestLabel}>TRY ASKING</Text>
-                <View style={styles.chipsWrap}>
-                  {CHAT_EXAMPLES.map((ex) => (
-                    <TouchableOpacity
-                      key={ex}
-                      style={styles.exChip}
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        setChatInput(ex);
-                        chatRef.current?.focus();
-                      }}
-                    >
-                      <Ionicons name="sparkles-outline" size={11} color={colors.textMuted} />
-                      <Text style={styles.exChipText}>{ex}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            <View style={styles.chatInputRow}>
-              <TextInput
-                ref={chatRef}
-                style={styles.chatInput}
-                value={chatInput}
-                onChangeText={setChatInput}
-                placeholder="e.g. wake between 6 and 7 on weekdays"
-                placeholderTextColor={colors.textMuted}
-                multiline
-                returnKeyType="send"
-                blurOnSubmit
-                onSubmitEditing={sendChat}
-                editable={!chatLoading}
-              />
-              <TouchableOpacity
-                onPress={sendChat}
-                activeOpacity={0.85}
-                disabled={sendDisabled}
-                style={styles.chatSendWrap}
-              >
-                <View style={[styles.chatSend, sendDisabled ? styles.chatSendOff : styles.chatSendOn]}>
-                  {chatLoading ? (
-                    <ActivityIndicator size="small" color={colors.textMuted} />
-                  ) : (
-                    <Ionicons
-                      name="arrow-up"
-                      size={18}
-                      color={sendDisabled ? colors.textMuted : '#fff'}
-                    />
-                  )}
-                </View>
-              </TouchableOpacity>
-            </View>
+          {/* Scope selector — which day you're shaping. Clear labels (no cryptic
+              dots); a marked pill means that day differs from your every-day. */}
+          <View style={styles.scopeBar}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.scopeScroll}
+            >
+              <ScopePill label="Every day" active={scope === 'all'} onPress={() => setScope('all')} />
+              {WEEKDAYS.map((w) => (
+                <ScopePill
+                  key={w.key}
+                  label={w.short}
+                  active={scope === w.key}
+                  edited={hasOverride(weekly, w.key)}
+                  onPress={() => setScope(w.key)}
+                />
+              ))}
+            </ScrollView>
           </View>
 
-          {/* Week canvas — read-only "here's your week" confirmation of what
-              Max heard. Tapping a day opens the structured range editor (the
-              by-hand fallback). */}
+          {/* The day, as a tappable timeline. */}
           <View style={styles.section}>
-            <Text style={styles.sectionKicker}>HERE'S YOUR WEEK</Text>
-            <Text style={styles.sectionNote}>Tap any day to adjust it by hand.</Text>
-            <WeekCanvas
-              defaults={defaults}
-              weekly={weekly}
+            <View style={styles.scopeHead}>
+              <Text style={styles.scopeTitle}>{scopeLabel}</Text>
+              {scopeOverridden ? (
+                <TouchableOpacity
+                  onPress={() => resetScope(scope as Weekday)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.resetLink}>Reset to every day</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.scopeHint}>Tap a block to adjust</Text>
+              )}
+            </View>
+
+            <DayTimeline
+              day={dayForScope}
               obligations={obligations}
-              onEditScope={openEditor}
+              scope={scope}
+              onEditShape={() => openEditor(scope)}
             />
           </View>
 
           {/* Commitments — the global, day-scoped obligations list. */}
           <View style={styles.section}>
             <ObligationsManager obligations={obligations} onChange={changeObligations} />
+          </View>
+
+          {/* Week at a glance — secondary overview. Tapping a day jumps the scope
+              there and opens the editor. */}
+          <View style={styles.section}>
+            <Text style={styles.sectionKicker}>WEEK AT A GLANCE</Text>
+            <Text style={styles.sectionNote}>Tap any day to shape it.</Text>
+            <WeekCanvas
+              defaults={defaults}
+              weekly={weekly}
+              obligations={obligations}
+              onEditScope={(s) => {
+                setScope(s);
+                openEditor(s);
+              }}
+            />
+          </View>
+
+          {/* Assistant — demoted. Open it to reshape the week in plain words. */}
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.assistToggle}
+              activeOpacity={0.7}
+              onPress={() => setAssistantOpen((o) => !o)}
+            >
+              <View style={styles.chatMark}>
+                <Ionicons name="sparkles" size={14} color="#fff" />
+              </View>
+              <Text style={styles.assistToggleText}>Or just tell Max in words</Text>
+              <Ionicons
+                name={assistantOpen ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={colors.textMuted}
+              />
+            </TouchableOpacity>
+
+            {assistantOpen ? (
+              <View style={{ marginTop: spacing.md }}>
+                {chatReply ? (
+                  <View style={[styles.chatReply, chatReplyTone === 'warn' && styles.chatReplyWarn]}>
+                    <View
+                      style={[styles.chatReplyIcon, chatReplyTone === 'warn' && styles.chatReplyIconWarn]}
+                    >
+                      <Ionicons
+                        name={chatReplyTone === 'warn' ? 'alert' : 'checkmark'}
+                        size={13}
+                        color="#fff"
+                      />
+                    </View>
+                    <Text style={styles.chatReplyText}>{chatReply}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.suggestWrap}>
+                    <Text style={styles.suggestLabel}>TRY ASKING</Text>
+                    <View style={styles.chipsWrap}>
+                      {CHAT_EXAMPLES.map((ex) => (
+                        <TouchableOpacity
+                          key={ex}
+                          style={styles.exChip}
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            setChatInput(ex);
+                            chatRef.current?.focus();
+                          }}
+                        >
+                          <Ionicons name="sparkles-outline" size={11} color={colors.textMuted} />
+                          <Text style={styles.exChipText}>{ex}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.chatInputRow}>
+                  <TextInput
+                    ref={chatRef}
+                    style={styles.chatInput}
+                    value={chatInput}
+                    onChangeText={setChatInput}
+                    placeholder="e.g. wake between 6 and 7 on weekdays"
+                    placeholderTextColor={colors.textMuted}
+                    multiline
+                    returnKeyType="send"
+                    blurOnSubmit
+                    onSubmitEditing={sendChat}
+                    editable={!chatLoading}
+                  />
+                  <TouchableOpacity
+                    onPress={sendChat}
+                    activeOpacity={0.85}
+                    disabled={sendDisabled}
+                    style={styles.chatSendWrap}
+                  >
+                    <View style={[styles.chatSend, sendDisabled ? styles.chatSendOff : styles.chatSendOn]}>
+                      {chatLoading ? (
+                        <ActivityIndicator size="small" color={colors.textMuted} />
+                      ) : (
+                        <Ionicons
+                          name="arrow-up"
+                          size={18}
+                          color={sendDisabled ? colors.textMuted : '#fff'}
+                        />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
           </View>
 
           <View style={{ height: 120 + insets.bottom }} />
@@ -383,6 +447,32 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   );
 }
 
+function ScopePill({
+  label,
+  active,
+  edited,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  edited?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.8}
+      style={[styles.scopePill, active && styles.scopePillActive]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={`${label}${edited ? ', customized' : ''}`}
+    >
+      <Text style={[styles.scopePillText, active && styles.scopePillTextActive]}>{label}</Text>
+      {edited && !active ? <View style={styles.editedDot} /> : null}
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   // Single white surface, top to bottom — no page/card contrast.
   container: { flex: 1, backgroundColor: colors.card },
@@ -398,8 +488,8 @@ const styles = StyleSheet.create({
   savingSlot: { width: 40, alignItems: 'flex-end', justifyContent: 'center' },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
 
-  // Masthead — the page's hero. Kicker + heavy headline + standfirst.
-  masthead: { paddingTop: spacing.xs, paddingBottom: spacing.lg },
+  // Masthead — the page's hero.
+  masthead: { paddingTop: spacing.xs, paddingBottom: spacing.md },
   kicker: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 11,
@@ -422,12 +512,42 @@ const styles = StyleSheet.create({
     letterSpacing: 0.05,
   },
 
+  // Scope selector.
+  scopeBar: { marginHorizontal: -spacing.lg },
+  scopeScroll: { paddingHorizontal: spacing.lg, gap: 8, paddingVertical: 4 },
+  scopePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 15,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    minHeight: 38,
+  },
+  scopePillActive: { backgroundColor: colors.foreground, borderColor: colors.foreground },
+  scopePillText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.textSecondary, letterSpacing: 0.1 },
+  scopePillTextActive: { color: '#fff' },
+  editedDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: ACCENT },
+
   // Content sections, separated by hairline rules instead of card edges.
   section: {
     paddingVertical: spacing.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
+  scopeHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  scopeTitle: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.foreground, letterSpacing: -0.2 },
+  scopeHint: { fontFamily: fonts.sans, fontSize: 12, color: colors.textMuted, letterSpacing: 0.05 },
+  resetLink: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: ACCENT, letterSpacing: 0.05 },
+
   sectionKicker: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 11,
@@ -444,29 +564,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.05,
   },
 
-  // Assistant.
-  chatHead: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: spacing.md },
+  // Assistant (demoted).
+  assistToggle: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  assistToggleText: {
+    flex: 1,
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 14.5,
+    color: colors.foreground,
+    letterSpacing: 0.05,
+  },
   chatMark: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: ACCENT,
-  },
-  chatTitle: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 15.5,
-    color: colors.foreground,
-    letterSpacing: 0.1,
-  },
-  chatSub: {
-    fontFamily: fonts.sans,
-    fontSize: 12.5,
-    color: colors.textMuted,
-    lineHeight: 17,
-    marginTop: 2,
-    letterSpacing: 0.05,
   },
   suggestWrap: { marginBottom: spacing.md },
   suggestLabel: {
@@ -507,8 +620,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 1,
   },
-  // Warning tone for failures / no-op replies: a neutral amber wash and icon so
-  // it never reads as an applied success.
   chatReplyWarn: { backgroundColor: 'rgba(180,120,20,0.10)' },
   chatReplyIconWarn: { backgroundColor: '#B47814' },
   chatReplyText: { flex: 1, fontFamily: fonts.sans, fontSize: 13.5, color: colors.foreground, lineHeight: 19, letterSpacing: 0.05 },
