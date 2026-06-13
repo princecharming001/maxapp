@@ -119,9 +119,15 @@ def life_windows(state: dict) -> LifeWindows:
     if work_end is not None:
         settle_in = (work_end, min(work_end + 45, sleep_for_calc - 90))
 
-    # Dinner: around 18:30-19:45 for daytime schedules, scaled into the
-    # evening for shifted ones.
-    default_dinner = (18 * 60 + 30, 19 * 60 + 45)
+    # Dinner: honor a stated dinner time when the user gave one (a real
+    # anchor we protect optionals around), else a daytime default of
+    # 18:30-19:45. Either way it's scaled into the evening for shifted
+    # schedules via the evening floor below.
+    stated_dinner = to_min(state.get("dinner_time"), -1)
+    if stated_dinner >= 0:
+        default_dinner = (stated_dinner, stated_dinner + 60)
+    else:
+        default_dinner = (18 * 60 + 30, 19 * 60 + 45)
     evening_start_floor = (settle_in[1] if settle_in else max(wake + 9 * 60, 17 * 60))
     dinner = (
         max(default_dinner[0], evening_start_floor),

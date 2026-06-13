@@ -14,7 +14,7 @@ export type FlagName = 'newNav' | 'todayV2' | 'onboardingV2' | 'revealV2' | 'str
 const DEFAULTS: Record<FlagName, boolean> = {
     newNav: false,
     todayV2: false,
-    onboardingV2: false,
+    onboardingV2: true,
     revealV2: false,
     streakV2: false,
 };

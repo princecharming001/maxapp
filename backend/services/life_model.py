@@ -178,13 +178,20 @@ async def build_life_model(user: User, db: AsyncSession) -> dict[str, Any]:
     scored = [(w, r) for w, r in rates.items() if r is not None]
     if scored:
         best_window = max(scored, key=lambda x: x[1])[0]
+    # A stated chronotype is a day-one prior: until we have real behavior the
+    # user telling us when they're sharpest beats a guess. Real behavior
+    # overrides it once we actually have signal (not degraded).
+    chrono_map = {"morning": "morning", "afternoon": "midday", "evening": "evening"}
+    stated_peak = chrono_map.get(str(ob.get("chronotype") or "").strip().lower())
+    if stated_peak and (degraded or best_window is None):
+        best_window_field = _field(stated_peak, 1.0, "stated")
+    else:
+        best_window_field = _field(best_window, 0.0 if degraded else 0.7, "inferred")
     behavioral = {
         "completion_rates_by_window": _field(
             rates, 0.0 if degraded else 0.7, "inferred"
         ),
-        "best_window": _field(
-            best_window, 0.0 if degraded else 0.7, "inferred"
-        ),
+        "best_window": best_window_field,
         "behavior_days": behavior["behavior_days"],
     }
 

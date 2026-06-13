@@ -1,14 +1,19 @@
 /**
- * Onboarding v2 (spec 3.3, flag `onboardingV2`) - ~90 seconds to the reveal,
- * free until the marketplace. Three steps, no account-tier paywall, no
- * permission asks (notifications get ONE value-first pre-prompt later, on
- * the reveal screen; camera is asked in You > New scan, never here).
+ * Onboarding v2 (flag `onboardingV2`) — a calm, ~2-minute pass that learns the
+ * real shape of someone's day so the scheduler can fit routines INTO their life
+ * instead of on top of it. Seven light steps, smart defaults you nudge (never a
+ * blank form), each new question carrying a one-line "why it matters":
  *
- *   1. Goal pick - 5 maxx tiles, first tap = #1 priority, up to 3.
- *   2. Motivation - ONE question, 5 chips. Stored as Life-Model `motivation`
- *      (stated); used only in the reveal close-line + welcome-back copy.
- *   3. Day shape - wake/down steppers + prefilled "I work 9-5 weekdays"
- *      chip + "what do you already do every day?" anchor chips.
+ *   1. Goals       — 5 maxx tiles, first tap = #1 priority, up to 3.
+ *   2. Motivation  — one tap; Life-Model `motivation` (tunes Max's voice).
+ *   3. Day shape   — wake / get-ready / down steppers (the day's envelope).
+ *   4. Work        — set hours + where (office/hybrid/home) + commute. The
+ *                    commute becomes real protected time on the schedule.
+ *   5. Energy      — chronotype (a day-one peak prior) + usual dinner.
+ *   6. Rhythm      — workout window, weekends, daily anchors.
+ *   7. Your day    — a read-only recap of the day we just learned, so the user
+ *                    sees themselves in it before we build. Doubles as the
+ *                    mental model for the Plan timeline they can edit later.
  *
  * Saving (completed=false) triggers the backend starter-routine generation,
  * then we push RoutineReveal (RevealV2 renders behind the same route name).
@@ -33,6 +38,10 @@ import api from '../../services/api';
 const INK = '#1C1A17';
 const GOLD = '#2C6BED';
 const MUTE = '#97928A';
+const SUB = '#5C574E';
+const SURFACE = '#FFFFFF';
+const HAIRLINE = '#E2DBCD';
+const ICON_TILE = '#F4EFE6';
 
 const MAXX_TILES = [
     { id: 'skinmax', token: 'skin', label: 'Skinmax', tagline: 'clearer, calmer skin', icon: 'sparkles-outline' },
@@ -56,6 +65,34 @@ const ANCHORS = [
     { id: 'coffee', label: 'Coffee' },
     { id: 'commute', label: 'Commute' },
 ] as const;
+
+const WORKOUTS = [
+    ['before_work', 'Before work'],
+    ['lunch', 'Lunch'],
+    ['after_work', 'After work'],
+    ['evening', 'Evenings'],
+] as const;
+
+const CHRONOTYPES = [
+    ['morning', 'Mornings'],
+    ['afternoon', 'Afternoons'],
+    ['evening', 'Evenings'],
+] as const;
+
+const LOCATIONS = [
+    ['office', 'In office'],
+    ['hybrid', 'Hybrid'],
+    ['home', 'From home'],
+] as const;
+
+const COMMUTES = [15, 30, 45, 60] as const;
+
+const WORKOUT_LABEL: Record<string, string> = {
+    before_work: 'Before work',
+    lunch: 'At lunch',
+    after_work: 'After work',
+    evening: 'In the evening',
+};
 
 function fmt12(min: number): string {
     let h = Math.floor(min / 60);
@@ -104,6 +141,29 @@ function TimeStepper({
     );
 }
 
+function Pill({
+    label,
+    active,
+    onPress,
+}: {
+    label: string;
+    active: boolean;
+    onPress: () => void;
+}) {
+    return (
+        <TouchableOpacity
+            style={[styles.pill, active && styles.pillActive]}
+            onPress={onPress}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={label}
+        >
+            <Text style={[styles.pillText, active && styles.pillTextActive]}>{label}</Text>
+        </TouchableOpacity>
+    );
+}
+
 export default function OnboardingV2Screen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
@@ -113,8 +173,15 @@ export default function OnboardingV2Screen() {
     const [goals, setGoals] = useState<string[]>([]);
     const [motivation, setMotivation] = useState<string | null>(null);
     const [wakeMin, setWakeMin] = useState(7 * 60);
+    const [getReadyMin, setGetReadyMin] = useState(7 * 60 + 30);
     const [sleepMin, setSleepMin] = useState(23 * 60);
-    const [works95, setWorks95] = useState(true);
+    const [works, setWorks] = useState(true);
+    const [workStartMin, setWorkStartMin] = useState(9 * 60);
+    const [workEndMin, setWorkEndMin] = useState(17 * 60);
+    const [workLocation, setWorkLocation] = useState<string>('office');
+    const [commuteMin, setCommuteMin] = useState<number>(30);
+    const [chronotype, setChronotype] = useState<string>('morning');
+    const [dinnerMin, setDinnerMin] = useState(19 * 60);
     const [anchors, setAnchors] = useState<string[]>([]);
     const [workoutChoice, setWorkoutChoice] = useState<string>('after_work');
     const [weekendShift, setWeekendShift] = useState(true);
@@ -126,6 +193,8 @@ export default function OnboardingV2Screen() {
             g.includes(id) ? g.filter((x) => x !== id) : g.length < 3 ? [...g, id] : g,
         );
     };
+
+    const hasCommute = works && workLocation !== 'home';
 
     const finish = async () => {
         setSaving(true);
@@ -139,10 +208,15 @@ export default function OnboardingV2Screen() {
                 priority_order: tokens,
                 motivation,
                 wake_time: hhmm(wakeMin),
+                get_ready_time: hhmm(getReadyMin),
                 sleep_time: hhmm(sleepMin),
-                obligations: works95
-                    ? [{ label: 'Work', start: '09:00', end: '17:00', days: 'weekdays' }]
+                obligations: works
+                    ? [{ label: 'Work', start: hhmm(workStartMin), end: hhmm(workEndMin), days: 'weekdays' }]
                     : [],
+                work_location: works ? workLocation : 'home',
+                commute_minutes: hasCommute ? commuteMin : 0,
+                chronotype,
+                dinner_time: hhmm(dinnerMin),
                 anchor_cues: anchors,
                 workout_window_choice: workoutChoice,
                 weekend_shift: weekendShift,
@@ -151,7 +225,7 @@ export default function OnboardingV2Screen() {
             };
             await api.saveOnboarding(payload as any);
             // Navigate FIRST (with the answers as params so the reveal does
-            // not depend on a user refetch), THEN refresh auth state - a
+            // not depend on a user refetch), THEN refresh auth state — a
             // refresh that swaps the root stack would eat the navigation.
             navigation.navigate('RoutineReveal', { ob: payload });
             refreshUser().catch(() => {});
@@ -162,10 +236,24 @@ export default function OnboardingV2Screen() {
         }
     };
 
+    const recap: { icon: string; label: string; value: string }[] = [
+        { icon: 'sunny-outline', label: 'Wake', value: fmt12(wakeMin) },
+        { icon: 'water-outline', label: 'Get ready', value: fmt12(getReadyMin) },
+        ...(works
+            ? [{ icon: 'briefcase-outline', label: 'Work', value: `${fmt12(workStartMin)} – ${fmt12(workEndMin)}` }]
+            : []),
+        ...(hasCommute
+            ? [{ icon: 'car-outline', label: 'Commute', value: `${commuteMin} min each way` }]
+            : []),
+        { icon: 'barbell-outline', label: 'Workout', value: WORKOUT_LABEL[workoutChoice] || 'After work' },
+        { icon: 'restaurant-outline', label: 'Dinner', value: fmt12(dinnerMin) },
+        { icon: 'moon-outline', label: 'Wind down', value: fmt12(sleepMin) },
+    ];
+
     const steps = [
-        // 1 - goals
+        // 1 — goals
         {
-            kicker: 'STEP 1 OF 4',
+            kicker: 'STEP 1 OF 7',
             title: 'What are we\nworking on?',
             sub: 'Pick up to 3. Your first pick leads.',
             canNext: goals.length > 0,
@@ -202,9 +290,9 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 2 - motivation
+        // 2 — motivation
         {
-            kicker: 'STEP 2 OF 4',
+            kicker: 'STEP 2 OF 7',
             title: "What's pulling\nyou here?",
             sub: 'One tap. It helps Max talk to you straight.',
             canNext: !!motivation,
@@ -232,118 +320,196 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 3 - day shape (just the skeleton - breathing room over density)
+        // 3 — day shape
         {
-            kicker: 'STEP 3 OF 4',
+            kicker: 'STEP 3 OF 7',
             title: 'The shape of\nyour day',
-            sub: 'Max builds around your real schedule, not over it.',
+            sub: 'Max builds around your real hours, not over them.',
             canNext: true,
             body: (
                 <View style={{ marginTop: 18 }}>
                     <View style={styles.shapeCard}>
-                        <TimeStepper label="Up around" value={wakeMin} onChange={setWakeMin} />
+                        <TimeStepper label="Wake around" value={wakeMin} onChange={setWakeMin} />
                         <View style={styles.hairline} />
-                        <TimeStepper label="Down around" value={sleepMin} onChange={setSleepMin} />
+                        <TimeStepper label="Get ready around" value={getReadyMin} onChange={setGetReadyMin} />
+                        <View style={styles.hairline} />
+                        <TimeStepper label="Wind down around" value={sleepMin} onChange={setSleepMin} />
                     </View>
-
-                    <TouchableOpacity
-                        style={[styles.workChip, works95 && styles.workChipActive]}
-                        onPress={() => setWorks95((w) => !w)}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: works95 }}
-                        accessibilityLabel="I work 9 to 5 on weekdays"
-                    >
-                        <Ionicons
-                            name={works95 ? 'checkmark-circle' : 'ellipse-outline'}
-                            size={18}
-                            color={works95 ? GOLD : MUTE}
-                        />
-                        <Text style={styles.workChipText}>I work 9-5 weekdays</Text>
-                    </TouchableOpacity>
+                    <Text style={styles.helpNote}>
+                        Get-ready time is when your AM skin, hair and mewing routine lands.
+                    </Text>
                 </View>
             ),
         },
-        // 4 - rhythm (workout window, weekends, daily anchors)
+        // 4 — work & commute
         {
-            kicker: 'STEP 4 OF 4',
+            kicker: 'STEP 4 OF 7',
+            title: 'Work or\nschool?',
+            sub: 'So nothing ever gets scheduled over it — including the drive.',
+            canNext: true,
+            body: (
+                <View style={{ marginTop: 18 }}>
+                    <TouchableOpacity
+                        style={[styles.workChip, works && styles.workChipActive]}
+                        onPress={() => setWorks((w) => !w)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: works }}
+                        accessibilityLabel="I have set weekday hours"
+                    >
+                        <Ionicons
+                            name={works ? 'checkmark-circle' : 'ellipse-outline'}
+                            size={18}
+                            color={works ? GOLD : MUTE}
+                        />
+                        <Text style={styles.workChipText}>I have set weekday hours</Text>
+                    </TouchableOpacity>
+
+                    {works ? (
+                        <>
+                            <View style={[styles.shapeCard, { marginTop: 12 }]}>
+                                <TimeStepper label="Starts" value={workStartMin} onChange={setWorkStartMin} />
+                                <View style={styles.hairline} />
+                                <TimeStepper label="Ends" value={workEndMin} onChange={setWorkEndMin} />
+                            </View>
+
+                            <Text style={styles.groupLabel}>WHERE?</Text>
+                            <View style={styles.seg}>
+                                {LOCATIONS.map(([id, label]) => {
+                                    const active = workLocation === id;
+                                    return (
+                                        <TouchableOpacity
+                                            key={id}
+                                            style={[styles.segItem, active && styles.segItemActive]}
+                                            onPress={() => setWorkLocation(id)}
+                                            accessibilityRole="button"
+                                            accessibilityState={{ selected: active }}
+                                            accessibilityLabel={label}
+                                        >
+                                            <Text style={[styles.segText, active && styles.segTextActive]}>
+                                                {label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+
+                            {workLocation !== 'home' ? (
+                                <>
+                                    <Text style={styles.groupLabel}>COMMUTE EACH WAY</Text>
+                                    <View style={styles.pillRow}>
+                                        {COMMUTES.map((c) => (
+                                            <Pill
+                                                key={c}
+                                                label={c === 60 ? '60+ min' : `${c} min`}
+                                                active={commuteMin === c}
+                                                onPress={() => setCommuteMin(c)}
+                                            />
+                                        ))}
+                                    </View>
+                                </>
+                            ) : null}
+                        </>
+                    ) : null}
+                </View>
+            ),
+        },
+        // 5 — energy & meals
+        {
+            kicker: 'STEP 5 OF 7',
+            title: 'Energy &\nmeals',
+            sub: 'Hard things land when you actually have the most in the tank.',
+            canNext: true,
+            body: (
+                <View style={{ marginTop: 18 }}>
+                    <Text style={[styles.groupLabel, { marginTop: 0 }]}>WHEN ARE YOU SHARPEST?</Text>
+                    <View style={styles.pillRow}>
+                        {CHRONOTYPES.map(([id, label]) => (
+                            <Pill
+                                key={id}
+                                label={label}
+                                active={chronotype === id}
+                                onPress={() => setChronotype(id)}
+                            />
+                        ))}
+                    </View>
+
+                    <View style={[styles.shapeCard, { marginTop: 20 }]}>
+                        <TimeStepper label="Dinner around" value={dinnerMin} onChange={setDinnerMin} />
+                    </View>
+                    <Text style={styles.helpNote}>
+                        Max keeps your evening routine clear of dinner.
+                    </Text>
+                </View>
+            ),
+        },
+        // 6 — rhythm
+        {
+            kicker: 'STEP 6 OF 7',
             title: 'Your rhythm',
             sub: 'So things land when they would actually happen.',
             canNext: true,
             body: (
                 <View style={{ marginTop: 18 }}>
-                    <Text style={[styles.anchorLabel, { marginTop: 0 }]}>WHEN WOULD A WORKOUT ACTUALLY HAPPEN?</Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                        {([
-                            ['before_work', 'Before work'],
-                            ['lunch', 'Lunch'],
-                            ['after_work', 'After work'],
-                            ['evening', 'Evenings'],
-                        ] as const).map(([id, label]) => {
-                            const active = workoutChoice === id;
-                            return (
-                                <TouchableOpacity
-                                    key={id}
-                                    style={[styles.anchorChip, active && styles.anchorChipActive]}
-                                    onPress={() => setWorkoutChoice(id)}
-                                    accessibilityRole="button"
-                                    accessibilityState={{ selected: active }}
-                                    accessibilityLabel={label}
-                                >
-                                    <Text style={[styles.anchorChipText, active && { color: '#1F4FB0' }]}>
-                                        {label}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
+                    <Text style={[styles.groupLabel, { marginTop: 0 }]}>WHEN WOULD A WORKOUT ACTUALLY HAPPEN?</Text>
+                    <View style={styles.pillRow}>
+                        {WORKOUTS.map(([id, label]) => (
+                            <Pill
+                                key={id}
+                                label={label}
+                                active={workoutChoice === id}
+                                onPress={() => setWorkoutChoice(id)}
+                            />
+                        ))}
                     </View>
 
-                    <Text style={styles.anchorLabel}>WEEKENDS?</Text>
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                        {([
-                            [true, 'I sleep in'],
-                            [false, 'Same rhythm'],
-                        ] as const).map(([val, label]) => {
-                            const active = weekendShift === val;
-                            return (
-                                <TouchableOpacity
-                                    key={label}
-                                    style={[styles.anchorChip, active && styles.anchorChipActive]}
-                                    onPress={() => setWeekendShift(val)}
-                                    accessibilityRole="button"
-                                    accessibilityState={{ selected: active }}
-                                    accessibilityLabel={label}
-                                >
-                                    <Text style={[styles.anchorChipText, active && { color: '#1F4FB0' }]}>
-                                        {label}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
+                    <Text style={styles.groupLabel}>WEEKENDS?</Text>
+                    <View style={styles.pillRow}>
+                        <Pill label="I sleep in" active={weekendShift === true} onPress={() => setWeekendShift(true)} />
+                        <Pill label="Same rhythm" active={weekendShift === false} onPress={() => setWeekendShift(false)} />
                     </View>
 
-                    <Text style={styles.anchorLabel}>WHAT DO YOU ALREADY DO EVERY DAY?</Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                    <Text style={styles.groupLabel}>WHAT DO YOU ALREADY DO EVERY DAY?</Text>
+                    <View style={styles.pillRow}>
                         {ANCHORS.map((a) => {
                             const active = anchors.includes(a.id);
                             return (
-                                <TouchableOpacity
+                                <Pill
                                     key={a.id}
-                                    style={[styles.anchorChip, active && styles.anchorChipActive]}
+                                    label={a.label}
+                                    active={active}
                                     onPress={() =>
                                         setAnchors((arr) =>
                                             active ? arr.filter((x) => x !== a.id) : [...arr, a.id],
                                         )
                                     }
-                                    accessibilityRole="button"
-                                    accessibilityState={{ selected: active }}
-                                    accessibilityLabel={a.label}
-                                >
-                                    <Text style={[styles.anchorChipText, active && { color: '#1F4FB0' }]}>
-                                        {a.label}
-                                    </Text>
-                                </TouchableOpacity>
+                                />
                             );
                         })}
+                    </View>
+                </View>
+            ),
+        },
+        // 7 — recap
+        {
+            kicker: 'STEP 7 OF 7',
+            title: "Here's your\nday",
+            sub: 'Max fits your routines into the gaps. You can drag any of this later in Plan.',
+            canNext: true,
+            body: (
+                <View style={{ marginTop: 18 }}>
+                    <View style={styles.recapCard}>
+                        {recap.map((r, i) => (
+                            <View key={r.label}>
+                                {i > 0 ? <View style={styles.hairline} /> : null}
+                                <View style={styles.recapRow}>
+                                    <View style={styles.recapIcon}>
+                                        <Ionicons name={r.icon as any} size={16} color={INK} />
+                                    </View>
+                                    <Text style={styles.recapLabel}>{r.label}</Text>
+                                    <Text style={styles.recapValue}>{r.value}</Text>
+                                </View>
+                            </View>
+                        ))}
                     </View>
                 </View>
             ),
@@ -406,27 +572,28 @@ export default function OnboardingV2Screen() {
 const styles = StyleSheet.create({
     topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     dots: { flexDirection: 'row', gap: 6 },
-    dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(17,17,19,0.15)' },
+    dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(28,26,23,0.15)' },
     dotActive: { backgroundColor: INK, width: 18 },
     kicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.6, color: GOLD, marginTop: 24 },
     title: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 36, color: INK, letterSpacing: -0.8, marginTop: 8, lineHeight: 42 },
     sub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE, marginTop: 8, lineHeight: 21 },
+    helpNote: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 10, lineHeight: 18 },
     tile: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
         borderRadius: 18,
-        backgroundColor: 'rgba(255,255,255,0.6)',
+        backgroundColor: SURFACE,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
+        borderColor: HAIRLINE,
         minHeight: 44,
     },
-    tileActive: { borderColor: GOLD, backgroundColor: 'rgba(44,107,237,0.1)' },
+    tileActive: { borderColor: GOLD, backgroundColor: 'rgba(44,107,237,0.08)' },
     tileIcon: {
         width: 38,
         height: 38,
         borderRadius: 13,
-        backgroundColor: 'rgba(255,255,255,0.8)',
+        backgroundColor: ICON_TILE,
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
@@ -444,12 +611,12 @@ const styles = StyleSheet.create({
     rankText: { fontFamily: 'Matter-SemiBold', fontSize: 12, color: '#fff' },
     shapeCard: {
         borderRadius: 18,
-        backgroundColor: 'rgba(255,255,255,0.6)',
+        backgroundColor: SURFACE,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
+        borderColor: HAIRLINE,
         paddingHorizontal: 16,
     },
-    hairline: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(17,17,19,0.1)' },
+    hairline: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(28,26,23,0.10)' },
     stepperRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -462,37 +629,71 @@ const styles = StyleSheet.create({
         width: 34,
         height: 34,
         borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.85)',
+        backgroundColor: SURFACE,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(17,17,19,0.08)',
+        borderColor: HAIRLINE,
     },
-    stepperValue: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK, width: 84, textAlign: 'center' },
+    stepperValue: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK, width: 96, textAlign: 'center' },
     workChip: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        marginTop: 12,
         padding: 14,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.6)',
+        backgroundColor: SURFACE,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
+        borderColor: HAIRLINE,
     },
     workChipActive: { borderColor: 'rgba(44,107,237,0.5)' },
     workChipText: { fontFamily: 'Matter-Medium', fontSize: 14.5, color: INK },
-    anchorLabel: { fontFamily: 'Matter-SemiBold', fontSize: 10.5, letterSpacing: 1.4, color: MUTE, marginTop: 20 },
-    anchorChip: {
+    groupLabel: { fontFamily: 'Matter-SemiBold', fontSize: 10.5, letterSpacing: 1.4, color: MUTE, marginTop: 20 },
+    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    pill: {
         paddingVertical: 9,
         paddingHorizontal: 14,
         borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.6)',
+        backgroundColor: SURFACE,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
+        borderColor: HAIRLINE,
         minHeight: 36,
     },
-    anchorChipActive: { borderColor: GOLD, backgroundColor: 'rgba(44,107,237,0.12)' },
-    anchorChipText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: '#5C574E' },
+    pillActive: { borderColor: GOLD, backgroundColor: 'rgba(44,107,237,0.10)' },
+    pillText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: SUB },
+    pillTextActive: { color: '#1F4FB0' },
+    seg: {
+        flexDirection: 'row',
+        marginTop: 8,
+        padding: 4,
+        gap: 4,
+        backgroundColor: SURFACE,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: HAIRLINE,
+    },
+    segItem: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
+    segItemActive: { backgroundColor: INK },
+    segText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: SUB },
+    segTextActive: { color: '#FFFFFF' },
+    recapCard: {
+        borderRadius: 20,
+        backgroundColor: SURFACE,
+        borderWidth: 1,
+        borderColor: HAIRLINE,
+        paddingHorizontal: 16,
+    },
+    recapRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
+    recapIcon: {
+        width: 30,
+        height: 30,
+        borderRadius: 10,
+        backgroundColor: ICON_TILE,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+    },
+    recapLabel: { fontFamily: 'Matter-Medium', fontSize: 14.5, color: INK, flex: 1 },
+    recapValue: { fontFamily: 'Matter-SemiBold', fontSize: 14.5, color: SUB },
     error: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#C0452C', marginTop: 14 },
 });

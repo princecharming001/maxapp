@@ -143,6 +143,22 @@ class OnboardingData(BaseModel):
             "top-level defaults. Day-specific commitments use obligations[].days."
         ),
     )
+    # Day-shape depth (onboarding v2) — each feeds the human-time engine:
+    #   work_location/commute_minutes -> derived "Commute" obligations (api.users)
+    #   chronotype -> stated energy-peak prior surfaced in the life model
+    #   dinner_time -> the protected dinner anchor in human_time.life_windows
+    work_location: Optional[str] = Field(
+        default=None, description="'office' | 'hybrid' | 'home' — where the user works, gates commute.",
+    )
+    commute_minutes: Optional[int] = Field(
+        default=None, description="One-way commute in minutes; brackets the work block with Commute obligations.",
+    )
+    chronotype: Optional[str] = Field(
+        default=None, description="'morning' | 'afternoon' | 'evening' — when the user feels sharpest.",
+    )
+    dinner_time: Optional[str] = Field(
+        default=None, description="Usual dinner time HH:MM (24h); anchors the protected dinner window.",
+    )
     completed: bool = False
     # Profile questionnaire v2 (collected before pay in app flow) — optional flag for clients
     questionnaire_v2_completed: Optional[bool] = None

@@ -687,6 +687,52 @@ async def save_onboarding(
         onboarding_data["preferred_workout_window"] = [
             _ht_hm(lo % (24 * 60)), _ht_hm(hi % (24 * 60)),
         ]
+
+    # Commute becomes real, visible, protected time. If the user gave a
+    # commute and isn't fully remote, bracket their main work block with
+    # "Commute" obligations so the scheduler never lands a task while they're
+    # in transit — and so the block shows up on their week. Derived blocks are
+    # tagged so re-saving (edit-lifestyle) replaces rather than duplicates them.
+    from services.human_time import hm as _ht_hm_c, to_min as _ht_to_min_c
+    try:
+        commute_min = int(onboarding_data.get("commute_minutes") or 0)
+    except (TypeError, ValueError):
+        commute_min = 0
+    work_location = str(onboarding_data.get("work_location") or "").strip().lower()
+    obs = [
+        o for o in (onboarding_data.get("obligations") or [])
+        if not (isinstance(o, dict) and o.get("_derived") == "commute")
+    ]
+    if commute_min > 0 and work_location != "home":
+        work_ob = None
+        for o in obs:
+            if not isinstance(o, dict):
+                continue
+            s, e = _ht_to_min_c(o.get("start"), -1), _ht_to_min_c(o.get("end"), -1)
+            if 0 <= s < e and (e - s) >= 3 * 60:
+                cur = (e - s)
+                best = (
+                    _ht_to_min_c(work_ob.get("end"), 0) - _ht_to_min_c(work_ob.get("start"), 0)
+                    if work_ob else -1
+                )
+                if cur > best:
+                    work_ob = o
+        if work_ob is not None:
+            ws = _ht_to_min_c(work_ob.get("start"), -1)
+            we = _ht_to_min_c(work_ob.get("end"), -1)
+            days = work_ob.get("days") or "weekdays"
+            if 0 <= ws - commute_min:
+                obs.append({
+                    "label": "Commute", "start": _ht_hm_c(ws - commute_min),
+                    "end": _ht_hm_c(ws), "days": days, "_derived": "commute",
+                })
+            if we + commute_min <= 24 * 60 - 5:
+                obs.append({
+                    "label": "Commute home", "start": _ht_hm_c(we),
+                    "end": _ht_hm_c(we + commute_min), "days": days, "_derived": "commute",
+                })
+    onboarding_data["obligations"] = obs
+
     if onboarding_data.get("weekend_shift") and not (
         onboarding_data.get("weekly_timings") or {}
     ).get("saturday"):
