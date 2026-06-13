@@ -409,135 +409,61 @@ export default function TodayScreen() {
                         </View>
                     ) : null}
 
-                    {/* ONE attention slot: the coach says one thing at a time.
-                        Priority: welcome-back > fresh-start > freeze-used >
-                        missed task > insight > first-read bridge. Never a
-                        wall of competing cards. */}
+                    {/* Coach note: ONE quiet line grouped with the status header,
+                        never a card competing with the actual task. The only
+                        exception is an actionable slip (it has buttons to
+                        resolve) - that earns the card down in the NOW zone. */}
                     {!todayQ.isLoading ? (() => {
+                        let icon: any = null;
+                        let text = '';
+                        let onPress: (() => void) | undefined;
                         if (data?.welcome_back) {
-                            return (
-                                <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
-                                    <View style={styles.noticeCard}>
-                                        <Ionicons name="hand-left-outline" size={17} color={GOLD} />
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={styles.noticeTitle}>{data.welcome_back.line}</Text>
-                                            <Text style={styles.noticeText}>{data.welcome_back.sub}</Text>
-                                        </View>
-                                    </View>
-                                </GlassCard>
-                            );
+                            icon = 'hand-left-outline';
+                            text = data.welcome_back.line;
+                        } else if ((data as any)?.fresh_start_today) {
+                            icon = 'sunny-outline';
+                            text = "Yesterday got away. Today's a fresh one.";
+                        } else if ((data as any)?.freeze_used_yesterday) {
+                            icon = 'snow-outline';
+                            text = "Used a freeze for yesterday. Streak's safe.";
+                        } else if ((data?.insights?.length ?? 0) > 0) {
+                            icon = 'bulb-outline';
+                            text = data!.insights[0].text;
+                            onPress = () => navigation.navigate('WeeklyReview');
+                        } else if (streak > 0 && streak <= 3 && tasks.length > 0) {
+                            icon = 'sparkles-outline';
+                            text = `Day ${streak} closed. See what Max noticed.`;
+                            onPress = () => navigation.navigate('WeeklyReview');
                         }
-                        if ((data as any)?.fresh_start_today) {
-                            return (
-                                <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
-                                    <View style={styles.noticeCard}>
-                                        <Ionicons name="sunny-outline" size={17} color={GOLD} />
-                                        <Text style={styles.noticeText}>
-                                            Yesterday got away. Today's a fresh one.
-                                        </Text>
-                                    </View>
-                                </GlassCard>
-                            );
-                        }
-                        if ((data as any)?.freeze_used_yesterday) {
-                            return (
-                                <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
-                                    <View style={styles.noticeCard}>
-                                        <Ionicons name="snow-outline" size={17} color={GOLD} />
-                                        <Text style={styles.noticeText}>
-                                            Used a freeze for yesterday. Streak's safe.
-                                        </Text>
-                                    </View>
-                                </GlassCard>
-                            );
-                        }
-                        if ((data?.slipped?.length ?? 0) > 0) {
-                            const slip = data!.slipped[0];
-                            const slippedTask = tasks.find((t) => t.task_id === slip.task_id);
-                            return (
-                                <GlassCard radius={20} intensity={40} style={{ marginTop: 12 }}>
-                                    <View style={{ padding: 16 }}>
-                                        <Text style={styles.slipKicker}>NO STRESS</Text>
-                                        <Text style={styles.slipTitle}>
-                                            Missed {slip.title?.toLowerCase() || 'one'}
-                                        </Text>
-                                        <Text style={styles.noticeText}>
-                                            {slip.suggested_time
-                                                ? 'Happens. Here is the fix. Tomorrow stays the same.'
-                                                : 'Happens. Tomorrow stays exactly the same. Your streak is safe.'}
-                                        </Text>
-                                        {slip.suggested_time && slippedTask ? (
-                                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-                                                <View style={{ flex: 1 }}>
-                                                    <GlassButton
-                                                        variant="primary"
-                                                        label={`Do it at ${fmtTime(slip.suggested_time)}`}
-                                                        onPress={() =>
-                                                            snoozeMutation.mutate({
-                                                                t: slippedTask,
-                                                                newTime: slip.suggested_time!,
-                                                            })
-                                                        }
-                                                    />
-                                                </View>
-                                                <GlassButton
-                                                    variant="glass"
-                                                    label="Skip today"
-                                                    style={{ width: 110 }}
-                                                    onPress={() => skipMutation.mutate(slippedTask)}
-                                                />
-                                            </View>
-                                        ) : null}
-                                    </View>
-                                </GlassCard>
-                            );
-                        }
-                        if ((data?.insights?.length ?? 0) > 0) {
-                            return (
-                                <TouchableOpacity
-                                    onPress={() => navigation.navigate('WeeklyReview')}
-                                    activeOpacity={0.8}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Max learned something about you"
-                                >
-                                    <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
-                                        <View style={styles.noticeCard}>
-                                            <Ionicons name="bulb-outline" size={17} color={GOLD} />
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={styles.noticeTitle}>Max noticed something</Text>
-                                                <Text style={styles.noticeText}>{data!.insights[0].text}</Text>
-                                            </View>
-                                            <Ionicons name="chevron-forward" size={16} color={MUTE} />
-                                        </View>
-                                    </GlassCard>
-                                </TouchableOpacity>
-                            );
-                        }
-                        if (streak > 0 && streak <= 3 && tasks.length > 0) {
-                            return (
-                                <TouchableOpacity
-                                    onPress={() => navigation.navigate('WeeklyReview')}
-                                    activeOpacity={0.8}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Max's first read on you"
-                                >
-                                    <GlassCard radius={20} intensity={36} style={{ marginTop: 12 }}>
-                                        <View style={styles.noticeCard}>
-                                            <Ionicons name="sparkles-outline" size={17} color={GOLD} />
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={styles.noticeTitle}>Max's first read on you</Text>
-                                                <Text style={styles.noticeText}>
-                                                    Day {streak} closed. See what Max noticed so far.
-                                                </Text>
-                                            </View>
-                                            <Ionicons name="chevron-forward" size={16} color={MUTE} />
-                                        </View>
-                                    </GlassCard>
-                                </TouchableOpacity>
-                            );
-                        }
-                        return null;
+                        if (!icon) return null;
+                        const row = (
+                            <View style={styles.noteRow}>
+                                <Ionicons name={icon} size={15} color={GOLD} />
+                                <Text style={styles.noteText} numberOfLines={2}>{text}</Text>
+                                {onPress ? (
+                                    <Ionicons name="chevron-forward" size={14} color={MUTE} />
+                                ) : null}
+                            </View>
+                        );
+                        return onPress ? (
+                            <TouchableOpacity
+                                onPress={onPress}
+                                activeOpacity={0.7}
+                                accessibilityRole="button"
+                                accessibilityLabel={text}
+                            >
+                                {row}
+                            </TouchableOpacity>
+                        ) : row;
                     })() : null}
+
+                    {/* Locked-in: a quiet confirmation line, not a tall card. */}
+                    {!todayQ.isLoading && tasks.length > 0 && data?.locked_in ? (
+                        <View style={styles.lockedRow}>
+                            <Ionicons name="checkmark-circle" size={16} color={GOLD} />
+                            <Text style={styles.lockedText}>Locked in for today</Text>
+                        </View>
+                    ) : null}
 
                     {/* loading skeleton: quiet anchor rails, never a spinner */}
                     {todayQ.isLoading ? (
@@ -552,9 +478,52 @@ export default function TodayScreen() {
                         </View>
                     ) : null}
 
-                    {/* morning lock-in */}
-                    {!todayQ.isLoading && isMorning && tasks.length > 0 ? (
-                        <View style={styles.bannerWrap}>
+                    {/* NOW zone: an actionable slip earns a card here. */}
+                    {!todayQ.isLoading && (data?.slipped?.length ?? 0) > 0 ? (() => {
+                        const slip = data!.slipped[0];
+                        const slippedTask = tasks.find((t) => t.task_id === slip.task_id);
+                        return (
+                            <GlassCard radius={20} style={{ marginTop: 22 }}>
+                                <View style={{ padding: 18 }}>
+                                    <Text style={styles.slipKicker}>NO STRESS</Text>
+                                    <Text style={styles.slipTitle}>
+                                        Missed {slip.title?.toLowerCase() || 'one'}
+                                    </Text>
+                                    <Text style={styles.noticeText}>
+                                        {slip.suggested_time
+                                            ? 'Happens. Here is the fix. Tomorrow stays the same.'
+                                            : 'Happens. Tomorrow stays exactly the same. Your streak is safe.'}
+                                    </Text>
+                                    {slip.suggested_time && slippedTask ? (
+                                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+                                            <View style={{ flex: 1 }}>
+                                                <GlassButton
+                                                    variant="primary"
+                                                    label={`Do it at ${fmtTime(slip.suggested_time)}`}
+                                                    onPress={() =>
+                                                        snoozeMutation.mutate({
+                                                            t: slippedTask,
+                                                            newTime: slip.suggested_time!,
+                                                        })
+                                                    }
+                                                />
+                                            </View>
+                                            <GlassButton
+                                                variant="glass"
+                                                label="Skip today"
+                                                style={{ width: 110 }}
+                                                onPress={() => skipMutation.mutate(slippedTask)}
+                                            />
+                                        </View>
+                                    ) : null}
+                                </View>
+                            </GlassCard>
+                        );
+                    })() : null}
+
+                    {/* morning lock-in (pre-lock only; once locked it's the slim row above) */}
+                    {!todayQ.isLoading && isMorning && !data?.locked_in && tasks.length > 0 ? (
+                        <GlassCard radius={20} style={{ marginTop: 22 }}>
                             <View style={styles.bannerInner}>
                                 <Text style={styles.bannerTitle}>Lock in today</Text>
                                 <Text style={styles.bannerSub}>
@@ -572,14 +541,14 @@ export default function TodayScreen() {
                                     />
                                 </View>
                             </View>
-                        </View>
+                        </GlassCard>
                     ) : null}
 
-                    {/* NEXT UP hero */}
+                    {/* NEXT UP hero — the one dominant action */}
                     {!todayQ.isLoading && nextUp && !isEvening ? (
                         <>
-                            <Text style={[styles.label, { marginTop: 18, marginBottom: 8 }]}>NEXT UP</Text>
-                            <GlassCard radius={26} intensity={44}>
+                            <Text style={[styles.label, { marginTop: 22, marginBottom: 8 }]}>NEXT UP</Text>
+                            <GlassCard radius={24} style={styles.heroCard}>
                                 <View style={{ padding: 20 }}>
                                     <Text style={styles.heroTime}>
                                         {fmtTime(nextUp.time)}
@@ -646,11 +615,12 @@ export default function TodayScreen() {
                         </GlassCard>
                     ) : null}
 
-                    {/* YOUR DAY timeline */}
+                    {/* YOUR DAY timeline — a clearly separated zone */}
                     {!todayQ.isLoading && timeline.length > 0 ? (
                         <>
-                            <Text style={[styles.label, { marginTop: 20, marginBottom: 6 }]}>YOUR DAY</Text>
-                            <GlassCard radius={24} intensity={36}>
+                            <View style={styles.zoneDivider} />
+                            <Text style={[styles.label, { marginBottom: 8 }]}>YOUR DAY</Text>
+                            <GlassCard radius={24}>
                                 <View style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
                                     {timeline.map((row, i) => {
                                         if (row.kind === 'struct') {
@@ -957,24 +927,38 @@ const styles = StyleSheet.create({
         paddingVertical: 5,
         paddingHorizontal: 10,
         borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.7)',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E2DBCD',
     },
     stateChipText: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE },
     noticeCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
+    // Slim coach-note row: grouped with the status header, never a card.
+    noteRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 12,
+        paddingVertical: 2,
+    },
+    noteText: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#5C574E', lineHeight: 19 },
+    lockedRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 10 },
+    lockedText: { fontFamily: 'Matter-Medium', fontSize: 13, color: '#5C574E' },
+    // Clear separator between the NOW zone and the YOUR DAY zone.
+    zoneDivider: {
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: 'rgba(28,26,23,0.12)',
+        marginTop: 28,
+        marginBottom: 18,
+    },
+    heroCard: { marginTop: 0 },
     leaveByRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
     leaveByText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: '#1F4FB0' },
     slipKicker: { fontFamily: 'Matter-SemiBold', fontSize: 10.5, letterSpacing: 1.6, color: GOLD },
     slipTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 22, color: INK, marginTop: 3 },
     noticeTitle: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK },
     noticeText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#5C574E', flexShrink: 1 },
-    bannerWrap: {
-        borderRadius: 24,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
-        marginTop: 12,
-    },
-    bannerInner: { padding: 18, backgroundColor: 'rgba(255,255,255,0.55)' },
+    bannerInner: { padding: 18 },
     bannerTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 22, color: INK },
     bannerSub: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#5C574E', marginTop: 4, lineHeight: 20 },
     lockExplainer: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 8 },
@@ -1006,9 +990,9 @@ const styles = StyleSheet.create({
         paddingVertical: 7,
         paddingHorizontal: 14,
         borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.6)',
+        backgroundColor: '#FFFFFF',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
+        borderColor: '#E2DBCD',
         minHeight: 32,
     },
     heldChipText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: MUTE },

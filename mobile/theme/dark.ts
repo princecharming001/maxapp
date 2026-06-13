@@ -6,9 +6,9 @@
 // Craft-inspired palette: warm paper canvas, white surfaces, warm ink, one
 // calm blue accent. Flat and matte - no glass, no glow.
 export const colors = {
-    background: '#FAF9F6',   // warm paper canvas
-    surface: '#F3F1EB',      // subtle inset
-    surfaceLight: '#F6F4EF',
+    background: '#EDE7DD',    // warm paper canvas (deeper, so cards float)
+    surface: '#E5DECF',      // subtle inset
+    surfaceLight: '#F2EDE4',
     card: '#FFFFFF',
 
     foreground: '#1C1A17',   // warm near-black ink
@@ -33,17 +33,17 @@ export const colors = {
     premiumLight: '#2C6BED18',
     premiumBorder: '#2C6BED40',
 
-    border: '#E8E4DB',       // warm hairline
-    borderLight: '#F0EDE5',
-    divider: '#E8E4DB',
+    border: '#E2DBCD',       // warm hairline
+    borderLight: '#EBE5DA',
+    divider: '#E2DBCD',
 
-    gradientStart: '#FAF9F6',
-    gradientEnd: '#F3F1EB',
+    gradientStart: '#EDE7DD',
+    gradientEnd: '#E5DECF',
 
     buttonText: '#FFFFFF',
 
     overlay: 'rgba(28, 26, 23, 0.40)',
-    blur: 'rgba(250, 249, 246, 0.86)',
+    blur: 'rgba(237, 231, 221, 0.88)',
 };
 
 export const spacing = {

@@ -27,10 +27,10 @@ export function GlassCard({
     return (
         <View
             borderRadius={radius}
-            shadowColor="#3A352B"
-            shadowOpacity={0.05}
-            shadowRadius={14}
-            shadowOffset={{ width: 0, height: 6 }}
+            shadowColor="#2E2A20"
+            shadowOpacity={0.07}
+            shadowRadius={18}
+            shadowOffset={{ width: 0, height: 8 }}
             style={{ borderCurve: 'continuous' }}
             {...rest}
         >
