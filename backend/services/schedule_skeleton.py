@@ -73,6 +73,12 @@ class _Block:
     pick_from: list[dict] = field(default_factory=list)
     replaces: list[str] = field(default_factory=list)
     not_with_same_day: list[str] = field(default_factory=list)
+    # Optional routine id. Blocks sharing a `group` (e.g. every step of the
+    # morning skincare routine) are treated as ONE sitting: emitted at the same
+    # window start and kept snug + in render order by the humanize pass, instead
+    # of drifting 15 minutes apart. Defaults to the block id (a block is its own
+    # one-block routine).
+    group: Optional[str] = None
 
 
 def _block_referenced_fields(b: "_Block") -> set[str]:
@@ -116,6 +122,7 @@ def _parse_block(raw: dict) -> _Block:
         pick_from=list(raw.get("pick_from") or []),
         replaces=[str(r) for r in (raw.get("replaces") or [])],
         not_with_same_day=[str(t) for t in (raw.get("not_with_same_day") or [])],
+        group=str(raw.get("group")).strip() if raw.get("group") else None,
     )
 
 
@@ -386,6 +393,7 @@ def _place_block(
                 )[0],
                 block_id=block.id,
                 not_with_same_day=block.not_with_same_day,
+                group=block.group,
             )
         return  # short-circuit — we already emitted
     else:
@@ -441,6 +449,7 @@ def _place_block(
             block_id=block.id,
             not_with_same_day=block.not_with_same_day,
             win_end=win_end,
+            group=block.group,
         )
 
 
@@ -507,6 +516,7 @@ def _place_dynamic(
             start_minute=win_start,
             block_id=block.id,
             not_with_same_day=block.not_with_same_day,
+            group=block.group,
         )
 
     # Group the eligible days into 7-day windows and fill each independently.
@@ -602,6 +612,7 @@ def _emit_tasks(
     block_id: str,
     not_with_same_day: list[str],
     win_end: int | None = None,
+    group: Optional[str] = None,
 ) -> None:
     """Append catalog_ids to day.tasks at sequential minutes.
     Drops a task if its catalog applies_when fails or contraindicated_when fires.
@@ -638,13 +649,23 @@ def _emit_tasks(
     if not resolved:
         return
 
-    # Per-task advance. Default keeps a calm 15-minute minimum cadence (was 5 —
-    # too aggressive, produced 4-task notification storms in the 7-7:25am
-    # window). If the run would overrun `win_end`, shrink the gap uniformly so
-    # the whole block fits, pulling tasks earlier rather than past the window.
+    # Per-task advance. The tasks in ONE block are ONE routine / sitting (e.g.
+    # cleanse -> moisturize -> SPF), so they go back-to-back: each step advances
+    # by just its own duration (+1 min to breathe), NOT a 15-minute cadence that
+    # would smear a 7-minute skincare routine across half an hour and push the
+    # tail into work hours. Notification storms are prevented at the notify
+    # layer (one nudge per routine), not by spacing steps apart here.
+    routine_group = group or block_id
     durs = [max(1, int(cat.duration_min)) for cat in resolved]
     n = len(resolved)
-    steps = [max(int(cat.duration_min) + 1, 15) for cat in resolved]
+    # A named routine (group set, possibly spanning several blocks at one slot)
+    # emits every step at the window start, so the humanize pass orders them by
+    # render order and packs them snug. A plain block keeps a small back-to-back
+    # advance so its own steps stay ordered even before humanize runs.
+    if group:
+        steps = [0 for _ in resolved]
+    else:
+        steps = [max(1, int(cat.duration_min)) + 1 for cat in resolved]
     if win_end is not None and n > 1:
         natural_span = sum(steps[:-1])  # first start -> last start
         if start_minute + natural_span > win_end:
@@ -672,6 +693,9 @@ def _emit_tasks(
             "tags": list(cat.tags),
             "status": "pending",
             "intensity": float(cat.intensity),
+            # Routine grouping: steps sharing a `group` are one sitting and are
+            # kept snug (back-to-back) by the humanize pass instead of spaced.
+            "group": routine_group,
         })
         cur += steps[i]
 

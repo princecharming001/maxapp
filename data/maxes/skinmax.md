@@ -17,18 +17,34 @@ schedule_design:
   # phase override a default block (e.g. REPAIR replaces pm_active).
   skeleton:
     blocks:
-      - id: am_foundation
+      # ── Morning routine — ONE sitting at the sink, in dermatological order:
+      #    cleanse → active/serum → moisturize → SPF (SPF is always last).
+      #    All share the am_open slot so they land back-to-back, not scattered.
+      - id: am_cleanse
         slot: am_open
+        group: skin_am
         cadence: daily
-        tasks: [skin.cleanse_am, skin.moisturize_am, skin.spf]
+        tasks: [skin.cleanse_am]
       - id: am_active
-        slot: am_active
+        slot: am_open
+        group: skin_am
         cadence: daily
         # Picker walks `pick_from` and emits at most one task per day.
-        # First eligible item with remaining quota wins.
+        # First eligible item with remaining quota wins. Sits between cleanse
+        # and moisturize so the active goes on bare skin, then gets sealed in.
         pick_from:
           - { id: skin.azelaic_am,  days_per_week: 7, requires: ["skin_concern in [acne, rosacea, pigmentation]", "barrier_state != damaged"] }
           - { id: skin.centella_am, days_per_week: 7, requires: ["skin_concern == rosacea or barrier_state == damaged"] }
+      - id: am_seal
+        slot: am_open
+        group: skin_am
+        cadence: daily
+        tasks: [skin.moisturize_am, skin.spf]
+      - id: internal_zinc
+        slot: am_open
+        cadence: daily
+        if: "skin_concern in [acne, pigmentation]"
+        tasks: [skin.zinc_supp]
       - id: midday_check
         slot: midday
         cadence: daily
@@ -38,12 +54,18 @@ schedule_design:
         cadence: daily
         if: "outdoor_exposure in [heavy, moderate]"
         tasks: [skin.spf_reapply]
-      - id: pm_foundation
+      # ── Evening routine — ONE sitting before bed, in order:
+      #    cleanse → treatment/active → (weekly extras) → moisturize.
+      #    All share the pm_close slot so the whole PM routine clusters at
+      #    night instead of the treatment landing hours before the cleanse.
+      - id: pm_cleanse
         slot: pm_close
+        group: skin_pm
         cadence: daily
-        tasks: [skin.cleanse_pm, skin.moisturize_pm]
+        tasks: [skin.cleanse_pm]
       - id: pm_active
-        slot: pm_active
+        slot: pm_close
+        group: skin_pm
         cadence: dynamic
         pick_from:
           # Ordered by priority. Conflicts (`not_with`) are enforced day-by-day.
@@ -52,44 +74,48 @@ schedule_design:
           # Rest-night fallback so PM is never under 3 steps. Niacinamide
           # or hyaluronic on rest nights, barrier maintenance, no actives.
           - { id: skin.rest_night_serum, days_per_week: 7, requires: [] }
-      - id: pm_circulation
-        slot: pm_close
-        cadence: n_per_week=5
-        tasks: [skin.facial_massage]
-      - id: internal_zinc
-        slot: am_open
-        cadence: daily
-        if: "skin_concern in [acne, pigmentation]"
-        tasks: [skin.zinc_supp]
-      - id: internal_diet
-        slot: flexible
-        cadence: n_per_week=5
-        if: "skin_concern in [rosacea, acne, pigmentation] and diet_open in [yes_full, yes_some]"
-        tasks: [skin.diet_anti_inflammatory]
-      # Phase override: damaged barrier → strip all actives + force pause day.
-      # `replaces` removes other blocks by id before placement.
-      - id: phase_repair_lock
-        slot: pm_active
-        cadence: daily
-        if: "barrier_state == damaged"
-        replaces: [pm_active, am_active]
-        tasks: [skin.barrier_pause]
-      # --- Density layer: weekly + monthly habits a real protocol includes ---
-      - id: pillowcase_change
-        slot: midday
-        cadence: n_per_week=1
-        tasks: [skin.pillowcase_change]
       - id: weekly_exfoliation
-        slot: pm_active
+        slot: pm_close
+        group: skin_pm
         cadence: n_per_week=1
         if: "barrier_state == stable and skin_concern in [acne, pigmentation, texture, aging]"
         not_with_same_day: [skin.retinoid_pm, skin.dermastamp_pm]
         tasks: [skin.weekly_exfoliation]
       - id: hydration_mask
-        slot: pm_active
+        slot: pm_close
+        group: skin_pm
         cadence: n_per_week=1
         if: "skin_concern in [rosacea, maintenance, aging] or skin_type == dry"
         tasks: [skin.hydration_mask]
+      # Phase override: damaged barrier → strip all actives + force a calm
+      # barrier-repair night. `replaces` removes those blocks by id first.
+      - id: phase_repair_lock
+        slot: pm_close
+        group: skin_pm
+        cadence: daily
+        if: "barrier_state == damaged"
+        replaces: [pm_active, am_active, weekly_exfoliation, hydration_mask]
+        tasks: [skin.barrier_pause]
+      - id: pm_seal
+        slot: pm_close
+        group: skin_pm
+        cadence: daily
+        tasks: [skin.moisturize_pm]
+      - id: pm_circulation
+        slot: pm_close
+        group: skin_pm
+        cadence: n_per_week=5
+        tasks: [skin.facial_massage]
+      - id: internal_diet
+        slot: flexible
+        cadence: n_per_week=5
+        if: "skin_concern in [rosacea, acne, pigmentation] and diet_open in [yes_full, yes_some]"
+        tasks: [skin.diet_anti_inflammatory]
+      # --- Density layer: weekly + monthly habits a real protocol includes ---
+      - id: pillowcase_change
+        slot: midday
+        cadence: n_per_week=1
+        tasks: [skin.pillowcase_change]
       - id: progress_photo_skin
         slot: am_open
         cadence: weekly_on=sunday

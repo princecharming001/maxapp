@@ -271,17 +271,27 @@ def humanize_days(days: list[dict], state: dict) -> list[dict]:
             m = friendly_time(m)
             placed.append((m, t))
 
-        # Keep the day ordered + minimally spaced after snapping.
+        # Keep the day ordered, then space tasks — EXCEPT steps of the same
+        # routine (same `group`), which stay snug back-to-back like a real
+        # sitting (cleanse, then moisturize, then SPF) instead of drifting
+        # 10+ minutes apart.
         placed.sort(key=lambda x: (x[0] if x[0] >= w.wake else x[0] + 24 * 60))
         last_end = -10**6
+        last_group = None
         for m, t in placed:
             mm = m if m >= w.wake else m + 24 * 60
-            if mm < last_end + 5:
+            grp = t.get("group")
+            if grp is not None and grp == last_group:
+                # one routine — keep it tight (1 min after the previous step ends)
+                if mm < last_end + 1:
+                    mm = last_end + 1
+            elif mm < last_end + 5:
                 mm = friendly_time(last_end + 10)
                 if mm < last_end + 5:  # rounding pulled it back - push a grid step
                     mm = last_end + 15
             t["time"] = hm(mm)
             last_end = mm + int(t.get("duration_min") or 10)
+            last_group = grp
             if not t.get("why"):
                 t["why"] = why_line(mm % (24 * 60), w, anchors)
     return days
