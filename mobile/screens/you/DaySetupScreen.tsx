@@ -65,18 +65,18 @@ function StepTime({
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <TouchableOpacity
                     style={styles.stepBtn}
-                    onPress={() => onChange((value - 30 + 1440) % 1440)}
+                    onPress={() => onChange((value - 15 + 1440) % 1440)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${label} 30 minutes earlier`}
+                    accessibilityLabel={`${label} 15 minutes earlier`}
                 >
                     <Ionicons name="remove" size={16} color={INK} />
                 </TouchableOpacity>
                 <Text style={styles.stepValue}>{fmt12(`${hh}:${mm}`)}</Text>
                 <TouchableOpacity
                     style={styles.stepBtn}
-                    onPress={() => onChange((value + 30) % 1440)}
+                    onPress={() => onChange((value + 15) % 1440)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${label} 30 minutes later`}
+                    accessibilityLabel={`${label} 15 minutes later`}
                 >
                     <Ionicons name="add" size={16} color={INK} />
                 </TouchableOpacity>
