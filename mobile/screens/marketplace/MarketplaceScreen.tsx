@@ -107,8 +107,8 @@ export default function MarketplaceScreen() {
         if (!itemId || loading) return;
         const item = [...maxxes, ...courses].find((i) => i.id === itemId);
         if (item) {
-            setDetail(item);
             navigation.setParams({ itemId: undefined });
+            navigation.push('MaxDetail', { item });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [route.params?.itemId, loading]);
@@ -180,7 +180,7 @@ export default function MarketplaceScreen() {
                 <Text style={styles.sectionSub}>Built by Max · $3.99 a week each</Text>
                 <View style={styles.grid}>
                     {maxxes.map((m) => (
-                        <CourseCard key={m.id} item={m} onPress={() => { track('paywall_view', { item: m.id }); setDetail(m); }} />
+                        <CourseCard key={m.id} item={m} onPress={() => navigation.push('MaxDetail', { item: m })} />
                     ))}
                 </View>
 
@@ -188,7 +188,7 @@ export default function MarketplaceScreen() {
                 <Text style={styles.sectionSub}>From coaches and pros · fit to your schedule</Text>
                 <View style={styles.grid}>
                     {courses.map((c) => (
-                        <CourseCard key={c.id} item={c} onPress={() => { track('paywall_view', { item: c.id }); setDetail(c); }} />
+                        <CourseCard key={c.id} item={c} onPress={() => navigation.push('MaxDetail', { item: c })} />
                     ))}
                 </View>
             </ScrollView>
@@ -247,6 +247,9 @@ function CourseCard({ item, onPress }: { item: MarketplaceItem; onPress: () => v
             </View>
 
             <View style={styles.cardFooter}>
+                {!item.native && item.creator.avatar ? (
+                    <Image source={{ uri: item.creator.avatar }} style={styles.footerAvatar} contentFit="cover" />
+                ) : null}
                 <Text style={styles.footerCreator} numberOfLines={1}>
                     {item.native ? 'by Max' : `@${item.creator.handle}${item.creator.verified ? ' ✓' : ''}`}
                 </Text>
@@ -602,6 +605,7 @@ const styles = StyleSheet.create({
         marginTop: 9,
         paddingHorizontal: 2,
     },
+    footerAvatar: { width: 18, height: 18, borderRadius: 9, marginRight: 6, backgroundColor: '#E5DECF' },
     footerCreator: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: SUB, flex: 1 },
     footerPrice: { fontFamily: 'Matter-SemiBold', fontSize: 13, color: INK, marginLeft: 8 },
     cardRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },

@@ -39,6 +39,7 @@ import CourseDetailScreen from '../screens/courses/CourseDetailScreen';
 import ChapterViewScreen from '../screens/courses/ChapterViewScreen';
 import ScheduleScreen from '../screens/courses/ScheduleScreen';
 import MaxxDetailScreen from '../screens/courses/MaxxDetailScreen';
+import MaxDetailScreen from '../screens/marketplace/MaxDetailScreen';
 import FitmaxPlanScreen from '../screens/courses/FitmaxPlanScreen';
 import FitmaxWorkoutTrackerScreen from '../screens/courses/FitmaxWorkoutTrackerScreen';
 import FitmaxCalorieLogScreen from '../screens/courses/FitmaxCalorieLogScreen';
@@ -181,6 +182,7 @@ export function RootNavigator() {
                     <Stack.Screen name="ChapterView" component={ChapterViewScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="Schedule" component={ScheduleScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="MaxxDetail" component={MaxxDetailScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="MaxDetail" component={MaxDetailScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxPlan" component={FitmaxPlanScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxWorkoutTracker" component={FitmaxWorkoutTrackerScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxCalorieLog" component={FitmaxCalorieLogScreen} options={{ headerShown: false }} />

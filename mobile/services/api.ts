@@ -18,13 +18,26 @@ export interface MarketplaceItem {
     price_model: 'weekly' | 'flat';
     price_label: string;
     weeks?: number;
-    creator: { name: string; handle: string; verified: boolean };
+    creator: { name: string; handle: string; verified: boolean; avatar?: string | null };
     native: boolean;
     entered: boolean;
     category?: string;
     rating?: number;
     participants?: number;
     completion_rate?: number;
+    detail?: MarketplaceItemDetail;
+}
+
+export interface MarketplaceItemDetail {
+    long_description?: string;
+    outcomes?: string[];
+    for_you_if?: string[];
+    curriculum?: { title: string; lessons: string[] }[];
+    bio?: string;
+    credentials?: string[];
+    reviews?: { name: string; avatar?: string; rating: number; text: string }[];
+    faqs?: { q: string; a: string }[];
+    guarantee?: string;
 }
 
 function envTargetsLoopback(url: string): boolean {

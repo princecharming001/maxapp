@@ -80,6 +80,220 @@ _SEED_COURSES: list[dict[str, Any]] = [
 ]
 
 
+# Creator headshots, stable per handle (real portraits so Explore + the detail
+# pages read like a creator marketplace, not an icon grid).
+_AVATARS: dict[str, str] = {
+    "drlenapark": "https://i.pravatar.cc/240?img=47",
+    "coachmreed": "https://i.pravatar.cc/240?img=12",
+    "ariamoves": "https://i.pravatar.cc/240?img=44",
+    "samcole": "https://i.pravatar.cc/240?img=33",
+}
+
+
+def _avatar(handle: str) -> "str | None":
+    return _AVATARS.get(handle)
+
+
+def _rev(name: str, img: int, rating: int, text: str) -> dict[str, Any]:
+    return {"name": name, "avatar": f"https://i.pravatar.cc/120?img={img}", "rating": rating, "text": text}
+
+
+# Rich "browse before you buy" content for each creator course — what's inside,
+# who's teaching, and proof — surfaced on the full detail page.
+_COURSE_DETAIL: dict[str, dict[str, Any]] = {
+    "course_glowup_30": {
+        "long_description": (
+            "A board-certified dermatologist's 30-day reset. We strip your routine "
+            "back to what actually works, rebuild your barrier first, then layer in "
+            "one active at a time so your skin never gets overwhelmed. Every step is "
+            "fit into your real evenings by Max."
+        ),
+        "outcomes": [
+            "Calmer, clearer skin in four weeks",
+            "A simple morning + evening routine you'll actually keep",
+            "Know exactly which products your skin needs (and which to skip)",
+            "Introduce actives without irritation or purging",
+        ],
+        "for_you_if": [
+            "You own ten products and your skin is still angry",
+            "You want a dermatologist's plan, not another TikTok routine",
+        ],
+        "curriculum": [
+            {"title": "Week 1 · Barrier first", "lessons": ["Strip back to three steps", "Pick a cleanser + moisturizer for your skin", "The 60-second rule"]},
+            {"title": "Week 2 · Your first active", "lessons": ["Vitamin C in the AM", "Easing in a retinoid", "Reading your skin's signals"]},
+            {"title": "Week 3 · Target your concern", "lessons": ["Acne, texture or tone", "Spot-treating safely", "When to add exfoliation"]},
+            {"title": "Week 4 · Lock it in", "lessons": ["Your keeper routine", "Weekly extras that pay off", "Tracking real progress"]},
+        ],
+        "bio": (
+            "Dr. Lena Park is a board-certified dermatologist who's spent a decade "
+            "untangling overcomplicated routines. She's known for barrier-first, "
+            "minimal protocols that hold up in real life."
+        ),
+        "credentials": ["Board-certified dermatologist", "12 years clinical practice", "150k+ on Instagram"],
+        "reviews": [
+            _rev("Maya R.", 32, 5, "My skin calmed down in the first week. I finally threw out the 9 products that were wrecking my barrier."),
+            _rev("Devon T.", 15, 5, "Simple, no fluff, and Max put each step right when I'm already in the bathroom. Stuck with it the whole month."),
+            _rev("Priya S.", 45, 4, "Wish week 3 went deeper on hyperpigmentation, but my texture is noticeably smoother."),
+        ],
+        "faqs": [
+            {"q": "Do I need to buy specific products?", "a": "No. Each step tells you what TYPE of product to use for your skin — use what you have or any drugstore option."},
+            {"q": "Will this work for sensitive skin?", "a": "Yes — it's barrier-first by design and eases actives in slowly. You can flag sensitive skin and it adjusts."},
+            {"q": "What if I miss a day?", "a": "Max reflows the plan around your real days. Missing one night won't break anything."},
+        ],
+        "guarantee": "Not feeling it in the first week? Cancel in two taps, no questions.",
+    },
+    "course_lift101": {
+        "long_description": (
+            "Eight weeks of beginner strength built around the gaps you actually "
+            "have. Three sessions a week, real progression, and form you can trust — "
+            "Max slots each one into your week so you never have to plan it."
+        ),
+        "outcomes": [
+            "Confident barbell basics — squat, hinge, press, pull",
+            "A repeatable 3-day week that fits your schedule",
+            "Visible strength gains by week 8",
+            "Form cues that keep you injury-free",
+        ],
+        "for_you_if": [
+            "You're new to lifting and the gym feels intimidating",
+            "You've tried programs that assumed you had 6 days free",
+        ],
+        "curriculum": [
+            {"title": "Weeks 1-2 · Movement basics", "lessons": ["The four big lifts", "Warm-ups that matter", "Finding your starting weights"]},
+            {"title": "Weeks 3-4 · Build the base", "lessons": ["Progressive overload, simply", "Accessory work", "Recovery + sleep"]},
+            {"title": "Weeks 5-6 · Add intensity", "lessons": ["Heavier sets, safely", "Reading fatigue", "Nutrition basics for strength"]},
+            {"title": "Weeks 7-8 · Put it together", "lessons": ["Testing your numbers", "Your next 8 weeks", "Staying consistent"]},
+        ],
+        "bio": (
+            "Marcus Reed is a strength coach who's taken 10,000+ total beginners from "
+            "their first squat to a confident barbell. His whole thing: keep it boring, "
+            "keep it consistent, watch it work."
+        ),
+        "credentials": ["CSCS certified", "10+ years coaching beginners", "Former collegiate athlete"],
+        "reviews": [
+            _rev("Jordan K.", 13, 5, "First program that didn't assume I had endless time. Three days, in and out, and I'm actually getting stronger."),
+            _rev("Sam W.", 60, 5, "The form cues are gold. I finally trust my squat."),
+            _rev("Riley P.", 25, 5, "Eight weeks in and I added 60lbs to my deadlift from zero."),
+        ],
+        "faqs": [
+            {"q": "Do I need a full gym?", "a": "A barbell, rack and some plates cover everything. There's a dumbbell substitution for each lift if that's what you have."},
+            {"q": "I've never lifted — is this safe?", "a": "It's built for total beginners. Every lift starts with form before load, and the cues keep you safe."},
+            {"q": "What if I can only do 2 days some weeks?", "a": "Max reflows the week. Two solid days beats a missed three every time."},
+        ],
+        "guarantee": "Cancel anytime — it's weekly. Stay as long as it's working.",
+    },
+    "course_posture_reset": {
+        "long_description": (
+            "Stand taller in three weeks with two-minute resets a few times a day. "
+            "Gentle mobility and strength for the upper back and neck, dropped into "
+            "your day so you actually do them."
+        ),
+        "outcomes": [
+            "Noticeably taller, more open posture",
+            "Less neck + upper-back tension",
+            "Two-minute resets that fit between tasks",
+            "Habits that hold after the three weeks",
+        ],
+        "for_you_if": [
+            "You're hunched at a desk all day",
+            "You want presence without a gym",
+        ],
+        "curriculum": [
+            {"title": "Week 1 · Open up", "lessons": ["Where your posture actually breaks", "Chest + hip openers", "The desk reset"]},
+            {"title": "Week 2 · Build support", "lessons": ["Upper-back strength", "Neck + chin tucks", "Standing tall on autopilot"]},
+            {"title": "Week 3 · Make it stick", "lessons": ["Stacking resets onto habits", "Walking tall", "Your keeper set"]},
+        ],
+        "bio": (
+            "Aria Vance is a movement coach focused on posture and mobility for desk-"
+            "bound people. Her resets are short on purpose — the ones you'll actually do."
+        ),
+        "credentials": ["Movement + mobility coach", "Worked with 5k+ desk workers"],
+        "reviews": [
+            _rev("Chris M.", 11, 5, "Two minutes a few times a day and my neck stopped killing me by week two."),
+            _rev("Tasha L.", 49, 4, "Subtle but real. Friends asked if I'd been working out."),
+        ],
+        "faqs": [
+            {"q": "Do I need equipment?", "a": "No — everything is bodyweight and fits in a hallway."},
+            {"q": "How long each day?", "a": "About 6-8 minutes total, split into two-minute resets you barely notice."},
+        ],
+        "guarantee": "One flat payment, yours to keep. Refund in the first week if it's not for you.",
+    },
+    "course_jaw_basics": {
+        "long_description": (
+            "The fundamentals of jaw and tongue training, done safely and "
+            "consistently. No gimmicks — just the basics that matter, spaced through "
+            "your day by Max."
+        ),
+        "outcomes": [
+            "Correct tongue posture, on autopilot",
+            "A safe, sustainable jaw routine",
+            "Consistency without overdoing it",
+            "The fundamentals before any advanced work",
+        ],
+        "for_you_if": [
+            "You've seen the trend and want to do it right",
+            "You'd rather build a safe habit than chase a hack",
+        ],
+        "curriculum": [
+            {"title": "Weeks 1-2 · Foundations", "lessons": ["Proper tongue posture", "Nasal breathing basics", "What's safe vs hype"]},
+            {"title": "Weeks 3-4 · Build the habit", "lessons": ["Daily cues", "Chewing + jaw work", "Avoiding strain"]},
+            {"title": "Weeks 5-6 · Consistency", "lessons": ["Spacing it through your day", "Tracking", "Where to go next"]},
+        ],
+        "bio": (
+            "Sam Cole breaks down jaw and posture fundamentals without the hype, "
+            "focused on what's safe and what actually compounds over months."
+        ),
+        "credentials": ["Posture + breathing educator"],
+        "reviews": [
+            _rev("Alex D.", 8, 4, "Finally a no-nonsense take. I know what I'm doing and why now."),
+            _rev("Noah B.", 52, 5, "The reminders make it stick. That's the whole battle."),
+        ],
+        "faqs": [
+            {"q": "Is this safe?", "a": "Yes — it's deliberately conservative. The course is mostly about correct posture and breathing, not forceful exercises."},
+            {"q": "How fast are results?", "a": "This is a fundamentals + consistency course. The honest answer is months, not weeks — done safely."},
+        ],
+        "guarantee": "One payment, yours forever. First-week refund if it's not a fit.",
+    },
+}
+
+# Native maxes are ongoing programs (not week courses), so their detail is
+# outcomes + how-it-works + proof rather than a fixed syllabus.
+_MAXX_DETAIL: dict[str, dict[str, Any]] = {
+    "skinmax": {
+        "long_description": "Your skin, handled. A dermatology-grounded routine that adapts to your concern, skin type and barrier — fit into your real mornings and evenings by Max.",
+        "outcomes": ["A personalized AM + PM routine", "The right cleanser, serum, moisturizer and SPF for you", "Actives introduced without irritation", "Progress you can see in your photos"],
+        "reviews": [_rev("Ivy R.", 47, 5, "It just tells me what to do each morning and night. My skin's the best it's been."), _rev("Leo M.", 14, 4, "Cleared my forehead in a month.")],
+    },
+    "fitmax": {
+        "long_description": "Build your best body with training that fits the time you actually have. Max programs the sessions and slots them into your week.",
+        "outcomes": ["A plan matched to your goal and schedule", "Progression that keeps working", "Sessions that fit real life", "Strength + composition you can track"],
+        "reviews": [_rev("Dre K.", 13, 5, "Three days a week and I'm finally consistent."), _rev("Mara P.", 25, 5, "The plan flexes when my week blows up.")],
+    },
+    "hairmax": {
+        "long_description": "Fuller, healthier hair through a consistent, evidence-based routine — scalp care, the right actives, and habits that compound.",
+        "outcomes": ["A scalp + hair routine that fits your day", "The right actives for your situation", "Consistency that actually compounds", "Track shedding and regrowth honestly"],
+        "reviews": [_rev("Theo S.", 33, 4, "Less shedding within weeks. The reminders are everything."), _rev("Quinn L.", 44, 5, "Simple and consistent. Finally.")],
+    },
+    "heightmax": {
+        "long_description": "Posture, height and presence — daily mobility and strength that help you stand taller and carry yourself with confidence.",
+        "outcomes": ["Taller, more open posture", "Less stiffness and tension", "Short daily resets that fit your day", "Presence you can feel"],
+        "reviews": [_rev("Owen R.", 12, 5, "Stand straighter without thinking about it now."), _rev("Bea T.", 49, 4, "Subtle but people noticed.")],
+    },
+    "bonemax": {
+        "long_description": "A sharper jaw and frame through safe, consistent fundamentals — posture, breathing and the basics that compound over months.",
+        "outcomes": ["Correct tongue + jaw posture", "A safe, sustainable routine", "Consistency without overdoing it", "Fundamentals before anything advanced"],
+        "reviews": [_rev("Cy D.", 8, 4, "Done right, not the hype version."), _rev("Nia B.", 52, 5, "The cues make it a habit.")],
+    },
+}
+
+
+def _detail_for(item_id: str) -> dict[str, Any]:
+    """The rich detail payload for the full page (curriculum/bio/reviews/etc.)."""
+    if item_id in _MAXX_DETAIL:
+        return _MAXX_DETAIL[item_id]
+    return _COURSE_DETAIL.get(item_id, {})
+
+
 def _uid(current_user: dict) -> UUID:
     raw = current_user.get("id") or current_user.get("user_id") or current_user.get("sub")
     if raw is None:
@@ -126,7 +340,7 @@ def _course_card(c: dict[str, Any], entered: set[str]) -> dict[str, Any]:
         "category": c["category"],
         "icon": c["icon"],
         "color": c["color"],
-        "creator": c["creator"],
+        "creator": {**c["creator"], "avatar": _avatar(c["creator"]["handle"])},
         "price_cents": c["price_cents"],
         "price_model": c["price_model"],
         "weeks": c["weeks"],
@@ -168,13 +382,14 @@ async def get_item(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Full detail for one marketplace item (browse-before-buy)."""
+    """Full detail for one marketplace item (browse-before-buy), including the
+    rich page content: outcomes, curriculum, instructor bio, reviews and FAQ."""
     _, entered = await _load_entered(db, _uid(current_user))
     if item_id in _MAXX_DISPLAY:
-        return _maxx_card(item_id, entered)
+        return {**_maxx_card(item_id, entered), "detail": _detail_for(item_id)}
     for c in _SEED_COURSES:
         if c["id"] == item_id:
-            return _course_card(c, entered)
+            return {**_course_card(c, entered), "detail": _detail_for(item_id)}
     raise HTTPException(status_code=404, detail="Item not found")
 
 
