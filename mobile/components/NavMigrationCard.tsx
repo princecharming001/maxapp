@@ -62,7 +62,7 @@ export default function NavMigrationCard() {
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     style={styles.close}
                 >
-                    <Ionicons name="close" size={18} color="#6B7280" />
+                    <Ionicons name="close" size={18} color="#8C887E" />
                 </TouchableOpacity>
             </View>
             </GlassCard>
@@ -77,13 +77,13 @@ const styles = StyleSheet.create({
     title: {
         fontFamily: 'Matter-SemiBold',
         fontSize: 15,
-        color: '#111113',
+        color: '#1C1A17',
     },
     body: {
         fontFamily: 'Matter-Regular',
         fontSize: 13,
         lineHeight: 19,
-        color: '#6B7280',
+        color: '#8C887E',
         marginTop: 3,
     },
     close: { marginLeft: 10, padding: 2 },

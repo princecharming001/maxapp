@@ -30,9 +30,9 @@ import { getIosApnsDeviceTokenForBackend } from '../../services/registerIosPushT
 import { track } from '../../lib/analytics';
 import api from '../../services/api';
 
-const INK = '#111113';
-const GOLD = '#D4A017';
-const MUTE = '#8A8A92';
+const INK = '#1C1A17';
+const GOLD = '#2C6BED';
+const MUTE = '#97928A';
 
 const MOTIVATION_CLOSE: Record<string, string> = {
     event: 'with time to spare before your date.',

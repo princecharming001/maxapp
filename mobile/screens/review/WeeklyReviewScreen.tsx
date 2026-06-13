@@ -17,9 +17,9 @@ import { GlassButton } from '../../components/glass/GlassButton';
 import { track } from '../../lib/analytics';
 import api from '../../services/api';
 
-const INK = '#111113';
-const GOLD = '#D4A017';
-const MUTE = '#8A8A92';
+const INK = '#1C1A17';
+const GOLD = '#2C6BED';
+const MUTE = '#97928A';
 
 export default function WeeklyReviewScreen() {
     const navigation = useNavigation<any>();

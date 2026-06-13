@@ -3,45 +3,47 @@
  * Clean, shadowed, typographic
  */
 
+// Craft-inspired palette: warm paper canvas, white surfaces, warm ink, one
+// calm blue accent. Flat and matte - no glass, no glow.
 export const colors = {
-    background: '#f8f8fa',
-    surface: '#f0f0f3',
-    surfaceLight: '#eaeaed',
-    card: '#ffffff',
+    background: '#FAF9F6',   // warm paper canvas
+    surface: '#F3F1EB',      // subtle inset
+    surfaceLight: '#F6F4EF',
+    card: '#FFFFFF',
 
-    foreground: '#111113',
-    primary: '#111113',
-    primaryLight: '#2a2a2e',
+    foreground: '#1C1A17',   // warm near-black ink
+    primary: '#1C1A17',
+    primaryLight: '#3A352B',
     primaryDark: '#000000',
 
-    accent: '#111113',
-    accentLight: '#2a2a2e',
-    accentMuted: 'rgba(17, 17, 19, 0.05)',
+    accent: '#2C6BED',       // Craft blue (interactive / selected)
+    accentLight: '#5A8CF2',
+    accentMuted: 'rgba(44, 107, 237, 0.10)',
 
-    textPrimary: '#111113',
-    textSecondary: '#71717a',
-    textMuted: '#a1a1aa',
+    textPrimary: '#1C1A17',
+    textSecondary: '#5C574E',
+    textMuted: '#97928A',
 
-    success: '#22c55e',
-    warning: '#f59e0b',
-    error: '#ef4444',
-    info: '#3b82f6',
+    success: '#2F9E60',
+    warning: '#B5791C',
+    error: '#C0452C',
+    info: '#2C6BED',
 
-    premium: '#D4A017',
-    premiumLight: '#D4A01718',
-    premiumBorder: '#D4A01740',
+    premium: '#2C6BED',
+    premiumLight: '#2C6BED18',
+    premiumBorder: '#2C6BED40',
 
-    border: '#e4e4e7',
-    borderLight: '#f0f0f3',
-    divider: '#e4e4e7',
+    border: '#E8E4DB',       // warm hairline
+    borderLight: '#F0EDE5',
+    divider: '#E8E4DB',
 
-    gradientStart: '#f8f8fa',
-    gradientEnd: '#f0f0f3',
+    gradientStart: '#FAF9F6',
+    gradientEnd: '#F3F1EB',
 
-    buttonText: '#fafafa',
+    buttonText: '#FFFFFF',
 
-    overlay: 'rgba(0, 0, 0, 0.45)',
-    blur: 'rgba(255, 255, 255, 0.82)',
+    overlay: 'rgba(28, 26, 23, 0.40)',
+    blur: 'rgba(250, 249, 246, 0.86)',
 };
 
 export const spacing = {
@@ -120,34 +122,35 @@ export const typography = {
     },
 };
 
+// Whisper-soft, warm-toned shadows (Craft barely lifts surfaces off the page).
 export const shadows = {
     sm: {
-        shadowColor: '#18181b',
+        shadowColor: '#3A352B',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
+        shadowOpacity: 0.04,
         shadowRadius: 4,
-        elevation: 2,
+        elevation: 1,
     },
     md: {
-        shadowColor: '#18181b',
+        shadowColor: '#3A352B',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 16,
-        elevation: 4,
+        shadowOpacity: 0.05,
+        shadowRadius: 14,
+        elevation: 3,
     },
     lg: {
-        shadowColor: '#18181b',
+        shadowColor: '#3A352B',
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.12,
-        shadowRadius: 32,
-        elevation: 8,
+        shadowOpacity: 0.07,
+        shadowRadius: 24,
+        elevation: 6,
     },
     xl: {
-        shadowColor: '#18181b',
+        shadowColor: '#3A352B',
         shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.16,
-        shadowRadius: 48,
-        elevation: 12,
+        shadowOpacity: 0.09,
+        shadowRadius: 36,
+        elevation: 9,
     },
 };
 

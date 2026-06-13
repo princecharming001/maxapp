@@ -26,10 +26,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { track } from '../../lib/analytics';
 import api, { type MarketplaceItem } from '../../services/api';
 
-const INK = '#111113';
-const MUTE = '#8A8A92';
-const SUB = '#3A3A3F';
-const GOLD = '#D4A017';
+const INK = '#1C1A17';
+const MUTE = '#97928A';
+const SUB = '#5C574E';
+const GOLD = '#2C6BED';
 
 const VERDICT_META = {
     green: { color: '#3D8B4F', icon: 'checkmark-circle' as const, line: 'Fits your real week' },
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
     previewText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: INK },
     previewMore: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 2, marginLeft: 22 },
     priceSub: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 2 },
-    manageNote: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: '#3A3A3F', textAlign: 'center', paddingVertical: 8 },
+    manageNote: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: '#5C574E', textAlign: 'center', paddingVertical: 8 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
     loadingText: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE },
     kicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.4, color: MUTE },

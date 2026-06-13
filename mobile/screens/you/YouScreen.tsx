@@ -41,13 +41,13 @@ function RowItem({ row, last }: { row: Row; last: boolean }) {
             style={[styles.row, !last && styles.rowBorder]}
         >
             <View style={styles.rowIcon}>
-                <Ionicons name={row.icon} size={19} color="#111113" />
+                <Ionicons name={row.icon} size={19} color="#1C1A17" />
             </View>
             <View style={styles.rowText}>
                 <Text style={styles.rowLabel}>{row.label}</Text>
                 {row.sub ? <Text style={styles.rowSub}>{row.sub}</Text> : null}
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#9A9AA2" />
+            <Ionicons name="chevron-forward" size={16} color="#97928A" />
         </TouchableOpacity>
     );
 }
@@ -227,12 +227,12 @@ const styles = StyleSheet.create({
         fontSize: 12,
         letterSpacing: 2,
         textTransform: 'uppercase',
-        color: '#9A9AA2',
+        color: '#97928A',
     },
     title: {
         fontFamily: 'PlayfairDisplay-Regular',
         fontSize: 40,
-        color: '#111113',
+        color: '#1C1A17',
         marginTop: 2,
     },
     streakWrap: { marginTop: 16 },
@@ -242,25 +242,25 @@ const styles = StyleSheet.create({
         height: 56,
         borderRadius: 28,
         borderWidth: 3,
-        borderColor: '#D4A017',
+        borderColor: '#2C6BED',
         alignItems: 'center',
         justifyContent: 'center',
     },
     streakNumber: {
         fontFamily: 'Matter-SemiBold',
         fontSize: 20,
-        color: '#111113',
+        color: '#1C1A17',
     },
     streakText: { marginLeft: 14, flex: 1 },
     streakLabel: {
         fontFamily: 'Matter-SemiBold',
         fontSize: 15,
-        color: '#111113',
+        color: '#1C1A17',
     },
     streakSub: {
         fontFamily: 'Matter-Regular',
         fontSize: 13,
-        color: '#6B7280',
+        color: '#8C887E',
         marginTop: 2,
     },
     section: { marginTop: 24 },
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
         fontFamily: 'Matter-SemiBold',
         fontSize: 11,
         letterSpacing: 1.6,
-        color: '#9A9AA2',
+        color: '#97928A',
         marginBottom: 8,
         marginLeft: 4,
     },
@@ -289,12 +289,12 @@ const styles = StyleSheet.create({
     rowLabel: {
         fontFamily: 'Matter-Regular',
         fontSize: 15,
-        color: '#111113',
+        color: '#1C1A17',
     },
     rowSub: {
         fontFamily: 'Matter-Regular',
         fontSize: 12,
-        color: '#6B7280',
+        color: '#8C887E',
         marginTop: 1,
     },
 });

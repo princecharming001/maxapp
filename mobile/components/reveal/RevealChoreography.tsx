@@ -34,9 +34,9 @@ import * as Haptics from 'expo-haptics';
 import { GlassCard } from '../glass/GlassCard';
 import { useReducedMotion } from '../../hooks/useA11y';
 
-const INK = '#111113';
-const GOLD = '#D4A017';
-const MUTE = '#8A8A92';
+const INK = '#1C1A17';
+const GOLD = '#2C6BED';
+const MUTE = '#97928A';
 
 export type RevealRow =
     | { kind: 'struct'; time: string; label: string }
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     closeLine: {
         fontFamily: 'Matter-Regular',
         fontSize: 14.5,
-        color: '#3A3A3F',
+        color: '#5C574E',
         lineHeight: 21,
         textAlign: 'center',
         marginTop: 18,

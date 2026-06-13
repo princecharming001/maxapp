@@ -30,9 +30,9 @@ import { GlassButton } from '../../components/glass/GlassButton';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 
-const INK = '#111113';
-const GOLD = '#D4A017';
-const MUTE = '#8A8A92';
+const INK = '#1C1A17';
+const GOLD = '#2C6BED';
+const MUTE = '#97928A';
 
 const MAXX_TILES = [
     { id: 'skinmax', token: 'skin', label: 'Skinmax', tagline: 'clearer, calmer skin', icon: 'sparkles-outline' },
@@ -289,7 +289,7 @@ export default function OnboardingV2Screen() {
                                     accessibilityState={{ selected: active }}
                                     accessibilityLabel={label}
                                 >
-                                    <Text style={[styles.anchorChipText, active && { color: '#8a6a10' }]}>
+                                    <Text style={[styles.anchorChipText, active && { color: '#1F4FB0' }]}>
                                         {label}
                                     </Text>
                                 </TouchableOpacity>
@@ -313,7 +313,7 @@ export default function OnboardingV2Screen() {
                                     accessibilityState={{ selected: active }}
                                     accessibilityLabel={label}
                                 >
-                                    <Text style={[styles.anchorChipText, active && { color: '#8a6a10' }]}>
+                                    <Text style={[styles.anchorChipText, active && { color: '#1F4FB0' }]}>
                                         {label}
                                     </Text>
                                 </TouchableOpacity>
@@ -338,7 +338,7 @@ export default function OnboardingV2Screen() {
                                     accessibilityState={{ selected: active }}
                                     accessibilityLabel={a.label}
                                 >
-                                    <Text style={[styles.anchorChipText, active && { color: '#8a6a10' }]}>
+                                    <Text style={[styles.anchorChipText, active && { color: '#1F4FB0' }]}>
                                         {a.label}
                                     </Text>
                                 </TouchableOpacity>
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.6)',
         minHeight: 44,
     },
-    tileActive: { borderColor: GOLD, backgroundColor: 'rgba(212,160,23,0.1)' },
+    tileActive: { borderColor: GOLD, backgroundColor: 'rgba(44,107,237,0.1)' },
     tileIcon: {
         width: 38,
         height: 38,
@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.6)',
     },
-    workChipActive: { borderColor: 'rgba(212,160,23,0.5)' },
+    workChipActive: { borderColor: 'rgba(44,107,237,0.5)' },
     workChipText: { fontFamily: 'Matter-Medium', fontSize: 14.5, color: INK },
     anchorLabel: { fontFamily: 'Matter-SemiBold', fontSize: 10.5, letterSpacing: 1.4, color: MUTE, marginTop: 20 },
     anchorChip: {
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.6)',
         minHeight: 36,
     },
-    anchorChipActive: { borderColor: GOLD, backgroundColor: 'rgba(212,160,23,0.12)' },
-    anchorChipText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: '#3A3A3F' },
+    anchorChipActive: { borderColor: GOLD, backgroundColor: 'rgba(44,107,237,0.12)' },
+    anchorChipText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: '#5C574E' },
     error: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#C0452C', marginTop: 14 },
 });

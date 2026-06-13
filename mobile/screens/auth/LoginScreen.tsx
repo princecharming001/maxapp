@@ -101,7 +101,7 @@ export default function LoginScreen() {
                                                 ref={passwordRef}
                                                 style={styles.passwordInput}
                                                 placeholder="Enter your password"
-                                                placeholderTextColor="#9A9AA2"
+                                                placeholderTextColor="#97928A"
                                                 value={password}
                                                 onChangeText={(t) => {
                                                     setPassword(t);
@@ -125,7 +125,7 @@ export default function LoginScreen() {
                                                 <Ionicons
                                                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                                                     size={20}
-                                                    color="#8A8A92"
+                                                    color="#97928A"
                                                 />
                                             </TouchableOpacity>
                                         </View>
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     wordmark: {
         fontFamily: 'PlayfairDisplay',
         fontSize: 50,
-        color: '#111113',
+        color: '#1C1A17',
         letterSpacing: -1.5,
         textAlign: 'center',
         marginBottom: 6,
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     tagline: {
         fontFamily: 'Matter-Regular',
         fontSize: 13,
-        color: '#8A8A92',
+        color: '#97928A',
         textAlign: 'center',
         marginBottom: 30,
         letterSpacing: 0.4,
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
         fontFamily: 'Matter-SemiBold',
         fontSize: 10.5,
         letterSpacing: 1.4,
-        color: '#8A8A92',
+        color: '#97928A',
         marginLeft: 2,
     },
     glassField: {
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
         paddingRight: 8,
         fontFamily: 'Matter-Regular',
         fontSize: 15,
-        color: '#111113',
+        color: '#1C1A17',
     },
     viewPasswordBtn: { paddingVertical: 12, paddingHorizontal: 12, marginRight: 4 },
     apiErrorBox: {
@@ -252,10 +252,10 @@ const styles = StyleSheet.create({
     submit: { marginTop: 4 },
     orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 14, gap: 10 },
     orLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(17,17,19,0.15)' },
-    orText: { fontFamily: 'Matter-Medium', fontSize: 12, color: '#8A8A92' },
+    orText: { fontFamily: 'Matter-Medium', fontSize: 12, color: '#97928A' },
     forgotLink: { marginTop: 10, alignItems: 'center' },
-    forgotText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#8A8A92' },
+    forgotText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#97928A' },
     linkContainer: { marginTop: 22, alignItems: 'center' },
-    linkText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#8A8A92' },
-    linkBold: { fontFamily: 'Matter-SemiBold', color: '#111113' },
+    linkText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#97928A' },
+    linkBold: { fontFamily: 'Matter-SemiBold', color: '#1C1A17' },
 });

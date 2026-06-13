@@ -98,19 +98,7 @@ export default function LandingScreen() {
 
     return (
         <View style={styles.root}>
-            {/* Backdrop: soft vertical gradient + two color orbs, veiled by a
-                light blur so the orbs read as glows. Gives the frosted glass
-                surfaces above something to refract. */}
-            <LinearGradient
-                colors={['#F7F8FC', '#E9ECF2']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFill}
-            />
-            <View pointerEvents="none" style={[styles.orb, styles.orbGold]} />
-            <View pointerEvents="none" style={[styles.orb, styles.orbBlue]} />
-            <BlurView pointerEvents="none" intensity={50} tint="light" style={StyleSheet.absoluteFill} />
-
+            {/* Craft aesthetic: flat warm paper, no orbs/blur. */}
             {isWeb ? (
                 <TouchableOpacity
                     style={styles.skipPill}
@@ -123,11 +111,11 @@ export default function LandingScreen() {
                     <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} />
                     <View style={styles.skipPillInner}>
                         {skipLoading ? (
-                            <ActivityIndicator size="small" color="#111113" />
+                            <ActivityIndicator size="small" color="#1C1A17" />
                         ) : (
                             <>
                                 <Text style={styles.skipPillText}>Skip</Text>
-                                <Ionicons name="chevron-forward" size={14} color="#111113" />
+                                <Ionicons name="chevron-forward" size={14} color="#1C1A17" />
                             </>
                         )}
                     </View>
@@ -202,24 +190,8 @@ export default function LandingScreen() {
 const styles = StyleSheet.create({
     root: {
         flex: 1,
-        backgroundColor: '#F7F8FC',
+        backgroundColor: '#FAF9F6',
         ...(isWeb && { alignItems: 'center' as const }),
-    },
-    orb: {
-        position: 'absolute',
-        width: 380,
-        height: 380,
-        borderRadius: 190,
-    },
-    orbGold: {
-        backgroundColor: 'rgba(212,160,23,0.42)',
-        top: -90,
-        right: -70,
-    },
-    orbBlue: {
-        backgroundColor: 'rgba(120,150,205,0.40)',
-        bottom: 20,
-        left: -100,
     },
     content: {
         flex: 1,
@@ -239,7 +211,7 @@ const styles = StyleSheet.create({
         fontFamily: 'PlayfairDisplay',
         fontSize: 66,
         fontWeight: '300',
-        color: '#111113',
+        color: '#1C1A17',
         letterSpacing: -2,
         marginBottom: 28,
         lineHeight: 72,
@@ -247,7 +219,7 @@ const styles = StyleSheet.create({
     heroLine1: {
         fontFamily: 'Matter-Medium',
         fontSize: 16,
-        color: '#3A3A3F',
+        color: '#5C574E',
         marginBottom: 8,
         textAlign: 'center',
         letterSpacing: 0.2,
@@ -256,7 +228,7 @@ const styles = StyleSheet.create({
     heroLine2: {
         fontFamily: 'Matter-Regular',
         fontSize: 16,
-        color: '#8A8A92',
+        color: '#97928A',
         textAlign: 'center',
         letterSpacing: 0.2,
         lineHeight: 24,
@@ -314,6 +286,6 @@ const styles = StyleSheet.create({
         fontFamily: 'Matter-Medium',
         fontSize: 12,
         letterSpacing: 0.3,
-        color: '#111113',
+        color: '#1C1A17',
     },
 });

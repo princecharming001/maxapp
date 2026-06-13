@@ -32,9 +32,9 @@ import SlideToConfirm from '../../components/today/SlideToConfirm';
 import { track } from '../../lib/analytics';
 import api from '../../services/api';
 
-const INK = '#111113';
-const GOLD = '#D4A017';
-const MUTE = '#8A8A92';
+const INK = '#1C1A17';
+const GOLD = '#2C6BED';
+const MUTE = '#97928A';
 
 const TODAY_QK = ['plannerToday'];
 
@@ -962,11 +962,11 @@ const styles = StyleSheet.create({
     stateChipText: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE },
     noticeCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
     leaveByRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
-    leaveByText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: '#8a6a10' },
+    leaveByText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: '#1F4FB0' },
     slipKicker: { fontFamily: 'Matter-SemiBold', fontSize: 10.5, letterSpacing: 1.6, color: GOLD },
     slipTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 22, color: INK, marginTop: 3 },
     noticeTitle: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK },
-    noticeText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#3A3A3F', flexShrink: 1 },
+    noticeText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#5C574E', flexShrink: 1 },
     bannerWrap: {
         borderRadius: 24,
         overflow: 'hidden',
@@ -976,7 +976,7 @@ const styles = StyleSheet.create({
     },
     bannerInner: { padding: 18, backgroundColor: 'rgba(255,255,255,0.55)' },
     bannerTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 22, color: INK },
-    bannerSub: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#3A3A3F', marginTop: 4, lineHeight: 20 },
+    bannerSub: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#5C574E', marginTop: 4, lineHeight: 20 },
     lockExplainer: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 8 },
     heroTime: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: GOLD, letterSpacing: 0.3 },
     heroWhy: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 2 },
@@ -994,9 +994,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 7,
         paddingVertical: 2,
         borderRadius: 999,
-        backgroundColor: 'rgba(212,160,23,0.14)',
+        backgroundColor: 'rgba(44,107,237,0.14)',
     },
-    provText: { fontFamily: 'Matter-Medium', fontSize: 10, color: '#8a6a10' },
+    provText: { fontFamily: 'Matter-Medium', fontSize: 10, color: '#1F4FB0' },
     heldChip: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1059,6 +1059,6 @@ const styles = StyleSheet.create({
         borderTopColor: 'rgba(17,17,19,0.1)',
     },
     sheetItemTitle: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK },
-    sheetItemSub: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#3A3A3F', marginTop: 2 },
+    sheetItemSub: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#5C574E', marginTop: 2 },
     sheetItemProg: { fontFamily: 'Matter-Medium', fontSize: 11, color: MUTE, marginTop: 3 },
 });

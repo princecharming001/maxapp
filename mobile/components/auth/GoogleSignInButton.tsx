@@ -55,7 +55,7 @@ function ButtonShell({
                 accessibilityLabel={label}
             >
                 {busy ? (
-                    <ActivityIndicator color="#111113" />
+                    <ActivityIndicator color="#1C1A17" />
                 ) : (
                     <>
                         <Ionicons name="logo-google" size={18} color="#4285F4" style={{ marginRight: 10 }} />
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
         fontFamily: 'Matter-SemiBold',
         fontSize: 15,
         letterSpacing: 0.3,
-        color: '#111113',
+        color: '#1C1A17',
     },
     error: {
         fontFamily: 'Matter-Regular',

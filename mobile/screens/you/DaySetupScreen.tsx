@@ -28,9 +28,9 @@ import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
 import api from '../../services/api';
 
-const INK = '#111113';
-const GOLD = '#D4A017';
-const MUTE = '#8A8A92';
+const INK = '#1C1A17';
+const GOLD = '#2C6BED';
+const MUTE = '#97928A';
 
 const PLACE_KINDS = [
     { kind: 'home', label: 'Home', icon: 'home-outline' },
@@ -404,7 +404,7 @@ export default function DaySetupScreen() {
                         <View style={styles.hairline} />
                         <TextInput
                             placeholder="What's the block? (meeting, class, dinner)"
-                            placeholderTextColor="#9A9AA2"
+                            placeholderTextColor="#97928A"
                             value={blockTitle}
                             onChangeText={setBlockTitle}
                             style={styles.input}
@@ -473,8 +473,8 @@ export default function DaySetupScreen() {
                                     accessibilityState={{ selected: placeKind === k.kind }}
                                     accessibilityLabel={k.label}
                                 >
-                                    <Ionicons name={k.icon as any} size={13} color={placeKind === k.kind ? '#8a6a10' : MUTE} />
-                                    <Text style={[styles.kindChipText, placeKind === k.kind && { color: '#8a6a10' }]}>
+                                    <Ionicons name={k.icon as any} size={13} color={placeKind === k.kind ? '#1F4FB0' : MUTE} />
+                                    <Text style={[styles.kindChipText, placeKind === k.kind && { color: '#1F4FB0' }]}>
                                         {k.label}
                                     </Text>
                                 </TouchableOpacity>
@@ -482,7 +482,7 @@ export default function DaySetupScreen() {
                         </View>
                         <TextInput
                             placeholder="Name or address (e.g. Equinox Bay St)"
-                            placeholderTextColor="#9A9AA2"
+                            placeholderTextColor="#97928A"
                             value={placeName}
                             onChangeText={setPlaceName}
                             style={styles.input}
@@ -547,8 +547,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.6)',
         borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', minHeight: 32,
     },
-    kindChipActive: { borderColor: GOLD, backgroundColor: 'rgba(212,160,23,0.12)' },
-    kindChipText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: '#3A3A3F' },
+    kindChipActive: { borderColor: GOLD, backgroundColor: 'rgba(44,107,237,0.12)' },
+    kindChipText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: '#5C574E' },
     note: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: '#3D8B4F', marginTop: 8, textAlign: 'center' },
     invalidNote: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: '#C0452C', marginTop: 8 },
     proposedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },

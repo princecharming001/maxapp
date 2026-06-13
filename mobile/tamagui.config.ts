@@ -19,15 +19,17 @@ export const config = createTamagui({
         ...defaultConfig.tokens,
         color: {
             ...defaultConfig.tokens.color,
-            // Brand
-            ink: '#111113',
-            gold: '#D4A017',
-            canvas: '#F4F5F8',
-            // Glass surfaces (translucent — pair with expo-blur for the frost)
-            glass: 'rgba(255,255,255,0.55)',
-            glassStrong: 'rgba(255,255,255,0.78)',
-            glassBorder: 'rgba(255,255,255,0.60)',
-            glassHairline: 'rgba(17,17,19,0.08)',
+            // Brand — Craft-inspired: warm paper, ink, one calm blue accent.
+            // (token names kept for back-compat; `gold` now carries the accent
+            // and `glass*` now carry flat-paper surfaces, no blur.)
+            ink: '#1C1A17',
+            gold: '#2C6BED',
+            canvas: '#FAF9F6',
+            // Flat paper surfaces (no translucency — Craft is matte, not glass)
+            glass: '#FFFFFF',
+            glassStrong: '#FFFFFF',
+            glassBorder: '#E8E4DB',
+            glassHairline: 'rgba(28,26,23,0.07)',
         },
     },
 });

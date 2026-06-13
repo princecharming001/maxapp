@@ -18,13 +18,9 @@ import {
     type StyleProp,
     type ViewStyle,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { View } from 'tamagui';
-import { useReduceTransparency } from '../../hooks/useA11y';
 
 type Variant = 'primary' | 'glass' | 'ghost';
-
-const SOLID_FALLBACK_FILL = 'rgba(255,255,255,0.94)';
 
 export function GlassButton({
     label,
@@ -43,8 +39,7 @@ export function GlassButton({
 }) {
     const radius = 16;
     const isGhost = variant === 'ghost';
-    const textColor = variant === 'primary' ? '#FFFFFF' : isGhost ? '#6B7280' : '#111113';
-    const reduceTransparency = useReduceTransparency();
+    const textColor = variant === 'primary' ? '#FFFFFF' : isGhost ? '#8C887E' : '#1C1A17';
     // A disabled button must LOOK disabled - otherwise taps silently no-op
     // and the user blames the app.
     const dimStyle = disabled && !loading ? { opacity: 0.45 } : null;
@@ -83,20 +78,14 @@ export function GlassButton({
                 {...a11yProps}
             >
                 <View
+                    backgroundColor="$glassStrong"
                     borderRadius={radius}
                     overflow="hidden"
                     borderWidth={1}
                     borderColor="$glassBorder"
                     style={{ borderCurve: 'continuous' }}
                 >
-                    {!reduceTransparency && (
-                        <BlurView intensity={28} tint="light" style={StyleSheet.absoluteFill} />
-                    )}
-                    <View
-                        backgroundColor={reduceTransparency ? SOLID_FALLBACK_FILL : '$glassStrong'}
-                    >
-                        {content}
-                    </View>
+                    {content}
                 </View>
             </TouchableOpacity>
         );
@@ -140,10 +129,10 @@ const styles = StyleSheet.create({
         textDecorationLine: 'underline',
     },
     shadow: {
-        shadowColor: '#0B1220',
-        shadowOpacity: 0.12,
-        shadowRadius: 14,
-        shadowOffset: { width: 0, height: 8 },
+        shadowColor: '#3A352B',
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
     },
 });
 

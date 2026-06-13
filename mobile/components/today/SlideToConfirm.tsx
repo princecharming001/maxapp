@@ -23,7 +23,7 @@ import { useReducedMotion } from '../../hooks/useA11y';
 
 const KNOB = 46;
 const TRACK_H = 54;
-const GOLD = '#D4A017';
+const GOLD = '#2C6BED';
 
 function haptic(kind: 'selection' | 'success' | 'light') {
     if (Platform.OS === 'web') return;
@@ -116,7 +116,7 @@ export function SlideToConfirm({
             backgroundColor: interpolateColor(
                 done.value === 1 ? 1 : frac,
                 [0, 1],
-                ['rgba(255,255,255,0.55)', 'rgba(212,160,23,0.28)'],
+                ['rgba(255,255,255,0.55)', 'rgba(44,107,237,0.28)'],
             ),
         };
     });
@@ -168,11 +168,11 @@ const styles = StyleSheet.create({
     label: {
         fontFamily: 'Matter-SemiBold',
         fontSize: 14,
-        color: '#6B7280',
+        color: '#8C887E',
         textAlign: 'center',
         letterSpacing: 0.3,
     },
-    labelDone: { color: '#8a6a10' },
+    labelDone: { color: '#1F4FB0' },
     knob: {
         position: 'absolute',
         left: 4,

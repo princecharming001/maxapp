@@ -1,31 +1,21 @@
 /**
- * A11yBlurView - drop-in replacement for expo-blur's BlurView that honors the
- * OS reduce-transparency setting: blur normally, a >=90% opaque solid fill
- * when the user asks for reduced transparency. Use this (never raw BlurView)
- * on any screen-level glass surface.
+ * A11yBlurView - legacy name; in the Craft aesthetic there is no blur. This is
+ * now a flat paper fill (light) or flat ink fill (dark) used as a soft layer
+ * behind content for legibility. Drop-in for the old BlurView usage.
  */
 import React from 'react';
 import { View } from 'react-native';
-import { BlurView, type BlurViewProps } from 'expo-blur';
-import { useReduceTransparency } from '../../hooks/useA11y';
+import { type BlurViewProps } from 'expo-blur';
 
-const LIGHT_FILL = 'rgba(255,255,255,0.94)';
-const DARK_FILL = 'rgba(17,17,19,0.94)';
+const LIGHT_FILL = 'rgba(250,249,246,0.86)';  // warm paper wash
+const DARK_FILL = 'rgba(28,26,23,0.90)';      // warm ink
 
 export function A11yBlurView({ tint = 'light', style, children, ...rest }: BlurViewProps) {
-    const reduceTransparency = useReduceTransparency();
-    if (reduceTransparency) {
-        const backgroundColor = tint === 'dark' ? DARK_FILL : LIGHT_FILL;
-        return (
-            <View style={[style, { backgroundColor }]} {...(rest as object)}>
-                {children}
-            </View>
-        );
-    }
+    const backgroundColor = tint === 'dark' ? DARK_FILL : LIGHT_FILL;
     return (
-        <BlurView tint={tint} style={style} {...rest}>
+        <View style={[style, { backgroundColor }]} {...(rest as object)}>
             {children}
-        </BlurView>
+        </View>
     );
 }
 
