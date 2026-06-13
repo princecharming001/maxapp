@@ -132,6 +132,12 @@ async def _run_app_users_column_migrations():
         "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS apns_device_token TEXT",
         "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS apns_token_updated_at TIMESTAMPTZ",
         "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS coaching_tone VARCHAR DEFAULT 'default'",
+        # Google Sign-In (identity): the verified Google subject id (stable per
+        # account) and which method created the account. password_hash stays a
+        # random unusable value for OAuth-only users.
+        "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS google_sub VARCHAR",
+        "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR DEFAULT 'password'",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_app_users_google_sub ON app_users (google_sub) WHERE google_sub IS NOT NULL",
         # subscription_id was unique but Apple reuses originalTransactionId across renewals
         "ALTER TABLE app_users DROP CONSTRAINT IF EXISTS app_users_subscription_id_key",
     ]

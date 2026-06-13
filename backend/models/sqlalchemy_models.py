@@ -66,6 +66,11 @@ class User(Base):
     phone_number = Column(String)
     first_scan_completed = Column(Boolean, default=False)
 
+    # Google Sign-In (identity). google_sub is the stable Google account id;
+    # auth_provider records how the account was created ('password' | 'google').
+    google_sub = Column(String, nullable=True)
+    auth_provider = Column(String, default="password")
+
     # iOS APNs device token (hex, no spaces) for server-driven push; cleared on 410 from Apple
     apns_device_token = Column(Text, nullable=True)
     apns_token_updated_at = Column(DateTime(timezone=True), nullable=True)

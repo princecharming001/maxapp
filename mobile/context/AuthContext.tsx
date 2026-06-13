@@ -94,6 +94,10 @@ interface AuthContextType {
     fauxSkipSignup: () => Promise<void>;
     /** DEV: throwaway account with EMPTY onboarding (lands on step 1). */
     fauxFreshSignup: () => Promise<void>;
+    /** Sign in / up with a verified Google ID token (find-or-create). */
+    signInWithGoogle: (idToken: string) => Promise<void>;
+    /** DEV-only Google identity path (no real token) for localhost testing. */
+    signInWithGoogleDev: (email: string, name?: string) => Promise<void>;
     logout: () => Promise<void>;
     /** Returns latest user from API (e.g. after payment) so callers can branch before next render. */
     refreshUser: () => Promise<User>;
@@ -222,6 +226,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(userData);
     }, []);
 
+    const signInWithGoogle = useCallback(async (idToken: string) => {
+        await api.googleSignIn(idToken);
+        const userData = await api.getMe();
+        setUser(userData);
+    }, []);
+
+    const signInWithGoogleDev = useCallback(async (email: string, name?: string) => {
+        await api.googleSignInDev(email, name);
+        const userData = await api.getMe();
+        setUser(userData);
+    }, []);
+
     const logout = useCallback(async () => {
         await api.clearTokens();
         setUser(null);
@@ -261,11 +277,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             fauxSignup,
             fauxSkipSignup,
             fauxFreshSignup,
+            signInWithGoogle,
+            signInWithGoogleDev,
             logout,
             refreshUser,
             deleteAccount,
         }),
-        [user, isLoading, subscriptionTier, login, signup, fauxSignup, fauxSkipSignup, fauxFreshSignup, logout, refreshUser, deleteAccount],
+        [user, isLoading, subscriptionTier, login, signup, fauxSignup, fauxSkipSignup, fauxFreshSignup, signInWithGoogle, signInWithGoogleDev, logout, refreshUser, deleteAccount],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

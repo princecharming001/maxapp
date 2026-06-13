@@ -16,6 +16,7 @@ import { useAuth } from '../../context/AuthContext';
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
+import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import { GlassInput } from '../../components/glass/GlassInput';
 
 const isWeb = Platform.OS === 'web';
@@ -145,6 +146,13 @@ export default function LoginScreen() {
                                     style={styles.submit}
                                 />
 
+                                <View style={styles.orRow}>
+                                    <View style={styles.orLine} />
+                                    <Text style={styles.orText}>or</Text>
+                                    <View style={styles.orLine} />
+                                </View>
+                                <GoogleSignInButton />
+
                                 <TouchableOpacity
                                     onPress={() => navigation.navigate('ForgotPassword')}
                                     activeOpacity={0.6}
@@ -242,6 +250,9 @@ const styles = StyleSheet.create({
     },
     apiErrorText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#B23A3A' },
     submit: { marginTop: 4 },
+    orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 14, gap: 10 },
+    orLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(17,17,19,0.15)' },
+    orText: { fontFamily: 'Matter-Medium', fontSize: 12, color: '#8A8A92' },
     forgotLink: { marginTop: 10, alignItems: 'center' },
     forgotText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#8A8A92' },
     linkContainer: { marginTop: 22, alignItems: 'center' },

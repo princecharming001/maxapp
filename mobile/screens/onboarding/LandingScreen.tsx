@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
+import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 
 const isWeb = Platform.OS === 'web';
 const WEB_MAX_WIDTH = 440;
@@ -152,6 +153,7 @@ export default function LandingScreen() {
                             label="Create account"
                             onPress={() => navigation.navigate('Signup')}
                         />
+                        <GoogleSignInButton />
                         {isWeb ? (
                             <GlassButton
                                 variant="ghost"

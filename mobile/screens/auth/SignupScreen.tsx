@@ -21,6 +21,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { CachedImage } from '../../components/CachedImage';
+import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import { PHONE_COUNTRIES, type PhoneCountry } from '../../constants/phoneCountryCodes';
 
 function signupErrorMessage(error: any): string {
@@ -375,6 +376,13 @@ export default function SignupScreen() {
                             <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleSignup} disabled={loading} activeOpacity={0.7}>
                                 <Text style={styles.buttonText}>{loading ? 'Creating Account...' : 'Create Account'}</Text>
                             </TouchableOpacity>
+
+                            <View style={styles.orRow}>
+                                <View style={styles.orLine} />
+                                <Text style={styles.orText}>or</Text>
+                                <View style={styles.orLine} />
+                            </View>
+                            <GoogleSignInButton label="Sign up with Google" />
                         </View>
 
                         <TouchableOpacity onPress={() => navigation.navigate('Login')} activeOpacity={0.6} style={styles.linkContainer}>
@@ -390,6 +398,9 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     keyboardView: { flex: 1 },
+    orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 14, gap: 10 },
+    orLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.18)' },
+    orText: { fontFamily: 'Matter-Medium', fontSize: 12, color: colors.textMuted },
     scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.xxl },
     card: {
         backgroundColor: colors.card,

@@ -436,6 +436,155 @@ async def login_json(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
     )
 
 
+# ---------------------------------------------------------------------------
+# Google Sign-In (identity)
+# ---------------------------------------------------------------------------
+
+async def _unique_username(db: AsyncSession, base: str) -> str:
+    """A unique, login-safe username derived from an email/name."""
+    stem = re.sub(r"[^a-z0-9]", "", (base or "user").lower())[:18] or "user"
+    candidate = stem
+    for _ in range(8):
+        exists = (await db.execute(
+            select(User.id).where(User.username == candidate)
+        )).first()
+        if not exists:
+            return candidate
+        candidate = f"{stem}{secrets.randbelow(9000) + 1000}"
+    return f"{stem}{secrets.token_hex(4)}"
+
+
+async def _find_or_create_google_user(
+    db: AsyncSession,
+    *,
+    sub: str,
+    email: str,
+    given_name: str = "",
+    family_name: str = "",
+) -> tuple[User, bool]:
+    """Resolve a Google identity to an app user (created = was new).
+
+    Match order: google_sub (the stable account id) -> email (link an
+    existing password account to Google). New users are created with an
+    unusable random password and EMPTY onboarding so they run the funnel,
+    exactly like a fresh email signup."""
+    email = (email or "").strip().lower()
+
+    user = (await db.execute(
+        select(User).where(User.google_sub == sub)
+    )).scalar_one_or_none()
+    if user:
+        return user, False
+
+    if email:
+        user = (await db.execute(
+            select(User).where(User.email == email)
+        )).scalar_one_or_none()
+        if user:
+            # Link Google to the existing account (same person, same email).
+            if not user.google_sub:
+                user.google_sub = sub
+            if not user.auth_provider or user.auth_provider == "password":
+                user.auth_provider = "google"
+            user.updated_at = datetime.utcnow()
+            await db.commit()
+            await db.refresh(user)
+            return user, False
+
+    username = await _unique_username(db, email.split("@", 1)[0] if email else "max")
+    user = User(
+        email=email or f"google_{sub[:12]}@placeholder.max",
+        password_hash=hash_password(secrets.token_urlsafe(32)),  # unusable
+        first_name=(given_name or "").strip() or "Max",
+        last_name=(family_name or "").strip() or "User",
+        username=username,
+        google_sub=sub,
+        auth_provider="google",
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        is_paid=False,
+        is_admin=False,
+        onboarding={},  # fresh -> runs onboarding, same as faux-signup-fresh
+        profile=UserProfile().model_dump(),
+        first_scan_completed=False,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user, True
+
+
+@router.get("/google/config")
+async def google_signin_config():
+    """What the client needs to start Google Sign-In (and whether it's set
+    up at all). Client IDs are public by design."""
+    from services.google_integration import google_signin_available
+    return {
+        "available": google_signin_available(),
+        "web_client_id": settings.google_web_client_id or settings.google_client_id,
+        "ios_client_id": settings.google_ios_client_id or settings.google_client_id,
+    }
+
+
+@router.post("/google", response_model=TokenResponse)
+async def google_signin(payload: dict, db: AsyncSession = Depends(get_db)):
+    """Sign in / sign up with a Google ID token. The client obtains the token
+    via the Google consent flow and POSTs it here; we verify it against
+    Google's keys, then find-or-create the account and issue our own tokens."""
+    from services.google_integration import google_signin_available, verify_google_id_token
+
+    if not google_signin_available():
+        raise HTTPException(status_code=503, detail="Google Sign-In is not configured")
+    token = payload.get("id_token") or payload.get("credential")
+    if not token:
+        raise HTTPException(status_code=422, detail="id_token required")
+    try:
+        claims = await verify_google_id_token(token)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+    if not claims.get("email_verified", False):
+        raise HTTPException(status_code=401, detail="Google email is not verified")
+
+    user, _created = await _find_or_create_google_user(
+        db,
+        sub=str(claims["sub"]),
+        email=str(claims.get("email") or ""),
+        given_name=str(claims.get("given_name") or ""),
+        family_name=str(claims.get("family_name") or ""),
+    )
+    user_id = str(user.id)
+    return TokenResponse(
+        access_token=create_access_token(user_id),
+        refresh_token=create_refresh_token(user_id),
+        token_type="bearer",
+    )
+
+
+@router.post("/google/dev", response_model=TokenResponse)
+async def google_signin_dev(payload: dict, db: AsyncSession = Depends(get_db)):
+    """DEV-ONLY: exercise the exact find-or-create + token path WITHOUT a real
+    Google token, so the identity flow is testable before OAuth client IDs are
+    provisioned. Disabled in production."""
+    if str(settings.app_env or "").strip().lower() == "production":
+        raise HTTPException(status_code=404, detail="Not found")
+    email = str(payload.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=422, detail="email required")
+    sub = "devgoogle:" + hashlib.sha256(email.encode()).hexdigest()[:24]
+    name = str(payload.get("name") or "").strip()
+    given, _, family = name.partition(" ")
+    user, _created = await _find_or_create_google_user(
+        db, sub=sub, email=email, given_name=given, family_name=family,
+    )
+    user_id = str(user.id)
+    return TokenResponse(
+        access_token=create_access_token(user_id),
+        refresh_token=create_refresh_token(user_id),
+        token_type="bearer",
+    )
+
+
 _GENERIC_RESET_MSG = (
     "If an account exists with that phone number, we sent a text with a reset code. "
     "It expires in a few minutes."

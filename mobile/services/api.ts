@@ -385,6 +385,40 @@ class ApiService {
         return response.data;
     }
 
+    /** What the client needs to start Google Sign-In (public). */
+    async getGoogleAuthConfig(): Promise<{
+        available: boolean;
+        web_client_id: string;
+        ios_client_id: string;
+    }> {
+        const response = await this.client.get('auth/google/config', {
+            timeout: Platform.OS === 'web' ? WEB_AUTH_TIMEOUT_MS : undefined,
+        });
+        return response.data;
+    }
+
+    /** Sign in / up with a verified Google ID token. */
+    async googleSignIn(idToken: string) {
+        const response = await this.client.post(
+            'auth/google',
+            { id_token: idToken },
+            { timeout: Platform.OS === 'web' ? WEB_AUTH_TIMEOUT_MS : undefined },
+        );
+        await this.setTokens(response.data.access_token, response.data.refresh_token);
+        return response.data;
+    }
+
+    /** DEV-ONLY: exercise the Google identity path without a real token. */
+    async googleSignInDev(email: string, name?: string) {
+        const response = await this.client.post(
+            'auth/google/dev',
+            { email, name },
+            { timeout: Platform.OS === 'web' ? WEB_AUTH_TIMEOUT_MS : undefined },
+        );
+        await this.setTokens(response.data.access_token, response.data.refresh_token);
+        return response.data;
+    }
+
     /** `identifier` = email, username, or phone (matches account on file). */
     async login(identifier: string, password: string) {
         const response = await this.client.post(

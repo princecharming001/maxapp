@@ -160,6 +160,11 @@ class Settings(BaseSettings):
         default=False,
         description="Gmail commitment scanning (restricted scope - enable only after CASA review)",
     )
+    # Google Sign-In (identity) client IDs per platform. The web/expo client id
+    # is the audience an ID token is minted for; iOS gets its own. Both fall
+    # back to google_client_id so a single OAuth client also works.
+    google_web_client_id: str = Field(default="")
+    google_ios_client_id: str = Field(default="")
 
     # Stripe -- secret key stays server-side; publishable key is only for reference / admin.
     stripe_secret_key: str = Field(default="")

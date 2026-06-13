@@ -52,6 +52,10 @@ SCOPE_GMAIL = "https://www.googleapis.com/auth/gmail.readonly"
 
 SYNC_WINDOW_DAYS = 14
 
+# Google's OpenID Connect endpoints for verifying Sign-In ID tokens.
+GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
+GOOGLE_ISSUERS = ("accounts.google.com", "https://accounts.google.com")
+
 
 def google_oauth_available() -> bool:
     return bool(settings.google_client_id and settings.google_client_secret and settings.google_redirect_uri)
@@ -59,6 +63,71 @@ def google_oauth_available() -> bool:
 
 def maps_available() -> bool:
     return bool(settings.google_maps_api_key)
+
+
+# --- Google Sign-In (identity) ID-token verification -----------------------
+
+def google_signin_client_ids() -> list[str]:
+    """Every client id an ID token's `aud` may legitimately carry: the
+    per-platform Sign-In clients plus the base OAuth client."""
+    ids = [
+        settings.google_web_client_id,
+        settings.google_ios_client_id,
+        settings.google_client_id,
+    ]
+    return [c for c in dict.fromkeys(ids) if c]
+
+
+def google_signin_available() -> bool:
+    return bool(google_signin_client_ids())
+
+
+_jwks_client = None  # lazily built; PyJWKClient caches keys internally
+
+
+def _get_jwks_client():
+    global _jwks_client
+    if _jwks_client is None:
+        from jwt import PyJWKClient
+        _jwks_client = PyJWKClient(GOOGLE_JWKS_URL)
+    return _jwks_client
+
+
+def _verify_google_id_token_sync(token: str) -> dict:
+    """Verify a Google ID token locally (RS256 against Google's JWKS) and
+    return its claims. Raises ValueError on any failure. Synchronous - the
+    async wrapper runs it off the event loop."""
+    import jwt as pyjwt  # PyJWT, distinct from the python-jose `jwt` in auth.py
+
+    audiences = google_signin_client_ids()
+    if not audiences:
+        raise ValueError("Google Sign-In is not configured")
+    signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
+    claims = pyjwt.decode(
+        token,
+        signing_key.key,
+        algorithms=["RS256"],
+        audience=audiences,
+        options={"require": ["exp", "iss", "sub", "aud"]},
+    )
+    if claims.get("iss") not in GOOGLE_ISSUERS:
+        raise ValueError("Bad token issuer")
+    return claims
+
+
+async def verify_google_id_token(token: str) -> dict:
+    """Async verify. Returns the validated claims dict (sub, email,
+    email_verified, given_name, family_name, picture, ...)."""
+    import asyncio
+
+    if not token or not isinstance(token, str):
+        raise ValueError("Missing token")
+    try:
+        return await asyncio.to_thread(_verify_google_id_token_sync, token)
+    except ValueError:
+        raise
+    except Exception as e:  # jwt errors, network, key lookup
+        raise ValueError(f"Invalid Google token: {e}") from e
 
 
 def gmail_scan_available() -> bool:
