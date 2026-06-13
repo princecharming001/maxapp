@@ -16,6 +16,8 @@ import {
     Platform,
 } from 'react-native';
 import { A11yBlurView as BlurView } from '../../components/glass/SolidFallback';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -175,18 +177,18 @@ export default function MarketplaceScreen() {
                 ) : null}
 
                 <Text style={styles.section}>MAXES</Text>
-                <Text style={styles.sectionSub}>Built by Max. $3.99 a week each.</Text>
-                <View style={{ gap: 12, marginTop: 10 }}>
+                <Text style={styles.sectionSub}>Built by Max · $3.99 a week each</Text>
+                <View style={styles.grid}>
                     {maxxes.map((m) => (
-                        <ItemCard key={m.id} item={m} onPress={() => { track('paywall_view', { item: m.id }); setDetail(m); }} />
+                        <CourseCard key={m.id} item={m} onPress={() => { track('paywall_view', { item: m.id }); setDetail(m); }} />
                     ))}
                 </View>
 
-                <Text style={[styles.section, { marginTop: 26 }]}>CREATOR COURSES</Text>
-                <Text style={styles.sectionSub}>From coaches and pros. Fit to your schedule.</Text>
-                <View style={{ gap: 12, marginTop: 10 }}>
+                <Text style={[styles.section, { marginTop: 28 }]}>CREATOR COURSES</Text>
+                <Text style={styles.sectionSub}>From coaches and pros · fit to your schedule</Text>
+                <View style={styles.grid}>
                     {courses.map((c) => (
-                        <ItemCard key={c.id} item={c} onPress={() => { track('paywall_view', { item: c.id }); setDetail(c); }} />
+                        <CourseCard key={c.id} item={c} onPress={() => { track('paywall_view', { item: c.id }); setDetail(c); }} />
                     ))}
                 </View>
             </ScrollView>
@@ -196,39 +198,62 @@ export default function MarketplaceScreen() {
     );
 }
 
-function ItemCard({ item, onPress }: { item: MarketplaceItem; onPress: () => void }) {
+/** A marketplace cover card (2-up grid). Uses a real cover image when the item
+ *  has one, else designed gradient art derived from the program's brand color
+ *  with the icon as a watermark — so the grid reads like a polished course
+ *  marketplace either way. Title overlays the cover; creator + price sit below. */
+function CourseCard({ item, onPress }: { item: MarketplaceItem; onPress: () => void }) {
+    const img = (item as any).image_url as string | undefined;
+    const base = item.color || GOLD;
     return (
-        <TouchableOpacity activeOpacity={0.85} onPress={onPress}>
-            <GlassCard radius={22} intensity={36}>
-                <View style={styles.cardRow}>
-                    <View style={[styles.iconWrap, { backgroundColor: hexA(item.color, 0.16) }]}>
-                        <Ionicons name={(item.icon as any) || 'ellipse-outline'} size={22} color={item.color} />
+        <TouchableOpacity style={styles.gridItem} activeOpacity={0.88} onPress={onPress}>
+            <View style={styles.cover}>
+                {img ? (
+                    <Image source={{ uri: img }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
+                ) : (
+                    <>
+                        <LinearGradient
+                            colors={[shade(base, 1.22), shade(base, 0.78)]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={StyleSheet.absoluteFillObject}
+                        />
+                        <Ionicons
+                            name={(item.icon as any) || 'ellipse-outline'}
+                            size={104}
+                            color="rgba(255,255,255,0.20)"
+                            style={styles.watermark}
+                        />
+                    </>
+                )}
+                <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.30)', 'rgba(0,0,0,0.62)']}
+                    style={styles.scrim}
+                />
+                <Text style={styles.coverTitle} numberOfLines={2}>{item.title}</Text>
+
+                {item.rating ? (
+                    <View style={[styles.pill, styles.pillTL]}>
+                        <Ionicons name="star" size={10} color="#FFD15C" />
+                        <Text style={styles.pillText}>{item.rating.toFixed(1)}</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-                            {item.entered ? <Ionicons name="checkmark-circle" size={16} color="#10B981" style={{ marginLeft: 6 }} /> : null}
-                        </View>
-                        <Text style={styles.cardTagline} numberOfLines={1}>{item.tagline}</Text>
-                        <View style={styles.metaRow}>
-                            {!item.native ? (
-                                <Text style={styles.creator} numberOfLines={1}>
-                                    @{item.creator.handle}{item.creator.verified ? '  ✓' : ''}
-                                </Text>
-                            ) : (
-                                <Text style={styles.creator}>by Max</Text>
-                            )}
-                            {item.rating ? <Text style={styles.meta}>  ★ {item.rating.toFixed(1)}</Text> : null}
-                        </View>
+                ) : null}
+                {item.entered ? (
+                    <View style={[styles.pill, styles.pillTR, { backgroundColor: 'rgba(16,185,129,0.96)' }]}>
+                        <Ionicons name="checkmark" size={11} color="#fff" />
+                        <Text style={styles.pillText}>In</Text>
                     </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[styles.price, item.entered && { color: '#10B981' }]}>
-                            {item.entered ? 'In' : item.price_label}
-                        </Text>
-                        <Ionicons name="chevron-forward" size={16} color={MUTE} style={{ marginTop: 4 }} />
-                    </View>
-                </View>
-            </GlassCard>
+                ) : null}
+            </View>
+
+            <View style={styles.cardFooter}>
+                <Text style={styles.footerCreator} numberOfLines={1}>
+                    {item.native ? 'by Max' : `@${item.creator.handle}${item.creator.verified ? ' ✓' : ''}`}
+                </Text>
+                <Text style={[styles.footerPrice, item.entered && { color: '#10B981' }]}>
+                    {item.entered ? 'Open' : item.price_label.replace(' / week', '/wk')}
+                </Text>
+            </View>
         </TouchableOpacity>
     );
 }
@@ -494,6 +519,13 @@ function hexA(hex: string, a: number): string {
 function fmtK(n: number): string {
     return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${n}`;
 }
+/** Lighten (f>1) or darken (f<1) a hex color, returned as rgb() for gradients. */
+function shade(hex: string, f: number): string {
+    const h = (hex || '#000000').replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
+    const cl = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+    return `rgb(${cl(((n >> 16) & 255) * f)}, ${cl(((n >> 8) & 255) * f)}, ${cl((n & 255) * f)})`;
+}
 
 const styles = StyleSheet.create({
     feasWrap: {
@@ -529,6 +561,49 @@ const styles = StyleSheet.create({
     errorText: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#B23A3A' },
     section: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.4, color: SUB, marginTop: 22 },
     sectionSub: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 3 },
+    // 2-up marketplace grid of cover cards.
+    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 12 },
+    gridItem: { width: '48%', marginBottom: 18 },
+    cover: {
+        aspectRatio: 1,
+        borderRadius: 18,
+        overflow: 'hidden',
+        backgroundColor: '#E5DECF',
+        justifyContent: 'flex-end',
+    },
+    watermark: { position: 'absolute', right: -14, top: -10 },
+    scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%' },
+    coverTitle: {
+        fontFamily: 'Matter-Bold',
+        fontSize: 15.5,
+        color: '#fff',
+        paddingHorizontal: 12,
+        paddingBottom: 12,
+        lineHeight: 19,
+        letterSpacing: -0.2,
+    },
+    pill: {
+        position: 'absolute',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 999,
+        backgroundColor: 'rgba(0,0,0,0.42)',
+    },
+    pillTL: { top: 10, left: 10 },
+    pillTR: { top: 10, right: 10 },
+    pillText: { fontFamily: 'Matter-SemiBold', fontSize: 11, color: '#fff' },
+    cardFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 9,
+        paddingHorizontal: 2,
+    },
+    footerCreator: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: SUB, flex: 1 },
+    footerPrice: { fontFamily: 'Matter-SemiBold', fontSize: 13, color: INK, marginLeft: 8 },
     cardRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
     iconWrap: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
     cardTitle: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: INK },
