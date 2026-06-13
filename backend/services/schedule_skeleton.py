@@ -249,6 +249,13 @@ def expand_skeleton(
         else:
             d["tasks"].sort(key=lambda t: _time_to_minutes(t.get("time", "00:00")))
 
+    # Skinmax: collapse the morning and evening cores into one personalized
+    # routine task each (cleanser -> serum -> moisturizer -> SPF), tuned to the
+    # user's concern + skin type + barrier. No-op for every other max.
+    if maxx_id == "skinmax":
+        from services.skinmax import personalize_skinmax_days
+        personalize_skinmax_days(days, user_state)
+
     return days
 
 

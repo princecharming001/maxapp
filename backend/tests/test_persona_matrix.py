@@ -735,14 +735,21 @@ def test_lock_scan_biases_collision_trimming():
     )
     from services.schedule_validator import _ESSENTIAL_TAGS
     _, _, _, bundle = _pipeline(no_scan)
+    _, _, _, bundle_scan = _pipeline(with_scan)
 
     def _opt(days):
         return sum(1 for d in days for t in (d.get("tasks") or [])
                    if not (set(t.get("tags") or []) & _ESSENTIAL_TAGS))
 
-    fit_opt, skin_opt = _opt(bundle.get("fitmax", [])), _opt(bundle.get("skinmax", []))
-    assert fit_opt < skin_opt, (
-        f"control should be skin-dominant without a scan, got fit={fit_opt} skin={skin_opt}"
+    # The scan demonstrably biases the collision trim: stripping it changes which
+    # module keeps its optionals. (We no longer assert "skin-dominant without a
+    # scan" by raw count — skincare is now a single personalized routine task, so
+    # without a priority signal the lighter module gets trimmed first; the
+    # positive case above is what proves the bias points at fitmax.)
+    scan_split = (_opt(bundle_scan.get("fitmax", [])), _opt(bundle_scan.get("skinmax", [])))
+    none_split = (_opt(bundle.get("fitmax", [])), _opt(bundle.get("skinmax", [])))
+    assert scan_split != none_split, (
+        f"scan should change the collision-trim outcome, got with_scan={scan_split} no_scan={none_split}"
     )
 
 

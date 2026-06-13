@@ -264,12 +264,13 @@ def test_spf_clears_commute_flush_before():
         if _WD[(START + timedelta(days=di)).weekday()] in ("saturday", "sunday"):
             continue  # commute is weekdays-only
         for t in d.get("tasks") or []:
-            if t.get("catalog_id") == "skin.spf":
+            # SPF now lives inside the single personalized morning routine task.
+            if t.get("catalog_id") == "skin.am_routine":
                 tm = _mins(t.get("time"))
                 assert not (commute[0] <= tm < commute[1]), \
-                    f"SPF inside commute on day {di}: {t.get('time')}"
+                    f"morning skincare inside commute on day {di}: {t.get('time')}"
                 checked += 1
-    assert checked > 0, "expected at least one weekday SPF task to verify"
+    assert checked > 0, "expected at least one weekday morning-routine task to verify"
 
 
 # --------------------------------------------------------------------------- #
@@ -395,21 +396,27 @@ def test_weekly_exfoliation_lands_once_a_week_for_stable_pigmentation():
             assert "skin.dermastamp_pm" not in ids, f"exfoliation shares dermastamp night (day {d['day_index']})"
 
 
+def _first_task(days, cid):
+    return next((t for d in days for t in (d.get("tasks") or []) if t.get("catalog_id") == cid), None)
+
+
 def test_weekly_exfoliation_gated_out_for_damaged_barrier():
-    """Damaged-barrier repair lock: exfoliation (and all actives) must be
-    stripped, with the daily barrier-pause taking the pm_active slot."""
+    """Damaged barrier: the separate weekly exfoliation must still be gated out,
+    and the personalized AM/PM routine must drop all actives while it heals."""
     from services.task_catalog_service import warm_catalog
     asyncio.run(warm_catalog())
 
     state = {**_BASE_SKIN, "skin_concern": "pigmentation",
              "barrier_state": "damaged", "dermastamp_owned": True}
-    counts = _id_counts(_skin_days(state))
+    days = _skin_days(state)
+    counts = _id_counts(days)
 
     assert counts.get("skin.weekly_exfoliation", 0) == 0, "exfoliation must be gated out on damaged barrier"
-    assert counts.get("skin.retinoid_pm", 0) == 0, "retinoid must be stripped on damaged barrier"
-    assert counts.get("skin.dermastamp_pm", 0) == 0, "dermastamp must be stripped on damaged barrier"
-    assert counts.get("skin.azelaic_am", 0) == 0, "am active must be stripped on damaged barrier"
-    assert counts.get("skin.barrier_pause", 0) == 14, "daily barrier-pause should occupy pm_active"
+    # The routine composer strips actives and says so while the barrier recovers.
+    am = _first_task(days, "skin.am_routine")
+    pm = _first_task(days, "skin.pm_routine")
+    assert am and "no actives" in am["description"].lower(), am
+    assert pm and "no actives" in pm["description"].lower(), pm
 
 
 def test_weekly_exfoliation_absent_for_untargeted_concern():
@@ -420,34 +427,38 @@ def test_weekly_exfoliation_absent_for_untargeted_concern():
 
     state = {**_BASE_SKIN, "skin_concern": "maintenance",
              "barrier_state": "stable", "dermastamp_owned": True}
-    counts = _id_counts(_skin_days(state))
+    days = _skin_days(state)
+    counts = _id_counts(days)
     assert counts.get("skin.weekly_exfoliation", 0) == 0, "exfoliation must not target 'maintenance'"
-    # Sanity: retinoid still runs for maintenance (it IS in retinoid's list).
-    assert counts.get("skin.retinoid_pm", 0) >= 6
+    # Sanity: the evening routine still carries a retinoid/retinol for maintenance.
+    pm = _first_task(days, "skin.pm_routine")
+    assert pm and "retin" in pm["description"].lower(), pm
 
 
-def test_am_active_picker_fires_for_daily_cadence():
-    """Second bug found while fixing #48: am_active is `cadence: daily` with a
-    `pick_from` (azelaic/centella) and empty `tasks`, so it used to emit
-    nothing — the morning active silently vanished. The picker must now fire
-    every day, choosing the first eligible item by priority."""
+def test_am_routine_is_one_personalized_daily_task():
+    """The morning core is now a SINGLE task that appears every day and whose
+    steps are personalized to the concern (pigmentation → vitamin C / azelaic)."""
     from services.task_catalog_service import warm_catalog
     asyncio.run(warm_catalog())
 
-    # Pigmentation → azelaic eligible every day → daily morning active.
-    counts = _id_counts(_skin_days(
+    days = _skin_days(
         {**_BASE_SKIN, "skin_concern": "pigmentation", "barrier_state": "stable", "dermastamp_owned": False}
-    ))
-    assert counts.get("skin.azelaic_am", 0) == 14, (
-        f"am_active picker should place a morning active daily, got {counts.get('skin.azelaic_am', 0)}"
     )
+    counts = _id_counts(days)
+    assert counts.get("skin.am_routine", 0) == 14, (
+        f"AM routine should be one task daily, got {counts.get('skin.am_routine', 0)}"
+    )
+    # The morning core never contains separate cleanse/moisturize/spf tasks.
+    for legacy in ("skin.cleanse_am", "skin.moisturize_am", "skin.spf", "skin.azelaic_am"):
+        assert counts.get(legacy, 0) == 0, f"{legacy} should be folded into skin.am_routine"
+    am = _first_task(days, "skin.am_routine")
+    d = am["description"].lower()
+    assert "vitamin c" in d or "azelaic" in d, am
 
 
-def test_pm_picker_keeps_weekly_mix_and_is_spread():
-    """The picker must honor each item's weekly rate (retinoid 4x, dermastamp
-    2x) per 7-day window AND spread them (no item bunched on consecutive days
-    across the whole window), which is what leaves a rest night open for the
-    exfoliation to claim."""
+def test_pm_routine_is_one_personalized_daily_task():
+    """The evening core is one daily task carrying the personalized treatment
+    (pigmentation → retinoid / azelaic), with no separate per-step tasks."""
     from services.task_catalog_service import warm_catalog
     asyncio.run(warm_catalog())
 
@@ -455,16 +466,11 @@ def test_pm_picker_keeps_weekly_mix_and_is_spread():
         {**_BASE_SKIN, "skin_concern": "pigmentation", "barrier_state": "stable", "dermastamp_owned": True}
     )
     counts = _id_counts(days)
-    # 4/wk * 2 weeks = 8 retinoid; 2/wk * 2 = 4 dermastamp.
-    assert counts.get("skin.retinoid_pm", 0) == 8, counts.get("skin.retinoid_pm", 0)
-    assert counts.get("skin.dermastamp_pm", 0) == 4, counts.get("skin.dermastamp_pm", 0)
-
-    # Spread check: retinoid must not occupy 4+ consecutive nights (the old
-    # front-loading signature was retinoid on days 0..7 straight).
-    retinoid_days = [d["day_index"] for d in days
-                     if any(t.get("catalog_id") == "skin.retinoid_pm" for t in d.get("tasks") or [])]
-    longest_run = run = 1
-    for a, b in zip(retinoid_days, retinoid_days[1:]):
-        run = run + 1 if b == a + 1 else 1
-        longest_run = max(longest_run, run)
-    assert longest_run <= 3, f"retinoid front-loaded into a run of {longest_run} nights: {retinoid_days}"
+    assert counts.get("skin.pm_routine", 0) == 14, (
+        f"PM routine should be one task daily, got {counts.get('skin.pm_routine', 0)}"
+    )
+    for legacy in ("skin.cleanse_pm", "skin.moisturize_pm", "skin.retinoid_pm"):
+        assert counts.get(legacy, 0) == 0, f"{legacy} should be folded into skin.pm_routine"
+    pm = _first_task(days, "skin.pm_routine")
+    d = pm["description"].lower()
+    assert "retin" in d or "azelaic" in d, pm
