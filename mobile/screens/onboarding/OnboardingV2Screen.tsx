@@ -31,50 +31,41 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
-    Easing, Extrapolation, interpolate, interpolateColor, useAnimatedStyle,
+    Easing, Extrapolation, interpolate, useAnimatedStyle,
     useReducedMotion, useSharedValue, withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
-import { PastelCard } from '../../components/glass/PastelCard';
 import { GlassButton } from '../../components/glass/GlassButton';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import OnboardingIcon, { OnboardingIconKind } from '../../components/onboarding/OnboardingIcon';
 
 const INK = '#1C1A17';
-const GOLD = '#2C6BED';
+const CREAM = '#F7F0EA';        // text/icon on an ink-filled (selected) surface
+const GOLD = '#D4A017';         // the one warm accent — selected check + rank
 const MUTE = '#97928A';
 const SUB = '#5C574E';
-const SURFACE = '#FFFFFF';
-const HAIRLINE = '#E2DBCD';
-const ICON_TILE = '#F4EFE6';
+const HAIR = 'rgba(28,26,23,0.10)';   // warm hairline
+const WASH = 'rgba(28,26,23,0.05)';   // faint inset wash (stepper btns, seg track)
 
 // One custom illustrated icon per step (see components/onboarding/OnboardingIcon).
 const STEP_ICONS: OnboardingIconKind[] = [
     'goals', 'motivation', 'dayshape', 'work', 'energy', 'rhythm', 'recap',
 ];
 
-// Progress dots — the active one glides wider + gold as the step advances.
-function Dot({ active }: { active: boolean }) {
-    const p = useSharedValue(active ? 1 : 0);
+// One thin top progress bar that fills as the user advances (drops the dots
+// + the loud "STEP X OF 7"). The fill animates on each step.
+function ProgressBar({ index, total }: { index: number; total: number }) {
+    const p = useSharedValue((index + 1) / total);
     useEffect(() => {
-        p.value = withTiming(active ? 1 : 0, { duration: 300 });
-    }, [active, p]);
-    const style = useAnimatedStyle(() => ({
-        width: interpolate(p.value, [0, 1], [6, 22]),
-        backgroundColor: interpolateColor(p.value, [0, 1], ['#D8CFBE', GOLD]),
-    }));
-    return <Animated.View style={[styles.dot, style]} />;
-}
-
-function ProgressDots({ count, index }: { count: number; index: number }) {
+        p.value = withTiming((index + 1) / total, { duration: 380, easing: Easing.out(Easing.cubic) });
+    }, [index, total, p]);
+    const style = useAnimatedStyle(() => ({ width: `${p.value * 100}%` }));
     return (
-        <View style={styles.dots}>
-            {Array.from({ length: count }).map((_, i) => (
-                <Dot key={i} active={i === index} />
-            ))}
+        <View style={styles.progressTrack}>
+            <Animated.View style={[styles.progressFill, style]} />
         </View>
     );
 }
@@ -310,11 +301,11 @@ export default function OnboardingV2Screen() {
                                 accessibilityLabel={t.label}
                             >
                                 <View style={styles.tileIcon}>
-                                    <Ionicons name={t.icon as any} size={19} color={INK} />
+                                    <Ionicons name={t.icon as any} size={20} color={active ? CREAM : INK} />
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.tileLabel}>{t.label}</Text>
-                                    <Text style={styles.tileTag}>{t.tagline}</Text>
+                                    <Text style={[styles.tileLabel, active && styles.tileLabelActive]}>{t.label}</Text>
+                                    <Text style={[styles.tileTag, active && styles.tileTagActive]}>{t.tagline}</Text>
                                 </View>
                                 {active ? (
                                     <View style={styles.rankBadge}>
@@ -347,9 +338,9 @@ export default function OnboardingV2Screen() {
                                 accessibilityState={{ selected: active }}
                                 accessibilityLabel={m.label}
                             >
-                                <Text style={[styles.tileLabel, { flex: 1 }]}>{m.label}</Text>
+                                <Text style={[styles.tileLabel, { flex: 1 }, active && styles.tileLabelActive]}>{m.label}</Text>
                                 {active ? (
-                                    <Ionicons name="checkmark-circle" size={20} color={GOLD} />
+                                    <Ionicons name="checkmark" size={20} color={GOLD} />
                                 ) : null}
                             </TouchableOpacity>
                         );
@@ -398,7 +389,7 @@ export default function OnboardingV2Screen() {
                             size={18}
                             color={works ? GOLD : MUTE}
                         />
-                        <Text style={styles.workChipText}>I have set weekday hours</Text>
+                        <Text style={[styles.workChipText, works && styles.workChipTextActive]}>I have set weekday hours</Text>
                     </TouchableOpacity>
 
                     {works ? (
@@ -533,23 +524,19 @@ export default function OnboardingV2Screen() {
             sub: 'Max fits your routines into the gaps. You can drag any of this later in Plan.',
             canNext: true,
             body: (
-                <View style={{ marginTop: 18 }}>
-                    <PastelCard tone="green" radius={20}>
-                        <View style={styles.recapInner}>
-                            {recap.map((r, i) => (
-                                <View key={r.label}>
-                                    {i > 0 ? <View style={styles.hairline} /> : null}
-                                    <View style={styles.recapRow}>
-                                        <View style={styles.recapIcon}>
-                                            <Ionicons name={r.icon as any} size={16} color={INK} />
-                                        </View>
-                                        <Text style={styles.recapLabel}>{r.label}</Text>
-                                        <Text style={styles.recapValue}>{r.value}</Text>
-                                    </View>
+                <View style={styles.recapList}>
+                    {recap.map((r, i) => (
+                        <View key={r.label}>
+                            {i > 0 ? <View style={styles.hairline} /> : null}
+                            <View style={styles.recapRow}>
+                                <View style={styles.recapIcon}>
+                                    <Ionicons name={r.icon as any} size={17} color={MUTE} />
                                 </View>
-                            ))}
+                                <Text style={styles.recapLabel}>{r.label}</Text>
+                                <Text style={styles.recapValue}>{r.value}</Text>
+                            </View>
                         </View>
-                    </PastelCard>
+                    ))}
                 </View>
             ),
         },
@@ -603,7 +590,7 @@ export default function OnboardingV2Screen() {
 
     return (
         <ScreenBackdrop>
-            <View style={{ flex: 1, paddingTop: insets.top + 16, paddingHorizontal: 22 }}>
+            <View style={{ flex: 1, paddingTop: insets.top + 14, paddingHorizontal: 24 }}>
                 <View style={styles.topRow}>
                     {step > 0 ? (
                         <TouchableOpacity
@@ -612,26 +599,25 @@ export default function OnboardingV2Screen() {
                             accessibilityRole="button"
                             accessibilityLabel="Back"
                         >
-                            <Ionicons name="arrow-back" size={22} color={INK} />
+                            <Ionicons name="chevron-back" size={24} color={INK} />
                         </TouchableOpacity>
                     ) : (
-                        <View style={{ width: 22 }} />
+                        <View style={{ width: 24 }} />
                     )}
-                    <ProgressDots count={steps.length} index={step} />
-                    <View style={{ width: 22 }} />
+                    <ProgressBar index={step} total={steps.length} />
+                    <Text style={styles.progressCount}>{step + 1}/{steps.length}</Text>
                 </View>
 
                 <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingBottom: 24, paddingTop: 8 }}
+                    contentContainerStyle={{ paddingBottom: 24, paddingTop: 4 }}
                     showsVerticalScrollIndicator={false}
                 >
                     <Animated.View style={[styles.heroIcon, iconStyle]}>
-                        <OnboardingIcon kind={STEP_ICONS[step]} size={134} />
+                        <OnboardingIcon kind={STEP_ICONS[step]} size={96} />
                     </Animated.View>
 
                     <Animated.View style={[styles.headBlock, headStyle]}>
-                        <Text style={styles.kicker}>{current.kicker}</Text>
                         <Text style={styles.title}>{current.title}</Text>
                         <Text style={styles.sub}>{current.sub}</Text>
                     </Animated.View>
@@ -657,127 +643,104 @@ export default function OnboardingV2Screen() {
 }
 
 const styles = StyleSheet.create({
-    topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    dots: { flexDirection: 'row', gap: 6, alignItems: 'center' },
-    dot: { height: 6, borderRadius: 3 },
-    dotActive: { backgroundColor: INK, width: 18 },
-    heroIcon: { alignItems: 'center', marginTop: 10, marginBottom: 18 },
+    // top: back chevron · thin progress bar · quiet count
+    topRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    progressTrack: { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(28,26,23,0.08)', overflow: 'hidden' },
+    progressFill: { height: '100%', borderRadius: 2, backgroundColor: INK },
+    progressCount: { fontFamily: 'Matter-Medium', fontSize: 12, color: MUTE, width: 30, textAlign: 'right' },
+
+    heroIcon: { alignItems: 'center', marginTop: 22, marginBottom: 18 },
     headBlock: { alignItems: 'center', width: '100%' },
-    bodyBlock: { width: '100%', marginTop: 6 },
-    kicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.6, color: GOLD, marginTop: 4, textAlign: 'center' },
-    title: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 34, color: INK, letterSpacing: -0.8, marginTop: 8, lineHeight: 40, textAlign: 'center' },
-    sub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE, marginTop: 8, lineHeight: 21, textAlign: 'center', paddingHorizontal: 8 },
-    helpNote: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 10, lineHeight: 18 },
+    bodyBlock: { width: '100%', marginTop: 30 },
+    title: { fontFamily: 'Fraunces', fontSize: 33, color: INK, letterSpacing: -1, lineHeight: 39, textAlign: 'center' },
+    sub: { fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, marginTop: 10, lineHeight: 21, textAlign: 'center', paddingHorizontal: 16 },
+    helpNote: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE, marginTop: 12, lineHeight: 18, textAlign: 'center' },
+
+    // selection rows — ink-inversion, no card, no shadow
     tile: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
-        borderRadius: 18,
-        backgroundColor: SURFACE,
+        paddingHorizontal: 18,
+        paddingVertical: 14,
+        minHeight: 62,
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: HAIRLINE,
-        minHeight: 44,
+        borderColor: HAIR,
+        backgroundColor: 'transparent',
     },
-    tileActive: { borderColor: GOLD, backgroundColor: 'rgba(44,107,237,0.08)' },
-    tileIcon: {
-        width: 38,
-        height: 38,
-        borderRadius: 13,
-        backgroundColor: ICON_TILE,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 12,
-    },
-    tileLabel: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: INK },
-    tileTag: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 1 },
-    rankBadge: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: GOLD,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    rankText: { fontFamily: 'Matter-SemiBold', fontSize: 12, color: '#fff' },
-    shapeCard: {
-        borderRadius: 18,
-        backgroundColor: SURFACE,
-        borderWidth: 1,
-        borderColor: HAIRLINE,
-        paddingHorizontal: 16,
-    },
-    hairline: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(28,26,23,0.10)' },
+    tileActive: { backgroundColor: INK, borderColor: INK },
+    tileIcon: { width: 26, alignItems: 'center', marginRight: 14 },
+    tileLabel: { fontFamily: 'Matter-Medium', fontSize: 16, color: INK },
+    tileLabelActive: { color: CREAM },
+    tileTag: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 2 },
+    tileTagActive: { color: 'rgba(247,240,234,0.62)' },
+    rankBadge: { width: 24, height: 24, borderRadius: 12, backgroundColor: GOLD, alignItems: 'center', justifyContent: 'center' },
+    rankText: { fontFamily: 'Matter-SemiBold', fontSize: 12, color: '#1C1A17' },
+
+    // steppers — borderless, calm numeral
+    shapeCard: { width: '100%' },
+    hairline: { height: StyleSheet.hairlineWidth, backgroundColor: HAIR },
     stepperRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingVertical: 14,
     },
-    stepperLabel: { fontFamily: 'Matter-Medium', fontSize: 15, color: INK },
-    stepperControls: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    stepperLabel: { fontFamily: 'Matter-Medium', fontSize: 15.5, color: INK },
+    stepperControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     stepBtn: {
-        width: 34,
-        height: 34,
-        borderRadius: 12,
-        backgroundColor: SURFACE,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: HAIRLINE,
+        width: 38, height: 38, borderRadius: 19,
+        backgroundColor: WASH,
+        alignItems: 'center', justifyContent: 'center',
     },
-    stepperValue: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK, width: 96, textAlign: 'center' },
+    stepperValue: { fontFamily: 'Matter-SemiBold', fontSize: 17, color: INK, minWidth: 96, textAlign: 'center' },
+
     workChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        padding: 14,
+        gap: 10,
+        paddingHorizontal: 18,
+        paddingVertical: 15,
         borderRadius: 16,
-        backgroundColor: SURFACE,
         borderWidth: 1,
-        borderColor: HAIRLINE,
+        borderColor: HAIR,
+        backgroundColor: 'transparent',
     },
-    workChipActive: { borderColor: 'rgba(44,107,237,0.5)' },
-    workChipText: { fontFamily: 'Matter-Medium', fontSize: 14.5, color: INK },
-    groupLabel: { fontFamily: 'Matter-SemiBold', fontSize: 10.5, letterSpacing: 1.4, color: MUTE, marginTop: 20 },
-    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    workChipActive: { backgroundColor: INK, borderColor: INK },
+    workChipText: { fontFamily: 'Matter-Medium', fontSize: 15, color: INK },
+    workChipTextActive: { color: CREAM },
+
+    groupLabel: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.2, color: MUTE, marginTop: 22, marginBottom: 4, textTransform: 'uppercase', textAlign: 'center' },
+
+    // chips — ink-inversion pills
+    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6, justifyContent: 'center' },
     pill: {
-        paddingVertical: 9,
-        paddingHorizontal: 14,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
         borderRadius: 999,
-        backgroundColor: SURFACE,
         borderWidth: 1,
-        borderColor: HAIRLINE,
-        minHeight: 36,
-    },
-    pillActive: { borderColor: GOLD, backgroundColor: 'rgba(44,107,237,0.10)' },
-    pillText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: SUB },
-    pillTextActive: { color: '#1F4FB0' },
-    seg: {
-        flexDirection: 'row',
-        marginTop: 8,
-        padding: 4,
-        gap: 4,
-        backgroundColor: SURFACE,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: HAIRLINE,
-    },
-    segItem: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-    segItemActive: { backgroundColor: INK },
-    segText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: SUB },
-    segTextActive: { color: '#FFFFFF' },
-    recapInner: { paddingHorizontal: 16, paddingVertical: 2 },
-    recapRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
-    recapIcon: {
-        width: 30,
-        height: 30,
-        borderRadius: 10,
-        backgroundColor: ICON_TILE,
-        alignItems: 'center',
+        borderColor: HAIR,
+        backgroundColor: 'transparent',
+        minHeight: 38,
         justifyContent: 'center',
-        marginRight: 12,
     },
-    recapLabel: { fontFamily: 'Matter-Medium', fontSize: 14.5, color: INK, flex: 1 },
-    recapValue: { fontFamily: 'Matter-SemiBold', fontSize: 14.5, color: SUB },
-    error: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#C0452C', marginTop: 14 },
+    pillActive: { backgroundColor: INK, borderColor: INK },
+    pillText: { fontFamily: 'Matter-Medium', fontSize: 14, color: SUB },
+    pillTextActive: { color: CREAM },
+
+    // segmented — ink thumb on a faint wash
+    seg: { flexDirection: 'row', marginTop: 6, padding: 4, gap: 4, backgroundColor: WASH, borderRadius: 14 },
+    segItem: { flex: 1, paddingVertical: 11, alignItems: 'center', borderRadius: 10 },
+    segItemActive: { backgroundColor: INK },
+    segText: { fontFamily: 'Matter-Medium', fontSize: 14, color: SUB },
+    segTextActive: { color: CREAM },
+
+    // recap — clean hairline list, no card
+    recapList: { width: '100%', marginTop: 6 },
+    recapRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
+    recapIcon: { width: 24, alignItems: 'center', marginRight: 14 },
+    recapLabel: { fontFamily: 'Matter-Regular', fontSize: 15.5, color: SUB, flex: 1 },
+    recapValue: { fontFamily: 'Matter-Medium', fontSize: 15.5, color: INK },
+
+    error: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#C0452C', marginTop: 14, textAlign: 'center' },
 });
