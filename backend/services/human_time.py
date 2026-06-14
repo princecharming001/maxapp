@@ -67,10 +67,11 @@ class LifeWindows:
     work_start: int | None
     work_end: int | None
     morning_routine: tuple[int, int]    # wake .. wake+45 (skincare, hygiene)
+    breakfast: tuple[int, int] | None   # stated breakfast - PROTECTED (None if skipped)
     crunch: tuple[int, int] | None      # get-ready squeeze before work - PROTECTED
     lunch: tuple[int, int] | None       # midday breather inside the work block
     settle_in: tuple[int, int] | None   # commute + decompress after work - PROTECTED
-    dinner: tuple[int, int]             # PROTECTED for optionals
+    dinner: tuple[int, int] | None      # PROTECTED for optionals (None if skipped)
     evening: tuple[int, int]            # free evening time
     wind_down: tuple[int, int]          # sleep-75 .. sleep-15 (PM routine)
 
@@ -108,12 +109,31 @@ def life_windows(state: dict) -> LifeWindows:
     if work_start is not None and work_start - wake > 45:
         crunch = (max(wake + 30, work_start - 45), work_start)
 
+    # Which meals the user told us they skip — those reserve no window, so the
+    # scheduler is free to use the time.
+    skipped = {str(x).strip().lower() for x in (state.get("meals_skipped") or [])}
+
+    # Breakfast: only honored when the user gave a time (and didn't skip it).
+    # A short eating window near the start of the day; no default — plenty of
+    # people skip breakfast and we don't want to invent one.
+    stated_breakfast = to_min(state.get("breakfast_time"), -1)
+    breakfast = None
+    if "breakfast" not in skipped and stated_breakfast >= 0:
+        breakfast = (stated_breakfast, stated_breakfast + 30)
+
+    # Lunch: a stated lunch time wins; otherwise the midday breather derived
+    # from a long work block. Either is dropped if the user skips lunch.
     lunch = None
     if work and (work_end - work_start) >= 5 * 60:
         mid = (work_start + work_end) // 2
         lunch = (max(work_start + 90, mid - 45), min(work_end - 60, mid + 45))
         if lunch[1] - lunch[0] < 20:
             lunch = None
+    stated_lunch = to_min(state.get("lunch_time"), -1)
+    if stated_lunch >= 0:
+        lunch = (stated_lunch, stated_lunch + 45)
+    if "lunch" in skipped:
+        lunch = None
 
     settle_in = None
     if work_end is not None:
@@ -121,25 +141,31 @@ def life_windows(state: dict) -> LifeWindows:
 
     # Dinner: honor a stated dinner time when the user gave one (a real
     # anchor we protect optionals around), else a daytime default of
-    # 18:30-19:45. Either way it's scaled into the evening for shifted
+    # 18:30-19:45 — unless the user skips dinner, in which case the evening is
+    # one open block. Either way it's scaled into the evening for shifted
     # schedules via the evening floor below.
-    stated_dinner = to_min(state.get("dinner_time"), -1)
-    if stated_dinner >= 0:
-        default_dinner = (stated_dinner, stated_dinner + 60)
-    else:
-        default_dinner = (18 * 60 + 30, 19 * 60 + 45)
     evening_start_floor = (settle_in[1] if settle_in else max(wake + 9 * 60, 17 * 60))
-    dinner = (
-        max(default_dinner[0], evening_start_floor),
-        max(default_dinner[1], evening_start_floor + 45),
-    )
-    if dinner[1] > sleep_for_calc - 60:
-        dinner = (sleep_for_calc - 150, sleep_for_calc - 90)
+    dinner = None
+    if "dinner" not in skipped:
+        stated_dinner = to_min(state.get("dinner_time"), -1)
+        if stated_dinner >= 0:
+            default_dinner = (stated_dinner, stated_dinner + 60)
+        else:
+            default_dinner = (18 * 60 + 30, 19 * 60 + 45)
+        dinner = (
+            max(default_dinner[0], evening_start_floor),
+            max(default_dinner[1], evening_start_floor + 45),
+        )
+        if dinner[1] > sleep_for_calc - 60:
+            dinner = (sleep_for_calc - 150, sleep_for_calc - 90)
 
     wind_down = (sleep_for_calc - 75, sleep_for_calc - 15)
-    evening = (dinner[1] + 15, wind_down[0])
+    # The free evening starts after dinner when there is one, else straight off
+    # the evening floor (settle-in / late-afternoon).
+    evening_lo = (dinner[1] + 15) if dinner else evening_start_floor
+    evening = (evening_lo, wind_down[0])
     if evening[1] <= evening[0]:
-        evening = (dinner[1], wind_down[0])
+        evening = (max(wake + 60, wind_down[0] - 90), wind_down[0])
 
     return LifeWindows(
         wake=wake,
@@ -147,6 +173,7 @@ def life_windows(state: dict) -> LifeWindows:
         work_start=work_start,
         work_end=work_end,
         morning_routine=morning_routine,
+        breakfast=breakfast,
         crunch=crunch,
         lunch=lunch,
         settle_in=settle_in,
@@ -157,14 +184,18 @@ def life_windows(state: dict) -> LifeWindows:
 
 
 def protected_spans(w: LifeWindows) -> list[tuple[int, int]]:
-    """Times where OPTIONAL tasks must never land: the get-ready crunch,
-    the settle-in right after work, and dinner."""
+    """Times where OPTIONAL tasks must never land: breakfast, the get-ready
+    crunch, the settle-in right after work, and dinner (each only when it
+    actually exists for this user)."""
     out: list[tuple[int, int]] = []
+    if w.breakfast:
+        out.append(w.breakfast)
     if w.crunch:
         out.append(w.crunch)
     if w.settle_in:
         out.append(w.settle_in)
-    out.append(w.dinner)
+    if w.dinner:
+        out.append(w.dinner)
     return out
 
 
@@ -204,7 +235,7 @@ def resolve_workout_window(state: dict, choice: str | None = None) -> tuple[int,
         return w.lunch
     if choice == "after_work" and w.settle_in is not None:
         start = w.settle_in[1]  # settled in, THEN train
-        end = min(w.dinner[0], start + 150)
+        end = min(w.dinner[0] if w.dinner else start + 150, start + 150)
         if end - start >= 40:
             return (start, end)
         choice = "evening"
@@ -230,13 +261,15 @@ def why_line(slot_min: int, w: LifeWindows, anchors: list[str] | None = None) ->
         return "right after you wake"
     if w.crunch and w.crunch[0] <= m < w.crunch[1]:
         return "before you head out"
+    if w.breakfast and w.breakfast[0] <= m < w.breakfast[1]:
+        return "over breakfast"
     if w.lunch and w.lunch[0] <= m < w.lunch[1]:
         return "on your lunch break"
     if w.work_start is not None and w.work_end is not None and w.work_start <= m < w.work_end:
         return "a quick break in your day"
     if w.settle_in and w.settle_in[0] <= m < w.settle_in[1] + 30:
         return "once you're home and settled"
-    if w.dinner[0] <= m < w.dinner[1]:
+    if w.dinner and w.dinner[0] <= m < w.dinner[1]:
         return "around dinner"
     if m >= w.wind_down[0]:
         return "wind-down before bed"

@@ -350,6 +350,8 @@ def _apply_onboarding(profile: dict, onboarding: dict, *, coaching_tone: Optiona
     for field, val in (
         ("chronotype", g("chronotype")), ("wake", g("wake_time")), ("sleep", g("sleep_time")),
         ("activity_level", g("activity_level", "daily_activity_level")),
+        ("breakfast", g("breakfast_time")),
+        ("lunch", g("lunch_time")),
         ("dinner", g("dinner_time")),
     ):
         if val is not None and field not in life:

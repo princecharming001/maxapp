@@ -709,6 +709,12 @@ class ApiService {
         get_ready_time?: string | null;
         get_ready_minutes?: number | null;
         preferred_workout_time?: string | null;
+        // Meal anchors — HH:MM, or null when the user skips that meal. Each
+        // honored meal becomes a protected window the scheduler keeps clear.
+        breakfast_time?: string | null;
+        lunch_time?: string | null;
+        dinner_time?: string | null;
+        meals_skipped?: string[];
         // `days` is the recurrence: 'all' | 'weekdays' | 'weekends' | a list of
         // weekday names. Typed loosely here (string | string[]) since this is the
         // JSON serialization boundary — the canonical shape lives in plannerModel

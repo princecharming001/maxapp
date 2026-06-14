@@ -173,6 +173,69 @@ function TimeStepper({
     );
 }
 
+// A meal row: the stepper when the user eats it, a quiet "Skipped · Add"
+// affordance when they don't. Skipping a meal frees that time for the planner.
+function MealStepper({
+    label,
+    value,
+    onChange,
+    skipped,
+    onToggleSkip,
+}: {
+    label: string;
+    value: number;
+    onChange: (v: number) => void;
+    skipped: boolean;
+    onToggleSkip: () => void;
+}) {
+    return (
+        <View style={styles.mealRow}>
+            <View style={styles.mealLeft}>
+                <Text style={[styles.stepperLabel, skipped && styles.mealLabelOff]}>{label}</Text>
+                <TouchableOpacity
+                    onPress={onToggleSkip}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={skipped ? `Add ${label}` : `Skip ${label}`}
+                >
+                    <Text style={styles.mealSkipLink}>{skipped ? 'Add back' : 'Skip'}</Text>
+                </TouchableOpacity>
+            </View>
+            {skipped ? (
+                <TouchableOpacity
+                    style={styles.mealSkippedTag}
+                    onPress={onToggleSkip}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${label}`}
+                >
+                    <Text style={styles.mealSkippedText}>Skipped</Text>
+                </TouchableOpacity>
+            ) : (
+                <View style={styles.stepperControls}>
+                    <TouchableOpacity
+                        style={styles.stepBtn}
+                        onPress={() => onChange((value - 15 + 1440) % 1440)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${label} 15 minutes earlier`}
+                    >
+                        <Ionicons name="remove" size={18} color={INK} />
+                    </TouchableOpacity>
+                    <Text style={styles.stepperValue}>{fmt12(value)}</Text>
+                    <TouchableOpacity
+                        style={styles.stepBtn}
+                        onPress={() => onChange((value + 15) % 1440)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${label} 15 minutes later`}
+                    >
+                        <Ionicons name="add" size={18} color={INK} />
+                    </TouchableOpacity>
+                </View>
+            )}
+        </View>
+    );
+}
+
 function Pill({
     label,
     active,
@@ -215,7 +278,12 @@ export default function OnboardingV2Screen() {
     const [workLocation, setWorkLocation] = useState<string>('office');
     const [commuteMin, setCommuteMin] = useState<number>(30);
     const [chronotype, setChronotype] = useState<string>('morning');
+    const [breakfastMin, setBreakfastMin] = useState(8 * 60);
+    const [lunchMin, setLunchMin] = useState(12 * 60 + 30);
     const [dinnerMin, setDinnerMin] = useState(19 * 60);
+    const [skipBreakfast, setSkipBreakfast] = useState(false);
+    const [skipLunch, setSkipLunch] = useState(false);
+    const [skipDinner, setSkipDinner] = useState(false);
     const [anchors, setAnchors] = useState<string[]>([]);
     const [workoutChoice, setWorkoutChoice] = useState<string>('after_work');
     const [weekendShift, setWeekendShift] = useState(true);
@@ -251,7 +319,14 @@ export default function OnboardingV2Screen() {
                 work_location: works ? workLocation : 'home',
                 commute_minutes: hasCommute ? commuteMin : 0,
                 chronotype,
-                dinner_time: hhmm(dinnerMin),
+                breakfast_time: skipBreakfast ? null : hhmm(breakfastMin),
+                lunch_time: skipLunch ? null : hhmm(lunchMin),
+                dinner_time: skipDinner ? null : hhmm(dinnerMin),
+                meals_skipped: [
+                    skipBreakfast && 'breakfast',
+                    skipLunch && 'lunch',
+                    skipDinner && 'dinner',
+                ].filter(Boolean) as string[],
                 anchor_cues: anchors,
                 workout_window_choice: workoutChoice,
                 weekend_shift: weekendShift,
@@ -281,7 +356,18 @@ export default function OnboardingV2Screen() {
             ? [{ icon: 'car-outline', label: 'Commute', value: `${commuteMin} min each way` }]
             : []),
         { icon: 'barbell-outline', label: 'Workout', value: WORKOUT_LABEL[workoutChoice] || 'After work' },
-        { icon: 'restaurant-outline', label: 'Dinner', value: fmt12(dinnerMin) },
+        {
+            icon: 'restaurant-outline',
+            label: 'Meals',
+            value:
+                [
+                    !skipBreakfast && `Breakfast ${fmt12(breakfastMin)}`,
+                    !skipLunch && `Lunch ${fmt12(lunchMin)}`,
+                    !skipDinner && `Dinner ${fmt12(dinnerMin)}`,
+                ]
+                    .filter(Boolean)
+                    .join(' · ') || 'None — all skipped',
+        },
         { icon: 'moon-outline', label: 'Wind down', value: fmt12(sleepMin) },
     ];
 
@@ -482,11 +568,34 @@ export default function OnboardingV2Screen() {
                         ))}
                     </View>
 
-                    <View style={[styles.shapeCard, { marginTop: 20 }]}>
-                        <TimeStepper label="Dinner around" value={dinnerMin} onChange={setDinnerMin} />
+                    <Text style={styles.groupLabel}>WHEN DO YOU EAT?</Text>
+                    <View style={[styles.shapeCard, { marginTop: 6 }]}>
+                        <MealStepper
+                            label="Breakfast"
+                            value={breakfastMin}
+                            onChange={setBreakfastMin}
+                            skipped={skipBreakfast}
+                            onToggleSkip={() => setSkipBreakfast((s) => !s)}
+                        />
+                        <View style={styles.hairline} />
+                        <MealStepper
+                            label="Lunch"
+                            value={lunchMin}
+                            onChange={setLunchMin}
+                            skipped={skipLunch}
+                            onToggleSkip={() => setSkipLunch((s) => !s)}
+                        />
+                        <View style={styles.hairline} />
+                        <MealStepper
+                            label="Dinner"
+                            value={dinnerMin}
+                            onChange={setDinnerMin}
+                            skipped={skipDinner}
+                            onToggleSkip={() => setSkipDinner((s) => !s)}
+                        />
                     </View>
                     <Text style={styles.helpNote}>
-                        Keeps your evening routine clear of dinner.
+                        Max keeps your routines clear of the meals you keep — skip any you don't eat.
                     </Text>
                 </View>
             ),
@@ -718,6 +827,24 @@ const styles = StyleSheet.create({
         alignItems: 'center', justifyContent: 'center',
     },
     stepperValue: { fontFamily: 'Matter-SemiBold', fontSize: 17, color: INK, minWidth: 80, textAlign: 'center' },
+
+    mealRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+    },
+    mealLeft: { gap: 1 },
+    mealLabelOff: { color: MUTE },
+    mealSkipLink: { fontFamily: 'Matter-Medium', fontSize: 12, color: MUTE, letterSpacing: 0.2 },
+    mealSkippedTag: {
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: HAIR,
+    },
+    mealSkippedText: { fontFamily: 'Matter-Medium', fontSize: 13, color: MUTE },
 
     workChip: {
         flexDirection: 'row',

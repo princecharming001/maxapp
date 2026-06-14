@@ -146,7 +146,9 @@ class OnboardingData(BaseModel):
     # Day-shape depth (onboarding v2) — each feeds the human-time engine:
     #   work_location/commute_minutes -> derived "Commute" obligations (api.users)
     #   chronotype -> stated energy-peak prior surfaced in the life model
-    #   dinner_time -> the protected dinner anchor in human_time.life_windows
+    #   breakfast_time/lunch_time/dinner_time -> protected meal anchors in
+    #     human_time.life_windows; None (or listed in meals_skipped) = the user
+    #     skips that meal, so no window is reserved and the scheduler may use it.
     work_location: Optional[str] = Field(
         default=None, description="'office' | 'hybrid' | 'home' — where the user works, gates commute.",
     )
@@ -156,8 +158,17 @@ class OnboardingData(BaseModel):
     chronotype: Optional[str] = Field(
         default=None, description="'morning' | 'afternoon' | 'evening' — when the user feels sharpest.",
     )
+    breakfast_time: Optional[str] = Field(
+        default=None, description="Usual breakfast time HH:MM (24h); anchors a protected breakfast window. None/skipped = no window.",
+    )
+    lunch_time: Optional[str] = Field(
+        default=None, description="Usual lunch time HH:MM (24h); anchors the protected lunch window. None = use the work-derived midday break, or skipped.",
+    )
     dinner_time: Optional[str] = Field(
-        default=None, description="Usual dinner time HH:MM (24h); anchors the protected dinner window.",
+        default=None, description="Usual dinner time HH:MM (24h); anchors the protected dinner window. None = default evening dinner, or skipped.",
+    )
+    meals_skipped: Optional[List[str]] = Field(
+        default=None, description="Meals the user explicitly skips: any of 'breakfast' | 'lunch' | 'dinner'. Suppresses the default/derived window for that meal so the scheduler can use the time.",
     )
     completed: bool = False
     # Profile questionnaire v2 (collected before pay in app flow) — optional flag for clients
