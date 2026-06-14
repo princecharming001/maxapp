@@ -27,6 +27,7 @@ import { colors, spacing, borderRadius, typography, fonts } from '../../theme/da
 import { CachedImage } from '../../components/CachedImage';
 import { userHasSignupPhone } from '../../utils/userPhone';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
+import { maxMeta, hexA } from '../../utils/scheduleAggregation';
 
 const GOLD = '#C9A24E';
 
@@ -906,7 +907,7 @@ export default function FaceScanResultsScreen() {
                 {/* ── Photo ── */}
                 <View style={styles.photoWrap}>
                     {frontUri ? (
-                        <View style={styles.photoRing}>
+                        <View style={[styles.photoRing, !locked && suggestedMods.length ? { borderColor: hexA(maxMeta(suggestedMods[0]).color, 0.45) } : null]}>
                             <CachedImage uri={frontUri} style={styles.photoImg} />
                         </View>
                     ) : (
@@ -968,6 +969,10 @@ export default function FaceScanResultsScreen() {
                                 <PaywallBlurShell minHeight={20}>
                                     <Text style={[styles.statValue, { color: item.color }]}>{item.value}</Text>
                                 </PaywallBlurShell>
+                            ) : idx === 0 && item.value !== '—' ? (
+                                <View style={styles.tierBadge}>
+                                    <Text style={styles.tierBadgeText}>{item.value}</Text>
+                                </View>
                             ) : (
                                 <Text style={[styles.statValue, { color: item.color }]}>{item.value}</Text>
                             )}
@@ -980,11 +985,20 @@ export default function FaceScanResultsScreen() {
                     <View style={styles.recsSection}>
                         <Text style={styles.recsHeading}>Recommended</Text>
                         <View style={styles.recsPills}>
-                            {suggestedMods.map((m, i) => (
-                                <View key={`${m}-${i}`} style={styles.recPill}>
-                                    <Text style={styles.recPillText}>{formatSuggestedModuleTitle(m)}</Text>
-                                </View>
-                            ))}
+                            {suggestedMods.map((m, i) => {
+                                const meta = maxMeta(m);
+                                return (
+                                    <TouchableOpacity
+                                        key={`${m}-${i}`}
+                                        style={[styles.recPill, { backgroundColor: hexA(meta.color, 0.12), borderColor: hexA(meta.color, 0.30) }]}
+                                        activeOpacity={0.75}
+                                        onPress={() => { try { navigation.navigate('MaxxDetail', { maxxId: meta.id }); } catch { /* not in this stack */ } }}
+                                    >
+                                        <Ionicons name={meta.icon as any} size={14} color={meta.color} style={{ marginRight: 6 }} />
+                                        <Text style={[styles.recPillText, { color: meta.color }]}>{formatSuggestedModuleTitle(m)}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </View>
                     </View>
                 ) : null}
@@ -1179,7 +1193,14 @@ const styles = StyleSheet.create({
     },
 
     /* ── Stat rows ── */
-    statsBlock: { marginBottom: 28 },
+    statsBlock: {
+        marginBottom: 28,
+        backgroundColor: colors.card,
+        borderRadius: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        paddingHorizontal: 18,
+    },
     statRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -1190,16 +1211,28 @@ const styles = StyleSheet.create({
     },
     statRowFirst: { borderTopWidth: 0 },
     statLabel: {
-        fontSize: 13,
-        fontWeight: '400',
+        fontFamily: fonts.sans,
+        fontSize: 13.5,
         color: colors.textMuted,
         letterSpacing: 0.2,
     },
     statValue: {
+        fontFamily: fonts.sansSemiBold,
         fontSize: 15,
-        fontWeight: '600',
         color: colors.foreground,
         letterSpacing: -0.2,
+    },
+    tierBadge: {
+        backgroundColor: 'rgba(201,162,78,0.16)',
+        paddingHorizontal: 11,
+        paddingVertical: 3,
+        borderRadius: 999,
+    },
+    tierBadgeText: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 13.5,
+        color: '#8A6D1E',
+        letterSpacing: -0.1,
     },
 
     /* ── Recommended ── */
@@ -1219,15 +1252,17 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     recPill: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 9,
+        paddingHorizontal: 14,
         borderRadius: borderRadius.full,
         borderWidth: 1,
         borderColor: 'rgba(0,0,0,0.1)',
     },
     recPillText: {
-        fontSize: 12,
-        fontWeight: '500',
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 13,
         color: colors.foreground,
         letterSpacing: 0.1,
     },

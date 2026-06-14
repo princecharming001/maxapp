@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { colors, fonts } from '../../theme/dark';
 
 interface Props {
@@ -25,22 +25,24 @@ function creepCeiling(step: number): number {
     return 100;
 }
 
-// Ring geometry — one calm progress circle, ink on a faint track, matching the
-// onboarding's thin-progress language (just wrapped into a circle here).
-const RING = 212;
-const R = 96;
-const CIRC = 2 * Math.PI * R;
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+// The rotating marble bust (Higgsfield turntable, baked on the cream canvas so
+// it floats seamlessly). It IS the loader — a slow 360° spin while we analyze.
+const BUST = require('../../assets/bust_rotate.mp4');
+const BUST_SIZE = 248;
+const TRACK_W = 232;
 
 export default function AnalyzingScreen({ currentStep = 0 }: Props) {
     const progressAnim = useRef(new Animated.Value(0)).current;
     const [pct, setPct] = useState(0);
     const highWater = useRef(0);
     const activeAnim = useRef<Animated.CompositeAnimation | null>(null);
+    const fadeAnim = useRef(new Animated.Value(0.5)).current;
 
-    const fadeAnim = useRef(new Animated.Value(0.45)).current;
-    const haloSpin = useRef(new Animated.Value(0)).current;
-    const heroBreath = useRef(new Animated.Value(1)).current;
+    const player = useVideoPlayer(BUST, (p) => {
+        p.loop = true;
+        p.muted = true;
+        p.play();
+    });
 
     // Keep the displayed % monotonically increasing.
     useEffect(() => {
@@ -99,96 +101,46 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
         return () => { activeAnim.current?.stop(); };
     }, [currentStep, progressAnim]);
 
-    // Gentle breathing on the step label.
+    // Gentle breathing on the caption.
     useEffect(() => {
         const loop = Animated.loop(
             Animated.sequence([
-                Animated.timing(fadeAnim, { toValue: 0.85, duration: 2000, useNativeDriver: true }),
-                Animated.timing(fadeAnim, { toValue: 0.45, duration: 2000, useNativeDriver: true }),
+                Animated.timing(fadeAnim, { toValue: 0.9, duration: 1900, useNativeDriver: true }),
+                Animated.timing(fadeAnim, { toValue: 0.5, duration: 1900, useNativeDriver: true }),
             ]),
         );
         loop.start();
         return () => loop.stop();
     }, [fadeAnim]);
 
-    // A single faint dotted halo, turning slowly — calm sense of motion.
-    useEffect(() => {
-        const spin = Animated.loop(
-            Animated.timing(haloSpin, {
-                toValue: 1, duration: 26000, easing: Easing.linear, useNativeDriver: true,
-            }),
-        );
-        spin.start();
-        return () => spin.stop();
-    }, [haloSpin]);
-
-    // Very gentle scale breath on the number cluster.
-    useEffect(() => {
-        const loop = Animated.loop(
-            Animated.sequence([
-                Animated.timing(heroBreath, {
-                    toValue: 1.02, duration: 3200, easing: Easing.inOut(Easing.quad), useNativeDriver: true,
-                }),
-                Animated.timing(heroBreath, {
-                    toValue: 1, duration: 3200, easing: Easing.inOut(Easing.quad), useNativeDriver: true,
-                }),
-            ]),
-        );
-        loop.start();
-        return () => loop.stop();
-    }, [heroBreath]);
-
-    const dashOffset = progressAnim.interpolate({
-        inputRange: [0, 100], outputRange: [CIRC, 0], extrapolate: 'clamp',
+    const fillWidth = progressAnim.interpolate({
+        inputRange: [0, 100], outputRange: [0, TRACK_W], extrapolate: 'clamp',
     });
-    const haloRot = haloSpin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
     const label = STEP_LABELS[Math.min(currentStep, STEP_LABELS.length - 1)];
 
     return (
         <View style={st.container}>
             <View style={st.center}>
-                <View style={st.ringWrap}>
-                    {/* faint dotted halo, slowly turning */}
-                    <Animated.View style={[st.halo, { transform: [{ rotate: haloRot }] }]} pointerEvents="none">
-                        <Svg width={RING + 44} height={RING + 44}>
-                            <Circle
-                                cx={(RING + 44) / 2}
-                                cy={(RING + 44) / 2}
-                                r={(RING + 44) / 2 - 4}
-                                fill="none"
-                                stroke="rgba(28,26,23,0.07)"
-                                strokeWidth={1.5}
-                                strokeLinecap="round"
-                                strokeDasharray="1.5 13"
-                            />
-                        </Svg>
-                    </Animated.View>
+                {/* Rotating marble bust — the loader's hero. Cream-on-cream so it floats. */}
+                <VideoView
+                    style={st.bust}
+                    player={player}
+                    contentFit="contain"
+                    nativeControls={false}
+                    allowsFullscreen={false}
+                    allowsPictureInPicture={false}
+                    pointerEvents="none"
+                />
 
-                    {/* progress ring — ink on a faint track, starting at top */}
-                    <Svg width={RING} height={RING} style={st.ring}>
-                        <Circle
-                            cx={RING / 2} cy={RING / 2} r={R}
-                            fill="none" stroke="rgba(28,26,23,0.08)" strokeWidth={4}
-                        />
-                        <AnimatedCircle
-                            cx={RING / 2} cy={RING / 2} r={R}
-                            fill="none" stroke={colors.foreground} strokeWidth={4}
-                            strokeLinecap="round"
-                            strokeDasharray={`${CIRC} ${CIRC}`}
-                            strokeDashoffset={dashOffset}
-                        />
-                    </Svg>
+                <Animated.Text style={[st.label, { opacity: fadeAnim }]}>{label}</Animated.Text>
 
-                    {/* centered percentage */}
-                    <Animated.View style={[st.heroNums, { transform: [{ scale: heroBreath }] }]} pointerEvents="none">
-                        <Text style={st.num}>{pct}</Text>
-                        <Text style={st.pctSign}>%</Text>
-                    </Animated.View>
+                <View style={st.barRow}>
+                    <View style={st.track}>
+                        <Animated.View style={[st.fill, { width: fillWidth }]} />
+                    </View>
+                    <Text style={st.pct}>{pct}%</Text>
                 </View>
 
-                <Animated.Text style={[st.stepText, { opacity: fadeAnim }]}>
-                    {label}
-                </Animated.Text>
                 <Text style={st.hint}>Keep the app open. This takes a second.</Text>
             </View>
         </View>
@@ -206,54 +158,51 @@ const st = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 32,
     },
-    ringWrap: {
-        width: RING,
-        height: RING,
-        justifyContent: 'center',
-        alignItems: 'center',
+    bust: {
+        width: BUST_SIZE,
+        height: BUST_SIZE,
+        backgroundColor: 'transparent',
     },
-    halo: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    ring: {
-        position: 'absolute',
-        transform: [{ rotate: '-90deg' }],
-    },
-    heroNums: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-    },
-    num: {
-        fontFamily: fonts.sansSemiBold,
-        fontSize: 66,
-        color: colors.foreground,
-        letterSpacing: -3.5,
-        includeFontPadding: false,
-    },
-    pctSign: {
+    label: {
         fontFamily: fonts.sansMedium,
-        fontSize: 20,
-        color: colors.textMuted,
-        marginLeft: 3,
-        marginTop: 12,
-        opacity: 0.6,
-    },
-    stepText: {
-        fontFamily: fonts.sans,
-        fontSize: 14,
+        fontSize: 15,
         color: colors.foreground,
-        textAlign: 'center',
         letterSpacing: 0.2,
-        marginTop: 44,
+        marginTop: 30,
+    },
+    barRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginTop: 18,
+        width: TRACK_W + 48,
+    },
+    track: {
+        flex: 1,
+        height: 3,
+        borderRadius: 2,
+        backgroundColor: 'rgba(28,26,23,0.08)',
+        overflow: 'hidden',
+    },
+    fill: {
+        height: '100%',
+        borderRadius: 2,
+        backgroundColor: colors.foreground,
+    },
+    pct: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 13,
+        color: colors.textMuted,
+        width: 36,
+        textAlign: 'right',
+        letterSpacing: -0.2,
     },
     hint: {
         fontFamily: fonts.sans,
         fontSize: 12,
         color: colors.textMuted,
         textAlign: 'center',
-        marginTop: 7,
+        marginTop: 12,
         opacity: 0.7,
     },
 });

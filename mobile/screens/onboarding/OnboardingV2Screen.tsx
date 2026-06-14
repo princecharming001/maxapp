@@ -677,8 +677,9 @@ const styles = StyleSheet.create({
     rankBadge: { width: 24, height: 24, borderRadius: 12, backgroundColor: GOLD, alignItems: 'center', justifyContent: 'center' },
     rankText: { fontFamily: 'Matter-SemiBold', fontSize: 12, color: '#1C1A17' },
 
-    // steppers — borderless, calm numeral
-    shapeCard: { width: '100%' },
+    // steppers — borderless, calm numeral; kept in a compact centered column
+    // so the label + controls don't stretch edge-to-edge.
+    shapeCard: { width: '100%', maxWidth: 320, alignSelf: 'center' },
     hairline: { height: StyleSheet.hairlineWidth, backgroundColor: HAIR },
     stepperRow: {
         flexDirection: 'row',
@@ -693,7 +694,7 @@ const styles = StyleSheet.create({
         backgroundColor: WASH,
         alignItems: 'center', justifyContent: 'center',
     },
-    stepperValue: { fontFamily: 'Matter-SemiBold', fontSize: 17, color: INK, minWidth: 96, textAlign: 'center' },
+    stepperValue: { fontFamily: 'Matter-SemiBold', fontSize: 17, color: INK, minWidth: 80, textAlign: 'center' },
 
     workChip: {
         flexDirection: 'row',
@@ -729,7 +730,7 @@ const styles = StyleSheet.create({
     pillTextActive: { color: CREAM },
 
     // segmented — ink thumb on a faint wash
-    seg: { flexDirection: 'row', marginTop: 6, padding: 4, gap: 4, backgroundColor: WASH, borderRadius: 14 },
+    seg: { flexDirection: 'row', alignSelf: 'center', width: '100%', maxWidth: 320, marginTop: 6, padding: 4, gap: 4, backgroundColor: WASH, borderRadius: 14 },
     segItem: { flex: 1, paddingVertical: 11, alignItems: 'center', borderRadius: 10 },
     segItemActive: { backgroundColor: INK },
     segText: { fontFamily: 'Matter-Medium', fontSize: 14, color: SUB },

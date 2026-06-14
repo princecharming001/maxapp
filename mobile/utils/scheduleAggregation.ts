@@ -42,6 +42,44 @@ export function fallbackColor(key: string): string {
   return FALLBACK_MODULE_COLORS[Math.abs(h) % FALLBACK_MODULE_COLORS.length];
 }
 
+/** Each maxx's representative Ionicons glyph (the "color pocket" icon). */
+const DEFAULT_MAXX_ICONS: Record<string, string> = {
+  skinmax: 'sparkles-outline',
+  hairmax: 'cut-outline',
+  fitmax: 'fitness-outline',
+  bonemax: 'body-outline',
+  heightmax: 'resize-outline',
+};
+
+/**
+ * One-import color-pocket metadata for a maxx id. The canonical color/icon/label
+ * the whole UI should pull from so every screen tints from the same source.
+ */
+export function maxMeta(raw: unknown): { id: string; color: string; icon: string; label: string } {
+  const id = normalizeMaxxId(raw);
+  return {
+    id,
+    color: DEFAULT_MAXX_COLORS[id] || fallbackColor(id || 'x'),
+    icon: DEFAULT_MAXX_ICONS[id] || 'ellipse-outline',
+    label: DEFAULT_MAXX_LABELS[id] || (id ? id.charAt(0).toUpperCase() + id.slice(1) : 'Max'),
+  };
+}
+
+export function maxColor(raw: unknown): string {
+  return maxMeta(raw).color;
+}
+
+/** hex (#RGB or #RRGGBB) + 0..1 alpha -> rgba() string. For tinted color pockets. */
+export function hexA(hex: string, alpha: number): string {
+  let h = (hex || '').replace('#', '');
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const n = parseInt(h || '000000', 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export type MergedScheduleTask = {
   task_id: string;
   time: string;
