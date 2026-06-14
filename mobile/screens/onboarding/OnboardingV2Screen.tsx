@@ -114,6 +114,10 @@ const LOCATIONS = [
 ] as const;
 
 const COMMUTES = [15, 30, 45, 60] as const;
+// How long the user takes to get ready in the morning. Sizes the AM routine
+// block on the backend (schedule_dsl.build_anchor_overrides) and pushes the
+// post-routine / AM-active windows later, so longer-prep mornings aren't crammed.
+const GET_READY_DURATIONS = [15, 30, 45, 60] as const;
 
 const WORKOUT_LABEL: Record<string, string> = {
     before_work: 'Before work',
@@ -203,6 +207,7 @@ export default function OnboardingV2Screen() {
     const [motivation, setMotivation] = useState<string | null>(null);
     const [wakeMin, setWakeMin] = useState(7 * 60);
     const [getReadyMin, setGetReadyMin] = useState(7 * 60 + 30);
+    const [getReadyMinutes, setGetReadyMinutes] = useState(30);
     const [sleepMin, setSleepMin] = useState(23 * 60);
     const [works, setWorks] = useState(true);
     const [workStartMin, setWorkStartMin] = useState(9 * 60);
@@ -238,6 +243,7 @@ export default function OnboardingV2Screen() {
                 motivation,
                 wake_time: hhmm(wakeMin),
                 get_ready_time: hhmm(getReadyMin),
+                get_ready_minutes: getReadyMinutes,
                 sleep_time: hhmm(sleepMin),
                 obligations: works
                     ? [{ label: 'Work', start: hhmm(workStartMin), end: hhmm(workEndMin), days: 'weekdays' }]
@@ -267,7 +273,7 @@ export default function OnboardingV2Screen() {
 
     const recap: { icon: string; label: string; value: string }[] = [
         { icon: 'sunny-outline', label: 'Wake', value: fmt12(wakeMin) },
-        { icon: 'water-outline', label: 'Get ready', value: fmt12(getReadyMin) },
+        { icon: 'water-outline', label: 'Get ready', value: `${fmt12(getReadyMin)} · ${getReadyMinutes} min` },
         ...(works
             ? [{ icon: 'briefcase-outline', label: 'Work', value: `${fmt12(workStartMin)} – ${fmt12(workEndMin)}` }]
             : []),
@@ -361,11 +367,24 @@ export default function OnboardingV2Screen() {
                         <TimeStepper label="Wake around" value={wakeMin} onChange={setWakeMin} />
                         <View style={styles.hairline} />
                         <TimeStepper label="Get ready around" value={getReadyMin} onChange={setGetReadyMin} />
+                        <View style={styles.readyDurRow}>
+                            <Text style={styles.readyDurLabel}>How long to get ready?</Text>
+                            <View style={styles.pillRow}>
+                                {GET_READY_DURATIONS.map((d) => (
+                                    <Pill
+                                        key={d}
+                                        label={d === 60 ? '60+ min' : `${d} min`}
+                                        active={getReadyMinutes === d}
+                                        onPress={() => setGetReadyMinutes(d)}
+                                    />
+                                ))}
+                            </View>
+                        </View>
                         <View style={styles.hairline} />
                         <TimeStepper label="Wind down around" value={sleepMin} onChange={setSleepMin} />
                     </View>
                     <Text style={styles.helpNote}>
-                        When your AM skin, hair, and mewing routine lands.
+                        When your AM skin, hair, and mewing routine lands — and how much room it gets.
                     </Text>
                 </View>
             ),
@@ -690,6 +709,8 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
     },
     stepperLabel: { fontFamily: 'Matter-Medium', fontSize: 15.5, color: INK },
+    readyDurRow: { paddingBottom: 14, paddingTop: 2 },
+    readyDurLabel: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE, textAlign: 'center', marginBottom: 2 },
     stepperControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     stepBtn: {
         width: 38, height: 38, borderRadius: 19,

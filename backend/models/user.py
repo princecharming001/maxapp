@@ -189,6 +189,9 @@ class OnboardingData(BaseModel):
     get_ready_time: Optional[str] = Field(
         default=None, description="HH:MM 24h — when the user gets ready / showers in the morning; anchors the AM bathroom routine (skin/hair/mewing)"
     )
+    get_ready_minutes: Optional[int] = Field(
+        default=None, description="How long the user takes to get ready in the morning, in minutes (clamped 10–90 by the scheduler). Sizes the AM morning_routine block and shifts the post-routine/AM-active windows later, so people who take longer to get ready get a roomier morning. Omitted = the biology default (~25 min)."
+    )
     screen_hours_daily: Optional[str] = None
     scan_suggested_hair_focus: Optional[bool] = Field(
         default=None, description="True if latest scan metrics hinted at hair as a weak area"

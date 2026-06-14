@@ -75,8 +75,16 @@ function hydrateFromOnboarding(ob: Record<string, any>) {
     // We only ever persist a concrete time when the user explicitly picks one,
     // so users who don't care keep the smart biology-anchored defaults.
     getReadyTime: (ob.get_ready_time as string | undefined) || null,
+    // How long getting ready takes (minutes). Sizes the AM routine block on the
+    // backend; changing it re-shapes the schedule. Default 30 when unset.
+    getReadyMinutes:
+      typeof ob.get_ready_minutes === 'number' && ob.get_ready_minutes > 0
+        ? ob.get_ready_minutes
+        : 30,
   };
 }
+
+const GET_READY_DURATIONS = [15, 30, 45, 60] as const;
 
 type TimePickerKey = 'wake' | 'getReady' | 'sleep';
 
@@ -141,6 +149,7 @@ export default function EditPersonalScreen() {
   const [wakeTime, setWakeTime] = useState(v2.wakeTime);
   const [sleepTime, setSleepTime] = useState(v2.sleepTime);
   const [getReadyTime, setGetReadyTime] = useState<string | null>(v2.getReadyTime);
+  const [getReadyMinutes, setGetReadyMinutes] = useState<number>(v2.getReadyMinutes);
 
   const movePriority = useCallback((index: number, dir: -1 | 1) => {
     const j = index + dir;
@@ -182,6 +191,7 @@ export default function EditPersonalScreen() {
     setWakeTime(h.wakeTime);
     setSleepTime(h.sleepTime);
     setGetReadyTime(h.getReadyTime);
+    setGetReadyMinutes(h.getReadyMinutes);
   }, [user]);
 
   const handleSave = async () => {
@@ -240,6 +250,10 @@ export default function EditPersonalScreen() {
       // Precise anchors — only persist a concrete time when the user set one;
       // null clears back to auto so the coach derives it from wake/sleep.
       get_ready_time: getReadyTime ? hhmm(getReadyTime) : null,
+      // Duration sizes the AM routine block (and shifts later windows) whether
+      // the start time is pinned or left on Auto — so editing it always reshapes
+      // the schedule.
+      get_ready_minutes: getReadyMinutes,
       // The workout WINDOW and recurring commitments (work/school) are owned by
       // the Day Planner now — work is just an obligation, the workout is a range.
       // We deliberately DON'T write preferred_workout_time / preferred_workout_window
@@ -556,6 +570,37 @@ export default function EditPersonalScreen() {
                   'Anchors your morning routine.',
                   'water-outline',
                 )}
+                <View style={styles.timeBlock}>
+                  <View style={styles.anchorLabelRow}>
+                    <Ionicons name="time-outline" size={13} color={colors.textMuted} style={{ marginRight: 6 }} />
+                    <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0 }]}>
+                      How long to get ready
+                    </Text>
+                  </View>
+                  <View style={styles.anchorSeg}>
+                    {GET_READY_DURATIONS.map((d) => {
+                      const on = getReadyMinutes === d;
+                      return (
+                        <TouchableOpacity
+                          key={d}
+                          style={[styles.anchorSegItem, on && styles.anchorSegItemOn]}
+                          activeOpacity={0.8}
+                          onPress={() => setGetReadyMinutes(d)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: on }}
+                          accessibilityLabel={`${d} minutes to get ready`}
+                        >
+                          <Text style={[styles.anchorSegText, on && styles.anchorSegTextOn]}>
+                            {d === 60 ? '60+' : d}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.anchorAutoHint}>
+                    Longer prep gives your morning routine more room before the rest of your day.
+                  </Text>
+                </View>
                 {timeRow('Bed', 'sleep', sleepTime, setSleepTime)}
                 <TouchableOpacity
                   style={styles.plannerPointer}

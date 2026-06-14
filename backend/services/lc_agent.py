@@ -303,6 +303,30 @@ async def _persist_onboarding_clock(user, db, key: str, value) -> bool:
     return True
 
 
+async def _persist_get_ready_minutes(user, db, value) -> bool:
+    """Persist the morning get-ready DURATION (minutes) onto user.onboarding —
+    same canonical store the Edit-Lifestyle UI reads/writes, so the chatbot and
+    the UI never diverge. Clamped to [10, 90]. Returns True if changed; caller
+    triggers regen."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    if not user:
+        return False
+    try:
+        mins = int(round(float(str(value).strip())))
+    except (TypeError, ValueError):
+        return False
+    mins = max(10, min(90, mins))
+    ob = dict(user.onboarding or {})
+    if ob.get("get_ready_minutes") == mins:
+        return False
+    ob["get_ready_minutes"] = mins
+    user.onboarding = ob
+    flag_modified(user, "onboarding")
+    await db.flush()
+    return True
+
+
 # ---------------------------------------------------------------------------
 # System prompt builder
 # ---------------------------------------------------------------------------
@@ -1582,7 +1606,12 @@ def make_chat_tools(
             FitMax/HeightMax and every other maxx at once
           - get_ready_time (HH:MM), when they shower/get ready; re-anchors the
             morning skin/hair/mewing routine across maxes
-        Pass a clock time like "18:00" or "6:30 pm" for the timing keys.
+          - get_ready_minutes (int 10-90), HOW LONG they take to get ready;
+            sizes the morning routine block and pushes the rest of the AM later,
+            so someone who needs longer gets a roomier morning. Use this when the
+            user says things like "I take 45 min to get ready in the morning".
+        Pass a clock time like "18:00" or "6:30 pm" for the clock keys, and a
+        plain number of minutes (e.g. "45") for get_ready_minutes.
         """
         try:
             from services.user_context_service import merge_context, append_to_list
@@ -1592,6 +1621,13 @@ def make_chat_tools(
                 sk = value if "sleep" in lk else None
                 async with db_mutation_lock:
                     await _persist_user_wake_sleep(user, db, wk, sk)
+            elif lk in ("get_ready_minutes", "get_ready_duration", "get_ready_mins"):
+                # Morning get-ready DURATION (minutes) — persist to the canonical
+                # onboarding field so the UI and future generations agree, then
+                # fall through to the regen below.
+                async with db_mutation_lock:
+                    await _persist_get_ready_minutes(user, db, value)
+                lk = "get_ready_minutes"
             elif lk in _TIMING_ANCHOR_KEYS:
                 # Precise day anchors (workout / get-ready) — persist to the
                 # canonical onboarding field so the UI and future generations

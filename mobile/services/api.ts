@@ -707,6 +707,7 @@ class ApiService {
         work_start?: string | null;
         work_end?: string | null;
         get_ready_time?: string | null;
+        get_ready_minutes?: number | null;
         preferred_workout_time?: string | null;
         // `days` is the recurrence: 'all' | 'weekdays' | 'weekends' | a list of
         // weekday names. Typed loosely here (string | string[]) since this is the

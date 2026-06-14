@@ -537,6 +537,36 @@ def _shift_clock(hhmm: str, minutes: int) -> str:
     return from_minutes(base + minutes).strftime("%H:%M")
 
 
+# How long the user takes to get ready in the morning, in minutes. Sizes the
+# AM `morning_routine` block (see build_anchor_overrides). Default matches the
+# historical hard-coded 25-min block so users who never answer see no change;
+# real answers are clamped to a sane band.
+_DEFAULT_GET_READY_MIN = 25
+_MIN_GET_READY_MIN = 10
+_MAX_GET_READY_MIN = 90
+
+
+def _get_ready_minutes(state: dict[str, Any]) -> int:
+    """Clamp the user's stated get-ready duration to [10, 90]; default 25.
+
+    Accepts an int or a numeric string. Anything missing/unparseable falls back
+    to the biology default so the morning block keeps its prior 25-min size."""
+    v = state.get("get_ready_minutes")
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return _DEFAULT_GET_READY_MIN
+    try:
+        n = int(round(float(v)))
+    except (TypeError, ValueError):
+        return _DEFAULT_GET_READY_MIN
+    return max(_MIN_GET_READY_MIN, min(_MAX_GET_READY_MIN, n))
+
+
+def _wake_plus(minutes: int) -> str:
+    """Format a wake-relative anchor expression, e.g. 65 -> 'wake+1:05'."""
+    minutes = max(0, minutes)
+    return f"wake+{minutes // 60}:{minutes % 60:02d}"
+
+
 # Maxes whose evening (`pm_active`) block is PHYSICAL TRAINING — for these the
 # workout anchor also re-times that block (HeightMax's dead-hang / foam-roll,
 # FitMax's form-check). For skin/hair the `pm_active` alias means evening
@@ -591,14 +621,36 @@ def build_anchor_overrides(
             out["pm_active"] = [workout, _shift_clock(workout, 90)]
 
     # --- Morning get-ready / shower anchor — drives the AM bathroom routine.
+    # The DURATION (how long the user takes to get ready) sizes the bathroom
+    # block and pushes everything after it — supplements/breakfast (post_routine)
+    # and the AM-active window — later by the same amount. So someone who needs
+    # an hour to get ready gets a roomier morning instead of a crammed one.
+    #
+    #   morning_routine = [start,          start + dur]          (AM skin/hair/mewing)
+    #   post_routine    = [start + dur,    start + dur + 30]     (supplements + breakfast)
+    #   am_active       = [start + dur,    start + dur + 50]     (legacy alias, wider)
+    #
+    # When the user PINNED a get-ready clock time, `start` is that time. When
+    # they only chose a duration (left the time on Auto), we keep the biology
+    # default start (wake + 5 min) and just resize the wake-anchored block — so
+    # changing the duration still re-shapes the schedule either way.
+    dur = _get_ready_minutes(state)
     get_ready = (
         clock_or_none(state.get("get_ready_time"))
         or clock_or_none(state.get("shower_time"))
     )
     if get_ready:
-        out["morning_routine"] = [get_ready, _shift_clock(get_ready, 25)]
-        out["am_open"] = [get_ready, _shift_clock(get_ready, 25)]    # legacy alias
-        out["post_routine"] = [_shift_clock(get_ready, 25), _shift_clock(get_ready, 55)]
-        out["am_active"] = [_shift_clock(get_ready, 25), _shift_clock(get_ready, 75)]  # legacy alias
+        out["morning_routine"] = [get_ready, _shift_clock(get_ready, dur)]
+        out["am_open"] = [get_ready, _shift_clock(get_ready, dur)]    # legacy alias
+        out["post_routine"] = [_shift_clock(get_ready, dur), _shift_clock(get_ready, dur + 30)]
+        out["am_active"] = [_shift_clock(get_ready, dur), _shift_clock(get_ready, dur + 50)]  # legacy alias
+    elif dur != _DEFAULT_GET_READY_MIN:
+        # No pinned time, but a non-default duration → resize the wake-anchored
+        # default morning block (start = wake+5) and shift the rest down.
+        head = 5
+        out["morning_routine"] = [_wake_plus(head), _wake_plus(head + dur)]
+        out["am_open"] = [_wake_plus(head), _wake_plus(head + dur)]
+        out["post_routine"] = [_wake_plus(head + dur), _wake_plus(head + dur + 30)]
+        out["am_active"] = [_wake_plus(head + dur), _wake_plus(head + dur + 50)]
 
     return out
