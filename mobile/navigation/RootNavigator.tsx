@@ -163,6 +163,10 @@ export function RootNavigator() {
                     <Stack.Screen name="Main" component={TabNavigator} />
                     <Stack.Screen name="FaceScan" component={FaceScanScreen} />
                     <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} />
+                    {/* Locked scan results can show "Unlock full results" here too, so
+                        Payment must be reachable from this stack — not just the funnel. */}
+                    <Stack.Screen name="Payment" component={PaymentScreen} />
+                    <Stack.Screen name="PaymentThankYou" component={PaymentThankYouScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="SmsCoachingIntro" component={SmsCoachingIntroScreen} />
                     <Stack.Screen name="SendblueConnect" component={SendblueConnectScreen} />
                     <Stack.Screen name="SmsSetup" component={SmsSetupScreen} />
