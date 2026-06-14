@@ -110,21 +110,28 @@ export default function ObligationsManager({
 
   // Confirm before deleting so a stray tap on the "x" or "Remove" never wipes a
   // commitment instantly. Runs `after` (e.g. close the editor) once removed.
+  // Alert.alert's button callbacks don't fire on react-native-web, so fall back
+  // to window.confirm there — otherwise the "×" silently does nothing on web.
   const confirmRemove = (idx: number, after?: () => void) => {
     const name = obligations[idx]?.label || 'this commitment';
+    const doRemove = () => {
+      remove(idx);
+      after?.();
+    };
+    if (Platform.OS === 'web') {
+      const ok =
+        typeof window === 'undefined' ||
+        // eslint-disable-next-line no-alert
+        window.confirm(`Remove "${name}"? This takes it off your week.`);
+      if (ok) doRemove();
+      return;
+    }
     Alert.alert(
       'Remove commitment?',
       `This takes "${name}" off your week.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            remove(idx);
-            after?.();
-          },
-        },
+        { text: 'Remove', style: 'destructive', onPress: doRemove },
       ],
       { cancelable: true },
     );
@@ -213,7 +220,11 @@ export default function ObligationsManager({
                   </View>
                 </View>
                 <TouchableOpacity
-                  onPress={() => confirmRemove(idx)}
+                  onPress={(e) => {
+                    // Don't let the tap bubble to the row and open the editor.
+                    e?.stopPropagation?.();
+                    confirmRemove(idx);
+                  }}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   style={styles.rowDelete}
                   accessibilityRole="button"

@@ -190,7 +190,9 @@ export default function DayTimeline({
                 {r.sub ? <Text style={styles.sub}>{r.sub}</Text> : null}
               </View>
               {onPress ? (
-                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                <View style={styles.chev}>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                </View>
               ) : null}
             </View>
           </TouchableOpacity>
@@ -231,6 +233,13 @@ const styles = StyleSheet.create({
   blockOb: {},
   iconTile: {
     width: 24,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Same 22px height as the leading icon so the chevron centers on the label's
+  // first line instead of top-aligning above it.
+  chev: {
     height: 22,
     alignItems: 'center',
     justifyContent: 'center',
