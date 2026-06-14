@@ -7,6 +7,9 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { CachedImage } from '../../components/CachedImage';
+import Svg, { Polyline, Circle as SvgCircle } from 'react-native-svg';
+import SectionLabel from '../../components/SectionLabel';
+import AchievementBadge from '../../components/achievements/AchievementBadge';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { formatFaceRatingLabel } from '../../utils/faceRatingLabel';
 import { useMaxxesQuery } from '../../hooks/useAppQueries';
@@ -27,6 +30,62 @@ function formatProgressDate(dateStr: string): string {
     return `${months[d.getMonth()]} ${day}${suffix} ${d.getFullYear()}`;
 }
 
+const GOLD = '#C9A24E';
+
+// Pull a clean ascending time-series of face scores out of the (untyped) scan
+// history payload, defending against the several shapes the score can take.
+function parseScanPoints(raw: any): { score: number; at?: string }[] {
+    const list = raw?.scans ?? raw?.history ?? (Array.isArray(raw) ? raw : []) ?? [];
+    const pts = (list as any[])
+        .map((s) => {
+            const score = Number(
+                s?.overall_score ?? s?.rating ?? s?.score ?? s?.analysis?.psl_rating?.appeal ?? s?.psl_rating?.appeal,
+            );
+            return Number.isFinite(score) ? { score, at: s?.created_at as string | undefined } : null;
+        })
+        .filter(Boolean) as { score: number; at?: string }[];
+    pts.sort((a, b) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime());
+    return pts;
+}
+
+// One at-a-glance number + its label. Optionally tappable.
+function StatCell({ value, label, gold, onPress }: { value: string; label: string; gold?: boolean; onPress?: () => void }) {
+    const inner = (
+        <>
+            <Text style={[styles.statNum, gold && { color: GOLD }]}>{value}</Text>
+            <Text style={styles.statLabel}>{label}</Text>
+        </>
+    );
+    if (onPress) {
+        return (
+            <TouchableOpacity style={styles.statCell} onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${value} ${label}`}>
+                {inner}
+            </TouchableOpacity>
+        );
+    }
+    return <View style={styles.statCell}>{inner}</View>;
+}
+
+// Minimal axis-less sparkline of the score trend; last point dotted in gold.
+function Sparkline({ points }: { points: number[] }) {
+    const W = 100, H = 46, pad = 5;
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    const span = max - min || 1;
+    const coords = points.map((p, i) => {
+        const x = pad + (i / (points.length - 1)) * (W - pad * 2);
+        const y = H - pad - ((p - min) / span) * (H - pad * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const [lx, ly] = coords[coords.length - 1].split(',').map(Number);
+    return (
+        <Svg width={W} height={H}>
+            <Polyline points={coords.join(' ')} fill="none" stroke={colors.foreground} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            <SvgCircle cx={lx} cy={ly} r={2.6} fill={GOLD} />
+        </Svg>
+    );
+}
+
 export default function ProfileScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
@@ -42,6 +101,8 @@ export default function ProfileScreen() {
     }, [maxxesQuery.data, user?.onboarding?.goals]);
     const [loading, setLoading] = useState(true);
     const [progressPhotos, setProgressPhotos] = useState<any[]>([]);
+    const [achievements, setAchievements] = useState<any | null>(null);
+    const [scanPts, setScanPts] = useState<{ score: number; at?: string }[]>([]);
     const [progressModalVisible, setProgressModalVisible] = useState(false);
     const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number>(0);
     const [uploadingProgress, setUploadingProgress] = useState(false);
@@ -61,8 +122,14 @@ export default function ProfileScreen() {
 
     const loadData = async () => {
         try {
-            const progressRes = await api.getProgressPhotos().catch(() => ({ photos: [] }));
+            const [progressRes, achRes, scanRes] = await Promise.all([
+                api.getProgressPhotos().catch(() => ({ photos: [] })),
+                api.getAchievements().catch(() => null),
+                api.getScanHistory().catch(() => null),
+            ]);
             setProgressPhotos(progressRes.photos || []);
+            setAchievements(achRes);
+            setScanPts(parseScanPoints(scanRes));
         } catch (e) {
             console.error(e);
         } finally {
@@ -295,6 +362,21 @@ export default function ProfileScreen() {
         </ScrollView>
     );
 
+    const summary = user?.onboarding?.facial_scan_summary;
+    const faceScore = typeof summary?.overall_score === 'number' ? summary.overall_score : null;
+    const potential = typeof summary?.potential_score === 'number' ? summary.potential_score : null;
+    const archetype = summary?.archetype;
+    const streak = user?.profile?.master_schedule_streak ?? user?.profile?.streak_days ?? 0;
+    const photoCount = progressPhotos.length;
+    const firstScore = scanPts.length ? scanPts[0].score : null;
+    const scoreDelta = faceScore != null && firstScore != null ? +(faceScore - firstScore).toFixed(1) : null;
+    const achList: any[] = achievements?.achievements ?? [];
+    const earnedAch = achList.filter((a) => a.earned);
+    const nextAch = achList
+        .filter((a) => !a.earned && a.progress)
+        .sort((a, b) => (b.progress.current / b.progress.target) - (a.progress.current / a.progress.target))[0];
+    const stripAch = [...earnedAch, ...(nextAch ? [nextAch] : [])].slice(0, 8);
+
     return (
         <View style={styles.container}>
             <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 12) }]}>
@@ -329,6 +411,7 @@ export default function ProfileScreen() {
                         is no longer part of the app. Push notifications are
                         the default channel for paid users. */}
 
+                    {/* ── Identity ───────────────────────────────────── */}
                     <View style={styles.identitySection}>
                         <TouchableOpacity
                             onPress={handleEditPress}
@@ -345,6 +428,9 @@ export default function ProfileScreen() {
                                     </View>
                                 )}
                             </View>
+                            <View style={styles.avatarCam}>
+                                <Ionicons name="camera" size={13} color={colors.foreground} />
+                            </View>
                         </TouchableOpacity>
 
                         <Text style={styles.headerName}>
@@ -357,7 +443,11 @@ export default function ProfileScreen() {
 
                         {user?.profile?.bio ? (
                             <Text style={styles.headerBio}>{user.profile.bio}</Text>
-                        ) : null}
+                        ) : (
+                            <TouchableOpacity onPress={handleEditPress} activeOpacity={0.7}>
+                                <Text style={styles.headerBioGhost}>Add a one-liner</Text>
+                            </TouchableOpacity>
+                        )}
 
                         {activeMaxxes.length > 0 ? (
                             <View style={styles.maxxTagsRow}>
@@ -378,81 +468,176 @@ export default function ProfileScreen() {
                             </View>
                         ) : null}
 
-                        <View style={styles.actionsRow}>
-                            <TouchableOpacity
-                                style={styles.actionBtn}
-                                onPress={handleEditPress}
-                                activeOpacity={0.75}
-                                accessibilityRole="button"
-                                accessibilityLabel="Edit profile"
-                            >
-                                <Ionicons name="create-outline" size={15} color={colors.foreground} />
-                                <Text style={styles.actionBtnText}>Edit</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.actionBtn, styles.actionBtnFilled, uploadingProgress && styles.actionBtnDisabled]}
-                                onPress={uploadProgressImage}
-                                disabled={uploadingProgress}
-                                activeOpacity={0.75}
-                                accessibilityRole="button"
-                                accessibilityLabel={uploadingProgress ? 'Uploading progress photo' : 'Add progress photo'}
-                                accessibilityState={{ disabled: uploadingProgress }}
-                            >
-                                <Ionicons name="add" size={16} color={colors.card} />
-                                <Text style={styles.actionBtnFilledText}>
-                                    {uploadingProgress ? 'Uploading…' : 'Progress'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <TouchableOpacity
-                            style={styles.achievementsRow}
-                            onPress={() => navigation.navigate('Achievements')}
-                            activeOpacity={0.8}
-                            accessibilityRole="button"
-                            accessibilityLabel="Achievements"
-                        >
-                            <Ionicons name="trophy-outline" size={17} color={colors.foreground} />
-                            <Text style={styles.achievementsRowText}>Achievements</Text>
-                            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ marginLeft: 'auto' }} />
+                        <TouchableOpacity onPress={handleEditPress} hitSlop={8} activeOpacity={0.7}>
+                            <Text style={styles.editLink}>Edit profile</Text>
                         </TouchableOpacity>
                     </View>
 
-                    <View style={styles.gridDivider} />
+                    {/* ── At-a-glance stats ──────────────────────────── */}
+                    <View style={styles.statRow}>
+                        <StatCell value={String(streak)} label="DAY STREAK" gold />
+                        <View style={styles.statDivider} />
+                        <StatCell
+                            value={faceScore != null ? faceScore.toFixed(1) : '—'}
+                            label="FACE SCORE"
+                            onPress={onFaceScansPress}
+                        />
+                        <View style={styles.statDivider} />
+                        <StatCell
+                            value={String(photoCount)}
+                            label="PROGRESS PICS"
+                            onPress={() => (photoCount ? openProgressArchiveAt(0) : uploadProgressImage())}
+                        />
+                    </View>
 
-                    {progressPhotos.length === 0 ? (
-                        <TouchableOpacity
-                            style={styles.archiveEmpty}
-                            onPress={uploadProgressImage}
-                            activeOpacity={0.85}
-                            accessibilityRole="button"
-                            accessibilityLabel="Add your first progress photo"
-                        >
-                            <Ionicons name="images-outline" size={24} color={colors.textMuted} style={{ marginBottom: spacing.sm }} />
-                            <Text style={styles.archiveEmptyTitle}>No progress photos yet</Text>
-                            <Text style={styles.archiveEmptySub}>Tap to add your first shot</Text>
-                        </TouchableOpacity>
+                    {/* ── Face-score trend ───────────────────────────── */}
+                    {faceScore != null ? (
+                        <View style={styles.section}>
+                            <TouchableOpacity style={styles.scoreCard} onPress={onFaceScansPress} activeOpacity={0.85}>
+                                <View style={{ flex: 1 }}>
+                                    <View style={styles.scoreTopRow}>
+                                        <Text style={styles.scoreNum}>{faceScore.toFixed(1)}</Text>
+                                        {scoreDelta != null && scoreDelta !== 0 ? (
+                                            <Text style={[styles.scoreDelta, { color: scoreDelta > 0 ? colors.success : colors.error }]}>
+                                                {scoreDelta > 0 ? '+' : ''}{scoreDelta} since start
+                                            </Text>
+                                        ) : potential != null ? (
+                                            <Text style={styles.scoreDeltaMuted}>{potential.toFixed(1)} potential</Text>
+                                        ) : null}
+                                    </View>
+                                    {archetype ? <Text style={styles.scoreArchetype}>{archetype}</Text> : null}
+                                    <Text style={styles.scoreLink}>View all scans ›</Text>
+                                </View>
+                                {scanPts.length >= 2 ? <Sparkline points={scanPts.map((p) => p.score)} /> : null}
+                            </TouchableOpacity>
+                        </View>
                     ) : (
-                        <View style={styles.photoGrid}>
-                            {progressPhotos.map((item, index) => (
+                        <View style={styles.section}>
+                            <TouchableOpacity style={styles.scoreCardLocked} onPress={onFaceScansPress} activeOpacity={0.85}>
+                                <Ionicons name="scan-outline" size={20} color={colors.foreground} />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.scoreLockedTitle}>See your face score</Text>
+                                    <Text style={styles.scoreLockedSub}>Run a scan to track your rating over time.</Text>
+                                </View>
+                                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* ── Progress photos ────────────────────────────── */}
+                    <View style={styles.section}>
+                        <View style={styles.sectionHead}>
+                            <SectionLabel label="PROGRESS" style={styles.sectionLabelInline} />
+                            {photoCount ? <Text style={styles.sectionCount}>{photoCount}</Text> : null}
+                            <View style={{ flex: 1 }} />
+                            <TouchableOpacity
+                                style={[styles.addPill, uploadingProgress && styles.actionBtnDisabled]}
+                                onPress={uploadProgressImage}
+                                disabled={uploadingProgress}
+                                activeOpacity={0.8}
+                                accessibilityRole="button"
+                                accessibilityLabel={uploadingProgress ? 'Uploading progress photo' : 'Add progress photo'}
+                            >
+                                <Ionicons name="add" size={15} color={colors.card} />
+                                <Text style={styles.addPillText}>{uploadingProgress ? 'Uploading…' : 'Add'}</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {photoCount === 0 ? (
+                            <TouchableOpacity
+                                style={styles.emptyState}
+                                onPress={uploadProgressImage}
+                                activeOpacity={0.85}
+                                accessibilityRole="button"
+                                accessibilityLabel="Add your first progress photo"
+                            >
+                                <Ionicons name="camera-outline" size={26} color={colors.textMuted} style={{ marginBottom: 10 }} />
+                                <Text style={styles.emptyTitle}>Start your timeline</Text>
+                                <Text style={styles.emptySub}>Add a front-facing photo today. Take one each week to watch it change.</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <>
+                                <View style={styles.photoGrid}>
+                                    {progressPhotos.map((item, index) => (
+                                        <TouchableOpacity
+                                            key={item.id}
+                                            style={styles.photoGridItem}
+                                            onPress={() => openProgressArchiveAt(index)}
+                                            activeOpacity={0.9}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={`Progress photo ${index + 1}`}
+                                        >
+                                            <CachedImage uri={api.resolveAttachmentUrl(item.image_url)} style={styles.photoGridImage} />
+                                            {item.face_rating != null && Number.isFinite(Number(item.face_rating)) ? (
+                                                <Text style={styles.progressRatingBadge}>
+                                                    {formatFaceRatingLabel(Number(item.face_rating))}
+                                                </Text>
+                                            ) : null}
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                                <Text style={styles.privacyNote}>Your photos stay private to you.</Text>
+                            </>
+                        )}
+                    </View>
+
+                    {/* ── Active maxes ───────────────────────────────── */}
+                    {activeMaxxes.length > 0 ? (
+                        <View style={styles.section}>
+                            <SectionLabel label="YOUR MAXES" />
+                            {activeMaxxes.map((m: any, idx: number) => (
                                 <TouchableOpacity
-                                    key={item.id}
-                                    style={styles.photoGridItem}
-                                    onPress={() => openProgressArchiveAt(index)}
-                                    activeOpacity={0.9}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Progress photo ${index + 1}`}
+                                    key={m.id}
+                                    style={[styles.maxRow, idx > 0 && styles.maxRowBorder]}
+                                    onPress={() => navigation.navigate('MaxxDetail', { maxxId: m.id })}
+                                    activeOpacity={0.75}
                                 >
-                                    <CachedImage uri={api.resolveAttachmentUrl(item.image_url)} style={styles.photoGridImage} />
-                                    {item.face_rating != null && Number.isFinite(Number(item.face_rating)) ? (
-                                        <Text style={styles.progressRatingBadge}>
-                                            {formatFaceRatingLabel(Number(item.face_rating))}
-                                        </Text>
-                                    ) : null}
+                                    <View style={[styles.maxDot, { backgroundColor: normalizeMaxxTintHex(m.color) }]} />
+                                    <Text style={styles.maxLabel}>{getMaxxDisplayLabel(m)}</Text>
+                                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ marginLeft: 'auto' }} />
                                 </TouchableOpacity>
                             ))}
                         </View>
-                    )}
+                    ) : null}
+
+                    {/* ── Achievements ───────────────────────────────── */}
+                    <View style={styles.section}>
+                        <View style={styles.sectionHead}>
+                            <SectionLabel label="ACHIEVEMENTS" style={styles.sectionLabelInline} />
+                            <View style={{ flex: 1 }} />
+                            {achievements ? (
+                                <Text style={styles.sectionCount}>{achievements.earned_count} / {achievements.total}</Text>
+                            ) : null}
+                            <TouchableOpacity onPress={() => navigation.navigate('Achievements')} hitSlop={8} activeOpacity={0.7}>
+                                <Text style={styles.seeAll}>  See all ›</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {stripAch.length ? (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achStrip}>
+                                {stripAch.map((a: any) => (
+                                    <TouchableOpacity
+                                        key={a.code || a.title}
+                                        style={styles.achItem}
+                                        onPress={() => navigation.navigate('Achievements')}
+                                        activeOpacity={0.85}
+                                    >
+                                        <AchievementBadge
+                                            icon={a.icon}
+                                            tier={a.tier}
+                                            earned={a.earned}
+                                            size={58}
+                                            progress={a.progress ? a.progress.current / a.progress.target : null}
+                                        />
+                                        <Text style={styles.achItemLabel} numberOfLines={1}>{a.title}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        ) : (
+                            <TouchableOpacity onPress={() => navigation.navigate('Achievements')} activeOpacity={0.7}>
+                                <Text style={styles.emptySub}>Finish your first routine to earn your first badge ›</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
 
                     <View style={{ height: spacing.xxxl }} />
                 </Animated.ScrollView>
@@ -631,10 +816,10 @@ const styles = StyleSheet.create({
     },
     headerName: {
         fontFamily: fonts.serif,
-        fontSize: 22,
+        fontSize: 25,
         fontWeight: '400',
         color: colors.foreground,
-        letterSpacing: -0.3,
+        letterSpacing: -0.5,
         marginTop: spacing.md,
         textAlign: 'center',
     },
@@ -828,6 +1013,188 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
         textAlign: 'center',
         lineHeight: 18,
+    },
+
+    // ── Redesign: identity extras ───────────────────────────────────────
+    avatarCam: {
+        position: 'absolute',
+        right: -2,
+        bottom: -2,
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: colors.card,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerBioGhost: {
+        fontFamily: fonts.sans,
+        fontSize: 14,
+        color: colors.textMuted,
+        marginTop: spacing.sm,
+        textAlign: 'center',
+        textDecorationLine: 'underline',
+    },
+    editLink: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 13,
+        color: colors.foreground,
+        marginTop: spacing.md,
+        letterSpacing: 0.1,
+    },
+
+    // ── Stat row ─────────────────────────────────────────────────────────
+    statRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: spacing.lg,
+        marginTop: spacing.sm,
+        marginBottom: spacing.xl,
+        paddingVertical: spacing.lg,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.divider,
+    },
+    statCell: { flex: 1, alignItems: 'center' },
+    statNum: {
+        fontFamily: fonts.serif,
+        fontSize: 27,
+        color: colors.foreground,
+        letterSpacing: -0.5,
+    },
+    statLabel: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 10,
+        letterSpacing: 0.8,
+        color: colors.textMuted,
+        textTransform: 'uppercase',
+        marginTop: 4,
+    },
+    statDivider: {
+        width: StyleSheet.hairlineWidth,
+        alignSelf: 'stretch',
+        backgroundColor: colors.divider,
+    },
+
+    // ── Sections ─────────────────────────────────────────────────────────
+    section: {
+        paddingHorizontal: spacing.lg,
+        marginBottom: spacing.xl,
+    },
+    sectionHead: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: spacing.md,
+    },
+    sectionLabelInline: { marginBottom: 0 },
+    sectionCount: {
+        fontFamily: fonts.sansMedium,
+        fontSize: 12,
+        color: colors.textMuted,
+        marginLeft: 8,
+    },
+    seeAll: {
+        fontFamily: fonts.sansMedium,
+        fontSize: 13,
+        color: colors.foreground,
+    },
+
+    // ── Score card ───────────────────────────────────────────────────────
+    scoreCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        backgroundColor: colors.surfaceLight,
+        borderRadius: borderRadius.lg,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        padding: spacing.lg,
+    },
+    scoreTopRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+    scoreNum: {
+        fontFamily: fonts.serif,
+        fontSize: 34,
+        color: colors.foreground,
+        letterSpacing: -1,
+    },
+    scoreDelta: { fontFamily: fonts.sansSemiBold, fontSize: 12.5 },
+    scoreDeltaMuted: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textMuted },
+    scoreArchetype: {
+        fontFamily: fonts.sansMedium,
+        fontSize: 13.5,
+        color: colors.textSecondary,
+        marginTop: 2,
+    },
+    scoreLink: {
+        fontFamily: fonts.sansMedium,
+        fontSize: 13,
+        color: colors.foreground,
+        marginTop: 10,
+    },
+    scoreCardLocked: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        backgroundColor: colors.surfaceLight,
+        borderRadius: borderRadius.lg,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.lg,
+    },
+    scoreLockedTitle: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground },
+    scoreLockedSub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
+
+    // ── Add pill + privacy ───────────────────────────────────────────────
+    addPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: colors.foreground,
+        borderRadius: borderRadius.full,
+        paddingVertical: 7,
+        paddingHorizontal: 14,
+    },
+    addPillText: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: colors.card },
+    privacyNote: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.textMuted, marginTop: spacing.md },
+
+    // ── Empty state ──────────────────────────────────────────────────────
+    emptyState: {
+        alignItems: 'center',
+        paddingVertical: spacing.xxl,
+        paddingHorizontal: spacing.lg,
+        borderRadius: borderRadius.lg,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        borderStyle: 'dashed',
+        backgroundColor: colors.surfaceLight,
+    },
+    emptyTitle: { fontFamily: fonts.serif, fontSize: 18, color: colors.foreground, marginBottom: 6 },
+    emptySub: {
+        fontFamily: fonts.sans,
+        fontSize: 13,
+        color: colors.textMuted,
+        textAlign: 'center',
+        lineHeight: 18,
+    },
+
+    // ── Maxes ────────────────────────────────────────────────────────────
+    maxRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15 },
+    maxRowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.divider },
+    maxDot: { width: 9, height: 9, borderRadius: 5 },
+    maxLabel: { fontFamily: fonts.sansMedium, fontSize: 15.5, color: colors.foreground },
+
+    // ── Achievements strip ───────────────────────────────────────────────
+    achStrip: { gap: spacing.md, paddingRight: spacing.lg, paddingVertical: 2 },
+    achItem: { alignItems: 'center', width: 68 },
+    achItemLabel: {
+        fontFamily: fonts.sansMedium,
+        fontSize: 10.5,
+        color: colors.textSecondary,
+        textAlign: 'center',
+        marginTop: 6,
     },
 
     // ── Skeleton ─────────────────────────────────────────────────────────
