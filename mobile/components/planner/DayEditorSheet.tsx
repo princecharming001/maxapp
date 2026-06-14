@@ -473,18 +473,16 @@ export default function DayEditorSheet({
 const seg = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 9,
-    padding: 3,
+    gap: spacing.md,
   },
-  item: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 7 },
-  itemCompact: { paddingHorizontal: 12, paddingVertical: 6 },
-  itemOn: {
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+  item: {
+    paddingBottom: 6,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
-  text: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textMuted, letterSpacing: 0.1 },
+  itemCompact: {},
+  itemOn: { borderBottomColor: colors.foreground },
+  text: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.textMuted, letterSpacing: 0.1 },
   textOn: { fontFamily: fonts.sansSemiBold, color: colors.foreground },
 });
 
@@ -515,10 +513,10 @@ const styles = StyleSheet.create({
   },
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 18,
+    fontFamily: fonts.serif,
+    fontSize: 21,
     color: colors.foreground,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
   headerSub: {
     fontFamily: fonts.sansMedium,
@@ -562,13 +560,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 6,
     marginTop: spacing.xl,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: colors.surface,
+    paddingVertical: 10,
   },
-  resetText: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: colors.textSecondary, letterSpacing: 0.1 },
+  resetText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.textSecondary, letterSpacing: 0.1 },
   footer: {
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -576,14 +572,14 @@ const styles = StyleSheet.create({
   },
   doneBtn: {
     backgroundColor: colors.foreground,
-    borderRadius: 12,
-    paddingVertical: 15,
+    borderRadius: 13,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   doneText: {
     fontFamily: fonts.sansSemiBold,
-    fontSize: 15,
+    fontSize: 14.5,
     color: colors.background,
-    letterSpacing: 0.4,
+    letterSpacing: 0.1,
   },
 });

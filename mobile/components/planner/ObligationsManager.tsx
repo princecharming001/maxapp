@@ -338,20 +338,14 @@ const ObligationsManager = forwardRef<
                     );
                   })}
                 </View>
-                <Text style={styles.previewText}>
-                  {dayset.size === 0
-                    ? 'Pick at least one day.'
-                    : `Repeats: ${daysLabel(normDays(WEEKDAY_KEYS.filter((k) => dayset.has(k))))}`}
-                </Text>
-
                 {editIndex !== null ? (
                   <TouchableOpacity
                     style={styles.removeBtn}
                     onPress={() => confirmRemove(editIndex, () => setEditorOpen(false))}
-                    activeOpacity={0.7}
+                    activeOpacity={0.6}
                   >
-                    <Ionicons name="trash-outline" size={15} color="#ef4444" />
-                    <Text style={styles.removeText}>Remove this commitment</Text>
+                    <Ionicons name="trash-outline" size={14} color={colors.error} />
+                    <Text style={styles.removeText}>Remove</Text>
                   </TouchableOpacity>
                 ) : null}
 
@@ -359,13 +353,25 @@ const ObligationsManager = forwardRef<
               </ScrollView>
 
               <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
+                <View style={styles.footerSummary}>
+                  <Text style={styles.summaryText} numberOfLines={1}>
+                    {canSave
+                      ? `${fmtAbs(range[0])}–${fmtAbs(range[1])}`
+                      : 'Set a valid time and at least one day'}
+                  </Text>
+                  {canSave ? (
+                    <Text style={styles.summaryDays} numberOfLines={1}>
+                      {daysLabel(normDays(WEEKDAY_KEYS.filter((k) => dayset.has(k))))}
+                    </Text>
+                  ) : null}
+                </View>
                 <TouchableOpacity
                   style={[styles.saveBtn, !canSave && styles.saveBtnOff]}
                   onPress={save}
                   disabled={!canSave}
                   activeOpacity={0.9}
                 >
-                  <Text style={styles.saveText}>{editIndex === null ? 'Add' : 'Save'}</Text>
+                  <Text style={styles.saveText}>{editIndex === null ? 'Add commitment' : 'Save changes'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -451,76 +457,75 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: spacing.md,
   },
-  sheetTitle: { fontFamily: fonts.sansSemiBold, fontSize: 18, color: colors.foreground, letterSpacing: -0.2 },
+  sheetTitle: { fontFamily: fonts.serif, fontSize: 21, color: colors.foreground, letterSpacing: -0.3 },
   fieldLabel: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 11,
+    fontFamily: fonts.sansMedium,
+    fontSize: 13,
     color: colors.textMuted,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    letterSpacing: 0.1,
     marginBottom: 10,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    paddingVertical: 13,
-    paddingHorizontal: 15,
+    backgroundColor: 'transparent',
+    paddingVertical: 10,
+    paddingHorizontal: 0,
     color: colors.foreground,
-    fontSize: 15.5,
+    fontSize: 18,
     fontFamily: fonts.sansMedium,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  quickRow: { flexDirection: 'row', gap: 8, marginBottom: spacing.md },
+  quickRow: { flexDirection: 'row', gap: spacing.lg, marginBottom: spacing.md },
   quickChip: {
-    flex: 1,
     alignItems: 'center',
-    paddingVertical: 9,
-    borderRadius: 9,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    paddingBottom: 7,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
-  quickChipOn: { backgroundColor: colors.foreground, borderColor: colors.foreground },
-  quickText: { fontSize: 12.5, fontFamily: fonts.sansMedium, color: colors.textSecondary, letterSpacing: 0.1 },
-  quickTextOn: { color: colors.background, fontFamily: fonts.sansSemiBold },
-  dayDotsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
+  quickChipOn: { borderBottomColor: colors.foreground },
+  quickText: { fontSize: 14, fontFamily: fonts.sansMedium, color: colors.textMuted, letterSpacing: 0.1 },
+  quickTextOn: { color: colors.foreground, fontFamily: fonts.sansSemiBold },
+  dayDotsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
   dayDot: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
     borderColor: colors.border,
   },
   dayDotOn: { backgroundColor: colors.foreground, borderColor: colors.foreground },
-  dayDotText: { fontSize: 14, fontFamily: fonts.sansSemiBold, color: colors.textSecondary },
-  dayDotTextOn: { color: colors.background },
-  previewText: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1, marginTop: 12 },
+  dayDotText: { fontSize: 13.5, fontFamily: fonts.sansMedium, color: colors.textSecondary },
+  dayDotTextOn: { color: colors.background, fontFamily: fonts.sansSemiBold },
   removeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 6,
     marginTop: spacing.xl,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: 'rgba(239,68,68,0.08)',
+    paddingVertical: 10,
   },
-  removeText: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: '#ef4444', letterSpacing: 0.1 },
+  removeText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.error, letterSpacing: 0.1 },
   footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.borderLight,
   },
+  footerSummary: { flex: 1, minWidth: 0 },
+  summaryText: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.foreground, letterSpacing: 0.1 },
+  summaryDays: { fontFamily: fonts.sans, fontSize: 12, color: colors.textMuted, marginTop: 2, letterSpacing: 0.1 },
   saveBtn: {
     backgroundColor: colors.foreground,
-    borderRadius: 12,
-    paddingVertical: 15,
+    borderRadius: 13,
+    paddingVertical: 14,
+    paddingHorizontal: 22,
     alignItems: 'center',
   },
-  saveBtnOff: { opacity: 0.4 },
-  saveText: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.background, letterSpacing: 0.4 },
+  saveBtnOff: { opacity: 0.35 },
+  saveText: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.background, letterSpacing: 0.1 },
 });

@@ -1,12 +1,13 @@
 /**
- * TimePicker — the single, clean way to change a time in the planner.
+ * TimePicker — the planner's one way to change a time.
  *
- * A quiet iOS-style drum: times scroll vertically and snap, the centred row is
- * the selection, neighbours fade and shrink away. For a window we show two
- * drums (From / To) and keep them ordered. Replaces the old drag slider.
+ * A horizontal RAIL (not the usual iOS vertical drum): times slide left/right and
+ * snap, the centred one is the selection — shown large in the Fraunces serif so it
+ * reads as a deliberate, editorial control rather than a stock picker. A window
+ * stacks two rails (From / To) and keeps them ordered.
  *
- * Pure JS (no native picker module): a snapping ScrollView with an Animated
- * scroll position driving per-row opacity/scale, plus tap-a-row-to-select.
+ * Pure JS (no native module): a snapping horizontal ScrollView whose offset drives
+ * per-item opacity/scale, plus tap-an-item-to-centre.
  */
 import React, { useEffect, useMemo, useRef } from 'react';
 import {
@@ -16,19 +17,18 @@ import {
   Animated,
   ScrollView,
   TouchableOpacity,
+  useWindowDimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
-import { colors, fonts } from '../../theme/dark';
+import { colors, fonts, spacing } from '../../theme/dark';
 
-const ITEM_H = 40;
-const VISIBLE = 5; // odd, so one row sits dead-centre
-const WHEEL_H = ITEM_H * VISIBLE;
-const PAD = (WHEEL_H - ITEM_H) / 2;
+const ITEM_W = 112; // width of one time slot (fits "12:45 AM" on one line)
+const RAIL_H = 56;
 
 type Fmt = (m: number) => string;
 
-function Wheel({
+function Rail({
   value,
   onChange,
   min,
@@ -36,6 +36,7 @@ function Wheel({
   step,
   format,
   accent,
+  label,
 }: {
   value: number;
   onChange: (m: number) => void;
@@ -44,7 +45,13 @@ function Wheel({
   step: number;
   format: Fmt;
   accent: string;
+  label?: string;
 }) {
+  const { width: winW } = useWindowDimensions();
+  // The rail spans the sheet's content width (sheet has spacing.lg padding/side).
+  const railW = Math.max(220, winW - spacing.lg * 2);
+  const PAD = (railW - ITEM_W) / 2;
+
   const items = useMemo(() => {
     const a: number[] = [];
     for (let m = min; m <= max; m += step) a.push(m);
@@ -54,88 +61,96 @@ function Wheel({
   const idxOf = (v: number) =>
     Math.max(0, Math.min(items.length - 1, Math.round((v - min) / step)));
 
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const scrollX = useRef(new Animated.Value(0)).current;
   const ref = useRef<ScrollView>(null);
-  // Last value we settled on, so an external value change (clamp / mode switch)
-  // re-centres the drum without fighting a scroll the user is mid-gesture on.
+  // Last settled value, so an external change (clamp / mode switch) re-centres
+  // the rail without fighting a gesture the user is mid-scroll on.
   const settled = useRef(value);
 
   useEffect(() => {
     const i = idxOf(value);
-    // Jump to the seed position once mounted (no animation on first paint).
-    const t = setTimeout(() => ref.current?.scrollTo({ y: i * ITEM_H, animated: false }), 0);
+    const t = setTimeout(() => ref.current?.scrollTo({ x: i * ITEM_W, animated: false }), 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [railW]);
 
   useEffect(() => {
     if (value === settled.current) return;
     settled.current = value;
-    ref.current?.scrollTo({ y: idxOf(value) * ITEM_H, animated: true });
+    ref.current?.scrollTo({ x: idxOf(value) * ITEM_W, animated: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   const settle = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = e.nativeEvent.contentOffset.y;
-    const i = Math.max(0, Math.min(items.length - 1, Math.round(y / ITEM_H)));
+    const x = e.nativeEvent.contentOffset.x;
+    const i = Math.max(0, Math.min(items.length - 1, Math.round(x / ITEM_W)));
     const v = items[i];
     settled.current = v;
     if (v !== value) onChange(v);
   };
 
   return (
-    <View style={styles.wheel}>
-      {/* Centre selection band */}
-      <View pointerEvents="none" style={styles.band} />
-      <Animated.ScrollView
-        ref={ref as any}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={ITEM_H}
-        decelerationRate="fast"
-        scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-          useNativeDriver: true,
-        })}
-        onMomentumScrollEnd={settle}
-        onScrollEndDrag={settle}
-        contentContainerStyle={{ paddingVertical: PAD }}
-      >
-        {items.map((m, i) => {
-          const inputRange = [
-            (i - 2) * ITEM_H,
-            (i - 1) * ITEM_H,
-            i * ITEM_H,
-            (i + 1) * ITEM_H,
-            (i + 2) * ITEM_H,
-          ];
-          const opacity = scrollY.interpolate({
-            inputRange,
-            outputRange: [0.18, 0.45, 1, 0.45, 0.18],
-            extrapolate: 'clamp',
-          });
-          const scale = scrollY.interpolate({
-            inputRange,
-            outputRange: [0.78, 0.9, 1, 0.9, 0.78],
-            extrapolate: 'clamp',
-          });
-          const selected = m === value;
-          return (
-            <TouchableOpacity
-              key={m}
-              activeOpacity={0.7}
-              onPress={() => {
-                settled.current = m;
-                ref.current?.scrollTo({ y: i * ITEM_H, animated: true });
-                if (m !== value) onChange(m);
-              }}
-            >
-              <Animated.View style={[styles.item, { opacity, transform: [{ scale }] }]}>
-                <Text style={[styles.itemText, selected && { color: accent }]}>{format(m)}</Text>
-              </Animated.View>
-            </TouchableOpacity>
-          );
-        })}
-      </Animated.ScrollView>
+    <View style={styles.railBlock}>
+      {label ? <Text style={styles.railLabel}>{label}</Text> : null}
+      <View style={[styles.rail, { width: railW }]}>
+        {/* Centre marker — a quiet baseline tick, not a filled band. */}
+        <View pointerEvents="none" style={[styles.tick, { backgroundColor: accent }]} />
+        <Animated.ScrollView
+          ref={ref as any}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={ITEM_W}
+          decelerationRate="fast"
+          scrollEventThrottle={16}
+          onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+            useNativeDriver: true,
+          })}
+          onMomentumScrollEnd={settle}
+          onScrollEndDrag={settle}
+          contentContainerStyle={{ paddingHorizontal: PAD }}
+        >
+          {items.map((m, i) => {
+            const inputRange = [
+              (i - 2) * ITEM_W,
+              (i - 1) * ITEM_W,
+              i * ITEM_W,
+              (i + 1) * ITEM_W,
+              (i + 2) * ITEM_W,
+            ];
+            const opacity = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.25, 0.5, 1, 0.5, 0.25],
+              extrapolate: 'clamp',
+            });
+            const scale = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.74, 0.86, 1, 0.86, 0.74],
+              extrapolate: 'clamp',
+            });
+            const selected = m === value;
+            return (
+              <TouchableOpacity
+                key={m}
+                activeOpacity={0.7}
+                onPress={() => {
+                  settled.current = m;
+                  ref.current?.scrollTo({ x: i * ITEM_W, animated: true });
+                  if (m !== value) onChange(m);
+                }}
+              >
+                <Animated.View style={[styles.item, { width: ITEM_W, opacity, transform: [{ scale }] }]}>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.itemText, selected && { color: colors.foreground }]}
+                  >
+                    {format(m)}
+                  </Text>
+                </Animated.View>
+              </TouchableOpacity>
+            );
+          })}
+        </Animated.ScrollView>
+      </View>
     </View>
   );
 }
@@ -162,10 +177,11 @@ export default function TimePicker({
   minSpan?: number;
 }) {
   const span = minSpan ?? step;
+
   if (single) {
     return (
-      <View style={styles.singleWrap}>
-        <Wheel
+      <View style={styles.wrap}>
+        <Rail
           value={value[0]}
           onChange={(m) => onChange([m, m])}
           min={min}
@@ -178,7 +194,7 @@ export default function TimePicker({
     );
   }
 
-  // Window: two drums kept at least `span` apart. Moving one past that gap
+  // Window: two rails kept at least `span` apart. Moving one past that gap
   // nudges the other along.
   const setStart = (m: number) => {
     const end = m + span > value[1] ? Math.min(max, m + span) : value[1];
@@ -190,64 +206,57 @@ export default function TimePicker({
   };
 
   return (
-    <View style={styles.rangeWrap}>
-      <View style={styles.col}>
-        <Text style={styles.colLabel}>From</Text>
-        <Wheel
-          value={value[0]}
-          onChange={setStart}
-          min={min}
-          max={max - span}
-          step={step}
-          format={format}
-          accent={accent}
-        />
-      </View>
-      <View style={styles.colDivider} />
-      <View style={styles.col}>
-        <Text style={styles.colLabel}>To</Text>
-        <Wheel
-          value={value[1]}
-          onChange={setEnd}
-          min={min + span}
-          max={max}
-          step={step}
-          format={format}
-          accent={accent}
-        />
-      </View>
+    <View style={styles.wrap}>
+      <Rail
+        label="From"
+        value={value[0]}
+        onChange={setStart}
+        min={min}
+        max={max - span}
+        step={step}
+        format={format}
+        accent={accent}
+      />
+      <Rail
+        label="To"
+        value={value[1]}
+        onChange={setEnd}
+        min={min + span}
+        max={max}
+        step={step}
+        format={format}
+        accent={accent}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wheel: { height: WHEEL_H, alignSelf: 'stretch', justifyContent: 'center' },
-  band: {
-    position: 'absolute',
-    top: PAD,
-    height: ITEM_H,
-    left: 0,
-    right: 0,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-  },
-  item: { height: ITEM_H, alignItems: 'center', justifyContent: 'center' },
-  itemText: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 19,
-    color: colors.foreground,
-    letterSpacing: -0.2,
-  },
-  singleWrap: { marginTop: 4 },
-  rangeWrap: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 4 },
-  col: { flex: 1, alignItems: 'center' },
-  colDivider: { width: 1 },
-  colLabel: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 11,
+  wrap: { marginTop: 6 },
+  railBlock: { marginVertical: 6, alignItems: 'center' },
+  railLabel: {
+    alignSelf: 'flex-start',
+    fontFamily: fonts.sansMedium,
+    fontSize: 12,
     color: colors.textMuted,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginBottom: 6,
+    letterSpacing: 0.2,
+    marginBottom: 2,
+  },
+  rail: { height: RAIL_H, justifyContent: 'center' },
+  tick: {
+    position: 'absolute',
+    bottom: 6,
+    alignSelf: 'center',
+    width: 22,
+    height: 2,
+    borderRadius: 1,
+    opacity: 0.9,
+  },
+  item: { height: RAIL_H, alignItems: 'center', justifyContent: 'center' },
+  itemText: {
+    fontFamily: fonts.serif,
+    fontSize: 25,
+    color: colors.textMuted,
+    letterSpacing: -0.4,
   },
 });
