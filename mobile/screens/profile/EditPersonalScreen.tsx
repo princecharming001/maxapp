@@ -30,7 +30,6 @@ import {
   APPEARANCE_OPTIONS,
   SKIN_CONCERNS,
   SCREEN_TIME_BANDS,
-  TIME_OPTIONS,
   mapSkinConcernToType,
   mapTrainingToExperience,
   mapEquipmentToList,
@@ -142,7 +141,6 @@ export default function EditPersonalScreen() {
   const [wakeTime, setWakeTime] = useState(v2.wakeTime);
   const [sleepTime, setSleepTime] = useState(v2.sleepTime);
   const [getReadyTime, setGetReadyTime] = useState<string | null>(v2.getReadyTime);
-  const [openTimePicker, setOpenTimePicker] = useState<TimePickerKey | null>(null);
 
   const movePriority = useCallback((index: number, dir: -1 | 1) => {
     const j = index + dir;
@@ -277,43 +275,33 @@ export default function EditPersonalScreen() {
     }
   };
 
+  const shiftTime = (hhmm0: string, delta: number): string => {
+    const [h, m] = (hhmm0 || '07:00').split(':').map((x) => parseInt(x, 10) || 0);
+    const total = (((h * 60 + m + delta) % 1440) + 1440) % 1440;
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  };
+
+  const renderStepper = (value: string, setter: (s: string) => void) => (
+    <View style={styles.stepperRow}>
+      <TouchableOpacity style={styles.stepBtn} activeOpacity={0.7} onPress={() => setter(shiftTime(value, -15))}>
+        <Ionicons name="remove" size={18} color={colors.foreground} />
+      </TouchableOpacity>
+      <Text style={styles.stepperValue}>{formatTime12h(value)}</Text>
+      <TouchableOpacity style={styles.stepBtn} activeOpacity={0.7} onPress={() => setter(shiftTime(value, 15))}>
+        <Ionicons name="add" size={18} color={colors.foreground} />
+      </TouchableOpacity>
+    </View>
+  );
+
   const timeRow = (
     label: string,
-    which: TimePickerKey,
+    _which: TimePickerKey,
     value: string,
     setter: (s: string) => void,
   ) => (
     <View style={styles.timeBlock}>
       <Text style={styles.inputLabel}>{label}</Text>
-      <TouchableOpacity
-        style={styles.timeTrigger}
-        activeOpacity={0.85}
-        onPress={() => setOpenTimePicker((p) => (p === which ? null : which))}
-      >
-        <Text style={styles.timeTriggerText}>{formatTime12h(value)}</Text>
-        <Ionicons name={openTimePicker === which ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
-      </TouchableOpacity>
-      {openTimePicker === which ? (
-        <View style={styles.timeDropdown}>
-          <ScrollView nestedScrollEnabled style={styles.timeDropdownScroll} keyboardShouldPersistTaps="handled">
-            {TIME_OPTIONS.map((t) => {
-              const active = t === value;
-              return (
-                <TouchableOpacity
-                  key={`${which}-${t}`}
-                  style={[styles.timeOption, active && styles.timeOptionOn]}
-                  onPress={() => {
-                    setter(t);
-                    setOpenTimePicker(null);
-                  }}
-                >
-                  <Text style={[styles.timeOptionText, active && styles.timeOptionTextOn]}>{formatTime12h(t)}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      ) : null}
+      {renderStepper(value, setter)}
     </View>
   );
 
@@ -322,7 +310,7 @@ export default function EditPersonalScreen() {
   // it across all maxxes; an "Auto" entry at the top clears back to default.
   const anchorRow = (
     label: string,
-    which: TimePickerKey,
+    _which: TimePickerKey,
     value: string | null,
     setter: (s: string | null) => void,
     autoHint: string,
@@ -333,49 +321,15 @@ export default function EditPersonalScreen() {
         <Ionicons name={iconName} size={13} color={colors.textMuted} style={{ marginRight: 6 }} />
         <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0 }]}>{label}</Text>
       </View>
-      <TouchableOpacity
-        style={styles.timeTrigger}
-        activeOpacity={0.85}
-        onPress={() => setOpenTimePicker((p) => (p === which ? null : which))}
-      >
-        <Text style={[styles.timeTriggerText, !value && styles.timeTriggerAuto]}>
-          {value ? formatTime12h(value) : 'Auto'}
-        </Text>
-        <Ionicons name={openTimePicker === which ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
-      </TouchableOpacity>
-      {!value && openTimePicker !== which ? (
-        <Text style={styles.anchorAutoHint}>{autoHint}</Text>
-      ) : null}
-      {openTimePicker === which ? (
-        <View style={styles.timeDropdown}>
-          <ScrollView nestedScrollEnabled style={styles.timeDropdownScroll} keyboardShouldPersistTaps="handled">
-            <TouchableOpacity
-              style={[styles.timeOption, !value && styles.timeOptionOn]}
-              onPress={() => {
-                setter(null);
-                setOpenTimePicker(null);
-              }}
-            >
-              <Text style={[styles.timeOptionText, !value && styles.timeOptionTextOn]}>Auto (let coach pick)</Text>
-            </TouchableOpacity>
-            {TIME_OPTIONS.map((t) => {
-              const active = t === value;
-              return (
-                <TouchableOpacity
-                  key={`${which}-${t}`}
-                  style={[styles.timeOption, active && styles.timeOptionOn]}
-                  onPress={() => {
-                    setter(t);
-                    setOpenTimePicker(null);
-                  }}
-                >
-                  <Text style={[styles.timeOptionText, active && styles.timeOptionTextOn]}>{formatTime12h(t)}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-      ) : null}
+      <View style={styles.anchorSeg}>
+        <TouchableOpacity style={[styles.anchorSegItem, !value && styles.anchorSegItemOn]} activeOpacity={0.8} onPress={() => setter(null)}>
+          <Text style={[styles.anchorSegText, !value && styles.anchorSegTextOn]}>Auto</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.anchorSegItem, !!value && styles.anchorSegItemOn]} activeOpacity={0.8} onPress={() => setter(value || '08:00')}>
+          <Text style={[styles.anchorSegText, !!value && styles.anchorSegTextOn]}>Set time</Text>
+        </TouchableOpacity>
+      </View>
+      {value ? renderStepper(value, (s) => setter(s)) : <Text style={styles.anchorAutoHint}>{autoHint}</Text>}
     </View>
   );
 
@@ -947,27 +901,44 @@ const styles = StyleSheet.create({
   dayPillText: { fontSize: 13.5, fontWeight: '500', color: colors.textSecondary },
   dayPillTextOn: { color: colors.background, fontWeight: '600' },
   timeBlock: { marginBottom: 6 },
-  /* Soft time row — same surface as fields, no visible border, gentle. */
-  timeTrigger: {
+  /* Inline time stepper (−/+ 15m) — consistent with onboarding, no dropdown. */
+  stepperRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: colors.surface,
     borderRadius: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
-  timeTriggerText: {
+  stepBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  stepperValue: {
     fontSize: 16,
     color: colors.foreground,
-    fontWeight: '500',
+    fontWeight: '600',
     letterSpacing: 0.05,
   },
-  /* Muted style when an optional anchor is on "Auto". */
-  timeTriggerAuto: {
-    color: colors.textMuted,
-    fontWeight: '500',
+  anchorSeg: {
+    flexDirection: 'row',
+    gap: 4,
+    padding: 4,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    marginBottom: 8,
   },
+  anchorSegItem: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 9 },
+  anchorSegItemOn: { backgroundColor: colors.foreground },
+  anchorSegText: { fontSize: 13.5, fontWeight: '500', color: colors.textSecondary },
+  anchorSegTextOn: { color: '#fff' },
   anchorLabelRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.lg, marginBottom: 8 },
   anchorAutoHint: {
     fontSize: 11.5,
@@ -1009,25 +980,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     letterSpacing: 0.05,
   },
-  timeDropdown: {
-    marginTop: 6,
-    maxHeight: 200,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-    overflow: 'hidden',
-  },
-  timeDropdownScroll: { maxHeight: 200 },
-  timeOption: {
-    paddingVertical: 11,
-    paddingHorizontal: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderLight,
-  },
-  timeOptionOn: { backgroundColor: colors.surface },
-  timeOptionText: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
-  timeOptionTextOn: { color: colors.foreground, fontWeight: '600' },
   /* Onairos card button — same shape as saveBtn but inline in the card. */
   onairosBtn: {
     flexDirection: 'row',
