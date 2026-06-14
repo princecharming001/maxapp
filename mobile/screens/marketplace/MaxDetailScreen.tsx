@@ -152,6 +152,17 @@ export default function MaxDetailScreen() {
         } catch { navigation.goBack(); }
     };
 
+    // Native maxes onboard in chat: the coach asks a few questions and tailors
+    // the freshly-built schedule. `initSchedule` is the maxx token (= item.id).
+    const goToChat = (maxxId: string) => {
+        try {
+            const { navigationRef } = require('../../lib/navigationRef');
+            if (navigationRef.isReady()) {
+                navigationRef.navigate('Main', { screen: 'Chat', params: { initSchedule: maxxId } });
+            }
+        } catch { navigation.goBack(); }
+    };
+
     const onCta = async () => {
         if (item.entered) { goToSchedule(); return; }
         if (busy) return;
@@ -165,7 +176,7 @@ export default function MaxDetailScreen() {
             }
             track('enter', { item: item.id, kind: item.native ? 'maxx' : 'course' });
             setItem({ ...item, entered: true });
-            goToSchedule();
+            if (isCourse) goToSchedule(); else goToChat(item.id);
         } catch {
             // keep page open; user can retry
         } finally {
