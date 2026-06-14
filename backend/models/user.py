@@ -259,7 +259,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=100)
     first_name: str = Field(..., min_length=1, max_length=50)
-    last_name: str = Field(..., min_length=1, max_length=50)
+    # Optional — the sign-up form collects a single "Name"; last name may be blank.
+    last_name: str = Field(default="", max_length=50)
     username: str = Field(..., min_length=3, max_length=30, pattern="^[a-zA-Z0-9_]+$")
     bio: Optional[str] = None
     phone_number: Optional[str] = Field(

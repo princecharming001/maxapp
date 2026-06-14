@@ -25,6 +25,31 @@ import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import ShineOverlay from '../../components/ShineOverlay';
 import { PHONE_COUNTRIES, type PhoneCountry } from '../../constants/phoneCountryCodes';
 
+/**
+ * Turn a backend 422 (Pydantic) validation list into a human sentence —
+ * never leak raw messages like "String should have at least 1 character".
+ * Returns { message, field } so the caller can also highlight the field.
+ */
+function friendlyValidation(items: any[]): { message: string; field?: string } {
+    for (const it of items) {
+        const loc = Array.isArray(it?.loc) ? it.loc : [];
+        const field = String(loc[loc.length - 1] || '').toLowerCase();
+        const type = String(it?.type || '');
+        if (field === 'email') return { message: 'Please enter a valid email address.', field: 'email' };
+        if (field === 'password') return { message: 'Your password needs to be at least 8 characters.', field: 'password' };
+        if (field === 'username') {
+            return {
+                message: type.includes('pattern')
+                    ? 'Usernames can only use letters, numbers, and underscores.'
+                    : 'Your username needs to be at least 3 characters.',
+                field: 'username',
+            };
+        }
+        if (field === 'first_name' || field === 'name') return { message: 'Please enter your name.', field: 'firstName' };
+    }
+    return { message: 'Please check your details and try again.' };
+}
+
 function signupErrorMessage(error: any): string {
     const res = error?.response;
     const base = api.getBaseUrl?.() || '';
@@ -48,14 +73,13 @@ function signupErrorMessage(error: any): string {
 
     const d = res?.data?.detail;
     if (typeof d === 'string') return d;
-    if (Array.isArray(d)) {
-        const parts = d.map((x: { msg?: string }) => x?.msg).filter(Boolean);
-        if (parts.length) return parts.join(' ');
+    if (Array.isArray(d) && d.length) {
+        return friendlyValidation(d).message;
     }
     if (d && typeof d === 'object' && 'message' in d) {
         return String((d as { message?: string }).message);
     }
-    return res?.status ? `Could not create account (error ${res.status}).` : 'Could not create account';
+    return res?.status ? 'Please check your details and try again.' : 'Could not create account';
 }
 
 export default function SignupScreen() {
@@ -143,20 +167,34 @@ export default function SignupScreen() {
         setApiError(null);
         setFieldErrorMessages({});
         try {
-            await signup(email, password, firstName, '', username, undefined);
+            // The form collects a single "Name"; split it into first/last.
+            const nameParts = firstName.trim().split(/\s+/);
+            const fn = nameParts[0] || firstName.trim();
+            const ln = nameParts.slice(1).join(' ');
+            await signup(email, password, fn, ln, username, undefined);
         } catch (error: any) {
+            setFieldErrorMessages({});
+            // Field-level validation (422): highlight the offending field with a
+            // human message instead of dumping a raw validator string.
+            const detail = error?.response?.data?.detail;
+            if (Array.isArray(detail) && detail.length) {
+                const { message, field } = friendlyValidation(detail);
+                if (field) {
+                    setFieldErrors((p) => ({ ...p, [field]: true }));
+                    setFieldErrorMessages((p) => ({ ...p, [field]: message }));
+                } else {
+                    setApiError(message);
+                }
+                return;
+            }
             const msg = signupErrorMessage(error);
             const lower = msg.toLowerCase();
-            setFieldErrorMessages({});
             if (lower.includes('username') && lower.includes('taken')) {
                 setFieldErrors((p) => ({ ...p, username: true }));
-                setFieldErrorMessages((p) => ({ ...p, username: 'Username already taken' }));
+                setFieldErrorMessages((p) => ({ ...p, username: 'That username is already taken.' }));
             } else if (lower.includes('email') && lower.includes('registered')) {
                 setFieldErrors((p) => ({ ...p, email: true }));
-                setFieldErrorMessages((p) => ({ ...p, email: 'Email already registered' }));
-            } else if (lower.includes('phone') && lower.includes('registered')) {
-                setFieldErrors((p) => ({ ...p, phone: true }));
-                setFieldErrorMessages((p) => ({ ...p, phone: 'Phone number already registered' }));
+                setFieldErrorMessages((p) => ({ ...p, email: 'That email is already registered.' }));
             } else {
                 setApiError(msg);
             }
