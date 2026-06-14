@@ -15,6 +15,7 @@ import CourseTOC from '../../components/CourseTOC';
 import CourseReader from '../../components/CourseReader';
 import { getCourseForMaxx } from '../../data/courseContent';
 import ModuleHero from '../../components/ModuleHero';
+import { maxColor, hexA } from '../../utils/scheduleAggregation';
 import SectionLabel from '../../components/SectionLabel';
 
 const SCHEDULE_CAPABLE_MAXXES = ['skinmax', 'heightmax', 'hairmax', 'fitmax', 'bonemax'];
@@ -320,8 +321,10 @@ export default function MaxxDetailScreen() {
 
     const courseDef = getCourseForMaxx(maxxId);
     const useAccentTheme = !!courseDef; // currently only skinmax has a course → accent treatment
-    const accent = courseDef?.accent ?? colors.foreground;
-    const accentSoft = courseDef?.accentSoft ?? colors.surface;
+    // Every max carries its own color — the header icon, section bar and module
+    // dots become that color (the craft.do color-pocket feel), not dead grey.
+    const accent = courseDef?.accent ?? maxColor(maxxId);
+    const accentSoft = courseDef?.accentSoft ?? hexA(maxColor(maxxId), 0.1);
 
     return (
         <View style={styles.container}>
@@ -357,8 +360,8 @@ export default function MaxxDetailScreen() {
                     >
                         <Ionicons name="arrow-back" size={24} color={colors.foreground} />
                     </TouchableOpacity>
-                    <View style={[styles.headerIcon, styles.headerIconElevated, styles.headerIconNeutral]}>
-                        <Ionicons name="barbell-outline" size={28} color={colors.foreground} />
+                    <View style={[styles.headerIcon, styles.headerIconElevated, { backgroundColor: hexA(accent, 0.12) }]}>
+                        <Ionicons name="barbell-outline" size={28} color={accent} />
                     </View>
                     <View style={styles.macroChip}>
                         <Text style={styles.macroChipTitle}>Today</Text>
@@ -374,8 +377,8 @@ export default function MaxxDetailScreen() {
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                         <Ionicons name="arrow-back" size={24} color={colors.foreground} />
                     </TouchableOpacity>
-                    <View style={[styles.headerIcon, styles.headerIconElevated, styles.headerIconNeutral]}>
-                        <Ionicons name={(maxx.icon || 'book-outline') as any} size={28} color={colors.foreground} />
+                    <View style={[styles.headerIcon, styles.headerIconElevated, { backgroundColor: hexA(accent, 0.12) }]}>
+                        <Ionicons name={(maxx.icon || 'book-outline') as any} size={28} color={accent} />
                     </View>
                     <Text style={styles.headerTitle}>{getMaxxDisplayLabel(maxx)}</Text>
                 </View>
@@ -501,7 +504,7 @@ export default function MaxxDetailScreen() {
                 {!courseDef && (useAccentTheme ? (
                     <SectionLabel label="Modules" accent={accent} />
                 ) : (
-                    <Text style={styles.sectionLabel}>MODULES</Text>
+                    <SectionLabel label="Modules" accent={accent} />
                 ))}
 
                 {!courseDef && modules.length === 0 && previewPills.length > 0 && (
@@ -547,7 +550,7 @@ export default function MaxxDetailScreen() {
                         >
                             <View style={styles.moduleHeaderRow}>
                                 <View style={styles.moduleHeaderLeft}>
-                                    <View style={[styles.phaseDot, { backgroundColor: phaseAccent }]} />
+                                    <View style={[styles.phaseDot, { backgroundColor: accent }]} />
                                     <Text style={styles.moduleNumberLabel} numberOfLines={1}>
                                         {fitShape && typeof mod.id === 'number' ? `Module ${mod.id}` : `Part ${idx + 1}`}
                                     </Text>

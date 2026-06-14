@@ -20,12 +20,12 @@ import {
     Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import api, { type MarketplaceItem } from '../../services/api';
+import { hexA } from '../../utils/scheduleAggregation';
 import { track } from '../../lib/analytics';
 
 const CANVAS = '#F7F0EA';
@@ -196,28 +196,21 @@ export default function MaxDetailScreen() {
                 contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Hero cover */}
-                <View style={styles.hero}>
-                    <LinearGradient
-                        colors={[shade(base, 1.18), shade(base, 0.74)]}
-                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                        style={StyleSheet.absoluteFillObject}
-                    />
-                    <Ionicons name={(item.icon as any) || 'sparkles-outline'} size={150} color="rgba(255,255,255,0.16)" style={styles.heroWatermark} />
-                    <LinearGradient colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.55)']} style={StyleSheet.absoluteFillObject} />
-
+                {/* Flat color-pocket header */}
+                <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
                     <TouchableOpacity
-                        style={[styles.backBtn, { top: insets.top + 8 }]}
+                        style={styles.backBtn}
                         onPress={() => navigation.goBack()}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                        <Ionicons name="chevron-back" size={22} color="#fff" />
+                        <Ionicons name="chevron-back" size={24} color={INK} />
                     </TouchableOpacity>
-
-                    <View style={styles.heroBottom}>
-                        {item.category ? <Text style={styles.heroKicker}>{item.category.toUpperCase()}</Text> : null}
-                        <Text style={styles.heroTitle}>{item.title}</Text>
+                    <View style={[styles.heroIcon, { backgroundColor: hexA(base, 0.12) }]}>
+                        <Ionicons name={(item.icon as any) || 'sparkles-outline'} size={30} color={base} />
                     </View>
+                    {item.category ? <Text style={styles.heroKicker}>{item.category.toUpperCase()}</Text> : null}
+                    <Text style={styles.heroTitle}>{item.title}</Text>
+                    <View style={[styles.heroRule, { backgroundColor: base }]} />
                 </View>
 
                 {/* Creator + social proof */}
@@ -413,17 +406,14 @@ function Stat({ value, label }: { value: string; label: string }) {
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: CANVAS },
     center: { alignItems: 'center', justifyContent: 'center' },
-    hero: { height: 280, justifyContent: 'flex-end', overflow: 'hidden' },
-    heroWatermark: { position: 'absolute', right: -16, top: 30 },
-    backBtn: {
-        position: 'absolute', left: 16, width: 36, height: 36, borderRadius: 18,
-        backgroundColor: 'rgba(0,0,0,0.32)', alignItems: 'center', justifyContent: 'center',
-    },
-    heroBottom: { padding: 20, paddingBottom: 18 },
-    heroKicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.6, color: 'rgba(255,255,255,0.85)', marginBottom: 6 },
-    heroTitle: { fontFamily: 'PlayfairDisplay', fontSize: 34, color: '#fff', letterSpacing: -0.6, lineHeight: 38 },
+    header: { paddingHorizontal: 20, paddingBottom: 4 },
+    backBtn: { width: 40, height: 40, marginLeft: -8, alignItems: 'flex-start', justifyContent: 'center', marginBottom: 10 },
+    heroIcon: { width: 64, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+    heroKicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.6, color: MUTE, marginBottom: 6 },
+    heroTitle: { fontFamily: 'PlayfairDisplay', fontSize: 36, color: INK, letterSpacing: -0.8, lineHeight: 40 },
+    heroRule: { width: 40, height: 3, borderRadius: 2, marginTop: 14 },
 
-    metaWrap: { paddingHorizontal: 20, paddingTop: 16 },
+    metaWrap: { paddingHorizontal: 20, paddingTop: 18 },
     creatorRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: HAIRLINE },
     avatarLg: { width: 52, height: 52, borderRadius: 26, backgroundColor: HAIRLINE },
