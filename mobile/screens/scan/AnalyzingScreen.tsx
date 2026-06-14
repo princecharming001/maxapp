@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
+import Svg, { Circle } from 'react-native-svg';
 import { colors, fonts } from '../../theme/dark';
 
 interface Props {
@@ -25,14 +26,16 @@ function creepCeiling(step: number): number {
     return 100;
 }
 
-// The rotating marble head (Higgsfield turntable, green-keyed to a TRANSPARENT
-// animated WebP with a baked soft shadow so it floats on the cream canvas and
-// reads at every angle). It IS the loader — a slow 360° spin while we analyze.
-// An animated WebP via expo-image auto-plays (no video-autoplay flakiness), so
-// it always rotates.
+// The rotating stylized head (Higgsfield turntable, green-keyed to a TRANSPARENT
+// animated WebP). An animated WebP via expo-image auto-plays (no video-autoplay
+// flakiness), so it always rotates. A thin progress ring is drawn AROUND it.
 const BUST = require('../../assets/bust_rotate.webp');
-const BUST_SIZE = 280;
-const TRACK_W = 232;
+const BUST_SIZE = 264;
+const RING = 300;
+const R = 142;
+const STROKE = 4;
+const CIRC = 2 * Math.PI * R;
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export default function AnalyzingScreen({ currentStep = 0 }: Props) {
     const progressAnim = useRef(new Animated.Value(0)).current;
@@ -110,30 +113,49 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
         return () => loop.stop();
     }, [fadeAnim]);
 
-    const fillWidth = progressAnim.interpolate({
-        inputRange: [0, 100], outputRange: [0, TRACK_W], extrapolate: 'clamp',
+    const dashOffset = progressAnim.interpolate({
+        inputRange: [0, 100], outputRange: [CIRC, 0], extrapolate: 'clamp',
     });
     const label = STEP_LABELS[Math.min(currentStep, STEP_LABELS.length - 1)];
 
     return (
         <View style={st.container}>
             <View style={st.center}>
-                {/* Rotating marble head — the loader's hero (transparent animated WebP). */}
-                <ExpoImage
-                    style={st.bust}
-                    source={BUST}
-                    contentFit="contain"
-                    autoplay
-                    pointerEvents="none"
-                />
+                {/* Rotating head inside a thin progress ring. */}
+                <View style={st.ringWrap}>
+                    <Svg width={RING} height={RING} style={st.ringSvg}>
+                        <Circle
+                            cx={RING / 2}
+                            cy={RING / 2}
+                            r={R}
+                            stroke="rgba(28,26,23,0.08)"
+                            strokeWidth={STROKE}
+                            fill="none"
+                        />
+                        <AnimatedCircle
+                            cx={RING / 2}
+                            cy={RING / 2}
+                            r={R}
+                            stroke={colors.foreground}
+                            strokeWidth={STROKE}
+                            strokeLinecap="round"
+                            fill="none"
+                            strokeDasharray={CIRC}
+                            strokeDashoffset={dashOffset}
+                        />
+                    </Svg>
+                    <ExpoImage
+                        style={st.bust}
+                        source={BUST}
+                        contentFit="contain"
+                        autoplay
+                        pointerEvents="none"
+                    />
+                </View>
 
                 <Text style={st.pct}>{pct}%</Text>
 
                 <Animated.Text style={[st.label, { opacity: fadeAnim }]}>{label}</Animated.Text>
-
-                <View style={st.track}>
-                    <Animated.View style={[st.fill, { width: fillWidth }]} />
-                </View>
 
                 <Text style={st.hint}>Keep the app open. This takes a second.</Text>
             </View>
@@ -151,6 +173,16 @@ const st = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 32,
+    },
+    ringWrap: {
+        width: RING,
+        height: RING,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    ringSvg: {
+        position: 'absolute',
+        transform: [{ rotate: '-90deg' }],
     },
     bust: {
         width: BUST_SIZE,
@@ -174,26 +206,12 @@ const st = StyleSheet.create({
         marginTop: 8,
         textAlign: 'center',
     },
-    track: {
-        width: TRACK_W,
-        alignSelf: 'center',
-        height: 3,
-        borderRadius: 2,
-        marginTop: 18,
-        backgroundColor: 'rgba(28,26,23,0.08)',
-        overflow: 'hidden',
-    },
-    fill: {
-        height: '100%',
-        borderRadius: 2,
-        backgroundColor: colors.foreground,
-    },
     hint: {
         fontFamily: fonts.sans,
         fontSize: 12,
         color: colors.textMuted,
         textAlign: 'center',
-        marginTop: 12,
+        marginTop: 14,
         opacity: 0.7,
     },
 });
