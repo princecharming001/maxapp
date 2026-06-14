@@ -113,7 +113,6 @@ export default function SignupScreen() {
         const err: Record<string, boolean> = {};
         const msgs: Record<string, string> = {};
         if (!firstName.trim()) { err.firstName = true; msgs.firstName = 'Name is required.'; }
-        if (!lastName.trim()) { err.lastName = true; msgs.lastName = 'Name is required.'; }
         if (!username.trim()) { err.username = true; msgs.username = 'Username is required.'; }
         if (username.trim() && username.length < 3) err.username = true;
         if (username.trim() && !/^[a-zA-Z0-9_]+$/.test(username)) err.username = true;
@@ -126,12 +125,7 @@ export default function SignupScreen() {
         }
         if (!password) { err.password = true; msgs.password = 'Password is required.'; }
         if (password && password.length < 8) err.password = true;
-        if (!confirmPassword) { err.confirmPassword = true; msgs.confirmPassword = 'Confirm your password.'; }
-        const pwdMismatch = !!(password && confirmPassword && password !== confirmPassword);
-        if (pwdMismatch) { err.password = true; err.confirmPassword = true; }
-        const nationalDigits = phoneNational.replace(/\D/g, '');
-        if (nationalDigits.length > 0 && nationalDigits.length < 7) { err.phone = true; msgs.phone = 'Enter a valid phone number.'; }
-        if (nationalDigits.length > 15) { err.phone = true; msgs.phone = 'Phone number is too long.'; }
+        const pwdMismatch = false;
 
         setFieldErrors(err);
         setApiError(null);
@@ -148,18 +142,7 @@ export default function SignupScreen() {
         setApiError(null);
         setFieldErrorMessages({});
         try {
-            const nationalDigits = phoneNational.replace(/\D/g, '');
-            const fullPhone =
-                nationalDigits.length >= 7 ? phoneCountry.dialCode + nationalDigits : undefined;
-            await signup(email, password, firstName, lastName, username, fullPhone);
-            if (avatarUri) {
-                try {
-                    await api.uploadAvatar(avatarUri);
-                    await refreshUser();
-                } catch {
-                    Alert.alert('Note', 'Account created but profile picture could not be uploaded.');
-                }
-            }
+            await signup(email, password, firstName, '', username, undefined);
         } catch (error: any) {
             const msg = signupErrorMessage(error);
             const lower = msg.toLowerCase();
@@ -189,25 +172,10 @@ export default function SignupScreen() {
                         <Text style={styles.tagline}>Create your account</Text>
 
                         <View style={styles.form}>
-                            <TouchableOpacity style={styles.avatarContainer} onPress={pickImage} activeOpacity={0.8}>
-                                {avatarUri ? (
-                                    <CachedImage uri={avatarUri} style={styles.avatar} />
-                                ) : (
-                                    <View style={styles.avatarPlaceholder}>
-                                        <Ionicons name="camera-outline" size={24} color={colors.textMuted} />
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-
                             <View style={styles.inputGroup}>
-                                <Text style={[styles.label, fieldErrors.firstName && styles.labelError]}>FIRST NAME</Text>
-                                <TextInput style={[styles.input, fieldErrors.firstName && styles.inputError]} placeholder="First name" placeholderTextColor={colors.textMuted} value={firstName} onChangeText={(t) => { setFirstName(t); setFieldErrors((p) => ({ ...p, firstName: false })); setFieldErrorMessages((p) => ({ ...p, firstName: '' })); setApiError(null); }} autoCapitalize="words" textContentType="givenName" autoComplete="name-given" returnKeyType="next" onSubmitEditing={() => lastNameRef.current?.focus()} />
+                                <Text style={[styles.label, fieldErrors.firstName && styles.labelError]}>NAME</Text>
+                                <TextInput style={[styles.input, fieldErrors.firstName && styles.inputError]} placeholder="Your name" placeholderTextColor={colors.textMuted} value={firstName} onChangeText={(t) => { setFirstName(t); setFieldErrors((p) => ({ ...p, firstName: false })); setFieldErrorMessages((p) => ({ ...p, firstName: '' })); setApiError(null); }} autoCapitalize="words" textContentType="givenName" autoComplete="name-given" returnKeyType="next" onSubmitEditing={() => usernameRef.current?.focus()} />
                                 {fieldErrorMessages.firstName ? <Text style={styles.helperError}>{fieldErrorMessages.firstName}</Text> : null}
-                            </View>
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, fieldErrors.lastName && styles.labelError]}>LAST NAME</Text>
-                                <TextInput ref={lastNameRef} style={[styles.input, fieldErrors.lastName && styles.inputError]} placeholder="Last name" placeholderTextColor={colors.textMuted} value={lastName} onChangeText={(t) => { setLastName(t); setFieldErrors((p) => ({ ...p, lastName: false })); setFieldErrorMessages((p) => ({ ...p, lastName: '' })); setApiError(null); }} autoCapitalize="words" textContentType="familyName" autoComplete="name-family" returnKeyType="next" onSubmitEditing={() => usernameRef.current?.focus()} />
-                                {fieldErrorMessages.lastName ? <Text style={styles.helperError}>{fieldErrorMessages.lastName}</Text> : null}
                             </View>
                             <View style={styles.inputGroup}>
                                 <Text style={[styles.label, fieldErrors.username && styles.labelError]}>USERNAME</Text>
@@ -222,113 +190,13 @@ export default function SignupScreen() {
                             <View style={styles.inputGroup}>
                                 <Text style={[styles.label, fieldErrors.password && styles.labelError]}>PASSWORD</Text>
                                 <View style={[styles.passwordRow, fieldErrors.password && styles.inputError]}>
-                                    <TextInput ref={passwordRef} style={[styles.input, styles.passwordInput]} placeholder="Password" placeholderTextColor={colors.textMuted} value={password} onChangeText={(t) => { setPassword(t); setFieldErrors((p) => ({ ...p, password: false, confirmPassword: false })); setFieldErrorMessages((p) => ({ ...p, password: '' })); setPasswordMismatch(false); setApiError(null); }} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} textContentType="newPassword" autoComplete="new-password" returnKeyType="next" onSubmitEditing={() => confirmPasswordRef.current?.focus()} />
+                                    <TextInput ref={passwordRef} style={[styles.input, styles.passwordInput]} placeholder="Password" placeholderTextColor={colors.textMuted} value={password} onChangeText={(t) => { setPassword(t); setFieldErrors((p) => ({ ...p, password: false, confirmPassword: false })); setFieldErrorMessages((p) => ({ ...p, password: '' })); setPasswordMismatch(false); setApiError(null); }} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} textContentType="newPassword" autoComplete="new-password" returnKeyType="done" onSubmitEditing={handleSignup} />
                                     <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword((p) => !p)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                                         <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.textMuted} />
                                     </TouchableOpacity>
                                 </View>
                                 {fieldErrorMessages.password ? <Text style={styles.helperError}>{fieldErrorMessages.password}</Text> : null}
                             </View>
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, fieldErrors.confirmPassword && styles.labelError]}>CONFIRM PASSWORD</Text>
-                                <View style={[styles.passwordRow, fieldErrors.confirmPassword && styles.inputError]}>
-                                    <TextInput ref={confirmPasswordRef} style={[styles.input, styles.passwordInput]} placeholder="Confirm password" placeholderTextColor={colors.textMuted} value={confirmPassword} onChangeText={(t) => { setConfirmPassword(t); setFieldErrors((p) => ({ ...p, confirmPassword: false, password: false })); setFieldErrorMessages((p) => ({ ...p, confirmPassword: '' })); setPasswordMismatch(false); setApiError(null); }} secureTextEntry={!showConfirmPassword} autoCapitalize="none" autoCorrect={false} textContentType="newPassword" autoComplete="new-password" returnKeyType="next" onSubmitEditing={() => phoneRef.current?.focus()} />
-                                    <TouchableOpacity style={styles.eyeButton} onPress={() => setShowConfirmPassword((p) => !p)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                                        <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.textMuted} />
-                                    </TouchableOpacity>
-                                </View>
-                                {passwordMismatch && <Text style={styles.helperError}>Passwords don&apos;t match</Text>}
-                                {!passwordMismatch && fieldErrorMessages.confirmPassword ? <Text style={styles.helperError}>{fieldErrorMessages.confirmPassword}</Text> : null}
-                            </View>
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, fieldErrors.phone && styles.labelError]}>
-                                    PHONE NUMBER <Text style={styles.labelOptional}>(OPTIONAL)</Text>
-                                </Text>
-                                <View style={[styles.phoneRow, fieldErrors.phone && styles.inputError]}>
-                                    <TouchableOpacity
-                                        style={styles.countryCodeButton}
-                                        onPress={() => setCountryModalVisible(true)}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Text style={styles.countryCodeFlag}>{phoneCountry.flag}</Text>
-                                        <Text style={styles.countryCodeText} numberOfLines={1}>
-                                            {phoneCountry.dialCode}
-                                        </Text>
-                                        <Ionicons name="chevron-down" size={16} color={colors.textMuted} />
-                                    </TouchableOpacity>
-                                    <TextInput
-                                        ref={phoneRef}
-                                        style={styles.phoneNationalInput}
-                                        placeholder="Phone number (optional)"
-                                        placeholderTextColor={colors.textMuted}
-                                        value={phoneNational}
-                                        onChangeText={(t) => {
-                                            setPhoneNational(t);
-                                            setFieldErrors((p) => ({ ...p, phone: false }));
-                                            setFieldErrorMessages((p) => ({ ...p, phone: '' }));
-                                            setApiError(null);
-                                        }}
-                                        keyboardType="phone-pad"
-                                        autoCapitalize="none"
-                                        textContentType="telephoneNumber"
-                                        autoComplete="tel"
-                                        returnKeyType="done"
-                                    />
-                                </View>
-                                {fieldErrorMessages.phone ? (
-                                    <Text style={styles.helperError}>{fieldErrorMessages.phone}</Text>
-                                ) : (
-                                    <Text style={styles.phoneHint}>
-                                        Add now for SMS coaching, or skip and add later in Profile.
-                                    </Text>
-                                )}
-                            </View>
-
-                            <Modal
-                                visible={countryModalVisible}
-                                animationType="slide"
-                                transparent
-                                onRequestClose={() => setCountryModalVisible(false)}
-                            >
-                                <Pressable style={styles.modalBackdrop} onPress={() => setCountryModalVisible(false)}>
-                                    <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-                                        <View style={styles.modalHeader}>
-                                            <Text style={styles.modalTitle}>Country code</Text>
-                                            <TouchableOpacity onPress={() => setCountryModalVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                                <Ionicons name="close" size={24} color={colors.foreground} />
-                                            </TouchableOpacity>
-                                        </View>
-                                        <FlatList
-                                            data={PHONE_COUNTRIES}
-                                            keyExtractor={(item) => `${item.dialCode}-${item.name}`}
-                                            keyboardShouldPersistTaps="handled"
-                                            renderItem={({ item }) => (
-                                                <TouchableOpacity
-                                                    style={[
-                                                        styles.countryRow,
-                                                        item.dialCode === phoneCountry.dialCode && item.name === phoneCountry.name && styles.countryRowSelected,
-                                                    ]}
-                                                    onPress={() => {
-                                                        setPhoneCountry(item);
-                                                        setCountryModalVisible(false);
-                                                        setFieldErrors((p) => ({ ...p, phone: false }));
-                                                        setFieldErrorMessages((p) => ({ ...p, phone: '' }));
-                                                        setApiError(null);
-                                                    }}
-                                                    activeOpacity={0.65}
-                                                >
-                                                    <Text style={styles.countryRowFlag}>{item.flag}</Text>
-                                                    <Text style={styles.countryRowName} numberOfLines={2}>
-                                                        {item.name}
-                                                    </Text>
-                                                    <Text style={styles.countryRowDial}>{item.dialCode}</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                        />
-                                    </Pressable>
-                                </Pressable>
-                            </Modal>
-
                             <View style={styles.policyRow}>
                                 <TouchableOpacity
                                     onPress={() => {
