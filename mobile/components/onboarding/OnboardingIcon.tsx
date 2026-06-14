@@ -22,7 +22,7 @@ const ACircle = Animated.createAnimatedComponent(Circle);
 const APath = Animated.createAnimatedComponent(Path);
 
 const INK = '#1C1A17';
-const GOLD = '#D4A017';
+const GOLD = '#C9A24E';   // softened gold — gentler against the ink
 const SW = 2.3;
 
 export type OnboardingIconKind =

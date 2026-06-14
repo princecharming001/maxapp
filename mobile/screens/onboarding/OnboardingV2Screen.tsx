@@ -44,7 +44,7 @@ import OnboardingIcon, { OnboardingIconKind } from '../../components/onboarding/
 
 const INK = '#1C1A17';
 const CREAM = '#F7F0EA';        // text/icon on an ink-filled (selected) surface
-const GOLD = '#D4A017';         // the one warm accent — selected check + rank
+const GOLD = '#C9A24E';         // the one warm accent — softened so it doesn't fight the ink
 const MUTE = '#97928A';
 const SUB = '#5C574E';
 const HAIR = 'rgba(28,26,23,0.10)';   // warm hairline

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, LayoutChangeEvent, Easing } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing, fonts } from '../../theme/dark';
+import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
+import { colors, fonts } from '../../theme/dark';
 
 interface Props {
     currentStep: number;
@@ -25,20 +25,24 @@ function creepCeiling(step: number): number {
     return 100;
 }
 
+// Ring geometry — one calm progress circle, ink on a faint track, matching the
+// onboarding's thin-progress language (just wrapped into a circle here).
+const RING = 212;
+const R = 96;
+const CIRC = 2 * Math.PI * R;
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
 export default function AnalyzingScreen({ currentStep = 0 }: Props) {
-    const insets = useSafeAreaInsets();
-    const [trackWidth, setTrackWidth] = useState(0);
     const progressAnim = useRef(new Animated.Value(0)).current;
     const [pct, setPct] = useState(0);
     const highWater = useRef(0);
     const activeAnim = useRef<Animated.CompositeAnimation | null>(null);
 
-    const fadeAnim = useRef(new Animated.Value(0.4)).current;
-    const ringSpin = useRef(new Animated.Value(0)).current;
-    const ringSpinRev = useRef(new Animated.Value(0)).current;
+    const fadeAnim = useRef(new Animated.Value(0.45)).current;
+    const haloSpin = useRef(new Animated.Value(0)).current;
     const heroBreath = useRef(new Animated.Value(1)).current;
 
-    // Listen to animated value and keep displayed % monotonically increasing
+    // Keep the displayed % monotonically increasing.
     useEffect(() => {
         const id = progressAnim.addListener(({ value }) => {
             const clamped = Math.min(100, Math.max(0, value));
@@ -50,7 +54,7 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
         return () => progressAnim.removeListener(id);
     }, [progressAnim]);
 
-    // Animate progress toward target when step changes, then slowly creep beyond
+    // Ramp toward the step target, then slowly creep beyond it.
     useEffect(() => {
         const target = targetForStep(currentStep);
         const ceiling = creepCeiling(currentStep);
@@ -78,12 +82,10 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
                 startTail(from);
                 return;
             }
-
             const dist = target - from;
             const dur = currentStep >= 2
                 ? Math.max(4000, dist * 150)
                 : Math.max(10000, dist * 260);
-
             const ramp = Animated.timing(progressAnim, {
                 toValue: target, duration: dur, useNativeDriver: false,
             });
@@ -97,59 +99,38 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
         return () => { activeAnim.current?.stop(); };
     }, [currentStep, progressAnim]);
 
-    // Subtle breathing on the step label
+    // Gentle breathing on the step label.
     useEffect(() => {
         const loop = Animated.loop(
             Animated.sequence([
-                Animated.timing(fadeAnim, { toValue: 0.8, duration: 2000, useNativeDriver: true }),
-                Animated.timing(fadeAnim, { toValue: 0.4, duration: 2000, useNativeDriver: true }),
+                Animated.timing(fadeAnim, { toValue: 0.85, duration: 2000, useNativeDriver: true }),
+                Animated.timing(fadeAnim, { toValue: 0.45, duration: 2000, useNativeDriver: true }),
             ]),
         );
         loop.start();
         return () => loop.stop();
     }, [fadeAnim]);
 
-    // Slow counter-rotating rings — calm, premium motion (native driver)
+    // A single faint dotted halo, turning slowly — calm sense of motion.
     useEffect(() => {
-        const cw = Animated.loop(
-            Animated.timing(ringSpin, {
-                toValue: 1,
-                duration: 28000,
-                easing: Easing.linear,
-                useNativeDriver: true,
+        const spin = Animated.loop(
+            Animated.timing(haloSpin, {
+                toValue: 1, duration: 26000, easing: Easing.linear, useNativeDriver: true,
             }),
         );
-        const ccw = Animated.loop(
-            Animated.timing(ringSpinRev, {
-                toValue: 1,
-                duration: 22000,
-                easing: Easing.linear,
-                useNativeDriver: true,
-            }),
-        );
-        cw.start();
-        ccw.start();
-        return () => {
-            cw.stop();
-            ccw.stop();
-        };
-    }, [ringSpin, ringSpinRev]);
+        spin.start();
+        return () => spin.stop();
+    }, [haloSpin]);
 
-    // Very gentle scale pulse on the hero number cluster
+    // Very gentle scale breath on the number cluster.
     useEffect(() => {
         const loop = Animated.loop(
             Animated.sequence([
                 Animated.timing(heroBreath, {
-                    toValue: 1.02,
-                    duration: 3200,
-                    easing: Easing.inOut(Easing.quad),
-                    useNativeDriver: true,
+                    toValue: 1.02, duration: 3200, easing: Easing.inOut(Easing.quad), useNativeDriver: true,
                 }),
                 Animated.timing(heroBreath, {
-                    toValue: 1,
-                    duration: 3200,
-                    easing: Easing.inOut(Easing.quad),
-                    useNativeDriver: true,
+                    toValue: 1, duration: 3200, easing: Easing.inOut(Easing.quad), useNativeDriver: true,
                 }),
             ]),
         );
@@ -157,48 +138,58 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
         return () => loop.stop();
     }, [heroBreath]);
 
-    const onTrackLayout = (e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width);
-
-    const fillWidth = trackWidth > 0
-        ? progressAnim.interpolate({ inputRange: [0, 100], outputRange: [0, trackWidth], extrapolate: 'clamp' })
-        : 0;
-
+    const dashOffset = progressAnim.interpolate({
+        inputRange: [0, 100], outputRange: [CIRC, 0], extrapolate: 'clamp',
+    });
+    const haloRot = haloSpin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
     const label = STEP_LABELS[Math.min(currentStep, STEP_LABELS.length - 1)];
-
-    const rotOuter = ringSpin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-    const rotInner = ringSpinRev.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
 
     return (
         <View style={st.container}>
-            {/* Centered hero — decorative rings + large serif percentage */}
-            <View style={[st.hero, { paddingTop: insets.top + 40 }]}>
-                <View style={st.heroArt} pointerEvents="none">
-                    <Animated.View style={[st.decorRing, st.decorRingOuter, { transform: [{ rotate: rotOuter }] }]} />
-                    <Animated.View style={[st.decorRing, st.decorRingMid, { transform: [{ rotate: rotInner }] }]} />
-                    <Animated.View style={[st.decorRing, st.decorRingInner, { transform: [{ rotate: rotOuter }] }]} />
-                </View>
-                <Animated.View style={[st.heroNums, { transform: [{ scale: heroBreath }] }]}>
-                    <Text style={st.num}>{pct}</Text>
-                    <Text style={st.pctSign}>%</Text>
-                </Animated.View>
-            </View>
+            <View style={st.center}>
+                <View style={st.ringWrap}>
+                    {/* faint dotted halo, slowly turning */}
+                    <Animated.View style={[st.halo, { transform: [{ rotate: haloRot }] }]} pointerEvents="none">
+                        <Svg width={RING + 44} height={RING + 44}>
+                            <Circle
+                                cx={(RING + 44) / 2}
+                                cy={(RING + 44) / 2}
+                                r={(RING + 44) / 2 - 4}
+                                fill="none"
+                                stroke="rgba(28,26,23,0.07)"
+                                strokeWidth={1.5}
+                                strokeLinecap="round"
+                                strokeDasharray="1.5 13"
+                            />
+                        </Svg>
+                    </Animated.View>
 
-            {/* Bottom strip */}
-            <View style={[st.foot, { paddingBottom: Math.max(insets.bottom, 20) + 32 }]}>
-                {/* Thin progress line */}
-                <View style={st.barWrap} onLayout={onTrackLayout}>
-                    <View style={st.barTrack}>
-                        <Animated.View style={[st.barFill, { width: fillWidth }]} />
-                    </View>
+                    {/* progress ring — ink on a faint track, starting at top */}
+                    <Svg width={RING} height={RING} style={st.ring}>
+                        <Circle
+                            cx={RING / 2} cy={RING / 2} r={R}
+                            fill="none" stroke="rgba(28,26,23,0.08)" strokeWidth={4}
+                        />
+                        <AnimatedCircle
+                            cx={RING / 2} cy={RING / 2} r={R}
+                            fill="none" stroke={colors.foreground} strokeWidth={4}
+                            strokeLinecap="round"
+                            strokeDasharray={`${CIRC} ${CIRC}`}
+                            strokeDashoffset={dashOffset}
+                        />
+                    </Svg>
+
+                    {/* centered percentage */}
+                    <Animated.View style={[st.heroNums, { transform: [{ scale: heroBreath }] }]} pointerEvents="none">
+                        <Text style={st.num}>{pct}</Text>
+                        <Text style={st.pctSign}>%</Text>
+                    </Animated.View>
                 </View>
 
                 <Animated.Text style={[st.stepText, { opacity: fadeAnim }]}>
                     {label}
                 </Animated.Text>
-
-                <Text style={st.hint}>
-                    Keep the app open. This takes a second.
-                </Text>
+                <Text style={st.hint}>Keep the app open. This takes a second.</Text>
             </View>
         </View>
     );
@@ -209,88 +200,62 @@ const st = StyleSheet.create({
         flex: 1,
         backgroundColor: colors.background,
     },
-
-    hero: {
+    center: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        paddingHorizontal: 32,
     },
-    heroArt: {
+    ringWrap: {
+        width: RING,
+        height: RING,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    halo: {
         ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    decorRing: {
+    ring: {
         position: 'absolute',
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.borderLight,
-        borderRadius: 9999,
-        opacity: 0.55,
-    },
-    decorRingOuter: {
-        width: 280,
-        height: 280,
-    },
-    decorRingMid: {
-        width: 220,
-        height: 220,
-        opacity: 0.4,
-    },
-    decorRingInner: {
-        width: 164,
-        height: 164,
-        opacity: 0.35,
+        transform: [{ rotate: '-90deg' }],
     },
     heroNums: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
     },
     num: {
         fontFamily: fonts.serif,
-        fontSize: 108,
+        fontSize: 68,
         fontWeight: '400',
         color: colors.foreground,
-        letterSpacing: -6,
+        letterSpacing: -3,
         includeFontPadding: false,
     },
     pctSign: {
         fontFamily: fonts.serif,
-        fontSize: 32,
+        fontSize: 22,
         fontWeight: '400',
         color: colors.textMuted,
-        marginLeft: 4,
-        marginTop: -36,
-        opacity: 0.5,
-    },
-
-    foot: {
-        paddingHorizontal: spacing.xl + spacing.lg,
-    },
-    barWrap: {
-        marginBottom: spacing.lg,
-    },
-    barTrack: {
-        height: 1.5,
-        backgroundColor: colors.borderLight,
-        overflow: 'hidden',
-    },
-    barFill: {
-        height: '100%',
-        backgroundColor: colors.foreground,
+        marginLeft: 3,
+        marginTop: 10,
+        opacity: 0.6,
     },
     stepText: {
-        fontSize: 13,
-        fontWeight: '400',
+        fontFamily: fonts.sans,
+        fontSize: 14,
         color: colors.foreground,
         textAlign: 'center',
         letterSpacing: 0.2,
+        marginTop: 44,
     },
     hint: {
-        fontSize: 11,
-        fontWeight: '400',
+        fontFamily: fonts.sans,
+        fontSize: 12,
         color: colors.textMuted,
         textAlign: 'center',
-        marginTop: 6,
-        opacity: 0.5,
+        marginTop: 7,
+        opacity: 0.7,
     },
 });
