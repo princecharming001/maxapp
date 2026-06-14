@@ -27,6 +27,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -88,8 +90,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
   const [saving, setSaving] = useState(false);
 
-  // Assistant (demoted): collapsed until asked for.
+  // Assistant (demoted): hidden behind a floating button, opened only on demand.
   const [chatInput, setChatInput] = useState('');
+  const [chatOpen, setChatOpen] = useState(false);
   // Rotate the examples through the input's own placeholder (no chips, no
   // dropdown — the bar IS the affordance).
   const [phIdx, setPhIdx] = useState(0);
@@ -325,9 +328,43 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             <ObligationsManager obligations={obligations} onChange={changeObligations} />
           </View>
 
-          {/* Or just tell Max in plain words — one bar, examples rotate through
-              its own placeholder. No dropdown, no chip wall. */}
-          <View style={styles.section}>
+          <View style={{ height: 96 + insets.bottom }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Floating "ask Max" button — the assistant is hidden until you want it. */}
+      {!chatOpen ? (
+        <TouchableOpacity
+          style={[styles.fab, { bottom: insets.bottom + 84 }]}
+          activeOpacity={0.85}
+          onPress={() => setChatOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Change your week — tell Max"
+        >
+          <Ionicons name="sparkles" size={22} color={colors.background} />
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Chat-to-change sheet, opened on demand from the floating button. */}
+      <Modal
+        visible={chatOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setChatOpen(false)}
+        onShow={() => setTimeout(() => chatRef.current?.focus(), 60)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.chatModalRoot}
+        >
+          <Pressable style={styles.chatModalBackdrop} onPress={() => setChatOpen(false)} />
+          <View style={[styles.chatBar, { paddingBottom: Math.max(insets.bottom, 12) + 10 }]}>
+            <View style={styles.chatBarHandleRow}>
+              <Text style={styles.chatBarTitle}>Tell Max what to change</Text>
+              <TouchableOpacity onPress={() => setChatOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
             {chatReply ? (
               <View style={[styles.chatReply, chatReplyTone === 'warn' && styles.chatReplyWarn]}>
                 <View style={[styles.chatReplyIcon, chatReplyTone === 'warn' && styles.chatReplyIconWarn]}>
@@ -336,14 +373,13 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                 <Text style={styles.chatReplyText}>{chatReply}</Text>
               </View>
             ) : null}
-
             <View style={styles.chatInputRow}>
               <TextInput
                 ref={chatRef}
                 style={styles.chatInput}
                 value={chatInput}
                 onChangeText={setChatInput}
-                placeholder={chatLoading ? 'Reshaping your week…' : `Tell Max — ${CHAT_EXAMPLES[phIdx].toLowerCase()}`}
+                placeholder={chatLoading ? 'Reshaping your week…' : `e.g. ${CHAT_EXAMPLES[phIdx].toLowerCase()}`}
                 placeholderTextColor={colors.textMuted}
                 multiline
                 returnKeyType="send"
@@ -351,12 +387,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                 onSubmitEditing={sendChat}
                 editable={!chatLoading}
               />
-              <TouchableOpacity
-                onPress={sendChat}
-                activeOpacity={0.85}
-                disabled={sendDisabled}
-                style={styles.chatSendWrap}
-              >
+              <TouchableOpacity onPress={sendChat} activeOpacity={0.85} disabled={sendDisabled} style={styles.chatSendWrap}>
                 <View style={[styles.chatSend, sendDisabled ? styles.chatSendOff : styles.chatSendOn]}>
                   {chatLoading ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -367,10 +398,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               </TouchableOpacity>
             </View>
           </View>
-
-          <View style={{ height: 120 + insets.bottom }} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <DayEditorSheet
         visible={sheetVisible}
@@ -550,4 +579,39 @@ const styles = StyleSheet.create({
   },
   chatSendOn: { backgroundColor: ACCENT },
   chatSendOff: { backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+
+  // Floating "ask Max" button + the on-demand chat sheet.
+  fab: {
+    position: 'absolute',
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.foreground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3A352B',
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  chatModalRoot: { flex: 1, justifyContent: 'flex-end' },
+  chatModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,26,23,0.4)' },
+  chatBar: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 16,
+  },
+  chatBarHandleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  chatBarTitle: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground, letterSpacing: 0.1 },
 });
