@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { Image as ExpoImage } from 'expo-image';
 import { colors, fonts } from '../../theme/dark';
 
 interface Props {
@@ -25,10 +25,13 @@ function creepCeiling(step: number): number {
     return 100;
 }
 
-// The rotating marble bust (Higgsfield turntable, baked on the cream canvas so
-// it floats seamlessly). It IS the loader — a slow 360° spin while we analyze.
-const BUST = require('../../assets/bust_rotate.mp4');
-const BUST_SIZE = 248;
+// The rotating marble head (Higgsfield turntable, green-keyed to a TRANSPARENT
+// animated WebP with a baked soft shadow so it floats on the cream canvas and
+// reads at every angle). It IS the loader — a slow 360° spin while we analyze.
+// An animated WebP via expo-image auto-plays (no video-autoplay flakiness), so
+// it always rotates.
+const BUST = require('../../assets/bust_rotate.webp');
+const BUST_SIZE = 280;
 const TRACK_W = 232;
 
 export default function AnalyzingScreen({ currentStep = 0 }: Props) {
@@ -37,12 +40,6 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
     const highWater = useRef(0);
     const activeAnim = useRef<Animated.CompositeAnimation | null>(null);
     const fadeAnim = useRef(new Animated.Value(0.5)).current;
-
-    const player = useVideoPlayer(BUST, (p) => {
-        p.loop = true;
-        p.muted = true;
-        p.play();
-    });
 
     // Keep the displayed % monotonically increasing.
     useEffect(() => {
@@ -121,14 +118,12 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
     return (
         <View style={st.container}>
             <View style={st.center}>
-                {/* Rotating marble bust — the loader's hero. Cream-on-cream so it floats. */}
-                <VideoView
+                {/* Rotating marble head — the loader's hero (transparent animated WebP). */}
+                <ExpoImage
                     style={st.bust}
-                    player={player}
+                    source={BUST}
                     contentFit="contain"
-                    nativeControls={false}
-                    allowsFullscreen={false}
-                    allowsPictureInPicture={false}
+                    autoplay
                     pointerEvents="none"
                 />
 
