@@ -188,10 +188,10 @@ export function GoogleSignInButton({ label }: { label?: string }) {
 const styles = StyleSheet.create({
     btn: {
         height: 54,
-        borderRadius: 16,
+        borderRadius: 999,
         backgroundColor: '#FFFFFF',
-        borderWidth: 1,
-        borderColor: 'rgba(17,17,19,0.12)',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E2DBCD',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',

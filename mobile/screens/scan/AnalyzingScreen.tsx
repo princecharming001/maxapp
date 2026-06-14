@@ -132,13 +132,12 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
                     pointerEvents="none"
                 />
 
+                <Text style={st.pct}>{pct}%</Text>
+
                 <Animated.Text style={[st.label, { opacity: fadeAnim }]}>{label}</Animated.Text>
 
-                <View style={st.barRow}>
-                    <View style={st.track}>
-                        <Animated.View style={[st.fill, { width: fillWidth }]} />
-                    </View>
-                    <Text style={st.pct}>{pct}%</Text>
+                <View style={st.track}>
+                    <Animated.View style={[st.fill, { width: fillWidth }]} />
                 </View>
 
                 <Text style={st.hint}>Keep the app open. This takes a second.</Text>
@@ -163,24 +162,29 @@ const st = StyleSheet.create({
         height: BUST_SIZE,
         backgroundColor: 'transparent',
     },
+    pct: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 34,
+        color: colors.foreground,
+        letterSpacing: -1.4,
+        marginTop: 26,
+        textAlign: 'center',
+        includeFontPadding: false,
+    },
     label: {
         fontFamily: fonts.sansMedium,
-        fontSize: 15,
-        color: colors.foreground,
+        fontSize: 14.5,
+        color: colors.textSecondary,
         letterSpacing: 0.2,
-        marginTop: 30,
-    },
-    barRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        marginTop: 18,
-        width: TRACK_W + 48,
+        marginTop: 8,
+        textAlign: 'center',
     },
     track: {
-        flex: 1,
+        width: TRACK_W,
+        alignSelf: 'center',
         height: 3,
         borderRadius: 2,
+        marginTop: 18,
         backgroundColor: 'rgba(28,26,23,0.08)',
         overflow: 'hidden',
     },
@@ -188,14 +192,6 @@ const st = StyleSheet.create({
         height: '100%',
         borderRadius: 2,
         backgroundColor: colors.foreground,
-    },
-    pct: {
-        fontFamily: fonts.sansSemiBold,
-        fontSize: 13,
-        color: colors.textMuted,
-        width: 36,
-        textAlign: 'right',
-        letterSpacing: -0.2,
     },
     hint: {
         fontFamily: fonts.sans,

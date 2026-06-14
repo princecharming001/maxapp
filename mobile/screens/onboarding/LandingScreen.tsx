@@ -122,12 +122,11 @@ export default function LandingScreen() {
                 <View style={styles.hero}>
                     <Text style={styles.heroLogo}>max</Text>
                     <Text style={styles.heroLine}>
-                        Your AI <Text style={styles.heroItalic}>looksmaxxing</Text> coach,
+                        Your <Text style={styles.heroItalic}>looksmaxxing</Text> coach.
                     </Text>
-                    <Text style={styles.heroSub}>texted daily.</Text>
                 </View>
 
-                {/* ── Auth actions (flat, no card) ── */}
+                {/* ── Auth: one primary, one quiet social, sign-in as a link ── */}
                 <View style={styles.actions}>
                     <TouchableOpacity
                         style={styles.primaryBtn}
@@ -141,15 +140,12 @@ export default function LandingScreen() {
 
                     <GoogleSignInButton />
 
-                    <TouchableOpacity
-                        style={styles.outlineBtn}
-                        activeOpacity={0.8}
-                        onPress={() => navigation.navigate('Login')}
-                        accessibilityRole="button"
-                        accessibilityLabel="Sign in"
-                    >
-                        <Text style={styles.outlineBtnText}>Sign in</Text>
-                    </TouchableOpacity>
+                    <View style={styles.signinRow}>
+                        <Text style={styles.signinMuted}>Already have an account? </Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('Login')} hitSlop={8} activeOpacity={0.7}>
+                            <Text style={styles.signinLink}>Sign in</Text>
+                        </TouchableOpacity>
+                    </View>
 
                     {isWeb ? (
                         <TouchableOpacity
@@ -227,40 +223,47 @@ const styles = StyleSheet.create({
     },
     heroLogo: {
         fontFamily: 'PlayfairDisplay',
-        fontSize: 72,
+        fontSize: 80,
         fontWeight: '300',
         color: INK,
-        letterSpacing: -2.5,
-        marginBottom: 24,
-        lineHeight: 78,
+        letterSpacing: -3,
+        marginBottom: 22,
+        lineHeight: 86,
     },
     heroLine: {
         fontFamily: 'Matter-Medium',
-        fontSize: 16,
+        fontSize: 16.5,
         color: '#5C574E',
-        marginBottom: 6,
         textAlign: 'center',
         letterSpacing: 0.2,
         lineHeight: 24,
     },
     heroItalic: {
         fontFamily: 'Fraunces-Italic',
-        fontSize: 17,
+        fontSize: 17.5,
         color: INK,
-    },
-    heroSub: {
-        fontFamily: 'Matter-Regular',
-        fontSize: 16,
-        color: '#97928A',
-        textAlign: 'center',
-        letterSpacing: 0.2,
-        lineHeight: 24,
     },
 
     // ── Actions ──
     actions: {
         width: '100%',
         gap: 12,
+    },
+    signinRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 8,
+    },
+    signinMuted: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 13.5,
+        color: '#97928A',
+    },
+    signinLink: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 13.5,
+        color: INK,
     },
     primaryBtn: {
         backgroundColor: INK,

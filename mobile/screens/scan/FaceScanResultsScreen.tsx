@@ -27,9 +27,6 @@ import { colors, spacing, borderRadius, typography, fonts } from '../../theme/da
 import { CachedImage } from '../../components/CachedImage';
 import { userHasSignupPhone } from '../../utils/userPhone';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
-import { maxMeta, hexA } from '../../utils/scheduleAggregation';
-
-const GOLD = '#C9A24E';
 
 function formatSuggestedModuleTitle(id: string): string {
     const t = getMaxxDisplayLabel({ id }).trim();
@@ -907,7 +904,7 @@ export default function FaceScanResultsScreen() {
                 {/* ── Photo ── */}
                 <View style={styles.photoWrap}>
                     {frontUri ? (
-                        <View style={[styles.photoRing, !locked && suggestedMods.length ? { borderColor: hexA(maxMeta(suggestedMods[0]).color, 0.45) } : null]}>
+                        <View style={styles.photoRing}>
                             <CachedImage uri={frontUri} style={styles.photoImg} />
                         </View>
                     ) : (
@@ -915,48 +912,52 @@ export default function FaceScanResultsScreen() {
                     )}
                 </View>
 
-                {/* ── Scores ── */}
-                <View style={styles.scorePair}>
-                    <View style={styles.scoreCol}>
-                        <Text style={styles.scoreLabel}>RATING</Text>
+                {/* ── Score bubbles ── */}
+                <View style={styles.bubblesRow}>
+                    <View style={styles.bubble}>
+                        <Text style={styles.bubbleLabel}>RATING</Text>
                         {isProcessing ? (
-                            <ActivityIndicator color={colors.foreground} style={{ marginVertical: 12 }} />
+                            <ActivityIndicator color={colors.foreground} style={{ marginVertical: 10 }} />
                         ) : locked ? (
-                            <PaywallBlurShell minHeight={52}>
-                                <Text style={[styles.scoreNum, styles.scoreNumAccent]}>
+                            <PaywallBlurShell minHeight={44}>
+                                <Text style={[styles.bubbleNum, ratingDisplay != null && { color: getScoreColor(ratingColorScore) }]}>
                                     {ratingDisplay != null ? ratingDisplay.toFixed(1) : '—'}
                                 </Text>
                             </PaywallBlurShell>
                         ) : (
-                            <Text style={[styles.scoreNum, styles.scoreNumAccent]}>
+                            <Text style={[styles.bubbleNum, ratingDisplay != null && { color: getScoreColor(ratingColorScore) }]}>
                                 {ratingDisplay != null ? ratingDisplay.toFixed(1) : '—'}
                             </Text>
                         )}
-                        <Text style={styles.scoreOutOf}>out of 10</Text>
+                        <Text style={styles.bubbleUnit}>/10</Text>
                     </View>
 
-                    <View style={styles.scorePairDivider} />
-
-                    <View style={styles.scoreCol}>
-                        <Text style={styles.scoreLabel}>POTENTIAL</Text>
+                    <View style={styles.bubble}>
+                        <Text style={styles.bubbleLabel}>POTENTIAL</Text>
                         {isProcessing ? (
-                            <ActivityIndicator color={colors.foreground} style={{ marginVertical: 12 }} />
+                            <ActivityIndicator color={colors.foreground} style={{ marginVertical: 10 }} />
                         ) : locked ? (
-                            <PaywallBlurShell minHeight={52}>
-                                <Text style={styles.scoreNum}>{potentialDisplay.toFixed(1)}</Text>
+                            <PaywallBlurShell minHeight={44}>
+                                <Text style={[styles.bubbleNum, { color: getScoreColor(potentialDisplay) }]}>
+                                    {potentialDisplay.toFixed(1)}
+                                </Text>
                             </PaywallBlurShell>
                         ) : (
-                            <Text style={styles.scoreNum}>{potentialDisplay.toFixed(1)}</Text>
+                            <Text style={[styles.bubbleNum, { color: getScoreColor(potentialDisplay) }]}>
+                                {potentialDisplay.toFixed(1)}
+                            </Text>
                         )}
-                        <Text style={styles.scoreOutOf}>out of 10</Text>
+                        <Text style={styles.bubbleUnit}>/10</Text>
                     </View>
                 </View>
+
+                <View style={{ height: 14 }} />
 
                 {/* ── Stats ── */}
                 <View style={styles.statsBlock}>
                     {[
                         { label: 'Tier', value: pslTier || '—', color: colors.foreground },
-                        { label: 'Appeal', value: appealScore > 0 ? `${appealScore.toFixed(1)}/10` : '—', color: colors.foreground },
+                        { label: 'Appeal', value: appealScore > 0 ? `${appealScore.toFixed(1)}/10` : '—', color: getScoreColor(appealScore) },
                         { label: 'Archetype', value: archetype || '—', color: colors.foreground },
                         { label: 'Ascension', value: ascensionLabelText || '—', color: colors.foreground },
                         { label: 'Facial age', value: ageScore > 0 ? `${ageScore}` : '—', color: colors.foreground },
@@ -969,10 +970,6 @@ export default function FaceScanResultsScreen() {
                                 <PaywallBlurShell minHeight={20}>
                                     <Text style={[styles.statValue, { color: item.color }]}>{item.value}</Text>
                                 </PaywallBlurShell>
-                            ) : idx === 0 && item.value !== '—' ? (
-                                <View style={styles.tierBadge}>
-                                    <Text style={styles.tierBadgeText}>{item.value}</Text>
-                                </View>
                             ) : (
                                 <Text style={[styles.statValue, { color: item.color }]}>{item.value}</Text>
                             )}
@@ -985,20 +982,11 @@ export default function FaceScanResultsScreen() {
                     <View style={styles.recsSection}>
                         <Text style={styles.recsHeading}>Recommended</Text>
                         <View style={styles.recsPills}>
-                            {suggestedMods.map((m, i) => {
-                                const meta = maxMeta(m);
-                                return (
-                                    <TouchableOpacity
-                                        key={`${m}-${i}`}
-                                        style={[styles.recPill, { backgroundColor: hexA(meta.color, 0.12), borderColor: hexA(meta.color, 0.30) }]}
-                                        activeOpacity={0.75}
-                                        onPress={() => { try { navigation.navigate('MaxxDetail', { maxxId: meta.id }); } catch { /* not in this stack */ } }}
-                                    >
-                                        <Ionicons name={meta.icon as any} size={14} color={meta.color} style={{ marginRight: 6 }} />
-                                        <Text style={[styles.recPillText, { color: meta.color }]}>{formatSuggestedModuleTitle(m)}</Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
+                            {suggestedMods.map((m, i) => (
+                                <View key={`${m}-${i}`} style={styles.recPill}>
+                                    <Text style={styles.recPillText}>{formatSuggestedModuleTitle(m)}</Text>
+                                </View>
+                            ))}
                         </View>
                     </View>
                 ) : null}
@@ -1143,64 +1131,72 @@ const styles = StyleSheet.create({
     /* ── Photo ── */
     photoWrap: { alignItems: 'center', marginBottom: 28 },
     photoRing: {
-        width: 156,
-        height: 156,
-        borderRadius: 34,
+        width: 140,
+        height: 140,
+        borderRadius: 70,
         overflow: 'hidden',
         backgroundColor: colors.surface,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-        ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as const } : {}),
+        borderWidth: 3,
+        borderColor: 'rgba(0,0,0,0.04)',
     },
     photoEmpty: { borderWidth: 1, borderColor: colors.borderLight },
     photoImg: { width: '100%', height: '100%' },
 
-    /* ── Scores (flat two-up, ink + one gold accent) ── */
-    scorePair: {
+    /* ── Score bubbles ── */
+    bubblesRow: {
         flexDirection: 'row',
-        alignItems: 'stretch',
-        marginBottom: 34,
+        justifyContent: 'center',
+        gap: 20,
+        marginBottom: 24,
     },
-    scoreCol: { flex: 1, alignItems: 'center' },
-    scoreLabel: {
-        fontFamily: fonts.sansSemiBold,
-        fontSize: 10,
-        letterSpacing: 1.8,
+    bubble: {
+        width: 136,
+        height: 136,
+        borderRadius: 68,
+        backgroundColor: colors.background,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.06)',
+    },
+    bubbleLabel: {
+        fontSize: 8,
+        fontWeight: '600',
         color: colors.textMuted,
-        textTransform: 'uppercase',
-        marginBottom: 8,
+        letterSpacing: 2,
+        marginBottom: 2,
+        opacity: 0.7,
     },
-    scoreNum: {
+    bubbleNum: {
         fontFamily: fonts.sansSemiBold,
-        fontSize: 54,
+        fontSize: 42,
         color: colors.foreground,
         letterSpacing: -2.5,
-        lineHeight: 60,
+        lineHeight: 48,
         includeFontPadding: false,
     },
-    scoreNumAccent: { color: GOLD },
-    scoreOutOf: {
-        fontFamily: fonts.sans,
+    bubbleUnit: {
         fontSize: 11,
+        fontWeight: '400',
         color: colors.textMuted,
-        marginTop: 7,
-        letterSpacing: 0.2,
+        marginTop: 2,
+        opacity: 0.5,
     },
-    scorePairDivider: {
-        width: StyleSheet.hairlineWidth,
-        backgroundColor: colors.border,
-        marginVertical: 10,
+
+    /* ── Brand text ── */
+    brandText: {
+        fontFamily: fonts.serif,
+        fontSize: 11,
+        letterSpacing: 3,
+        color: colors.textMuted,
+        textAlign: 'center',
+        textTransform: 'uppercase',
+        opacity: 0.3,
+        marginBottom: 32,
     },
 
     /* ── Stat rows ── */
-    statsBlock: {
-        marginBottom: 28,
-        backgroundColor: colors.card,
-        borderRadius: 20,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-        paddingHorizontal: 18,
-    },
+    statsBlock: { marginBottom: 28 },
     statRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -1211,28 +1207,16 @@ const styles = StyleSheet.create({
     },
     statRowFirst: { borderTopWidth: 0 },
     statLabel: {
-        fontFamily: fonts.sans,
-        fontSize: 13.5,
+        fontSize: 13,
+        fontWeight: '400',
         color: colors.textMuted,
         letterSpacing: 0.2,
     },
     statValue: {
-        fontFamily: fonts.sansSemiBold,
         fontSize: 15,
+        fontWeight: '600',
         color: colors.foreground,
         letterSpacing: -0.2,
-    },
-    tierBadge: {
-        backgroundColor: 'rgba(201,162,78,0.16)',
-        paddingHorizontal: 11,
-        paddingVertical: 3,
-        borderRadius: 999,
-    },
-    tierBadgeText: {
-        fontFamily: fonts.sansSemiBold,
-        fontSize: 13.5,
-        color: '#8A6D1E',
-        letterSpacing: -0.1,
     },
 
     /* ── Recommended ── */
@@ -1252,17 +1236,15 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     recPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 9,
-        paddingHorizontal: 14,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
         borderRadius: borderRadius.full,
         borderWidth: 1,
         borderColor: 'rgba(0,0,0,0.1)',
     },
     recPillText: {
-        fontFamily: fonts.sansSemiBold,
-        fontSize: 13,
+        fontSize: 12,
+        fontWeight: '500',
         color: colors.foreground,
         letterSpacing: 0.1,
     },
