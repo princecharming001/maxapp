@@ -126,6 +126,12 @@ export default function YouScreen() {
                     title="PROGRESS"
                     rows={[
                         {
+                            icon: 'trophy-outline',
+                            label: 'Achievements',
+                            sub: 'Badges & milestones',
+                            onPress: () => navigation.navigate('Achievements'),
+                        },
+                        {
                             icon: 'scan-outline',
                             label: 'New scan',
                             sub: 'Optional',

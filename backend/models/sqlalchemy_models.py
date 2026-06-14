@@ -822,3 +822,31 @@ class UserPersonalizationProfile(Base):
     __table_args__ = (
         Index("idx_user_personalization_profiles_user_id", user_id),
     )
+
+
+class UserAchievement(Base):
+    """A badge the user has earned. The catalog (titles, criteria, tiers) lives
+    in code (services.achievements); this table is just the per-user ledger of
+    what's been earned and whether the earn-moment has been celebrated yet.
+
+    `code` is the catalog key (e.g. "streak_7"). One row per (user, code) — an
+    achievement is earned once and never un-earned. `seen=False` means the
+    client still owes the user a celebration overlay for it.
+    """
+
+    __tablename__ = "user_achievements"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("app_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    code = Column(String, nullable=False)
+    earned_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    seen = Column(Boolean, default=False, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "code", name="uq_user_achievement_user_code"),
+        Index("idx_user_achievements_user_id", user_id),
+    )

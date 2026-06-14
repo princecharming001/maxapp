@@ -127,3 +127,17 @@ async def refresh(
     user_id = str(current_user["id"])
     built = await pers.rebuild_profile(user_id, db)
     return {"ok": True, "profile": built.get("profile"), "brief": built.get("brief")}
+
+
+@router.get("/reminder")
+async def reminder(
+    maxx: str = "your",
+    slot: str = "default",
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Personalized reminder copy for a routine — voice + goal keyed to the
+    user's profile. The client schedules its local notifications with this so
+    every nudge sounds like Max actually knows them."""
+    from services.notification_copy import reminder_copy
+    return await reminder_copy(db, str(current_user["id"]), maxx_label=maxx, slot=slot)

@@ -404,6 +404,18 @@ export default function ProfileScreen() {
                                 </Text>
                             </TouchableOpacity>
                         </View>
+
+                        <TouchableOpacity
+                            style={styles.achievementsRow}
+                            onPress={() => navigation.navigate('Achievements')}
+                            activeOpacity={0.8}
+                            accessibilityRole="button"
+                            accessibilityLabel="Achievements"
+                        >
+                            <Ionicons name="trophy-outline" size={17} color={colors.foreground} />
+                            <Text style={styles.achievementsRowText}>Achievements</Text>
+                            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ marginLeft: 'auto' }} />
+                        </TouchableOpacity>
                     </View>
 
                     <View style={styles.gridDivider} />
@@ -679,6 +691,23 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 10,
         marginTop: spacing.lg,
+    },
+    achievementsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginTop: 12,
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderRadius: borderRadius.lg,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        backgroundColor: colors.surfaceLight,
+    },
+    achievementsRowText: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 15,
+        color: colors.foreground,
     },
     actionBtn: {
         flexDirection: 'row',

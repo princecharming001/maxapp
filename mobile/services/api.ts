@@ -29,6 +29,36 @@ export interface PersonalizationProfile {
     memories_by_dimension: Record<string, PersonalMemory[]>;
 }
 
+export type AchievementTier = 'bronze' | 'silver' | 'gold';
+
+export interface AchievementItem {
+    code: string;
+    title: string;
+    description: string;
+    tier: AchievementTier;
+    category: string;
+    icon: string;
+    earned: boolean;
+    seen: boolean;
+    progress?: { current: number; target: number } | null;
+}
+
+export interface AchievementsResponse {
+    achievements: AchievementItem[];
+    earned_count: number;
+    total: number;
+    categories: string[];
+}
+
+export interface EarnedAchievement {
+    code: string;
+    title: string;
+    description: string;
+    tier: AchievementTier;
+    icon: string;
+    category?: string;
+}
+
 export interface MarketplaceItem {
     type: 'maxx' | 'course';
     id: string;
@@ -607,6 +637,17 @@ class ApiService {
     async refreshPersonalization() {
         const response = await this.client.post('personalization/refresh');
         return response.data as { ok: boolean; profile?: any; brief?: string | null };
+    }
+
+    // --- Achievements / badges ---
+    async getAchievements() {
+        const response = await this.client.get('achievements');
+        return response.data as AchievementsResponse;
+    }
+
+    async markAchievementsSeen(codes: string[]) {
+        const response = await this.client.post('achievements/seen', { codes });
+        return response.data as { ok: boolean; updated: number };
     }
 
     async deleteAccount(password: string) {
@@ -1859,6 +1900,7 @@ class ApiService {
         schedules: any[];
         schedule_streak?: { current: number; last_perfect_date?: string | null; today_date: string };
         today_date?: string;
+        newly_earned_achievements?: EarnedAchievement[];
     }> {
         const response = await this.client.get('schedules/active/full');
         return response.data;

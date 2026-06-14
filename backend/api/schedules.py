@@ -135,7 +135,20 @@ async def get_all_active_schedules_full(
     schedules = await schedule_service.get_all_active_schedules(current_user["id"], db)
     user_row = await db.get(User, UUID(current_user["id"]))
     streak = await sync_master_schedule_streak(user_row, schedules, db)
-    return {"schedules": schedules, "schedule_streak": streak, "today_date": streak.get("today_date")}
+    # Award any newly-earned badges off the freshly-synced day-state and hand
+    # them back so the client can fire a celebration. Best-effort, never fatal.
+    newly_earned: list = []
+    try:
+        from services.achievements import evaluate as _evaluate_achievements
+        newly_earned = await _evaluate_achievements(db, user_row, streak=streak, schedules=schedules)
+    except Exception:
+        newly_earned = []
+    return {
+        "schedules": schedules,
+        "schedule_streak": streak,
+        "today_date": streak.get("today_date"),
+        "newly_earned_achievements": newly_earned,
+    }
 
 
 @router.get("/master")
