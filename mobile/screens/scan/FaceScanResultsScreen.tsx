@@ -28,6 +28,8 @@ import { CachedImage } from '../../components/CachedImage';
 import { userHasSignupPhone } from '../../utils/userPhone';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
 
+const GOLD = '#C9A24E';
+
 function formatSuggestedModuleTitle(id: string): string {
     const t = getMaxxDisplayLabel({ id }).trim();
     if (!t) return id;
@@ -912,53 +914,48 @@ export default function FaceScanResultsScreen() {
                     )}
                 </View>
 
-                {/* ── Score bubbles ── */}
-                <View style={styles.bubblesRow}>
-                    <View style={styles.bubble}>
-                        <Text style={styles.bubbleLabel}>RATING</Text>
+                {/* ── Scores ── */}
+                <View style={styles.scorePair}>
+                    <View style={styles.scoreCol}>
+                        <Text style={styles.scoreLabel}>RATING</Text>
                         {isProcessing ? (
-                            <ActivityIndicator color={colors.foreground} style={{ marginVertical: 10 }} />
+                            <ActivityIndicator color={colors.foreground} style={{ marginVertical: 12 }} />
                         ) : locked ? (
-                            <PaywallBlurShell minHeight={44}>
-                                <Text style={[styles.bubbleNum, ratingDisplay != null && { color: getScoreColor(ratingColorScore) }]}>
+                            <PaywallBlurShell minHeight={52}>
+                                <Text style={[styles.scoreNum, styles.scoreNumAccent]}>
                                     {ratingDisplay != null ? ratingDisplay.toFixed(1) : '—'}
                                 </Text>
                             </PaywallBlurShell>
                         ) : (
-                            <Text style={[styles.bubbleNum, ratingDisplay != null && { color: getScoreColor(ratingColorScore) }]}>
+                            <Text style={[styles.scoreNum, styles.scoreNumAccent]}>
                                 {ratingDisplay != null ? ratingDisplay.toFixed(1) : '—'}
                             </Text>
                         )}
-                        <Text style={styles.bubbleUnit}>/10</Text>
+                        <Text style={styles.scoreOutOf}>out of 10</Text>
                     </View>
 
-                    <View style={styles.bubble}>
-                        <Text style={styles.bubbleLabel}>POTENTIAL</Text>
+                    <View style={styles.scorePairDivider} />
+
+                    <View style={styles.scoreCol}>
+                        <Text style={styles.scoreLabel}>POTENTIAL</Text>
                         {isProcessing ? (
-                            <ActivityIndicator color={colors.foreground} style={{ marginVertical: 10 }} />
+                            <ActivityIndicator color={colors.foreground} style={{ marginVertical: 12 }} />
                         ) : locked ? (
-                            <PaywallBlurShell minHeight={44}>
-                                <Text style={[styles.bubbleNum, { color: getScoreColor(potentialDisplay) }]}>
-                                    {potentialDisplay.toFixed(1)}
-                                </Text>
+                            <PaywallBlurShell minHeight={52}>
+                                <Text style={styles.scoreNum}>{potentialDisplay.toFixed(1)}</Text>
                             </PaywallBlurShell>
                         ) : (
-                            <Text style={[styles.bubbleNum, { color: getScoreColor(potentialDisplay) }]}>
-                                {potentialDisplay.toFixed(1)}
-                            </Text>
+                            <Text style={styles.scoreNum}>{potentialDisplay.toFixed(1)}</Text>
                         )}
-                        <Text style={styles.bubbleUnit}>/10</Text>
+                        <Text style={styles.scoreOutOf}>out of 10</Text>
                     </View>
                 </View>
-
-                {/* ── Brand ── */}
-                <Text style={styles.brandText}>max</Text>
 
                 {/* ── Stats ── */}
                 <View style={styles.statsBlock}>
                     {[
                         { label: 'Tier', value: pslTier || '—', color: colors.foreground },
-                        { label: 'Appeal', value: appealScore > 0 ? `${appealScore.toFixed(1)}/10` : '—', color: getScoreColor(appealScore) },
+                        { label: 'Appeal', value: appealScore > 0 ? `${appealScore.toFixed(1)}/10` : '—', color: colors.foreground },
                         { label: 'Archetype', value: archetype || '—', color: colors.foreground },
                         { label: 'Ascension', value: ascensionLabelText || '—', color: colors.foreground },
                         { label: 'Facial age', value: ageScore > 0 ? `${ageScore}` : '—', color: colors.foreground },
@@ -1132,69 +1129,54 @@ const styles = StyleSheet.create({
     /* ── Photo ── */
     photoWrap: { alignItems: 'center', marginBottom: 28 },
     photoRing: {
-        width: 140,
-        height: 140,
-        borderRadius: 70,
+        width: 156,
+        height: 156,
+        borderRadius: 34,
         overflow: 'hidden',
         backgroundColor: colors.surface,
-        borderWidth: 3,
-        borderColor: 'rgba(0,0,0,0.04)',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as const } : {}),
     },
     photoEmpty: { borderWidth: 1, borderColor: colors.borderLight },
     photoImg: { width: '100%', height: '100%' },
 
-    /* ── Score bubbles ── */
-    bubblesRow: {
+    /* ── Scores (flat two-up, ink + one gold accent) ── */
+    scorePair: {
         flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 20,
-        marginBottom: 24,
+        alignItems: 'stretch',
+        marginBottom: 34,
     },
-    bubble: {
-        width: 136,
-        height: 136,
-        borderRadius: 68,
-        backgroundColor: colors.background,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.06)',
-    },
-    bubbleLabel: {
-        fontSize: 8,
-        fontWeight: '600',
+    scoreCol: { flex: 1, alignItems: 'center' },
+    scoreLabel: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 10,
+        letterSpacing: 1.8,
         color: colors.textMuted,
-        letterSpacing: 2,
-        marginBottom: 2,
-        opacity: 0.7,
+        textTransform: 'uppercase',
+        marginBottom: 8,
     },
-    bubbleNum: {
+    scoreNum: {
         fontFamily: fonts.serif,
-        fontSize: 42,
-        fontWeight: '700',
+        fontSize: 56,
+        fontWeight: '400',
         color: colors.foreground,
         letterSpacing: -2,
-        lineHeight: 48,
+        lineHeight: 60,
         includeFontPadding: false,
     },
-    bubbleUnit: {
+    scoreNumAccent: { color: GOLD },
+    scoreOutOf: {
+        fontFamily: fonts.sans,
         fontSize: 11,
-        fontWeight: '400',
         color: colors.textMuted,
-        marginTop: 2,
-        opacity: 0.5,
+        marginTop: 7,
+        letterSpacing: 0.2,
     },
-
-    /* ── Brand text ── */
-    brandText: {
-        fontFamily: fonts.serif,
-        fontSize: 11,
-        letterSpacing: 3,
-        color: colors.textMuted,
-        textAlign: 'center',
-        textTransform: 'uppercase',
-        opacity: 0.3,
-        marginBottom: 32,
+    scorePairDivider: {
+        width: StyleSheet.hairlineWidth,
+        backgroundColor: colors.border,
+        marginVertical: 10,
     },
 
     /* ── Stat rows ── */
