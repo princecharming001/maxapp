@@ -8,18 +8,16 @@ import {
     ActivityIndicator,
     Alert,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { A11yBlurView as BlurView } from '../../components/glass/SolidFallback';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { GlassCard } from '../../components/glass/GlassCard';
-import { PastelCard } from '../../components/glass/PastelCard';
-import { GlassButton } from '../../components/glass/GlassButton';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 
 const isWeb = Platform.OS === 'web';
 const WEB_MAX_WIDTH = 440;
+
+const INK = '#1C1A17';
+const CREAM = '#F7F0EA';
 
 export default function LandingScreen() {
     const navigation = useNavigation<any>();
@@ -99,90 +97,107 @@ export default function LandingScreen() {
 
     return (
         <View style={styles.root}>
-            {/* Craft aesthetic: flat warm paper, no orbs/blur. */}
             {isWeb ? (
                 <TouchableOpacity
                     style={styles.skipPill}
-                    activeOpacity={0.8}
+                    activeOpacity={0.7}
                     onPress={handleSkip}
                     disabled={skipLoading}
                     accessibilityRole="button"
                     accessibilityLabel="Skip to home"
                 >
-                    <BlurView intensity={30} tint="light" style={StyleSheet.absoluteFill} />
-                    <View style={styles.skipPillInner}>
-                        {skipLoading ? (
-                            <ActivityIndicator size="small" color="#1C1A17" />
-                        ) : (
-                            <>
-                                <Text style={styles.skipPillText}>Skip</Text>
-                                <Ionicons name="chevron-forward" size={14} color="#1C1A17" />
-                            </>
-                        )}
-                    </View>
+                    {skipLoading ? (
+                        <ActivityIndicator size="small" color={INK} />
+                    ) : (
+                        <>
+                            <Text style={styles.skipPillText}>Skip</Text>
+                            <Ionicons name="chevron-forward" size={13} color={INK} />
+                        </>
+                    )}
                 </TouchableOpacity>
             ) : null}
 
             <View style={styles.content}>
+                {/* ── Hero wordmark ── */}
                 <View style={styles.hero}>
                     <Text style={styles.heroLogo}>max</Text>
-                    <Text style={styles.heroLine1}>Your AI <Text style={{ fontFamily: 'Fraunces-Italic', fontSize: 17, color: '#1C1A17' }}>looksmaxxing</Text> coach,</Text>
-                    <Text style={styles.heroLine2}>texted daily.</Text>
+                    <Text style={styles.heroLine}>
+                        Your AI <Text style={styles.heroItalic}>looksmaxxing</Text> coach,
+                    </Text>
+                    <Text style={styles.heroSub}>texted daily.</Text>
                 </View>
 
-                <PastelCard tone="blue" radius={28} style={styles.ctaCard}>
-                    <View style={styles.ctaInner}>
-                        <GlassButton
-                            variant="primary"
-                            label="Sign In"
-                            onPress={() => navigation.navigate('Login')}
-                        />
-                        <GlassButton
-                            variant="glass"
-                            label="Create account"
-                            onPress={() => navigation.navigate('Signup')}
-                        />
-                        <GoogleSignInButton />
-                        {isWeb ? (
-                            <GlassButton
-                                variant="ghost"
-                                label="Try it first. No account needed"
-                                onPress={handleTryNow}
-                                loading={demoLoading}
-                            />
-                        ) : null}
-                        {/* DEV-only buttons: bypass signup form to test specific
-                            app states. Compiled out in prod builds. */}
-                        {__DEV__ ? (
-                            <View style={styles.devStack}>
-                                <TouchableOpacity
-                                    style={styles.devButton}
-                                    activeOpacity={0.7}
-                                    onPress={handleDevOnboarding}
-                                    disabled={freshLoading}
-                                >
-                                    {freshLoading ? (
-                                        <ActivityIndicator size="small" color="#fff" />
-                                    ) : (
-                                        <Text style={styles.devButtonText}>DEV → Test onboarding flow</Text>
-                                    )}
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.devButton}
-                                    activeOpacity={0.7}
-                                    onPress={handleSkip}
-                                    disabled={skipLoading}
-                                >
-                                    {skipLoading ? (
-                                        <ActivityIndicator size="small" color="#fff" />
-                                    ) : (
-                                        <Text style={styles.devButtonText}>DEV → Skip to home (paid demo)</Text>
-                                    )}
-                                </TouchableOpacity>
-                            </View>
-                        ) : null}
-                    </View>
-                </PastelCard>
+                {/* ── Auth actions (flat, no card) ── */}
+                <View style={styles.actions}>
+                    <TouchableOpacity
+                        style={styles.primaryBtn}
+                        activeOpacity={0.85}
+                        onPress={() => navigation.navigate('Signup')}
+                        accessibilityRole="button"
+                        accessibilityLabel="Create account"
+                    >
+                        <Text style={styles.primaryBtnText}>Create account</Text>
+                    </TouchableOpacity>
+
+                    <GoogleSignInButton />
+
+                    <TouchableOpacity
+                        style={styles.outlineBtn}
+                        activeOpacity={0.8}
+                        onPress={() => navigation.navigate('Login')}
+                        accessibilityRole="button"
+                        accessibilityLabel="Sign in"
+                    >
+                        <Text style={styles.outlineBtnText}>Sign in</Text>
+                    </TouchableOpacity>
+
+                    {isWeb ? (
+                        <TouchableOpacity
+                            style={styles.tryLink}
+                            activeOpacity={0.7}
+                            onPress={handleTryNow}
+                            disabled={demoLoading}
+                            accessibilityRole="button"
+                            accessibilityLabel="Try it first, no account needed"
+                        >
+                            {demoLoading ? (
+                                <ActivityIndicator size="small" color="#97928A" />
+                            ) : (
+                                <Text style={styles.tryLinkText}>Try it first — no account needed</Text>
+                            )}
+                        </TouchableOpacity>
+                    ) : null}
+
+                    {/* DEV-only: bypass signup to test app states. Compiled out in prod. */}
+                    {__DEV__ ? (
+                        <View style={styles.devStack}>
+                            <TouchableOpacity
+                                style={styles.devButton}
+                                activeOpacity={0.7}
+                                onPress={handleDevOnboarding}
+                                disabled={freshLoading}
+                            >
+                                {freshLoading ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Text style={styles.devButtonText}>DEV → Test onboarding flow</Text>
+                                )}
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.devButton}
+                                activeOpacity={0.7}
+                                onPress={handleSkip}
+                                disabled={skipLoading}
+                            >
+                                {skipLoading ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Text style={styles.devButtonText}>DEV → Skip to home (paid demo)</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    ) : null}
+                </View>
             </View>
         </View>
     );
@@ -191,7 +206,7 @@ export default function LandingScreen() {
 const styles = StyleSheet.create({
     root: {
         flex: 1,
-        backgroundColor: '#F7F0EA',
+        backgroundColor: CREAM,
         ...(isWeb && { alignItems: 'center' as const }),
     },
     content: {
@@ -199,10 +214,12 @@ const styles = StyleSheet.create({
         width: '100%',
         paddingHorizontal: 28,
         paddingTop: 104,
-        paddingBottom: 56,
+        paddingBottom: 48,
         justifyContent: 'space-between',
         ...(isWeb && { maxWidth: WEB_MAX_WIDTH }),
     },
+
+    // ── Hero ──
     hero: {
         flex: 1,
         alignItems: 'center',
@@ -210,23 +227,28 @@ const styles = StyleSheet.create({
     },
     heroLogo: {
         fontFamily: 'PlayfairDisplay',
-        fontSize: 66,
+        fontSize: 72,
         fontWeight: '300',
-        color: '#1C1A17',
-        letterSpacing: -2,
-        marginBottom: 28,
-        lineHeight: 72,
+        color: INK,
+        letterSpacing: -2.5,
+        marginBottom: 24,
+        lineHeight: 78,
     },
-    heroLine1: {
+    heroLine: {
         fontFamily: 'Matter-Medium',
         fontSize: 16,
         color: '#5C574E',
-        marginBottom: 8,
+        marginBottom: 6,
         textAlign: 'center',
         letterSpacing: 0.2,
         lineHeight: 24,
     },
-    heroLine2: {
+    heroItalic: {
+        fontFamily: 'Fraunces-Italic',
+        fontSize: 17,
+        color: INK,
+    },
+    heroSub: {
         fontFamily: 'Matter-Regular',
         fontSize: 16,
         color: '#97928A',
@@ -234,13 +256,52 @@ const styles = StyleSheet.create({
         letterSpacing: 0.2,
         lineHeight: 24,
     },
-    ctaCard: {
+
+    // ── Actions ──
+    actions: {
         width: '100%',
+        gap: 12,
     },
-    ctaInner: {
-        padding: 16,
-        gap: 10,
+    primaryBtn: {
+        backgroundColor: INK,
+        borderRadius: 999,
+        paddingVertical: 17,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
+    primaryBtnText: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 15,
+        color: CREAM,
+        letterSpacing: 0.1,
+    },
+    outlineBtn: {
+        borderRadius: 999,
+        borderWidth: 1.5,
+        borderColor: INK,
+        paddingVertical: 15.5,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    outlineBtnText: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 15,
+        color: INK,
+        letterSpacing: 0.1,
+    },
+    tryLink: {
+        alignItems: 'center',
+        paddingVertical: 12,
+        marginTop: 2,
+    },
+    tryLinkText: {
+        fontFamily: 'Matter-Medium',
+        fontSize: 13.5,
+        color: '#97928A',
+        letterSpacing: 0.2,
+    },
+
+    // ── DEV ──
     devStack: {
         marginTop: 6,
         gap: 6,
@@ -260,33 +321,29 @@ const styles = StyleSheet.create({
         fontSize: 11,
         letterSpacing: 1.2,
     },
+
+    // ── Skip ──
     skipPill: {
         position: 'absolute',
         top: Platform.OS === 'ios' ? 60 : 28,
         right: 20,
         zIndex: 10,
-        borderRadius: 999,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
-        minWidth: 70,
-        minHeight: 34,
-        ...(isWeb && { cursor: 'pointer' as const }),
-    },
-    skipPillInner: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: 2,
-        paddingVertical: 7,
-        paddingLeft: 14,
-        paddingRight: 10,
-        backgroundColor: 'rgba(255,255,255,0.45)',
+        gap: 3,
+        borderRadius: 999,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: '#E8E0D3',
+        backgroundColor: '#F9F3EC',
+        paddingVertical: 8,
+        paddingLeft: 15,
+        paddingRight: 11,
+        ...(isWeb && { cursor: 'pointer' as const }),
     },
     skipPillText: {
         fontFamily: 'Matter-Medium',
-        fontSize: 12,
-        letterSpacing: 0.3,
-        color: '#1C1A17',
+        fontSize: 13,
+        letterSpacing: 0.2,
+        color: INK,
     },
 });
