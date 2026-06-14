@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { GlassCard } from '../../components/glass/GlassCard';
+import { PastelCard } from '../../components/glass/PastelCard';
 import { GlassButton } from '../../components/glass/GlassButton';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 
@@ -125,11 +126,11 @@ export default function LandingScreen() {
             <View style={styles.content}>
                 <View style={styles.hero}>
                     <Text style={styles.heroLogo}>max</Text>
-                    <Text style={styles.heroLine1}>Your AI looksmaxxing coach.</Text>
+                    <Text style={styles.heroLine1}>Your AI <Text style={{ fontFamily: 'Fraunces-Italic', fontSize: 17, color: '#1C1A17' }}>looksmaxxing</Text> coach.</Text>
                     <Text style={styles.heroLine2}>Personalized advice, texted daily.</Text>
                 </View>
 
-                <GlassCard radius={28} intensity={42} style={styles.ctaCard}>
+                <PastelCard tone="blue" radius={28} style={styles.ctaCard}>
                     <View style={styles.ctaInner}>
                         <GlassButton
                             variant="primary"
@@ -181,7 +182,7 @@ export default function LandingScreen() {
                             </View>
                         ) : null}
                     </View>
-                </GlassCard>
+                </PastelCard>
             </View>
         </View>
     );
@@ -190,7 +191,7 @@ export default function LandingScreen() {
 const styles = StyleSheet.create({
     root: {
         flex: 1,
-        backgroundColor: '#FAF9F6',
+        backgroundColor: '#F7F0EA',
         ...(isWeb && { alignItems: 'center' as const }),
     },
     content: {

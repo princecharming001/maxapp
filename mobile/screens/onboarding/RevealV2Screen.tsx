@@ -151,7 +151,7 @@ export default function RevealV2Screen() {
                 {phase === 'reveal' ? (
                     <>
                         <Text style={styles.kicker}>YOUR FIRST DAY, BUILT</Text>
-                        <Text style={styles.title}>Here's your{'\n'}next 24 hours</Text>
+                        <Text style={styles.title}>Here's your{'\n'}<Text style={{ fontFamily: 'Fraunces-Italic' }}>next</Text> 24 hours</Text>
                         {todayQ.isLoading ? (
                             <RevealRailSkeleton />
                         ) : todayQ.isError || taskCount === 0 ? (

@@ -165,7 +165,7 @@ export default function MarketplaceScreen() {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={INK} />}
             >
                 <Text style={styles.kicker}>EXPLORE</Text>
-                <Text style={styles.h1}>Find your max</Text>
+                <Text style={styles.h1}>Find your <Text style={{ fontFamily: 'Fraunces-Italic' }}>max</Text></Text>
                 <Text style={styles.sub}>Pick a program. Max fits it to your real days and keeps you on it.</Text>
 
                 {error ? (

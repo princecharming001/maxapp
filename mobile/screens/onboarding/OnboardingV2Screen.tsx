@@ -31,6 +31,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
+import { PastelCard } from '../../components/glass/PastelCard';
 import { GlassButton } from '../../components/glass/GlassButton';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -497,20 +498,22 @@ export default function OnboardingV2Screen() {
             canNext: true,
             body: (
                 <View style={{ marginTop: 18 }}>
-                    <View style={styles.recapCard}>
-                        {recap.map((r, i) => (
-                            <View key={r.label}>
-                                {i > 0 ? <View style={styles.hairline} /> : null}
-                                <View style={styles.recapRow}>
-                                    <View style={styles.recapIcon}>
-                                        <Ionicons name={r.icon as any} size={16} color={INK} />
+                    <PastelCard tone="green" radius={20}>
+                        <View style={styles.recapInner}>
+                            {recap.map((r, i) => (
+                                <View key={r.label}>
+                                    {i > 0 ? <View style={styles.hairline} /> : null}
+                                    <View style={styles.recapRow}>
+                                        <View style={styles.recapIcon}>
+                                            <Ionicons name={r.icon as any} size={16} color={INK} />
+                                        </View>
+                                        <Text style={styles.recapLabel}>{r.label}</Text>
+                                        <Text style={styles.recapValue}>{r.value}</Text>
                                     </View>
-                                    <Text style={styles.recapLabel}>{r.label}</Text>
-                                    <Text style={styles.recapValue}>{r.value}</Text>
                                 </View>
-                            </View>
-                        ))}
-                    </View>
+                            ))}
+                        </View>
+                    </PastelCard>
                 </View>
             ),
         },
@@ -676,13 +679,7 @@ const styles = StyleSheet.create({
     segItemActive: { backgroundColor: INK },
     segText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: SUB },
     segTextActive: { color: '#FFFFFF' },
-    recapCard: {
-        borderRadius: 20,
-        backgroundColor: SURFACE,
-        borderWidth: 1,
-        borderColor: HAIRLINE,
-        paddingHorizontal: 16,
-    },
+    recapInner: { paddingHorizontal: 16, paddingVertical: 2 },
     recapRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
     recapIcon: {
         width: 30,

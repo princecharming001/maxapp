@@ -115,7 +115,7 @@ export default function RoutineRevealScreen() {
         <View style={s.container}>
             <Animated.View style={[s.body, { opacity: fade, paddingTop: insets.top + spacing.xl }]}>
                 <Text style={s.kicker}>your plan is ready</Text>
-                <Text style={s.headline}>Here's day one</Text>
+                <Text style={s.headline}>Here's <Text style={{ fontFamily: 'Fraunces-Italic' }}>day</Text> one</Text>
                 <Text style={s.subline}>
                     Built around your sleep and schedule. Max tunes it as you go.
                 </Text>
