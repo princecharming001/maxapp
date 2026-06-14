@@ -15,7 +15,7 @@
  * stacked cards, no shadows. One restrained green accent marks the workout and
  * the assistant; everything else is monochrome ink.
  */
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -89,8 +89,15 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   const [saving, setSaving] = useState(false);
 
   // Assistant (demoted): collapsed until asked for.
-  const [assistantOpen, setAssistantOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
+  // Rotate the examples through the input's own placeholder (no chips, no
+  // dropdown — the bar IS the affordance).
+  const [phIdx, setPhIdx] = useState(0);
+  useEffect(() => {
+    if (chatInput) return;
+    const id = setInterval(() => setPhIdx((i) => (i + 1) % CHAT_EXAMPLES.length), 3500);
+    return () => clearInterval(id);
+  }, [chatInput]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatReply, setChatReply] = useState<string | null>(null);
   // Reply tone drives ONLY the bubble styling: 'success' shows the green check,
@@ -321,99 +328,46 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             <ObligationsManager obligations={obligations} onChange={changeObligations} />
           </View>
 
-          {/* Assistant — a calm, modern card. Describe a change in plain words
-              and Max reshapes the week; the timeline above confirms it. */}
+          {/* Or just tell Max in plain words — one bar, examples rotate through
+              its own placeholder. No dropdown, no chip wall. */}
           <View style={styles.section}>
-            <View style={styles.assistCard}>
+            {chatReply ? (
+              <View style={[styles.chatReply, chatReplyTone === 'warn' && styles.chatReplyWarn]}>
+                <View style={[styles.chatReplyIcon, chatReplyTone === 'warn' && styles.chatReplyIconWarn]}>
+                  <Ionicons name={chatReplyTone === 'warn' ? 'alert' : 'checkmark'} size={13} color="#fff" />
+                </View>
+                <Text style={styles.chatReplyText}>{chatReply}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.chatInputRow}>
+              <TextInput
+                ref={chatRef}
+                style={styles.chatInput}
+                value={chatInput}
+                onChangeText={setChatInput}
+                placeholder={chatLoading ? 'Reshaping your week…' : `Tell Max — ${CHAT_EXAMPLES[phIdx].toLowerCase()}`}
+                placeholderTextColor={colors.textMuted}
+                multiline
+                returnKeyType="send"
+                blurOnSubmit
+                onSubmitEditing={sendChat}
+                editable={!chatLoading}
+              />
               <TouchableOpacity
-                style={styles.assistToggle}
-                activeOpacity={0.7}
-                onPress={() => setAssistantOpen((o) => !o)}
+                onPress={sendChat}
+                activeOpacity={0.85}
+                disabled={sendDisabled}
+                style={styles.chatSendWrap}
               >
-                <View style={styles.chatMark}>
-                  <Ionicons name="sparkles" size={15} color="#fff" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.assistTitle}>Tell Max in words</Text>
-                  <Text style={styles.assistSub}>Reshape your week by describing it</Text>
-                </View>
-                <View style={styles.assistChevron}>
-                  <Ionicons
-                    name={assistantOpen ? 'chevron-up' : 'chevron-down'}
-                    size={16}
-                    color={colors.textSecondary}
-                  />
+                <View style={[styles.chatSend, sendDisabled ? styles.chatSendOff : styles.chatSendOn]}>
+                  {chatLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="arrow-up" size={18} color={sendDisabled ? colors.textMuted : '#fff'} />
+                  )}
                 </View>
               </TouchableOpacity>
-
-              {assistantOpen ? (
-                <View style={styles.assistBody}>
-                  {chatReply ? (
-                    <View style={[styles.chatReply, chatReplyTone === 'warn' && styles.chatReplyWarn]}>
-                      <View
-                        style={[styles.chatReplyIcon, chatReplyTone === 'warn' && styles.chatReplyIconWarn]}
-                      >
-                        <Ionicons
-                          name={chatReplyTone === 'warn' ? 'alert' : 'checkmark'}
-                          size={13}
-                          color="#fff"
-                        />
-                      </View>
-                      <Text style={styles.chatReplyText}>{chatReply}</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.chipsWrap}>
-                      {CHAT_EXAMPLES.map((ex) => (
-                        <TouchableOpacity
-                          key={ex}
-                          style={styles.exChip}
-                          activeOpacity={0.7}
-                          onPress={() => {
-                            setChatInput(ex);
-                            chatRef.current?.focus();
-                          }}
-                        >
-                          <Text style={styles.exChipText}>{ex}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-
-                  <View style={styles.chatInputRow}>
-                    <TextInput
-                      ref={chatRef}
-                      style={styles.chatInput}
-                      value={chatInput}
-                      onChangeText={setChatInput}
-                      placeholder="e.g. wake between 6 and 7 on weekdays"
-                      placeholderTextColor={colors.textMuted}
-                      multiline
-                      returnKeyType="send"
-                      blurOnSubmit
-                      onSubmitEditing={sendChat}
-                      editable={!chatLoading}
-                    />
-                    <TouchableOpacity
-                      onPress={sendChat}
-                      activeOpacity={0.85}
-                      disabled={sendDisabled}
-                      style={styles.chatSendWrap}
-                    >
-                      <View style={[styles.chatSend, sendDisabled ? styles.chatSendOff : styles.chatSendOn]}>
-                        {chatLoading ? (
-                          <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                          <Ionicons
-                            name="arrow-up"
-                            size={18}
-                            color={sendDisabled ? colors.textMuted : '#fff'}
-                          />
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : null}
             </View>
           </View>
 
@@ -551,45 +505,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.05,
   },
 
-  // Assistant — a calm, modern card.
-  assistCard: {
-    borderRadius: 20,
-    backgroundColor: colors.surfaceLight,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  assistToggle: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  chatMark: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: ACCENT,
-  },
-  assistTitle: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground, letterSpacing: 0.05 },
-  assistSub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, marginTop: 1, letterSpacing: 0.05 },
-  assistChevron: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  assistBody: { paddingHorizontal: 14, paddingBottom: 14, paddingTop: 2 },
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  exChip: {
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    borderRadius: 999,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  exChipText: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.05 },
+  // Assistant — one plain input bar.
   chatReply: {
     flexDirection: 'row',
     alignItems: 'flex-start',
