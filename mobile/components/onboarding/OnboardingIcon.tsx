@@ -1,159 +1,198 @@
 /**
- * OnboardingIcon — a cohesive set of CUSTOM illustrated icons for the onboarding,
- * one per step, in the Craft palette (warm gold + ink on a soft pale halo).
+ * OnboardingIcon — minimalist line icons with INTRINSIC motion.
  *
- * Pure react-native-svg (no native rebuild, crisp at any size, themeable). Each
- * is a single centered motif on a layered halo so it animates cleanly — the
- * halo sits on a slower parallax plane than the motif (see OnboardingV2).
+ * Transparent background (no halo, no fills), thin ink strokes with a single
+ * warm-gold accent on the live part. Each icon's OWN components move on a quiet
+ * loop — a radar ping on the target, a twinkling spark, a rising sun, a turning
+ * clock hand, a day/night cycle, a dumbbell rep, a check drawing itself — not
+ * the whole icon sliding. Pure react-native-svg + Reanimated (string-form SVG
+ * transforms so the rotation/scale centers are baked in and work on web too).
  *
- * NOTE on Higgsfield: the original ask was to generate these via Higgsfield.
- * The in-session Higgsfield tool (Recraft v4.1 with background_color #F7F0EA +
- * the Craft palette) is the right path, but the workspace is out of credits /
- * plan-gated, so generation is blocked without a top-up. These vector icons are
- * the better choice for *animated* onboarding anyway; swap in Higgsfield rasters
- * later by replacing the <Svg> bodies with <Image> if credits are added.
+ * Reduced-motion: loops are skipped; the icon renders in its resting pose.
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import Svg, { Circle, Rect, Line, Path, G } from 'react-native-svg';
+import Animated, {
+    Easing, interpolate, useAnimatedProps, useReducedMotion, useSharedValue,
+    withRepeat, withTiming,
+} from 'react-native-reanimated';
+
+const AG = Animated.createAnimatedComponent(G);
+const ACircle = Animated.createAnimatedComponent(Circle);
+const APath = Animated.createAnimatedComponent(Path);
+
+const INK = '#1C1A17';
+const GOLD = '#D4A017';
+const SW = 2.3;
 
 export type OnboardingIconKind =
     | 'goals' | 'motivation' | 'dayshape' | 'work' | 'energy' | 'rhythm' | 'recap';
 
-const GOLD = '#D4A017';
-const GOLD_SOFT = '#E8C45A';
-const INK = '#1C1A17';
-const BLUE = '#2C6BED';
-const HALO = '#F0E4CB';      // pale gold
-const HALO_BLUE = '#DEEAF7'; // pale blue accent
-const TINT = '#F6ECD4';      // fill tint for solid shapes
+// 0->1 loop. reverse=true yo-yos; reverse=false ramps then snaps back.
+function useLoop(duration: number, reverse: boolean, reduced: boolean) {
+    const v = useSharedValue(0);
+    useEffect(() => {
+        if (reduced) { v.value = 0; return; }
+        v.value = withRepeat(
+            withTiming(1, { duration, easing: reverse ? Easing.inOut(Easing.quad) : Easing.linear }),
+            -1,
+            reverse,
+        );
+    }, [duration, reverse, reduced, v]);
+    return v;
+}
 
-function Halo() {
+function Goals({ reduced }: { reduced: boolean }) {
+    const ping = useLoop(2400, false, reduced);
+    const pingProps = useAnimatedProps(() => ({
+        r: interpolate(ping.value, [0, 1], [7, 30]),
+        opacity: interpolate(ping.value, [0, 0.12, 1], [0, 0.55, 0]),
+    }));
     return (
         <G>
-            {/* deeper accent plane (offset) */}
-            <Circle cx="72" cy="50" r="34" fill={HALO_BLUE} opacity={0.55} />
-            {/* main halo */}
-            <Circle cx="60" cy="60" r="48" fill={HALO} />
+            <Circle cx="50" cy="50" r="23" fill="none" stroke={INK} strokeWidth={SW} />
+            <Circle cx="50" cy="50" r="13.5" fill="none" stroke={INK} strokeWidth={SW} />
+            <ACircle cx="50" cy="50" fill="none" stroke={GOLD} strokeWidth={2} animatedProps={pingProps} />
+            <Circle cx="50" cy="50" r="4.5" fill={GOLD} />
         </G>
     );
 }
 
-function Goals() {
+function Motivation({ reduced }: { reduced: boolean }) {
+    const tw = useLoop(1500, true, reduced);
+    const big = useAnimatedProps(() => ({
+        opacity: interpolate(tw.value, [0, 1], [0.72, 1]),
+        transform: `translate(46 50) scale(${interpolate(tw.value, [0, 1], [0.9, 1.12])}) translate(-46 -50)`,
+    }));
+    const small = useAnimatedProps(() => ({
+        opacity: interpolate(tw.value, [0, 1], [1, 0.35]),
+    }));
     return (
         <G>
-            <Circle cx="58" cy="62" r="25" fill="none" stroke={INK} strokeWidth={3} />
-            <Circle cx="58" cy="62" r="15" fill="none" stroke={INK} strokeWidth={3} />
-            <Circle cx="58" cy="62" r="6" fill={GOLD} />
-            {/* aim arrow into the bullseye */}
-            <Line x1="92" y1="30" x2="62" y2="58" stroke={GOLD} strokeWidth={4} strokeLinecap="round" />
-            <Path d="M62 58 L72 57 M62 58 L63 48" stroke={GOLD} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        </G>
-    );
-}
-
-function Motivation() {
-    return (
-        <G>
-            {/* four-point spark */}
-            <Path
-                d="M58 32 Q61 54 82 58 Q61 62 58 84 Q55 62 34 58 Q55 54 58 32 Z"
-                fill={GOLD}
+            <APath
+                d="M46 26 Q49 47 68 50 Q49 53 46 74 Q43 53 24 50 Q43 47 46 26 Z"
+                fill={GOLD} animatedProps={big}
             />
-            {/* small accent spark */}
-            <Path d="M86 36 Q88 44 96 46 Q88 48 86 56 Q84 48 76 46 Q84 44 86 36 Z" fill={INK} opacity={0.85} />
+            <APath d="M72 30 Q74 38 82 40 Q74 42 72 50 Q70 42 62 40 Q70 38 72 30 Z" fill={INK} animatedProps={small} />
         </G>
     );
 }
 
-function DayShape() {
+function DayShape({ reduced }: { reduced: boolean }) {
+    const rise = useLoop(2600, true, reduced);
+    const sunProps = useAnimatedProps(() => ({
+        transform: `translate(0 ${interpolate(rise.value, [0, 1], [4, -3])})`,
+    }));
     const rays = [
-        [60, 24, 60, 31], [42, 31, 47, 36], [78, 31, 73, 36],
-        [33, 48, 40, 50], [87, 48, 80, 50],
+        [50, 18, 50, 25], [33, 25, 38, 30], [67, 25, 62, 30], [26, 41, 33, 43], [74, 41, 67, 43],
     ];
     return (
         <G>
-            <Circle cx="60" cy="50" r="13" fill={GOLD} />
-            {rays.map((r, i) => (
-                <Line key={i} x1={r[0]} y1={r[1]} x2={r[2]} y2={r[3]} stroke={GOLD} strokeWidth={3} strokeLinecap="round" />
+            <AG animatedProps={sunProps}>
+                <Circle cx="50" cy="42" r="11" fill={GOLD} />
+                {rays.map((r, i) => (
+                    <Line key={i} x1={r[0]} y1={r[1]} x2={r[2]} y2={r[3]} stroke={GOLD} strokeWidth={SW} strokeLinecap="round" />
+                ))}
+            </AG>
+            <Path d="M28 70 Q50 56 72 70" fill="none" stroke={INK} strokeWidth={SW} strokeLinecap="round" />
+            <Line x1="22" y1="72" x2="78" y2="72" stroke={INK} strokeWidth={SW} strokeLinecap="round" />
+        </G>
+    );
+}
+
+function Work({ reduced }: { reduced: boolean }) {
+    const spin = useLoop(7000, false, reduced);
+    const minute = useAnimatedProps(() => ({
+        transform: `rotate(${interpolate(spin.value, [0, 1], [0, 360])} 50 50)`,
+    }));
+    return (
+        <G>
+            <Circle cx="50" cy="50" r="26" fill="none" stroke={INK} strokeWidth={SW} />
+            {[0, 90, 180, 270].map((d) => (
+                <Line key={d} x1="50" y1="28" x2="50" y2="32" stroke={INK} strokeWidth={SW}
+                    strokeLinecap="round" transform={`rotate(${d} 50 50)`} />
             ))}
-            {/* horizon + hill */}
-            <Path d="M34 82 Q52 68 70 82" fill="none" stroke={INK} strokeWidth={3} strokeLinecap="round" />
-            <Line x1="28" y1="84" x2="92" y2="84" stroke={INK} strokeWidth={3} strokeLinecap="round" />
+            {/* hour hand (static), minute hand (turning) */}
+            <Line x1="50" y1="50" x2="50" y2="38" stroke={INK} strokeWidth={SW} strokeLinecap="round" transform="rotate(110 50 50)" />
+            <APath d="M50 50 L50 32" stroke={GOLD} strokeWidth={SW} strokeLinecap="round" fill="none" animatedProps={minute} />
+            <Circle cx="50" cy="50" r="2.6" fill={INK} />
         </G>
     );
 }
 
-function Work() {
+function Energy({ reduced }: { reduced: boolean }) {
+    const cycle = useLoop(9000, false, reduced);
+    const rot = useAnimatedProps(() => ({
+        transform: `rotate(${interpolate(cycle.value, [0, 1], [0, 360])} 50 50)`,
+    }));
     return (
-        <G>
-            {/* handle */}
-            <Path d="M50 52 L50 46 Q50 42 54 42 L66 42 Q70 42 70 46 L70 52" fill="none" stroke={INK} strokeWidth={3} strokeLinecap="round" />
-            {/* body */}
-            <Rect x="34" y="51" width="52" height="34" rx="8" fill={TINT} stroke={INK} strokeWidth={3} />
-            <Line x1="34" y1="65" x2="86" y2="65" stroke={INK} strokeWidth={2.6} />
-            <Rect x="54" y="61" width="12" height="8" rx="2.5" fill={GOLD} />
-        </G>
-    );
-}
-
-function Energy() {
-    return (
-        <G>
+        <AG animatedProps={rot}>
             {/* sun */}
-            <Circle cx="49" cy="60" r="12" fill={GOLD} />
-            <Line x1="49" y1="42" x2="49" y2="47" stroke={GOLD} strokeWidth={3} strokeLinecap="round" />
-            <Line x1="34" y1="52" x2="38" y2="55" stroke={GOLD} strokeWidth={3} strokeLinecap="round" />
-            <Line x1="34" y1="68" x2="38" y2="65" stroke={GOLD} strokeWidth={3} strokeLinecap="round" />
+            <Circle cx="50" cy="28" r="9" fill={GOLD} />
+            <Line x1="50" y1="13" x2="50" y2="17" stroke={GOLD} strokeWidth={SW} strokeLinecap="round" />
+            <Line x1="36" y1="22" x2="39" y2="25" stroke={GOLD} strokeWidth={SW} strokeLinecap="round" />
+            <Line x1="64" y1="22" x2="61" y2="25" stroke={GOLD} strokeWidth={SW} strokeLinecap="round" />
             {/* crescent moon */}
-            <Path d="M80 47 A14 14 0 1 0 80 73 A10.5 10.5 0 1 1 80 47 Z" fill={INK} />
-        </G>
+            <Path d="M50 61 A11 11 0 1 0 50 83 A8 8 0 1 1 50 61 Z" fill={INK} />
+        </AG>
     );
 }
 
-function Rhythm() {
+function Rhythm({ reduced }: { reduced: boolean }) {
+    const lift = useLoop(1100, true, reduced);
+    const move = useAnimatedProps(() => ({
+        transform: `translate(0 ${interpolate(lift.value, [0, 1], [5, -5])})`,
+    }));
+    return (
+        <AG animatedProps={move}>
+            <Line x1="30" y1="50" x2="70" y2="50" stroke={GOLD} strokeWidth={4} strokeLinecap="round" />
+            <Line x1="30" y1="40" x2="30" y2="60" stroke={INK} strokeWidth={5} strokeLinecap="round" />
+            <Line x1="24" y1="44" x2="24" y2="56" stroke={INK} strokeWidth={5} strokeLinecap="round" />
+            <Line x1="70" y1="40" x2="70" y2="60" stroke={INK} strokeWidth={5} strokeLinecap="round" />
+            <Line x1="76" y1="44" x2="76" y2="56" stroke={INK} strokeWidth={5} strokeLinecap="round" />
+        </AG>
+    );
+}
+
+function Recap({ reduced }: { reduced: boolean }) {
+    // check path length ~ 26; draw it in over the first 55% of the loop, hold, reset.
+    const L = 26;
+    const draw = useLoop(2600, false, reduced);
+    const checkProps = useAnimatedProps(() => ({
+        strokeDashoffset: reduced ? 0 : interpolate(draw.value, [0, 0.5, 1], [L, 0, 0]),
+    }));
     return (
         <G>
-            {/* dumbbell */}
-            <Rect x="37" y="53" width="6" height="14" rx="3" fill={INK} />
-            <Rect x="43" y="48" width="10" height="24" rx="4" fill={INK} />
-            <Rect x="77" y="53" width="6" height="14" rx="3" fill={INK} />
-            <Rect x="67" y="48" width="10" height="24" rx="4" fill={INK} />
-            <Rect x="50" y="56" width="20" height="8" rx="4" fill={GOLD} />
+            <Rect x="30" y="26" width="40" height="48" rx="8" fill="none" stroke={INK} strokeWidth={SW} />
+            <Line x1="38" y1="40" x2="62" y2="40" stroke={INK} strokeWidth={SW} strokeLinecap="round" />
+            <Line x1="38" y1="50" x2="62" y2="50" stroke={INK} strokeWidth={SW} strokeLinecap="round" />
+            <Line x1="38" y1="60" x2="52" y2="60" stroke={INK} strokeWidth={SW} strokeLinecap="round" />
+            <APath
+                d="M40 49 L47 56 L60 41"
+                fill="none" stroke={GOLD} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
+                strokeDasharray={L} animatedProps={checkProps}
+            />
         </G>
     );
 }
 
-function Recap() {
-    return (
-        <G>
-            <Rect x="38" y="36" width="44" height="50" rx="9" fill={TINT} stroke={INK} strokeWidth={3} />
-            <Line x1="48" y1="58" x2="74" y2="58" stroke={INK} strokeWidth={2.8} strokeLinecap="round" />
-            <Line x1="48" y1="66" x2="74" y2="66" stroke={INK} strokeWidth={2.8} strokeLinecap="round" />
-            <Line x1="48" y1="74" x2="64" y2="74" stroke={INK} strokeWidth={2.8} strokeLinecap="round" />
-            {/* check badge */}
-            <Circle cx="72" cy="40" r="11" fill={GOLD} />
-            <Path d="M67 40 L71 44 L78 36" fill="none" stroke="#FFF8EC" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-        </G>
-    );
-}
-
-const MOTIF: Record<OnboardingIconKind, React.FC> = {
+const MOTIF: Record<OnboardingIconKind, React.FC<{ reduced: boolean }>> = {
     goals: Goals, motivation: Motivation, dayshape: DayShape, work: Work,
     energy: Energy, rhythm: Rhythm, recap: Recap,
 };
 
 export default function OnboardingIcon({
     kind,
-    size = 132,
+    size = 120,
 }: {
     kind: OnboardingIconKind;
     size?: number;
 }) {
+    const reduced = useReducedMotion();
     const Motif = MOTIF[kind] || Goals;
     return (
-        <Svg width={size} height={size} viewBox="0 0 120 120">
-            <Halo />
-            <Motif />
+        <Svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+            <Motif reduced={reduced} />
         </Svg>
     );
 }
