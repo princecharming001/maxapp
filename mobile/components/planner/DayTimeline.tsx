@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'stretch', minHeight: 60 },
   time: {
     width: 58,
-    paddingTop: 16,
+    paddingTop: 18,
     textAlign: 'right',
     fontFamily: fonts.sansMedium,
     fontSize: 12.5,
@@ -213,13 +213,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   spine: { width: 26, alignItems: 'center' },
-  dot: { width: 9, height: 9, borderRadius: 5, marginTop: 18 },
+  dot: { width: 9, height: 9, borderRadius: 5, marginTop: 22 },
   line: { flex: 1, width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginTop: 2 },
   // Flat timeline rows — no card boxes; the spine + a hairline carry structure.
+  // Top-aligned so the time, dot, icon and label's first line all sit on one
+  // baseline even when a row has a second (sub) line.
   block: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -229,6 +231,7 @@ const styles = StyleSheet.create({
   blockOb: {},
   iconTile: {
     width: 24,
+    height: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

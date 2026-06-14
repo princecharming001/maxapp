@@ -68,6 +68,14 @@ const CHAT_EXAMPLES = [
   'Work 9-5 on weekdays',
 ];
 
+// Quick-tap prompts for the change sheet — chip label + the text it prefills.
+const SUGGESTIONS: { chip: string; text: string }[] = [
+  { chip: 'Wake earlier', text: 'Wake between 6:30 and 7:30 on weekdays' },
+  { chip: 'Sleep in weekends', text: 'Sleep in until 10 on weekends' },
+  { chip: 'Set work hours', text: 'Work 9-5 on weekdays' },
+  { chip: 'Add a workout', text: 'Add gym 6-7pm Mon, Wed, Fri' },
+];
+
 export default function DayPlannerScreen({ embedded = false }: { embedded?: boolean }) {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
@@ -332,20 +340,21 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Floating "ask Max" button — the assistant is hidden until you want it. */}
+      {/* Floating button, bottom-right — opens the change sheet on demand. */}
       {!chatOpen ? (
         <TouchableOpacity
-          style={[styles.fab, { bottom: insets.bottom + 84 }]}
+          style={[styles.fab, { bottom: insets.bottom + 64 }]}
           activeOpacity={0.85}
           onPress={() => setChatOpen(true)}
           accessibilityRole="button"
           accessibilityLabel="Change your week — tell Max"
         >
-          <Ionicons name="sparkles" size={22} color={colors.background} />
+          <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.background} />
         </TouchableOpacity>
       ) : null}
 
-      {/* Chat-to-change sheet, opened on demand from the floating button. */}
+      {/* Minimal "tell Max" change sheet — serif prompt + quick chips + a clean
+          borderless composer. Opened only from the floating button. */}
       <Modal
         visible={chatOpen}
         transparent
@@ -353,52 +362,68 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         onRequestClose={() => setChatOpen(false)}
         onShow={() => setTimeout(() => chatRef.current?.focus(), 60)}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.chatModalRoot}
-        >
-          <Pressable style={styles.chatModalBackdrop} onPress={() => setChatOpen(false)} />
-          <View style={[styles.chatBar, { paddingBottom: Math.max(insets.bottom, 12) + 10 }]}>
-            <View style={styles.chatBarHandleRow}>
-              <Text style={styles.chatBarTitle}>Tell Max what to change</Text>
-              <TouchableOpacity onPress={() => setChatOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="close" size={20} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-            {chatReply ? (
-              <View style={[styles.chatReply, chatReplyTone === 'warn' && styles.chatReplyWarn]}>
-                <View style={[styles.chatReplyIcon, chatReplyTone === 'warn' && styles.chatReplyIconWarn]}>
-                  <Ionicons name={chatReplyTone === 'warn' ? 'alert' : 'checkmark'} size={13} color="#fff" />
+        <View style={styles.chatRoot}>
+          <Pressable style={styles.chatBackdrop} onPress={() => setChatOpen(false)} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.chatSheetWrap}
+          >
+            <View style={[styles.chatSheet, { paddingBottom: Math.max(insets.bottom, 12) + 16 }]}>
+              <View style={styles.grabber} />
+              <Text style={styles.chatHeadline}>What should change?</Text>
+
+              {chatReply ? (
+                <View style={[styles.chatReply, chatReplyTone === 'warn' && styles.chatReplyWarn]}>
+                  <View style={[styles.chatReplyIcon, chatReplyTone === 'warn' && styles.chatReplyIconWarn]}>
+                    <Ionicons name={chatReplyTone === 'warn' ? 'alert' : 'checkmark'} size={13} color="#fff" />
+                  </View>
+                  <Text style={styles.chatReplyText}>{chatReply}</Text>
                 </View>
-                <Text style={styles.chatReplyText}>{chatReply}</Text>
-              </View>
-            ) : null}
-            <View style={styles.chatInputRow}>
-              <TextInput
-                ref={chatRef}
-                style={styles.chatInput}
-                value={chatInput}
-                onChangeText={setChatInput}
-                placeholder={chatLoading ? 'Reshaping your week…' : `e.g. ${CHAT_EXAMPLES[phIdx].toLowerCase()}`}
-                placeholderTextColor={colors.textMuted}
-                multiline
-                returnKeyType="send"
-                blurOnSubmit
-                onSubmitEditing={sendChat}
-                editable={!chatLoading}
-              />
-              <TouchableOpacity onPress={sendChat} activeOpacity={0.85} disabled={sendDisabled} style={styles.chatSendWrap}>
-                <View style={[styles.chatSend, sendDisabled ? styles.chatSendOff : styles.chatSendOn]}>
+              ) : (
+                <View style={styles.suggRow}>
+                  {SUGGESTIONS.map((s) => (
+                    <TouchableOpacity
+                      key={s.chip}
+                      style={styles.suggChip}
+                      activeOpacity={0.7}
+                      onPress={() => { setChatInput(s.text); chatRef.current?.focus(); }}
+                    >
+                      <Text style={styles.suggText}>{s.chip}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <View style={styles.composer}>
+                <TextInput
+                  ref={chatRef}
+                  style={styles.composerInput}
+                  value={chatInput}
+                  onChangeText={setChatInput}
+                  placeholder={chatLoading ? 'Reshaping your week…' : 'Tell Max in plain words…'}
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                  returnKeyType="send"
+                  blurOnSubmit
+                  onSubmitEditing={sendChat}
+                  editable={!chatLoading}
+                />
+                <TouchableOpacity
+                  onPress={sendChat}
+                  activeOpacity={0.85}
+                  disabled={sendDisabled}
+                  style={[styles.composerSend, sendDisabled && styles.composerSendOff]}
+                >
                   {chatLoading ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color={colors.background} />
                   ) : (
-                    <Ionicons name="arrow-up" size={18} color={sendDisabled ? colors.textMuted : '#fff'} />
+                    <Ionicons name="arrow-up" size={18} color={sendDisabled ? colors.textMuted : colors.background} />
                   )}
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       <DayEditorSheet
@@ -580,10 +605,10 @@ const styles = StyleSheet.create({
   chatSendOn: { backgroundColor: ACCENT },
   chatSendOff: { backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
 
-  // Floating "ask Max" button + the on-demand chat sheet.
+  // Floating button (bottom-right) + the minimal on-demand change sheet.
   fab: {
     position: 'absolute',
-    right: 20,
+    right: 16,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -591,27 +616,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#3A352B',
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
-  chatModalRoot: { flex: 1, justifyContent: 'flex-end' },
-  chatModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,26,23,0.4)' },
-  chatBar: {
+  chatRoot: { flex: 1, justifyContent: 'flex-end' },
+  chatBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,26,23,0.38)' },
+  chatSheetWrap: { width: '100%' },
+  chatSheet: {
     backgroundColor: colors.background,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 12,
+  },
+  grabber: {
+    alignSelf: 'center',
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: 18,
+  },
+  chatHeadline: {
+    fontFamily: fonts.serif,
+    fontSize: 25,
+    color: colors.foreground,
+    letterSpacing: -0.5,
+  },
+  suggRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 18 },
+  suggChip: {
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  suggText: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.textSecondary, letterSpacing: 0.1 },
+  composer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+    marginTop: 22,
+    paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
-    paddingHorizontal: spacing.lg,
-    paddingTop: 16,
   },
-  chatBarHandleRow: {
-    flexDirection: 'row',
+  composerInput: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    lineHeight: 22,
+    color: colors.foreground,
+    paddingVertical: 8,
+    maxHeight: 120,
+    letterSpacing: 0.05,
+  },
+  composerSend: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.foreground,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+    justifyContent: 'center',
   },
-  chatBarTitle: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground, letterSpacing: 0.1 },
+  composerSendOff: { backgroundColor: colors.surface },
 });
