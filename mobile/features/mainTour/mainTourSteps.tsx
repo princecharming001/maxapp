@@ -9,8 +9,9 @@ export const TOUR_STEP = {
     PROGRESS: 0,
     PROGRAMS: 1,
     SCHEDULE_TAB: 2,
-    SCAN_TAB: 3,
-    CHAT_TAB: 4,
+    PLANNER_TAB: 3,
+    EXPLORE_TAB: 4,
+    CHAT_TAB: 5,
 } as const;
 
 const TOTAL_STEPS = Object.keys(TOUR_STEP).length;
@@ -122,23 +123,27 @@ const tt = StyleSheet.create({
 const STEP_CONTENT: { title: string; body: string }[] = [
     {
         title: 'Your progress',
-        body: 'Track daily tasks and streaks at a glance. Tap to open your full schedule.',
+        body: 'Tasks done and your streak, at a glance. Tap to open your schedule.',
     },
     {
         title: 'Your programs',
-        body: 'The maxxes you selected appear here. Tap one for courses, modules, and lessons.',
+        body: "The maxxes you're on live here. Tap one to open it, or + to add more.",
     },
     {
         title: 'Schedule',
-        body: 'Your personalized daily schedule lives here. Tasks, reminders, and streaks.',
+        body: 'Your full day — tasks, reminders, and streaks.',
     },
     {
-        title: 'Face Scan',
-        body: 'Snap a photo to get AI-powered facial analysis and track improvements over time.',
+        title: 'Planner',
+        body: 'Adjust when things land so they fit your real day.',
+    },
+    {
+        title: 'Explore',
+        body: 'Browse maxes and creator courses. Max fits anything you start to your schedule.',
     },
     {
         title: 'Chat with Max',
-        body: 'Ask Max anything. Coaching tips, schedule help, or questions about your programs.',
+        body: 'Ask anything — coaching, schedule help, or program questions.',
     },
 ];
 

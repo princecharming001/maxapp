@@ -347,7 +347,11 @@ export default function TabNavigator() {
                         title: 'Planner',
                         tabBarLabel: 'Planner',
                         tabBarIcon: ({ color }) => (
-                            <Ionicons name="time-outline" size={22} color={color} />
+                            <AttachStep index={TOUR_STEP.PLANNER_TAB}>
+                                <View style={styles.tourIconWrap}>
+                                    <Ionicons name="time-outline" size={22} color={color} />
+                                </View>
+                            </AttachStep>
                         ),
                     }}
                 />
@@ -358,7 +362,11 @@ export default function TabNavigator() {
                         title: 'Explore',
                         tabBarLabel: 'Explore',
                         tabBarIcon: ({ color }) => (
-                            <Ionicons name="compass-outline" size={22} color={color} />
+                            <AttachStep index={TOUR_STEP.EXPLORE_TAB}>
+                                <View style={styles.tourIconWrap}>
+                                    <Ionicons name="compass-outline" size={22} color={color} />
+                                </View>
+                            </AttachStep>
                         ),
                     }}
                 />
