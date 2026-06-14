@@ -343,7 +343,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
       {/* Floating button, bottom-right — opens the change sheet on demand. */}
       {!chatOpen ? (
         <TouchableOpacity
-          style={[styles.fab, { bottom: insets.bottom + 64 }]}
+          style={[styles.fab, { bottom: insets.bottom + 20 }]}
           activeOpacity={0.85}
           onPress={() => setChatOpen(true)}
           accessibilityRole="button"
