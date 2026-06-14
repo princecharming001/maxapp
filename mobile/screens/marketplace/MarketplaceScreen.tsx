@@ -15,15 +15,12 @@ import {
     RefreshControl,
     Platform,
 } from 'react-native';
-import { A11yBlurView as BlurView } from '../../components/glass/SolidFallback';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
-import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
+import SectionLabel from '../../components/SectionLabel';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { track } from '../../lib/analytics';
 import api, { type MarketplaceItem } from '../../services/api';
@@ -31,6 +28,9 @@ import api, { type MarketplaceItem } from '../../services/api';
 const INK = '#1C1A17';
 const MUTE = '#97928A';
 const SUB = '#5C574E';
+const CREAM = '#F7F0EA';
+const CARD = '#FFFFFF';
+const BORDER = '#E8E0D3';
 const GOLD = '#2C6BED';
 
 const VERDICT_META = {
@@ -147,17 +147,17 @@ export default function MarketplaceScreen() {
 
     if (loading) {
         return (
-            <ScreenBackdrop>
+            <View style={styles.root}>
                 <View style={[styles.center, { paddingTop: insets.top }]}>
                     <ActivityIndicator color={INK} />
                     <Text style={styles.loadingText}>Loading Explore</Text>
                 </View>
-            </ScreenBackdrop>
+            </View>
         );
     }
 
     return (
-        <ScreenBackdrop>
+        <View style={styles.root}>
             <ScrollView
                 contentContainerStyle={{ paddingTop: insets.top + 16, paddingHorizontal: 20, paddingBottom: insets.bottom + 90 }}
                 showsVerticalScrollIndicator={false}
@@ -166,30 +166,35 @@ export default function MarketplaceScreen() {
                 <Text style={styles.h1}>Find your <Text style={{ fontFamily: 'Fraunces-Italic' }}>max</Text></Text>
 
                 {error ? (
-                    <GlassCard radius={18} intensity={30} style={{ marginTop: 16 }}>
-                        <View style={{ padding: 16 }}>
-                            <Text style={styles.errorText}>{error}</Text>
-                        </View>
-                    </GlassCard>
+                    <View style={styles.errorCard}>
+                        <Text style={styles.errorText}>{error}</Text>
+                    </View>
                 ) : null}
 
-                <Text style={styles.section}>MAXES  ·  $3.99/wk</Text>
+                <View style={[styles.sectionHead, { marginTop: 24 }]}>
+                    <SectionLabel label="MAXES" style={styles.sectionLabelInline} />
+                    <Text style={styles.sectionNote}>$3.99 / week each</Text>
+                </View>
                 <View style={styles.grid}>
                     {maxxes.map((m) => (
                         <CourseCard key={m.id} item={m} onPress={() => navigation.push('MaxDetail', { item: m })} />
                     ))}
                 </View>
 
-                <Text style={[styles.section, { marginTop: 28 }]}>CREATOR COURSES</Text>
-                <View style={styles.grid}>
-                    {courses.map((c) => (
-                        <CourseCard key={c.id} item={c} onPress={() => navigation.push('MaxDetail', { item: c })} />
-                    ))}
-                </View>
+                {courses.length > 0 ? (
+                    <>
+                        <SectionLabel label="CREATOR COURSES" style={{ marginTop: 30, marginBottom: 12 }} />
+                        <View style={styles.grid}>
+                            {courses.map((c) => (
+                                <CourseCard key={c.id} item={c} onPress={() => navigation.push('MaxDetail', { item: c })} />
+                            ))}
+                        </View>
+                    </>
+                ) : null}
             </ScrollView>
 
             <DetailModal item={detail} onClose={() => setDetail(null)} onEntered={markEntered} />
-        </ScreenBackdrop>
+        </View>
     );
 }
 
@@ -197,61 +202,48 @@ export default function MarketplaceScreen() {
  *  has one, else designed gradient art derived from the program's brand color
  *  with the icon as a watermark — so the grid reads like a polished course
  *  marketplace either way. Title overlays the cover; creator + price sit below. */
+/** Flat color-pocket card: white block, the max's color lives in the icon tile
+ *  + a thin accent rule along the bottom. Creator courses show their cover as
+ *  the tile. Plain cream page, vivid pockets — the craft.do feel. */
 function CourseCard({ item, onPress }: { item: MarketplaceItem; onPress: () => void }) {
     const img = (item as any).image_url as string | undefined;
     const base = item.color || GOLD;
+    const tagline = (item as any).tagline as string | undefined;
     return (
-        <TouchableOpacity style={styles.gridItem} activeOpacity={0.88} onPress={onPress}>
-            <View style={styles.cover}>
+        <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={onPress}>
+            <View style={styles.cardTop}>
                 {img ? (
-                    <Image source={{ uri: img }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
+                    <Image source={{ uri: img }} style={styles.cardThumb} contentFit="cover" transition={200} />
                 ) : (
-                    <>
-                        <LinearGradient
-                            colors={[shade(base, 1.22), shade(base, 0.78)]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={StyleSheet.absoluteFillObject}
-                        />
-                        <Ionicons
-                            name={(item.icon as any) || 'ellipse-outline'}
-                            size={104}
-                            color="rgba(255,255,255,0.20)"
-                            style={styles.watermark}
-                        />
-                    </>
-                )}
-                <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.30)', 'rgba(0,0,0,0.62)']}
-                    style={styles.scrim}
-                />
-                <Text style={styles.coverTitle} numberOfLines={2}>{item.title}</Text>
-
-                {item.rating ? (
-                    <View style={[styles.pill, styles.pillTL]}>
-                        <Ionicons name="star" size={10} color="#FFD15C" />
-                        <Text style={styles.pillText}>{item.rating.toFixed(1)}</Text>
+                    <View style={[styles.cardIcon, { backgroundColor: hexA(base, 0.12) }]}>
+                        <Ionicons name={(item.icon as any) || 'ellipse-outline'} size={26} color={base} />
                     </View>
-                ) : null}
-                {item.entered ? (
-                    <View style={[styles.pill, styles.pillTR, { backgroundColor: 'rgba(16,185,129,0.96)' }]}>
-                        <Ionicons name="checkmark" size={11} color="#fff" />
-                        <Text style={styles.pillText}>In</Text>
+                )}
+                {item.rating ? (
+                    <View style={styles.ratingPill}>
+                        <Ionicons name="star" size={10} color="#E0A92E" />
+                        <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
                     </View>
                 ) : null}
             </View>
 
-            <View style={styles.cardFooter}>
-                {!item.native && item.creator.avatar ? (
-                    <Image source={{ uri: item.creator.avatar }} style={styles.footerAvatar} contentFit="cover" />
-                ) : null}
+            <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+            {tagline ? <Text style={styles.cardTagline} numberOfLines={2}>{tagline}</Text> : null}
+
+            <View style={styles.cardFoot}>
                 <Text style={styles.footerCreator} numberOfLines={1}>
                     {item.native ? 'by Max' : `@${item.creator.handle}${item.creator.verified ? ' ✓' : ''}`}
                 </Text>
-                <Text style={[styles.footerPrice, item.entered && { color: '#10B981' }]}>
-                    {item.entered ? 'Open' : item.price_label.replace(' / week', '/wk')}
-                </Text>
+                {item.entered ? (
+                    <View style={[styles.openChip, { backgroundColor: hexA(base, 0.14) }]}>
+                        <Text style={[styles.openChipText, { color: base }]}>Open</Text>
+                    </View>
+                ) : (
+                    <Text style={styles.footerPrice}>{item.price_label.replace(' / week', '/wk')}</Text>
+                )}
             </View>
+
+            <View style={[styles.cardRule, { backgroundColor: base }]} />
         </TouchableOpacity>
     );
 }
@@ -318,10 +310,9 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
     return (
         <Modal visible transparent animationType="slide" onRequestClose={onClose}>
             <View style={styles.modalRoot}>
-                <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(28,26,23,0.45)' }]} />
                 <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
                 <View style={styles.sheet}>
-                    <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
                     {miniReveal ? (
                         <View style={styles.sheetInner}>
                             <View style={styles.grabber} />
@@ -529,9 +520,9 @@ const styles = StyleSheet.create({
         marginTop: 14,
         padding: 14,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.55)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
+        backgroundColor: '#F6F1E9',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: BORDER,
         alignSelf: 'stretch',
     },
     feasSkeleton: { height: 52, borderRadius: 10, backgroundColor: 'rgba(17,17,19,0.06)' },
@@ -558,6 +549,42 @@ const styles = StyleSheet.create({
     errorText: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#B23A3A' },
     section: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.4, color: SUB, marginTop: 22 },
     sectionSub: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 3 },
+    root: { flex: 1, backgroundColor: CREAM },
+    sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    sectionLabelInline: { marginBottom: 0 },
+    sectionNote: { fontFamily: 'Matter-Medium', fontSize: 12, color: MUTE },
+    errorCard: {
+        marginTop: 16,
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: CARD,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: BORDER,
+    },
+
+    // Flat color-pocket card
+    card: {
+        width: '48%',
+        marginBottom: 16,
+        backgroundColor: CARD,
+        borderRadius: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: BORDER,
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 18,
+        overflow: 'hidden',
+    },
+    cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+    cardIcon: { width: 52, height: 52, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+    cardThumb: { width: 52, height: 52, borderRadius: 15, backgroundColor: '#EFE7DC' },
+    ratingPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#F3EDE3', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
+    ratingText: { fontFamily: 'Matter-SemiBold', fontSize: 11, color: SUB },
+    cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+    openChip: { paddingHorizontal: 11, paddingVertical: 4, borderRadius: 999, marginLeft: 8 },
+    openChipText: { fontFamily: 'Matter-SemiBold', fontSize: 12 },
+    cardRule: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3 },
+
     // 2-up marketplace grid of cover cards.
     grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 12 },
     gridItem: { width: '48%', marginBottom: 18 },
@@ -612,8 +639,8 @@ const styles = StyleSheet.create({
     price: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: INK },
     // modal
     modalRoot: { flex: 1, justifyContent: 'flex-end' },
-    sheet: { borderTopLeftRadius: 30, borderTopRightRadius: 30, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)' },
-    sheetInner: { backgroundColor: 'rgba(255,255,255,0.82)', paddingHorizontal: 24, paddingTop: 10, paddingBottom: 34, alignItems: 'center' },
+    sheet: { borderTopLeftRadius: 30, borderTopRightRadius: 30, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+    sheetInner: { backgroundColor: CARD, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 34, alignItems: 'center' },
     grabber: { width: 40, height: 5, borderRadius: 3, backgroundColor: 'rgba(17,17,19,0.18)', marginBottom: 16 },
     iconWrapLg: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
     sheetTitle: { fontFamily: 'PlayfairDisplay', fontSize: 28, color: INK, letterSpacing: -0.4, textAlign: 'center' },
