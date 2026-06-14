@@ -10,12 +10,11 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { maxHomeMaxxesForUser } from '../../utils/maxxLimits';
 import { AttachStep } from 'react-native-spotlight-tour';
 import { TOUR_STEP } from '../../features/mainTour/mainTourSteps';
 import { colors, spacing, typography, fonts, borderRadius } from '../../theme/dark';
 import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
-import { buildMaxxMaps, mergeSchedules, type MergedScheduleTask } from '../../utils/scheduleAggregation';
+import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, moduleColorForSchedule, type MergedScheduleTask } from '../../utils/scheduleAggregation';
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
 import { CachedImage } from '../../components/CachedImage';
@@ -226,21 +225,27 @@ export default function HomeScreen() {
     }, [fadeAnim, slideAnim]);
 
     const userName = user?.first_name || user?.email?.split('@')[0] || 'there';
-    const maxHomeSlots = maxHomeMaxxesForUser(user);
-    const rawGoalIds = (user?.onboarding?.goals || []) as string[];
-    const cappedGoalIds = useMemo(() => {
-        const g = (user?.onboarding?.goals || []) as string[];
-        return g.slice(0, maxHomeMaxxesForUser(user));
-    }, [user?.onboarding?.goals, user?.is_paid, user?.subscription_tier]);
-
-    const activeIdSet = useMemo(() => new Set(cappedGoalIds.map((g: string) => g.toLowerCase())), [cappedGoalIds]);
+    // The programs the user has actively STARTED and that are running right now
+    // — one chip per LIVE schedule (a native maxx OR a creator course). Built
+    // from the active schedules, not the onboarding goals (which surfaced
+    // programs the user merely picked but never began).
     const activeMaxxes = useMemo(() => {
-        const filtered = maxes.filter((m: { id?: string }) => activeIdSet.has((m.id ?? '').toLowerCase()));
-        filtered.sort((a: any, b: any) =>
-            getMaxxDisplayLabel(a).localeCompare(getMaxxDisplayLabel(b)),
-        );
-        return filtered;
-    }, [maxes, activeIdSet]);
+        const { labels, colors: colorMap } = buildMaxxMaps(maxes);
+        const out: { id: string; label: string; color: string; maxxId: string; isCourse: boolean }[] = [];
+        const seen = new Set<string>();
+        for (const s of ((schedulesQuery.data?.schedules || []) as any[])) {
+            const mid = normalizeMaxxId(s.maxx_id);
+            const nativeLabel = mid ? labels[mid] : '';
+            const isCourse = !nativeLabel;
+            const label = String(nativeLabel || s.course_title || s.maxx_id || 'Program');
+            const key = (isCourse ? (s.course_title || s.id) : mid).toString().toLowerCase();
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            out.push({ id: String(s.id), label, color: moduleColorForSchedule(s, colorMap), maxxId: mid, isCourse });
+        }
+        out.sort((a, b) => a.label.localeCompare(b.label));
+        return out;
+    }, [schedulesQuery.data, maxes]);
 
     const completedCount = scheduleRows.filter(r => r.status === 'completed').length;
     const totalCount = scheduleRows.length;
@@ -342,28 +347,31 @@ export default function HomeScreen() {
                                     showsHorizontalScrollIndicator={false}
                                     contentContainerStyle={s.programsScroll}
                                 >
-                                    {activeMaxxes.map((maxx: { id?: string; color?: string; icon?: string }) => {
-                                        if (!maxx.id) return null;
+                                    {activeMaxxes.map((maxx) => {
                                         const tint = normalizeMaxxTintHex(maxx.color);
                                         return (
                                             <TouchableOpacity
                                                 key={maxx.id}
                                                 style={s.programPill}
-                                                onPress={() => navigation.navigate('MaxxDetail', { maxxId: maxx.id })}
+                                                onPress={() => maxx.isCourse
+                                                    ? navigation.navigate('MasterScheduleTab')
+                                                    : navigation.navigate('MaxxDetail', { maxxId: maxx.maxxId })}
                                                 activeOpacity={0.72}
                                             >
                                                 <View style={[s.programDot, { backgroundColor: tint }]} />
                                                 <Text style={s.programName} numberOfLines={1}>
-                                                    {getMaxxDisplayLabel(maxx)}
+                                                    {maxx.label}
                                                 </Text>
                                             </TouchableOpacity>
                                         );
                                     })}
                                     <TouchableOpacity
                                         style={s.addPill}
-                                        onPress={() => navigation.navigate('EditPersonal', { onlyGoals: true })}
+                                        onPress={() => navigation.navigate('Explore')}
                                         activeOpacity={0.65}
                                         hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Add a program"
                                     >
                                         <Ionicons name="add" size={16} color={colors.textMuted} />
                                     </TouchableOpacity>
