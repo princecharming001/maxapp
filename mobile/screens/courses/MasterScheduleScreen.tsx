@@ -704,7 +704,7 @@ export default function MasterScheduleScreen() {
     // Life tasks (work / sleep) — local-only toggle. No server schedule
     // backs them; persist to AsyncStorage and bail out before the API call.
     if (task.scheduleId === 'life') {
-      const m = /^life-(work|sleep)-(.+)$/.exec(task.task_id);
+      const m = /^life-(work|sleep|ob)-(.+)$/.exec(task.task_id);
       if (m) toggleLifeChecked(`${m[1]}-${m[2]}`);
       return;
     }
@@ -781,33 +781,52 @@ export default function MasterScheduleScreen() {
     const ob = (user?.onboarding || {}) as Record<string, any>;
     const date = selectedDate || '';
     const out: MergedScheduleTask[] = [];
-    if (ob.work_schedule === 'fixed' && ob.work_start && ob.work_end) {
+    const push = (task_id: string, time: string, title: string, checkKey: string) => {
       out.push({
-        task_id: `life-work-${date}`,
-        time: String(ob.work_start),
-        title: `work / school - until ${formatTime12(String(ob.work_end))}`,
+        task_id,
+        time: String(time),
+        title,
         description: '',
         task_type: 'life',
         duration_minutes: 0,
-        status: lifeChecked[`work-${date}`] ? 'completed' : 'pending',
+        status: lifeChecked[checkKey] ? 'completed' : 'pending',
         scheduleId: 'life',
         moduleLabel: '',
         moduleColor: colors.foreground,
       });
+    };
+
+    // Weekday/weekend, so weekday-only obligations don't show on weekends.
+    let isWeekday = true;
+    try {
+      const dow = (date ? new Date(`${date}T12:00:00`) : new Date()).getDay();
+      isWeekday = dow >= 1 && dow <= 5;
+    } catch {
+      /* default to weekday */
     }
+
+    // Obligations the user set in onboarding (work / school + anything else)
+    // live in an `obligations` array: [{ label, start, end, days }].
+    const obligations: any[] = Array.isArray(ob.obligations) ? ob.obligations : [];
+    let hasWorkOb = false;
+    obligations.forEach((o, i) => {
+      if (!o || !o.start) return;
+      if (o.days === 'weekdays' && !isWeekday) return;
+      const label = String(o.label || 'Busy').trim().toLowerCase();
+      const isWork = label.includes('work') || label.includes('school');
+      if (isWork) hasWorkOb = true;
+      const name = isWork ? 'work / school' : label;
+      const title = o.end ? `${name} - until ${formatTime12(String(o.end))}` : name;
+      push(`life-ob-${i}-${date}`, o.start, title, `ob-${i}-${date}`);
+    });
+
+    // Legacy top-level work fields (older accounts) if obligations didn't cover it.
+    if (!hasWorkOb && ob.work_schedule === 'fixed' && ob.work_start && ob.work_end && isWeekday) {
+      push(`life-work-${date}`, ob.work_start, `work / school - until ${formatTime12(String(ob.work_end))}`, `work-${date}`);
+    }
+
     if (ob.sleep_time && ob.wake_time) {
-      out.push({
-        task_id: `life-sleep-${date}`,
-        time: String(ob.sleep_time),
-        title: `sleep - until ${formatTime12(String(ob.wake_time))}`,
-        description: '',
-        task_type: 'life',
-        duration_minutes: 0,
-        status: lifeChecked[`sleep-${date}`] ? 'completed' : 'pending',
-        scheduleId: 'life',
-        moduleLabel: '',
-        moduleColor: colors.foreground,
-      });
+      push(`life-sleep-${date}`, ob.sleep_time, `sleep - until ${formatTime12(String(ob.wake_time))}`, `sleep-${date}`);
     }
     return out;
   }, [user?.onboarding, selectedDate, lifeChecked]);

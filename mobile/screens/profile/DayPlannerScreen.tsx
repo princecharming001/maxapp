@@ -412,15 +412,15 @@ function ScopePill({
 }
 
 const styles = StyleSheet.create({
-  // Single white surface, top to bottom — no page/card contrast.
-  container: { flex: 1, backgroundColor: colors.card },
+  // Warm cream canvas, matching every other page.
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,
-    backgroundColor: colors.card,
+    backgroundColor: colors.background,
   },
   backButton: { padding: 4, width: 40 },
   savingSlot: { width: 40, alignItems: 'flex-end', justifyContent: 'center' },
