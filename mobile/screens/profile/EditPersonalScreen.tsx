@@ -596,6 +596,25 @@ export default function EditPersonalScreen() {
                 </View>
               ) : null}
 
+              {/* What Max knows — the unified personalization profile across
+                  food, culture, work, rhythm, personality and comms style. */}
+              <TouchableOpacity
+                style={styles.card}
+                activeOpacity={0.85}
+                onPress={() => navigation.navigate('Personalization' as never)}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    {sectionKicker('PERSONALIZATION')}
+                    <Text style={styles.cardTitle}>What Max knows about you</Text>
+                    <Text style={styles.cardHint}>
+                      Food, culture, work, how you like to be coached. Add or fix anything.
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </View>
+              </TouchableOpacity>
+
               {priorityRanking.length > 0 ? (
                 <View style={styles.card}>
                   {sectionKicker('PRIORITY')}

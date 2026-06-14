@@ -127,6 +127,20 @@ async def generate_schedule(
 
     user_state = merged_user_state(onboarding or {}, persistent_ctx, extras or {})
 
+    # Fold in unified personalization signals (diet, culture, work, comms style)
+    # so generated content respects who the user actually is — vegetarian macros,
+    # culturally-familiar food references, etc. Only fills keys the caller left
+    # unset, so an explicit onboarding/chat answer always wins. Best-effort.
+    try:
+        from services.personalization import state_signals as _pers_signals
+        for _k, _v in (await _pers_signals(db, user_id)).items():
+            if _k == "personalization_brief":
+                continue
+            if user_state.get(_k) in (None, "", [], {}):
+                user_state[_k] = _v
+    except Exception as _e:
+        logger.debug("personalization signals merge skipped: %s", _e)
+
     # Required-field gate
     missing = missing_required(maxx_id, user_state)
     if missing:

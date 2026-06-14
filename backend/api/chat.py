@@ -2188,6 +2188,18 @@ async def process_chat_message(
         "user_facts": user_facts,
     }
 
+    # Hyper-personalization brief — the unified "what Max knows about this user"
+    # (identity, culture, diet, work, rhythm, personality, comms style) assembled
+    # from onboarding + durable facts the user told the chat + Onairos inference.
+    # Injected into the system prompt so every reply is tailored to the real person.
+    try:
+        from services.personalization import personalization_brief as _pers_brief
+        _pb = await _pers_brief(db, user_id)
+        if _pb:
+            user_context["personalization_brief"] = _pb
+    except Exception:
+        pass
+
     if user and _looks_like_completed_tasks_question(message_text):
         response_text = await _reply_today_completed_tasks_summary(user_id, onboarding, db)
         if _persist_chat_history(channel):

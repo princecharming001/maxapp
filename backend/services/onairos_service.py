@@ -198,10 +198,32 @@ class OnairosService:
             "traits": result.get("Traits") or {},
             "inference": result.get("InferenceResult") or {},
         }
+        # Forward-compat: in production Onairos enriches the response with more
+        # categories (demographics, lifestyle, food, culture, communication,
+        # brands…). Preserve any extra top-level blocks under `extra` so the
+        # personalization normalizer can map them into profile dimensions
+        # without a schema change. Existing consumers only read traits/inference,
+        # so this is non-breaking.
+        extra: dict[str, Any] = {}
+        for k, v in result.items():
+            if k in ("Traits", "InferenceResult"):
+                continue
+            if isinstance(v, (dict, list)) and v:
+                extra[k] = v
+        if extra:
+            traits["extra"] = extra
         conn.traits_cached = traits
         conn.traits_cached_at = _utcnow()
         flag_modified(conn, "traits_cached")
         await db.commit()
+
+        # Best-effort: refresh the unified personalization profile so the new
+        # Onairos signal reaches the in-app chat + scheduler immediately.
+        try:
+            from services.personalization import rebuild_profile
+            await rebuild_profile(user_id, db)
+        except Exception as e:  # never let personalization break a trait fetch
+            logger.warning("personalization rebuild after onairos refresh failed: %s", e)
         return traits
 
     # ------------------------------------------------------------------

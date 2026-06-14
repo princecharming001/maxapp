@@ -7,6 +7,28 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { getItemAsync, setItemAsync, deleteItemAsync } from './storage';
 
+export interface PersonalMemory {
+    id: string;
+    dimension: string;
+    key?: string | null;
+    text: string;
+    value?: any;
+    source: string;
+    confidence?: number | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+}
+
+export interface PersonalizationProfile {
+    profile: Record<string, Record<string, any>>;
+    completeness: Record<string, number>;
+    brief?: string | null;
+    sources: string[];
+    dimensions: string[];
+    memories: PersonalMemory[];
+    memories_by_dimension: Record<string, PersonalMemory[]>;
+}
+
 export interface MarketplaceItem {
     type: 'maxx' | 'course';
     id: string;
@@ -564,6 +586,27 @@ class ApiService {
     async disconnectOnairos() {
         const response = await this.client.delete('onairos/disconnect');
         return response.data as { ok: boolean; removed: boolean };
+    }
+
+    // --- Hyper-personalization profile ("What Max knows about you") ---
+    async getPersonalizationProfile() {
+        const response = await this.client.get('personalization/profile');
+        return response.data as PersonalizationProfile;
+    }
+
+    async rememberFact(body: { dimension: string; text: string; key?: string | null; value?: any }) {
+        const response = await this.client.post('personalization/remember', body);
+        return response.data as { ok: boolean; memory: PersonalMemory; brief?: string | null };
+    }
+
+    async forgetMemory(memoryId: string) {
+        const response = await this.client.delete(`personalization/memory/${memoryId}`);
+        return response.data as { ok: boolean; removed: string };
+    }
+
+    async refreshPersonalization() {
+        const response = await this.client.post('personalization/refresh');
+        return response.data as { ok: boolean; profile?: any; brief?: string | null };
     }
 
     async deleteAccount(password: string) {

@@ -729,3 +729,96 @@ class UserOnairosConnection(Base):
     __table_args__ = (
         Index("idx_user_onairos_connections_user_id", user_id),
     )
+
+
+class UserMemory(Base):
+    """A single durable, qualitative fact about the user — the spine of the
+    hyper-personalization layer.
+
+    Facts arrive from many sources: things the user tells the chat ("i'm
+    vegetarian", "my family's Tamil", "i work nights downtown"), explicit
+    onboarding answers, Onairos inference (personality, interests, lifestyle),
+    or face scans. Each carries PROVENANCE (`source`) and `confidence` so the
+    profile assembler can let newer / more-explicit facts win over older /
+    inferred ones, and let the user correct anything.
+
+    Two flavours:
+      * KEYED facts (`key` set, e.g. "diet.pattern") hold the canonical value
+        for a slot. Writing a new keyed fact supersedes the prior active one
+        for that (user, key) — that's how "actually i eat fish now" overrides
+        "vegetarian".
+      * KEYLESS facts (`key` null) are free-form anecdotes, deduped by their
+        normalized text.
+
+    `dimension` buckets the fact for the brief + scheduler signals:
+      identity | culture | diet | work | lifestyle | personality |
+      comms_style | goals | interests | constraints | misc
+    """
+
+    __tablename__ = "user_memories"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("app_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    dimension = Column(String, nullable=False)
+    key = Column(String, nullable=True)            # canonical slot, e.g. "diet.pattern"
+    text = Column(Text, nullable=False)            # human phrasing, e.g. "vegetarian"
+    value = Column(JSONB, nullable=True)           # optional structured value
+
+    source = Column(String, nullable=False, default="chat")  # chat|onboarding|onairos|scan|inferred
+    confidence = Column(Float, nullable=False, default=0.8)
+    status = Column(String, nullable=False, default="active")  # active|superseded|retracted
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow,
+                        onupdate=datetime.utcnow, nullable=False)
+    last_seen_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_user_memories_user_id", user_id),
+        Index("idx_user_memories_user_dim", user_id, dimension),
+        Index("idx_user_memories_user_key", user_id, key),
+    )
+
+
+class UserPersonalizationProfile(Base):
+    """The unified, assembled view of everything we know about a user.
+
+    One row per user (unique on user_id). Rebuilt whenever a source changes
+    (onboarding save, Onairos refresh, a new remembered fact). It merges
+    onboarding answers + durable `UserMemory` facts + Onairos traits + the
+    legacy user_facts blob into a single normalized, per-dimension `profile`,
+    plus a cached natural-language `brief` that the in-app chat injects into
+    its system prompt and a `completeness` map for "what's still unknown".
+
+    This is a read-model / cache — the source-of-truth lives in the
+    contributing tables — so it can always be rebuilt from scratch.
+    """
+
+    __tablename__ = "user_personalization_profiles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("app_users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+
+    profile = Column(JSONB, nullable=False, default=dict)        # per-dimension normalized signals
+    completeness = Column(JSONB, nullable=False, default=dict)   # per-dimension 0..1 fill score
+    sources = Column(JSONB, nullable=True)                       # which sources contributed
+    brief = Column(Text, nullable=True)                         # cached NL brief for prompts
+
+    rebuilt_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow,
+                        onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_user_personalization_profiles_user_id", user_id),
+    )

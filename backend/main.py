@@ -22,6 +22,7 @@ from api import (
     forums_v2_router,
     sendblue_webhook_router,
     onairos_router,
+    personalization_router,
     marketplace_router,
     planner_router,
     analytics_router,
@@ -149,6 +150,7 @@ app.include_router(schedules_router, prefix="/api")
 app.include_router(maxes_router, prefix="/api")
 app.include_router(sendblue_webhook_router, prefix="/api")
 app.include_router(onairos_router, prefix="/api")
+app.include_router(personalization_router, prefix="/api")
 app.include_router(marketplace_router, prefix="/api")
 app.include_router(planner_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")

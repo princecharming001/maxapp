@@ -410,6 +410,21 @@ async def build_agent_system_prompt(
             ms = user_context["active_maxx_schedule"]
             context_str += f"\nActive {ms.get('maxx_id')} schedule exists."
 
+    # Unified hyper-personalization brief — the assembled "what Max knows about
+    # this user" across identity, culture, diet, work, rhythm, personality and
+    # communication style, merged from onboarding + things they've told the chat
+    # + Onairos inference (services.personalization). Injected so every reply is
+    # tailored to the real person. Placed BELOW the diet absolute-rules block
+    # (which prepends after this) so allergy/diet safety stays the top directive.
+    try:
+        if user_context:
+            brief = (user_context.get("personalization_brief")
+                     or (user_context.get("persistent_context") or {}).get("personalization_brief"))
+            if brief:
+                chat_prompt = f"{brief}\n\n---\n\n" + chat_prompt
+    except Exception:
+        pass
+
     # Long-term user facts (vegetarian, allergic-to, eczema, lives-in, etc.)
     # come from user_schedule_context.user_facts — extracted from chat passively
     # by services.user_facts_service. Inject NEAR THE TOP of the system prompt
@@ -1950,6 +1965,49 @@ def make_chat_tools(
             logger.info("web_search tool failed: %s", e)
             return f"(web search unavailable: {e.__class__.__name__})"
 
+    # ------------------------------------------------------------------ #
+    #  remember_about_user                                                 #
+    # ------------------------------------------------------------------ #
+    @tool
+    async def remember_about_user(dimension: str, fact: str, key: str = "") -> str:
+        """
+        Save a durable, PERSONAL fact the user just revealed so Max remembers it
+        forever and tailors everything (tone, food, culture, timing) to them.
+        Call this whenever the user shares something lasting about WHO THEY ARE.
+        Do NOT use it for one-off schedule tweaks (use update_schedule_context).
+
+        `dimension` is one of: identity, culture, diet, work, lifestyle,
+        personality, comms_style, goals, interests, constraints.
+        `fact` is a short natural phrasing, e.g. "vegetarian", "family is Tamil",
+        "works night shifts downtown", "wants blunt, no-fluff coaching".
+        `key` (optional) is a canonical slot when this fact REPLACES the prior
+        value for that slot, e.g. "diet.pattern", "comms_style.tone",
+        "work.location_type". Omit key for additive facts (hobbies, foods, anecdotes).
+
+        Examples:
+          - "i'm vegetarian" -> remember_about_user("diet", "vegetarian", "diet.pattern")
+          - "my mom's Tamil, we eat south indian" ->
+              remember_about_user("culture", "Tamil family", "culture.culture") and
+              remember_about_user("diet", "loves South Indian food")
+          - "just talk to me straight, skip the pep talk" ->
+              remember_about_user("comms_style", "blunt, no pep talk", "comms_style.tone")
+          - "i climb on weekends" -> remember_about_user("interests", "rock climbing")
+        """
+        try:
+            from services.personalization import remember_fact
+            async with db_mutation_lock:
+                mem = await remember_fact(
+                    db, user_id, dimension=dimension, text=fact,
+                    key=(key or None), source="chat",
+                )
+            if mem is None:
+                return "nothing to remember"
+            return f"remembered ({mem.dimension}): {mem.text}"
+        except Exception as e:
+            await _safe_rollback()
+            logger.exception("remember_about_user tool failed: %s", e)
+            return f"could not remember that: {e}"
+
     return [
         modify_schedule,
         generate_maxx_schedule,
@@ -1972,6 +2030,7 @@ def make_chat_tools(
         # request and stops the LLM occasionally picking the wrong one
         # when the user says "make me a schedule" without naming a maxx.
         update_schedule_context,
+        remember_about_user,
         log_check_in,
         set_coaching_mode,
         get_today_tasks,

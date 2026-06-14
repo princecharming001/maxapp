@@ -766,6 +766,14 @@ async def save_onboarding(
     except Exception as e:
         logger.warning("post-onboarding schedule regen failed (non-fatal): %s", e)
 
+    # Fold the fresh onboarding answers into the unified personalization profile
+    # so the chat brief + scheduler signals reflect them immediately.
+    try:
+        from services.personalization import rebuild_profile as _rebuild_pers
+        await _rebuild_pers(str(user_uuid), db)
+    except Exception as e:
+        logger.warning("post-onboarding personalization rebuild failed (non-fatal): %s", e)
+
     # First-run: a brand-new user has no active schedule, so the regen above is
     # a no-op for them. Build their #1-priority maxx's routine now so onboarding
     # lands them ON a real plan instead of an empty Routine tab. Best-effort and
