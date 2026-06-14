@@ -32,12 +32,13 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, fonts } from '../../theme/dark';
-import DayEditorSheet from '../../components/planner/DayEditorSheet';
+import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
 import DayTimeline from '../../components/planner/DayTimeline';
 import ObligationsManager from '../../components/planner/ObligationsManager';
 import {
@@ -94,6 +95,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
   // Editor sheet: keep the scope set across the close animation to avoid a flash.
   const [editScope, setEditScope] = useState<Scope>('all');
+  const [editFocus, setEditFocus] = useState<ShapeFocus | undefined>(undefined);
   const [sheetVisible, setSheetVisible] = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -239,8 +241,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     }
   };
 
-  const openEditor = (s: Scope) => {
+  const openEditor = (s: Scope, focus?: ShapeFocus) => {
     setEditScope(s);
+    setEditFocus(focus);
     setSheetVisible(true);
   };
 
@@ -327,7 +330,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               day={dayForScope}
               obligations={obligations}
               scope={scope}
-              onEditShape={() => openEditor(scope)}
+              onEditShape={(focus) => openEditor(scope, focus)}
             />
           </View>
 
@@ -342,15 +345,22 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
       {/* Floating button, bottom-right — opens the change sheet on demand. */}
       {!chatOpen ? (
-        <TouchableOpacity
-          style={[styles.fab, { bottom: insets.bottom + 20 }]}
-          activeOpacity={0.85}
-          onPress={() => setChatOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Change your week — tell Max"
-        >
-          <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.background} />
-        </TouchableOpacity>
+        <View style={[styles.fabShadow, { bottom: insets.bottom + 20 }]} pointerEvents="box-none">
+          <TouchableOpacity
+            style={styles.fab}
+            activeOpacity={0.8}
+            onPress={() => setChatOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Change your week — tell Max"
+          >
+            {/* Frosted glass: a blur of the page behind, a soft light tint, and a
+                top highlight for the glassy sheen. */}
+            <BlurView intensity={32} tint="light" style={StyleSheet.absoluteFill} />
+            <View style={styles.fabTint} />
+            <View style={styles.fabSheen} />
+            <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.foreground} />
+          </TouchableOpacity>
+        </View>
       ) : null}
 
       {/* Minimal "tell Max" change sheet — serif prompt + quick chips + a clean
@@ -431,6 +441,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         scope={editScope}
         initial={effectiveDay(defaults, weekly, editScope)}
         overridden={editScope !== 'all' && hasOverride(weekly, editScope)}
+        focus={editFocus}
         onClose={() => setSheetVisible(false)}
         onCommit={commitScope}
         onReset={resetScope}
@@ -606,20 +617,42 @@ const styles = StyleSheet.create({
   chatSendOff: { backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
 
   // Floating button (bottom-right) + the minimal on-demand change sheet.
-  fab: {
+  // Outer wrapper carries the soft drop shadow — kept off the clipped circle so
+  // `overflow: hidden` (needed to round the blur) doesn't mask the shadow away.
+  fabShadow: {
     position: 'absolute',
     right: 16,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.foreground,
+    shadowColor: '#3A352B',
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 6,
+  },
+  // The frosted glass disc: blur fills it, a hairline gives it an edge.
+  fab: {
+    flex: 1,
+    borderRadius: 28,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#3A352B',
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    backgroundColor: 'rgba(255,255,255,0.30)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.55)',
+  },
+  fabTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(247,240,234,0.22)',
+  },
+  fabSheen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    backgroundColor: 'rgba(255,255,255,0.28)',
   },
   chatRoot: { flex: 1, justifyContent: 'flex-end' },
   chatBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(28,26,23,0.38)' },

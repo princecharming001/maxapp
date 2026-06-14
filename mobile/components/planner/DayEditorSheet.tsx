@@ -59,6 +59,17 @@ const READY_MAX = 780; // 1 PM
 const clampN = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 const fmtAbs = (m: number) => fmt12Compact(minToHHMM(m));
 
+// When an arrow on the timeline is tapped, the sheet opens scoped to just that
+// one item rather than the whole day. `undefined` shows every control.
+export type ShapeFocus = 'wake' | 'ready' | 'workout' | 'sleep';
+
+const FOCUS_TITLE: Record<ShapeFocus, string> = {
+  wake: 'Wake up',
+  ready: 'Get ready',
+  workout: 'Workout window',
+  sleep: 'Wind down',
+};
+
 type Mode = 'range' | 'exact';
 
 function Segmented<T extends string>({
@@ -96,6 +107,7 @@ export default function DayEditorSheet({
   scope,
   initial,
   overridden,
+  focus,
   onClose,
   onCommit,
   onReset,
@@ -104,6 +116,7 @@ export default function DayEditorSheet({
   scope: Scope;
   initial: DayShape;
   overridden: boolean;
+  focus?: ShapeFocus;
   onClose: () => void;
   onCommit: (scope: Scope, day: DayShape) => void;
   onReset: (scope: Weekday) => void;
@@ -134,6 +147,9 @@ export default function DayEditorSheet({
 
   const scopeLong =
     scope === 'all' ? 'All days' : WEEKDAYS.find((w) => w.key === scope)?.long || '';
+
+  // With a focus, render only that item's control; without one, the full day.
+  const show = (k: ShapeFocus) => !focus || focus === k;
 
   const wakeVal: [number, number] = [toMin(d.wakeWindow[0]), toMin(d.wakeWindow[1])];
   const sleepVal: [number, number] = [eveMin(d.sleepWindow[0]), eveMin(d.sleepWindow[1])];
@@ -252,7 +268,10 @@ export default function DayEditorSheet({
               <TouchableOpacity onPress={requestClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="close" size={22} color={colors.textMuted} />
               </TouchableOpacity>
-              <Text style={styles.headerTitle}>{scopeLong}</Text>
+              <View style={styles.headerCenter}>
+                <Text style={styles.headerTitle}>{focus ? FOCUS_TITLE[focus] : scopeLong}</Text>
+                {focus ? <Text style={styles.headerSub}>{scopeLong}</Text> : null}
+              </View>
               <View style={{ width: 22 }} />
             </View>
 
@@ -263,72 +282,83 @@ export default function DayEditorSheet({
               keyboardShouldPersistTaps="handled"
             >
               {/* Wake */}
-              <View style={styles.section}>
-                <View style={styles.sectionHead}>
-                  <View style={styles.sectionTitleWrap}>
-                    <Ionicons name="sunny-outline" size={16} color={colors.foreground} />
-                    <Text style={styles.sectionTitle}>Wake up</Text>
+              {show('wake') ? (
+                <View style={styles.section}>
+                  <View style={[styles.sectionHead, focus && styles.sectionHeadFocused]}>
+                    {!focus ? (
+                      <View style={styles.sectionTitleWrap}>
+                        <Ionicons name="sunny-outline" size={16} color={colors.foreground} />
+                        <Text style={styles.sectionTitle}>Wake up</Text>
+                      </View>
+                    ) : null}
+                    <Segmented
+                      compact
+                      options={[
+                        { key: 'range', label: 'Range' },
+                        { key: 'exact', label: 'Exact' },
+                      ]}
+                      value={wakeMode}
+                      onChange={(k) => switchWakeMode(k as Mode)}
+                    />
                   </View>
-                  <Segmented
-                    compact
-                    options={[
-                      { key: 'range', label: 'Range' },
-                      { key: 'exact', label: 'Exact' },
-                    ]}
-                    value={wakeMode}
-                    onChange={(k) => switchWakeMode(k as Mode)}
+                  <TimeRangeSlider
+                    single={wakeMode === 'exact'}
+                    min={WAKE_MIN}
+                    max={WAKE_MAX}
+                    value={wakeVal}
+                    onChange={setWake}
+                    format={fmtAbs}
+                    accent={colors.foreground}
                   />
+                  <Text style={styles.hint}>{wakeHint}</Text>
                 </View>
-                <TimeRangeSlider
-                  single={wakeMode === 'exact'}
-                  min={WAKE_MIN}
-                  max={WAKE_MAX}
-                  value={wakeVal}
-                  onChange={setWake}
-                  format={fmtAbs}
-                  accent={colors.foreground}
-                />
-                <Text style={styles.hint}>{wakeHint}</Text>
-              </View>
+              ) : null}
 
               {/* Sleep */}
-              <View style={styles.section}>
-                <View style={styles.sectionHead}>
-                  <View style={styles.sectionTitleWrap}>
-                    <Ionicons name="moon-outline" size={16} color={colors.foreground} />
-                    <Text style={styles.sectionTitle}>Go to sleep</Text>
+              {show('sleep') ? (
+                <View style={styles.section}>
+                  <View style={[styles.sectionHead, focus && styles.sectionHeadFocused]}>
+                    {!focus ? (
+                      <View style={styles.sectionTitleWrap}>
+                        <Ionicons name="moon-outline" size={16} color={colors.foreground} />
+                        <Text style={styles.sectionTitle}>Go to sleep</Text>
+                      </View>
+                    ) : null}
+                    <Segmented
+                      compact
+                      options={[
+                        { key: 'range', label: 'Range' },
+                        { key: 'exact', label: 'Exact' },
+                      ]}
+                      value={sleepMode}
+                      onChange={(k) => switchSleepMode(k as Mode)}
+                    />
                   </View>
-                  <Segmented
-                    compact
-                    options={[
-                      { key: 'range', label: 'Range' },
-                      { key: 'exact', label: 'Exact' },
-                    ]}
-                    value={sleepMode}
-                    onChange={(k) => switchSleepMode(k as Mode)}
+                  <TimeRangeSlider
+                    single={sleepMode === 'exact'}
+                    min={SLEEP_MIN}
+                    max={SLEEP_MAX}
+                    value={sleepVal}
+                    onChange={setSleep}
+                    format={fmtAbs}
+                    accent={colors.foreground}
                   />
+                  <Text style={styles.hint}>{sleepHint}</Text>
                 </View>
-                <TimeRangeSlider
-                  single={sleepMode === 'exact'}
-                  min={SLEEP_MIN}
-                  max={SLEEP_MAX}
-                  value={sleepVal}
-                  onChange={setSleep}
-                  format={fmtAbs}
-                  accent={colors.foreground}
-                />
-                <Text style={styles.hint}>{sleepHint}</Text>
-              </View>
+              ) : null}
 
-              <View style={styles.divider} />
+              {!focus ? <View style={styles.divider} /> : null}
 
               {/* Get ready (optional single time) */}
-              <View style={styles.section}>
-                <View style={styles.sectionHead}>
-                  <View style={styles.sectionTitleWrap}>
-                    <Ionicons name="water-outline" size={16} color={colors.foreground} />
-                    <Text style={styles.sectionTitle}>Get ready</Text>
-                  </View>
+              {show('ready') ? (
+                <View style={styles.section}>
+                <View style={[styles.sectionHead, focus && styles.sectionHeadFocused]}>
+                  {!focus ? (
+                    <View style={styles.sectionTitleWrap}>
+                      <Ionicons name="water-outline" size={16} color={colors.foreground} />
+                      <Text style={styles.sectionTitle}>Get ready</Text>
+                    </View>
+                  ) : null}
                   <Segmented
                     compact
                     options={[
@@ -354,16 +384,19 @@ export default function DayEditorSheet({
                     Max anchors your AM skin, hair & mewing routine around your wake time.
                   </Text>
                 )}
-              </View>
+                </View>
+              ) : null}
 
               {/* Workout window — default-level, so only on "All days". */}
-              {scope === 'all' ? (
+              {show('workout') ? (scope === 'all' ? (
                 <View style={styles.section}>
-                  <View style={styles.sectionHead}>
-                    <View style={styles.sectionTitleWrap}>
-                      <Ionicons name="barbell-outline" size={16} color={colors.foreground} />
-                      <Text style={styles.sectionTitle}>Workout window</Text>
-                    </View>
+                  <View style={[styles.sectionHead, focus && styles.sectionHeadFocused]}>
+                    {!focus ? (
+                      <View style={styles.sectionTitleWrap}>
+                        <Ionicons name="barbell-outline" size={16} color={colors.foreground} />
+                        <Text style={styles.sectionTitle}>Workout window</Text>
+                      </View>
+                    ) : null}
                     <Segmented
                       compact
                       options={[
@@ -400,19 +433,21 @@ export default function DayEditorSheet({
                 // placeholder on a single-day edit so the control doesn't feel
                 // like it vanished, and point to where it lives.
                 <View style={styles.section}>
-                  <View style={styles.sectionHead}>
-                    <View style={styles.sectionTitleWrap}>
-                      <Ionicons name="barbell-outline" size={16} color={colors.textMuted} />
-                      <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Workout window</Text>
+                  {!focus ? (
+                    <View style={styles.sectionHead}>
+                      <View style={styles.sectionTitleWrap}>
+                        <Ionicons name="barbell-outline" size={16} color={colors.textMuted} />
+                        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Workout window</Text>
+                      </View>
                     </View>
-                  </View>
+                  ) : null}
                   <Text style={styles.autoHint}>
                     Set once for all days. Open the All days view to change it.
                   </Text>
                 </View>
-              )}
+              )) : null}
 
-              {scope !== 'all' && overridden ? (
+              {!focus && scope !== 'all' && overridden ? (
                 <TouchableOpacity style={styles.resetBtn} onPress={reset} activeOpacity={0.7}>
                   <Ionicons name="refresh" size={15} color={colors.textSecondary} />
                   <Text style={styles.resetText}>Reset {scopeLong} to base rhythm</Text>
@@ -477,11 +512,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: spacing.sm,
   },
+  headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 18,
     color: colors.foreground,
     letterSpacing: -0.2,
+  },
+  headerSub: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 12,
+    color: colors.textMuted,
+    letterSpacing: 0.3,
+    marginTop: 2,
   },
   content: { paddingBottom: spacing.md },
   section: { marginTop: spacing.lg },
@@ -493,6 +536,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     rowGap: 10,
   },
+  sectionHeadFocused: { justifyContent: 'flex-end', marginBottom: spacing.sm },
   sectionTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 1, paddingRight: 8 },
   sectionTitle: {
     fontFamily: fonts.sansSemiBold,

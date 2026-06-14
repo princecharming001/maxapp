@@ -14,6 +14,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '../../theme/dark';
+import type { ShapeFocus } from './DayEditorSheet';
 import {
   DayShape,
   Obligation,
@@ -54,7 +55,7 @@ export default function DayTimeline({
   day: DayShape;
   obligations: Obligation[];
   scope: Scope;
-  onEditShape: () => void;
+  onEditShape: (focus: ShapeFocus) => void;
   onEditObligation?: (index: number) => void;
 }) {
   const rows: Row[] = [];
@@ -153,7 +154,7 @@ export default function DayTimeline({
             ? r.editable && r.obIndex != null
               ? () => onEditObligation?.(r.obIndex as number)
               : undefined
-            : onEditShape;
+            : () => onEditShape(r.kind as ShapeFocus);
         const last = idx === rows.length - 1;
         return (
           <TouchableOpacity
