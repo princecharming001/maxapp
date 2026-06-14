@@ -357,7 +357,7 @@ export default function EditPersonalScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {!onlyGoals ? (
-            <Text style={styles.lead}>Update what you told us at signup. Max picks up the changes when you save.</Text>
+            <Text style={styles.lead}>Update your profile. Changes take effect when you save.</Text>
           ) : null}
 
           {/* "Your Maxxes" header is intentionally hidden on the edit-lifestyle
@@ -545,9 +545,7 @@ export default function EditPersonalScreen() {
                 {sectionKicker('DAILY TIMINGS')}
                 <Text style={styles.cardTitle}>Your day, hour by hour</Text>
                 <Text style={styles.cardHint}>
-                  These anchor every routine across your maxxes. Workouts, skincare,
-                  mewing and stretches all shift to fit your real day. Leave anything
-                  on Auto and the coach picks the time for you.
+                  These anchor all your routines. Leave anything on Auto and the coach picks the time.
                 </Text>
                 {timeRow('Wake', 'wake', wakeTime, setWakeTime)}
                 {anchorRow(
@@ -555,7 +553,7 @@ export default function EditPersonalScreen() {
                   'getReady',
                   getReadyTime,
                   setGetReadyTime,
-                  'Anchors your AM skin, hair & mewing routine.',
+                  'Anchors your morning routine.',
                   'water-outline',
                 )}
                 {timeRow('Bed', 'sleep', sleepTime, setSleepTime)}
@@ -570,8 +568,7 @@ export default function EditPersonalScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.plannerPointerTitle}>Workout window & commitments</Text>
                     <Text style={styles.plannerPointerText}>
-                      Set your workout as a range and add recurring commitments
-                      (work, school, classes). They can vary by day in the Day Planner.
+                      Set a workout window and recurring commitments. They can vary by day in the Day Planner.
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
@@ -586,9 +583,7 @@ export default function EditPersonalScreen() {
                   {sectionKicker('EXTERNAL PERSONALIZATION')}
                   <Text style={styles.cardTitle}>Connect your apps</Text>
                   <Text style={styles.cardHint}>
-                    Pull personality + habit signals from apps you already use,
-                    so Max can tailor coaching without another quiz. Re-run any
-                    time to refresh.
+                    Pull personality + habit signals from apps you already use. Re-run any time to refresh.
                   </Text>
                   <TouchableOpacity
                     onPress={() => setOnairosVisible(true)}
@@ -605,7 +600,6 @@ export default function EditPersonalScreen() {
                 <View style={styles.card}>
                   {sectionKicker('PRIORITY')}
                   <Text style={styles.cardTitle}>What matters most</Text>
-                  <Text style={styles.cardHint}>Top = strongest signal in coaching + reminders.</Text>
                   {priorityRanking.map((key, i) => (
                     <View key={key} style={styles.rankRow}>
                       <Text style={styles.rankNum}>{i + 1}</Text>

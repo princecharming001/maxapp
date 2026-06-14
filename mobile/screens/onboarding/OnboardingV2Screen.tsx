@@ -256,7 +256,7 @@ export default function OnboardingV2Screen() {
         {
             kicker: 'STEP 1 OF 7',
             title: 'What are we\nworking on?',
-            sub: 'Pick up to 3. Your first pick leads.',
+            sub: 'Pick up to 3.',
             canNext: goals.length > 0,
             body: (
                 <View style={{ gap: 10, marginTop: 18 }}>
@@ -295,7 +295,7 @@ export default function OnboardingV2Screen() {
         {
             kicker: 'STEP 2 OF 7',
             title: "What's pulling\nyou here?",
-            sub: 'One tap. It helps Max talk to you straight.',
+            sub: 'It helps Max talk to you straight.',
             canNext: !!motivation,
             body: (
                 <View style={{ gap: 10, marginTop: 18 }}>
@@ -337,7 +337,7 @@ export default function OnboardingV2Screen() {
                         <TimeStepper label="Wind down around" value={sleepMin} onChange={setSleepMin} />
                     </View>
                     <Text style={styles.helpNote}>
-                        Get-ready time is when your AM skin, hair and mewing routine lands.
+                        When your AM skin, hair, and mewing routine lands.
                     </Text>
                 </View>
             ),
@@ -438,7 +438,7 @@ export default function OnboardingV2Screen() {
                         <TimeStepper label="Dinner around" value={dinnerMin} onChange={setDinnerMin} />
                     </View>
                     <Text style={styles.helpNote}>
-                        Max keeps your evening routine clear of dinner.
+                        Keeps your evening routine clear of dinner.
                     </Text>
                 </View>
             ),
@@ -447,11 +447,11 @@ export default function OnboardingV2Screen() {
         {
             kicker: 'STEP 6 OF 7',
             title: 'Your rhythm',
-            sub: 'So things land when they would actually happen.',
+            sub: 'So things land when they actually happen.',
             canNext: true,
             body: (
                 <View style={{ marginTop: 18 }}>
-                    <Text style={[styles.groupLabel, { marginTop: 0 }]}>WHEN WOULD A WORKOUT ACTUALLY HAPPEN?</Text>
+                    <Text style={[styles.groupLabel, { marginTop: 0 }]}>WHEN WOULD YOU WORK OUT?</Text>
                     <View style={styles.pillRow}>
                         {WORKOUTS.map(([id, label]) => (
                             <Pill

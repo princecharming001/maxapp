@@ -491,8 +491,8 @@ export default function TodayScreen() {
                                     </Text>
                                     <Text style={styles.noticeText}>
                                         {slip.suggested_time
-                                            ? 'Happens. Here is the fix. Tomorrow stays the same.'
-                                            : 'Happens. Tomorrow stays exactly the same. Your streak is safe.'}
+                                            ? 'Here is the fix.'
+                                            : 'Tomorrow stays the same. Your streak is safe.'}
                                     </Text>
                                     {slip.suggested_time && slippedTask ? (
                                         <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
@@ -530,9 +530,6 @@ export default function TodayScreen() {
                                     {data?.held_back_count
                                         ? `Looks right. ${data.held_back_count} thing${data.held_back_count > 1 ? 's' : ''} held for a lighter day.`
                                         : 'Looks right. Your day is built around your real schedule.'}
-                                </Text>
-                                <Text style={styles.lockExplainer}>
-                                    One slide and your morning's set. Counts toward your streak.
                                 </Text>
                                 <View style={{ marginTop: 12 }}>
                                     <SlideToConfirm
@@ -716,7 +713,7 @@ export default function TodayScreen() {
                                     Couldn't load your day
                                 </Text>
                                 <Text style={[styles.heroDesc, { textAlign: 'center' }]}>
-                                    Your plan is safe. Check your connection and try again.
+                                    Check your connection and try again.
                                 </Text>
                                 <View style={{ marginTop: 14, alignSelf: 'stretch' }}>
                                     <GlassButton
@@ -736,7 +733,7 @@ export default function TodayScreen() {
                                 <Ionicons name="calendar-outline" size={22} color={MUTE} />
                                 <Text style={[styles.heroTitle, { fontSize: 22, marginTop: 10 }]}>Nothing on today</Text>
                                 <Text style={[styles.heroDesc, { textAlign: 'center' }]}>
-                                    Pick your programs in Explore. Your day shows up here.
+                                    Pick your programs in Explore.
                                 </Text>
                                 <View style={{ marginTop: 14, alignSelf: 'stretch' }}>
                                     <GlassButton
@@ -870,7 +867,7 @@ export default function TodayScreen() {
                         <View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}>
                             <Text style={styles.sheetTitle}>Moved to keep today doable</Text>
                             <Text style={styles.sheetSub}>
-                                Nothing disappears silently. Here's what moved and why.
+                                Here's what moved and why.
                             </Text>
                             {(heldBackQ.data?.items ?? []).map((item, i) => (
                                 <View key={i} style={styles.sheetRow}>
@@ -961,7 +958,6 @@ const styles = StyleSheet.create({
     bannerInner: { padding: 18 },
     bannerTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 22, color: INK },
     bannerSub: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#5C574E', marginTop: 4, lineHeight: 20 },
-    lockExplainer: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 8 },
     heroTime: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: GOLD, letterSpacing: 0.3 },
     heroWhy: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 2 },
     heroTitle: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 28, color: INK, marginTop: 4, letterSpacing: -0.4 },

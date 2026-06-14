@@ -128,7 +128,7 @@ export default function YouScreen() {
                         {
                             icon: 'scan-outline',
                             label: 'New scan',
-                            sub: 'Tunes your skin and jaw plan. Optional.',
+                            sub: 'Optional',
                             onPress: () => navigation.navigate('FaceScan'),
                         },
                         {
@@ -150,7 +150,7 @@ export default function YouScreen() {
                         {
                             icon: 'calendar-outline',
                             label: 'Week view',
-                            sub: 'Edit your week. One source of truth.',
+                            sub: 'Your schedule',
                             onPress: () => navigation.navigate('DayPlanner'),
                         },
                         {
@@ -180,7 +180,6 @@ export default function YouScreen() {
                                   {
                                       icon: 'compass-outline' as const,
                                       label: 'No programs yet',
-                                      sub: 'Pick your programs in Explore.',
                                       onPress: () =>
                                           navigation.navigate('Main', { screen: 'Explore' }),
                                   },

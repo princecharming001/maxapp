@@ -425,8 +425,7 @@ export default function HomeScreen() {
 
                         {!schedulesLoading && !displaySchedulesError && scheduleRows.length === 0 ? (
                             <View style={s.emptyTasks}>
-                                <Text style={s.emptyText}>No tasks for today.</Text>
-                                <Text style={s.emptyHint}>Start a program to see your daily schedule here.</Text>
+                                <Text style={s.emptyText}>No tasks for today. Start a program to begin.</Text>
                             </View>
                         ) : null}
 
@@ -492,7 +491,7 @@ export default function HomeScreen() {
                             activeOpacity={0.72}
                         >
                             <Ionicons name="sparkles-outline" size={20} color={colors.textMuted} />
-                            <Text style={s.emptyProgramText}>Select goals to start your first program</Text>
+                            <Text style={s.emptyProgramText}>Choose goals to begin</Text>
                         </TouchableOpacity>
                     )}
 
@@ -691,14 +690,6 @@ const s = StyleSheet.create({
         fontFamily: fonts.sans,
         color: colors.textMuted,
         marginBottom: 4,
-    },
-    emptyHint: {
-        fontSize: 12,
-        fontFamily: fonts.sans,
-        color: colors.textMuted,
-        textAlign: 'center',
-        lineHeight: 18,
-        maxWidth: 240,
     },
 
     scheduleBtn: {

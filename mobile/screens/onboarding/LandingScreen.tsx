@@ -126,8 +126,8 @@ export default function LandingScreen() {
             <View style={styles.content}>
                 <View style={styles.hero}>
                     <Text style={styles.heroLogo}>max</Text>
-                    <Text style={styles.heroLine1}>Your AI <Text style={{ fontFamily: 'Fraunces-Italic', fontSize: 17, color: '#1C1A17' }}>looksmaxxing</Text> coach.</Text>
-                    <Text style={styles.heroLine2}>Personalized advice, texted daily.</Text>
+                    <Text style={styles.heroLine1}>Your AI <Text style={{ fontFamily: 'Fraunces-Italic', fontSize: 17, color: '#1C1A17' }}>looksmaxxing</Text> coach,</Text>
+                    <Text style={styles.heroLine2}>texted daily.</Text>
                 </View>
 
                 <PastelCard tone="blue" radius={28} style={styles.ctaCard}>

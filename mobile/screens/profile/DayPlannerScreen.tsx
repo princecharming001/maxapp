@@ -271,7 +271,6 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         >
           {/* Masthead */}
           <View style={styles.masthead}>
-            <Text style={styles.kicker}>PLANNER</Text>
             <Text style={styles.title}>Your week</Text>
             <Text style={styles.subhead}>
               Tap anything to adjust it. Max fits your routines into the open time around it.
@@ -310,9 +309,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                 >
                   <Text style={styles.resetLink}>Reset to every day</Text>
                 </TouchableOpacity>
-              ) : (
-                <Text style={styles.scopeHint}>Tap a block to adjust</Text>
-              )}
+              ) : null}
             </View>
 
             <DayTimeline
@@ -486,7 +483,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   scopeTitle: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.foreground, letterSpacing: -0.2 },
-  scopeHint: { fontFamily: fonts.sans, fontSize: 12, color: colors.textMuted, letterSpacing: 0.05 },
   resetLink: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: ACCENT, letterSpacing: 0.05 },
 
   sectionKicker: {

@@ -146,7 +146,7 @@ export default function SettingsScreen() {
                         <Text style={st.sectionLabel}>Membership</Text>
                         <Row
                             label="Manage subscription"
-                            hint="Plan, billing & renewal"
+                            hint="Manage your plan"
                             onPress={() => navigation.dispatch(CommonActions.navigate({ name: 'ManageSubscription' }))}
                         />
                     </View>
@@ -159,12 +159,11 @@ export default function SettingsScreen() {
                         by default; users toggle device-level via OS. */}
                     <Row
                         label="Edit lifestyle"
-                        hint="Goals & habits for better recommendations"
+                        hint="Your goals & habits"
                         onPress={() => navigation.navigate('EditPersonal')}
                     />
                     <Row
                         label="My products"
-                        hint="Everything you need for your schedule"
                         onPress={() => navigation.navigate('MyProducts')}
                     />
                     {/* Response length lives in the chat sidebar — keep
@@ -176,7 +175,6 @@ export default function SettingsScreen() {
                     <Text style={st.sectionLabel}>Profile</Text>
                     <Row
                         label="Edit personal info"
-                        hint="Name, email & account details"
                         onPress={() => navigation.navigate('PersonalInfo')}
                     />
                 </View>

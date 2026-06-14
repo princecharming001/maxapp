@@ -150,8 +150,7 @@ export default function RevealV2Screen() {
             >
                 {phase === 'reveal' ? (
                     <>
-                        <Text style={styles.kicker}>YOUR FIRST DAY, BUILT</Text>
-                        <Text style={styles.title}>Here's your{'\n'}<Text style={{ fontFamily: 'Fraunces-Italic' }}>next</Text> 24 hours</Text>
+                        <Text style={styles.title}>Here's your{'\n'}<Text style={{ fontFamily: 'Fraunces-Italic' }}>first</Text> day</Text>
                         {todayQ.isLoading ? (
                             <RevealRailSkeleton />
                         ) : todayQ.isError || taskCount === 0 ? (
@@ -200,8 +199,7 @@ export default function RevealV2Screen() {
                         <Text style={styles.kicker}>ONE THING</Text>
                         <Text style={styles.title}>Want Max to remind{'\n'}you at your times?</Text>
                         <Text style={styles.sub}>
-                            That's how the plan actually happens. A few quiet nudges a day,
-                            at the moments you set. No spam, ever.
+                            A few quiet nudges a day, at the moments you set. No spam.
                         </Text>
                         <View style={{ gap: 10, marginTop: 28 }}>
                             <GlassButton

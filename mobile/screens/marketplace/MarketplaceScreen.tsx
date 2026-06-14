@@ -63,8 +63,7 @@ function FeasibilityBlock({ programId }: { programId: string }) {
                 <Text style={[styles.feasVerdict, { color: meta.color }]}>{meta.line}</Text>
             </View>
             <Text style={styles.feasLine}>
-                Max can fit {d.fits_n_of_m.fits} of {d.fits_n_of_m.of} weekly sessions into
-                your real week.
+                Fits {d.fits_n_of_m.fits} of {d.fits_n_of_m.of} weekly sessions.
             </Text>
             <View style={styles.ghostStrip}>
                 {d.ghost_week.map((g) => (
@@ -164,9 +163,7 @@ export default function MarketplaceScreen() {
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={INK} />}
             >
-                <Text style={styles.kicker}>EXPLORE</Text>
                 <Text style={styles.h1}>Find your <Text style={{ fontFamily: 'Fraunces-Italic' }}>max</Text></Text>
-                <Text style={styles.sub}>Pick a program. Max fits it to your real days and keeps you on it.</Text>
 
                 {error ? (
                     <GlassCard radius={18} intensity={30} style={{ marginTop: 16 }}>
@@ -176,8 +173,7 @@ export default function MarketplaceScreen() {
                     </GlassCard>
                 ) : null}
 
-                <Text style={styles.section}>MAXES</Text>
-                <Text style={styles.sectionSub}>Built by Max · $3.99 a week each</Text>
+                <Text style={styles.section}>MAXES  ·  $3.99/wk</Text>
                 <View style={styles.grid}>
                     {maxxes.map((m) => (
                         <CourseCard key={m.id} item={m} onPress={() => navigation.push('MaxDetail', { item: m })} />
@@ -185,7 +181,6 @@ export default function MarketplaceScreen() {
                 </View>
 
                 <Text style={[styles.section, { marginTop: 28 }]}>CREATOR COURSES</Text>
-                <Text style={styles.sectionSub}>From coaches and pros · fit to your schedule</Text>
                 <View style={styles.grid}>
                     {courses.map((c) => (
                         <CourseCard key={c.id} item={c} onPress={() => navigation.push('MaxDetail', { item: c })} />
@@ -381,7 +376,7 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
 
                         {!item.native && item.weeks ? (
                             <View style={styles.previewWrap}>
-                                <Text style={styles.previewLabel}>WHAT'S INSIDE</Text>
+                                <Text style={styles.previewLabel}>CURRICULUM</Text>
                                 <View style={styles.previewRow}>
                                     <Ionicons name="play-circle-outline" size={16} color={GOLD} />
                                     <Text style={styles.previewText}>Week 1 - free preview</Text>
@@ -411,7 +406,6 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
                                 <Text style={styles.priceBig}>{item.price_label}</Text>
                                 {priceSub ? <Text style={styles.priceSub}>{priceSub}</Text> : null}
                             </View>
-                            {item.entered ? <Text style={styles.enteredTag}>You're in</Text> : null}
                         </View>
 
                         <GlassButton

@@ -230,7 +230,7 @@ export default function MaxDetailScreen() {
                         </View>
                     </View>
 
-                    {d.long_description ? <Text style={styles.lead}>{d.long_description}</Text> : <Text style={styles.lead}>{item.tagline}</Text>}
+                    <Text style={styles.lead}>{d.long_description || item.tagline}</Text>
 
                     {isCourse ? (
                         <View style={styles.statsRow}>
@@ -375,7 +375,7 @@ export default function MaxDetailScreen() {
                     </Text>
                 </View>
                 <TouchableOpacity style={[styles.ctaBtn, item.entered && { backgroundColor: ACCENT }]} activeOpacity={0.88} onPress={onCta} disabled={busy}>
-                    {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaBtnText}>{item.entered ? 'Open my plan' : 'Start'}</Text>}
+                    {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaBtnText}>{item.entered ? 'Open' : 'Start'}</Text>}
                 </TouchableOpacity>
             </View>
         </View>

@@ -114,7 +114,6 @@ export default function RoutineRevealScreen() {
     return (
         <View style={s.container}>
             <Animated.View style={[s.body, { opacity: fade, paddingTop: insets.top + spacing.xl }]}>
-                <Text style={s.kicker}>your plan is ready</Text>
                 <Text style={s.headline}>Here's <Text style={{ fontFamily: 'Fraunces-Italic' }}>day</Text> one</Text>
                 <Text style={s.subline}>
                     Built around your sleep and schedule. Max tunes it as you go.
@@ -136,8 +135,7 @@ export default function RoutineRevealScreen() {
                     ))}
                     {routine?.starter ? (
                         <Text style={s.starterNote}>
-                            This is your foundation. Answer a few quick questions with Max and it
-                            gets tailored to you.
+                            Answer a few quick questions with Max to tailor it.
                         </Text>
                     ) : null}
                 </ScrollView>

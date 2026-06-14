@@ -138,8 +138,7 @@ function GoogleSection() {
                         <View style={styles.deviceNote}>
                             <Ionicons name="logo-google" size={14} color={MUTE} />
                             <Text style={styles.deviceNoteText}>
-                                Google Calendar sync is ready to turn on server-side.
-                                Until then, add blocks by hand below.
+                                Google Calendar sync coming soon. Add blocks by hand below.
                             </Text>
                         </View>
                     ) : s.connected ? (
@@ -175,8 +174,7 @@ function GoogleSection() {
                     ) : (
                         <>
                             <Text style={styles.deviceNoteText}>
-                                Connect Google Calendar so Max plans around your real
-                                events automatically. Read-only.
+                                Connect to sync your calendar (read-only).
                             </Text>
                             <View style={{ marginTop: 10 }}>
                                 <GlassButton
@@ -433,7 +431,7 @@ export default function DaySetupScreen() {
                 {/* places */}
                 <Text style={styles.label}>YOUR PLACES</Text>
                 <Text style={styles.subSmall}>
-                    So Max can time things to where you are. Addresses only, nothing tracked.
+                    Addresses only, nothing tracked.
                 </Text>
                 <GlassCard radius={20} style={{ marginTop: 8 }}>
                     <View style={{ padding: 16 }}>
@@ -501,8 +499,7 @@ export default function DaySetupScreen() {
                 </GlassCard>
 
                 <Text style={styles.fineNote}>
-                    Location reminders ("you're at the gym") arrive with the next app
-                    update and ask for permission only when you turn them on.
+                    Location reminders arrive with the next app update.
                 </Text>
             </ScrollView>
         </ScreenBackdrop>
