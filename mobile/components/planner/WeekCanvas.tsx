@@ -124,10 +124,10 @@ function blocksFor(d: DayShape, obs: Obligation[]): Block[] {
     const l = normCanvas(o.start);
     add(l, normCanvas(o.end) - l, obligationColor(o.label));
   }
-  // Get-ready — a small fixed tick around the chosen time.
-  if (d.getReadyTime) {
-    const c = normCanvas(d.getReadyTime);
-    add(c - 0.012, 0.024, READY, 'water');
+  // Get-ready — the morning routine window.
+  if (d.getReadyWindow) {
+    const l = normCanvas(d.getReadyWindow[0]);
+    add(l, normCanvas(d.getReadyWindow[1]) - l, READY, 'water');
   }
   // Workout WINDOW (default-level) — drawn on every column, the green accent.
   if (d.workoutWindow) {

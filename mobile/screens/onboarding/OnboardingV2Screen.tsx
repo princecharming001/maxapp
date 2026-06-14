@@ -117,7 +117,6 @@ const COMMUTES = [15, 30, 45, 60] as const;
 // How long the user takes to get ready in the morning. Sizes the AM routine
 // block on the backend (schedule_dsl.build_anchor_overrides) and pushes the
 // post-routine / AM-active windows later, so longer-prep mornings aren't crammed.
-const GET_READY_DURATIONS = [15, 30, 45, 60] as const;
 
 const WORKOUT_LABEL: Record<string, string> = {
     before_work: 'Before work',
@@ -169,6 +168,58 @@ function TimeStepper({
                     <Ionicons name="add" size={18} color={INK} />
                 </TouchableOpacity>
             </View>
+        </View>
+    );
+}
+
+// A routine WINDOW: two compact From/To steppers under a label. Get-ready and
+// wind-down are ranges, not a single time — what people do inside differs, so
+// the scheduler fits routines across the whole window.
+function RangeStepper({
+    label,
+    caption,
+    start,
+    end,
+    onStart,
+    onEnd,
+}: {
+    label: string;
+    caption?: string;
+    start: number;
+    end: number;
+    onStart: (v: number) => void;
+    onEnd: (v: number) => void;
+}) {
+    const Row = ({ edge, value, onChange }: { edge: string; value: number; onChange: (v: number) => void }) => (
+        <View style={styles.rangeRow}>
+            <Text style={styles.rangeEdge}>{edge}</Text>
+            <View style={styles.miniControls}>
+                <TouchableOpacity
+                    style={styles.miniBtn}
+                    onPress={() => onChange((value - 15 + 1440) % 1440)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${label} ${edge} 15 minutes earlier`}
+                >
+                    <Ionicons name="remove" size={16} color={INK} />
+                </TouchableOpacity>
+                <Text style={styles.miniValue}>{fmt12(value)}</Text>
+                <TouchableOpacity
+                    style={styles.miniBtn}
+                    onPress={() => onChange((value + 15) % 1440)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${label} ${edge} 15 minutes later`}
+                >
+                    <Ionicons name="add" size={16} color={INK} />
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+    return (
+        <View style={styles.rangeStepper}>
+            <Text style={styles.stepperLabel}>{label}</Text>
+            {caption ? <Text style={styles.rangeCaption}>{caption}</Text> : null}
+            <Row edge="From" value={start} onChange={onStart} />
+            <Row edge="To" value={end} onChange={onEnd} />
         </View>
     );
 }
@@ -269,9 +320,12 @@ export default function OnboardingV2Screen() {
     const [goals, setGoals] = useState<string[]>([]);
     const [motivation, setMotivation] = useState<string | null>(null);
     const [wakeMin, setWakeMin] = useState(7 * 60);
-    const [getReadyMin, setGetReadyMin] = useState(7 * 60 + 30);
-    const [getReadyMinutes, setGetReadyMinutes] = useState(30);
-    const [sleepMin, setSleepMin] = useState(23 * 60);
+    // Get-ready (AM routine) + wind-down (PM routine) are WINDOWS, not a time +
+    // duration / a single bedtime. The wind-down window's END is bedtime.
+    const [grStart, setGrStart] = useState(7 * 60);
+    const [grEnd, setGrEnd] = useState(7 * 60 + 30);
+    const [wdStart, setWdStart] = useState(22 * 60 + 15);
+    const [wdEnd, setWdEnd] = useState(23 * 60);
     const [works, setWorks] = useState(true);
     const [workStartMin, setWorkStartMin] = useState(9 * 60);
     const [workEndMin, setWorkEndMin] = useState(17 * 60);
@@ -298,6 +352,14 @@ export default function OnboardingV2Screen() {
 
     const hasCommute = works && workLocation !== 'home';
 
+    // Keep each routine window ordered (end stays after start). Wind-down uses
+    // evening-normalised minutes so a window can run up to a past-midnight bed.
+    const eve = (m: number) => (m < 240 ? m + 1440 : m);
+    const onGrStart = (v: number) => { setGrStart(v); if (v >= grEnd) setGrEnd((v + 15) % 1440); };
+    const onGrEnd = (v: number) => { setGrEnd(v); if (v <= grStart) setGrStart((v - 15 + 1440) % 1440); };
+    const onWdStart = (v: number) => { setWdStart(v); if (eve(v) >= eve(wdEnd)) setWdEnd((v + 15) % 1440); };
+    const onWdEnd = (v: number) => { setWdEnd(v); if (eve(v) <= eve(wdStart)) setWdStart((v - 15 + 1440) % 1440); };
+
     const finish = async () => {
         setSaving(true);
         setError(null);
@@ -310,9 +372,14 @@ export default function OnboardingV2Screen() {
                 priority_order: tokens,
                 motivation,
                 wake_time: hhmm(wakeMin),
-                get_ready_time: hhmm(getReadyMin),
-                get_ready_minutes: getReadyMinutes,
-                sleep_time: hhmm(sleepMin),
+                // Get-ready (AM routine) window — keep legacy scalars in sync.
+                get_ready_window: [hhmm(grStart), hhmm(grEnd)],
+                get_ready_time: hhmm(grStart),
+                get_ready_minutes: Math.max(5, ((grEnd - grStart + 1440) % 1440) || 30),
+                // Wind-down (PM routine) window — bedtime is its end.
+                wind_down_window: [hhmm(wdStart), hhmm(wdEnd)],
+                sleep_window: [hhmm(wdStart), hhmm(wdEnd)],
+                sleep_time: hhmm(wdEnd),
                 obligations: works
                     ? [{ label: 'Work', start: hhmm(workStartMin), end: hhmm(workEndMin), days: 'weekdays' }]
                     : [],
@@ -348,7 +415,7 @@ export default function OnboardingV2Screen() {
 
     const recap: { icon: string; label: string; value: string }[] = [
         { icon: 'sunny-outline', label: 'Wake', value: fmt12(wakeMin) },
-        { icon: 'water-outline', label: 'Get ready', value: `${fmt12(getReadyMin)} · ${getReadyMinutes} min` },
+        { icon: 'water-outline', label: 'Get ready', value: `${fmt12(grStart)} – ${fmt12(grEnd)}` },
         ...(works
             ? [{ icon: 'briefcase-outline', label: 'Work', value: `${fmt12(workStartMin)} – ${fmt12(workEndMin)}` }]
             : []),
@@ -368,7 +435,7 @@ export default function OnboardingV2Screen() {
                     .filter(Boolean)
                     .join(' · ') || 'None — all skipped',
         },
-        { icon: 'moon-outline', label: 'Wind down', value: fmt12(sleepMin) },
+        { icon: 'moon-outline', label: 'Wind down', value: `${fmt12(wdStart)} – ${fmt12(wdEnd)}` },
     ];
 
     const steps = [
@@ -452,25 +519,27 @@ export default function OnboardingV2Screen() {
                     <View style={styles.shapeCard}>
                         <TimeStepper label="Wake around" value={wakeMin} onChange={setWakeMin} />
                         <View style={styles.hairline} />
-                        <TimeStepper label="Get ready around" value={getReadyMin} onChange={setGetReadyMin} />
-                        <View style={styles.readyDurRow}>
-                            <Text style={styles.readyDurLabel}>How long to get ready?</Text>
-                            <View style={styles.pillRow}>
-                                {GET_READY_DURATIONS.map((d) => (
-                                    <Pill
-                                        key={d}
-                                        label={d === 60 ? '60+ min' : `${d} min`}
-                                        active={getReadyMinutes === d}
-                                        onPress={() => setGetReadyMinutes(d)}
-                                    />
-                                ))}
-                            </View>
-                        </View>
+                        <RangeStepper
+                            label="Get ready"
+                            caption="Your morning routine — skincare, shower, hair"
+                            start={grStart}
+                            end={grEnd}
+                            onStart={onGrStart}
+                            onEnd={onGrEnd}
+                        />
                         <View style={styles.hairline} />
-                        <TimeStepper label="Wind down around" value={sleepMin} onChange={setSleepMin} />
+                        <RangeStepper
+                            label="Wind down"
+                            caption="Nighttime routine, ending at bedtime"
+                            start={wdStart}
+                            end={wdEnd}
+                            onStart={onWdStart}
+                            onEnd={onWdEnd}
+                        />
                     </View>
                     <Text style={styles.helpNote}>
-                        When your AM skin, hair, and mewing routine lands — and how much room it gets.
+                        These are windows, not exact times — what you do in them is up to you. Max fits
+                        your routines across each one.
                     </Text>
                 </View>
             ),
@@ -828,6 +897,22 @@ const styles = StyleSheet.create({
     },
     stepperValue: { fontFamily: 'Matter-SemiBold', fontSize: 17, color: INK, minWidth: 80, textAlign: 'center' },
 
+    rangeStepper: { paddingVertical: 12 },
+    rangeCaption: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 2, marginBottom: 4 },
+    rangeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 6,
+    },
+    rangeEdge: { fontFamily: 'Matter-Medium', fontSize: 14, color: MUTE, width: 44 },
+    miniControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    miniBtn: {
+        width: 34, height: 34, borderRadius: 17,
+        backgroundColor: WASH,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    miniValue: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: INK, minWidth: 76, textAlign: 'center' },
     mealRow: {
         flexDirection: 'row',
         alignItems: 'center',

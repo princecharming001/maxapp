@@ -54,8 +54,19 @@ export type Obligation = {
 
 export type DayShape = {
   wakeWindow: [string, string];
+  /**
+   * The WIND-DOWN routine window (nighttime routine: PM skincare, shower,
+   * winding down). Its END is treated as bedtime. A collapsed range
+   * (start === end) means an exact bedtime with no explicit routine window.
+   */
   sleepWindow: [string, string];
-  getReadyTime: string | null;
+  /**
+   * The GET-READY routine window (morning routine: AM skincare, shower, hair).
+   * A range, not a single time — what people do in it differs wildly, so the
+   * scheduler fits AM tasks across the whole window. null = no fixed window
+   * (the scheduler anchors a default block off wake).
+   */
+  getReadyWindow: [string, string] | null;
   /** Default-level only — the scheduler slots the workout into this window. */
   workoutWindow: [string, string] | null;
 };
@@ -338,6 +349,25 @@ function hydrateWorkoutWindow(ob: Record<string, any>): [string, string] | null 
   return null;
 }
 
+/**
+ * The get-ready (AM routine) window. An explicit [start,end] wins; otherwise a
+ * legacy `get_ready_time` + `get_ready_minutes` (single anchor + duration) is
+ * expanded into the window it always represented; else null.
+ */
+function hydrateGetReadyWindow(ob: Record<string, any>): [string, string] | null {
+  const win = normWindow(ob.get_ready_window);
+  if (win) return win;
+  if (isHHMM(ob.get_ready_time)) {
+    const t = canonHHMM(ob.get_ready_time);
+    const dur =
+      typeof ob.get_ready_minutes === 'number' && ob.get_ready_minutes > 0
+        ? Math.min(120, ob.get_ready_minutes)
+        : 30;
+    return [t, addMinutes(t, dur)];
+  }
+  return null;
+}
+
 // --------------------------------------------------------------------------- //
 //  Hydrate onboarding (snake_case) → DayShape / obligations / weekly overrides //
 // --------------------------------------------------------------------------- //
@@ -345,8 +375,8 @@ function hydrateWorkoutWindow(ob: Record<string, any>): [string, string] | null 
 export function hydrateDayShape(ob: Record<string, any>): DayShape {
   return {
     wakeWindow: reconcileWindow(ob.wake_window, ob.wake_time, '07:00', false),
-    sleepWindow: reconcileWindow(ob.sleep_window, ob.sleep_time, '23:00', true),
-    getReadyTime: isHHMM(ob.get_ready_time) ? ob.get_ready_time : null,
+    sleepWindow: reconcileWindow(ob.wind_down_window || ob.sleep_window, ob.sleep_time, '23:00', true),
+    getReadyWindow: hydrateGetReadyWindow(ob),
     workoutWindow: hydrateWorkoutWindow(ob),
   };
 }
@@ -403,10 +433,17 @@ export function dayPartialFromServer(raw: Record<string, any>): Partial<DayShape
   if ('wake_window' in raw || 'wake_time' in raw) {
     p.wakeWindow = reconcileWindow(raw.wake_window, raw.wake_time, raw.wake_time || '07:00', false);
   }
-  if ('sleep_window' in raw || 'sleep_time' in raw) {
-    p.sleepWindow = reconcileWindow(raw.sleep_window, raw.sleep_time, raw.sleep_time || '23:00', true);
+  if ('wind_down_window' in raw || 'sleep_window' in raw || 'sleep_time' in raw) {
+    p.sleepWindow = reconcileWindow(
+      raw.wind_down_window || raw.sleep_window,
+      raw.sleep_time,
+      raw.sleep_time || '23:00',
+      true,
+    );
   }
-  if ('get_ready_time' in raw) p.getReadyTime = isHHMM(raw.get_ready_time) ? raw.get_ready_time : null;
+  if ('get_ready_window' in raw || 'get_ready_time' in raw) {
+    p.getReadyWindow = hydrateGetReadyWindow(raw);
+  }
   return p;
 }
 
@@ -434,15 +471,41 @@ export function obligationsToServer(obs: Obligation[]): Record<string, any>[] {
   return obs.map((o) => ({ label: o.label, start: o.start, end: o.end, days: o.days }));
 }
 
+/**
+ * Wind-down (nighttime routine) → server fields. The window's END is bedtime
+ * (sleep_time). A real range also emits an explicit wind_down_window the
+ * scheduler uses as the PM-routine container; an exact bedtime emits none, so
+ * the scheduler keeps deriving the hour-before default (zero behaviour change).
+ */
+function windDownToServer(win: [string, string]): Record<string, any> {
+  const bedtime = win[1];
+  return {
+    sleep_time: bedtime,
+    sleep_window: [win[0], win[1]],
+    wind_down_window: isExact(win) ? null : [win[0], win[1]],
+  };
+}
+
+/**
+ * Get-ready (morning routine) → server fields. Keeps the legacy scalar anchor
+ * (get_ready_time = window start) and duration (get_ready_minutes = width) in
+ * sync, so the single-anchor scheduler builds morning_routine = [start, end]
+ * exactly from the window with no backend change.
+ */
+function getReadyToServer(win: [string, string] | null): Record<string, any> {
+  if (!win) return { get_ready_window: null, get_ready_time: null, get_ready_minutes: null };
+  const dur = Math.max(5, toMin(win[1]) - toMin(win[0]));
+  return { get_ready_window: [win[0], win[1]], get_ready_time: win[0], get_ready_minutes: dur };
+}
+
 /** Full default day → all the snake_case fields onboarding expects. Obligations
  *  are global and serialised separately (see obligationsToServer). */
 export function dayShapeToServer(d: DayShape): Record<string, any> {
   return {
     wake_time: windowMid(d.wakeWindow, false),
-    sleep_time: windowMid(d.sleepWindow, true),
     wake_window: [d.wakeWindow[0], d.wakeWindow[1]],
-    sleep_window: [d.sleepWindow[0], d.sleepWindow[1]],
-    get_ready_time: d.getReadyTime || null,
+    ...windDownToServer(d.sleepWindow),
+    ...getReadyToServer(d.getReadyWindow),
     preferred_workout_window: d.workoutWindow ? [d.workoutWindow[0], d.workoutWindow[1]] : null,
     // Keep the single scalar in sync (midpoint) for the single-anchor scheduler.
     preferred_workout_time: d.workoutWindow ? windowMid(d.workoutWindow, false) : null,
@@ -457,10 +520,11 @@ export function dayPartialToServer(p: Partial<DayShape>): Record<string, any> {
     o.wake_window = [p.wakeWindow[0], p.wakeWindow[1]];
   }
   if ('sleepWindow' in p && p.sleepWindow) {
-    o.sleep_time = windowMid(p.sleepWindow, true);
-    o.sleep_window = [p.sleepWindow[0], p.sleepWindow[1]];
+    Object.assign(o, windDownToServer(p.sleepWindow));
   }
-  if ('getReadyTime' in p) o.get_ready_time = p.getReadyTime || null;
+  if ('getReadyWindow' in p) {
+    Object.assign(o, getReadyToServer(p.getReadyWindow ?? null));
+  }
   return o;
 }
 
@@ -510,10 +574,15 @@ function winEq(a: [string, string], b: [string, string]): boolean {
   return a[0] === b[0] && a[1] === b[1];
 }
 
+function winEqN(a: [string, string] | null, b: [string, string] | null): boolean {
+  if (a === null || b === null) return a === b;
+  return winEq(a, b);
+}
+
 export function diffDayShape(base: DayShape, day: DayShape): Partial<DayShape> {
   const p: Partial<DayShape> = {};
   if (!winEq(day.wakeWindow, base.wakeWindow)) p.wakeWindow = day.wakeWindow;
   if (!winEq(day.sleepWindow, base.sleepWindow)) p.sleepWindow = day.sleepWindow;
-  if (day.getReadyTime !== base.getReadyTime) p.getReadyTime = day.getReadyTime;
+  if (!winEqN(day.getReadyWindow, base.getReadyWindow)) p.getReadyWindow = day.getReadyWindow;
   return p;
 }

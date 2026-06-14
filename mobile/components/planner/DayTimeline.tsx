@@ -75,15 +75,16 @@ export default function DayTimeline({
     editable: true,
   });
 
-  // Get ready (optional).
-  if (day.getReadyTime) {
+  // Get ready — the morning routine window (skincare, shower, hair).
+  if (day.getReadyWindow) {
+    const gr = day.getReadyWindow;
     rows.push({
       key: 'ready',
-      sortMin: eveMin(day.getReadyTime),
-      time: fmt12Compact(day.getReadyTime),
+      sortMin: eveMin(gr[0]),
+      time: fmt12Compact(gr[0]),
       icon: 'water-outline',
       label: 'Get ready',
-      sub: 'AM skin · hair · mewing land here',
+      sub: `${fmt12Compact(gr[0])} – ${fmt12Compact(gr[1])} · AM routine`,
       kind: 'ready',
       editable: true,
     });
@@ -126,17 +127,17 @@ export default function DayTimeline({
     });
   }
 
-  // Wind down / sleep — the bottom anchor.
-  const sleepMid = windowMid(day.sleepWindow, true);
+  // Wind down — the nighttime routine window (PM skincare, shower, winding
+  // down). The window's end is bedtime; an exact time means no routine window.
   rows.push({
     key: 'sleep',
     sortMin: eveMin(day.sleepWindow[0]),
-    time: fmt12Compact(sleepMid),
+    time: fmt12Compact(day.sleepWindow[0]),
     icon: 'moon-outline',
     label: 'Wind down',
     sub: isExact(day.sleepWindow)
-      ? undefined
-      : `anytime ${fmt12Compact(day.sleepWindow[0])} – ${fmt12Compact(day.sleepWindow[1])}`,
+      ? `Bed by ${fmt12Compact(day.sleepWindow[0])}`
+      : `${fmt12Compact(day.sleepWindow[0])} – ${fmt12Compact(day.sleepWindow[1])} · bed by ${fmt12Compact(day.sleepWindow[1])}`,
     kind: 'sleep',
     editable: true,
   });

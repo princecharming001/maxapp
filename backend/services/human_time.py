@@ -43,6 +43,21 @@ def hm(minutes: int) -> str:
     return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
+def _window(value: Any, *, night: bool = False) -> tuple[int, int] | None:
+    """Parse a stored [start, end] 'HH:MM' window to (lo, hi) clock minutes.
+    Returns None unless it's a well-formed, positive-width range. With night=True
+    an end past midnight is normalised forward (+1440) so 22:30–00:30 stays
+    ordered."""
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        return None
+    lo, hi = to_min(value[0], -1), to_min(value[1], -1)
+    if lo < 0 or hi < 0:
+        return None
+    if night and hi <= lo:
+        hi += 24 * 60
+    return (lo, hi) if hi > lo else None
+
+
 def friendly_time(minutes: int) -> int:
     """Snap to the human grid. Times already on a 5-minute mark are left
     alone (7:25 is a perfectly human time); off-grid times go to the nearest
@@ -103,7 +118,14 @@ def life_windows(state: dict) -> LifeWindows:
     work = _first_work_block(state)
     work_start, work_end = (work if work else (None, None))
 
-    morning_routine = (wake, min(wake + 45, (work_start - 30) if work_start else wake + 45))
+    # Morning routine (get-ready: AM skincare, shower, hair). Honor an explicit
+    # get-ready WINDOW when the user gave one; otherwise the legacy biology
+    # default — a ~45-min block off wake, never overrunning into work.
+    gr = _window(state.get("get_ready_window"))
+    if gr:
+        morning_routine = gr
+    else:
+        morning_routine = (wake, min(wake + 45, (work_start - 30) if work_start else wake + 45))
 
     crunch = None
     if work_start is not None and work_start - wake > 45:
@@ -159,9 +181,17 @@ def life_windows(state: dict) -> LifeWindows:
         if dinner[1] > sleep_for_calc - 60:
             dinner = (sleep_for_calc - 150, sleep_for_calc - 90)
 
-    wind_down = (sleep_for_calc - 75, sleep_for_calc - 15)
+    # Wind-down routine (PM skincare, shower, winding down). Honor an explicit
+    # wind-down WINDOW when the user gave one (bedtime = its end); otherwise the
+    # legacy default — the hour before the sleep anchor. Normalised forward so a
+    # window that ends after midnight stays ordered against sleep_for_calc.
+    wd = _window(state.get("wind_down_window"), night=True)
+    if wd and wd[0] >= wake:
+        wind_down = wd
+    else:
+        wind_down = (sleep_for_calc - 75, sleep_for_calc - 15)
     # The free evening starts after dinner when there is one, else straight off
-    # the evening floor (settle-in / late-afternoon).
+    # the evening floor (settle-in / late-afternoon), and runs until wind-down.
     evening_lo = (dinner[1] + 15) if dinner else evening_start_floor
     evening = (evening_lo, wind_down[0])
     if evening[1] <= evening[0]:

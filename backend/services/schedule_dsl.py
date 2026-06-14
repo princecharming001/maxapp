@@ -517,7 +517,14 @@ def schedulable_anchors(
     mid_sleep = clock_or_none(state.get("sleep_time")) or default_sleep
 
     wake = _window_endpoint(state.get("wake_window"), 1) or mid_wake
-    sleep = _window_endpoint(state.get("sleep_window"), 0) or mid_sleep
+    # Bedtime = the END of the wind-down window when the user gave one (the new
+    # routine-window model); else the legacy conservative earliest-sleep edge of
+    # a sleep_window range; else the midpoint scalar.
+    sleep = (
+        _window_endpoint(state.get("wind_down_window"), 1)
+        or _window_endpoint(state.get("sleep_window"), 0)
+        or mid_sleep
+    )
 
     # Guard: a guaranteed-awake span under 4h means the range is malformed (or
     # a pathological per-weekday override) — fall back to the expected midpoints
@@ -634,11 +641,19 @@ def build_anchor_overrides(
     # they only chose a duration (left the time on Auto), we keep the biology
     # default start (wake + 5 min) and just resize the wake-anchored block — so
     # changing the duration still re-shapes the schedule either way.
-    dur = _get_ready_minutes(state)
-    get_ready = (
-        clock_or_none(state.get("get_ready_time"))
-        or clock_or_none(state.get("shower_time"))
-    )
+    # Prefer an explicit get-ready WINDOW (the routine-window model); its width
+    # is the duration. Fall back to the legacy pinned time + duration.
+    gr_lo = _window_endpoint(state.get("get_ready_window"), 0)
+    gr_hi = _window_endpoint(state.get("get_ready_window"), 1)
+    if gr_lo and gr_hi and to_minutes(parse_clock(gr_hi)) > to_minutes(parse_clock(gr_lo)):
+        get_ready = gr_lo
+        dur = to_minutes(parse_clock(gr_hi)) - to_minutes(parse_clock(gr_lo))
+    else:
+        dur = _get_ready_minutes(state)
+        get_ready = (
+            clock_or_none(state.get("get_ready_time"))
+            or clock_or_none(state.get("shower_time"))
+        )
     if get_ready:
         out["morning_routine"] = [get_ready, _shift_clock(get_ready, dur)]
         out["am_open"] = [get_ready, _shift_clock(get_ready, dur)]    # legacy alias
@@ -652,5 +667,18 @@ def build_anchor_overrides(
         out["am_open"] = [_wake_plus(head), _wake_plus(head + dur)]
         out["post_routine"] = [_wake_plus(head + dur), _wake_plus(head + dur + 30)]
         out["am_active"] = [_wake_plus(head + dur), _wake_plus(head + dur + 50)]
+
+    # --- Wind-down / nighttime routine WINDOW — the PM routine (skin PM, shower,
+    # winding down) spans the user's chosen window instead of a fixed hour before
+    # bed. Bedtime is the window's end. For skin/hair maxes the evening-skincare
+    # alias (pm_active) lands inside it too; physical maxes keep pm_active on the
+    # workout block (handled above).
+    wd_lo = _window_endpoint(state.get("wind_down_window"), 0)
+    wd_hi = _window_endpoint(state.get("wind_down_window"), 1)
+    if wd_lo and wd_hi and (to_minutes(parse_clock(wd_hi)) - to_minutes(parse_clock(wd_lo))) >= 15:
+        out["wind_down"] = [wd_lo, wd_hi]
+        out["pm_routine"] = [wd_lo, wd_hi]
+        if mid not in _PHYSICAL_PM_MAXES:
+            out["pm_active"] = [wd_lo, wd_hi]
 
     return out

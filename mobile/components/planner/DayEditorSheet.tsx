@@ -55,6 +55,8 @@ const WORKOUT_MAX = 1320; // 10 PM
 const WORKOUT_MIN_SPAN = 30; // a workout window stays at least 30 min wide
 const READY_MIN = 240; // 4 AM
 const READY_MAX = 780; // 1 PM
+const READY_DEFAULT: [number, number] = [7 * 60, 7 * 60 + 30]; // 7:00–7:30
+const READY_DEFAULT_HHMM: [string, string] = ['07:00', '07:30'];
 
 const clampN = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 const fmtAbs = (m: number) => fmt12Compact(minToHHMM(m));
@@ -203,12 +205,21 @@ export default function DayEditorSheet({
       : `Wake anytime between ${fmt12Compact(d.wakeWindow[0])} and ${fmt12Compact(d.wakeWindow[1])}`;
   const sleepHint =
     sleepMode === 'exact'
-      ? `Asleep by ${fmt12(d.sleepWindow[0])}`
-      : `Asleep between ${fmt12Compact(d.sleepWindow[0])} and ${fmt12Compact(d.sleepWindow[1])}`;
+      ? `Bed by ${fmt12(d.sleepWindow[0])} · no fixed routine window`
+      : `Wind down ${fmt12Compact(d.sleepWindow[0])} – ${fmt12Compact(d.sleepWindow[1])} · bed by ${fmt12Compact(d.sleepWindow[1])}`;
 
-  const setGetReady = (val: string | null) => {
+  // Get-ready is now a WINDOW (the AM routine spans it), not a single time.
+  const readyWin = d.getReadyWindow;
+  const readyVal: [number, number] = readyWin
+    ? [toMin(readyWin[0]), toMin(readyWin[1])]
+    : [READY_DEFAULT[0], READY_DEFAULT[1]];
+  const setReady = (v: [number, number]) => {
     markDirty();
-    setD((p) => ({ ...p, getReadyTime: val }));
+    setD((p) => ({ ...p, getReadyWindow: [minToHHMM(v[0]), minToHHMM(v[1])] }));
+  };
+  const toggleReady = (on: boolean) => {
+    markDirty();
+    setD((p) => ({ ...p, getReadyWindow: on ? p.getReadyWindow || READY_DEFAULT_HHMM : null }));
   };
 
   // Workout is an optional [start,end] window (default-level only). Reject any
@@ -251,8 +262,6 @@ export default function DayEditorSheet({
     );
   };
 
-  const readyValue = d.getReadyTime;
-  const readyMin = toMin(readyValue || '07:00');
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={requestClose}>
@@ -321,14 +330,14 @@ export default function DayEditorSheet({
                     {!focus ? (
                       <View style={styles.sectionTitleWrap}>
                         <Ionicons name="moon-outline" size={16} color={colors.foreground} />
-                        <Text style={styles.sectionTitle}>Go to sleep</Text>
+                        <Text style={styles.sectionTitle}>Wind down</Text>
                       </View>
                     ) : null}
                     <Segmented
                       compact
                       options={[
-                        { key: 'range', label: 'Range' },
-                        { key: 'exact', label: 'Exact' },
+                        { key: 'range', label: 'Window' },
+                        { key: 'exact', label: 'Bedtime' },
                       ]}
                       value={sleepMode}
                       onChange={(k) => switchSleepMode(k as Mode)}
@@ -349,7 +358,7 @@ export default function DayEditorSheet({
 
               {!focus ? <View style={styles.divider} /> : null}
 
-              {/* Get ready (optional single time) */}
+              {/* Get ready — the morning routine WINDOW (skincare, shower, hair). */}
               {show('ready') ? (
                 <View style={styles.section}>
                 <View style={[styles.sectionHead, focus && styles.sectionHeadFocused]}>
@@ -363,25 +372,29 @@ export default function DayEditorSheet({
                     compact
                     options={[
                       { key: 'auto', label: 'Auto' },
-                      { key: 'set', label: 'Set time' },
+                      { key: 'set', label: 'Set window' },
                     ]}
-                    value={readyValue ? 'set' : 'auto'}
-                    onChange={(k) => setGetReady(k === 'auto' ? null : readyValue || '07:00')}
+                    value={readyWin ? 'set' : 'auto'}
+                    onChange={(k) => toggleReady(k === 'set')}
                   />
                 </View>
-                {readyValue ? (
-                  <TimePicker
-                    single
-                    min={READY_MIN}
-                    max={READY_MAX}
-                    value={[readyMin, readyMin]}
-                    onChange={(nv) => setGetReady(minToHHMM(nv[0]))}
-                    format={fmtAbs}
-                    accent="#5A5A62"
-                  />
+                {readyWin ? (
+                  <>
+                    <TimePicker
+                      min={READY_MIN}
+                      max={READY_MAX}
+                      value={readyVal}
+                      onChange={setReady}
+                      format={fmtAbs}
+                      accent="#5A5A62"
+                    />
+                    <Text style={styles.hint}>
+                      Your AM routine runs {fmt12Compact(readyWin[0])} – {fmt12Compact(readyWin[1])}.
+                    </Text>
+                  </>
                 ) : (
                   <Text style={styles.autoHint}>
-                    Max anchors your AM skin, hair & mewing routine around your wake time.
+                    Max anchors your AM skincare, hair & routine just after you wake.
                   </Text>
                 )}
                 </View>

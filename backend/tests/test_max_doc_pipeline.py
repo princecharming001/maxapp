@@ -134,10 +134,10 @@ def test_window_resolver():
     wake = parse_clock("06:30")
     sleep = parse_clock("23:00")
     am_o = resolve_window("am_open", wake=wake, sleep=sleep)
-    assert am_o == (6 * 60 + 40, 6 * 60 + 60)  # wake+10 .. wake+30
+    assert am_o == (6 * 60 + 35, 6 * 60 + 60)  # wake+5 .. wake+30
     pm_c = resolve_window("pm_close", wake=wake, sleep=sleep)
-    # sleep_min = 23*60; pm_close = sleep-1:00 .. sleep-0:15 = 22:00 .. 22:45
-    assert pm_c == (22 * 60, 22 * 60 + 45)
+    # sleep_min = 23*60; pm_close = sleep-1:30 .. sleep-0:30 = 21:30 .. 22:30
+    assert pm_c == (21 * 60 + 30, 22 * 60 + 30)
 
 
 # --------------------------------------------------------------------------- #

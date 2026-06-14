@@ -46,6 +46,31 @@ def test_no_optional_lands_in_crunch_or_dinner():
     assert nudge_out_of_protected(19 * 60, w) >= w.dinner[1]
 
 
+# --- routine windows: get-ready (AM) and wind-down (PM) are user-set ranges ----
+
+def test_explicit_get_ready_window_becomes_morning_routine():
+    st = {**NINE_TO_FIVE, "get_ready_window": ["07:15", "08:00"]}
+    w = life_windows(st)
+    assert w.morning_routine == (7 * 60 + 15, 8 * 60)   # the user's AM window, verbatim
+    assert why_line(7 * 60 + 30, w) == "right after you wake"
+
+
+def test_explicit_wind_down_window_becomes_pm_routine():
+    st = {**NINE_TO_FIVE, "wind_down_window": ["21:30", "23:00"], "sleep_time": "23:00"}
+    w = life_windows(st)
+    assert w.wind_down == (21 * 60 + 30, 23 * 60)       # the user's PM window, not the default hour
+    # the free evening ends where wind-down begins
+    assert w.evening[1] == 21 * 60 + 30
+    assert why_line(22 * 60, w) == "wind-down before bed"
+
+
+def test_routine_windows_are_zero_change_without_them():
+    # A user who never set the windows keeps the legacy biology defaults.
+    w = life_windows(NINE_TO_FIVE)
+    assert w.morning_routine == (7 * 60, 7 * 60 + 45)
+    assert w.wind_down == (21 * 60 + 45, 22 * 60 + 45)
+
+
 # --- workouts go where workouts go ---------------------------------------------
 
 def test_workout_after_work_lands_after_settling_in():

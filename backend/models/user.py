@@ -197,11 +197,17 @@ class OnboardingData(BaseModel):
     preferred_workout_window: Optional[List[str]] = Field(
         default=None, description="[start, end] 'HH:MM' 24h — the time RANGE reserved for the workout/strength block across all maxes (FitMax, HeightMax, etc.). Preferred over preferred_workout_time."
     )
+    get_ready_window: Optional[List[str]] = Field(
+        default=None, description="[start, end] 'HH:MM' 24h — the morning-routine WINDOW (AM skincare, shower, hair). The scheduler fits AM routine tasks across it. Preferred over get_ready_time/get_ready_minutes (those are kept in sync: start + width)."
+    )
     get_ready_time: Optional[str] = Field(
-        default=None, description="HH:MM 24h — when the user gets ready / showers in the morning; anchors the AM bathroom routine (skin/hair/mewing)"
+        default=None, description="HH:MM 24h — start of the morning get-ready window; anchors the AM bathroom routine (skin/hair/mewing). Mirror of get_ready_window[0]."
     )
     get_ready_minutes: Optional[int] = Field(
-        default=None, description="How long the user takes to get ready in the morning, in minutes (clamped 10–90 by the scheduler). Sizes the AM morning_routine block and shifts the post-routine/AM-active windows later, so people who take longer to get ready get a roomier morning. Omitted = the biology default (~25 min)."
+        default=None, description="Width of the morning get-ready window in minutes (clamped 10–90 by the scheduler) = get_ready_window end − start. Sizes the AM morning_routine block. Omitted = the biology default (~25 min)."
+    )
+    wind_down_window: Optional[List[str]] = Field(
+        default=None, description="[start, end] 'HH:MM' 24h — the nighttime-routine WINDOW (PM skincare, shower, winding down). The scheduler fits PM routine tasks across it; its END is bedtime (mirror of sleep_time). Omitted = derive the hour before sleep_time (legacy/exact-bedtime users)."
     )
     screen_hours_daily: Optional[str] = None
     scan_suggested_hair_focus: Optional[bool] = Field(
