@@ -173,14 +173,25 @@ def summarize_fitmax_onboarding(
         ("preferred_workout_time", "Preferred workout time (alt)"),
         ("fitmax_diet_approach", "Diet approach"),
         ("dietary_approach", "Diet approach (alt)"),
+        # Unified personalization diet/culture signals — so nutrition copy
+        # recommends food they actually eat and frames it familiarly.
+        ("dietary_pattern", "Diet pattern"),
+        ("dietary_restrictions", "Dietary restrictions"),
+        ("food_allergies", "Food allergies (NEVER suggest)"),
+        ("food_cuisines", "Familiar cuisines (reference these)"),
+        ("foods_liked", "Foods they like"),
+        ("culture", "Cultural background"),
         ("fitmax_supplements_opt_in", "Supplements opt-in"),
         ("fitmax_weeks_on_program", "Weeks on program (phase-in)"),
         ("weight_kg", "Weight (kg)"),
         ("weight_lb", "Weight (lb)"),
         ("height_cm", "Height (cm)"),
     ):
-        if ob.get(key) is not None and str(ob.get(key)).strip() != "":
-            lines.append(f"- {label}: {ob.get(key)}")
+        val = ob.get(key)
+        if val is not None and str(val).strip() != "":
+            if isinstance(val, (list, tuple)):
+                val = ", ".join(str(x) for x in val)
+            lines.append(f"- {label}: {val}")
     return "\n".join(lines)
 
 

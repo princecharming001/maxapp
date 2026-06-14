@@ -181,7 +181,11 @@ def summarize_skinmax_onboarding(
         lines.append(f"- Outdoor frequency: {outdoor}")
     dr = ob.get("dietary_restrictions")
     if dr:
-        lines.append(f"- Dietary restrictions (reminders): {dr}")
+        dr_txt = ", ".join(str(x) for x in dr) if isinstance(dr, (list, tuple)) else dr
+        lines.append(f"- Dietary restrictions (reminders): {dr_txt}")
+    culture = ob.get("culture")
+    if culture:
+        lines.append(f"- Cultural background (familiar food / grooming references): {culture}")
     hyd = ob.get("skin_hydration_notifications")
     if hyd is not None:
         lines.append(f"- Hydration notifications enabled: {hyd}")

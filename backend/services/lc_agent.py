@@ -1031,6 +1031,18 @@ def make_chat_tools(
                 from sqlalchemy.orm.attributes import flag_modified as _flag_plan
                 await db.refresh(user)
                 prof_fp = dict((user.profile or {}).get("fitmax_profile") or {})
+                # Fold the user's diet signals in so the macro plan recommends
+                # food they actually eat (vegetarian protein sources, allergy
+                # swaps, familiar cuisines). Best-effort, fills only diet keys.
+                try:
+                    from services.personalization import state_signals as _pers_sig
+                    _dsig = await _pers_sig(db, user_id)
+                    for _dk in ("dietary_pattern", "dietary_restrictions",
+                                "food_allergies", "food_cuisines", "foods_liked"):
+                        if _dsig.get(_dk) and not prof_fp.get(_dk):
+                            prof_fp[_dk] = _dsig[_dk]
+                except Exception:
+                    pass
                 prof_fp["fitmax_plan"] = fplan.fitmax_build_plan(prof_fp)
                 user.profile = {**(user.profile or {}), "fitmax_profile": prof_fp}
                 _flag_plan(user, "profile")

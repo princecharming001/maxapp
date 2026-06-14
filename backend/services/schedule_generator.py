@@ -131,9 +131,12 @@ async def generate_schedule(
     # so generated content respects who the user actually is — vegetarian macros,
     # culturally-familiar food references, etc. Only fills keys the caller left
     # unset, so an explicit onboarding/chat answer always wins. Best-effort.
+    pers_brief: str | None = None
     try:
         from services.personalization import state_signals as _pers_signals
-        for _k, _v in (await _pers_signals(db, user_id)).items():
+        _sig = await _pers_signals(db, user_id)
+        pers_brief = _sig.get("personalization_brief")
+        for _k, _v in _sig.items():
             if _k == "personalization_brief":
                 continue
             if user_state.get(_k) in (None, "", [], {}):
@@ -234,6 +237,7 @@ async def generate_schedule(
         week1_cap=week1_cap,
         wake=wake_str,
         sleep=sleep_str,
+        personalization_brief=pers_brief,
     )
 
     days, summary, retries = await _llm_then_validate(
@@ -331,6 +335,7 @@ def _build_prompt(
     week1_cap: float,
     wake: str,
     sleep: str,
+    personalization_brief: str | None = None,
 ) -> str:
     catalog_lines = []
     for t in eligible:
@@ -358,10 +363,16 @@ def _build_prompt(
         wake=wake, sleep=sleep,
     )
 
+    # The unified personalization brief (food, culture, work, rhythm, personality,
+    # and how they want to be talked to) — so generated task copy references the
+    # user's real life and matches their tone. Omitted when we know nothing.
+    brief_block = f"\n{personalization_brief}\n" if personalization_brief else ""
+
     return (
         f"{sys}\n\n"
         f"## MAX: {doc.maxx_id} ({doc.display_name})\n"
         f"{doc.short_description}\n\n"
+        f"{brief_block}"
         f"## SCHEDULE WINDOW\n"
         f"days: {cadence_days}  |  wake: {wake}  |  sleep: {sleep}\n"
         f"daily task budget: [{min_tasks}, {max_tasks}]   |   week-1 intensity cap: {week1_cap}\n\n"

@@ -28,6 +28,96 @@ def fitmax_activity_multiplier(level: str) -> float:
     }.get(level or "moderately_active", 1.55)
 
 
+# --- diet-aware nutrition guidance ------------------------------------------
+# Reads the unified personalization diet signals (dietary_pattern,
+# dietary_restrictions, food_allergies, food_cuisines — see
+# services.personalization.profile_to_state_signals) and turns the macro math
+# into food the user can actually eat: protein sources that fit their pattern,
+# minus anything they're allergic to, with culturally-familiar framing.
+
+_PROTEIN_SOURCES = {
+    "vegan": ["tofu", "tempeh", "seitan", "lentils", "chickpeas", "edamame", "soy or pea protein"],
+    "vegetarian": ["eggs", "Greek yogurt", "cottage cheese", "paneer", "lentils", "tofu", "whey protein"],
+    "pescatarian": ["salmon", "tuna", "shrimp", "eggs", "Greek yogurt", "tofu"],
+    "omnivore": ["chicken breast", "lean beef", "eggs", "Greek yogurt", "fish", "whey protein"],
+}
+
+
+def _norm_diet_pattern(*vals: Any) -> Optional[str]:
+    """Canonicalize a diet pattern from any free text. Returns None for plain
+    omnivores (no pattern to enforce)."""
+    blob = " ".join(str(v) for v in vals if v).lower()
+    if not blob.strip():
+        return None
+    if "vegan" in blob or "plant-based" in blob or "plant based" in blob:
+        return "vegan"
+    if "vegetarian" in blob or "veggie" in blob or "eggetarian" in blob:
+        return "vegetarian"
+    if "pescatarian" in blob or "pescetarian" in blob:
+        return "pescatarian"
+    return None
+
+
+def _diet_list(v: Any) -> list[str]:
+    if not v:
+        return []
+    if isinstance(v, str):
+        return [p.strip() for p in re.split(r"[,;/]| and ", v) if p.strip()]
+    if isinstance(v, (list, tuple, set)):
+        return [str(x).strip() for x in v if str(x).strip()]
+    return [str(v).strip()]
+
+
+def _allergy_excludes(allergy_blob: str) -> set[str]:
+    out: set[str] = set()
+    b = allergy_blob.lower()
+    if "dairy" in b or "lactose" in b or "milk" in b:
+        out |= {"yogurt", "whey", "paneer", "cottage cheese", "casein", "milk"}
+    if "egg" in b:
+        out |= {"egg"}
+    if "soy" in b:
+        out |= {"tofu", "tempeh", "edamame", "soy"}
+    if "shellfish" in b or "shrimp" in b or "prawn" in b:
+        out |= {"shrimp", "prawn"}
+    if "fish" in b:
+        out |= {"salmon", "tuna", "fish"}
+    if "gluten" in b or "wheat" in b:
+        out |= {"seitan"}
+    return out
+
+
+def fitmax_diet_block(profile: dict) -> Optional[dict]:
+    """Diet-aware nutrition guidance for the FitMax plan, or None when we know
+    nothing about the user's diet (so the plan reads exactly as before)."""
+    pattern = _norm_diet_pattern(profile.get("dietary_pattern"), profile.get("dietary_restrictions"))
+    restrictions = _diet_list(profile.get("dietary_restrictions"))
+    allergies = _diet_list(profile.get("food_allergies"))
+    cuisines = _diet_list(profile.get("food_cuisines"))
+    if not (pattern or restrictions or allergies or cuisines):
+        return None
+    base = list(_PROTEIN_SOURCES.get(pattern or "omnivore", _PROTEIN_SOURCES["omnivore"]))
+    excludes = _allergy_excludes(" ".join(allergies + restrictions))
+    sources = [s for s in base if not any(x in s.lower() for x in excludes)][:6]
+    notes: list[str] = []
+    if pattern in ("vegan", "vegetarian"):
+        notes.append(
+            f"Hitting your protein target on a {pattern} diet takes intentional sources — "
+            f"lean on {', '.join(sources[:4])}."
+        )
+    if allergies:
+        notes.append(f"No {', '.join(allergies)} — kept out of your protein picks.")
+    if cuisines:
+        notes.append(f"Keep meals familiar: {', '.join(cuisines[:3])}.")
+    return {
+        "pattern": pattern or "omnivore",
+        "restrictions": restrictions,
+        "allergies": allergies,
+        "cuisines": cuisines,
+        "protein_sources": sources,
+        "note": " ".join(notes) or None,
+    }
+
+
 def fitmax_build_plan(profile: dict) -> dict:
     weight_kg = float(profile.get("weight_kg") or 75)
     height_cm = float(profile.get("height_cm") or 175)
@@ -82,6 +172,9 @@ def fitmax_build_plan(profile: dict) -> dict:
         "goal_label": goal_label,
         "split": split,
         "days_per_week": days,
+        # None when we know nothing about their diet — the rest of the plan is
+        # byte-for-byte unchanged, so this is purely additive.
+        "diet": fitmax_diet_block(profile),
     }
 
 

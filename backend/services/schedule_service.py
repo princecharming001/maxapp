@@ -596,6 +596,26 @@ class ScheduleService:
         user = await db.get(User, user_uuid)
         onboarding = (user.onboarding if user else {}) or {}
 
+        # Augment with the unified personalization signals (diet pattern,
+        # restrictions, allergies, cuisines, culture) ONCE, so every downstream
+        # consumer — the FitMax nutrition plan, skinmax dietary reminders, and
+        # the LLM prompt sections — reflects who the user actually is. Fill-only
+        # (explicit onboarding answers win) and on a copy (never mutates
+        # user.onboarding). Best-effort, non-fatal.
+        try:
+            from services.personalization import state_signals as _pers_sig
+            _psig = await _pers_sig(db, user_id)
+            _add = {
+                k: _psig[k]
+                for k in ("dietary_pattern", "dietary_restrictions", "food_allergies",
+                          "food_cuisines", "foods_liked", "culture", "religion")
+                if _psig.get(k) and onboarding.get(k) in (None, "", [], {})
+            }
+            if _add:
+                onboarding = {**onboarding, **_add}
+        except Exception as _e:
+            logger.debug("personalization onboarding augment skipped: %s", _e)
+
         # If the user set wake/sleep as a RANGE in the planner, build this first
         # schedule around the GUARANTEED-awake window (latest-wake floor,
         # earliest-sleep ceiling) instead of the bare midpoint — so the very
@@ -965,6 +985,9 @@ class ScheduleService:
             )
         else:
             if maxx_id == "skinmax":
+                # `onboarding` was already augmented with personalization diet
+                # signals above, so dietary reminders honor what the user told
+                # the chat ("i avoid dairy") even if they never set it in setup.
                 self._augment_skinmax_llm_schedule(
                     schedule_data,
                     onboarding=onboarding or {},
