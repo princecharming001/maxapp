@@ -95,11 +95,26 @@ export default function PaymentScreen() {
 
     const handleSubscribe = async (tier: 'basic' | 'premium') => {
         if (user && !user.first_scan_completed) {
+            const goScan = () => navigation.navigate('FaceScan');
+            // Alert.alert's button callbacks are no-ops on react-native-web, which
+            // left "Get Chad" a silent dead end in the web build. Use a native
+            // confirm there and route straight to the scan.
+            if (Platform.OS === 'web') {
+                if (
+                    typeof window === 'undefined' ||
+                    window.confirm(
+                        'Complete your AI face scan to see your preview score, then you can subscribe.\n\nStart the scan now?',
+                    )
+                ) {
+                    goScan();
+                }
+                return;
+            }
             Alert.alert(
                 'Face scan first',
                 'Complete your AI face scan to see your preview score, then you can subscribe.',
                 [
-                    { text: 'Start scan', onPress: () => navigation.navigate('FaceScan') },
+                    { text: 'Start scan', onPress: goScan },
                     { text: 'Cancel', style: 'cancel' },
                 ],
             );
