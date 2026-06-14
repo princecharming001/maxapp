@@ -37,6 +37,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
+import ShineOverlay from '../../components/ShineOverlay';
 import { GlassButton } from '../../components/glass/GlassButton';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -384,6 +385,7 @@ export default function OnboardingV2Screen() {
                         accessibilityState={{ selected: works }}
                         accessibilityLabel="I have set weekday hours"
                     >
+                        {works ? <ShineOverlay width={320} /> : null}
                         <Ionicons
                             name={works ? 'checkmark-circle' : 'ellipse-outline'}
                             size={18}
@@ -590,7 +592,7 @@ export default function OnboardingV2Screen() {
 
     return (
         <ScreenBackdrop>
-            <View style={{ flex: 1, paddingTop: insets.top + 14, paddingHorizontal: 24 }}>
+            <View style={{ flex: 1, width: '100%', maxWidth: 460, alignSelf: 'center', paddingTop: insets.top + 14, paddingHorizontal: 24 }}>
                 <View style={styles.topRow}>
                     {step > 0 ? (
                         <TouchableOpacity
@@ -706,6 +708,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: HAIR,
         backgroundColor: 'transparent',
+        overflow: 'hidden',
     },
     workChipActive: { backgroundColor: INK, borderColor: INK },
     workChipText: { fontFamily: 'Matter-Medium', fontSize: 15, color: INK },

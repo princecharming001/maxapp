@@ -22,6 +22,7 @@ import api from '../../services/api';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { CachedImage } from '../../components/CachedImage';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
+import ShineOverlay from '../../components/ShineOverlay';
 import { PHONE_COUNTRIES, type PhoneCountry } from '../../constants/phoneCountryCodes';
 
 function signupErrorMessage(error: any): string {
@@ -242,6 +243,7 @@ export default function SignupScreen() {
                             )}
 
                             <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleSignup} disabled={loading} activeOpacity={0.7}>
+                                {!loading ? <ShineOverlay /> : null}
                                 <Text style={styles.buttonText}>{loading ? 'Creating Account...' : 'Create Account'}</Text>
                             </TouchableOpacity>
 
@@ -326,6 +328,7 @@ const styles = StyleSheet.create({
     button: {
         backgroundColor: colors.foreground, borderRadius: borderRadius.sm,
         paddingVertical: 14, alignItems: 'center', marginTop: spacing.sm,
+        overflow: 'hidden',
     },
     buttonDisabled: { opacity: 0.4 },
     buttonText: { ...typography.button },

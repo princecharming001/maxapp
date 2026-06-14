@@ -12,6 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
+import ShineOverlay from '../../components/ShineOverlay';
 
 const isWeb = Platform.OS === 'web';
 const WEB_MAX_WIDTH = 440;
@@ -135,6 +136,7 @@ export default function LandingScreen() {
                         accessibilityRole="button"
                         accessibilityLabel="Create account"
                     >
+                        <ShineOverlay />
                         <Text style={styles.primaryBtnText}>Create account</Text>
                     </TouchableOpacity>
 
@@ -271,6 +273,7 @@ const styles = StyleSheet.create({
         paddingVertical: 17,
         alignItems: 'center',
         justifyContent: 'center',
+        overflow: 'hidden',
     },
     primaryBtnText: {
         fontFamily: 'Matter-SemiBold',
