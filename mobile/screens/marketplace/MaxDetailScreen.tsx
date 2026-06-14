@@ -428,10 +428,13 @@ const styles = StyleSheet.create({
 
     section: { paddingHorizontal: 20, marginTop: 24 },
     sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.4, color: MUTE, marginBottom: 10 },
+    // Flat editorial band — content on the cream, separated by a hairline
+    // (was a floating white rounded box).
     card: {
-        backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: StyleSheet.hairlineWidth,
-        borderColor: HAIRLINE, padding: 16,
-        shadowColor: '#2E2A20', shadowOpacity: 0.05, shadowRadius: 14, shadowOffset: { width: 0, height: 6 },
+        paddingTop: 16,
+        paddingBottom: 4,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: HAIRLINE,
     },
     rowCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 

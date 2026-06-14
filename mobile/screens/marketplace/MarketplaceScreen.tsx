@@ -171,22 +171,22 @@ export default function MarketplaceScreen() {
                     </View>
                 ) : null}
 
-                <View style={[styles.sectionHead, { marginTop: 24 }]}>
+                <View style={[styles.sectionHead, { marginTop: 28 }]}>
                     <SectionLabel label="MAXES" style={styles.sectionLabelInline} />
                     <Text style={styles.sectionNote}>$3.99 / week each</Text>
                 </View>
-                <View style={styles.grid}>
-                    {maxxes.map((m) => (
-                        <CourseCard key={m.id} item={m} onPress={() => navigation.push('MaxDetail', { item: m })} />
+                <View style={styles.list}>
+                    {maxxes.map((m, i) => (
+                        <CourseRow key={m.id} item={m} first={i === 0} onPress={() => navigation.push('MaxDetail', { item: m })} />
                     ))}
                 </View>
 
                 {courses.length > 0 ? (
                     <>
-                        <SectionLabel label="CREATOR COURSES" style={{ marginTop: 30, marginBottom: 12 }} />
-                        <View style={styles.grid}>
-                            {courses.map((c) => (
-                                <CourseCard key={c.id} item={c} onPress={() => navigation.push('MaxDetail', { item: c })} />
+                        <SectionLabel label="CREATOR COURSES" style={{ marginTop: 36, marginBottom: 4 }} />
+                        <View style={styles.list}>
+                            {courses.map((c, i) => (
+                                <CourseRow key={c.id} item={c} first={i === 0} onPress={() => navigation.push('MaxDetail', { item: c })} />
                             ))}
                         </View>
                     </>
@@ -198,52 +198,36 @@ export default function MarketplaceScreen() {
     );
 }
 
-/** A marketplace cover card (2-up grid). Uses a real cover image when the item
- *  has one, else designed gradient art derived from the program's brand color
- *  with the icon as a watermark — so the grid reads like a polished course
- *  marketplace either way. Title overlays the cover; creator + price sit below. */
-/** Flat color-pocket card: white block, the max's color lives in the icon tile
- *  + a thin accent rule along the bottom. Creator courses show their cover as
- *  the tile. Plain cream page, vivid pockets — the craft.do feel. */
-function CourseCard({ item, onPress }: { item: MarketplaceItem; onPress: () => void }) {
+/** A flat, editorial marketplace row — no card box, no tinted tile. The max's
+ *  color lives in the icon itself; creator courses show a small cover thumbnail.
+ *  Rows are separated by hairlines on the cream page. */
+function CourseRow({ item, first, onPress }: { item: MarketplaceItem; first: boolean; onPress: () => void }) {
     const img = (item as any).image_url as string | undefined;
     const base = item.color || GOLD;
     const tagline = (item as any).tagline as string | undefined;
+    const sub = tagline || (item.native ? 'by Max' : `@${item.creator.handle}${item.creator.verified ? ' ✓' : ''}`);
     return (
-        <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={onPress}>
-            <View style={styles.cardTop}>
-                {img ? (
-                    <Image source={{ uri: img }} style={styles.cardThumb} contentFit="cover" transition={200} />
-                ) : (
-                    <View style={[styles.cardIcon, { backgroundColor: hexA(base, 0.12) }]}>
-                        <Ionicons name={(item.icon as any) || 'ellipse-outline'} size={26} color={base} />
-                    </View>
-                )}
+        <TouchableOpacity style={[styles.row, !first && styles.rowBorder]} activeOpacity={0.6} onPress={onPress}>
+            {img ? (
+                <Image source={{ uri: img }} style={styles.rowThumb} contentFit="cover" transition={200} />
+            ) : (
+                <View style={styles.rowIconWrap}>
+                    <Ionicons name={(item.icon as any) || 'ellipse-outline'} size={26} color={base} />
+                </View>
+            )}
+            <View style={styles.rowMid}>
+                <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={styles.rowSub} numberOfLines={1}>{sub}</Text>
+            </View>
+            <View style={styles.rowRight}>
                 {item.rating ? (
-                    <View style={styles.ratingPill}>
-                        <Ionicons name="star" size={10} color="#E0A92E" />
-                        <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
-                    </View>
+                    <Text style={styles.rowRating}>★ {item.rating.toFixed(1)}</Text>
                 ) : null}
-            </View>
-
-            <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-            {tagline ? <Text style={styles.cardTagline} numberOfLines={2}>{tagline}</Text> : null}
-
-            <View style={styles.cardFoot}>
-                <Text style={styles.footerCreator} numberOfLines={1}>
-                    {item.native ? 'by Max' : `@${item.creator.handle}${item.creator.verified ? ' ✓' : ''}`}
+                <Text style={[styles.rowPrice, item.entered && { color: base }]}>
+                    {item.entered ? 'Open' : item.price_label.replace(' / week', '/wk')}
                 </Text>
-                {item.entered ? (
-                    <View style={[styles.openChip, { backgroundColor: hexA(base, 0.14) }]}>
-                        <Text style={[styles.openChipText, { color: base }]}>Open</Text>
-                    </View>
-                ) : (
-                    <Text style={styles.footerPrice}>{item.price_label.replace(' / week', '/wk')}</Text>
-                )}
             </View>
-
-            <View style={[styles.cardRule, { backgroundColor: base }]} />
+            <Ionicons name="chevron-forward" size={18} color={MUTE} style={{ marginLeft: 6 }} />
         </TouchableOpacity>
     );
 }
@@ -562,30 +546,20 @@ const styles = StyleSheet.create({
         borderColor: BORDER,
     },
 
-    // Flat color-pocket card
-    card: {
-        width: '48%',
-        marginBottom: 16,
-        backgroundColor: CARD,
-        borderRadius: 20,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: BORDER,
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 18,
-        overflow: 'hidden',
-    },
-    cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
-    cardIcon: { width: 52, height: 52, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-    cardThumb: { width: 52, height: 52, borderRadius: 15, backgroundColor: '#EFE7DC' },
-    ratingPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#F3EDE3', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
-    ratingText: { fontFamily: 'Matter-SemiBold', fontSize: 11, color: SUB },
-    cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
-    openChip: { paddingHorizontal: 11, paddingVertical: 4, borderRadius: 999, marginLeft: 8 },
-    openChipText: { fontFamily: 'Matter-SemiBold', fontSize: 12 },
-    cardRule: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3 },
+    // Flat, hairline-separated marketplace list (no card boxes).
+    list: { marginTop: 2 },
+    row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
+    rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
+    rowThumb: { width: 46, height: 46, borderRadius: 13, backgroundColor: '#EFE7DC' },
+    rowIconWrap: { width: 46, alignItems: 'center', justifyContent: 'center' },
+    rowMid: { flex: 1, marginLeft: 14 },
+    rowTitle: { fontFamily: 'Matter-SemiBold', fontSize: 16.5, color: INK, letterSpacing: -0.2 },
+    rowSub: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE, marginTop: 2 },
+    rowRight: { alignItems: 'flex-end', marginLeft: 10 },
+    rowRating: { fontFamily: 'Matter-Medium', fontSize: 11.5, color: '#B0892F' },
+    rowPrice: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: INK, marginTop: 2 },
 
-    // 2-up marketplace grid of cover cards.
+    // (legacy grid styles below are unused)
     grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 12 },
     gridItem: { width: '48%', marginBottom: 18 },
     cover: {

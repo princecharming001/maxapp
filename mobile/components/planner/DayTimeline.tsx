@@ -182,13 +182,8 @@ export default function DayTimeline({
                 r.kind === 'ob' && styles.blockOb,
               ]}
             >
-              <View
-                style={[
-                  styles.iconTile,
-                  r.kind === 'workout' && { backgroundColor: 'rgba(47,107,78,0.12)' },
-                ]}
-              >
-                <Ionicons name={r.icon as any} size={15} color={accentFor(r.kind)} />
+              <View style={styles.iconTile}>
+                <Ionicons name={r.icon as any} size={19} color={accentFor(r.kind)} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.label}>{r.label}</Text>
@@ -220,29 +215,23 @@ const styles = StyleSheet.create({
   spine: { width: 26, alignItems: 'center' },
   dot: { width: 9, height: 9, borderRadius: 5, marginTop: 18 },
   line: { flex: 1, width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginTop: 2 },
+  // Flat timeline rows — no card boxes; the spine + a hairline carry structure.
   block: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    marginBottom: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 13,
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    gap: 12,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
-  blockWorkout: { borderColor: 'rgba(47,107,78,0.35)', backgroundColor: 'rgba(47,107,78,0.05)' },
-  blockOb: { backgroundColor: colors.surface },
+  blockWorkout: {},
+  blockOb: {},
   iconTile: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
-    backgroundColor: colors.surfaceLight,
+    width: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  label: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.foreground, letterSpacing: 0.05 },
+  label: { fontFamily: fonts.sansSemiBold, fontSize: 15.5, color: colors.foreground, letterSpacing: -0.1 },
   sub: { fontFamily: fonts.sans, fontSize: 12, color: colors.textMuted, marginTop: 2, letterSpacing: 0.05 },
 });

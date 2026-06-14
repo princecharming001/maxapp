@@ -173,16 +173,11 @@ export default function ObligationsManager({
   return (
     <View>
       <View style={styles.head}>
-        <View style={styles.headIconWrap}>
-          <Ionicons name="calendar-clear-outline" size={16} color={colors.foreground} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Commitments</Text>
-          <Text style={styles.sub}>
-            Work, classes, a commute, anything that recurs. Set which days each lands on and Max plans
-            around them.
-          </Text>
-        </View>
+        <Text style={styles.title}>Commitments</Text>
+        <Text style={styles.sub}>
+          Work, classes, a commute, anything that recurs. Set which days each lands on and Max plans
+          around them.
+        </Text>
       </View>
 
       {ordered.length === 0 ? (
@@ -370,24 +365,14 @@ export default function ObligationsManager({
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, marginBottom: spacing.md },
-  headIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-  },
-  title: { fontFamily: fonts.sansSemiBold, fontSize: 15.5, color: colors.foreground, letterSpacing: 0.1 },
-  sub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, lineHeight: 17, marginTop: 2, letterSpacing: 0.05 },
+  head: { marginBottom: spacing.md },
+  title: { fontFamily: fonts.sansSemiBold, fontSize: 16, color: colors.foreground, letterSpacing: 0.1 },
+  sub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, lineHeight: 17, marginTop: 3, letterSpacing: 0.05 },
   empty: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  emptyText: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, lineHeight: 18, letterSpacing: 0.05 },
+  emptyText: { fontFamily: fonts.sans, fontSize: 13, color: colors.textMuted, lineHeight: 19, letterSpacing: 0.05 },
   list: { marginBottom: spacing.sm },
   row: {
     flexDirection: 'row',
@@ -419,16 +404,13 @@ const styles = StyleSheet.create({
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: spacing.sm,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.foreground,
-    backgroundColor: colors.card,
+    gap: 8,
+    marginTop: spacing.xs,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
   },
-  addBtnText: { fontFamily: fonts.sansSemiBold, fontSize: 13.5, color: colors.foreground, letterSpacing: 0.2 },
+  addBtnText: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.foreground, letterSpacing: 0.1 },
 
   // Sheet
   overlay: { flex: 1, justifyContent: 'flex-end' },
