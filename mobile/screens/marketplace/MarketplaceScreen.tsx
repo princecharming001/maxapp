@@ -23,6 +23,7 @@ import { GlassButton } from '../../components/glass/GlassButton';
 import SectionLabel from '../../components/SectionLabel';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { track } from '../../lib/analytics';
+import { queryKeys } from '../../lib/queryClient';
 import api, { type MarketplaceItem } from '../../services/api';
 
 const INK = '#1C1A17';
@@ -258,7 +259,7 @@ function DetailModal({ item, onClose, onEntered }: { item: MarketplaceItem | nul
             // the Today/week caches so "See my day" shows the landed tasks.
             queryClient.invalidateQueries({ queryKey: ['plannerToday'] });
             queryClient.invalidateQueries({ queryKey: ['plannerHeldBack'] });
-            queryClient.invalidateQueries({ queryKey: ['activeSchedulesFull'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
             if (res.checkout_url) {
                 // Real capture: hand off to hosted Stripe Checkout. The
                 // webhook grants the entitlement on completion.

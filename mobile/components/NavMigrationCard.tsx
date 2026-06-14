@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { GlassCard } from './glass/GlassCard';
 import { useFlag } from '../constants/featureFlags';
+import { queryKeys } from '../lib/queryClient';
 import api from '../services/api';
 
 const DISMISS_KEY = 'max.navMigrationCard.dismissed';
@@ -26,7 +27,7 @@ export default function NavMigrationCard() {
     }, []);
 
     const { data: schedData } = useQuery({
-        queryKey: ['activeSchedulesFull'],
+        queryKey: queryKeys.schedulesActiveFull,
         queryFn: () => api.getActiveSchedulesFull(),
         staleTime: 60_000,
         enabled: newNav && dismissed === false,

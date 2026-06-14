@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { CachedImage } from '../../components/CachedImage';
 import AnalyzingScreen from './AnalyzingScreen';
@@ -438,6 +439,14 @@ export default function FaceScanScreen() {
             });
             void refreshUser().catch((re) => {
                 console.warn('refreshUser after scan', re);
+            });
+            // Re-evaluate the day-state so the scan badges (Baseline Set / Receipts)
+            // are awarded right after this scan. The celebration is held while the
+            // user is on the suppressed scan/results screens and fires when they
+            // next land on a calm screen (Today / Home).
+            void queryClient.invalidateQueries({
+                queryKey: queryKeys.schedulesActiveFull,
+                refetchType: 'all',
             });
             await clearPendingFaceScanSubmit();
             await clearFaceScanDraft();

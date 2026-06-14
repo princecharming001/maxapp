@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
 import { useAuth } from '../../context/AuthContext';
+import { queryKeys } from '../../lib/queryClient';
 import api from '../../services/api';
 
 type Row = {
@@ -73,7 +74,7 @@ export default function YouScreen() {
     const { user } = useAuth();
 
     const { data: schedData } = useQuery({
-        queryKey: ['activeSchedulesFull'],
+        queryKey: queryKeys.schedulesActiveFull,
         queryFn: () => api.getActiveSchedulesFull(),
         staleTime: 60_000,
     });

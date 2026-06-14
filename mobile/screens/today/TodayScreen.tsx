@@ -30,6 +30,7 @@ import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
 import SlideToConfirm from '../../components/today/SlideToConfirm';
 import { track } from '../../lib/analytics';
+import { queryKeys } from '../../lib/queryClient';
 import api from '../../services/api';
 
 const INK = '#1C1A17';
@@ -136,7 +137,7 @@ export default function TodayScreen() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [deviceDate, todayQ.data?.date]);
     const streakQ = useQuery({
-        queryKey: ['activeSchedulesFull'],
+        queryKey: queryKeys.schedulesActiveFull,
         queryFn: () => api.getActiveSchedulesFull(),
         staleTime: 60_000,
     });
@@ -237,7 +238,7 @@ export default function TodayScreen() {
             setTimeout(() => setToast(null), 4000);
         },
         onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: ['activeSchedulesFull'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
         },
     });
 
