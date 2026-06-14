@@ -32,7 +32,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../../theme/dark';
-import TimeRangeSlider from './TimeRangeSlider';
+import TimePicker from './TimePicker';
 import {
   DayShape,
   Scope,
@@ -301,7 +301,7 @@ export default function DayEditorSheet({
                       onChange={(k) => switchWakeMode(k as Mode)}
                     />
                   </View>
-                  <TimeRangeSlider
+                  <TimePicker
                     single={wakeMode === 'exact'}
                     min={WAKE_MIN}
                     max={WAKE_MAX}
@@ -334,7 +334,7 @@ export default function DayEditorSheet({
                       onChange={(k) => switchSleepMode(k as Mode)}
                     />
                   </View>
-                  <TimeRangeSlider
+                  <TimePicker
                     single={sleepMode === 'exact'}
                     min={SLEEP_MIN}
                     max={SLEEP_MAX}
@@ -370,7 +370,7 @@ export default function DayEditorSheet({
                   />
                 </View>
                 {readyValue ? (
-                  <TimeRangeSlider
+                  <TimePicker
                     single
                     min={READY_MIN}
                     max={READY_MAX}
@@ -409,13 +409,14 @@ export default function DayEditorSheet({
                   </View>
                   {d.workoutWindow ? (
                     <>
-                      <TimeRangeSlider
+                      <TimePicker
                         min={WORKOUT_MIN}
                         max={WORKOUT_MAX}
                         value={[toMin(d.workoutWindow[0]), toMin(d.workoutWindow[1])]}
                         onChange={setWorkout}
                         format={fmtAbs}
                         accent="#2F6B4E"
+                        minSpan={WORKOUT_MIN_SPAN}
                       />
                       <Text style={styles.hint}>
                         Max fits your workout between {fmt12Compact(d.workoutWindow[0])} and{' '}

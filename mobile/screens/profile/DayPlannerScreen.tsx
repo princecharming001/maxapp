@@ -40,7 +40,7 @@ import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, fonts } from '../../theme/dark';
 import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
 import DayTimeline from '../../components/planner/DayTimeline';
-import ObligationsManager from '../../components/planner/ObligationsManager';
+import ObligationsManager, { ObligationsManagerHandle } from '../../components/planner/ObligationsManager';
 import {
   DayShape,
   Obligation,
@@ -117,6 +117,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   // 'warn' is used for failures and no-op replies so they never look applied.
   const [chatReplyTone, setChatReplyTone] = useState<'success' | 'warn'>('success');
   const chatRef = useRef<TextInput>(null);
+  const obligationsRef = useRef<ObligationsManagerHandle>(null);
 
   const invalidateSchedules = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull, refetchType: 'all' });
@@ -331,12 +332,13 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               obligations={obligations}
               scope={scope}
               onEditShape={(focus) => openEditor(scope, focus)}
+              onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
             />
           </View>
 
           {/* Commitments — the global, day-scoped obligations list. */}
           <View style={styles.section}>
-            <ObligationsManager obligations={obligations} onChange={changeObligations} />
+            <ObligationsManager ref={obligationsRef} obligations={obligations} onChange={changeObligations} />
           </View>
 
           <View style={{ height: 96 + insets.bottom }} />

@@ -12,7 +12,7 @@
  * recurrence chips (Every day / Weekdays / Weekends) and a 7-day toggle for an
  * exact set. Changes bubble up via onChange; the planner screen persists them.
  */
-import React, { useEffect, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useState } from 'react';
 import {
   View,
   Text,
@@ -30,7 +30,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../../theme/dark';
-import TimeRangeSlider from './TimeRangeSlider';
+import TimePicker from './TimePicker';
 import {
   Obligation,
   DayRecurrence,
@@ -65,13 +65,12 @@ function daysToSet(days: DayRecurrence): Set<Weekday> {
 
 type Quick = 'all' | 'weekdays' | 'weekends';
 
-export default function ObligationsManager({
-  obligations,
-  onChange,
-}: {
-  obligations: Obligation[];
-  onChange: (next: Obligation[]) => void;
-}) {
+export type ObligationsManagerHandle = { openEdit: (index: number) => void };
+
+const ObligationsManager = forwardRef<
+  ObligationsManagerHandle,
+  { obligations: Obligation[]; onChange: (next: Obligation[]) => void }
+>(function ObligationsManager({ obligations, onChange }, ref) {
   const insets = useSafeAreaInsets();
   const { height: winH } = useWindowDimensions();
   const sheetMaxH = Math.round(winH * 0.9);
@@ -105,6 +104,9 @@ export default function ObligationsManager({
     setDayset(daysToSet(o.days));
     setEditorOpen(true);
   };
+
+  // Let the timeline open this same editor for one commitment (tap its arrow).
+  useImperativeHandle(ref, () => ({ openEdit }));
 
   const remove = (idx: number) => onChange(obligations.filter((_, i) => i !== idx));
 
@@ -289,14 +291,13 @@ export default function ObligationsManager({
                 />
 
                 <Text style={[styles.fieldLabel, { marginTop: spacing.lg }]}>When?</Text>
-                <TimeRangeSlider
+                <TimePicker
                   min={OB_MIN}
                   max={OB_MAX}
                   value={range}
                   onChange={setRange}
                   format={fmtAbs}
                   accent={obligationColor(label)}
-                  ticksEvery={180}
                 />
 
                 <Text style={[styles.fieldLabel, { marginTop: spacing.lg }]}>Which days?</Text>
@@ -373,7 +374,9 @@ export default function ObligationsManager({
       </Modal>
     </View>
   );
-}
+});
+
+export default ObligationsManager;
 
 const styles = StyleSheet.create({
   head: { marginBottom: spacing.md },
