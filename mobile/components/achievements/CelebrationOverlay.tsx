@@ -16,15 +16,42 @@ import Animated, {
     interpolate, Easing, useReducedMotion,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { colors, fonts, borderRadius, spacing } from '../../theme/dark';
-import AchievementBadge, { Tier } from './AchievementBadge';
+import Svg, { Circle } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+import { fonts, borderRadius, spacing } from '../../theme/dark';
+import { GLYPH, Tier } from './AchievementBadge';
 
 export type EarnedAchievement = {
     code: string; title: string; description: string; tier: Tier; icon: string;
 };
 
-const CONFETTI_COLORS = ['#D4A017', '#2C6BED', '#1C1A17', '#E7CFA6', '#9BC4A0', '#E58B5C', '#C2C9D1'];
-const PIECES = 26;
+// Warm, tonal confetti (gold / sand / ink) — no rainbow, stays premium.
+const CONFETTI_COLORS = ['#C9A24E', '#E7CFA6', '#FBF6EE', '#D7B277', '#1C1A17', '#BFA77F'];
+const PIECES = 22;
+const GOLD = '#C9A24E';
+const CREAM = '#FBF6EE';
+
+/**
+ * CelebrationBadge — a minimal, fully transparent badge for the earn-moment:
+ * one thin gold ring + a faint outer ring + the glyph, nothing behind it. No
+ * filled medallion (that reads tacky here); the ink scrim shows straight
+ * through the center.
+ */
+function CelebrationBadge({ icon }: { icon: string }) {
+    const glyph = GLYPH[icon] || 'ribbon';
+    const SZ = 120;
+    return (
+        <View style={{ width: SZ, height: SZ, alignItems: 'center', justifyContent: 'center' }}>
+            <Svg width={SZ} height={SZ} viewBox={`0 0 ${SZ} ${SZ}`}>
+                <Circle cx={SZ / 2} cy={SZ / 2} r={SZ / 2 - 2} fill="none" stroke="rgba(247,240,234,0.14)" strokeWidth={1} />
+                <Circle cx={SZ / 2} cy={SZ / 2} r={SZ / 2 - 17} fill="none" stroke={GOLD} strokeWidth={1.75} />
+            </Svg>
+            <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
+                <Ionicons name={glyph} size={42} color={CREAM} />
+            </View>
+        </View>
+    );
+}
 
 function ConfettiPiece({ index, reduced }: { index: number; reduced: boolean }) {
     const p = useSharedValue(0);
@@ -129,8 +156,8 @@ export default function CelebrationOverlay({
                         ))}
                     </View>
 
-                    <Animated.View style={[styles.badgeWrap, badgeStyle]}>
-                        <AchievementBadge icon={current.icon} tier={current.tier} earned size={132} />
+                    <Animated.View style={badgeStyle}>
+                        <CelebrationBadge icon={current.icon} />
                     </Animated.View>
 
                     <Animated.View style={[styles.textWrap, textStyle]}>
@@ -159,9 +186,6 @@ const styles = StyleSheet.create({
     },
     stage: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
     confettiOrigin: { position: 'absolute', top: '38%', left: '50%', width: 0, height: 0 },
-    badgeWrap: {
-        shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 12 },
-    },
     textWrap: { alignItems: 'center', marginTop: spacing.xl },
     kicker: {
         fontFamily: fonts.sansSemiBold, fontSize: 11, letterSpacing: 2,

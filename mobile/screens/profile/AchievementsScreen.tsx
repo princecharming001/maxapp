@@ -135,14 +135,14 @@ const styles = StyleSheet.create({
     headerTitle: { fontFamily: fonts.serif, fontSize: 19, color: colors.foreground, letterSpacing: -0.3 },
 
     summary: { alignItems: 'center', marginBottom: spacing.xl, marginTop: spacing.sm },
-    summaryNum: { fontFamily: fonts.serif, fontSize: 44, color: colors.foreground, letterSpacing: -1 },
-    summaryDen: { fontFamily: fonts.serif, fontSize: 26, color: colors.textMuted },
+    summaryNum: { fontFamily: fonts.sansSemiBold, fontSize: 46, color: colors.foreground, letterSpacing: -1.5 },
+    summaryDen: { fontFamily: fonts.sansMedium, fontSize: 24, color: colors.textMuted, letterSpacing: -0.5 },
     summaryLabel: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.4, marginTop: 2 },
     track: {
         width: '70%', height: 6, borderRadius: 3, backgroundColor: colors.surface,
         marginTop: 14, overflow: 'hidden',
     },
-    fill: { height: '100%', borderRadius: 3, backgroundColor: '#D4A017' },
+    fill: { height: '100%', borderRadius: 3, backgroundColor: '#C9A24E' },
 
     section: { marginBottom: spacing.xl },
     sectionLabel: {

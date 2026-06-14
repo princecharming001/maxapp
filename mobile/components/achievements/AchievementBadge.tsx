@@ -27,7 +27,7 @@ const TIERS: Record<Tier, { ring: string; fillTop: string; fillBot: string; glyp
 const LOCKED = { ring: '#D8D1C4', fillTop: '#F2ECE0', fillBot: '#E7E0D1', glyph: '#B7AE9E', accent: '#E2DACB' };
 
 // Achievement icon key -> Ionicons glyph.
-const GLYPH: Record<string, keyof typeof Ionicons.glyphMap> = {
+export const GLYPH: Record<string, keyof typeof Ionicons.glyphMap> = {
     spark: 'sparkles',
     flame: 'flame',
     crown: 'trophy',

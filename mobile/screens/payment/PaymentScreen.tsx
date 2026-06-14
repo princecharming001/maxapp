@@ -1,25 +1,18 @@
 /**
- * PaymentScreen — glass-aesthetic two-tier subscription page.
+ * PaymentScreen — two-tier subscription page, Craft aesthetic.
  *
- * Visual:
- *   - Soft blurred orbs in the page background (decorative)
- *   - Each plan card is a translucent glass surface (BlurView + thin
- *     accent gradient + 1px border)
- *   - The premium card "Chad" is feature-promoted: filled accent
- *     background, "Most popular" ribbon, savings micro-copy
+ * Minimal + flat: warm cream canvas, one featured ink card (Chad) and one
+ * quiet hairline card (Chadlite). A single muted-gold accent carries the
+ * "most popular" cue + the premium checks; everything else is ink on cream.
+ * No aurora gradients, no blur — clean and premium.
  *
- * Sales-promotion patterns applied (research):
- *   - Anchoring: weekly price stated next to monthly equivalent
- *   - Loss aversion: "save 33% vs Chadlite"
- *   - Decoy: Chadlite less attractive (1 max, weekly scans, no docs)
- *   - Social proof: "Most popular" ribbon on Chad
- *   - Trust: cancel-anytime, secure-checkout language under the title
- *   - Friction reduction: Apple IAP / Stripe one-tap CTAs at thumb level
+ * Sales structure kept: anchoring (weekly price), decoy (Chadlite is lighter),
+ * social proof (most-popular), App Store auto-renew disclosure + Restore/legal.
  *
  * Tiers:
  *   Chadlite (basic):   chatbot · 2 active programs · weekly face scan
  *   Chad (premium):     chatbot pro · 3 active programs · daily scans
- *                       · full course library · everything else
+ *                       · full course library · priority support
  */
 
 import React, { useState } from 'react';
@@ -34,15 +27,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useStripeSubscription } from '../../hooks/useStripeSubscription';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
-import { borderRadius, colors, fonts, spacing } from '../../theme/dark';
+import { colors, fonts, spacing } from '../../theme/dark';
 import { SHOW_DEV_SKIP_CONTROLS } from '../../constants/devSkips';
 import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
 
@@ -63,7 +54,9 @@ const PREMIUM_PERKS: string[] = [
 ];
 
 const IS_IOS = Platform.OS === 'ios';
-const ACCENT = '#F5F5F4';                  // off-white for premium fill
+const INK = '#1C1A17';
+const CREAM = '#F7F0EA';
+const GOLD = '#C9A24E';
 
 export default function PaymentScreen() {
     const navigation = useNavigation<any>();
@@ -136,38 +129,6 @@ export default function PaymentScreen() {
 
     return (
         <View style={s.container}>
-            {/* Full-bleed gradient backdrop. NO bounded shapes — the
-                previous "blob" containers (even with fading edges) still
-                read as discrete circles on screen. This is three stacked
-                full-screen LinearGradients, each tilted at a different
-                angle with transparent end-stops, so colors blend into
-                each other across the page like an aurora. No edges
-                anywhere; just color. */}
-            <LinearGradient
-                colors={['rgba(139,92,246,0.16)', 'rgba(139,92,246,0)', 'rgba(139,92,246,0)']}
-                locations={[0, 0.6, 1]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={s.bgLayer}
-                pointerEvents="none"
-            />
-            <LinearGradient
-                colors={['rgba(59,130,246,0)', 'rgba(16,185,129,0.10)', 'rgba(16,185,129,0)']}
-                locations={[0, 0.5, 1]}
-                start={{ x: 1, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={s.bgLayer}
-                pointerEvents="none"
-            />
-            <LinearGradient
-                colors={['rgba(244,114,182,0)', 'rgba(244,63,94,0.08)', 'rgba(244,63,94,0)']}
-                locations={[0, 0.55, 1]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={s.bgLayer}
-                pointerEvents="none"
-            />
-
             {/* ── Top bar ─────────────────────────────────────────── */}
             <View style={[s.topBar, { paddingTop: Math.max(insets.top + spacing.sm, 44) }]}>
                 <TouchableOpacity
@@ -176,7 +137,7 @@ export default function PaymentScreen() {
                     activeOpacity={0.7}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                    <Ionicons name="arrow-back" size={20} color={colors.foreground} />
+                    <Ionicons name="chevron-back" size={24} color={INK} />
                 </TouchableOpacity>
             </View>
 
@@ -185,8 +146,9 @@ export default function PaymentScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* ── Hero ─────────────────────────────────────────── */}
-                <Text style={s.eyebrow}>UNLOCK</Text>
+                <Text style={s.eyebrow}>CHOOSE YOUR PLAN</Text>
                 <Text style={s.headline}>Pick your level.</Text>
+                <Text style={s.subline}>Cancel anytime. Switch or stop whenever you want.</Text>
 
                 {/* ── PREMIUM (Chad) — featured ───────────────────── */}
                 <PremiumCard
@@ -205,8 +167,7 @@ export default function PaymentScreen() {
                 />
 
                 {/* App Store compliance for auto-renewable subscriptions:
-                    auto-renew disclosure + Restore (iOS) + Terms + Privacy,
-                    required at the point of purchase. */}
+                    auto-renew disclosure + Restore (iOS) + Terms + Privacy. */}
                 <Text style={s.disclosure}>
                     Chad and Chadlite are weekly subscriptions that renew automatically until you cancel.
                     Cancel anytime in your {IS_IOS ? 'App Store' : 'account'} settings. Payment is charged at confirmation of purchase.
@@ -249,7 +210,7 @@ export default function PaymentScreen() {
     );
 }
 
-/* ── Premium card (featured, dark-fill glass) ────────────────────────── */
+/* ── Premium card (featured, ink fill) ───────────────────────────────── */
 
 function PremiumCard({
     busy, loadingTier, price, onPress,
@@ -260,60 +221,44 @@ function PremiumCard({
     onPress: () => void;
 }) {
     return (
-        <View style={s.premiumWrap}>
-            {/* "Most popular" ribbon */}
-            <View style={s.popBadge}>
-                <Text style={s.popBadgeText}>MOST POPULAR</Text>
-            </View>
-
-            <View style={s.premiumCard}>
-                {/* Subtle accent gradient inside the dark card */}
-                <LinearGradient
-                    colors={['rgba(139,92,246,0.22)', 'rgba(16,185,129,0.12)', 'rgba(0,0,0,0)']}
-                    locations={[0, 0.5, 1]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                />
-
-                <View style={{ position: 'relative' }}>
-                    <Text style={[s.cardName, { color: ACCENT }]}>Chad</Text>
-                    <View style={s.priceRow}>
-                        <Text style={[s.priceValue, { color: ACCENT }]}>{price}</Text>
-                        <Text style={s.pricePerLight}>/week</Text>
-                    </View>
-
-                    <View style={s.perksList}>
-                        {PREMIUM_PERKS.map((p, i) => (
-                            <View key={i} style={s.perkRow}>
-                                <View style={s.perkCheckPremium}>
-                                    <Ionicons name="checkmark" size={11} color={'#0A0A0B'} />
-                                </View>
-                                <Text style={[s.perkText, { color: 'rgba(245,245,243,0.92)' }]}>
-                                    {p}
-                                </Text>
-                            </View>
-                        ))}
-                    </View>
-
-                    <TouchableOpacity
-                        style={[s.ctaPrimary, busy && s.ctaDisabled]}
-                        onPress={onPress}
-                        disabled={busy}
-                        activeOpacity={0.85}
-                    >
-                        <Text style={s.ctaPrimaryText}>
-                            {loadingTier === 'premium' ? 'Processing…' : 'Get Chad'}
-                        </Text>
-                        <Ionicons name="arrow-forward" size={15} color={colors.foreground} />
-                    </TouchableOpacity>
+        <View style={s.premiumCard}>
+            <View style={s.cardHead}>
+                <Text style={[s.cardName, { color: CREAM }]}>Chad</Text>
+                <View style={s.popPill}>
+                    <Text style={s.popPillText}>MOST POPULAR</Text>
                 </View>
             </View>
+
+            <View style={s.priceRow}>
+                <Text style={[s.priceValue, { color: CREAM }]}>{price}</Text>
+                <Text style={s.pricePerLight}>/week</Text>
+            </View>
+
+            <View style={s.perksList}>
+                {PREMIUM_PERKS.map((p, i) => (
+                    <View key={i} style={s.perkRow}>
+                        <Ionicons name="checkmark" size={16} color={GOLD} style={s.perkCheckIcon} />
+                        <Text style={[s.perkText, { color: 'rgba(247,240,234,0.92)' }]}>{p}</Text>
+                    </View>
+                ))}
+            </View>
+
+            <TouchableOpacity
+                style={[s.ctaPrimary, busy && s.ctaDisabled]}
+                onPress={onPress}
+                disabled={busy}
+                activeOpacity={0.85}
+            >
+                <Text style={s.ctaPrimaryText}>
+                    {loadingTier === 'premium' ? 'Processing…' : 'Get Chad'}
+                </Text>
+                <Ionicons name="arrow-forward" size={16} color={INK} />
+            </TouchableOpacity>
         </View>
     );
 }
 
-/* ── Basic card (translucent glass) ──────────────────────────────────── */
+/* ── Basic card (quiet hairline) ─────────────────────────────────────── */
 
 function BasicCard({
     busy, loadingTier, price, onPress,
@@ -324,16 +269,7 @@ function BasicCard({
     onPress: () => void;
 }) {
     return (
-        <View style={s.basicWrap}>
-            {Platform.OS !== 'android' ? (
-                <BlurView
-                    intensity={Platform.OS === 'ios' ? 30 : 22}
-                    tint="light"
-                    style={StyleSheet.absoluteFill}
-                />
-            ) : null}
-            <View style={[StyleSheet.absoluteFill, s.basicTint]} />
-
+        <View style={s.basicCard}>
             <Text style={s.cardName}>Chadlite</Text>
             <View style={s.priceRow}>
                 <Text style={s.priceValue}>{price}</Text>
@@ -343,18 +279,12 @@ function BasicCard({
             <View style={s.perksList}>
                 {BASIC_PERKS.map((p, i) => (
                     <View key={i} style={s.perkRow}>
-                        <View
-                            style={[
-                                s.perkCheckBasic,
-                                !p.included && s.perkCheckBasicMuted,
-                            ]}
-                        >
-                            <Ionicons
-                                name={p.included ? 'checkmark' : 'remove'}
-                                size={11}
-                                color={p.included ? colors.foreground : colors.textMuted}
-                            />
-                        </View>
+                        <Ionicons
+                            name={p.included ? 'checkmark' : 'remove'}
+                            size={16}
+                            color={p.included ? INK : colors.textMuted}
+                            style={s.perkCheckIcon}
+                        />
                         <Text
                             style={[
                                 s.perkText,
@@ -390,13 +320,6 @@ function BasicCard({
 const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
 
-    /* Full-bleed gradient layers — span the entire screen, no shape
-       containers. Each LinearGradient fades to transparent on its
-       own axis so they blend together like an aurora. */
-    bgLayer: {
-        ...StyleSheet.absoluteFillObject,
-    },
-
     topBar: {
         paddingHorizontal: spacing.lg,
         paddingBottom: spacing.sm,
@@ -417,80 +340,68 @@ const s = StyleSheet.create({
         letterSpacing: 1.8,
         color: colors.textMuted,
         marginTop: spacing.sm,
-        marginBottom: 8,
+        marginBottom: 10,
     },
     headline: {
         fontFamily: fonts.serif,
-        fontSize: 38,
+        fontSize: 40,
         fontWeight: '400',
         color: colors.foreground,
-        letterSpacing: -1,
-        lineHeight: 44,
+        letterSpacing: -1.2,
+        lineHeight: 46,
     },
     subline: {
-        fontSize: 13,
+        fontFamily: fonts.sans,
+        fontSize: 14,
         color: colors.textSecondary,
-        lineHeight: 19,
+        lineHeight: 20,
         marginTop: 8,
         marginBottom: spacing.xl,
     },
 
-    /* premium card (dark glass) */
-    premiumWrap: {
-        // Extra top margin so the "MOST POPULAR" ribbon (top: -10) clears
-        // the headline above. Without this, the ribbon overlaps "level."
-        // on iPhone where the headline sits closer to the card.
-        marginTop: spacing.xl,
-        marginBottom: spacing.lg,
+    /* premium card (ink fill) */
+    premiumCard: {
+        backgroundColor: INK,
+        borderRadius: 24,
+        padding: spacing.xl,
+        marginBottom: spacing.md,
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#3A352B', shadowOpacity: 0.14, shadowRadius: 22, shadowOffset: { width: 0, height: 10 } }
+            : { elevation: 5 }),
     },
-    popBadge: {
-        position: 'absolute',
-        top: -10,
-        left: 16,
-        right: 16,
-        zIndex: 2,
+    cardHead: {
         flexDirection: 'row',
-        justifyContent: 'center',
+        alignItems: 'center',
+        justifyContent: 'space-between',
     },
-    popBadgeText: {
+    popPill: {
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(201,162,78,0.6)',
+        borderRadius: 999,
+        paddingVertical: 5,
+        paddingHorizontal: 11,
+    },
+    popPillText: {
         fontFamily: fonts.sansSemiBold,
         fontSize: 10,
-        letterSpacing: 1.6,
-        color: colors.buttonText,
-        backgroundColor: '#0A0A0B',
-        paddingVertical: 5,
-        paddingHorizontal: 12,
-        borderRadius: borderRadius.full,
-        overflow: 'hidden',
-    },
-    premiumCard: {
-        backgroundColor: '#0A0A0B',
-        borderRadius: borderRadius.xl,
-        padding: spacing.xl,
-        overflow: 'hidden',
-        ...(Platform.OS === 'ios'
-            ? { shadowColor: '#0A0A0B', shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 8 } }
-            : { elevation: 6 }),
+        letterSpacing: 1.4,
+        color: GOLD,
     },
 
-    /* basic card (light glass) */
-    basicWrap: {
-        backgroundColor: 'rgba(255,255,255,0.65)',
-        borderRadius: borderRadius.xl,
+    /* basic card (quiet) */
+    basicCard: {
+        backgroundColor: colors.surfaceLight,
+        borderRadius: 24,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         padding: spacing.xl,
         marginBottom: spacing.xl,
-        overflow: 'hidden',
-    },
-    basicTint: {
-        backgroundColor: 'rgba(255,255,255,0.5)',
     },
 
     /* shared per-card */
     cardName: {
         fontFamily: fonts.serif,
-        fontSize: 26,
+        fontSize: 27,
         fontWeight: '400',
         letterSpacing: -0.5,
         color: colors.foreground,
@@ -499,65 +410,45 @@ const s = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'baseline',
         gap: 6,
-        marginTop: 6,
+        marginTop: 8,
     },
     priceValue: {
         fontFamily: fonts.serif,
-        fontSize: 40,
+        fontSize: 42,
         fontWeight: '400',
-        letterSpacing: -1,
+        letterSpacing: -1.2,
         color: colors.foreground,
     },
     pricePer: {
+        fontFamily: fonts.sans,
         fontSize: 13,
         color: colors.textSecondary,
     },
     pricePerLight: {
+        fontFamily: fonts.sans,
         fontSize: 13,
-        color: 'rgba(245,245,243,0.55)',
-    },
-    priceMonthly: {
-        fontSize: 11,
-        color: 'rgba(245,245,243,0.45)',
-        letterSpacing: 0.3,
-        marginLeft: 8,
+        color: 'rgba(247,240,234,0.55)',
     },
 
     perksList: {
         marginTop: spacing.lg,
         marginBottom: spacing.xl,
-        gap: 10,
+        gap: 13,
     },
     perkRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
+        gap: 11,
     },
-    perkCheckPremium: {
+    perkCheckIcon: {
         width: 18,
-        height: 18,
-        borderRadius: 9,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: ACCENT,
-    },
-    perkCheckBasic: {
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: 'transparent',
-    },
-    perkCheckBasicMuted: {
-        opacity: 0.6,
+        textAlign: 'center',
     },
     perkText: {
-        fontSize: 13.5,
+        fontFamily: fonts.sans,
+        fontSize: 14.5,
         flex: 1,
-        lineHeight: 19,
+        lineHeight: 20,
     },
 
     /* CTAs */
@@ -566,33 +457,34 @@ const s = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        backgroundColor: ACCENT,
-        borderRadius: borderRadius.full,
-        paddingVertical: 14,
+        backgroundColor: CREAM,
+        borderRadius: 999,
+        paddingVertical: 16,
     },
     ctaPrimaryText: {
         fontFamily: fonts.sansSemiBold,
-        fontSize: 13.5,
-        letterSpacing: 0.3,
-        color: '#0A0A0B',
+        fontSize: 15,
+        letterSpacing: 0.2,
+        color: INK,
     },
     ctaSecondary: {
-        borderRadius: borderRadius.full,
-        borderWidth: 1,
+        borderRadius: 999,
+        borderWidth: 1.5,
         borderColor: colors.foreground,
-        paddingVertical: 14,
+        paddingVertical: 15,
         alignItems: 'center',
     },
     ctaSecondaryText: {
         fontFamily: fonts.sansSemiBold,
-        fontSize: 13.5,
-        letterSpacing: 0.3,
+        fontSize: 15,
+        letterSpacing: 0.2,
         color: colors.foreground,
     },
     ctaDisabled: { opacity: 0.45 },
 
-    /* App Store compliance footer: auto-renew disclosure + Restore/Terms/Privacy. */
+    /* App Store compliance footer */
     disclosure: {
+        fontFamily: fonts.sans,
         fontSize: 11,
         lineHeight: 16,
         color: colors.textMuted,
@@ -609,8 +501,8 @@ const s = StyleSheet.create({
         marginBottom: spacing.sm,
     },
     legalLink: {
+        fontFamily: fonts.sansMedium,
         fontSize: 12,
-        fontWeight: '600',
         color: colors.textSecondary,
         textDecorationLine: 'underline',
     },
@@ -618,12 +510,12 @@ const s = StyleSheet.create({
     devRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
     devBtn: {
         flex: 1,
-        borderRadius: borderRadius.md,
+        borderRadius: 14,
         paddingVertical: 10,
         alignItems: 'center',
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.surface,
     },
-    devBtnText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+    devBtnText: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.textSecondary },
 });
