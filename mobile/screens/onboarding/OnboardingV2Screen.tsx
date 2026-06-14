@@ -18,8 +18,9 @@
  * Saving (completed=false) triggers the backend starter-routine generation,
  * then we push RoutineReveal (RevealV2 renders behind the same route name).
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -29,12 +30,18 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+    Easing, Extrapolation, interpolate, interpolateColor, useAnimatedStyle,
+    useReducedMotion, useSharedValue, withTiming,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { PastelCard } from '../../components/glass/PastelCard';
 import { GlassButton } from '../../components/glass/GlassButton';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import OnboardingIcon, { OnboardingIconKind } from '../../components/onboarding/OnboardingIcon';
 
 const INK = '#1C1A17';
 const GOLD = '#2C6BED';
@@ -43,6 +50,34 @@ const SUB = '#5C574E';
 const SURFACE = '#FFFFFF';
 const HAIRLINE = '#E2DBCD';
 const ICON_TILE = '#F4EFE6';
+
+// One custom illustrated icon per step (see components/onboarding/OnboardingIcon).
+const STEP_ICONS: OnboardingIconKind[] = [
+    'goals', 'motivation', 'dayshape', 'work', 'energy', 'rhythm', 'recap',
+];
+
+// Progress dots — the active one glides wider + gold as the step advances.
+function Dot({ active }: { active: boolean }) {
+    const p = useSharedValue(active ? 1 : 0);
+    useEffect(() => {
+        p.value = withTiming(active ? 1 : 0, { duration: 300 });
+    }, [active, p]);
+    const style = useAnimatedStyle(() => ({
+        width: interpolate(p.value, [0, 1], [6, 22]),
+        backgroundColor: interpolateColor(p.value, [0, 1], ['#D8CFBE', GOLD]),
+    }));
+    return <Animated.View style={[styles.dot, style]} />;
+}
+
+function ProgressDots({ count, index }: { count: number; index: number }) {
+    return (
+        <View style={styles.dots}>
+            {Array.from({ length: count }).map((_, i) => (
+                <Dot key={i} active={i === index} />
+            ))}
+        </View>
+    );
+}
 
 const MAXX_TILES = [
     { id: 'skinmax', token: 'skin', label: 'Skinmax', tagline: 'clearer, calmer skin', icon: 'sparkles-outline' },
@@ -171,6 +206,7 @@ export default function OnboardingV2Screen() {
     const { refreshUser } = useAuth();
 
     const [step, setStep] = useState(0);
+    const [dir, setDir] = useState(1); // +1 forward, -1 back — drives slide direction
     const [goals, setGoals] = useState<string[]>([]);
     const [motivation, setMotivation] = useState<string | null>(null);
     const [wakeMin, setWakeMin] = useState(7 * 60);
@@ -522,13 +558,56 @@ export default function OnboardingV2Screen() {
     const current = steps[step];
     const isLast = step === steps.length - 1;
 
+    const goNext = () => {
+        if (Platform.OS !== 'web') {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        }
+        if (isLast) { finish(); return; }
+        setDir(1);
+        setStep((s) => s + 1);
+    };
+    const goBack = () => {
+        if (Platform.OS !== 'web') {
+            Haptics.selectionAsync().catch(() => {});
+        }
+        setDir(-1);
+        setStep((s) => s - 1);
+    };
+
+    // Shared-value driven page transition — robust on web AND native (unlike
+    // layout animations, which get stuck at opacity 0 on web). On each step
+    // change `t` runs 0->1; the icon leads and the header/body stagger in via
+    // interpolation ranges. `dir` flips the slide direction.
+    const reduced = useReducedMotion();
+    const t = useSharedValue(1);
+    useEffect(() => {
+        if (reduced) { t.value = 1; return; }
+        t.value = 0;
+        t.value = withTiming(1, { duration: 480, easing: Easing.out(Easing.cubic) });
+    }, [step, reduced, t]);
+    const iconStyle = useAnimatedStyle(() => ({
+        opacity: interpolate(t.value, [0, 0.5], [0, 1], Extrapolation.CLAMP),
+        transform: [
+            { translateX: interpolate(t.value, [0, 1], [dir * 46, 0], Extrapolation.CLAMP) },
+            { scale: interpolate(t.value, [0, 1], [0.9, 1], Extrapolation.CLAMP) },
+        ],
+    }));
+    const headStyle = useAnimatedStyle(() => ({
+        opacity: interpolate(t.value, [0.12, 0.7], [0, 1], Extrapolation.CLAMP),
+        transform: [{ translateX: interpolate(t.value, [0.12, 1], [dir * 34, 0], Extrapolation.CLAMP) }],
+    }));
+    const bodyStyle = useAnimatedStyle(() => ({
+        opacity: interpolate(t.value, [0.28, 0.9], [0, 1], Extrapolation.CLAMP),
+        transform: [{ translateY: interpolate(t.value, [0.28, 1], [16, 0], Extrapolation.CLAMP) }],
+    }));
+
     return (
         <ScreenBackdrop>
             <View style={{ flex: 1, paddingTop: insets.top + 16, paddingHorizontal: 22 }}>
                 <View style={styles.topRow}>
                     {step > 0 ? (
                         <TouchableOpacity
-                            onPress={() => setStep((s) => s - 1)}
+                            onPress={goBack}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                             accessibilityRole="button"
                             accessibilityLabel="Back"
@@ -538,24 +617,29 @@ export default function OnboardingV2Screen() {
                     ) : (
                         <View style={{ width: 22 }} />
                     )}
-                    <View style={styles.dots}>
-                        {steps.map((_, i) => (
-                            <View key={i} style={[styles.dot, i === step && styles.dotActive]} />
-                        ))}
-                    </View>
+                    <ProgressDots count={steps.length} index={step} />
                     <View style={{ width: 22 }} />
                 </View>
 
                 <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingBottom: 24 }}
+                    contentContainerStyle={{ paddingBottom: 24, paddingTop: 8 }}
                     showsVerticalScrollIndicator={false}
                 >
-                    <Text style={styles.kicker}>{current.kicker}</Text>
-                    <Text style={styles.title}>{current.title}</Text>
-                    <Text style={styles.sub}>{current.sub}</Text>
-                    {current.body}
-                    {error ? <Text style={styles.error}>{error}</Text> : null}
+                    <Animated.View style={[styles.heroIcon, iconStyle]}>
+                        <OnboardingIcon kind={STEP_ICONS[step]} size={134} />
+                    </Animated.View>
+
+                    <Animated.View style={[styles.headBlock, headStyle]}>
+                        <Text style={styles.kicker}>{current.kicker}</Text>
+                        <Text style={styles.title}>{current.title}</Text>
+                        <Text style={styles.sub}>{current.sub}</Text>
+                    </Animated.View>
+
+                    <Animated.View style={[styles.bodyBlock, bodyStyle]}>
+                        {current.body}
+                        {error ? <Text style={styles.error}>{error}</Text> : null}
+                    </Animated.View>
                 </ScrollView>
 
                 <View style={{ paddingBottom: insets.bottom + 16 }}>
@@ -564,7 +648,7 @@ export default function OnboardingV2Screen() {
                         label={isLast ? 'Build my day' : 'Next'}
                         loading={saving}
                         disabled={!current.canNext}
-                        onPress={() => (isLast ? finish() : setStep((s) => s + 1))}
+                        onPress={goNext}
                     />
                 </View>
             </View>
@@ -574,12 +658,15 @@ export default function OnboardingV2Screen() {
 
 const styles = StyleSheet.create({
     topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    dots: { flexDirection: 'row', gap: 6 },
-    dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(28,26,23,0.15)' },
+    dots: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+    dot: { height: 6, borderRadius: 3 },
     dotActive: { backgroundColor: INK, width: 18 },
-    kicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.6, color: GOLD, marginTop: 24 },
-    title: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 36, color: INK, letterSpacing: -0.8, marginTop: 8, lineHeight: 42 },
-    sub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE, marginTop: 8, lineHeight: 21 },
+    heroIcon: { alignItems: 'center', marginBottom: 4 },
+    headBlock: { alignItems: 'center', width: '100%' },
+    bodyBlock: { width: '100%' },
+    kicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.6, color: GOLD, marginTop: 4, textAlign: 'center' },
+    title: { fontFamily: 'PlayfairDisplay-Regular', fontSize: 34, color: INK, letterSpacing: -0.8, marginTop: 8, lineHeight: 40, textAlign: 'center' },
+    sub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE, marginTop: 8, lineHeight: 21, textAlign: 'center', paddingHorizontal: 8 },
     helpNote: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 10, lineHeight: 18 },
     tile: {
         flexDirection: 'row',
