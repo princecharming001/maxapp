@@ -1059,10 +1059,10 @@ const styles = StyleSheet.create({
     },
     statCell: { flex: 1, alignItems: 'center' },
     statNum: {
-        fontFamily: fonts.serif,
-        fontSize: 27,
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 26,
         color: colors.foreground,
-        letterSpacing: -0.5,
+        letterSpacing: -1,
     },
     statLabel: {
         fontFamily: fonts.sansSemiBold,
@@ -1114,10 +1114,10 @@ const styles = StyleSheet.create({
     },
     scoreTopRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
     scoreNum: {
-        fontFamily: fonts.serif,
+        fontFamily: fonts.sansSemiBold,
         fontSize: 34,
         color: colors.foreground,
-        letterSpacing: -1,
+        letterSpacing: -1.6,
     },
     scoreDelta: { fontFamily: fonts.sansSemiBold, fontSize: 12.5 },
     scoreDeltaMuted: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textMuted },

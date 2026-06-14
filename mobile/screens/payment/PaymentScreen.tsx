@@ -413,10 +413,9 @@ const s = StyleSheet.create({
         marginTop: 8,
     },
     priceValue: {
-        fontFamily: fonts.serif,
-        fontSize: 42,
-        fontWeight: '400',
-        letterSpacing: -1.2,
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 40,
+        letterSpacing: -1.8,
         color: colors.foreground,
     },
     pricePer: {
