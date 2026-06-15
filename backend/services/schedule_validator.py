@@ -43,6 +43,7 @@ MIN_TASK_GAP_MIN = 15
 # active or PM routine). Cross-module total is capped separately at 6
 # in multi_module_collision so 3 active maxxes don't aggregate to 24.
 HARD_DAILY_TASK_CAP = 8
+MAX_TASKS_PER_DAY_PERIOD = 3  # morning / midday / evening caps
 
 
 # Tokens that should keep their original casing in task titles even when
@@ -502,6 +503,9 @@ def validate_and_fix(
                     day_index=di,
                 ))
 
+        # Cap morning / midday / evening to 3 steps each
+        clean_tasks = _cap_period_tasks(clean_tasks, max_per_period=MAX_TASKS_PER_DAY_PERIOD)
+
         # Hard cap regardless of per-max budget
         if len(clean_tasks) > HARD_DAILY_TASK_CAP:
             clean_tasks = _truncate_by_intensity(clean_tasks, maxx_id, HARD_DAILY_TASK_CAP)
@@ -805,6 +809,46 @@ _ESSENTIAL_TAGS = frozenset({
     "training",
     "lift",
 })
+
+
+def _period_for_time(time_str: str) -> str:
+    """Classify a task into morning / midday / evening by clock time."""
+    mins = _parse_time_field(time_str)
+    if mins is None:
+        return "midday"
+    if mins < 12 * 60:
+        return "morning"
+    if mins < 17 * 60:
+        return "midday"
+    return "evening"
+
+
+def _cap_period_tasks(tasks: list[dict], *, max_per_period: int) -> list[dict]:
+    """Keep at most `max_per_period` tasks in each morning/midday/evening bucket."""
+    if max_per_period <= 0 or len(tasks) <= max_per_period * 3:
+        return tasks
+    buckets: dict[str, list[dict]] = {"morning": [], "midday": [], "evening": []}
+    for t in tasks:
+        buckets[_period_for_time(str(t.get("time") or ""))].append(t)
+
+    kept: list[dict] = []
+    for period in ("morning", "midday", "evening"):
+        group = buckets[period]
+        if len(group) <= max_per_period:
+            kept.extend(group)
+            continue
+        essentials = [t for t in group if set(t.get("tags") or []) & _ESSENTIAL_TAGS]
+        optional = [t for t in group if t not in essentials]
+        essentials.sort(
+            key=lambda t: (-(t.get("intensity") or 0.0), _parse_time_field(t["time"]) or 0),
+        )
+        optional.sort(
+            key=lambda t: (-(t.get("intensity") or 0.0), _parse_time_field(t["time"]) or 0),
+        )
+        trimmed = (essentials + optional)[:max_per_period]
+        kept.extend(trimmed)
+    kept.sort(key=lambda t: _parse_time_field(t.get("time") or "") or 0)
+    return kept
 
 
 def _truncate_by_intensity(tasks: list[dict], maxx_id: str, cap: int) -> list[dict]:

@@ -43,6 +43,7 @@ import { GlassButton } from '../../components/glass/GlassButton';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import OnboardingIcon, { OnboardingIconKind } from '../../components/onboarding/OnboardingIcon';
+import { inferClimateFromLocation } from '../../utils/climateFromLocation';
 
 const INK = '#1C1A17';
 const CREAM = '#F7F0EA';        // text/icon on an ink-filled (selected) surface
@@ -54,7 +55,17 @@ const WASH = 'rgba(28,26,23,0.05)';   // faint inset wash (stepper btns, seg tra
 
 // One custom illustrated icon per step (see components/onboarding/OnboardingIcon).
 const STEP_ICONS: OnboardingIconKind[] = [
-    'goals', 'motivation', 'dayshape', 'work', 'energy', 'rhythm', 'recap',
+    'goals', 'motivation', 'dayshape', 'dayshape', 'work', 'energy', 'rhythm', 'recap',
+];
+
+const DIETARY_OPTIONS = [
+    { id: 'none', label: 'No restrictions' },
+    { id: 'vegetarian', label: 'Vegetarian' },
+    { id: 'vegan', label: 'Vegan' },
+    { id: 'gluten_free', label: 'Gluten-free' },
+    { id: 'dairy_free', label: 'Dairy-free' },
+    { id: 'halal_kosher', label: 'Halal / kosher' },
+    { id: 'other', label: 'Other' },
 ];
 
 // One thin top progress bar that fills as the user advances (drops the dots
@@ -384,6 +395,7 @@ export default function OnboardingV2Screen() {
     const [dir, setDir] = useState(1); // +1 forward, -1 back — drives slide direction
     const [goals, setGoals] = useState<string[]>([]);
     const [motivation, setMotivation] = useState<string | null>(null);
+    const [dietaryRestriction, setDietaryRestriction] = useState<string>('none');
     const [wakeMin, setWakeMin] = useState(7 * 60);
     // Get-ready (AM routine) + wind-down (PM routine) are WINDOWS, not a time +
     // duration / a single bedtime. The wind-down window's END is bedtime.
@@ -437,6 +449,7 @@ export default function OnboardingV2Screen() {
     const finish = async () => {
         setSaving(true);
         setError(null);
+        const climate = await inferClimateFromLocation();
         const tokens = goals
             .map((id) => MAXX_TILES.find((t) => t.id === id)?.token)
             .filter(Boolean) as string[];
@@ -444,6 +457,8 @@ export default function OnboardingV2Screen() {
                 goals,
                 priority_order: tokens,
                 motivation,
+                dietary_restrictions: dietaryRestriction,
+                ...(climate ? { climate } : {}),
                 wake_time: hhmm(wakeMin),
                 // Get-ready (AM routine) window — keep legacy scalars in sync.
                 get_ready_window: [hhmm(grStart), hhmm(grEnd)],
@@ -528,7 +543,7 @@ export default function OnboardingV2Screen() {
     const steps = [
         // 1 — goals
         {
-            kicker: 'STEP 1 OF 7',
+            kicker: 'STEP 1 OF 8',
             title: 'What are we\nworking on?',
             sub: 'Pick up to 3.',
             canNext: goals.length > 0,
@@ -567,7 +582,7 @@ export default function OnboardingV2Screen() {
         },
         // 2 — motivation
         {
-            kicker: 'STEP 2 OF 7',
+            kicker: 'STEP 2 OF 8',
             title: "What's pulling\nyou here?",
             sub: 'It helps Max talk to you straight.',
             canNext: !!motivation,
@@ -595,9 +610,39 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 3 — day shape
+        // 3 — dietary restrictions
         {
-            kicker: 'STEP 3 OF 7',
+            kicker: 'STEP 3 OF 8',
+            title: 'Any food\nrestrictions?',
+            sub: 'Max uses this for meal and supplement suggestions.',
+            canNext: !!dietaryRestriction,
+            body: (
+                <View style={{ gap: 10, marginTop: 18 }}>
+                    {DIETARY_OPTIONS.map((d) => {
+                        const active = dietaryRestriction === d.id;
+                        return (
+                            <TouchableOpacity
+                                key={d.id}
+                                style={[styles.tile, active && styles.tileActive]}
+                                onPress={() => setDietaryRestriction(d.id)}
+                                activeOpacity={0.8}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: active }}
+                                accessibilityLabel={d.label}
+                            >
+                                <Text style={[styles.tileLabel, { flex: 1 }, active && styles.tileLabelActive]}>{d.label}</Text>
+                                {active ? (
+                                    <Ionicons name="checkmark" size={20} color={GOLD} />
+                                ) : null}
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            ),
+        },
+        // 4 — day shape
+        {
+            kicker: 'STEP 4 OF 8',
             title: 'The shape of\nyour day',
             sub: 'Max builds around your real hours, not over them.',
             canNext: true,
@@ -627,9 +672,9 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 4 — work & commute
+        // 5 — work & commute
         {
-            kicker: 'STEP 4 OF 7',
+            kicker: 'STEP 5 OF 8',
             title: 'Work or\nschool?',
             sub: 'So nothing ever gets scheduled over it — including the drive.',
             canNext: true,
@@ -706,9 +751,9 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 5 — energy & meals
+        // 6 — energy & meals
         {
-            kicker: 'STEP 5 OF 7',
+            kicker: 'STEP 6 OF 8',
             title: 'Energy &\nmeals',
             sub: 'Hard things land when you actually have the most in the tank.',
             canNext: true,
@@ -760,7 +805,7 @@ export default function OnboardingV2Screen() {
         },
         // 6 — rhythm
         {
-            kicker: 'STEP 6 OF 7',
+            kicker: 'STEP 7 OF 8',
             title: 'Your rhythm',
             sub: 'So things land when they actually happen.',
             canNext: true,
@@ -807,7 +852,7 @@ export default function OnboardingV2Screen() {
         },
         // 7 — recap
         {
-            kicker: 'STEP 7 OF 7',
+            kicker: 'STEP 8 OF 8',
             title: "Here's your\nday",
             sub: 'Max fits your routines into the gaps. You can drag any of this later in Plan.',
             canNext: true,

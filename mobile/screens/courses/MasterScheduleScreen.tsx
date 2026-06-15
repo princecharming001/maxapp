@@ -10,6 +10,7 @@ import {
   Alert,
   Animated,
   Easing,
+  PanResponder,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -41,6 +42,7 @@ import { StreakFireBadge } from '../../components/StreakFireBadge';
 import MaxLoadingView from '../../components/MaxLoadingView';
 import NavMigrationCard from '../../components/NavMigrationCard';
 import { useFlag } from '../../constants/featureFlags';
+import { reorderTasksPreservingTimes, tasksWithChangedTimes } from '../../utils/scheduleReorder';
 
 function formatTimeTo12Hour(time24: string) {
   if (!time24 || typeof time24 !== 'string' || !time24.includes(':')) return time24 || '';
@@ -252,6 +254,9 @@ export default function MasterScheduleScreen() {
   // Inline "move time" editor — which task row is open + the working minute value.
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editMinutes, setEditMinutes] = useState<number>(7 * 60);
+  const [reorderMode, setReorderMode] = useState(false);
+  const [dragOrder, setDragOrder] = useState<MergedScheduleTask[]>([]);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
   const schedules = schedulesQuery.data?.schedules ?? [];
   const maxxes = maxesQuery.data?.maxes ?? [];
@@ -895,6 +900,73 @@ export default function MasterScheduleScreen() {
     () => (maxxesOnly ? orderedTasks.filter((t) => t.scheduleId !== 'life') : orderedTasks),
     [orderedTasks, maxxesOnly],
   );
+
+  const maxxOnlyTasks = useMemo(
+    () => visibleTasks.filter((t) => t.scheduleId !== 'life'),
+    [visibleTasks],
+  );
+
+  useEffect(() => {
+    setDragOrder(maxxOnlyTasks);
+  }, [selectedDate, maxxOnlyTasks.map((t) => t.task_id).join('|')]);
+
+  const displayTasks = useMemo(() => {
+    if (!reorderMode) return visibleTasks;
+    const life = visibleTasks.filter((t) => t.scheduleId === 'life');
+    const mergedList = [...life, ...dragOrder];
+    return mergedList.sort((a, b) => {
+      const am = hhmmToMinutes(a.time);
+      const bm = hhmmToMinutes(b.time);
+      return am - bm;
+    });
+  }, [visibleTasks, reorderMode, dragOrder]);
+
+  const commitReorder = useCallback(
+    (before: MergedScheduleTask[], after: MergedScheduleTask[]) => {
+      const changed = tasksWithChangedTimes(before, after);
+      if (!changed.length) return;
+      const previous = queryClient.getQueryData(queryKeys.schedulesActiveFull) as
+        | ActiveSchedulesFullCache
+        | undefined;
+      queryClient.setQueryData(queryKeys.schedulesActiveFull, (old) => {
+        let cache = old as ActiveSchedulesFullCache | undefined;
+        for (const t of after) {
+          cache = setSeriesTimeInSchedulesFullCache(
+            cache,
+            t.scheduleId,
+            t.catalog_id,
+            t.task_id,
+            t.time,
+          ) as ActiveSchedulesFullCache | undefined;
+        }
+        return cache;
+      });
+      void (async () => {
+        try {
+          for (const t of changed) {
+            const scope: 'instance' | 'series' = t.catalog_id ? 'series' : 'instance';
+            await api.editScheduleTask(t.scheduleId, t.task_id, { time: t.time }, scope);
+          }
+        } catch (e) {
+          console.error('reorder schedule tasks', e);
+          queryClient.setQueryData(queryKeys.schedulesActiveFull, previous);
+        }
+      })();
+    },
+    [queryClient],
+  );
+
+  const moveTaskInOrder = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (fromIndex === toIndex) return;
+      const before = dragOrder;
+      const after = reorderTasksPreservingTimes(before, fromIndex, toIndex);
+      setDragOrder(after);
+      commitReorder(before, after);
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    },
+    [dragOrder, commitReorder],
+  );
   const hiddenLifeCount = useMemo(
     () => orderedTasks.filter((t) => t.scheduleId === 'life').length,
     [orderedTasks],
@@ -988,7 +1060,26 @@ export default function MasterScheduleScreen() {
         <View style={styles.headerTextCol}>
           <Text style={styles.headerTitle}>{newNav ? 'Today' : 'Schedule'}</Text>
         </View>
-        <StreakFireBadge streakDays={scheduleStreak.current} />
+        <View style={styles.headerRightCluster}>
+          <StreakFireBadge streakDays={scheduleStreak.current} />
+          <TouchableOpacity
+            onPress={() => {
+              setReorderMode((v) => !v);
+              setExpandedTaskId(null);
+              setEditingTaskId(null);
+            }}
+            style={styles.reorderBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={reorderMode ? 'Done reordering' : 'Reorder activities'}
+          >
+            <Ionicons
+              name={reorderMode ? 'checkmark' : 'reorder-three-outline'}
+              size={22}
+              color={reorderMode ? colors.accent : colors.foreground}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.bodyBelowHeader}>
@@ -1051,18 +1142,39 @@ export default function MasterScheduleScreen() {
               is they toggle local-only state instead of hitting the
               server, and the accent stripe defaults to foreground when
               there's no module color. */}
-          {visibleTasks.map((task, index) => {
+          {displayTasks.map((task, index) => {
             const isDone = task.status === 'completed';
             const isExpanded = expandedTaskId === task.task_id;
             const isLife = task.scheduleId === 'life';
             const isEditing = editingTaskId === task.task_id;
+            const dragIndex = !isLife ? dragOrder.findIndex((t) => t.task_id === task.task_id) : -1;
+            const dragResponder =
+              reorderMode && dragIndex >= 0
+                ? PanResponder.create({
+                    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 10,
+                    onPanResponderGrant: () => setDraggingIndex(dragIndex),
+                    onPanResponderRelease: (_, g) => {
+                      setDraggingIndex(null);
+                      const step = Math.round(g.dy / 64);
+                      if (step !== 0) {
+                        const to = Math.max(0, Math.min(dragOrder.length - 1, dragIndex + step));
+                        moveTaskInOrder(dragIndex, to);
+                      }
+                    },
+                    onPanResponderTerminate: () => setDraggingIndex(null),
+                  })
+                : null;
             return (
               <View key={`${task.scheduleId}-${task.task_id}`}>
                 {index > 0 && <View style={styles.taskDivider} />}
+                <View
+                  style={[styles.taskRow, isDone && styles.taskRowDone, draggingIndex === dragIndex && styles.taskRowDragging]}
+                  {...(dragResponder ? dragResponder.panHandlers : {})}
+                >
                 <TouchableOpacity
-                  style={[styles.taskRow, isDone && styles.taskRowDone]}
+                  style={styles.taskRowInner}
                   onPress={() => {
-                    if (isLife) return;   // life tasks have no expand-detail
+                    if (isLife || reorderMode) return;
                     setExpandedTaskId((prev) => (prev === task.task_id ? null : task.task_id));
                   }}
                   activeOpacity={0.75}
@@ -1199,16 +1311,24 @@ export default function MasterScheduleScreen() {
                     )}
                   </View>
                   {!isLife ? (
-                    <Ionicons
-                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                      size={14}
-                      color={colors.textMuted}
-                    />
+                    reorderMode ? (
+                      <Ionicons name="menu" size={18} color={colors.textMuted} />
+                    ) : (
+                      <Ionicons
+                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={14}
+                        color={colors.textMuted}
+                      />
+                    )
                   ) : null}
                 </TouchableOpacity>
+                </View>
               </View>
             );
           })}
+          {reorderMode ? (
+            <Text style={styles.reorderHint}>Drag activities up or down to change order. Times update automatically.</Text>
+          ) : null}
           {maxxesOnly && visibleTasks.length === 0 ? (
             <View style={styles.maxxesEmpty}>
               <Text style={styles.maxxesEmptyText}>
@@ -1413,8 +1533,32 @@ const styles = StyleSheet.create({
   taskRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+  },
+  taskRowInner: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     paddingVertical: 14,
     gap: 10,
+  },
+  taskRowDragging: {
+    backgroundColor: 'rgba(201, 162, 78, 0.08)',
+    borderRadius: borderRadius.md,
+  },
+  headerRightCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  reorderBtn: {
+    padding: 4,
+  },
+  reorderHint: {
+    ...typography.caption,
+    color: colors.textMuted,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
   },
   taskRowDone: { opacity: 0.45 },
   scheduleTaskAccent: {

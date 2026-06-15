@@ -111,11 +111,14 @@ Days to generate: {num_days}
 ## INSTRUCTIONS
 1. Create a schedule for {num_days} days (include every day 1…{num_days}). If {num_days} > 7, repeat **weekly** checkpoints (e.g. weigh-in, wash day, progress photo) on the same weekday each week, and **bi-weekly** items every 14 days, not only in the first week.
 2. Space tasks throughout the day between wake and sleep times.
-3. Make each day slightly different to prevent boredom.
-4. Gradually increase intensity / duration over the days.
-5. Include motivational messages for each day.
-6. Each task must have: task_id (uuid), time (HH:MM), title, description, task_type (exercise/routine/reminder/checkpoint), duration_minutes.
-7. Adapt based on user history if provided. If they skip certain tasks, reduce those; if they complete everything, ramp up.
+3. **Morning, midday, and evening each have at most 3 task steps.** Merge small steps when needed.
+4. Make each day slightly different to prevent boredom.
+5. Gradually increase intensity / duration over the days.
+6. Include motivational messages for each day.
+7. Each task must have: task_id (uuid), time (HH:MM), title, description, task_type (exercise/routine/reminder/checkpoint), duration_minutes.
+8. Adapt based on user history if provided. If they skip certain tasks, reduce those; if they complete everything, ramp up.
+9. **Diet changes:** do not ask permission during onboarding. In the written plan, strongly recommend relevant diet tweaks (e.g. less dairy/sugar for skin) and note the user can reply yes for step-by-step guidance.
+10. Use `climate` from user profile when present (auto-detected from location). Do not ask the user to describe climate if it is already set.
 
 ## OUTPUT FORMAT
 Return ONLY valid JSON matching this structure (no markdown fences):

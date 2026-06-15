@@ -163,20 +163,27 @@ required_fields:
       dry: "Dry, low humidity or indoor heat"
       temperate: "Mild, neither extreme"
       cold: "Cold, winter most of the year"
-    required: true
-    why: "Drives moisturizer weight + hydration emphasis. Dry/cold = heavier moisturizer + occlusive layer at PM. Humid = lightweight gel-cream + extra cleanse cadence."
+    required: false
+    auto: true
+    why: "Auto-detected from device location when possible. Drives moisturizer weight + hydration emphasis."
 
-  - id: diet_open
-    question: "Down to tweak your diet a bit (less dairy, sugar, seed oils) if it clears your skin faster?"
+  - id: dietary_restrictions
+    question: "Any dietary restrictions?"
     type: enum
     options:
-      yes_full: "Yeah, I'll cut whatever helps"
-      yes_some: "Maybe, open to a change or two"
-      "no": "Nah, leave my food out of it"
-    required: true
-    why: "Gates internal-support tasks (anti-inflammatory diet reminders, dairy/sugar cuts). Most acne and rosacea respond significantly to dietary changes."
+      none: "No restrictions"
+      vegetarian: "Vegetarian"
+      vegan: "Vegan"
+      gluten_free: "Gluten-free"
+      dairy_free: "Dairy-free"
+      halal_kosher: "Halal / kosher"
+      other: "Other (I'll specify in chat)"
+    required: false
+    why: "Collected during app intro onboarding. Used for meal and supplement suggestions."
 
 optional_context:
+  - id: diet_open
+    description: "Legacy — diet willingness inferred from chat; plans include a strong diet recommendation user can opt into"
   - id: product_preferences
     description: "Specific cleansers/moisturizers/SPFs the user prefers"
   - id: product_dislikes
@@ -242,11 +249,11 @@ prompt_modifiers:
     if: "climate == humid"
     then: "MOISTURIZER: lightweight gel-cream only. Skip oils. Add second cleanse cadence (PM double-cleanse always). Increase BHA frequency to clear sweat-driven congestion."
   - id: diet_full_open
-    if: "diet_open == yes_full"
-    then: "INTERNAL TRACK: enable all anti-inflammatory diet reminders. Daily anti-inflammatory cue at lunch. Weekly dairy/sugar/seed-oil cycling reminder. 30-day elimination challenge after week 4 if breakouts persist."
+    if: "skin_concern in [rosacea, acne, pigmentation]"
+    then: "DIET RECOMMENDATION: include one line in the final plan strongly recommending less dairy, sugar, and seed oils for faster results. User can reply yes for detailed steps. Do not ask permission upfront."
   - id: diet_partial
-    if: "diet_open == yes_some"
-    then: "INTERNAL TRACK: light. One diet reminder per week (rotate dairy/sugar/seed-oils). No elimination challenge. Frame as 'optional' so user doesn't feel forced."
+    if: "skin_concern in [rosacea, acne, pigmentation]"
+    then: "INTERNAL TRACK: one weekly anti-inflammatory diet cue. Frame as a recommendation they can opt into via chat."
 ---
 
 # Why skin matters for appearance
