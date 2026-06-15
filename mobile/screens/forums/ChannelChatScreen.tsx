@@ -9,6 +9,7 @@ import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { CachedImage } from '../../components/CachedImage';
 import { colors, spacing, borderRadius } from '../../theme/dark';
+import SearchBar from '../../components/ui/SearchBar';
 
 interface Message {
     id: string;
@@ -550,8 +551,7 @@ export default function ChannelChatScreen() {
                         </>
                     ) : (
                         <View style={styles.searchBar}>
-                            <Ionicons name="search" size={18} color={colors.textMuted} style={{ marginRight: spacing.sm }} />
-                            <TextInput style={styles.searchInput} placeholder="Search messages..." placeholderTextColor={colors.textMuted} value={searchQuery} onChangeText={setSearchQuery} autoFocus />
+                            <SearchBar style={styles.searchBarFlex} placeholder="Search messages..." value={searchQuery} onChangeText={setSearchQuery} autoFocus />
                             <TouchableOpacity onPress={() => { setIsSearching(false); setSearchQuery(''); }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
                         </View>
                     )}
@@ -709,14 +709,9 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.surface,
-        borderRadius: borderRadius.lg,
-        paddingHorizontal: spacing.md,
-        minHeight: 44,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.borderLight,
+        gap: spacing.sm,
     },
-    searchInput: { flex: 1, color: colors.textPrimary, fontSize: 15, paddingVertical: 8, marginRight: spacing.sm },
+    searchBarFlex: { flex: 1 },
     cancelText: { color: colors.foreground, fontWeight: '600', fontSize: 15 },
     messagesListContainer: { backgroundColor: colors.background },
     messagesList: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },

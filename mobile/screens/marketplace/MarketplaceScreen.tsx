@@ -15,15 +15,14 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     RefreshControl,
-    TextInput,
     useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import api, { type MarketplaceItem } from '../../services/api';
+import SearchBar from '../../components/ui/SearchBar';
 
 const INK = '#1C1A17';
 const MUTE = '#97928A';
@@ -127,25 +126,14 @@ export default function MarketplaceScreen() {
 
                 {/* Minimalist search */}
                 <View style={[styles.gutter, { marginTop: 18 }]}>
-                    <View style={styles.searchBox}>
-                        <Ionicons name="search" size={16} color={MUTE} />
-                        <TextInput
-                            style={styles.searchInput}
-                            value={query}
-                            onChangeText={setQuery}
-                            placeholder="Search maxes & creators"
-                            placeholderTextColor={MUTE}
-                            returnKeyType="search"
-                            autoCorrect={false}
-                            autoCapitalize="none"
-                            clearButtonMode="never"
-                        />
-                        {query ? (
-                            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                                <Ionicons name="close-circle" size={17} color={MUTE} />
-                            </TouchableOpacity>
-                        ) : null}
-                    </View>
+                    <SearchBar
+                        value={query}
+                        onChangeText={setQuery}
+                        placeholder="Search maxes & creators"
+                        returnKeyType="search"
+                        autoCorrect={false}
+                        autoCapitalize="none"
+                    />
                 </View>
 
                 {error ? (
@@ -269,25 +257,6 @@ const styles = StyleSheet.create({
     h1sub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: SUB, lineHeight: 21, marginTop: 10, maxWidth: '92%' },
 
     // Search
-    searchBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 9,
-        height: 44,
-        paddingHorizontal: 14,
-        borderRadius: 14,
-        backgroundColor: CARD,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: BORDER,
-    },
-    searchInput: {
-        flex: 1,
-        fontFamily: 'Matter-Regular',
-        fontSize: 15,
-        color: INK,
-        paddingVertical: 0,
-        ...(({ outlineStyle: 'none' } as unknown) as object), // web: no focus ring
-    },
     noResults: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE },
 
     errorCard: { marginTop: 16, padding: 16, borderRadius: 16, backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },

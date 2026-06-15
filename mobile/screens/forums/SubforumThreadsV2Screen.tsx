@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useForumV2ThreadsQuery } from '../../hooks/useAppQueries';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
+import SearchBar from '../../components/ui/SearchBar';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
     UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -78,12 +79,10 @@ export default function SubforumThreadsV2Screen() {
             <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
                 {searchActive ? (
                     <View style={styles.searchBarActive}>
-                        <Ionicons name="search-outline" size={17} color={colors.textMuted} />
-                        <TextInput
+                        <SearchBar
                             ref={searchInputRef}
-                            style={styles.searchInput}
+                            style={styles.searchBarFlex}
                             placeholder="Search threads…"
-                            placeholderTextColor={colors.textMuted}
                             value={q}
                             onChangeText={setQ}
                             autoCapitalize="none"
@@ -259,11 +258,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
-        paddingVertical: 10,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: colors.border,
+        paddingVertical: 4,
     },
-    searchInput: { flex: 1, color: colors.foreground, fontSize: 15, paddingVertical: 4, fontFamily: fonts.sans },
+    searchBarFlex: { flex: 1 },
     searchCancelHit: {
         paddingVertical: 6,
         paddingHorizontal: 4,

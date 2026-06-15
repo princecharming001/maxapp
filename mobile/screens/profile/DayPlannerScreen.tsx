@@ -38,6 +38,7 @@ import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, fonts } from '../../theme/dark';
+import Chip from '../../components/ui/Chip';
 import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
 import DayTimeline from '../../components/planner/DayTimeline';
 import ObligationsManager, { ObligationsManagerHandle } from '../../components/planner/ObligationsManager';
@@ -464,17 +465,15 @@ function ScopePill({
   onPress: () => void;
 }) {
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.8}
-      style={[styles.scopePill, active && styles.scopePillActive]}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      accessibilityLabel={`${label}${edited ? ', customized' : ''}`}
-    >
-      <Text style={[styles.scopePillText, active && styles.scopePillTextActive]}>{label}</Text>
+    <View style={styles.scopePillWrap}>
+      <Chip
+        active={active}
+        label={label}
+        onPress={onPress}
+        accessibilityLabel={`${label}${edited ? ', customized' : ''}`}
+      />
       {edited && !active ? <View style={styles.editedDot} /> : null}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -520,22 +519,18 @@ const styles = StyleSheet.create({
   // Scope selector.
   scopeBar: { marginHorizontal: -spacing.lg },
   scopeScroll: { paddingHorizontal: spacing.lg, gap: 8, paddingVertical: 4 },
-  scopePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 15,
-    paddingVertical: 9,
-    borderRadius: 999,
-    backgroundColor: colors.surface,
+  scopePillWrap: { position: 'relative' },
+  editedDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: ACCENT,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    minHeight: 38,
+    borderColor: colors.background,
   },
-  scopePillActive: { backgroundColor: colors.foreground, borderColor: colors.foreground },
-  scopePillText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.textSecondary, letterSpacing: 0.1 },
-  scopePillTextActive: { color: '#fff' },
-  editedDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: ACCENT },
 
   // Content sections, separated by hairline rules instead of card edges.
   section: {

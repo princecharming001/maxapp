@@ -9,6 +9,7 @@ import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useChannelsQuery } from '../../hooks/useAppQueries';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
+import SearchBar from '../../components/ui/SearchBar';
 
 type ForumChannel = {
     id: string;
@@ -238,21 +239,12 @@ export default function ForumsScreen() {
                         <Text style={styles.filtersButtonText}>Filters</Text>
                     </TouchableOpacity>
                 </View>
-                <View style={styles.searchContainer}>
-                    <Ionicons name="search" size={18} color={colors.textMuted} style={styles.searchIcon} />
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder="Search forums..."
-                        placeholderTextColor={colors.textMuted}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
-                    {searchQuery !== '' && (
-                        <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                            <Ionicons name="close-circle" size={18} color={colors.textMuted} />
-                        </TouchableOpacity>
-                    )}
-                </View>
+                <SearchBar
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Search forums..."
+                    style={styles.searchContainer}
+                />
                 {(selectedCategories.length > 0 || selectedTags.length > 0 || onlyWithPosts || (onlyMine && user?.id)) && (
                     <View style={styles.activeFiltersRow}>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -473,17 +465,8 @@ const styles = StyleSheet.create({
     },
     filtersButtonText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
     searchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.surface,
-        borderRadius: 14,
-        paddingHorizontal: spacing.md,
-        height: 46,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.borderLight,
+        marginTop: spacing.sm,
     },
-    searchIcon: { marginRight: spacing.sm },
-    searchInput: { flex: 1, color: colors.textPrimary, fontSize: 15 },
     activeFiltersRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm, gap: spacing.sm },
     activeFilterChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: borderRadius.full, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginRight: spacing.sm },
     activeFilterText: { fontSize: 11, color: colors.textSecondary, fontWeight: '600' },
