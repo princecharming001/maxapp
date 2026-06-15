@@ -15,10 +15,8 @@ import {
     RefreshControl,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { hexA } from '../../utils/scheduleAggregation';
 import api, { type MarketplaceItem } from '../../services/api';
 
 const INK = '#1C1A17';
@@ -102,23 +100,23 @@ export default function MarketplaceScreen() {
                 ) : null}
 
                 <View style={styles.sectionHead}>
-                    <Text style={styles.sectionLabel}>MAXES</Text>
+                    <Text style={styles.sectionLabel}>Maxes</Text>
                     <Text style={styles.sectionNote}>$3.99 / week each</Text>
                 </View>
-                <View style={styles.stack}>
-                    {maxxes.map((m) => (
-                        <MaxCard key={m.id} item={m} onPress={() => navigation.push('MaxDetail', { item: m })} />
+                <View style={styles.list}>
+                    {maxxes.map((m, i) => (
+                        <MaxCard key={m.id} item={m} first={i === 0} onPress={() => navigation.push('MaxDetail', { item: m })} />
                     ))}
                 </View>
 
                 {courses.length > 0 ? (
                     <>
-                        <View style={[styles.sectionHead, { marginTop: 36 }]}>
-                            <Text style={styles.sectionLabel}>CREATOR COURSES</Text>
+                        <View style={[styles.sectionHead, { marginTop: 40 }]}>
+                            <Text style={styles.sectionLabel}>Creator courses</Text>
                         </View>
-                        <View style={styles.stack}>
-                            {courses.map((c) => (
-                                <CourseCard key={c.id} item={c} onPress={() => navigation.push('MaxDetail', { item: c })} />
+                        <View style={styles.list}>
+                            {courses.map((c, i) => (
+                                <CourseCard key={c.id} item={c} first={i === 0} onPress={() => navigation.push('MaxDetail', { item: c })} />
                             ))}
                         </View>
                     </>
@@ -128,14 +126,14 @@ export default function MarketplaceScreen() {
     );
 }
 
-/** A native max — clean warm-white card, colour only in the icon. */
-function MaxCard({ item, onPress }: { item: MarketplaceItem; onPress: () => void }) {
+/** A native max — editorial hairline row, led by a serif monogram in its colour. */
+function MaxCard({ item, first, onPress }: { item: MarketplaceItem; first?: boolean; onPress: () => void }) {
     const base = item.color || GOLD;
     return (
-        <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={onPress}>
-            <View style={[styles.iconTile, { backgroundColor: hexA(base, 0.1) }]}>
-                <Ionicons name={(item.icon as any) || 'ellipse-outline'} size={22} color={base} />
-            </View>
+        <TouchableOpacity style={[styles.row, first && styles.rowFirst]} activeOpacity={0.55} onPress={onPress}>
+            <Text style={[styles.monogram, { color: base }]} allowFontScaling={false}>
+                {(item.title || '·').charAt(0).toUpperCase()}
+            </Text>
             <View style={styles.mid}>
                 <Text style={styles.title}>{item.title}</Text>
                 <Text style={styles.sub} numberOfLines={1}>{item.tagline}</Text>
@@ -154,18 +152,18 @@ function MaxCard({ item, onPress }: { item: MarketplaceItem; onPress: () => void
     );
 }
 
-/** A creator course — same card, cover thumbnail + creator + rating. */
-function CourseCard({ item, onPress }: { item: MarketplaceItem; onPress: () => void }) {
+/** A creator course — same editorial row; a cover thumbnail stands in for the monogram. */
+function CourseCard({ item, first, onPress }: { item: MarketplaceItem; first?: boolean; onPress: () => void }) {
     const base = item.color || GOLD;
     const img = (item as any).image_url as string | undefined;
     return (
-        <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={onPress}>
+        <TouchableOpacity style={[styles.row, first && styles.rowFirst]} activeOpacity={0.55} onPress={onPress}>
             {img ? (
                 <Image source={{ uri: img }} style={styles.thumb} contentFit="cover" transition={200} />
             ) : (
-                <View style={[styles.iconTile, { backgroundColor: hexA(base, 0.1) }]}>
-                    <Ionicons name={(item.icon as any) || 'ellipse-outline'} size={22} color={base} />
-                </View>
+                <Text style={[styles.monogram, { color: base }]} allowFontScaling={false}>
+                    {(item.title || '·').charAt(0).toUpperCase()}
+                </Text>
             )}
             <View style={styles.mid}>
                 <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
@@ -190,34 +188,33 @@ const styles = StyleSheet.create({
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
     loadingText: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE },
 
-    h1: { fontFamily: SERIF, fontSize: 34, color: INK, letterSpacing: -0.7 },
+    h1: { fontFamily: SERIF, fontSize: 38, color: INK, letterSpacing: -0.9, lineHeight: 42 },
     h1i: { fontFamily: SERIF_I, color: INK },
-    h1sub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: SUB, lineHeight: 21, marginTop: 8, maxWidth: '92%' },
+    h1sub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: SUB, lineHeight: 21, marginTop: 10, maxWidth: '92%' },
 
     errorCard: { marginTop: 16, padding: 16, borderRadius: 16, backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
     errorText: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#B23A3A' },
 
-    sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 34, marginBottom: 14 },
-    sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.6, color: MUTE },
-    sectionNote: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: MUTE },
+    sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 38, marginBottom: 4 },
+    sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 13, color: INK },
+    sectionNote: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE },
 
-    stack: { gap: 10 },
-    card: {
+    // Editorial hairline list — no boxed cards, rhythm from a serif monogram + rules.
+    list: {},
+    row: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: CARD,
-        borderRadius: 18,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: BORDER,
-        paddingVertical: 16,
-        paddingHorizontal: 16,
+        paddingVertical: 18,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: BORDER,
     },
-    iconTile: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-    thumb: { width: 44, height: 44, borderRadius: 13, backgroundColor: '#EFE7DC' },
-    mid: { flex: 1, marginLeft: 14 },
-    title: { fontFamily: SERIF, fontSize: 19, color: INK, letterSpacing: -0.3 },
+    rowFirst: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
+    monogram: { width: 40, fontFamily: SERIF, fontSize: 34, letterSpacing: -1, textAlign: 'center' },
+    thumb: { width: 40, height: 40, borderRadius: 11, backgroundColor: '#EFE7DC' },
+    mid: { flex: 1, marginLeft: 16 },
+    title: { fontFamily: SERIF, fontSize: 20, color: INK, letterSpacing: -0.3 },
     sub: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE, marginTop: 3 },
-    right: { alignItems: 'flex-end', marginLeft: 10 },
+    right: { alignItems: 'flex-end', marginLeft: 12 },
     price: { fontFamily: 'Matter-SemiBold', fontSize: 14.5, color: INK },
     per: { fontFamily: 'Matter-Regular', fontSize: 11, color: MUTE, marginTop: 1 },
     open: { fontFamily: 'Matter-SemiBold', fontSize: 14.5 },

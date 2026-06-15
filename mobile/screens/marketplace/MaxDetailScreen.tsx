@@ -195,12 +195,12 @@ export default function MaxDetailScreen() {
                 contentContainerStyle={{ paddingBottom: 130 + insets.bottom }}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Header */}
+                {/* Header — type-led, no templated icon chip. */}
                 <View style={styles.header}>
-                    <View style={[styles.heroIcon, { backgroundColor: hexA(base, 0.1) }]}>
-                        <Ionicons name={(item.icon as any) || 'sparkles-outline'} size={28} color={base} />
+                    <View style={styles.kickerRow}>
+                        <View style={[styles.kickerDot, { backgroundColor: base }]} />
+                        <Text style={styles.kicker}>{(item.category || (isCourse ? 'Course' : 'Max')).toUpperCase()}</Text>
                     </View>
-                    <Text style={styles.kicker}>{(item.category || (isCourse ? 'Course' : 'Max')).toUpperCase()}</Text>
                     <Text style={styles.heroTitle}>{item.title}</Text>
                     <View style={[styles.heroRule, { backgroundColor: base }]} />
                     <Text style={styles.heroTagline}>{item.tagline}</Text>
@@ -240,7 +240,7 @@ export default function MaxDetailScreen() {
                 {/* What you'll get. */}
                 {d.outcomes?.length ? (
                     <View style={styles.block}>
-                        <Text style={styles.sectionLabel}>WHAT YOU'LL GET</Text>
+                        <Text style={styles.sectionLabel}>What you'll get</Text>
                         <View style={{ gap: 13 }}>
                             {d.outcomes.map((o, i) => (
                                 <View key={i} style={styles.outRow}>
@@ -263,7 +263,7 @@ export default function MaxDetailScreen() {
                 {/* ── Course-only depth ─────────────────────────────────── */}
                 {isCourse && d.for_you_if?.length ? (
                     <View style={styles.block}>
-                        <Text style={styles.sectionLabel}>THIS IS FOR YOU IF</Text>
+                        <Text style={styles.sectionLabel}>This is for you if</Text>
                         <View style={{ gap: 11 }}>
                             {d.for_you_if.map((o, i) => (
                                 <View key={i} style={styles.bulletRow}>
@@ -277,7 +277,7 @@ export default function MaxDetailScreen() {
 
                 {isCourse && d.curriculum?.length ? (
                     <View style={styles.block}>
-                        <Text style={styles.sectionLabel}>WHAT'S INSIDE</Text>
+                        <Text style={styles.sectionLabel}>What's inside</Text>
                         <View style={styles.cardHair}>
                             {d.curriculum.map((w, i) => (
                                 <Accordion
@@ -301,7 +301,7 @@ export default function MaxDetailScreen() {
 
                 {isCourse && d.bio ? (
                     <View style={styles.block}>
-                        <Text style={styles.sectionLabel}>YOUR INSTRUCTOR</Text>
+                        <Text style={styles.sectionLabel}>Your instructor</Text>
                         <View style={styles.creatorRowInline}>
                             {item.creator.avatar ? (
                                 <Image source={{ uri: item.creator.avatar }} style={styles.avatarLg} contentFit="cover" transition={150} />
@@ -324,7 +324,7 @@ export default function MaxDetailScreen() {
 
                 {isCourse && d.reviews?.length ? (
                     <View style={styles.block}>
-                        <Text style={styles.sectionLabel}>{item.rating ? `REVIEWS · ${item.rating.toFixed(1)} ★` : 'REVIEWS'}</Text>
+                        <Text style={styles.sectionLabel}>{item.rating ? `Reviews · ${item.rating.toFixed(1)} ★` : 'Reviews'}</Text>
                         <View style={{ gap: 16 }}>
                             {d.reviews.map((r, i) => (
                                 <View key={i}>
@@ -343,7 +343,7 @@ export default function MaxDetailScreen() {
 
                 {isCourse && d.faqs?.length ? (
                     <View style={styles.block}>
-                        <Text style={styles.sectionLabel}>QUESTIONS</Text>
+                        <Text style={styles.sectionLabel}>Questions</Text>
                         <View style={styles.cardHair}>
                             {d.faqs.map((f, i) => (
                                 <Accordion key={i} title={f.q} open={openFaq === i} onToggle={() => setOpenFaq(openFaq === i ? null : i)}>
@@ -390,12 +390,13 @@ const styles = StyleSheet.create({
     topBar: { paddingHorizontal: 14, paddingBottom: 2 },
     backBtn: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
 
-    header: { paddingHorizontal: 22, paddingTop: 6 },
-    heroIcon: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
-    kicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.8, color: MUTE, marginBottom: 8 },
-    heroTitle: { fontFamily: SERIF, fontSize: 38, color: INK, letterSpacing: -0.8, lineHeight: 42 },
-    heroRule: { width: 38, height: 3, borderRadius: 2, marginTop: 16 },
-    heroTagline: { fontFamily: 'Matter-Regular', fontSize: 16, color: SUB, marginTop: 16, lineHeight: 23 },
+    header: { paddingHorizontal: 22, paddingTop: 10 },
+    kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
+    kickerDot: { width: 7, height: 7, borderRadius: 4 },
+    kicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.8, color: MUTE },
+    heroTitle: { fontFamily: SERIF, fontSize: 44, color: INK, letterSpacing: -1, lineHeight: 47 },
+    heroRule: { width: 38, height: 3, borderRadius: 2, marginTop: 18 },
+    heroTagline: { fontFamily: 'Matter-Regular', fontSize: 16.5, color: SUB, marginTop: 16, lineHeight: 24 },
 
     creatorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22, marginTop: 22 },
     creatorRowInline: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -409,7 +410,7 @@ const styles = StyleSheet.create({
     lead: { fontFamily: 'Matter-Regular', fontSize: 16, color: SUB, lineHeight: 24, paddingHorizontal: 22, marginTop: 22 },
 
     block: { paddingHorizontal: 22, marginTop: 28 },
-    sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.6, color: MUTE, marginBottom: 14 },
+    sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: INK, marginBottom: 15 },
 
     // Cards
     card: {
