@@ -393,33 +393,39 @@ export default function ProfileScreen() {
 
                     {/* ── Identity ───────────────────────────────────── */}
                     <View style={styles.identitySection}>
-                        <TouchableOpacity
-                            onPress={handleEditPress}
-                            activeOpacity={0.85}
-                            accessibilityRole="button"
-                            accessibilityLabel="Edit profile photo"
-                        >
-                            <View style={styles.avatarRing}>
+                        <View style={styles.idRow}>
+                            <TouchableOpacity
+                                onPress={handleEditPress}
+                                activeOpacity={0.85}
+                                accessibilityRole="button"
+                                accessibilityLabel="Edit profile photo"
+                            >
                                 {user?.profile?.avatar_url ? (
                                     <CachedImage uri={api.resolveAttachmentUrl(user.profile.avatar_url)} style={styles.avatarImage} />
                                 ) : (
                                     <View style={styles.avatarPlaceholder}>
-                                        <Ionicons name="person" size={36} color={colors.textMuted} />
+                                        <Ionicons name="person" size={28} color={colors.textMuted} />
                                     </View>
                                 )}
-                            </View>
-                            <View style={styles.avatarCam}>
-                                <Ionicons name="camera" size={13} color={colors.foreground} />
-                            </View>
-                        </TouchableOpacity>
+                            </TouchableOpacity>
 
-                        <Text style={styles.headerName}>
-                            {user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user?.email}
-                        </Text>
+                            <View style={styles.idText}>
+                                <Text style={styles.headerName} numberOfLines={1}>
+                                    {user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user?.email}
+                                </Text>
+                                {(user?.username || streak > 0) ? (
+                                    <Text style={styles.headerMeta} numberOfLines={1}>
+                                        {user?.username ? `@${user.username}` : ''}
+                                        {user?.username && streak > 0 ? '   ·   ' : ''}
+                                        {streak > 0 ? `${streak} day streak` : ''}
+                                    </Text>
+                                ) : null}
+                            </View>
 
-                        {user?.username ? (
-                            <Text style={styles.headerHandle}>@{user.username}</Text>
-                        ) : null}
+                            <TouchableOpacity onPress={handleEditPress} hitSlop={8} activeOpacity={0.7} style={styles.editBtn}>
+                                <Text style={styles.editLink}>Edit</Text>
+                            </TouchableOpacity>
+                        </View>
 
                         {user?.profile?.bio ? (
                             <Text style={styles.headerBio}>{user.profile.bio}</Text>
@@ -428,13 +434,6 @@ export default function ProfileScreen() {
                                 <Text style={styles.headerBioGhost}>Add a one-liner</Text>
                             </TouchableOpacity>
                         )}
-
-                        {streak > 0 ? (
-                            <View style={styles.streakChip}>
-                                <Ionicons name="flame" size={13} color={colors.accent} />
-                                <Text style={styles.streakChipText}>{streak} day streak</Text>
-                            </View>
-                        ) : null}
 
                         {activeMaxxes.length > 0 ? (
                             <View style={styles.maxxTagsRow}>
@@ -445,7 +444,7 @@ export default function ProfileScreen() {
                                             key={m.id}
                                             style={styles.maxxTag}
                                             onPress={() => navigation.navigate('MaxxDetail', { maxxId: m.id })}
-                                            activeOpacity={0.72}
+                                            activeOpacity={0.6}
                                         >
                                             <View style={[styles.maxxDot, { backgroundColor: tint }]} />
                                             <Text style={styles.maxxTagText}>{getMaxxDisplayLabel(m)}</Text>
@@ -454,44 +453,35 @@ export default function ProfileScreen() {
                                 })}
                             </View>
                         ) : null}
-
-                        <TouchableOpacity onPress={handleEditPress} hitSlop={8} activeOpacity={0.7}>
-                            <Text style={styles.editLink}>Edit profile</Text>
-                        </TouchableOpacity>
                     </View>
 
-                    {/* ── Face-score trend ───────────────────────────── */}
+                    {/* ── Face-score trend (flat, card-less) ─────────── */}
                     {faceScore != null ? (
-                        <View style={styles.section}>
-                            <TouchableOpacity style={styles.scoreCard} onPress={onFaceScansPress} activeOpacity={0.85}>
-                                <View style={{ flex: 1 }}>
-                                    <View style={styles.scoreTopRow}>
-                                        <Text style={styles.scoreNum}>{faceScore.toFixed(1)}</Text>
-                                        {scoreDelta != null && scoreDelta !== 0 ? (
-                                            <Text style={[styles.scoreDelta, { color: scoreDelta > 0 ? colors.success : colors.error }]}>
-                                                {scoreDelta > 0 ? '+' : ''}{scoreDelta} since start
-                                            </Text>
-                                        ) : potential != null ? (
-                                            <Text style={styles.scoreDeltaMuted}>{potential.toFixed(1)} potential</Text>
-                                        ) : null}
-                                    </View>
-                                    {archetype ? <Text style={styles.scoreArchetype}>{archetype}</Text> : null}
-                                    <Text style={styles.scoreLink}>View all scans ›</Text>
-                                </View>
+                        <TouchableOpacity style={styles.section} onPress={onFaceScansPress} activeOpacity={0.7}>
+                            <View style={styles.sectionHead}>
+                                <SectionLabel label="FACE SCORE" style={styles.sectionLabelInline} />
+                                <View style={{ flex: 1 }} />
                                 {scanPts.length >= 2 ? <Sparkline points={scanPts.map((p) => p.score)} /> : null}
-                            </TouchableOpacity>
-                        </View>
+                            </View>
+                            <View style={styles.scoreRow}>
+                                <Text style={styles.scoreNum}>{faceScore.toFixed(1)}</Text>
+                                {scoreDelta != null && scoreDelta !== 0 ? (
+                                    <Text style={[styles.scoreDelta, { color: scoreDelta > 0 ? colors.success : colors.error }]}>
+                                        {scoreDelta > 0 ? '+' : ''}{scoreDelta}
+                                    </Text>
+                                ) : potential != null ? (
+                                    <Text style={styles.scoreDeltaMuted}>{potential.toFixed(1)} potential</Text>
+                                ) : null}
+                            </View>
+                            <Text style={styles.scoreSub}>
+                                {archetype ? `${archetype}   ·   ` : ''}View all scans ›
+                            </Text>
+                        </TouchableOpacity>
                     ) : (
-                        <View style={styles.section}>
-                            <TouchableOpacity style={styles.scoreCardLocked} onPress={onFaceScansPress} activeOpacity={0.85}>
-                                <Ionicons name="scan-outline" size={20} color={colors.foreground} />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.scoreLockedTitle}>See your face score</Text>
-                                    <Text style={styles.scoreLockedSub}>Run a scan to track your rating over time.</Text>
-                                </View>
-                                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                            </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity style={styles.section} onPress={onFaceScansPress} activeOpacity={0.7}>
+                            <SectionLabel label="FACE SCORE" />
+                            <Text style={styles.scoreLockedFlat}>See your face score ›</Text>
+                        </TouchableOpacity>
                     )}
 
                     {/* ── Progress photos ────────────────────────────── */}
@@ -508,7 +498,7 @@ export default function ProfileScreen() {
                                 accessibilityRole="button"
                                 accessibilityLabel={uploadingProgress ? 'Uploading progress photo' : 'Add progress photo'}
                             >
-                                <Ionicons name="add" size={15} color={colors.card} />
+                                <Ionicons name="add" size={16} color={colors.accent} />
                                 <Text style={styles.addPillText}>{uploadingProgress ? 'Uploading…' : 'Add'}</Text>
                             </TouchableOpacity>
                         </View>
@@ -743,72 +733,64 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
 
-    // ── Identity section ────────────────────────────────────────────────
+    // ── Identity section (left-aligned, compact) ───────────────────────
     identitySection: {
-        alignItems: 'center',
         paddingHorizontal: spacing.lg,
-        paddingTop: spacing.lg,
+        paddingTop: spacing.md,
         paddingBottom: spacing.lg,
     },
-    avatarRing: {
-        padding: 3,
-        borderRadius: borderRadius.full,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
+    idRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
     },
-    avatarImage: { width: 88, height: 88, borderRadius: 44 },
+    idText: { flex: 1, minWidth: 0 },
+    avatarImage: { width: 64, height: 64, borderRadius: 32 },
     avatarPlaceholder: {
-        width: 88,
-        height: 88,
-        borderRadius: 44,
+        width: 64,
+        height: 64,
+        borderRadius: 32,
         backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
     headerName: {
         fontFamily: fonts.serif,
-        fontSize: 25,
+        fontSize: 24,
         fontWeight: '400',
         color: colors.foreground,
         letterSpacing: -0.5,
-        marginTop: spacing.md,
-        textAlign: 'center',
     },
-    headerHandle: {
+    headerMeta: {
+        fontFamily: fonts.sans,
         fontSize: 13,
-        fontWeight: '400',
         color: colors.textMuted,
         marginTop: 3,
-        textAlign: 'center',
+    },
+    editBtn: {
+        paddingVertical: 6,
+        paddingHorizontal: 4,
     },
     headerBio: {
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: '400',
         color: colors.textSecondary,
-        lineHeight: 18,
-        marginTop: spacing.sm,
-        textAlign: 'center',
-        paddingHorizontal: spacing.xl,
+        lineHeight: 20,
+        marginTop: spacing.md,
     },
 
-    // ── Maxx tags (colored dot + label) ─────────────────────────────────
+    // ── Maxx tags (bare dot + label, no chrome) ─────────────────────────
     maxxTagsRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'center',
-        gap: 8,
+        gap: spacing.md,
         marginTop: spacing.md,
     },
     maxxTag: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        borderRadius: borderRadius.full,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.card,
-        paddingVertical: 6,
-        paddingHorizontal: 14,
+        paddingVertical: 2,
     },
     maxxDot: {
         width: 7,
@@ -816,9 +798,9 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     maxxTagText: {
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: '500',
-        color: colors.foreground,
+        color: colors.textSecondary,
     },
 
     // ── Actions ──────────────────────────────────────────────────────────
@@ -926,18 +908,19 @@ const styles = StyleSheet.create({
     photoGridItem: {
         width: '33.33%',
         aspectRatio: 1,
-        padding: 0.5,
+        padding: 3,
         position: 'relative' as const,
     },
     photoGridImage: {
         width: '100%',
         height: '100%',
+        borderRadius: borderRadius.md,
         backgroundColor: colors.surface,
     },
     progressRatingBadge: {
         position: 'absolute',
-        bottom: 4,
-        right: 4,
+        bottom: 7,
+        right: 7,
         fontSize: 10,
         fontWeight: '600',
         color: '#FFF',
@@ -967,51 +950,18 @@ const styles = StyleSheet.create({
     },
 
     // ── Redesign: identity extras ───────────────────────────────────────
-    avatarCam: {
-        position: 'absolute',
-        right: -2,
-        bottom: -2,
-        width: 26,
-        height: 26,
-        borderRadius: 13,
-        backgroundColor: colors.card,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
     headerBioGhost: {
         fontFamily: fonts.sans,
         fontSize: 14,
         color: colors.textMuted,
-        marginTop: spacing.sm,
-        textAlign: 'center',
+        marginTop: spacing.md,
         textDecorationLine: 'underline',
     },
     editLink: {
         fontFamily: fonts.sansSemiBold,
         fontSize: 13,
-        color: colors.foreground,
-        marginTop: spacing.md,
-        letterSpacing: 0.1,
-    },
-
-    // ── Streak chip ──────────────────────────────────────────────────────
-    streakChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-        marginTop: spacing.md,
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: borderRadius.full,
-        backgroundColor: colors.accentMuted,
-    },
-    streakChipText: {
-        fontFamily: fonts.sansSemiBold,
-        fontSize: 12.5,
         color: colors.accent,
-        letterSpacing: 0.2,
+        letterSpacing: 0.1,
     },
 
     // ── Sections ─────────────────────────────────────────────────────────
@@ -1034,66 +984,41 @@ const styles = StyleSheet.create({
     seeAll: {
         fontFamily: fonts.sansMedium,
         fontSize: 13,
-        color: colors.foreground,
+        color: colors.accent,
     },
 
-    // ── Score card ───────────────────────────────────────────────────────
-    scoreCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        backgroundColor: colors.surfaceLight,
-        borderRadius: borderRadius.lg,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-        padding: spacing.lg,
-    },
-    scoreTopRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+    // ── Score (flat, card-less) ──────────────────────────────────────────
+    scoreRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
     scoreNum: {
-        fontFamily: fonts.sansSemiBold,
-        fontSize: 34,
+        fontFamily: fonts.serif,
+        fontSize: 44,
         color: colors.foreground,
         letterSpacing: -1.6,
     },
-    scoreDelta: { fontFamily: fonts.sansSemiBold, fontSize: 12.5 },
-    scoreDeltaMuted: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textMuted },
-    scoreArchetype: {
-        fontFamily: fonts.sansMedium,
-        fontSize: 13.5,
-        color: colors.textSecondary,
-        marginTop: 2,
-    },
-    scoreLink: {
+    scoreDelta: { fontFamily: fonts.sansSemiBold, fontSize: 14 },
+    scoreDeltaMuted: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.textMuted },
+    scoreSub: {
         fontFamily: fonts.sansMedium,
         fontSize: 13,
+        color: colors.textSecondary,
+        marginTop: 6,
+    },
+    scoreLockedFlat: {
+        fontFamily: fonts.sansMedium,
+        fontSize: 15,
         color: colors.accent,
-        marginTop: 10,
+        marginTop: spacing.sm,
     },
-    scoreCardLocked: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        backgroundColor: colors.surfaceLight,
-        borderRadius: borderRadius.lg,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-        paddingVertical: spacing.md,
-        paddingHorizontal: spacing.lg,
-    },
-    scoreLockedTitle: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground },
-    scoreLockedSub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
 
-    // ── Add pill + privacy ───────────────────────────────────────────────
+    // ── Add (ghost) + privacy ────────────────────────────────────────────
     addPill: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-        backgroundColor: colors.foreground,
-        borderRadius: borderRadius.full,
-        paddingVertical: 7,
-        paddingHorizontal: 14,
+        gap: 2,
+        paddingVertical: 4,
+        paddingHorizontal: 4,
     },
-    addPillText: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: colors.card },
+    addPillText: { fontFamily: fonts.sansSemiBold, fontSize: 13.5, color: colors.accent },
     privacyNote: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.textMuted, marginTop: spacing.md },
 
     // ── Empty state ──────────────────────────────────────────────────────
