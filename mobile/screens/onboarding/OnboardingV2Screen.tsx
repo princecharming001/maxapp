@@ -603,10 +603,6 @@ export default function OnboardingV2Screen() {
                             onEnd={onWdEnd}
                         />
                     </View>
-                    <Text style={styles.helpNote}>
-                        These are windows, not exact times — what you do in them is up to you. Max fits
-                        your routines across each one.
-                    </Text>
                 </View>
             ),
         },
