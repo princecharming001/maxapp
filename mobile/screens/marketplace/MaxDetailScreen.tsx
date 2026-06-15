@@ -165,6 +165,47 @@ function MediaHero({ cover, video, base }: { cover?: string; video?: string; bas
     );
 }
 
+/**
+ * Inline 16:9 creator-filmed clip for "A look inside". Muted autoplay loop; the
+ * poster (cover) shows under a play glyph until the video is ready, and stays
+ * if it ever fails — the section never breaks.
+ */
+function InsideVideo({ poster, video }: { poster?: string; video: string }) {
+    const [ready, setReady] = useState(false);
+    const [failed, setFailed] = useState(false);
+    const wantVideo = !!video && !failed;
+    const player = useVideoPlayer(wantVideo ? video : '', (p) => {
+        p.loop = true;
+        p.muted = true;
+    });
+    useEffect(() => {
+        if (!wantVideo) return;
+        const sub = player.addListener('statusChange', (payload: any) => {
+            const st = payload?.status;
+            if (st === 'error') { setFailed(true); setReady(false); }
+            else if (st === 'readyToPlay') { setReady(true); try { player.play(); } catch {} }
+        });
+        try { player.play(); } catch {}
+        return () => { try { sub.remove(); } catch {} };
+    }, [player, wantVideo]);
+    const showVideo = wantVideo && ready;
+    return (
+        <View style={styles.insideVideo}>
+            {poster ? (
+                <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+            ) : null}
+            {showVideo ? (
+                <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />
+            ) : null}
+            {!showVideo ? (
+                <View style={[StyleSheet.absoluteFill, styles.playCenter]}>
+                    <View style={styles.playCircle}><Ionicons name="play" size={20} color="#fff" /></View>
+                </View>
+            ) : null}
+        </View>
+    );
+}
+
 export default function MaxDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
@@ -288,8 +329,16 @@ export default function MaxDetailScreen() {
                 {/* The promise. */}
                 {d.long_description ? <Text style={styles.lead}>{d.long_description}</Text> : null}
 
-                {/* A look inside — media filmstrip. */}
-                {d.gallery && d.gallery.length > 1 ? (
+                {/* A look inside — a clip filmed by the creator. */}
+                {d.inside_video ? (
+                    <View style={styles.galleryBlock}>
+                        <Text style={[styles.sectionLabel, styles.galleryLabel]}>A look inside</Text>
+                        <View style={styles.galleryLabel}>
+                            <InsideVideo poster={item.image_url || d.gallery?.[0]} video={d.inside_video} />
+                            <Text style={styles.insideCaption}>Filmed by {item.creator.name}</Text>
+                        </View>
+                    </View>
+                ) : d.gallery && d.gallery.length > 1 ? (
                     <View style={styles.galleryBlock}>
                         <Text style={[styles.sectionLabel, styles.galleryLabel]}>A look inside</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
@@ -470,11 +519,18 @@ const styles = StyleSheet.create({
     },
     previewChipText: { fontFamily: 'Matter-SemiBold', fontSize: 11, color: '#fff', letterSpacing: 0.3 },
 
-    // Gallery filmstrip
+    // Gallery filmstrip / look-inside video
     galleryBlock: { marginTop: 30 },
     galleryLabel: { paddingHorizontal: 22 },
     galleryRow: { paddingHorizontal: 22, gap: 12 },
     galleryImg: { width: 200, height: 264, borderRadius: 18, backgroundColor: '#EFE7DC' },
+    insideVideo: { width: '100%', aspectRatio: 16 / 9, borderRadius: 18, overflow: 'hidden', backgroundColor: '#EFE7DC' },
+    playCenter: { alignItems: 'center', justifyContent: 'center' },
+    playCircle: {
+        width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: 'rgba(20,17,14,0.46)', paddingLeft: 3,
+    },
+    insideCaption: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 10 },
 
     header: { paddingHorizontal: 22, paddingTop: 4 },
     kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },

@@ -93,6 +93,7 @@ export interface MarketplaceItemDetail {
     guarantee?: string;
     gallery?: string[];
     video_url?: string;
+    inside_video?: string;
 }
 
 function envTargetsLoopback(url: string): boolean {

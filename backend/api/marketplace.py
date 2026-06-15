@@ -103,17 +103,20 @@ def _img(photo_id: str, w: int = 1200) -> str:
 # back to the cover image on the client if it ever fails to load.
 _VID_SAMPLE = "https://download.samplelib.com/mp4/sample-5s.mp4"
 _VID_PEXELS = "https://videos.pexels.com/video-files/4761426/4761426-uhd_2732_1440_25fps.mp4"
+# Creator-filmed "look inside" clip. A poster (the cover) shows through if it
+# ever fails to load, so the section is never broken.
+_VID_LOOK = "https://download.samplelib.com/mp4/sample-10s.mp4"
 
 _MAXX_MEDIA: dict[str, dict[str, Any]] = {
     "skinmax":   {"cover": _img("1556228578-8c89e6adf883"), "video": _VID_SAMPLE},
-    "fitmax":    {"cover": _img("1571019613454-1cb2f99b2d8b")},
+    "fitmax":    {"cover": _img("1571019613454-1cb2f99b2d8b"), "inside": _VID_PEXELS},
     "hairmax":   {"cover": _img("1522337660859-02fbefca4702")},
     "heightmax": {"cover": _img("1512290923902-8a9f81dc236c")},
     "bonemax":   {"cover": _img("1620916566398-39f1143ab7be")},
 }
 _COURSE_MEDIA: dict[str, dict[str, Any]] = {
     "course_glowup_30":     {"cover": _img("1598440947619-2c35fc9aa908"), "video": _VID_PEXELS},
-    "course_lift101":       {"cover": _img("1517836357463-d25dfeac3438")},
+    "course_lift101":       {"cover": _img("1517836357463-d25dfeac3438"), "inside": _VID_PEXELS},
     "course_posture_reset": {"cover": _img("1532012197267-da84d127e765")},
     "course_jaw_basics":    {"cover": _img("1611672585731-fa10603fb9e0")},
 }
@@ -138,7 +141,7 @@ def _detail_media(item_id: str, is_course: bool) -> dict[str, Any]:
     m = (_COURSE_MEDIA if is_course else _MAXX_MEDIA).get(item_id, {})
     cover = m.get("cover") or _GALLERY_POOL[0]
     gallery = [cover] + [g for g in _GALLERY_POOL if g != cover][:3]
-    out: dict[str, Any] = {"gallery": gallery}
+    out: dict[str, Any] = {"gallery": gallery, "inside_video": m.get("inside") or _VID_LOOK}
     if m.get("video"):
         out["video_url"] = m["video"]
     return out
