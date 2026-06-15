@@ -686,7 +686,7 @@ Quiet hours: nothing between bed and wake.
   frequency: { type: daily, n: 1 }
 
 - id: fit.cardio_liss
-  title: "LISS cardio (30 min)"
+  title: "Easy cardio (30 min)"
   description: "low-intensity steady state, incline walk, easy bike, swim. heart rate 60-70% max. burns calories without eating into recovery."
   duration_min: 30
   default_window: flexible

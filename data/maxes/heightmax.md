@@ -557,7 +557,7 @@ When to see a doctor: very delayed puberty, sudden growth stopping early, severe
 
 - id: height.sleep_extend
   title: "Check sleep window"
-  description: "lights out by [sleep time]. teens: 8–10 hr target. adults: 7–9. consistency > duration."
+  description: "lights out around your usual bedtime. teens aim for 8–10 hours, adults 7–9. going to bed at the same time each night beats one long catch-up."
   duration_min: 1
   default_window: pm_close
   tags: [growth, foundation]

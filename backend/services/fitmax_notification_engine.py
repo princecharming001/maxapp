@@ -241,14 +241,14 @@ FITMAX_JSON_DIRECTIVES = """## FITMAX, JSON SCHEDULE OUTPUT (MANDATORY)
 
 
 POSTURE_TIPS_10: list[str] = [
-    "Shoulder check: pull shoulders back, rounded shoulders narrow your frame.",
-    "Stomach vacuum: exhale, belly button to spine, 5×20s, trains TVA, narrower waist look.",
-    "APT check: squeeze glutes, slight posterior pelvic tilt, saves waist measurement.",
-    "Creatine: 5g daily monohydrate, strength + fullness (see HairMax caveat if thinning risk).",
-    "Water: ~1 gal / 3.5L, dehydration flattens muscles and dulls skin.",
-    "Sleep: 7–9h, muscle repair peaks in deep sleep.",
-    "Shoulder-to-waist ratio drives the V-taper, wide shoulders + narrow waist.",
-    "Neck thickness frames the jaw 2–3×/wk if not in BoneMax.",
-    "Face pulls every session: 3×15–20, posture + rear delts.",
-    "Alcohol: blunts protein synthesis, hurts sleep and face leanness, cut for face gains.",
+    "Shoulders back. Rounded shoulders make your frame look narrower than it really is.",
+    "Stomach vacuum: breathe all the way out, pull your belly button toward your spine, hold 20 seconds. Five rounds. It trains the deep ab muscle that tightens your waist.",
+    "Posture reset: squeeze your glutes and tuck your hips under a touch. Stops your lower back from arching and pushing your belly out.",
+    "Creatine: 5g a day, any time, with water. Helps your strength and makes muscles look fuller. One of the safest, most-studied supplements out there.",
+    "Water: aim for about a gallon (3.5L) today. Being dehydrated flattens your muscles and dulls your skin.",
+    "Sleep 7-9 hours. Your muscles do most of their repair work in deep sleep.",
+    "Wide shoulders over a narrow waist is what gives you that V-shape. Train shoulders, keep the waist tight.",
+    "Train your neck 2-3 times a week. A thicker neck frames and sharpens your jawline.",
+    "Face pulls every session: 3 sets of 15-20. Quietly fixes your posture and builds the back of your shoulders.",
+    "Alcohol slows muscle recovery, wrecks your sleep, and puffs up your face. Cutting back shows quickly.",
 ]
