@@ -437,11 +437,10 @@ export default function OnboardingV2Screen() {
     const finish = async () => {
         setSaving(true);
         setError(null);
-        try {
-            const tokens = goals
-                .map((id) => MAXX_TILES.find((t) => t.id === id)?.token)
-                .filter(Boolean) as string[];
-            const payload = {
+        const tokens = goals
+            .map((id) => MAXX_TILES.find((t) => t.id === id)?.token)
+            .filter(Boolean) as string[];
+        const payload = {
                 goals,
                 priority_order: tokens,
                 motivation,
@@ -474,14 +473,26 @@ export default function OnboardingV2Screen() {
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
                 completed: false,
             };
-            await api.saveOnboarding(payload as any);
+        const goReveal = () => {
             // Navigate FIRST (with the answers as params so the reveal does
             // not depend on a user refetch), THEN refresh auth state — a
             // refresh that swaps the root stack would eat the navigation.
             navigation.navigate('RoutineReveal', { ob: payload });
             refreshUser().catch(() => {});
+        };
+        try {
+            await api.saveOnboarding(payload as any);
+            goReveal();
         } catch (e: any) {
-            setError("Couldn't save. Check your connection and try again.");
+            // On the computer/web dev build, don't trap the user behind a save
+            // failure (e.g. no local backend) — proceed with the answers in
+            // hand, exactly as a successful save would. Native/prod still
+            // surfaces the real error so a genuine failure isn't hidden.
+            if (Platform.OS === 'web' && __DEV__) {
+                goReveal();
+            } else {
+                setError("Couldn't save. Check your connection and try again.");
+            }
         } finally {
             setSaving(false);
         }
