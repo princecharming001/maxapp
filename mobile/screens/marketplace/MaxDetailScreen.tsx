@@ -1,13 +1,17 @@
 /**
- * MaxDetailScreen — the full "browse before you buy" page for a max or creator
- * course. A real pushed screen (not a sheet), so there's room to actually learn
- * what you're paying for: a hero with the creator's photo + social proof, the
- * "fits your real week" sim, what you'll get, the week-by-week curriculum, the
- * instructor's bio + credentials, real reviews, an FAQ and a guarantee — with a
- * sticky price + CTA that follows you down the page.
+ * MaxDetailScreen — the page you land on when you tap a max (or creator course)
+ * in Explore. Minimalist + editorial: a calm cream page, Fraunces serif title,
+ * the max's colour used only as a small accent.
  *
- * Content comes from GET /marketplace/item/{id} (the `detail` payload). The card
- * passed in route params renders instantly; the rest fills in on fetch.
+ * The information shown ADAPTS to what you're looking at:
+ *   • A native max ($3.99/wk, ongoing) is lean — the one-line promise, "does it
+ *     fit my real week", what you'll get, and one honest line of proof. No fake
+ *     curriculum / instructor / FAQ filler.
+ *   • A creator course (one payment, fixed weeks) earns the deeper page —
+ *     curriculum, instructor, reviews, FAQ, guarantee.
+ *
+ * Card data from route params renders instantly; GET /marketplace/item/{id}
+ * fills the rest in.
  */
 import React, { useEffect, useState } from 'react';
 import {
@@ -29,19 +33,16 @@ import { hexA } from '../../utils/scheduleAggregation';
 import { track } from '../../lib/analytics';
 
 const CANVAS = '#F7F0EA';
+const CARD = '#FCFAF6';
 const INK = '#1C1A17';
 const MUTE = '#97928A';
 const SUB = '#5C574E';
 const GOLD = '#2C6BED';
 const ACCENT = '#2F6B4E';
-const HAIRLINE = '#E2DBCD';
+const HAIRLINE = '#E8E0D3';
+const SERIF = 'Fraunces';
+const SERIF_I = 'Fraunces-Italic';
 
-function shade(hex: string, f: number): string {
-    const h = (hex || '#2C6BED').replace('#', '');
-    const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
-    const cl = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
-    return `rgb(${cl(((n >> 16) & 255) * f)}, ${cl(((n >> 8) & 255) * f)}, ${cl((n & 255) * f)})`;
-}
 function fmtK(n?: number): string {
     if (!n) return '';
     return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${n}`;
@@ -53,15 +54,15 @@ const VERDICT = {
     red: { color: '#C0452C', line: 'Your week is packed' },
 };
 
-function Feasibility({ id }: { id: string }) {
+/** "Fits your real week" — the moat, made visible. A clean card. */
+function Feasibility({ id, color }: { id: string; color: string }) {
     const q = useQuery({
         queryKey: ['feasibility', id],
         queryFn: () => api.getPlannerFeasibility(id),
         staleTime: 5 * 60_000,
     });
-    if (q.isLoading) return <View style={[styles.card, styles.feasSkeleton]} />;
     const d = q.data;
-    if (!d) return null;
+    if (q.isLoading || !d) return <View style={[styles.card, { height: 112 }]} />;
     const meta = VERDICT[d.verdict] ?? VERDICT.amber;
     return (
         <View style={styles.card}>
@@ -70,12 +71,12 @@ function Feasibility({ id }: { id: string }) {
                 <Text style={[styles.feasVerdict, { color: meta.color }]}>{meta.line}</Text>
             </View>
             <Text style={styles.feasLine}>
-                Max can fit {d.fits_n_of_m.fits} of {d.fits_n_of_m.of} weekly sessions into your real week.
+                Max fits {d.fits_n_of_m.fits} of {d.fits_n_of_m.of} weekly sessions into your real week.
             </Text>
             <View style={styles.ghostRow}>
                 {d.ghost_week.map((g) => (
                     <View key={g.day} style={styles.ghostDay}>
-                        <View style={[styles.ghostDot, { backgroundColor: g.slots.length ? GOLD : 'rgba(28,26,23,0.12)' }]} />
+                        <View style={[styles.ghostDot, { backgroundColor: g.slots.length ? color : 'rgba(28,26,23,0.14)' }]} />
                         <Text style={styles.ghostLetter}>{g.day[0]}</Text>
                         <Text style={styles.ghostSlot}>{g.slots[0] || ' '}</Text>
                     </View>
@@ -95,16 +96,13 @@ function Stars({ n }: { n: number }) {
     );
 }
 
-function Accordion({ title, sub, badge, children, open, onToggle }: {
-    title: string; sub?: string; badge?: string; children?: React.ReactNode; open: boolean; onToggle: () => void;
+function Accordion({ title, badge, children, open, onToggle }: {
+    title: string; badge?: string; children?: React.ReactNode; open: boolean; onToggle: () => void;
 }) {
     return (
         <View style={styles.accItem}>
             <TouchableOpacity style={styles.accHead} activeOpacity={0.7} onPress={onToggle}>
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.accTitle}>{title}</Text>
-                    {sub ? <Text style={styles.accSub}>{sub}</Text> : null}
-                </View>
+                <Text style={styles.accTitle}>{title}</Text>
                 {badge ? <Text style={styles.freeBadge}>{badge}</Text> : null}
                 <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={MUTE} />
             </TouchableOpacity>
@@ -144,6 +142,7 @@ export default function MaxDetailScreen() {
     const d = item.detail || {};
     const isCourse = !item.native;
     const base = item.color || GOLD;
+    const quote = d.reviews?.[0];
 
     const goToSchedule = () => {
         try {
@@ -151,15 +150,10 @@ export default function MaxDetailScreen() {
             if (navigationRef.isReady()) navigationRef.navigate('Main', { screen: 'MasterScheduleTab' });
         } catch { navigation.goBack(); }
     };
-
-    // Native maxes onboard in chat: the coach asks a few questions and tailors
-    // the freshly-built schedule. `initSchedule` is the maxx token (= item.id).
     const goToChat = (maxxId: string) => {
         try {
             const { navigationRef } = require('../../lib/navigationRef');
-            if (navigationRef.isReady()) {
-                navigationRef.navigate('Main', { screen: 'Chat', params: { initSchedule: maxxId } });
-            }
+            if (navigationRef.isReady()) navigationRef.navigate('Main', { screen: 'Chat', params: { initSchedule: maxxId } });
         } catch { navigation.goBack(); }
     };
 
@@ -184,157 +178,156 @@ export default function MaxDetailScreen() {
         }
     };
 
-    const ctaLabel = item.entered
-        ? 'Open my plan'
-        : busy
-          ? 'One sec…'
-          : `Start ${isCourse ? 'this plan' : item.title} · ${item.price_label.replace(' / week', '/wk')}`;
-
     return (
         <View style={styles.root}>
+            {/* Minimal top bar — just a back affordance over the cream page. */}
+            <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
+                <TouchableOpacity
+                    style={styles.backBtn}
+                    onPress={() => navigation.goBack()}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                    <Ionicons name="chevron-back" size={24} color={INK} />
+                </TouchableOpacity>
+            </View>
+
             <ScrollView
-                contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
+                contentContainerStyle={{ paddingBottom: 130 + insets.bottom }}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Flat color-pocket header */}
-                <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-                    <TouchableOpacity
-                        style={styles.backBtn}
-                        onPress={() => navigation.goBack()}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                        <Ionicons name="chevron-back" size={24} color={INK} />
-                    </TouchableOpacity>
-                    <View style={[styles.heroIcon, { backgroundColor: hexA(base, 0.12) }]}>
-                        <Ionicons name={(item.icon as any) || 'sparkles-outline'} size={30} color={base} />
+                {/* Header */}
+                <View style={styles.header}>
+                    <View style={[styles.heroIcon, { backgroundColor: hexA(base, 0.1) }]}>
+                        <Ionicons name={(item.icon as any) || 'sparkles-outline'} size={28} color={base} />
                     </View>
-                    {item.category ? <Text style={styles.heroKicker}>{item.category.toUpperCase()}</Text> : null}
+                    <Text style={styles.kicker}>{(item.category || (isCourse ? 'Course' : 'Max')).toUpperCase()}</Text>
                     <Text style={styles.heroTitle}>{item.title}</Text>
                     <View style={[styles.heroRule, { backgroundColor: base }]} />
+                    <Text style={styles.heroTagline}>{item.tagline}</Text>
                 </View>
 
-                {/* Creator + social proof */}
-                <View style={styles.metaWrap}>
+                {/* Creator — courses only. */}
+                {isCourse ? (
                     <View style={styles.creatorRow}>
                         {item.creator.avatar ? (
                             <Image source={{ uri: item.creator.avatar }} style={styles.avatar} contentFit="cover" transition={150} />
                         ) : (
-                            <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: shade(base, 1.1) }]}>
-                                <Ionicons name="sparkles" size={18} color="#fff" />
+                            <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: hexA(base, 0.18) }]}>
+                                <Ionicons name="person" size={16} color={base} />
                             </View>
                         )}
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.creatorName}>
-                                {item.native ? 'Built by Max' : item.creator.name}
-                                {item.creator.verified ? '  ✓' : ''}
-                            </Text>
-                            <Text style={styles.creatorHandle}>
-                                {item.native ? 'The Max team' : `@${item.creator.handle}`}
-                            </Text>
+                            <Text style={styles.creatorName}>{item.creator.name}{item.creator.verified ? '  ✓' : ''}</Text>
+                            <Text style={styles.creatorHandle}>@{item.creator.handle}</Text>
                         </View>
+                        {item.rating ? (
+                            <View style={{ alignItems: 'flex-end' }}>
+                                <Stars n={item.rating} />
+                                <Text style={styles.ratingSub}>{item.rating.toFixed(1)} · {fmtK(item.participants)} members</Text>
+                            </View>
+                        ) : null}
                     </View>
+                ) : null}
 
-                    <Text style={styles.lead}>{d.long_description || item.tagline}</Text>
+                {/* The promise. */}
+                {d.long_description ? <Text style={styles.lead}>{d.long_description}</Text> : null}
 
-                    {isCourse ? (
-                        <View style={styles.statsRow}>
-                            {item.rating ? <Stat value={`${item.rating.toFixed(1)} ★`} label="rating" /> : null}
-                            {item.participants ? <Stat value={fmtK(item.participants)} label="members" /> : null}
-                            {item.completion_rate ? <Stat value={`${Math.round(item.completion_rate * 100)}%`} label="finish wk 1" /> : null}
-                        </View>
-                    ) : null}
+                {/* Fits your week. */}
+                <View style={styles.block}>
+                    <Feasibility id={item.id} color={base} />
                 </View>
 
-                {/* Fits your week */}
-                <Section><Feasibility id={item.id} /></Section>
-
-                {/* What you'll get */}
+                {/* What you'll get. */}
                 {d.outcomes?.length ? (
-                    <Section label="WHAT YOU'LL GET">
-                        <View style={styles.card}>
+                    <View style={styles.block}>
+                        <Text style={styles.sectionLabel}>WHAT YOU'LL GET</Text>
+                        <View style={{ gap: 13 }}>
                             {d.outcomes.map((o, i) => (
-                                <View key={i} style={[styles.bulletRow, i > 0 && { marginTop: 12 }]}>
-                                    <Ionicons name="checkmark-circle" size={18} color={ACCENT} style={{ marginTop: 1 }} />
-                                    <Text style={styles.bulletText}>{o}</Text>
+                                <View key={i} style={styles.outRow}>
+                                    <Ionicons name="checkmark" size={17} color={base} style={{ marginTop: 2 }} />
+                                    <Text style={styles.outText}>{o}</Text>
                                 </View>
                             ))}
                         </View>
-                    </Section>
+                    </View>
                 ) : null}
 
-                {/* For you if */}
-                {d.for_you_if?.length ? (
-                    <Section label="THIS IS FOR YOU IF">
-                        <View style={styles.card}>
+                {/* One honest line of proof — native maxes keep it to one quote. */}
+                {!isCourse && quote ? (
+                    <View style={styles.block}>
+                        <Text style={styles.pullQuote}>“{quote.text}”</Text>
+                        <Text style={styles.pullAttr}>— {quote.name}</Text>
+                    </View>
+                ) : null}
+
+                {/* ── Course-only depth ─────────────────────────────────── */}
+                {isCourse && d.for_you_if?.length ? (
+                    <View style={styles.block}>
+                        <Text style={styles.sectionLabel}>THIS IS FOR YOU IF</Text>
+                        <View style={{ gap: 11 }}>
                             {d.for_you_if.map((o, i) => (
-                                <View key={i} style={[styles.bulletRow, i > 0 && { marginTop: 12 }]}>
-                                    <Ionicons name="ellipse" size={7} color={MUTE} style={{ marginTop: 7 }} />
+                                <View key={i} style={styles.bulletRow}>
+                                    <Ionicons name="ellipse" size={6} color={MUTE} style={{ marginTop: 8 }} />
                                     <Text style={styles.bulletText}>{o}</Text>
                                 </View>
                             ))}
                         </View>
-                    </Section>
+                    </View>
                 ) : null}
 
-                {/* Curriculum */}
-                {d.curriculum?.length ? (
-                    <Section label="WHAT'S INSIDE">
-                        <View style={styles.card}>
+                {isCourse && d.curriculum?.length ? (
+                    <View style={styles.block}>
+                        <Text style={styles.sectionLabel}>WHAT'S INSIDE</Text>
+                        <View style={styles.cardHair}>
                             {d.curriculum.map((w, i) => (
                                 <Accordion
                                     key={i}
                                     title={w.title}
-                                    badge={isCourse && i === 0 ? 'Free preview' : undefined}
+                                    badge={i === 0 ? 'Free preview' : undefined}
                                     open={openWeek === i}
                                     onToggle={() => setOpenWeek(openWeek === i ? -1 : i)}
                                 >
                                     {w.lessons.map((l, j) => (
                                         <View key={j} style={styles.lessonRow}>
-                                            <Ionicons
-                                                name={i === 0 ? 'play-circle-outline' : 'lock-closed-outline'}
-                                                size={15}
-                                                color={i === 0 ? GOLD : MUTE}
-                                            />
+                                            <Ionicons name={i === 0 ? 'play-circle-outline' : 'lock-closed-outline'} size={15} color={i === 0 ? base : MUTE} />
                                             <Text style={styles.lessonText}>{l}</Text>
                                         </View>
                                     ))}
                                 </Accordion>
                             ))}
                         </View>
-                    </Section>
+                    </View>
                 ) : null}
 
-                {/* Instructor */}
                 {isCourse && d.bio ? (
-                    <Section label="YOUR INSTRUCTOR">
-                        <View style={styles.card}>
-                            <View style={styles.creatorRow}>
-                                {item.creator.avatar ? (
-                                    <Image source={{ uri: item.creator.avatar }} style={styles.avatarLg} contentFit="cover" transition={150} />
-                                ) : null}
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.creatorName}>{item.creator.name}{item.creator.verified ? '  ✓' : ''}</Text>
-                                    <Text style={styles.creatorHandle}>@{item.creator.handle}</Text>
-                                </View>
-                            </View>
-                            <Text style={[styles.bioText]}>{d.bio}</Text>
-                            {d.credentials?.length ? (
-                                <View style={styles.chipsWrap}>
-                                    {d.credentials.map((c, i) => (
-                                        <View key={i} style={styles.credChip}><Text style={styles.credText}>{c}</Text></View>
-                                    ))}
-                                </View>
+                    <View style={styles.block}>
+                        <Text style={styles.sectionLabel}>YOUR INSTRUCTOR</Text>
+                        <View style={styles.creatorRowInline}>
+                            {item.creator.avatar ? (
+                                <Image source={{ uri: item.creator.avatar }} style={styles.avatarLg} contentFit="cover" transition={150} />
                             ) : null}
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.creatorName}>{item.creator.name}{item.creator.verified ? '  ✓' : ''}</Text>
+                                <Text style={styles.creatorHandle}>@{item.creator.handle}</Text>
+                            </View>
                         </View>
-                    </Section>
+                        <Text style={styles.bioText}>{d.bio}</Text>
+                        {d.credentials?.length ? (
+                            <View style={styles.chipsWrap}>
+                                {d.credentials.map((c, i) => (
+                                    <View key={i} style={styles.credChip}><Text style={styles.credText}>{c}</Text></View>
+                                ))}
+                            </View>
+                        ) : null}
+                    </View>
                 ) : null}
 
-                {/* Reviews */}
-                {d.reviews?.length ? (
-                    <Section label={item.rating ? `REVIEWS · ${item.rating.toFixed(1)} ★` : 'REVIEWS'}>
-                        <View style={{ gap: 10 }}>
+                {isCourse && d.reviews?.length ? (
+                    <View style={styles.block}>
+                        <Text style={styles.sectionLabel}>{item.rating ? `REVIEWS · ${item.rating.toFixed(1)} ★` : 'REVIEWS'}</Text>
+                        <View style={{ gap: 16 }}>
                             {d.reviews.map((r, i) => (
-                                <View key={i} style={styles.card}>
+                                <View key={i}>
                                     <View style={styles.rowCenter}>
                                         {r.avatar ? <Image source={{ uri: r.avatar }} style={styles.revAvatar} contentFit="cover" /> : null}
                                         <Text style={styles.revName}>{r.name}</Text>
@@ -345,23 +338,22 @@ export default function MaxDetailScreen() {
                                 </View>
                             ))}
                         </View>
-                    </Section>
+                    </View>
                 ) : null}
 
-                {/* FAQ */}
-                {d.faqs?.length ? (
-                    <Section label="QUESTIONS">
-                        <View style={styles.card}>
+                {isCourse && d.faqs?.length ? (
+                    <View style={styles.block}>
+                        <Text style={styles.sectionLabel}>QUESTIONS</Text>
+                        <View style={styles.cardHair}>
                             {d.faqs.map((f, i) => (
                                 <Accordion key={i} title={f.q} open={openFaq === i} onToggle={() => setOpenFaq(openFaq === i ? null : i)}>
                                     <Text style={styles.faqAnswer}>{f.a}</Text>
                                 </Accordion>
                             ))}
                         </View>
-                    </Section>
+                    </View>
                 ) : null}
 
-                {/* Guarantee */}
                 {d.guarantee ? (
                     <View style={styles.guaranteeRow}>
                         <Ionicons name="shield-checkmark-outline" size={16} color={ACCENT} />
@@ -370,15 +362,20 @@ export default function MaxDetailScreen() {
                 ) : null}
             </ScrollView>
 
-            {/* Sticky price + CTA */}
-            <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
+            {/* Sticky CTA */}
+            <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 14 }]}>
                 <View style={{ flex: 1 }}>
                     <Text style={styles.ctaPrice}>{item.price_label}</Text>
                     <Text style={styles.ctaSub}>
                         {item.price_model === 'weekly' ? 'cancel anytime' : item.weeks ? `${item.weeks} weeks · one payment` : 'one payment'}
                     </Text>
                 </View>
-                <TouchableOpacity style={[styles.ctaBtn, item.entered && { backgroundColor: ACCENT }]} activeOpacity={0.88} onPress={onCta} disabled={busy}>
+                <TouchableOpacity
+                    style={[styles.ctaBtn, { backgroundColor: item.entered ? ACCENT : INK }]}
+                    activeOpacity={0.88}
+                    onPress={onCta}
+                    disabled={busy}
+                >
                     {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaBtnText}>{item.entered ? 'Open' : 'Start'}</Text>}
                 </TouchableOpacity>
             </View>
@@ -386,102 +383,95 @@ export default function MaxDetailScreen() {
     );
 }
 
-function Section({ label, children }: { label?: string; children: React.ReactNode }) {
-    return (
-        <View style={styles.section}>
-            {label ? <Text style={styles.sectionLabel}>{label}</Text> : null}
-            {children}
-        </View>
-    );
-}
-function Stat({ value, label }: { value: string; label: string }) {
-    return (
-        <View style={styles.stat}>
-            <Text style={styles.statValue}>{value}</Text>
-            <Text style={styles.statLabel}>{label}</Text>
-        </View>
-    );
-}
-
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: CANVAS },
     center: { alignItems: 'center', justifyContent: 'center' },
-    header: { paddingHorizontal: 20, paddingBottom: 4 },
-    backBtn: { width: 40, height: 40, marginLeft: -8, alignItems: 'flex-start', justifyContent: 'center', marginBottom: 10 },
-    heroIcon: { width: 64, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-    heroKicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.6, color: MUTE, marginBottom: 6 },
-    heroTitle: { fontFamily: 'PlayfairDisplay', fontSize: 36, color: INK, letterSpacing: -0.8, lineHeight: 40 },
-    heroRule: { width: 40, height: 3, borderRadius: 2, marginTop: 14 },
 
-    metaWrap: { paddingHorizontal: 20, paddingTop: 18 },
-    creatorRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: HAIRLINE },
-    avatarLg: { width: 52, height: 52, borderRadius: 26, backgroundColor: HAIRLINE },
+    topBar: { paddingHorizontal: 14, paddingBottom: 2 },
+    backBtn: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
+
+    header: { paddingHorizontal: 22, paddingTop: 6 },
+    heroIcon: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+    kicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.8, color: MUTE, marginBottom: 8 },
+    heroTitle: { fontFamily: SERIF, fontSize: 38, color: INK, letterSpacing: -0.8, lineHeight: 42 },
+    heroRule: { width: 38, height: 3, borderRadius: 2, marginTop: 16 },
+    heroTagline: { fontFamily: 'Matter-Regular', fontSize: 16, color: SUB, marginTop: 16, lineHeight: 23 },
+
+    creatorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22, marginTop: 22 },
+    creatorRowInline: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: HAIRLINE },
+    avatarLg: { width: 50, height: 50, borderRadius: 25, backgroundColor: HAIRLINE },
     avatarFallback: { alignItems: 'center', justifyContent: 'center' },
-    creatorName: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: INK },
-    creatorHandle: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE, marginTop: 1 },
-    lead: { fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, lineHeight: 22, marginTop: 14 },
-    statsRow: { flexDirection: 'row', gap: 28, marginTop: 18 },
-    stat: {},
-    statValue: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: INK },
-    statLabel: { fontFamily: 'Matter-Regular', fontSize: 11.5, color: MUTE, marginTop: 2 },
+    creatorName: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK },
+    creatorHandle: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 1 },
+    ratingSub: { fontFamily: 'Matter-Regular', fontSize: 11, color: MUTE, marginTop: 3 },
 
-    section: { paddingHorizontal: 20, marginTop: 24 },
-    sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.4, color: MUTE, marginBottom: 10 },
-    // Flat editorial band — content on the cream, separated by a hairline
-    // (was a floating white rounded box).
+    lead: { fontFamily: 'Matter-Regular', fontSize: 16, color: SUB, lineHeight: 24, paddingHorizontal: 22, marginTop: 22 },
+
+    block: { paddingHorizontal: 22, marginTop: 28 },
+    sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.6, color: MUTE, marginBottom: 14 },
+
+    // Cards
     card: {
-        paddingTop: 16,
-        paddingBottom: 4,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: HAIRLINE,
+        backgroundColor: CARD,
+        borderRadius: 18,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: HAIRLINE,
+        padding: 17,
     },
     rowCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-
-    feasSkeleton: { height: 96 },
-    feasVerdict: { fontFamily: 'Matter-SemiBold', fontSize: 14 },
-    feasLine: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: SUB, marginTop: 6, lineHeight: 19 },
-    ghostRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 },
-    ghostDay: { alignItems: 'center', gap: 4, flex: 1 },
+    feasVerdict: { fontFamily: 'Matter-SemiBold', fontSize: 14.5 },
+    feasLine: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: SUB, marginTop: 7, lineHeight: 19 },
+    ghostRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 },
+    ghostDay: { alignItems: 'center', gap: 5, flex: 1 },
     ghostDot: { width: 8, height: 8, borderRadius: 4 },
     ghostLetter: { fontFamily: 'Matter-Medium', fontSize: 10.5, color: MUTE },
     ghostSlot: { fontFamily: 'Matter-Regular', fontSize: 9.5, color: MUTE },
 
-    bulletRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-    bulletText: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 14.5, color: SUB, lineHeight: 21 },
+    // Outcomes
+    outRow: { flexDirection: 'row', gap: 11, alignItems: 'flex-start' },
+    outText: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 15, color: INK, lineHeight: 22 },
 
-    accItem: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: HAIRLINE },
-    accHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14 },
-    accTitle: { fontFamily: 'Matter-SemiBold', fontSize: 14.5, color: INK },
-    accSub: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 2 },
+    // Pull quote
+    pullQuote: { fontFamily: SERIF_I, fontSize: 21, color: INK, lineHeight: 30, letterSpacing: -0.2 },
+    pullAttr: { fontFamily: 'Matter-Medium', fontSize: 13, color: MUTE, marginTop: 10 },
+
+    bulletRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+    bulletText: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, lineHeight: 22 },
+
+    cardHair: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: HAIRLINE },
+    accItem: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: HAIRLINE },
+    accHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 15 },
+    accTitle: { flex: 1, fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK },
     freeBadge: { fontFamily: 'Matter-SemiBold', fontSize: 11, color: GOLD },
-    accBody: { paddingBottom: 14, gap: 9 },
+    accBody: { paddingBottom: 15, gap: 10 },
     lessonRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
     lessonText: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 13.5, color: SUB },
 
-    bioText: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: SUB, lineHeight: 22, marginTop: 14 },
+    bioText: { fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, lineHeight: 23, marginTop: 14 },
     chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
     credChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F2EDE4', borderWidth: StyleSheet.hairlineWidth, borderColor: HAIRLINE },
     credText: { fontFamily: 'Matter-Medium', fontSize: 12, color: SUB },
 
     revAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: HAIRLINE },
     revName: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: INK },
-    revText: { fontFamily: 'Matter-Regular', fontSize: 14, color: SUB, lineHeight: 21, marginTop: 10 },
+    revText: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: SUB, lineHeight: 22, marginTop: 9 },
 
-    faqAnswer: { fontFamily: 'Matter-Regular', fontSize: 14, color: SUB, lineHeight: 21 },
+    faqAnswer: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: SUB, lineHeight: 22 },
 
-    guaranteeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginTop: 24 },
+    guaranteeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 22, marginTop: 28 },
     guaranteeText: { flex: 1, fontFamily: 'Matter-Medium', fontSize: 13, color: SUB, lineHeight: 19 },
 
+    // Sticky CTA
     ctaBar: {
         position: 'absolute', left: 0, right: 0, bottom: 0,
         flexDirection: 'row', alignItems: 'center', gap: 14,
-        paddingHorizontal: 20, paddingTop: 12,
-        backgroundColor: 'rgba(247,240,234,0.96)',
+        paddingHorizontal: 22, paddingTop: 14,
+        backgroundColor: 'rgba(247,240,234,0.97)',
         borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: HAIRLINE,
     },
     ctaPrice: { fontFamily: 'Matter-Bold', fontSize: 18, color: INK },
-    ctaSub: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE, marginTop: 1 },
-    ctaBtn: { backgroundColor: INK, borderRadius: 999, paddingHorizontal: 30, paddingVertical: 15, minWidth: 120, alignItems: 'center' },
+    ctaSub: { fontFamily: 'Matter-Regular', fontSize: 12, color: SUB, marginTop: 1 },
+    ctaBtn: { borderRadius: 999, paddingHorizontal: 32, paddingVertical: 15, minWidth: 124, alignItems: 'center' },
     ctaBtnText: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: '#fff' },
 });
