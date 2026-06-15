@@ -13,7 +13,7 @@
  * root navigator then lands the user on Main (Today) - free until the
  * marketplace.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
@@ -21,10 +21,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassButton } from '../../components/glass/GlassButton';
-import RevealChoreography, {
-    RevealRailSkeleton,
-    type RevealRow,
-} from '../../components/reveal/RevealChoreography';
+import { RevealRailSkeleton } from '../../components/reveal/RevealChoreography';
+import DayOneStats, { type QuestTask } from '../../components/reveal/DayOneStats';
 import { useAuth } from '../../context/AuthContext';
 import { getIosApnsDeviceTokenForBackend } from '../../services/registerIosPushToken';
 import { track } from '../../lib/analytics';
@@ -33,6 +31,7 @@ import api from '../../services/api';
 const INK = '#1C1A17';
 const GOLD = '#2C6BED';
 const MUTE = '#97928A';
+const SUB = '#5C574E';
 
 function fmt12(hhmm?: string): string {
     if (!hhmm || !hhmm.includes(':')) return '';
@@ -55,7 +54,6 @@ export default function RevealV2Screen() {
     const insets = useSafeAreaInsets();
     const { user, refreshUser } = useAuth();
     const [phase, setPhase] = useState<'reveal' | 'notifications' | 'scan'>('reveal');
-    const [revealSettled, setRevealSettled] = useState(false);
     const [busy, setBusy] = useState(false);
     const [saveError, setSaveError] = useState(false);
 
@@ -64,6 +62,10 @@ export default function RevealV2Screen() {
         queryFn: () => api.getPlannerToday(),
         staleTime: 0,
     });
+
+    const todayData = todayQ.data;
+    const todayLoading = todayQ.isLoading;
+    const todayError = todayQ.isError;
 
     // Prefer the answers passed by the funnel (fresh, race-free); fall back
     // to the persisted user record.
@@ -81,30 +83,37 @@ export default function RevealV2Screen() {
         return (tok && byToken[tok]) || null;
     }, [ob.goals, ob.priority_order]);
 
-    const rows: RevealRow[] = useMemo(() => {
-        const data = todayQ.data;
-        if (!data) return [];
-        const raw: (RevealRow & { sortKey: number })[] = [];
-        for (const s of data.structure ?? []) {
-            raw.push({ kind: 'struct', time: fmt12(s.time), label: s.label, sortKey: toMin(s.time) });
+    const { tasks, wake, windDown } = useMemo(() => {
+        const data = todayData;
+        const list: (QuestTask & { sortKey: number })[] = [];
+        let w = '';
+        let wd = '';
+        for (const sct of data?.structure ?? []) {
+            const lbl = (sct.label || '').toLowerCase();
+            if (lbl.includes('wake')) w = fmt12(sct.time);
+            else if (lbl.includes('sleep') || lbl.includes('wind') || lbl.includes('bed')) wd = fmt12(sct.time);
         }
-        for (const t of data.tasks ?? []) {
-            raw.push({
-                kind: 'task',
-                time: fmt12(t.time),
-                title: t.title || 'Task',
-                why: t.why || undefined,
-                sortKey: toMin(t.time),
-            });
+        for (const t of data?.tasks ?? []) {
+            list.push({ time: fmt12(t.time), title: t.title || 'Task', why: t.why || undefined, sortKey: toMin(t.time) });
         }
-        raw.sort((a, b) => a.sortKey - b.sortKey);
-        return raw.map(({ sortKey: _sk, ...row }) => row as RevealRow);
-    }, [todayQ.data]);
+        list.sort((a, b) => a.sortKey - b.sortKey);
+        return {
+            tasks: list.map(({ sortKey: _s, ...t }) => t as QuestTask),
+            wake: w || fmt12(ob.wake_time),
+            windDown: wd || fmt12(Array.isArray(ob.wind_down_window) ? ob.wind_down_window[1] : ob.sleep_time),
+        };
+    }, [todayQ.data, ob.wake_time, ob.sleep_time, ob.wind_down_window]);
 
-    const taskCount = rows.filter((r) => r.kind === 'task').length;
+    const taskCount = tasks.length;
     const closeLine =
         'Just a taste — not your real plan yet. Once you start, Max builds something far ' +
         'deeper and hyper-personalized, tuned to your goals, your body, and your day.';
+
+    // Fire once when the real starter day has loaded.
+    useEffect(() => {
+        if (taskCount > 0) track('reveal_completed', { tasks: taskCount });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [taskCount > 0]);
 
     // `goChatSetup` (default) hands the user straight into a short, guided chat
     // with Max to tailor their #1 max — they answer the few personalization
@@ -163,44 +172,32 @@ export default function RevealV2Screen() {
             >
                 {phase === 'reveal' ? (
                     <>
-                        <Text style={styles.title}>Here's your{'\n'}<Text style={{ fontFamily: 'Fraunces-Italic' }}>first</Text> day</Text>
-                        {todayQ.isLoading ? (
-                            <RevealRailSkeleton />
-                        ) : todayQ.isError || taskCount === 0 ? (
+                        <Text style={styles.kicker}>STARTER PLAN</Text>
+                        <Text style={styles.title}>Here's a <Text style={{ fontFamily: 'Fraunces-Italic' }}>taste</Text></Text>
+                        {todayLoading ? (
+                            <View style={{ marginTop: 22 }}><RevealRailSkeleton /></View>
+                        ) : todayError ? (
                             <View style={{ marginTop: 24 }}>
-                                <Text style={styles.sub}>
-                                    {todayQ.isError
-                                        ? "Couldn't load your day. Check your connection and try again."
-                                        : 'Your day is set up. Next, a few quick questions so Max can tailor it to you.'}
-                                </Text>
-                                {todayQ.isError ? (
-                                    <View style={{ marginTop: 14 }}>
-                                        <GlassButton
-                                            variant="glass"
-                                            label="Try again"
-                                            onPress={() => todayQ.refetch()}
-                                        />
-                                    </View>
-                                ) : null}
+                                <Text style={styles.sub}>Couldn't load your day. Check your connection and try again.</Text>
+                                <View style={{ marginTop: 14 }}>
+                                    <GlassButton variant="glass" label="Try again" onPress={() => todayQ.refetch()} />
+                                </View>
                             </View>
+                        ) : taskCount === 0 ? (
+                            <Text style={[styles.sub, { marginTop: 22 }]}>
+                                Your day is set up. Next, a few quick questions so Max can tailor it to you.
+                            </Text>
                         ) : (
-                            <View style={{ marginTop: 20 }}>
-                                <RevealChoreography
-                                    rows={rows}
-                                    scope="first-day"
-                                    closeLine={closeLine}
-                                    onComplete={() => {
-                                        setRevealSettled(true);
-                                        track('reveal_completed', { tasks: taskCount });
-                                    }}
-                                />
+                            <View style={{ marginTop: 22 }}>
+                                <DayOneStats focusMax={topMax} wake={wake} windDown={windDown} tasks={tasks} />
+                                <Text style={styles.closeLine}>{closeLine}</Text>
                             </View>
                         )}
                         <View style={{ marginTop: 'auto', paddingTop: 24 }}>
                             <GlassButton
                                 variant="primary"
-                                label={taskCount === 0 && !todayQ.isLoading && !todayQ.isError ? 'Continue' : 'Looks right'}
-                                disabled={todayQ.isLoading || (taskCount > 0 && !revealSettled)}
+                                label={taskCount === 0 && !todayLoading && !todayError ? 'Continue' : 'Looks right'}
+                                disabled={todayLoading}
                                 onPress={() => setPhase('notifications')}
                             />
                         </View>
@@ -288,4 +285,13 @@ const styles = StyleSheet.create({
         lineHeight: 42,
     },
     sub: { fontFamily: 'Matter-Regular', fontSize: 15, color: MUTE, marginTop: 12, lineHeight: 22 },
+    closeLine: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 13.5,
+        color: SUB,
+        lineHeight: 20,
+        textAlign: 'center',
+        marginTop: 18,
+        paddingHorizontal: 6,
+    },
 });
