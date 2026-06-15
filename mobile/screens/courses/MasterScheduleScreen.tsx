@@ -8,6 +8,8 @@ import {
   RefreshControl,
   Platform,
   Alert,
+  Animated,
+  Easing,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -1030,21 +1032,7 @@ export default function MasterScheduleScreen() {
 
         {hiddenLifeCount > 0 ? (
           <View style={styles.filterRow}>
-            <TouchableOpacity
-              style={[styles.filterChip, maxxesOnly && styles.filterChipOn]}
-              onPress={toggleMaxxesOnly}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityState={{ selected: maxxesOnly }}
-              accessibilityLabel={maxxesOnly ? 'Show your full day' : 'Show looksmaxxing tasks only'}
-            >
-              <Ionicons
-                name={maxxesOnly ? 'sparkles' : 'sparkles-outline'}
-                size={13}
-                color={maxxesOnly ? colors.background : colors.textSecondary}
-              />
-              <Text style={[styles.filterChipText, maxxesOnly && styles.filterChipTextOn]}>Maxxes only</Text>
-            </TouchableOpacity>
+            <MaxxesToggle on={maxxesOnly} onToggle={toggleMaxxesOnly} />
           </View>
         ) : null}
 
@@ -1256,6 +1244,38 @@ function formatTime12(hhmm: string): string {
   return `${h12}:${min} ${period}`;
 }
 
+// A bespoke slim toggle — editorial label + a custom switch in the Craft
+// palette (ink track, cream knob). No icon, no filled pill: minimal + ownable.
+function MaxxesToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  const a = useRef(new Animated.Value(on ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.timing(a, {
+      toValue: on ? 1 : 0,
+      duration: 200,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [on, a]);
+  const trackBg = a.interpolate({ inputRange: [0, 1], outputRange: ['rgba(28,26,23,0)', colors.foreground] });
+  const knobX = a.interpolate({ inputRange: [0, 1], outputRange: [3, 19] });
+  const knobBg = a.interpolate({ inputRange: [0, 1], outputRange: [colors.textMuted, colors.background] });
+  return (
+    <TouchableOpacity
+      style={styles.toggle}
+      activeOpacity={0.7}
+      onPress={onToggle}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: on }}
+      accessibilityLabel="Maxxes only"
+    >
+      <Text style={[styles.toggleLabel, on && styles.toggleLabelOn]}>Maxxes only</Text>
+      <Animated.View style={[styles.toggleTrack, { backgroundColor: trackBg, borderColor: on ? colors.foreground : colors.border }]}>
+        <Animated.View style={[styles.toggleKnob, { backgroundColor: knobBg, transform: [{ translateX: knobX }] }]} />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   center: { justifyContent: 'center', alignItems: 'center' },
@@ -1353,21 +1373,12 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   taskList: { flex: 1, minHeight: 0, paddingHorizontal: spacing.lg },
-  filterRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: 'transparent',
-  },
-  filterChipOn: { backgroundColor: colors.foreground, borderColor: colors.foreground },
-  filterChipText: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1 },
-  filterChipTextOn: { color: colors.background, fontFamily: fonts.sansSemiBold },
+  filterRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  toggleLabel: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textMuted, letterSpacing: 0.1 },
+  toggleLabelOn: { color: colors.foreground, fontFamily: fonts.sansSemiBold },
+  toggleTrack: { width: 38, height: 22, borderRadius: 11, borderWidth: StyleSheet.hairlineWidth },
+  toggleKnob: { position: 'absolute', top: 3, left: 0, width: 16, height: 16, borderRadius: 8 },
   maxxesEmpty: { paddingVertical: spacing.xl, paddingHorizontal: spacing.sm },
   maxxesEmptyText: { fontFamily: fonts.sans, fontSize: 13.5, color: colors.textMuted, lineHeight: 20, textAlign: 'center' },
   /* Life rows (work / sleep) — same shape as a regular taskRow but
