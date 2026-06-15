@@ -16,7 +16,8 @@ export type AnalyticsEvent =
     | 'lock_in'
     | 'freeze_used'
     | 'review_confirmed'
-    | 'onboarding_step';
+    | 'onboarding_step'
+    | 'onboarding_chat_setup';
 
 let queue: { event: AnalyticsEvent; props?: Record<string, unknown> }[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;

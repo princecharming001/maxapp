@@ -77,6 +77,18 @@ export default function RevealV2Screen() {
     // to the persisted user record.
     const ob = (route.params?.ob ?? user?.onboarding ?? {}) as Record<string, any>;
 
+    // The user's #1 priority max — drives the forced "tailor your plan" chat
+    // right after onboarding. `goals` is already an ordered list of maxx ids
+    // (first = top); fall back to mapping the priority_order token.
+    const topMax: string | null = useMemo(() => {
+        const byToken: Record<string, string> = {
+            skin: 'skinmax', body: 'fitmax', hair: 'hairmax', height: 'heightmax', face_structure: 'bonemax',
+        };
+        if (Array.isArray(ob.goals) && ob.goals[0]) return String(ob.goals[0]);
+        const tok = Array.isArray(ob.priority_order) ? ob.priority_order[0] : undefined;
+        return (tok && byToken[tok]) || null;
+    }, [ob.goals, ob.priority_order]);
+
     const rows: RevealRow[] = useMemo(() => {
         const data = todayQ.data;
         if (!data) return [];
@@ -104,16 +116,27 @@ export default function RevealV2Screen() {
         return `Built around your ${wake} wake. ${taskCount} thing${taskCount === 1 ? '' : 's'}, ${motivationTail}`;
     }, [ob.wake_time, ob.motivation, taskCount]);
 
-    const completeOnboarding = async () => {
+    // `goChatSetup` (default) hands the user straight into a short, guided chat
+    // with Max to tailor their #1 max — they answer the few personalization
+    // questions the starter routine is still missing, which upgrades the thin
+    // starter into the full plan. The scan path opts out (scan is its own tune).
+    const completeOnboarding = async (goChatSetup = true) => {
         setBusy(true);
         try {
             await api.saveOnboarding({ ...(ob as any), completed: true });
             await refreshUser();
-            // The root stack swaps on completion; steer explicitly to Main so
-            // web URL-linking can't restore this (now-stale) reveal route.
+            // The root stack swaps on completion; steer explicitly via the
+            // shared ref so web URL-linking can't restore this stale route.
             const { navigationRef } = require('../../lib/navigationRef');
             setTimeout(() => {
-                if (navigationRef.isReady()) {
+                if (!navigationRef.isReady()) return;
+                if (goChatSetup && topMax) {
+                    track('onboarding_chat_setup', { max: topMax });
+                    (navigationRef as any).navigate('Main', {
+                        screen: 'Chat',
+                        params: { initSchedule: topMax, setup: true },
+                    });
+                } else {
                     (navigationRef as any).navigate('Main');
                 }
             }, 350);
@@ -158,7 +181,7 @@ export default function RevealV2Screen() {
                                 <Text style={styles.sub}>
                                     {todayQ.isError
                                         ? "Couldn't load your day. Check your connection and try again."
-                                        : 'Your day is set up. Tasks land as soon as you pick a program in Explore.'}
+                                        : 'Your day is set up. Next, a few quick questions so Max can tailor it to you.'}
                                 </Text>
                                 {todayQ.isError ? (
                                     <View style={{ marginTop: 14 }}>
@@ -238,8 +261,10 @@ export default function RevealV2Screen() {
                                 onPress={async () => {
                                     // Completing onboarding swaps the root stack
                                     // (this navigator unmounts) - navigate via the
-                                    // shared ref AFTER the new stack mounts.
-                                    await completeOnboarding();
+                                    // shared ref AFTER the new stack mounts. Scan
+                                    // is its own tailoring step, so skip the chat
+                                    // setup hand-off here.
+                                    await completeOnboarding(false);
                                     const { navigationRef } = require('../../lib/navigationRef');
                                     setTimeout(() => {
                                         if (navigationRef.isReady()) {

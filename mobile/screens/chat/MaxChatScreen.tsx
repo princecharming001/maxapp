@@ -276,17 +276,25 @@ export default function MaxChatScreen() {
         if (!initSchedule || !historyReady) return;
         if (initScheduleHandled.current === initSchedule) return;
         if (loading) return;
-        // Clear the route param so a back-navigate-and-return doesn't
-        // re-fire "I want to start X" (the in-mount ref doesn't survive
-        // remount, so the same param triggers a duplicate user message
-        // and a duplicate schedule-start request server-side).
+        // `setup` = arriving straight from onboarding for the forced "tailor
+        // your #1 max" walkthrough. Same start_schedule intent, but the opener
+        // asks Max to run the personalization questions the starter is missing.
+        const setup = route.params?.setup === true;
+        // Clear the route params so a back-navigate-and-return doesn't
+        // re-fire (the in-mount ref doesn't survive remount, so the same param
+        // triggers a duplicate user message + schedule-start request server-side).
         try {
-            navigation.setParams({ initSchedule: undefined });
+            navigation.setParams({ initSchedule: undefined, setup: undefined });
         } catch { /* nav not ready */ }
         initScheduleHandled.current = initSchedule;
         const maxxLabel = initSchedule.charAt(0).toUpperCase() + initSchedule.slice(1).replace('max', 'Max');
+        // NOTE: keep an action verb ("set up" / "start") + the max name in the
+        // opener — services.onboarding_questioner.detect_max_start_intent gates
+        // the personalization-question flow on exactly that.
         sendMessageWithContext(
-            `I want to start my ${maxxLabel} schedule.`,
+            setup
+                ? `Let's set up my ${maxxLabel}. Ask me what you need to tailor it to me.`
+                : `I want to start my ${maxxLabel} schedule.`,
             initSchedule,
             'start_schedule',
         );
