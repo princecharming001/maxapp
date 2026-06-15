@@ -352,13 +352,22 @@ export default function OnboardingV2Screen() {
 
     const hasCommute = works && workLocation !== 'home';
 
-    // Keep each routine window ordered (end stays after start). Wind-down uses
-    // evening-normalised minutes so a window can run up to a past-midnight bed.
-    const eve = (m: number) => (m < 240 ? m + 1440 : m);
-    const onGrStart = (v: number) => { setGrStart(v); if (v >= grEnd) setGrEnd((v + 15) % 1440); };
-    const onGrEnd = (v: number) => { setGrEnd(v); if (v <= grStart) setGrStart((v - 15 + 1440) % 1440); };
-    const onWdStart = (v: number) => { setWdStart(v); if (eve(v) >= eve(wdEnd)) setWdEnd((v + 15) % 1440); };
-    const onWdEnd = (v: number) => { setWdEnd(v); if (eve(v) <= eve(wdStart)) setWdStart((v - 15 + 1440) % 1440); };
+    // Keep each routine window inside a sane envelope and ordered (end after
+    // start), matching the planner's editable ranges so onboarding can never
+    // write a window the planner can't represent.
+    //   Get-ready: 04:00–13:00 (all morning, no midnight wrap).
+    //   Wind-down: 18:00–02:00, evening-normalised so a past-midnight bedtime
+    //   still orders correctly.
+    const GR_MIN = 4 * 60, GR_MAX = 13 * 60;
+    const WD_LO = 18 * 60, WD_HI = 26 * 60; // 6 PM .. 2 AM (eve-normalised)
+    const eve = (m: number) => (m < 4 * 60 ? m + 1440 : m); // 04:00 = day boundary
+    const fromEve = (e: number) => e % 1440;
+    const clampGr = (m: number) => Math.max(GR_MIN, Math.min(GR_MAX, m));
+    const clampWdEve = (m: number) => Math.max(WD_LO, Math.min(WD_HI, eve(m)));
+    const onGrStart = (v: number) => { const s = clampGr(v); setGrStart(s); if (s >= grEnd) setGrEnd(clampGr(s + 15)); };
+    const onGrEnd = (v: number) => { const e = clampGr(v); setGrEnd(e); if (e <= grStart) setGrStart(clampGr(e - 15)); };
+    const onWdStart = (v: number) => { const se = clampWdEve(v); setWdStart(fromEve(se)); if (se >= eve(wdEnd)) setWdEnd(fromEve(Math.min(WD_HI, se + 15))); };
+    const onWdEnd = (v: number) => { const ee = clampWdEve(v); setWdEnd(fromEve(ee)); if (ee <= eve(wdStart)) setWdStart(fromEve(Math.max(WD_LO, ee - 15))); };
 
     const finish = async () => {
         setSaving(true);

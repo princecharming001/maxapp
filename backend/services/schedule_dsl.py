@@ -676,8 +676,16 @@ def build_anchor_overrides(
     wd_lo = _window_endpoint(state.get("wind_down_window"), 0)
     wd_hi = _window_endpoint(state.get("wind_down_window"), 1)
     if wd_lo and wd_hi and (to_minutes(parse_clock(wd_hi)) - to_minutes(parse_clock(wd_lo))) >= 15:
+        # pm_close is the slot the PM bathroom/skincare blocks ACTUALLY use
+        # across maxes (skin PM, minox PM, product rinse); pm_routine/wind_down
+        # are the newer names. Write all of them so the routine lands in the
+        # user's window whatever the doc calls it.
         out["wind_down"] = [wd_lo, wd_hi]
         out["pm_routine"] = [wd_lo, wd_hi]
+        out["pm_close"] = [wd_lo, wd_hi]
+        # Evening skincare actives (microneedle, deep-condition) also live in the
+        # wind-down window for skin/hair; physical maxes keep pm_active on the
+        # workout block (set above).
         if mid not in _PHYSICAL_PM_MAXES:
             out["pm_active"] = [wd_lo, wd_hi]
 

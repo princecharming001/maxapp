@@ -1133,6 +1133,17 @@ def _busy_intervals_from_ctx(user_ctx: dict[str, Any]) -> list[tuple[int, int]]:
                 continue
             raw.append((s, e))
 
+    # Meals the user eats are busy windows too — don't schedule a routine task
+    # while they're eating. Breakfast (30m) and dinner (60m) are protected; lunch
+    # is left open since the user may deliberately train on a lunch break.
+    skipped = {str(x).strip().lower() for x in (user_ctx.get("meals_skipped") or [])}
+    for meal, dur in (("breakfast_time", 30), ("dinner_time", 60)):
+        if meal.split("_")[0] in skipped:
+            continue
+        ms = _parse_time_field(user_ctx.get(meal))
+        if ms is not None:
+            raw.append((ms, ms + dur))
+
     if not raw:
         return []
 

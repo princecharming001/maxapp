@@ -40,6 +40,7 @@ import {
   normalizePriorityOrder,
   inferFitEquipmentFromOnboarding,
 } from '../../constants/profileLifestyleQuestionnaire';
+import { isHHMM, toMin } from '../../components/planner/plannerModel';
 
 const GOALS = [
   { id: 'bonemax', label: 'Bonemax', icon: 'body-outline' },
@@ -65,22 +66,28 @@ function hydrateFromOnboarding(ob: Record<string, any>) {
   // Older fields like appearance_concerns / skin / hair / training are kept in
   // user.onboarding as-is on save (via {...base} spread) so downstream engines
   // that still depend on them keep working, but we don't surface those edits.
+  // Get-ready is a [start,end] WINDOW now; read the start + width from it (the
+  // canonical field), falling back to the legacy get_ready_time + minutes.
+  const grWin = Array.isArray(ob.get_ready_window) ? ob.get_ready_window : null;
+  const grStart = grWin && isHHMM(grWin[0]) ? (grWin[0] as string) : ((ob.get_ready_time as string) || null);
+  const grMin =
+    grWin && isHHMM(grWin[0]) && isHHMM(grWin[1])
+      ? Math.max(5, toMin(grWin[1]) - toMin(grWin[0]))
+      : typeof ob.get_ready_minutes === 'number' && ob.get_ready_minutes > 0
+        ? ob.get_ready_minutes
+        : 30;
+  // Bedtime = the END of the wind-down window when present, else sleep_time.
+  const wdWin = Array.isArray(ob.wind_down_window) ? ob.wind_down_window : null;
+  const bedtime = wdWin && isHHMM(wdWin[1]) ? (wdWin[1] as string) : (ob.sleep_time || '23:00');
   return {
     priorityRanking: Array.isArray(ob.priority_ranking)
       ? [...ob.priority_ranking]
       : normalizePriorityOrder(ob.priority_order),
     wakeTime: ob.wake_time || '07:00',
-    sleepTime: ob.sleep_time || '23:00',
+    sleepTime: bedtime,
     // Precise day anchor — null means "auto" (coach derives from wake/sleep).
-    // We only ever persist a concrete time when the user explicitly picks one,
-    // so users who don't care keep the smart biology-anchored defaults.
-    getReadyTime: (ob.get_ready_time as string | undefined) || null,
-    // How long getting ready takes (minutes). Sizes the AM routine block on the
-    // backend; changing it re-shapes the schedule. Default 30 when unset.
-    getReadyMinutes:
-      typeof ob.get_ready_minutes === 'number' && ob.get_ready_minutes > 0
-        ? ob.get_ready_minutes
-        : 30,
+    getReadyTime: isHHMM(grStart) ? (grStart as string) : null,
+    getReadyMinutes: grMin,
   };
 }
 
@@ -246,14 +253,21 @@ export default function EditPersonalScreen() {
       unit_system: unitSystem,
       priority_ranking: [...priorityRanking],
       wake_time: hhmm(wakeTime),
+      // Bedtime is edited here as a single exact time. Write the window fields
+      // too (an exact bedtime = a collapsed wind-down window) so this clears any
+      // wind-down RANGE the planner stored — otherwise the canonical window
+      // would silently override the bedtime the user just set here.
       sleep_time: hhmm(sleepTime),
-      // Precise anchors — only persist a concrete time when the user set one;
-      // null clears back to auto so the coach derives it from wake/sleep.
+      sleep_window: [hhmm(sleepTime), hhmm(sleepTime)],
+      wind_down_window: null,
+      // Get-ready window is canonical; keep the legacy scalar + duration in sync.
+      // Writing the window here is what makes a get-ready edit actually take
+      // effect (hydrate trusts get_ready_window first).
       get_ready_time: getReadyTime ? hhmm(getReadyTime) : null,
-      // Duration sizes the AM routine block (and shifts later windows) whether
-      // the start time is pinned or left on Auto — so editing it always reshapes
-      // the schedule.
       get_ready_minutes: getReadyMinutes,
+      get_ready_window: getReadyTime
+        ? [hhmm(getReadyTime), shiftTime(hhmm(getReadyTime), getReadyMinutes)]
+        : null,
       // The workout WINDOW and recurring commitments (work/school) are owned by
       // the Day Planner now — work is just an obligation, the workout is a range.
       // We deliberately DON'T write preferred_workout_time / preferred_workout_window
@@ -563,11 +577,11 @@ export default function EditPersonalScreen() {
                 </Text>
                 {timeRow('Wake', 'wake', wakeTime, setWakeTime)}
                 {anchorRow(
-                  'Get ready / shower',
+                  'Get ready',
                   'getReady',
                   getReadyTime,
                   setGetReadyTime,
-                  'Anchors your morning routine.',
+                  'Start of your morning routine. Edit the full window in the Day Planner.',
                   'water-outline',
                 )}
                 <View style={styles.timeBlock}>
@@ -601,7 +615,7 @@ export default function EditPersonalScreen() {
                     Longer prep gives your morning routine more room before the rest of your day.
                   </Text>
                 </View>
-                {timeRow('Bed', 'sleep', sleepTime, setSleepTime)}
+                {timeRow('Bedtime', 'sleep', sleepTime, setSleepTime)}
                 <TouchableOpacity
                   style={styles.plannerPointer}
                   activeOpacity={0.7}

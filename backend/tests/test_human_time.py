@@ -71,6 +71,46 @@ def test_routine_windows_are_zero_change_without_them():
     assert w.wind_down == (21 * 60 + 45, 22 * 60 + 45)
 
 
+def test_get_ready_window_clamped_to_work_no_crunch_inversion():
+    # A get-ready window overrunning into work is clamped to work start, and the
+    # crunch never starts before the routine ends.
+    st = {**NINE_TO_FIVE, "get_ready_window": ["08:30", "09:30"]}
+    w = life_windows(st)
+    assert w.morning_routine == (8 * 60 + 30, 9 * 60)   # clamped to 09:00 work start
+    assert w.crunch is None                              # no room to squeeze -> dropped
+
+
+def test_get_ready_before_wake_is_ignored():
+    st = {**NINE_TO_FIVE, "get_ready_window": ["05:00", "05:30"]}
+    assert life_windows(st).morning_routine == (7 * 60, 7 * 60 + 45)
+
+
+def test_dinner_clamped_out_of_wind_down():
+    st = {**NINE_TO_FIVE, "dinner_time": "19:30", "wind_down_window": ["20:30", "22:00"]}
+    w = life_windows(st)
+    assert w.dinner is not None and w.dinner[1] <= w.wind_down[0]   # no overlap
+
+
+def test_wind_down_override_targets_the_real_pm_slot():
+    # Regression: the PM routine blocks use the `pm_close` slot — the override
+    # MUST hit it (not only the newer pm_routine/wind_down names) or the
+    # nighttime routine silently stays on its default hour-before-bed.
+    from services.schedule_dsl import build_anchor_overrides
+    ov = build_anchor_overrides({"wind_down_window": ["19:00", "20:30"]}, maxx_id="skinmax")
+    assert ov.get("pm_close") == ["19:00", "20:30"]
+    assert ov.get("pm_active") == ["19:00", "20:30"]   # evening skincare too, for skin
+
+
+def test_stated_meals_are_busy_intervals_lunch_stays_open():
+    from services.schedule_validator import _busy_intervals_from_ctx
+    busy = _busy_intervals_from_ctx(
+        {"breakfast_time": "08:00", "lunch_time": "12:30", "dinner_time": "19:00"}
+    )
+    assert (8 * 60, 8 * 60 + 30) in busy          # breakfast blocked
+    assert (19 * 60, 20 * 60) in busy             # dinner blocked
+    assert all(not (s <= 12 * 60 + 30 < e) for s, e in busy)  # lunch left open for a workout
+
+
 # --- workouts go where workouts go ---------------------------------------------
 
 def test_workout_after_work_lands_after_settling_in():

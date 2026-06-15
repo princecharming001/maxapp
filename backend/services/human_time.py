@@ -51,9 +51,9 @@ def _window(value: Any, *, night: bool = False) -> tuple[int, int] | None:
     if not isinstance(value, (list, tuple)) or len(value) != 2:
         return None
     lo, hi = to_min(value[0], -1), to_min(value[1], -1)
-    if lo < 0 or hi < 0:
-        return None
-    if night and hi <= lo:
+    if lo < 0 or hi < 0 or hi == lo:
+        return None  # reject a collapsed/zero-width range up front
+    if night and hi < lo:
         hi += 24 * 60
     return (lo, hi) if hi > lo else None
 
@@ -119,17 +119,21 @@ def life_windows(state: dict) -> LifeWindows:
     work_start, work_end = (work if work else (None, None))
 
     # Morning routine (get-ready: AM skincare, shower, hair). Honor an explicit
-    # get-ready WINDOW when the user gave one; otherwise the legacy biology
-    # default — a ~45-min block off wake, never overrunning into work.
+    # get-ready WINDOW when the user gave one (but not one starting before they
+    # wake, and never overrunning into work); otherwise the legacy biology
+    # default — a ~45-min block off wake.
     gr = _window(state.get("get_ready_window"))
-    if gr:
-        morning_routine = gr
+    if gr and gr[0] >= wake:
+        gr_end = min(gr[1], work_start) if work_start is not None else gr[1]
+        morning_routine = (gr[0], gr_end) if gr_end > gr[0] else (gr[0], gr[0] + 30)
     else:
         morning_routine = (wake, min(wake + 45, (work_start - 30) if work_start else wake + 45))
 
+    # The get-ready crunch is the squeeze AFTER the routine and before work. Skip
+    # it when the routine already runs right up to work (no gap to squeeze).
     crunch = None
-    if work_start is not None and work_start - wake > 45:
-        crunch = (max(wake + 30, work_start - 45), work_start)
+    if work_start is not None and work_start - morning_routine[1] >= 10 and work_start - wake > 45:
+        crunch = (max(morning_routine[1], work_start - 45), work_start)
 
     # Which meals the user told us they skip — those reserve no window, so the
     # scheduler is free to use the time.
@@ -186,10 +190,19 @@ def life_windows(state: dict) -> LifeWindows:
     # legacy default — the hour before the sleep anchor. Normalised forward so a
     # window that ends after midnight stays ordered against sleep_for_calc.
     wd = _window(state.get("wind_down_window"), night=True)
-    if wd and wd[0] >= wake:
-        wind_down = wd
+    if wd:
+        # Normalise the window into the same forward-of-wake frame as
+        # sleep_for_calc so an overnight wind-down (e.g. 02:00–03:00 for a 14:00
+        # riser) sits late in the day, not before it.
+        lo = wd[0] if wd[0] >= wake else wd[0] + 24 * 60
+        hi = wd[1] if wd[1] >= wake else wd[1] + 24 * 60
+        wind_down = (lo, hi) if hi > lo else (sleep_for_calc - 75, sleep_for_calc - 15)
     else:
         wind_down = (sleep_for_calc - 75, sleep_for_calc - 15)
+    # A stated dinner that runs into the wind-down window gets clamped to its
+    # start, so the two protected/routine spans never overlap.
+    if dinner and dinner[1] > wind_down[0] and dinner[0] < wind_down[0]:
+        dinner = (dinner[0], wind_down[0])
     # The free evening starts after dinner when there is one, else straight off
     # the evening floor (settle-in / late-afternoon), and runs until wind-down.
     evening_lo = (dinner[1] + 15) if dinner else evening_start_floor
@@ -328,7 +341,11 @@ def humanize_days(days: list[dict], state: dict) -> list[dict]:
             m = to_min(t.get("time"), -1)
             if m < 0:
                 continue
-            essential_morning = m < w.morning_routine[1]
+            # AM routine tasks (skincare, etc.) are allowed to sit inside the
+            # morning window — but NOT on top of breakfast, even when a long
+            # get-ready window would otherwise mark them "essential morning".
+            in_breakfast = bool(w.breakfast and w.breakfast[0] <= m < w.breakfast[1])
+            essential_morning = m < w.morning_routine[1] and not in_breakfast
             if not essential_morning:
                 m = nudge_out_of_protected(m, w, int(t.get("duration_min") or 10))
             m = friendly_time(m)
