@@ -18,8 +18,9 @@
  * Saving (completed=false) triggers the backend starter-routine generation,
  * then we push RoutineReveal (RevealV2 renders behind the same route name).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+    PanResponder,
     Platform,
     ScrollView,
     StyleSheet,
@@ -113,7 +114,6 @@ const LOCATIONS = [
     ['home', 'From home'],
 ] as const;
 
-const COMMUTES = [15, 30, 45, 60] as const;
 // How long the user takes to get ready in the morning. Sizes the AM routine
 // block on the backend (schedule_dsl.build_anchor_overrides) and pushes the
 // post-routine / AM-active windows later, so longer-prep mornings aren't crammed.
@@ -307,6 +307,71 @@ function Pill({
         >
             <Text style={[styles.pillText, active && styles.pillTextActive]}>{label}</Text>
         </TouchableOpacity>
+    );
+}
+
+// A minimal, dependency-free slider (web + native via PanResponder). Snaps to
+// `step`; tap or drag anywhere on the track. Ink fill + thumb on a hairline.
+const THUMB = 26;
+function Slider({
+    value,
+    min,
+    max,
+    step,
+    onChange,
+    style,
+}: {
+    value: number;
+    min: number;
+    max: number;
+    step: number;
+    onChange: (v: number) => void;
+    style?: any;
+}) {
+    const trackRef = useRef<View>(null);
+    const wRef = useRef(0);
+    const leftRef = useRef(0);
+
+    const setFromAbsX = (absX: number) => {
+        const w = wRef.current;
+        if (w <= 0) return;
+        const ratio = Math.max(0, Math.min(1, (absX - leftRef.current) / w));
+        const snapped = Math.round((min + ratio * (max - min)) / step) * step;
+        const clamped = Math.max(min, Math.min(max, snapped));
+        onChange(clamped);
+    };
+
+    const pan = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: () => true,
+            onPanResponderTerminationRequest: () => false,
+            onPanResponderGrant: (e) => {
+                trackRef.current?.measure((_x, _y, w, _h, pageX) => {
+                    wRef.current = w;
+                    leftRef.current = pageX;
+                    setFromAbsX(e.nativeEvent.pageX);
+                });
+            },
+            onPanResponderMove: (e) => setFromAbsX(e.nativeEvent.pageX),
+        }),
+    ).current;
+
+    const pct = max > min ? (value - min) / (max - min) : 0;
+    const [w, setW] = useState(0);
+    const thumbLeft = Math.max(0, pct * (w - THUMB));
+
+    return (
+        <View
+            ref={trackRef}
+            style={[styles.sliderWrap, style]}
+            onLayout={(e) => { wRef.current = e.nativeEvent.layout.width; setW(e.nativeEvent.layout.width); }}
+            {...pan.panHandlers}
+        >
+            <View style={styles.sliderTrack} />
+            <View style={[styles.sliderFill, { width: thumbLeft + THUMB / 2 }]} />
+            <View style={[styles.sliderThumb, { left: thumbLeft }]} />
+        </View>
     );
 }
 
@@ -608,16 +673,22 @@ export default function OnboardingV2Screen() {
 
                             {workLocation !== 'home' ? (
                                 <>
-                                    <Text style={styles.groupLabel}>COMMUTE EACH WAY</Text>
-                                    <View style={styles.pillRow}>
-                                        {COMMUTES.map((c) => (
-                                            <Pill
-                                                key={c}
-                                                label={c === 60 ? '60+ min' : `${c} min`}
-                                                active={commuteMin === c}
-                                                onPress={() => setCommuteMin(c)}
-                                            />
-                                        ))}
+                                    <View style={styles.commuteHead}>
+                                        <Text style={[styles.groupLabel, styles.groupLabelInRow]}>COMMUTE EACH WAY</Text>
+                                        <Text style={styles.commuteValue}>
+                                            {commuteMin >= 60 ? '60+ min' : `${commuteMin} min`}
+                                        </Text>
+                                    </View>
+                                    <Slider
+                                        value={commuteMin}
+                                        min={15}
+                                        max={60}
+                                        step={5}
+                                        onChange={setCommuteMin}
+                                    />
+                                    <View style={styles.sliderEnds}>
+                                        <Text style={styles.sliderEndText}>15 min</Text>
+                                        <Text style={styles.sliderEndText}>60+ min</Text>
                                     </View>
                                 </>
                             ) : null}
@@ -960,6 +1031,19 @@ const styles = StyleSheet.create({
     workChipTextActive: { color: CREAM },
 
     groupLabel: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.2, color: MUTE, marginTop: 22, marginBottom: 4, textTransform: 'uppercase', textAlign: 'center' },
+    groupLabelInRow: { marginTop: 0, marginBottom: 0, textAlign: 'left' },
+    commuteHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 22, marginBottom: 4 },
+    commuteValue: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK, letterSpacing: -0.2 },
+    sliderWrap: { height: 40, justifyContent: 'center', marginTop: 4 },
+    sliderTrack: { height: 5, borderRadius: 3, backgroundColor: HAIR },
+    sliderFill: { position: 'absolute', left: 0, top: 17.5, height: 5, borderRadius: 3, backgroundColor: INK },
+    sliderThumb: {
+        position: 'absolute', top: 7, width: THUMB, height: THUMB, borderRadius: THUMB / 2,
+        backgroundColor: INK, borderWidth: 3, borderColor: CREAM,
+        shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3,
+    },
+    sliderEnds: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+    sliderEndText: { fontFamily: 'Matter-Regular', fontSize: 11, color: MUTE },
 
     // chips — ink-inversion pills
     pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6, justifyContent: 'center' },
