@@ -497,18 +497,10 @@ export default function OnboardingV2Screen() {
             ? [{ icon: 'car-outline', label: 'Commute', value: `${commuteMin} min each way` }]
             : []),
         { icon: 'barbell-outline', label: 'Workout', value: WORKOUT_LABEL[workoutChoice] || 'After work' },
-        {
-            icon: 'restaurant-outline',
-            label: 'Meals',
-            value:
-                [
-                    !skipBreakfast && `Breakfast ${fmt12(breakfastMin)}`,
-                    !skipLunch && `Lunch ${fmt12(lunchMin)}`,
-                    !skipDinner && `Dinner ${fmt12(dinnerMin)}`,
-                ]
-                    .filter(Boolean)
-                    .join(' · ') || 'None — all skipped',
-        },
+        // Meals land as their own line items through the day, not one crammed row.
+        ...(!skipBreakfast ? [{ icon: 'cafe-outline', label: 'Breakfast', value: fmt12(breakfastMin) }] : []),
+        ...(!skipLunch ? [{ icon: 'restaurant-outline', label: 'Lunch', value: fmt12(lunchMin) }] : []),
+        ...(!skipDinner ? [{ icon: 'wine-outline', label: 'Dinner', value: fmt12(dinnerMin) }] : []),
         { icon: 'moon-outline', label: 'Wind down', value: `${fmt12(wdStart)} – ${fmt12(wdEnd)}` },
     ];
 
@@ -672,7 +664,7 @@ export default function OnboardingV2Screen() {
                             </View>
 
                             {workLocation !== 'home' ? (
-                                <>
+                                <View style={styles.commuteWrap}>
                                     <View style={styles.commuteHead}>
                                         <Text style={[styles.groupLabel, styles.groupLabelInRow]}>COMMUTE EACH WAY</Text>
                                         <Text style={styles.commuteValue}>
@@ -690,7 +682,7 @@ export default function OnboardingV2Screen() {
                                         <Text style={styles.sliderEndText}>15 min</Text>
                                         <Text style={styles.sliderEndText}>60+ min</Text>
                                     </View>
-                                </>
+                                </View>
                             ) : null}
                         </>
                     ) : null}
@@ -1032,6 +1024,7 @@ const styles = StyleSheet.create({
 
     groupLabel: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.2, color: MUTE, marginTop: 22, marginBottom: 4, textTransform: 'uppercase', textAlign: 'center' },
     groupLabelInRow: { marginTop: 0, marginBottom: 0, textAlign: 'left' },
+    commuteWrap: { width: '100%', maxWidth: 320, alignSelf: 'center' },
     commuteHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 22, marginBottom: 4 },
     commuteValue: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK, letterSpacing: -0.2 },
     sliderWrap: { height: 40, justifyContent: 'center', marginTop: 4 },
