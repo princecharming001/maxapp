@@ -487,22 +487,32 @@ export default function OnboardingV2Screen() {
         }
     };
 
-    const recap: { icon: string; label: string; value: string }[] = [
-        { icon: 'sunny-outline', label: 'Wake', value: fmt12(wakeMin) },
-        { icon: 'water-outline', label: 'Get ready', value: `${fmt12(grStart)} – ${fmt12(grEnd)}` },
+    // Roughly when the workout / commute lands, so they sort into the day even
+    // though the user picked a window rather than an exact time.
+    const workoutSort =
+        workoutChoice === 'before_work' ? workStartMin - 60
+        : workoutChoice === 'lunch' ? lunchMin
+        : workoutChoice === 'evening' ? 19 * 60
+        : workEndMin + 1; // after_work / default
+
+    // Built day-order, then sorted chronologically by start time so meals fall
+    // where they actually happen (stable sort keeps Wake before a same-minute
+    // Get ready, etc.).
+    const recap: { icon: string; label: string; value: string; sort: number }[] = [
+        { icon: 'sunny-outline', label: 'Wake', value: fmt12(wakeMin), sort: wakeMin },
+        { icon: 'water-outline', label: 'Get ready', value: `${fmt12(grStart)} – ${fmt12(grEnd)}`, sort: grStart },
         ...(works
-            ? [{ icon: 'briefcase-outline', label: 'Work', value: `${fmt12(workStartMin)} – ${fmt12(workEndMin)}` }]
+            ? [{ icon: 'briefcase-outline', label: 'Work', value: `${fmt12(workStartMin)} – ${fmt12(workEndMin)}`, sort: workStartMin }]
             : []),
         ...(hasCommute
-            ? [{ icon: 'car-outline', label: 'Commute', value: `${commuteMin} min each way` }]
+            ? [{ icon: 'car-outline', label: 'Commute', value: `${commuteMin} min each way`, sort: workStartMin - commuteMin }]
             : []),
-        { icon: 'barbell-outline', label: 'Workout', value: WORKOUT_LABEL[workoutChoice] || 'After work' },
-        // Meals land as their own line items through the day, not one crammed row.
-        ...(!skipBreakfast ? [{ icon: 'cafe-outline', label: 'Breakfast', value: fmt12(breakfastMin) }] : []),
-        ...(!skipLunch ? [{ icon: 'restaurant-outline', label: 'Lunch', value: fmt12(lunchMin) }] : []),
-        ...(!skipDinner ? [{ icon: 'wine-outline', label: 'Dinner', value: fmt12(dinnerMin) }] : []),
-        { icon: 'moon-outline', label: 'Wind down', value: `${fmt12(wdStart)} – ${fmt12(wdEnd)}` },
-    ];
+        { icon: 'barbell-outline', label: 'Workout', value: WORKOUT_LABEL[workoutChoice] || 'After work', sort: workoutSort },
+        ...(!skipBreakfast ? [{ icon: 'cafe-outline', label: 'Breakfast', value: fmt12(breakfastMin), sort: breakfastMin }] : []),
+        ...(!skipLunch ? [{ icon: 'restaurant-outline', label: 'Lunch', value: fmt12(lunchMin), sort: lunchMin }] : []),
+        ...(!skipDinner ? [{ icon: 'wine-outline', label: 'Dinner', value: fmt12(dinnerMin), sort: dinnerMin }] : []),
+        { icon: 'moon-outline', label: 'Wind down', value: `${fmt12(wdStart)} – ${fmt12(wdEnd)}`, sort: wdStart },
+    ].sort((a, b) => a.sort - b.sort);
 
     const steps = [
         // 1 — goals
