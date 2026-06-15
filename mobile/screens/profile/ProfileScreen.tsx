@@ -564,6 +564,7 @@ export default function ProfileScreen() {
                                     >
                                         <AchievementBadge
                                             icon={a.icon}
+                                            code={a.code}
                                             tier={a.tier}
                                             earned={a.earned}
                                             size={58}

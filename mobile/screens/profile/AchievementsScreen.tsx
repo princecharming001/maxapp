@@ -35,6 +35,7 @@ function BadgeCell({ a }: { a: AchievementItem }) {
         <View style={styles.cell}>
             <AchievementBadge
                 icon={a.icon}
+                code={a.code}
                 tier={a.tier as Tier}
                 earned={a.earned}
                 size={74}

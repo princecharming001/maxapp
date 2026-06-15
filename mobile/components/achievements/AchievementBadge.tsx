@@ -1,32 +1,70 @@
 /**
- * AchievementBadge — a custom SVG medallion in the Craft palette.
+ * AchievementBadge — matte-black clay 3D icons.
  *
- * The medallion (ring + fill + a faceted inner accent) is drawn with
- * react-native-svg so it's crisp at any size and themeable per tier
- * (bronze / silver / gold); the glyph in the center is an Ionicon mapped from
- * the achievement's `icon` key. Earned badges are warm and saturated with a
- * soft tier glow; locked badges are matte grey with the glyph faded and an
- * optional progress arc showing how close the user is.
+ * Every badge uses its Higgsfield clay icon (a soft matte-black 3D object,
+ * green-keyed to a TRANSPARENT animated WebP that spins on an infinite, seamless
+ * loop; expo-image auto-plays it, no native rebuild).
  *
- * No raster assets, no native rebuild — pure SVG + the vector-icon set already
- * shipping in the app.
+ *   EARNED  — the icon at full size + full ink, floating and rotating.
+ *   LOCKED  — the same icon dimmed back, smaller, inside a hairline ring with an
+ *             optional ink progress arc. Earning it brings the icon forward.
+ *
+ * Each achievement gets a UNIQUE icon, keyed by its achievement `code` (so
+ * achievements that share an icon family each look distinct).
+ *
+ * `tier` is kept on the prop for compatibility but no longer recolors anything —
+ * the whole set is ink-on-cream so the strip reads as one deliberate collection.
  */
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import Svg, { Circle, Defs, LinearGradient, Stop, Polygon } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 
 export type Tier = 'bronze' | 'silver' | 'gold';
 
-const TIERS: Record<Tier, { ring: string; fillTop: string; fillBot: string; glyph: string; accent: string }> = {
-    bronze: { ring: '#B5894C', fillTop: '#F4E7D0', fillBot: '#E7CFA6', glyph: '#8A6730', accent: '#D7B277' },
-    silver: { ring: '#9BA4AE', fillTop: '#F1F3F5', fillBot: '#DCE0E5', glyph: '#5B6671', accent: '#C2C9D1' },
-    gold: { ring: '#D4A017', fillTop: '#FBF1CF', fillBot: '#F0D993', glyph: '#977200', accent: '#EBC85A' },
+// Craft ink + cream. One monochrome set; tier no longer recolors.
+const INK = '#1C1A17';
+const HAIRLINE = '#D8D1C4'; // locked ring on the warm canvas
+const LOCKED_GLYPH = '#B4AB9C'; // faded glyph when an icon has no clay asset
+
+// Rotating clay icons by icon key (fallback when no code-specific icon exists).
+const BADGE_ANIM: Record<string, any> = {
+    spark: require('../../assets/badges/spark.webp'),
+    flame: require('../../assets/badges/flame.webp'),
+    crown: require('../../assets/badges/crown.webp'),
+    phoenix: require('../../assets/badges/phoenix.webp'),
+    shield: require('../../assets/badges/shield.webp'),
+    check: require('../../assets/badges/check.webp'),
+    leaf: require('../../assets/badges/leaf.webp'),
+    layers: require('../../assets/badges/layers.webp'),
+    camera: require('../../assets/badges/camera.webp'),
+    book: require('../../assets/badges/book.webp'),
 };
 
-const LOCKED = { ring: '#D8D1C4', fillTop: '#F2ECE0', fillBot: '#E7E0D1', glyph: '#B7AE9E', accent: '#E2DACB' };
+// Per-achievement UNIQUE icons, keyed by achievement code. Achievements that
+// share an icon family (streaks, tasks, scans, personalization) each get their
+// own object so no two badges look alike. Preferred over BADGE_ANIM (by icon).
+const BADGE_BY_CODE: Record<string, any> = {
+    first_routine: require('../../assets/badges/spark.webp'),
+    streak_3: require('../../assets/badges/flame.webp'),
+    streak_7: require('../../assets/badges/bolt.webp'),
+    streak_30: require('../../assets/badges/diamond.webp'),
+    streak_100: require('../../assets/badges/crown.webp'),
+    comeback: require('../../assets/badges/phoenix.webp'),
+    freeze_earned: require('../../assets/badges/shield.webp'),
+    perfect_day: require('../../assets/badges/check.webp'),
+    tasks_10: require('../../assets/badges/leaf.webp'),
+    tasks_50: require('../../assets/badges/target.webp'),
+    tasks_100: require('../../assets/badges/mountain.webp'),
+    two_maxxes: require('../../assets/badges/layers.webp'),
+    first_scan: require('../../assets/badges/camera.webp'),
+    three_scans: require('../../assets/badges/photo.webp'),
+    knows_me: require('../../assets/badges/book.webp'),
+    well_known: require('../../assets/badges/key.webp'),
+};
 
-// Achievement icon key -> Ionicons glyph.
+// Achievement icon key -> Ionicons glyph (fallback only, if a clay asset is missing).
 export const GLYPH: Record<string, keyof typeof Ionicons.glyphMap> = {
     spark: 'sparkles',
     flame: 'flame',
@@ -40,87 +78,107 @@ export const GLYPH: Record<string, keyof typeof Ionicons.glyphMap> = {
     book: 'book',
 };
 
-function hexPoints(cx: number, cy: number, r: number): string {
-    // pointy-top hexagon
-    const pts: string[] = [];
-    for (let i = 0; i < 6; i++) {
-        const a = (Math.PI / 180) * (60 * i - 90);
-        pts.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`);
-    }
-    return pts.join(' ');
-}
-
 export default function AchievementBadge({
     icon,
+    code,
     tier,
     earned,
     size = 76,
     progress,
 }: {
     icon: string;
+    /** Achievement code — preferred for a unique per-achievement icon. */
+    code?: string;
     tier: Tier;
     earned: boolean;
     size?: number;
     /** 0..1 fill toward earning, shown as an arc on locked badges only. */
     progress?: number | null;
 }) {
-    const T = earned ? TIERS[tier] : LOCKED;
-    const c = size / 2;
-    const ringW = size * 0.055;
-    const rOuter = c - ringW / 2 - 1;
-    const rInner = rOuter - ringW * 0.9;
-    const glyphName = GLYPH[icon] || 'ribbon';
-    const glyphSize = size * 0.4;
+    const anim = (code && BADGE_BY_CODE[code]) || BADGE_ANIM[icon];
 
-    // progress arc geometry (locked only)
+    const c = size / 2;
+    const ringW = size * 0.04;
+    const rOuter = c - ringW / 2 - 1;
+    const circ = 2 * Math.PI * rOuter;
     const showArc = !earned && typeof progress === 'number' && progress > 0;
-    const arcR = rOuter;
-    const circ = 2 * Math.PI * arcR;
     const pct = Math.max(0, Math.min(1, progress || 0));
 
+    // Clay icon present → use it for both states.
+    if (anim) {
+        if (earned) {
+            return (
+                <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+                    <Image
+                        source={anim}
+                        style={{ width: size * 1.12, height: size * 1.12 }}
+                        contentFit="contain"
+                        cachePolicy="memory-disk"
+                    />
+                </View>
+            );
+        }
+        // Locked — dimmed clay icon inside a hairline ring (+ progress arc).
+        return (
+            <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+                <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                    <Circle cx={c} cy={c} r={rOuter} fill="none" stroke={HAIRLINE} strokeWidth={ringW} />
+                    {showArc ? (
+                        <Circle
+                            cx={c} cy={c} r={rOuter} fill="none"
+                            stroke={INK} strokeWidth={ringW}
+                            strokeLinecap="round"
+                            strokeDasharray={`${circ * pct} ${circ}`}
+                            transform={`rotate(-90 ${c} ${c})`}
+                        />
+                    ) : null}
+                </Svg>
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                    <View style={styles.center}>
+                        <Image
+                            source={anim}
+                            style={{ width: size * 0.62, height: size * 0.62, opacity: 0.34 }}
+                            contentFit="contain"
+                            cachePolicy="memory-disk"
+                        />
+                    </View>
+                </View>
+            </View>
+        );
+    }
+
+    // Fallback — icon has no clay asset: ring + glyph.
+    const glyphName = GLYPH[icon] || 'ribbon';
+    const glyphSize = size * 0.4;
+    const glyphColor = earned ? '#F7F0EA' : LOCKED_GLYPH;
     return (
         <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
             <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-                <Defs>
-                    <LinearGradient id={`fill-${tier}-${earned}`} x1="0" y1="0" x2="0" y2="1">
-                        <Stop offset="0" stopColor={T.fillTop} />
-                        <Stop offset="1" stopColor={T.fillBot} />
-                    </LinearGradient>
-                </Defs>
-                {/* base ring */}
-                <Circle cx={c} cy={c} r={rOuter} fill="none" stroke={T.ring} strokeWidth={ringW} opacity={earned ? 1 : 0.5} />
-                {/* progress arc on locked badges */}
-                {showArc ? (
-                    <Circle
-                        cx={c} cy={c} r={arcR} fill="none"
-                        stroke={LLOCK_ARC} strokeWidth={ringW}
-                        strokeLinecap="round"
-                        strokeDasharray={`${circ * pct} ${circ}`}
-                        transform={`rotate(-90 ${c} ${c})`}
-                    />
-                ) : null}
-                {/* medallion face */}
-                <Circle cx={c} cy={c} r={rInner} fill={`url(#fill-${tier}-${earned})`} />
-                {/* faceted inner accent hexagon */}
-                <Polygon
-                    points={hexPoints(c, c, rInner * 0.74)}
-                    fill="none"
-                    stroke={T.accent}
-                    strokeWidth={size * 0.02}
-                    opacity={earned ? 0.65 : 0.4}
-                />
+                {earned ? (
+                    <Circle cx={c} cy={c} r={rOuter} fill={INK} />
+                ) : (
+                    <>
+                        <Circle cx={c} cy={c} r={rOuter} fill="none" stroke={HAIRLINE} strokeWidth={ringW} />
+                        {showArc ? (
+                            <Circle
+                                cx={c} cy={c} r={rOuter} fill="none"
+                                stroke={INK} strokeWidth={ringW}
+                                strokeLinecap="round"
+                                strokeDasharray={`${circ * pct} ${circ}`}
+                                transform={`rotate(-90 ${c} ${c})`}
+                            />
+                        ) : null}
+                    </>
+                )}
             </Svg>
             <View style={StyleSheet.absoluteFill} pointerEvents="none">
                 <View style={styles.center}>
-                    <Ionicons name={glyphName} size={glyphSize} color={T.glyph} />
+                    <Ionicons name={glyphName} size={glyphSize} color={glyphColor} />
                 </View>
             </View>
         </View>
     );
 }
-
-// muted gold-blue arc so progress reads on the warm canvas without shouting
-const LLOCK_ARC = '#C9A24B';
 
 const styles = StyleSheet.create({
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
