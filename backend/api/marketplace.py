@@ -94,6 +94,56 @@ def _avatar(handle: str) -> "str | None":
     return _AVATARS.get(handle)
 
 
+def _img(photo_id: str, w: int = 1200) -> str:
+    return f"https://images.unsplash.com/photo-{photo_id}?auto=format&fit=crop&w={w}&q=70"
+
+
+# Curated, verified-stable media — real creators replace these. Photography
+# leads (the Apple/Craft register); an optional hero video gracefully falls
+# back to the cover image on the client if it ever fails to load.
+_VID_SAMPLE = "https://download.samplelib.com/mp4/sample-5s.mp4"
+_VID_PEXELS = "https://videos.pexels.com/video-files/4761426/4761426-uhd_2732_1440_25fps.mp4"
+
+_MAXX_MEDIA: dict[str, dict[str, Any]] = {
+    "skinmax":   {"cover": _img("1556228578-8c89e6adf883"), "video": _VID_SAMPLE},
+    "fitmax":    {"cover": _img("1571019613454-1cb2f99b2d8b")},
+    "hairmax":   {"cover": _img("1522337660859-02fbefca4702")},
+    "heightmax": {"cover": _img("1512290923902-8a9f81dc236c")},
+    "bonemax":   {"cover": _img("1620916566398-39f1143ab7be")},
+}
+_COURSE_MEDIA: dict[str, dict[str, Any]] = {
+    "course_glowup_30":     {"cover": _img("1598440947619-2c35fc9aa908"), "video": _VID_PEXELS},
+    "course_lift101":       {"cover": _img("1517836357463-d25dfeac3438")},
+    "course_posture_reset": {"cover": _img("1532012197267-da84d127e765")},
+    "course_jaw_basics":    {"cover": _img("1611672585731-fa10603fb9e0")},
+}
+_GALLERY_POOL: list[str] = [
+    _img(p) for p in (
+        "1556228578-8c89e6adf883", "1571019613454-1cb2f99b2d8b",
+        "1522337660859-02fbefca4702", "1512290923902-8a9f81dc236c",
+        "1620916566398-39f1143ab7be", "1598440947619-2c35fc9aa908",
+        "1517836357463-d25dfeac3438", "1532012197267-da84d127e765",
+        "1611672585731-fa10603fb9e0", "1526506118085-60ce8714f8c5",
+    )
+]
+
+
+def _cover_for(item_id: str, is_course: bool) -> str:
+    m = (_COURSE_MEDIA if is_course else _MAXX_MEDIA).get(item_id, {})
+    return m.get("cover") or _GALLERY_POOL[0]
+
+
+def _detail_media(item_id: str, is_course: bool) -> dict[str, Any]:
+    """Gallery + optional hero video for the full detail page."""
+    m = (_COURSE_MEDIA if is_course else _MAXX_MEDIA).get(item_id, {})
+    cover = m.get("cover") or _GALLERY_POOL[0]
+    gallery = [cover] + [g for g in _GALLERY_POOL if g != cover][:3]
+    out: dict[str, Any] = {"gallery": gallery}
+    if m.get("video"):
+        out["video_url"] = m["video"]
+    return out
+
+
 def _rev(name: str, img: int, rating: int, text: str) -> dict[str, Any]:
     return {"name": name, "avatar": f"https://i.pravatar.cc/120?img={img}", "rating": rating, "text": text}
 
@@ -328,6 +378,7 @@ def _maxx_card(maxx_id: str, entered: set[str]) -> dict[str, Any]:
         "creator": {"name": "Max", "handle": "max", "verified": True},
         "native": True,
         "entered": maxx_id in entered,
+        "image_url": _cover_for(maxx_id, False),
     }
 
 
@@ -350,6 +401,7 @@ def _course_card(c: dict[str, Any], entered: set[str]) -> dict[str, Any]:
         "completion_rate": c["completion_rate"],
         "native": False,
         "entered": c["id"] in entered,
+        "image_url": _cover_for(c["id"], True),
     }
 
 
@@ -386,10 +438,10 @@ async def get_item(
     rich page content: outcomes, curriculum, instructor bio, reviews and FAQ."""
     _, entered = await _load_entered(db, _uid(current_user))
     if item_id in _MAXX_DISPLAY:
-        return {**_maxx_card(item_id, entered), "detail": _detail_for(item_id)}
+        return {**_maxx_card(item_id, entered), "detail": {**_detail_for(item_id), **_detail_media(item_id, False)}}
     for c in _SEED_COURSES:
         if c["id"] == item_id:
-            return {**_course_card(c, entered), "detail": _detail_for(item_id)}
+            return {**_course_card(c, entered), "detail": {**_detail_for(item_id), **_detail_media(item_id, True)}}
     raise HTTPException(status_code=404, detail="Item not found")
 
 

@@ -77,6 +77,7 @@ export interface MarketplaceItem {
     rating?: number;
     participants?: number;
     completion_rate?: number;
+    image_url?: string;
     detail?: MarketplaceItemDetail;
 }
 
@@ -90,6 +91,8 @@ export interface MarketplaceItemDetail {
     reviews?: { name: string; avatar?: string; rating: number; text: string }[];
     faqs?: { q: string; a: string }[];
     guarantee?: string;
+    gallery?: string[];
+    video_url?: string;
 }
 
 function envTargetsLoopback(url: string): boolean {

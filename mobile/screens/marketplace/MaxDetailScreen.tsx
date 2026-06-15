@@ -24,6 +24,8 @@ import {
     Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -111,6 +113,58 @@ function Accordion({ title, badge, children, open, onToggle }: {
     );
 }
 
+/**
+ * Full-bleed media hero. Prefers a muted autoplay loop when the item ships a
+ * video; the cover image sits underneath and shows through if the video ever
+ * fails to load, so the page is never broken. Fades into the cream page.
+ */
+function MediaHero({ cover, video, base }: { cover?: string; video?: string; base: string }) {
+    const [ready, setReady] = useState(false);
+    const [failed, setFailed] = useState(false);
+    const wantVideo = !!video && !failed;
+    const player = useVideoPlayer(wantVideo ? (video as string) : '', (p) => {
+        p.loop = true;
+        p.muted = true;
+    });
+    useEffect(() => {
+        if (!wantVideo) return;
+        const sub = player.addListener('statusChange', (payload: any) => {
+            const st = payload?.status;
+            if (st === 'error') { setFailed(true); setReady(false); }
+            else if (st === 'readyToPlay') { setReady(true); try { player.play(); } catch {} }
+        });
+        try { player.play(); } catch {}
+        return () => { try { sub.remove(); } catch {} };
+    }, [player, wantVideo]);
+    // Only overlay the video once it's actually ready — the cover image shows
+    // through until then (and forever if the video fails), never a black box.
+    const showVideo = wantVideo && ready;
+
+    return (
+        <View style={styles.hero}>
+            {cover ? (
+                <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
+            ) : (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: hexA(base, 0.2) }]} />
+            )}
+            {showVideo ? (
+                <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />
+            ) : null}
+            <LinearGradient
+                colors={['rgba(20,17,14,0.26)', 'transparent', 'rgba(247,240,234,0)', CANVAS]}
+                locations={[0, 0.3, 0.76, 1]}
+                style={StyleSheet.absoluteFill}
+            />
+            {showVideo ? (
+                <View style={styles.previewChip}>
+                    <Ionicons name="play" size={10} color="#fff" />
+                    <Text style={styles.previewChipText}>Preview</Text>
+                </View>
+            ) : null}
+        </View>
+    );
+}
+
 export default function MaxDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
@@ -180,14 +234,14 @@ export default function MaxDetailScreen() {
 
     return (
         <View style={styles.root}>
-            {/* Minimal top bar — just a back affordance over the cream page. */}
+            {/* Floating back chip — stays legible over the media hero. */}
             <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
                 <TouchableOpacity
                     style={styles.backBtn}
                     onPress={() => navigation.goBack()}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
-                    <Ionicons name="chevron-back" size={24} color={INK} />
+                    <Ionicons name="chevron-back" size={22} color={INK} />
                 </TouchableOpacity>
             </View>
 
@@ -195,6 +249,8 @@ export default function MaxDetailScreen() {
                 contentContainerStyle={{ paddingBottom: 130 + insets.bottom }}
                 showsVerticalScrollIndicator={false}
             >
+                <MediaHero cover={item.image_url} video={d.video_url} base={base} />
+
                 {/* Header — type-led, no templated icon chip. */}
                 <View style={styles.header}>
                     <View style={styles.kickerRow}>
@@ -231,6 +287,18 @@ export default function MaxDetailScreen() {
 
                 {/* The promise. */}
                 {d.long_description ? <Text style={styles.lead}>{d.long_description}</Text> : null}
+
+                {/* A look inside — media filmstrip. */}
+                {d.gallery && d.gallery.length > 1 ? (
+                    <View style={styles.galleryBlock}>
+                        <Text style={[styles.sectionLabel, styles.galleryLabel]}>A look inside</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
+                            {d.gallery.map((g, i) => (
+                                <Image key={i} source={{ uri: g }} style={styles.galleryImg} contentFit="cover" transition={200} />
+                            ))}
+                        </ScrollView>
+                    </View>
+                ) : null}
 
                 {/* Fits your week. */}
                 <View style={styles.block}>
@@ -387,10 +455,28 @@ const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: CANVAS },
     center: { alignItems: 'center', justifyContent: 'center' },
 
-    topBar: { paddingHorizontal: 14, paddingBottom: 2 },
-    backBtn: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
+    topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, paddingHorizontal: 14, paddingBottom: 2 },
+    backBtn: {
+        width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: 'rgba(252,250,246,0.86)',
+    },
 
-    header: { paddingHorizontal: 22, paddingTop: 10 },
+    // Media hero
+    hero: { width: '100%', height: 332, backgroundColor: '#EFE7DC' },
+    previewChip: {
+        position: 'absolute', left: 20, bottom: 78,
+        flexDirection: 'row', alignItems: 'center', gap: 5,
+        backgroundColor: 'rgba(20,17,14,0.55)', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999,
+    },
+    previewChipText: { fontFamily: 'Matter-SemiBold', fontSize: 11, color: '#fff', letterSpacing: 0.3 },
+
+    // Gallery filmstrip
+    galleryBlock: { marginTop: 30 },
+    galleryLabel: { paddingHorizontal: 22 },
+    galleryRow: { paddingHorizontal: 22, gap: 12 },
+    galleryImg: { width: 200, height: 264, borderRadius: 18, backgroundColor: '#EFE7DC' },
+
+    header: { paddingHorizontal: 22, paddingTop: 4 },
     kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
     kickerDot: { width: 7, height: 7, borderRadius: 4 },
     kicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.8, color: MUTE },

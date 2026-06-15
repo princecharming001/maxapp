@@ -1,8 +1,9 @@
 /**
  * MarketplaceScreen (Explore) — browse + enter native maxes ($3.99/wk each) and
- * creator courses. Minimalist + editorial: a calm cream page, clean warm-white
- * cards, Fraunces serif names, the max's colour used only as a small accent
- * (the icon). Tapping a card opens MaxDetail.
+ * creator courses. Media-forward + editorial (Apple / craft.do register): big
+ * cover imagery, Fraunces serif names, a calm cream page, the max's colour as a
+ * whisper. Maxes are full-bleed image cards; courses run as a cover carousel.
+ * Tapping anything opens MaxDetail.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -15,6 +16,7 @@ import {
     RefreshControl,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import api, { type MarketplaceItem } from '../../services/api';
@@ -88,37 +90,45 @@ export default function MarketplaceScreen() {
     return (
         <View style={styles.root}>
             <ScrollView
-                contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: 22, paddingBottom: insets.bottom + 96 }}
+                contentContainerStyle={{ paddingTop: insets.top + 22, paddingBottom: insets.bottom + 96 }}
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={INK} />}
             >
-                <Text style={styles.h1}>Find your <Text style={styles.h1i}>max</Text></Text>
-                <Text style={styles.h1sub}>Pick what you're working on. Max fits it into your real week.</Text>
+                <View style={styles.head}>
+                    <Text style={styles.h1}>Find your <Text style={styles.h1i}>max</Text></Text>
+                    <Text style={styles.h1sub}>Pick what you're working on. Max fits it into your real week.</Text>
+                </View>
 
                 {error ? (
-                    <View style={styles.errorCard}><Text style={styles.errorText}>{error}</Text></View>
+                    <View style={styles.gutter}>
+                        <View style={styles.errorCard}><Text style={styles.errorText}>{error}</Text></View>
+                    </View>
                 ) : null}
 
-                <View style={styles.sectionHead}>
+                <View style={[styles.sectionHead, styles.gutter]}>
                     <Text style={styles.sectionLabel}>Maxes</Text>
                     <Text style={styles.sectionNote}>$3.99 / week each</Text>
                 </View>
-                <View style={styles.list}>
+                <View style={styles.gutter}>
                     {maxxes.map((m, i) => (
-                        <MaxCard key={m.id} item={m} first={i === 0} onPress={() => navigation.push('MaxDetail', { item: m })} />
+                        <MaxCard key={m.id} item={m} featured={i === 0} onPress={() => navigation.push('MaxDetail', { item: m })} />
                     ))}
                 </View>
 
                 {courses.length > 0 ? (
                     <>
-                        <View style={[styles.sectionHead, { marginTop: 40 }]}>
+                        <View style={[styles.sectionHead, styles.gutter, { marginTop: 40 }]}>
                             <Text style={styles.sectionLabel}>Creator courses</Text>
                         </View>
-                        <View style={styles.list}>
-                            {courses.map((c, i) => (
-                                <CourseCard key={c.id} item={c} first={i === 0} onPress={() => navigation.push('MaxDetail', { item: c })} />
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={{ paddingHorizontal: 22, gap: 14 }}
+                        >
+                            {courses.map((c) => (
+                                <CourseCard key={c.id} item={c} onPress={() => navigation.push('MaxDetail', { item: c })} />
                             ))}
-                        </View>
+                        </ScrollView>
                     </>
                 ) : null}
             </ScrollView>
@@ -126,68 +136,76 @@ export default function MarketplaceScreen() {
     );
 }
 
-/** A native max — editorial hairline row, led by a serif monogram in its colour. */
-function MaxCard({ item, first, onPress }: { item: MarketplaceItem; first?: boolean; onPress: () => void }) {
+/** A native max — full-bleed cover image with the title set over a soft scrim. */
+function MaxCard({ item, featured, onPress }: { item: MarketplaceItem; featured?: boolean; onPress: () => void }) {
     const base = item.color || GOLD;
     return (
-        <TouchableOpacity style={[styles.row, first && styles.rowFirst]} activeOpacity={0.55} onPress={onPress}>
-            <Text style={[styles.monogram, { color: base }]} allowFontScaling={false}>
-                {(item.title || '·').charAt(0).toUpperCase()}
-            </Text>
-            <View style={styles.mid}>
-                <Text style={styles.title}>{item.title}</Text>
-                <Text style={styles.sub} numberOfLines={1}>{item.tagline}</Text>
+        <TouchableOpacity
+            style={[styles.maxCard, { height: featured ? 280 : 196 }]}
+            activeOpacity={0.9}
+            onPress={onPress}
+        >
+            {item.image_url ? (
+                <Image source={{ uri: item.image_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
+            ) : (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: base }]} />
+            )}
+            <LinearGradient
+                colors={['transparent', 'rgba(20,17,14,0.10)', 'rgba(20,17,14,0.78)']}
+                locations={[0, 0.45, 1]}
+                style={StyleSheet.absoluteFill}
+            />
+            <View style={[styles.priceTag, item.entered && { backgroundColor: base }]}>
+                <Text style={[styles.priceTagText, item.entered && { color: '#fff' }]}>
+                    {item.entered ? 'Open' : '$3.99 / wk'}
+                </Text>
             </View>
-            <View style={styles.right}>
-                {item.entered ? (
-                    <Text style={[styles.open, { color: base }]}>Open</Text>
-                ) : (
-                    <>
-                        <Text style={styles.price}>$3.99</Text>
-                        <Text style={styles.per}>/ week</Text>
-                    </>
-                )}
+            <View style={styles.maxOverlay}>
+                <Text style={[styles.maxTitle, featured && { fontSize: 32 }]}>{item.title}</Text>
+                <Text style={styles.maxTagline} numberOfLines={1}>{item.tagline}</Text>
             </View>
         </TouchableOpacity>
     );
 }
 
-/** A creator course — same editorial row; a cover thumbnail stands in for the monogram. */
-function CourseCard({ item, first, onPress }: { item: MarketplaceItem; first?: boolean; onPress: () => void }) {
+/** A creator course — a cover card in the horizontal rail, creator + price below. */
+function CourseCard({ item, onPress }: { item: MarketplaceItem; onPress: () => void }) {
     const base = item.color || GOLD;
-    const img = (item as any).image_url as string | undefined;
     return (
-        <TouchableOpacity style={[styles.row, first && styles.rowFirst]} activeOpacity={0.55} onPress={onPress}>
-            {img ? (
-                <Image source={{ uri: img }} style={styles.thumb} contentFit="cover" transition={200} />
-            ) : (
-                <Text style={[styles.monogram, { color: base }]} allowFontScaling={false}>
-                    {(item.title || '·').charAt(0).toUpperCase()}
-                </Text>
-            )}
-            <View style={styles.mid}>
-                <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.sub} numberOfLines={1}>
-                    @{item.creator.handle}{item.creator.verified ? ' ✓' : ''}
-                    {item.rating ? `   ★ ${item.rating.toFixed(1)}` : ''}
-                </Text>
-            </View>
-            <View style={styles.right}>
-                {item.entered ? (
-                    <Text style={[styles.open, { color: base }]}>Open</Text>
+        <TouchableOpacity style={styles.courseCard} activeOpacity={0.85} onPress={onPress}>
+            <View style={styles.courseCoverWrap}>
+                {item.image_url ? (
+                    <Image source={{ uri: item.image_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={220} />
                 ) : (
-                    <Text style={styles.price}>{item.price_label.replace(' / week', '/wk')}</Text>
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: base }]} />
                 )}
+                {item.entered ? (
+                    <View style={[styles.enteredChip, { backgroundColor: base }]}>
+                        <Text style={styles.enteredChipText}>Open</Text>
+                    </View>
+                ) : null}
             </View>
+            <Text style={styles.courseTitle} numberOfLines={1}>{item.title}</Text>
+            <Text style={styles.courseMeta} numberOfLines={1}>
+                @{item.creator.handle}{item.creator.verified ? ' ✓' : ''}
+                {item.rating ? `   ★ ${item.rating.toFixed(1)}` : ''}
+            </Text>
+            {!item.entered ? (
+                <Text style={styles.coursePrice}>{item.price_label.replace(' / week', ' / wk')}</Text>
+            ) : null}
         </TouchableOpacity>
     );
 }
+
+const GUTTER = 22;
 
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: CREAM },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
     loadingText: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE },
 
+    gutter: { paddingHorizontal: GUTTER },
+    head: { paddingHorizontal: GUTTER },
     h1: { fontFamily: SERIF, fontSize: 38, color: INK, letterSpacing: -0.9, lineHeight: 42 },
     h1i: { fontFamily: SERIF_I, color: INK },
     h1sub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: SUB, lineHeight: 21, marginTop: 10, maxWidth: '92%' },
@@ -195,27 +213,36 @@ const styles = StyleSheet.create({
     errorCard: { marginTop: 16, padding: 16, borderRadius: 16, backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
     errorText: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#B23A3A' },
 
-    sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 38, marginBottom: 4 },
+    sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 30, marginBottom: 14 },
     sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 13, color: INK },
     sectionNote: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE },
 
-    // Editorial hairline list — no boxed cards, rhythm from a serif monogram + rules.
-    list: {},
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 18,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: BORDER,
+    // Native max — image card
+    maxCard: {
+        borderRadius: 24,
+        overflow: 'hidden',
+        marginBottom: 14,
+        backgroundColor: '#EFE7DC',
     },
-    rowFirst: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
-    monogram: { width: 40, fontFamily: SERIF, fontSize: 34, letterSpacing: -1, textAlign: 'center' },
-    thumb: { width: 40, height: 40, borderRadius: 11, backgroundColor: '#EFE7DC' },
-    mid: { flex: 1, marginLeft: 16 },
-    title: { fontFamily: SERIF, fontSize: 20, color: INK, letterSpacing: -0.3 },
-    sub: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE, marginTop: 3 },
-    right: { alignItems: 'flex-end', marginLeft: 12 },
-    price: { fontFamily: 'Matter-SemiBold', fontSize: 14.5, color: INK },
-    per: { fontFamily: 'Matter-Regular', fontSize: 11, color: MUTE, marginTop: 1 },
-    open: { fontFamily: 'Matter-SemiBold', fontSize: 14.5 },
+    maxOverlay: { position: 'absolute', left: 20, right: 20, bottom: 18 },
+    maxTitle: { fontFamily: SERIF, fontSize: 26, color: '#fff', letterSpacing: -0.5 },
+    maxTagline: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: 'rgba(255,255,255,0.88)', marginTop: 4 },
+    priceTag: {
+        position: 'absolute', top: 14, right: 14,
+        backgroundColor: 'rgba(252,250,246,0.92)',
+        paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+    },
+    priceTagText: { fontFamily: 'Matter-SemiBold', fontSize: 12.5, color: INK },
+
+    // Creator course — carousel card
+    courseCard: { width: 232 },
+    courseCoverWrap: {
+        width: 232, height: 150, borderRadius: 18, overflow: 'hidden',
+        backgroundColor: '#EFE7DC', marginBottom: 11,
+    },
+    enteredChip: { position: 'absolute', top: 10, left: 10, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+    enteredChipText: { fontFamily: 'Matter-SemiBold', fontSize: 11.5, color: '#fff' },
+    courseTitle: { fontFamily: SERIF, fontSize: 18, color: INK, letterSpacing: -0.3 },
+    courseMeta: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 4 },
+    coursePrice: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: INK, marginTop: 6 },
 });
