@@ -487,11 +487,11 @@ export default function HomeScreen() {
                     {activeMaxxes.length === 0 && !schedulesLoading && (
                         <TouchableOpacity
                             style={s.emptyPrograms}
-                            onPress={() => navigation.navigate('EditPersonal', { onlyGoals: true })}
+                            onPress={() => navigation.navigate('Explore')}
                             activeOpacity={0.72}
                         >
-                            <Ionicons name="sparkles-outline" size={20} color={colors.textMuted} />
-                            <Text style={s.emptyProgramText}>Choose goals to begin</Text>
+                            <Ionicons name="compass-outline" size={20} color={colors.textMuted} />
+                            <Text style={s.emptyProgramText}>Browse maxes in Explore</Text>
                         </TouchableOpacity>
                     )}
 

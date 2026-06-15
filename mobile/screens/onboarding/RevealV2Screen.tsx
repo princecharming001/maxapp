@@ -1,30 +1,25 @@
 /**
- * Reveal v2 (spec 3.3 steps 5-7, flag `revealV2`) - renders behind the
- * existing RoutineReveal route name when the flag is on.
+ * Reveal v2 (flag `revealV2`) — renders behind the RoutineReveal route.
  *
- * Phase A  REVEAL: the 3-act choreography over the user's REAL starter day
- *          (fetched from /planner/today after the onboarding save generated
- *          it). Close-line interpolates their inputs + motivation.
- * Phase B  NOTIFICATIONS pre-prompt - the ONLY permission ask in
- *          onboarding, skippable, value-first, equal-weight decline.
- * Phase C  FACE SCAN offer - obviously skippable ("later or never").
+ * Phase A  REVEAL: a TASTE of the user's day built from EVERY max they chose in
+ *          onboarding (a couple of representative moments each, anchored to their
+ *          real wake / wind-down). It is purely illustrative — the app no longer
+ *          presets any max after onboarding; the user picks + onboards maxes
+ *          themselves in the marketplace (Explore). The close-line says so.
+ * Phase B  NOTIFICATIONS pre-prompt — the only permission ask, skippable.
+ * Phase C  FACE SCAN offer — obviously skippable.
  *
- * Finishing marks onboarding completed=true; with onboardingV2 on, the
- * root navigator then lands the user on Main (Today) - free until the
- * marketplace.
+ * Finishing marks onboarding completed=true and lands the user on Main (Today),
+ * which is empty and points them to Explore.
  */
 import React, { useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassButton } from '../../components/glass/GlassButton';
-import RevealChoreography, {
-    RevealRailSkeleton,
-    type RevealRow,
-} from '../../components/reveal/RevealChoreography';
+import RevealChoreography, { type RevealRow } from '../../components/reveal/RevealChoreography';
 import { useAuth } from '../../context/AuthContext';
 import { getIosApnsDeviceTokenForBackend } from '../../services/registerIosPushToken';
 import { track } from '../../lib/analytics';
@@ -34,19 +29,46 @@ const INK = '#1C1A17';
 const GOLD = '#2C6BED';
 const MUTE = '#97928A';
 
-function fmt12(hhmm?: string): string {
-    if (!hhmm || !hhmm.includes(':')) return '';
-    const [hs, ms] = hhmm.split(':');
-    let h = parseInt(hs, 10);
-    const suffix = h >= 12 ? 'p' : 'a';
-    h = h % 12 || 12;
-    return `${h}:${ms}${suffix}`;
-}
+// A couple of representative moments per max — the "taste". `bucket` places each
+// in the morning / midday / evening so they sort into a believable day.
+type Sample = { bucket: 'am' | 'mid' | 'pm'; title: string; why: string };
+const SAMPLE: Record<string, Sample[]> = {
+    skinmax: [
+        { bucket: 'am', title: 'morning skincare', why: 'cleanse, treat, SPF' },
+        { bucket: 'pm', title: 'evening skincare', why: 'repair while you sleep' },
+    ],
+    fitmax: [
+        { bucket: 'am', title: 'protein breakfast', why: 'fuel + recovery' },
+        { bucket: 'pm', title: 'strength session', why: 'progressive overload' },
+    ],
+    hairmax: [
+        { bucket: 'am', title: 'scalp massage', why: 'stimulate the follicles' },
+        { bucket: 'pm', title: 'scalp serum', why: 'consistency compounds' },
+    ],
+    heightmax: [
+        { bucket: 'am', title: 'AM mobility', why: 'open up, stand taller' },
+        { bucket: 'pm', title: 'posture decompress', why: "undo the day's slouch" },
+    ],
+    bonemax: [
+        { bucket: 'mid', title: 'mewing practice', why: 'proper tongue posture' },
+        { bucket: 'pm', title: 'jaw + chewing', why: 'train the masseter' },
+    ],
+};
+const GOAL_FROM_TOKEN: Record<string, string> = {
+    skin: 'skinmax', body: 'fitmax', hair: 'hairmax', height: 'heightmax', face_structure: 'bonemax',
+};
 
 function toMin(hhmm?: string): number {
     if (!hhmm || !hhmm.includes(':')) return 0;
     const [h, m] = hhmm.split(':');
     return parseInt(h, 10) * 60 + parseInt(m, 10);
+}
+function fmtMin(min: number): string {
+    let h = Math.floor(min / 60) % 24;
+    const m = ((min % 60) + 60) % 60;
+    const suffix = h >= 12 ? 'p' : 'a';
+    h = h % 12 || 12;
+    return `${h}:${String(m).padStart(2, '0')}${suffix}`;
 }
 
 export default function RevealV2Screen() {
@@ -59,80 +81,69 @@ export default function RevealV2Screen() {
     const [busy, setBusy] = useState(false);
     const [saveError, setSaveError] = useState(false);
 
-    const todayQ = useQuery({
-        queryKey: ['plannerToday', 'reveal'],
-        queryFn: () => api.getPlannerToday(),
-        staleTime: 0,
-    });
-
     // Prefer the answers passed by the funnel (fresh, race-free); fall back
     // to the persisted user record.
     const ob = (route.params?.ob ?? user?.onboarding ?? {}) as Record<string, any>;
 
-    // The user's #1 priority max — drives the forced "tailor your plan" chat
-    // right after onboarding. `goals` is already an ordered list of maxx ids
-    // (first = top); fall back to mapping the priority_order token.
-    const topMax: string | null = useMemo(() => {
-        const byToken: Record<string, string> = {
-            skin: 'skinmax', body: 'fitmax', hair: 'hairmax', height: 'heightmax', face_structure: 'bonemax',
-        };
-        if (Array.isArray(ob.goals) && ob.goals[0]) return String(ob.goals[0]);
-        const tok = Array.isArray(ob.priority_order) ? ob.priority_order[0] : undefined;
-        return (tok && byToken[tok]) || null;
+    // Every chosen max, in priority order.
+    const goals: string[] = useMemo(() => {
+        if (Array.isArray(ob.goals) && ob.goals.length) return ob.goals.map(String);
+        const tokens = Array.isArray(ob.priority_order) ? ob.priority_order : [];
+        return tokens.map((t: string) => GOAL_FROM_TOKEN[t]).filter(Boolean);
     }, [ob.goals, ob.priority_order]);
 
+    // Build the multi-max taste, anchored to the user's real wake / wind-down.
     const rows: RevealRow[] = useMemo(() => {
-        const data = todayQ.data;
-        if (!data) return [];
-        const raw: (RevealRow & { sortKey: number })[] = [];
-        for (const s of data.structure ?? []) {
-            raw.push({ kind: 'struct', time: fmt12(s.time), label: s.label, sortKey: toMin(s.time) });
-        }
-        for (const t of data.tasks ?? []) {
-            raw.push({
-                kind: 'task',
-                time: fmt12(t.time),
-                title: t.title || 'Task',
-                why: t.why || undefined,
-                sortKey: toMin(t.time),
+        const wakeMin = toMin(ob.wake_time || '07:00') || 420;
+        const wdEnd = (Array.isArray(ob.wind_down_window) && ob.wind_down_window[1])
+            ? ob.wind_down_window[1]
+            : (ob.sleep_time || '23:00');
+        const sleepMin = toMin(wdEnd) || 1380;
+        const base = { am: wakeMin + 75, mid: 12 * 60 + 30, pm: Math.max(13 * 60, sleepMin - 75) };
+        const used = { am: 0, mid: 0, pm: 0 };
+        const out: (RevealRow & { sortKey: number })[] = [
+            { kind: 'struct', time: fmtMin(wakeMin), label: 'Wake', sortKey: wakeMin },
+            { kind: 'struct', time: fmtMin(sleepMin), label: 'Sleep', sortKey: sleepMin },
+        ];
+        goals.slice(0, 3).forEach((g) => {
+            (SAMPLE[g] || []).forEach((s) => {
+                const t = base[s.bucket] + used[s.bucket] * 20;
+                used[s.bucket] += 1;
+                out.push({ kind: 'task', time: fmtMin(t), title: s.title, why: s.why, sortKey: t });
             });
-        }
-        raw.sort((a, b) => a.sortKey - b.sortKey);
-        return raw.map(({ sortKey: _sk, ...row }) => row as RevealRow);
-    }, [todayQ.data]);
+        });
+        out.sort((a, b) => a.sortKey - b.sortKey);
+        return out.map(({ sortKey: _s, ...r }) => r as RevealRow);
+    }, [goals, ob.wake_time, ob.sleep_time, ob.wind_down_window]);
 
     const taskCount = rows.filter((r) => r.kind === 'task').length;
     const closeLine =
-        'Just a taste — not your real plan yet. Once you start, Max builds something far ' +
-        'deeper and hyper-personalized, tuned to your goals, your body, and your day.';
+        'Just a taste — not your real plan yet. Pick the maxes you want in Explore and Max ' +
+        'builds each one around your real day, deeper and personalized to you.';
 
-    // `goChatSetup` (default) hands the user straight into a short, guided chat
-    // with Max to tailor their #1 max — they answer the few personalization
-    // questions the starter routine is still missing, which upgrades the thin
-    // starter into the full plan. The scan path opts out (scan is its own tune).
-    const completeOnboarding = async (goChatSetup = true) => {
+    const completeOnboarding = async () => {
         setBusy(true);
         try {
             await api.saveOnboarding({ ...(ob as any), completed: true });
             await refreshUser();
-            // The root stack swaps on completion; steer explicitly via the
-            // shared ref so web URL-linking can't restore this stale route.
+            // No max is preset — land on Main (Today), which points to Explore.
             const { navigationRef } = require('../../lib/navigationRef');
             setTimeout(() => {
-                if (!navigationRef.isReady()) return;
-                if (goChatSetup && topMax) {
-                    track('onboarding_chat_setup', { max: topMax });
-                    (navigationRef as any).navigate('Main', {
-                        screen: 'Chat',
-                        params: { initSchedule: topMax, setup: true },
-                    });
-                } else {
-                    (navigationRef as any).navigate('Main');
-                }
+                if (navigationRef.isReady()) (navigationRef as any).navigate('Main');
             }, 350);
         } catch {
-            setBusy(false);
-            setSaveError(true);
+            // On the computer/web dev build the local save can fail (no backend);
+            // don't trap the user — proceed as a success would. Native/prod shows
+            // the real error.
+            if (Platform.OS === 'web' && __DEV__) {
+                const { navigationRef } = require('../../lib/navigationRef');
+                setTimeout(() => {
+                    if (navigationRef.isReady()) (navigationRef as any).navigate('Main');
+                }, 350);
+            } else {
+                setBusy(false);
+                setSaveError(true);
+            }
         }
     };
 
@@ -164,25 +175,11 @@ export default function RevealV2Screen() {
                 {phase === 'reveal' ? (
                     <>
                         <Text style={styles.title}>Here's your{'\n'}<Text style={{ fontFamily: 'Fraunces-Italic' }}>first</Text> day</Text>
-                        {todayQ.isLoading ? (
-                            <RevealRailSkeleton />
-                        ) : todayQ.isError || taskCount === 0 ? (
-                            <View style={{ marginTop: 24 }}>
-                                <Text style={styles.sub}>
-                                    {todayQ.isError
-                                        ? "Couldn't load your day. Check your connection and try again."
-                                        : 'Your day is set up. Next, a few quick questions so Max can tailor it to you.'}
-                                </Text>
-                                {todayQ.isError ? (
-                                    <View style={{ marginTop: 14 }}>
-                                        <GlassButton
-                                            variant="glass"
-                                            label="Try again"
-                                            onPress={() => todayQ.refetch()}
-                                        />
-                                    </View>
-                                ) : null}
-                            </View>
+                        {taskCount === 0 ? (
+                            <Text style={[styles.sub, { marginTop: 22 }]}>
+                                Your day is set. Pick the maxes you want in Explore and Max builds each
+                                one around it.
+                            </Text>
                         ) : (
                             <View style={{ marginTop: 20 }}>
                                 <RevealChoreography
@@ -199,8 +196,8 @@ export default function RevealV2Screen() {
                         <View style={{ marginTop: 'auto', paddingTop: 24 }}>
                             <GlassButton
                                 variant="primary"
-                                label={taskCount === 0 && !todayQ.isLoading && !todayQ.isError ? 'Continue' : 'Looks right'}
-                                disabled={todayQ.isLoading || (taskCount > 0 && !revealSettled)}
+                                label={taskCount === 0 ? 'Continue' : 'Looks right'}
+                                disabled={taskCount > 0 && !revealSettled}
                                 onPress={() => setPhase('notifications')}
                             />
                         </View>
@@ -221,11 +218,7 @@ export default function RevealV2Screen() {
                                 loading={busy}
                                 onPress={enableNotifications}
                             />
-                            <GlassButton
-                                variant="glass"
-                                label="Not now"
-                                onPress={() => setPhase('scan')}
-                            />
+                            <GlassButton variant="glass" label="Not now" onPress={() => setPhase('scan')} />
                         </View>
                     </View>
                 ) : null}
@@ -249,17 +242,10 @@ export default function RevealV2Screen() {
                                 label="Scan now"
                                 loading={busy}
                                 onPress={async () => {
-                                    // Completing onboarding swaps the root stack
-                                    // (this navigator unmounts) - navigate via the
-                                    // shared ref AFTER the new stack mounts. Scan
-                                    // is its own tailoring step, so skip the chat
-                                    // setup hand-off here.
-                                    await completeOnboarding(false);
+                                    await completeOnboarding();
                                     const { navigationRef } = require('../../lib/navigationRef');
                                     setTimeout(() => {
-                                        if (navigationRef.isReady()) {
-                                            (navigationRef as any).navigate('FaceScan');
-                                        }
+                                        if (navigationRef.isReady()) (navigationRef as any).navigate('FaceScan');
                                     }, 400);
                                 }}
                             />

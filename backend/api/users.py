@@ -774,17 +774,11 @@ async def save_onboarding(
     except Exception as e:
         logger.warning("post-onboarding personalization rebuild failed (non-fatal): %s", e)
 
-    # First-run: a brand-new user has no active schedule, so the regen above is
-    # a no-op for them. Build their #1-priority maxx's routine now so onboarding
-    # lands them ON a real plan instead of an empty Routine tab. Best-effort and
-    # non-fatal — it returns None and changes nothing if a clean plan can't be
-    # produced, preserving the prior behavior.
+    # Product decision: onboarding no longer PRESETS any max. A brand-new user
+    # lands with an empty plan and chooses the maxes they want in the marketplace
+    # (Explore), onboarding each one themselves via its chat flow. So we don't
+    # auto-build a #1-priority routine here anymore — the reveal is just a taste.
     first_routine = None
-    try:
-        from services.schedule_runtime import generate_first_routine_if_absent
-        first_routine = await generate_first_routine_if_absent(user_id=str(user_uuid), db=db)
-    except Exception as e:
-        logger.warning("post-onboarding first-routine build failed (non-fatal): %s", e)
 
     await db.commit()
 

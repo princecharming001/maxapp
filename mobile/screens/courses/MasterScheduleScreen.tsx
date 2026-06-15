@@ -963,16 +963,14 @@ export default function MasterScheduleScreen() {
           </View>
           <Text style={styles.emptyTitleMinimal}>No schedules yet</Text>
           <Text style={styles.emptySubtitleMinimal}>
-            {newNav
-              ? 'Pick your programs in Explore. Your day shows up here.'
-              : "Start a plan from a Maxx on Home. It shows up here once it's active."}
+            Pick the maxes you want in Explore. Each one builds its plan here.
           </Text>
           <TouchableOpacity
             style={styles.minimalBtn}
-            onPress={newNav ? () => (navigation as any).navigate('Explore') : goHome}
+            onPress={() => (navigation as any).navigate('Explore')}
             activeOpacity={0.65}
           >
-            <Text style={styles.minimalBtnText}>{newNav ? 'Go to Explore' : 'Go to Home'}</Text>
+            <Text style={styles.minimalBtnText}>Go to Explore</Text>
           </TouchableOpacity>
         </View>
       </View>
