@@ -122,7 +122,6 @@ export function RevealChoreography({
 }) {
     const reduced = useReducedMotion();
     const scale = useSharedValue(1);
-    const ringProgress = useSharedValue(0);
     const [showClose, setShowClose] = useState(false);
     const announced = useRef(false);
 
@@ -145,7 +144,6 @@ export function RevealChoreography({
                     withTiming(1.0, { duration: 360, easing: Easing.inOut(Easing.quad) }),
                 );
             }
-            ringProgress.value = withTiming(1, { duration: reduced ? 300 : 700 });
             haptic('success');
             setShowClose(true);
             if (!announced.current) {
@@ -157,13 +155,9 @@ export function RevealChoreography({
             onComplete?.();
         }, settleAt);
         return () => clearTimeout(t);
-    }, [reduced, lastLanding, taskCount, onComplete, ringProgress, scale]);
+    }, [reduced, lastLanding, taskCount, onComplete, scale]);
 
     const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-    const ringStyle = useAnimatedStyle(() => ({
-        opacity: ringProgress.value,
-        transform: [{ scale: 0.85 + 0.15 * ringProgress.value }],
-    }));
 
     let taskIndex = -1;
     let structIndex = -1;
@@ -188,15 +182,6 @@ export function RevealChoreography({
                     </View>
                 </GlassCard>
             </Animated.View>
-
-            {scope === 'first-day' ? (
-                <Animated.View style={[styles.ringWrap, ringStyle]}>
-                    <View style={styles.ring}>
-                        <Text style={styles.ringText}>1</Text>
-                    </View>
-                    <Text style={styles.ringCap}>day one</Text>
-                </Animated.View>
-            ) : null}
 
             {showClose && closeLine ? (
                 <Animated.Text entering={FadeIn.duration(reduced ? 200 : 400)} style={styles.closeLine}>
@@ -228,18 +213,6 @@ const styles = StyleSheet.create({
     trDot: { width: 7, height: 7, borderRadius: 3.5, marginTop: 5, marginRight: 12 },
     trTitle: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK },
     trWhy: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 1 },
-    ringWrap: { alignItems: 'center', marginTop: 22 },
-    ring: {
-        width: 52,
-        height: 52,
-        borderRadius: 26,
-        borderWidth: 3,
-        borderColor: GOLD,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    ringText: { fontFamily: 'Matter-SemiBold', fontSize: 18, color: INK },
-    ringCap: { fontFamily: 'Matter-Medium', fontSize: 10.5, color: MUTE, marginTop: 4 },
     closeLine: {
         fontFamily: 'Matter-Regular',
         fontSize: 14.5,

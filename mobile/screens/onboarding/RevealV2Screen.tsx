@@ -34,14 +34,6 @@ const INK = '#1C1A17';
 const GOLD = '#2C6BED';
 const MUTE = '#97928A';
 
-const MOTIVATION_CLOSE: Record<string, string> = {
-    event: 'with time to spare before your date.',
-    photos: 'small daily wins you will see in photos.',
-    comment: 'quiet, steady proof. No announcements needed.',
-    long_term: 'no rush. Built to hold for the long run.',
-    curious: 'try it for a day and see.',
-};
-
 function fmt12(hhmm?: string): string {
     if (!hhmm || !hhmm.includes(':')) return '';
     const [hs, ms] = hhmm.split(':');
@@ -110,11 +102,9 @@ export default function RevealV2Screen() {
     }, [todayQ.data]);
 
     const taskCount = rows.filter((r) => r.kind === 'task').length;
-    const closeLine = useMemo(() => {
-        const wake = fmt12(ob.wake_time || '07:00');
-        const motivationTail = MOTIVATION_CLOSE[ob.motivation as string] ?? 'built around your real day.';
-        return `Built around your ${wake} wake. ${taskCount} thing${taskCount === 1 ? '' : 's'}, ${motivationTail}`;
-    }, [ob.wake_time, ob.motivation, taskCount]);
+    const closeLine =
+        'Just a taste — not your real plan yet. Once you start, Max builds something far ' +
+        'deeper and hyper-personalized, tuned to your goals, your body, and your day.';
 
     // `goChatSetup` (default) hands the user straight into a short, guided chat
     // with Max to tailor their #1 max — they answer the few personalization
