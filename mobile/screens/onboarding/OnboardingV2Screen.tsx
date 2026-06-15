@@ -1070,10 +1070,10 @@ const styles = StyleSheet.create({
 
     // recap — clean hairline list, no card
     recapList: { width: '100%', marginTop: 6 },
-    recapRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
-    recapIcon: { width: 24, alignItems: 'center', marginRight: 14 },
-    recapLabel: { fontFamily: 'Matter-Regular', fontSize: 15.5, color: SUB, flex: 1 },
-    recapValue: { fontFamily: 'Matter-Medium', fontSize: 15.5, color: INK },
+    recapRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 15 },
+    recapIcon: { width: 24, alignItems: 'center', marginRight: 14, marginTop: 1 },
+    recapLabel: { fontFamily: 'Matter-Regular', fontSize: 15.5, color: SUB, marginRight: 12 },
+    recapValue: { fontFamily: 'Matter-Medium', fontSize: 15.5, color: INK, flex: 1, textAlign: 'right', lineHeight: 21 },
 
     error: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#C0452C', marginTop: 14, textAlign: 'center' },
 });
