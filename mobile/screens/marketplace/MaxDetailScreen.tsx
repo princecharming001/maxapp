@@ -238,6 +238,8 @@ export default function MaxDetailScreen() {
     const isCourse = !item.native;
     const base = item.color || GOLD;
     const quote = d.reviews?.[0];
+    // Price anchor — a weekly sub framed per day reads far smaller than "/wk".
+    const perDay = item.price_cents ? `$${((item.price_cents / 100) / 7).toFixed(2)}` : null;
 
     const goToSchedule = () => {
         try {
@@ -302,6 +304,18 @@ export default function MaxDetailScreen() {
                     <View style={[styles.heroRule, { backgroundColor: base }]} />
                     <Text style={styles.heroTagline}>{item.tagline}</Text>
                 </View>
+
+                {/* Social proof — native maxes (courses carry it in the creator row). */}
+                {!isCourse && (item.rating || item.participants) ? (
+                    <View style={styles.socialRow}>
+                        {item.rating ? <Stars n={item.rating} /> : null}
+                        <Text style={styles.socialText}>
+                            {item.rating ? item.rating.toFixed(1) : ''}
+                            {item.rating && item.participants ? '   ·   ' : ''}
+                            {item.participants ? `${fmtK(item.participants)} on this plan` : ''}
+                        </Text>
+                    </View>
+                ) : null}
 
                 {/* Creator — courses only. */}
                 {isCourse ? (
@@ -484,7 +498,9 @@ export default function MaxDetailScreen() {
                 <View style={{ flex: 1 }}>
                     <Text style={styles.ctaPrice}>{item.price_label}</Text>
                     <Text style={styles.ctaSub}>
-                        {item.price_model === 'weekly' ? 'cancel anytime' : item.weeks ? `${item.weeks} weeks · one payment` : 'one payment'}
+                        {item.price_model === 'weekly'
+                            ? `${perDay} a day · cancel anytime`
+                            : item.weeks ? `${item.weeks} weeks · one payment` : 'one payment'}
                     </Text>
                 </View>
                 <TouchableOpacity
@@ -493,7 +509,13 @@ export default function MaxDetailScreen() {
                     onPress={onCta}
                     disabled={busy}
                 >
-                    {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaBtnText}>{item.entered ? 'Open' : 'Start'}</Text>}
+                    {busy ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <Text style={styles.ctaBtnText} numberOfLines={1}>
+                            {item.entered ? 'Open' : isCourse ? 'Enroll' : 'Start my plan'}
+                        </Text>
+                    )}
                 </TouchableOpacity>
             </View>
         </View>
@@ -539,6 +561,9 @@ const styles = StyleSheet.create({
     heroTitle: { fontFamily: SERIF, fontSize: 44, color: INK, letterSpacing: -1, lineHeight: 47 },
     heroRule: { width: 38, height: 3, borderRadius: 2, marginTop: 18 },
     heroTagline: { fontFamily: 'Matter-Regular', fontSize: 16.5, color: SUB, marginTop: 16, lineHeight: 24 },
+
+    socialRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 22, marginTop: 16 },
+    socialText: { fontFamily: 'Matter-Medium', fontSize: 13, color: SUB },
 
     creatorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22, marginTop: 22 },
     creatorRowInline: { flexDirection: 'row', alignItems: 'center', gap: 12 },

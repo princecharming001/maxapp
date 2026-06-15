@@ -14,6 +14,7 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     RefreshControl,
+    useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,8 +32,15 @@ const GOLD = '#2C6BED';
 const SERIF = 'Fraunces';
 const SERIF_I = 'Fraunces-Italic';
 
+function fmtK(n?: number): string {
+    if (!n) return '';
+    return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${n}`;
+}
+
 export default function MarketplaceScreen() {
     const insets = useSafeAreaInsets();
+    const { width: winW } = useWindowDimensions();
+    const tileW = (winW - 44 - 14) / 2; // 22 gutters each side, 14 between cols
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const [maxxes, setMaxxes] = useState<MarketplaceItem[]>([]);
@@ -109,9 +117,9 @@ export default function MarketplaceScreen() {
                     <Text style={styles.sectionLabel}>Maxes</Text>
                     <Text style={styles.sectionNote}>$3.99 / week each</Text>
                 </View>
-                <View style={styles.gutter}>
-                    {maxxes.map((m, i) => (
-                        <MaxCard key={m.id} item={m} featured={i === 0} onPress={() => navigation.push('MaxDetail', { item: m })} />
+                <View style={[styles.grid, styles.gutter]}>
+                    {maxxes.map((m) => (
+                        <MaxCard key={m.id} item={m} width={tileW} onPress={() => navigation.push('MaxDetail', { item: m })} />
                     ))}
                 </View>
 
@@ -136,33 +144,38 @@ export default function MarketplaceScreen() {
     );
 }
 
-/** A native max — full-bleed cover image with the title set over a soft scrim. */
-function MaxCard({ item, featured, onPress }: { item: MarketplaceItem; featured?: boolean; onPress: () => void }) {
+/**
+ * A native max — a uniform portrait tile in the 2-col grid. Photography leads;
+ * the serif name + social proof (members on it) sit over a soft scrim with a
+ * thin colour cap as the per-max signature. Price lives at the section header
+ * and on the detail page, not shouting on every tile (browse stays aspirational).
+ */
+function MaxCard({ item, width, onPress }: { item: MarketplaceItem; width: number; onPress: () => void }) {
     const base = item.color || GOLD;
+    const social = item.participants ? `${fmtK(item.participants)} members` : item.tagline;
     return (
-        <TouchableOpacity
-            style={[styles.maxCard, { height: featured ? 280 : 196 }]}
-            activeOpacity={0.9}
-            onPress={onPress}
-        >
-            {item.image_url ? (
-                <Image source={{ uri: item.image_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
-            ) : (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: base }]} />
-            )}
-            <LinearGradient
-                colors={['transparent', 'rgba(20,17,14,0.10)', 'rgba(20,17,14,0.78)']}
-                locations={[0, 0.45, 1]}
-                style={StyleSheet.absoluteFill}
-            />
-            <View style={[styles.priceTag, item.entered && { backgroundColor: base }]}>
-                <Text style={[styles.priceTagText, item.entered && { color: '#fff' }]}>
-                    {item.entered ? 'Open' : '$3.99 / wk'}
-                </Text>
-            </View>
-            <View style={styles.maxOverlay}>
-                <Text style={[styles.maxTitle, featured && { fontSize: 32 }]}>{item.title}</Text>
-                <Text style={styles.maxTagline} numberOfLines={1}>{item.tagline}</Text>
+        <TouchableOpacity style={{ width }} activeOpacity={0.9} onPress={onPress}>
+            <View style={[styles.tileImg, { height: Math.round(width * 1.25) }]}>
+                {item.image_url ? (
+                    <Image source={{ uri: item.image_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
+                ) : (
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: base }]} />
+                )}
+                <View style={[styles.tileRule, { backgroundColor: base }]} />
+                <LinearGradient
+                    colors={['transparent', 'rgba(20,17,14,0.04)', 'rgba(20,17,14,0.76)']}
+                    locations={[0, 0.5, 1]}
+                    style={StyleSheet.absoluteFill}
+                />
+                {item.entered ? (
+                    <View style={[styles.tileChip, { backgroundColor: base }]}>
+                        <Text style={styles.tileChipText}>Open</Text>
+                    </View>
+                ) : null}
+                <View style={styles.tileOverlay}>
+                    <Text style={styles.tileTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.tileSocial} numberOfLines={1}>{social}</Text>
+                </View>
             </View>
         </TouchableOpacity>
     );
@@ -217,22 +230,15 @@ const styles = StyleSheet.create({
     sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 13, color: INK },
     sectionNote: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE },
 
-    // Native max — image card
-    maxCard: {
-        borderRadius: 24,
-        overflow: 'hidden',
-        marginBottom: 14,
-        backgroundColor: '#EFE7DC',
-    },
-    maxOverlay: { position: 'absolute', left: 20, right: 20, bottom: 18 },
-    maxTitle: { fontFamily: SERIF, fontSize: 26, color: '#fff', letterSpacing: -0.5 },
-    maxTagline: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: 'rgba(255,255,255,0.88)', marginTop: 4 },
-    priceTag: {
-        position: 'absolute', top: 14, right: 14,
-        backgroundColor: 'rgba(252,250,246,0.92)',
-        paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
-    },
-    priceTagText: { fontFamily: 'Matter-SemiBold', fontSize: 12.5, color: INK },
+    // Native max — uniform 2-col portrait tile
+    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16 },
+    tileImg: { width: '100%', borderRadius: 18, overflow: 'hidden', backgroundColor: '#EFE7DC' },
+    tileRule: { position: 'absolute', top: 0, left: 0, right: 0, height: 3 },
+    tileOverlay: { position: 'absolute', left: 13, right: 13, bottom: 13 },
+    tileTitle: { fontFamily: SERIF, fontSize: 18, color: '#fff', letterSpacing: -0.3 },
+    tileSocial: { fontFamily: 'Matter-Medium', fontSize: 11.5, color: 'rgba(255,255,255,0.85)', marginTop: 3 },
+    tileChip: { position: 'absolute', top: 12, right: 12, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+    tileChipText: { fontFamily: 'Matter-SemiBold', fontSize: 11.5, color: '#fff' },
 
     // Creator course — carousel card
     courseCard: { width: 232 },

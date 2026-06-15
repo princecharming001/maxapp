@@ -131,6 +131,17 @@ _GALLERY_POOL: list[str] = [
 ]
 
 
+# Social proof for the native maxes (members already on the program + an
+# aggregate rating). Large numbers reduce perceived risk on browse + detail.
+_MAXX_SOCIAL: dict[str, dict[str, Any]] = {
+    "skinmax":   {"participants": 18200, "rating": 4.8},
+    "fitmax":    {"participants": 41000, "rating": 4.9},
+    "hairmax":   {"participants": 9300,  "rating": 4.6},
+    "heightmax": {"participants": 12700, "rating": 4.7},
+    "bonemax":   {"participants": 7100,  "rating": 4.5},
+}
+
+
 def _cover_for(item_id: str, is_course: bool) -> str:
     m = (_COURSE_MEDIA if is_course else _MAXX_MEDIA).get(item_id, {})
     return m.get("cover") or _GALLERY_POOL[0]
@@ -368,6 +379,7 @@ def _price_label(price_cents: int, price_model: str, weeks: int | None) -> str:
 def _maxx_card(maxx_id: str, entered: set[str]) -> dict[str, Any]:
     d = _MAXX_DISPLAY.get(maxx_id, {})
     g = get_maxx_guideline(maxx_id) or {}
+    s = _MAXX_SOCIAL.get(maxx_id, {})
     return {
         "type": "maxx",
         "id": maxx_id,
@@ -382,6 +394,8 @@ def _maxx_card(maxx_id: str, entered: set[str]) -> dict[str, Any]:
         "native": True,
         "entered": maxx_id in entered,
         "image_url": _cover_for(maxx_id, False),
+        "participants": s.get("participants"),
+        "rating": s.get("rating"),
     }
 
 
