@@ -771,6 +771,22 @@ export default function MasterScheduleScreen() {
     });
   }, []);
 
+  // "Maxxes only" — hide the life/day-shape items (wake, work, meals, sleep…)
+  // and show just the looksmaxxing tasks. Preference persists across sessions.
+  const [maxxesOnly, setMaxxesOnly] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem('@maxxes_only_v1').then((s) => {
+      if (s === '1') setMaxxesOnly(true);
+    });
+  }, []);
+  const toggleMaxxesOnly = useCallback(() => {
+    setMaxxesOnly((prev) => {
+      const next = !prev;
+      void AsyncStorage.setItem('@maxxes_only_v1', next ? '1' : '0');
+      return next;
+    });
+  }, []);
+
   /**
    * Build pseudo-tasks for the user's work + sleep windows so they
    * render inline with regular tasks (same row component, sorted by
@@ -825,6 +841,33 @@ export default function MasterScheduleScreen() {
       push(`life-work-${date}`, ob.work_start, `work / school - until ${formatTime12(String(ob.work_end))}`, `work-${date}`);
     }
 
+    // Day-shape from onboarding / the planner: wake, get-ready, meals, the
+    // workout window and wind-down. These are the "life" scaffold the
+    // looksmaxxing tasks slot around — toggleable off via "Maxxes only".
+    if (ob.wake_time) push(`life-wake-${date}`, ob.wake_time, 'wake up', `wake-${date}`);
+
+    const grw = Array.isArray(ob.get_ready_window) ? ob.get_ready_window : null;
+    if (grw && grw[0]) {
+      push(`life-getready-${date}`, grw[0], grw[1] ? `get ready - until ${formatTime12(String(grw[1]))}` : 'get ready', `getready-${date}`);
+    } else if (ob.get_ready_time) {
+      push(`life-getready-${date}`, ob.get_ready_time, 'get ready', `getready-${date}`);
+    }
+
+    const skippedMeals: string[] = Array.isArray(ob.meals_skipped)
+      ? ob.meals_skipped.map((m: any) => String(m).toLowerCase())
+      : [];
+    if (ob.breakfast_time && !skippedMeals.includes('breakfast')) push(`life-breakfast-${date}`, ob.breakfast_time, 'breakfast', `breakfast-${date}`);
+    if (ob.lunch_time && !skippedMeals.includes('lunch')) push(`life-lunch-${date}`, ob.lunch_time, 'lunch', `lunch-${date}`);
+    if (ob.dinner_time && !skippedMeals.includes('dinner')) push(`life-dinner-${date}`, ob.dinner_time, 'dinner', `dinner-${date}`);
+
+    const ww = Array.isArray(ob.preferred_workout_window)
+      ? ob.preferred_workout_window
+      : (Array.isArray(ob.workout_window) ? ob.workout_window : null);
+    if (ww && ww[0]) push(`life-workout-${date}`, ww[0], ww[1] ? `workout - until ${formatTime12(String(ww[1]))}` : 'workout', `workout-${date}`);
+
+    const wdw = Array.isArray(ob.wind_down_window) ? ob.wind_down_window : null;
+    if (wdw && wdw[0]) push(`life-winddown-${date}`, wdw[0], wdw[1] ? `wind down - until ${formatTime12(String(wdw[1]))}` : 'wind down', `winddown-${date}`);
+
     if (ob.sleep_time && ob.wake_time) {
       push(`life-sleep-${date}`, ob.sleep_time, `sleep - until ${formatTime12(String(ob.wake_time))}`, `sleep-${date}`);
     }
@@ -844,6 +887,16 @@ export default function MasterScheduleScreen() {
       return am - bm;
     });
   }, [tasksForDay, lifeTasks]);
+
+  // "Maxxes only" filters the life/day-shape scaffold out of the timeline.
+  const visibleTasks = useMemo(
+    () => (maxxesOnly ? orderedTasks.filter((t) => t.scheduleId !== 'life') : orderedTasks),
+    [orderedTasks, maxxesOnly],
+  );
+  const hiddenLifeCount = useMemo(
+    () => orderedTasks.filter((t) => t.scheduleId === 'life').length,
+    [orderedTasks],
+  );
 
   const HeaderChrome = ({
     title,
@@ -975,6 +1028,26 @@ export default function MasterScheduleScreen() {
           })}
         </ScrollView>
 
+        {hiddenLifeCount > 0 ? (
+          <View style={styles.filterRow}>
+            <TouchableOpacity
+              style={[styles.filterChip, maxxesOnly && styles.filterChipOn]}
+              onPress={toggleMaxxesOnly}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityState={{ selected: maxxesOnly }}
+              accessibilityLabel={maxxesOnly ? 'Show your full day' : 'Show looksmaxxing tasks only'}
+            >
+              <Ionicons
+                name={maxxesOnly ? 'sparkles' : 'sparkles-outline'}
+                size={13}
+                color={maxxesOnly ? colors.background : colors.textSecondary}
+              />
+              <Text style={[styles.filterChipText, maxxesOnly && styles.filterChipTextOn]}>Maxxes only</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         <ScrollView
           style={styles.taskList}
           contentContainerStyle={{ paddingBottom: 100 }}
@@ -992,7 +1065,7 @@ export default function MasterScheduleScreen() {
               is they toggle local-only state instead of hitting the
               server, and the accent stripe defaults to foreground when
               there's no module color. */}
-          {orderedTasks.map((task, index) => {
+          {visibleTasks.map((task, index) => {
             const isDone = task.status === 'completed';
             const isExpanded = expandedTaskId === task.task_id;
             const isLife = task.scheduleId === 'life';
@@ -1150,6 +1223,13 @@ export default function MasterScheduleScreen() {
               </View>
             );
           })}
+          {maxxesOnly && visibleTasks.length === 0 ? (
+            <View style={styles.maxxesEmpty}>
+              <Text style={styles.maxxesEmptyText}>
+                No looksmaxxing tasks today. Start a max in Explore, or switch off “Maxxes only” to see your full day.
+              </Text>
+            </View>
+          ) : null}
         </ScrollView>
       </View>
 
@@ -1273,6 +1353,23 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   taskList: { flex: 1, minHeight: 0, paddingHorizontal: spacing.lg },
+  filterRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: 'transparent',
+  },
+  filterChipOn: { backgroundColor: colors.foreground, borderColor: colors.foreground },
+  filterChipText: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1 },
+  filterChipTextOn: { color: colors.background, fontFamily: fonts.sansSemiBold },
+  maxxesEmpty: { paddingVertical: spacing.xl, paddingHorizontal: spacing.sm },
+  maxxesEmptyText: { fontFamily: fonts.sans, fontSize: 13.5, color: colors.textMuted, lineHeight: 20, textAlign: 'center' },
   /* Life rows (work / sleep) — same shape as a regular taskRow but
      painted in the foreground (black) so the user reads them as part
      of the timeline, not floating chrome. Bleeds full-width like
