@@ -34,7 +34,6 @@ import { useAuth } from '../../context/AuthContext';
 import { useStripeSubscription } from '../../hooks/useStripeSubscription';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { colors, fonts, spacing } from '../../theme/dark';
-import { SHOW_DEV_SKIP_CONTROLS } from '../../constants/devSkips';
 import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
 
 /* ── Tier features ────────────────────────────────────────────────────── */
@@ -58,6 +57,12 @@ const INK = '#1C1A17';
 const CREAM = '#F7F0EA';
 const GOLD = '#C9A24E';
 
+// Dev-only payment bypass: shows ONLY in the computer/web dev build, never in
+// the real native app (Platform.OS !== 'web') and never in a production bundle
+// (__DEV__ false). Lets you skip Stripe/StoreKit and proceed exactly as if the
+// subscription had actually gone through.
+const SHOW_DEV_BYPASS = Platform.OS === 'web' && __DEV__;
+
 export default function PaymentScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
@@ -68,9 +73,8 @@ export default function PaymentScreen() {
     const useAppleSim = !IS_IOS && __DEV__ && Platform.OS === 'web';
     const sub = IS_IOS || useAppleSim ? apple : stripe;
 
-    const [devLoading, setDevLoading] = useState(false);
     const appleRestoring = 'restoring' in apple ? !!apple.restoring : false;
-    const busy = sub.loading !== null || devLoading || appleRestoring;
+    const busy = sub.loading !== null || appleRestoring;
 
     // Prefer the real StoreKit localized price on iOS (correct currency/amount
     // per App Store Connect). Falls back to the listed price on web/Stripe or
@@ -82,6 +86,23 @@ export default function PaymentScreen() {
     };
     const premiumPrice = priceFor(APPLE_IAP_PREMIUM_SKU, '$5.99');
     const basicPrice = priceFor(APPLE_IAP_BASIC_SKU, '$3.99');
+
+    // Dev bypass — activates the subscription server-side (same call the dev
+    // drawer uses) then refreshes auth, so RootNavigator routes onward just
+    // like a real purchase. Web/dev only (see SHOW_DEV_BYPASS).
+    const [devBusy, setDevBusy] = useState<'basic' | 'premium' | null>(null);
+    const devBypass = async (tier: 'basic' | 'premium') => {
+        if (devBusy) return;
+        setDevBusy(tier);
+        try {
+            await api.testActivateSubscription(tier);
+            await refreshUser();
+        } catch (e: any) {
+            Alert.alert('Dev bypass failed', String(e?.message || e || 'Could not activate. Is the backend running?'));
+        } finally {
+            setDevBusy(null);
+        }
+    };
 
     const handleRestore = async () => {
         if (!IS_IOS || busy) return;
@@ -121,25 +142,6 @@ export default function PaymentScreen() {
             return;
         }
         await (tier === 'basic' ? sub.subscribeBasic() : sub.subscribePremium());
-    };
-
-    const handleDevSkip = (tier: 'basic' | 'premium' = 'premium') => {
-        const doActivate = async () => {
-            try {
-                setDevLoading(true);
-                await api.testActivateSubscription(tier);
-                await refreshUser();
-            } catch (error: any) {
-                const msg =
-                    error?.response?.data?.detail ||
-                    error?.message ||
-                    'Failed to activate dev subscription.';
-                Alert.alert('Error', String(msg));
-            } finally {
-                setDevLoading(false);
-            }
-        };
-        void doActivate();
     };
 
     return (
@@ -210,14 +212,28 @@ export default function PaymentScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {SHOW_DEV_SKIP_CONTROLS ? (
-                    <View style={s.devRow}>
-                        <TouchableOpacity style={s.devBtn} onPress={() => handleDevSkip('basic')} disabled={busy}>
-                            <Text style={s.devBtnText}>{devLoading ? 'Activating…' : 'DEV: Skip → Chadlite'}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.devBtn} onPress={() => handleDevSkip('premium')} disabled={busy}>
-                            <Text style={s.devBtnText}>{devLoading ? 'Activating…' : 'DEV: Skip → Chad'}</Text>
-                        </TouchableOpacity>
+                {/* ── DEV bypass (computer/web only) ──────────────────── */}
+                {SHOW_DEV_BYPASS ? (
+                    <View style={s.devBlock}>
+                        <Text style={s.devLabel}>DEV · COMPUTER ONLY · skips payment</Text>
+                        <View style={s.devRow}>
+                            <TouchableOpacity
+                                style={[s.devBtn, devBusy && s.ctaDisabled]}
+                                onPress={() => devBypass('premium')}
+                                disabled={!!devBusy}
+                                activeOpacity={0.85}
+                            >
+                                <Text style={s.devBtnText}>{devBusy === 'premium' ? 'Activating…' : 'Skip → Chad'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[s.devBtn, devBusy && s.ctaDisabled]}
+                                onPress={() => devBypass('basic')}
+                                disabled={!!devBusy}
+                                activeOpacity={0.85}
+                            >
+                                <Text style={s.devBtnText}>{devBusy === 'basic' ? 'Activating…' : 'Skip → Chadlite'}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 ) : null}
             </ScrollView>
@@ -521,15 +537,37 @@ const s = StyleSheet.create({
         textDecorationLine: 'underline',
     },
 
-    devRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+    /* dev bypass (web/dev only) */
+    devBlock: {
+        marginTop: spacing.xl,
+        paddingTop: spacing.lg,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: colors.border,
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    devLabel: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 10,
+        letterSpacing: 1.4,
+        color: colors.textMuted,
+        textTransform: 'uppercase',
+    },
+    devRow: { flexDirection: 'row', gap: spacing.sm, alignSelf: 'stretch' },
     devBtn: {
         flex: 1,
-        borderRadius: 14,
-        paddingVertical: 10,
         alignItems: 'center',
+        paddingVertical: 11,
+        borderRadius: 12,
         borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.surface,
+        borderStyle: 'dashed',
+        borderColor: colors.textMuted,
+        backgroundColor: 'transparent',
     },
-    devBtnText: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.textSecondary },
+    devBtnText: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 13,
+        color: colors.textSecondary,
+        letterSpacing: 0.1,
+    },
 });
