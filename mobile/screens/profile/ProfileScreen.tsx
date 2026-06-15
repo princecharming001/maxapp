@@ -30,8 +30,6 @@ function formatProgressDate(dateStr: string): string {
     return `${months[d.getMonth()]} ${day}${suffix} ${d.getFullYear()}`;
 }
 
-const GOLD = '#C9A24E';
-
 // Pull a clean ascending time-series of face scores out of the (untyped) scan
 // history payload, defending against the several shapes the score can take.
 function parseScanPoints(raw: any): { score: number; at?: string }[] {
@@ -48,25 +46,7 @@ function parseScanPoints(raw: any): { score: number; at?: string }[] {
     return pts;
 }
 
-// One at-a-glance number + its label. Optionally tappable.
-function StatCell({ value, label, gold, onPress }: { value: string; label: string; gold?: boolean; onPress?: () => void }) {
-    const inner = (
-        <>
-            <Text style={[styles.statNum, gold && { color: GOLD }]}>{value}</Text>
-            <Text style={styles.statLabel}>{label}</Text>
-        </>
-    );
-    if (onPress) {
-        return (
-            <TouchableOpacity style={styles.statCell} onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={`${value} ${label}`}>
-                {inner}
-            </TouchableOpacity>
-        );
-    }
-    return <View style={styles.statCell}>{inner}</View>;
-}
-
-// Minimal axis-less sparkline of the score trend; last point dotted in gold.
+// Minimal axis-less sparkline of the score trend; last point dotted in the accent.
 function Sparkline({ points }: { points: number[] }) {
     const W = 100, H = 46, pad = 5;
     const min = Math.min(...points);
@@ -81,7 +61,7 @@ function Sparkline({ points }: { points: number[] }) {
     return (
         <Svg width={W} height={H}>
             <Polyline points={coords.join(' ')} fill="none" stroke={colors.foreground} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            <SvgCircle cx={lx} cy={ly} r={2.6} fill={GOLD} />
+            <SvgCircle cx={lx} cy={ly} r={2.6} fill={colors.accent} />
         </Svg>
     );
 }
@@ -449,6 +429,13 @@ export default function ProfileScreen() {
                             </TouchableOpacity>
                         )}
 
+                        {streak > 0 ? (
+                            <View style={styles.streakChip}>
+                                <Ionicons name="flame" size={13} color={colors.accent} />
+                                <Text style={styles.streakChipText}>{streak} day streak</Text>
+                            </View>
+                        ) : null}
+
                         {activeMaxxes.length > 0 ? (
                             <View style={styles.maxxTagsRow}>
                                 {activeMaxxes.map((m: any) => {
@@ -471,23 +458,6 @@ export default function ProfileScreen() {
                         <TouchableOpacity onPress={handleEditPress} hitSlop={8} activeOpacity={0.7}>
                             <Text style={styles.editLink}>Edit profile</Text>
                         </TouchableOpacity>
-                    </View>
-
-                    {/* ── At-a-glance stats ──────────────────────────── */}
-                    <View style={styles.statRow}>
-                        <StatCell value={String(streak)} label="DAY STREAK" gold />
-                        <View style={styles.statDivider} />
-                        <StatCell
-                            value={faceScore != null ? faceScore.toFixed(1) : '—'}
-                            label="FACE SCORE"
-                            onPress={onFaceScansPress}
-                        />
-                        <View style={styles.statDivider} />
-                        <StatCell
-                            value={String(photoCount)}
-                            label="PROGRESS PICS"
-                            onPress={() => (photoCount ? openProgressArchiveAt(0) : uploadProgressImage())}
-                        />
                     </View>
 
                     {/* ── Face-score trend ───────────────────────────── */}
@@ -580,25 +550,6 @@ export default function ProfileScreen() {
                             </>
                         )}
                     </View>
-
-                    {/* ── Active maxes ───────────────────────────────── */}
-                    {activeMaxxes.length > 0 ? (
-                        <View style={styles.section}>
-                            <SectionLabel label="YOUR MAXES" />
-                            {activeMaxxes.map((m: any, idx: number) => (
-                                <TouchableOpacity
-                                    key={m.id}
-                                    style={[styles.maxRow, idx > 0 && styles.maxRowBorder]}
-                                    onPress={() => navigation.navigate('MaxxDetail', { maxxId: m.id })}
-                                    activeOpacity={0.75}
-                                >
-                                    <View style={[styles.maxDot, { backgroundColor: normalizeMaxxTintHex(m.color) }]} />
-                                    <Text style={styles.maxLabel}>{getMaxxDisplayLabel(m)}</Text>
-                                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ marginLeft: 'auto' }} />
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    ) : null}
 
                     {/* ── Achievements ───────────────────────────────── */}
                     <View style={styles.section}>
@@ -1045,37 +996,22 @@ const styles = StyleSheet.create({
         letterSpacing: 0.1,
     },
 
-    // ── Stat row ─────────────────────────────────────────────────────────
-    statRow: {
+    // ── Streak chip ──────────────────────────────────────────────────────
+    streakChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginHorizontal: spacing.lg,
-        marginTop: spacing.sm,
-        marginBottom: spacing.xl,
-        paddingVertical: spacing.lg,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.divider,
+        gap: 5,
+        marginTop: spacing.md,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: borderRadius.full,
+        backgroundColor: colors.accentMuted,
     },
-    statCell: { flex: 1, alignItems: 'center' },
-    statNum: {
+    streakChipText: {
         fontFamily: fonts.sansSemiBold,
-        fontSize: 26,
-        color: colors.foreground,
-        letterSpacing: -1,
-    },
-    statLabel: {
-        fontFamily: fonts.sansSemiBold,
-        fontSize: 10,
-        letterSpacing: 0.8,
-        color: colors.textMuted,
-        textTransform: 'uppercase',
-        marginTop: 4,
-    },
-    statDivider: {
-        width: StyleSheet.hairlineWidth,
-        alignSelf: 'stretch',
-        backgroundColor: colors.divider,
+        fontSize: 12.5,
+        color: colors.accent,
+        letterSpacing: 0.2,
     },
 
     // ── Sections ─────────────────────────────────────────────────────────
@@ -1130,7 +1066,7 @@ const styles = StyleSheet.create({
     scoreLink: {
         fontFamily: fonts.sansMedium,
         fontSize: 13,
-        color: colors.foreground,
+        color: colors.accent,
         marginTop: 10,
     },
     scoreCardLocked: {
@@ -1179,12 +1115,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         lineHeight: 18,
     },
-
-    // ── Maxes ────────────────────────────────────────────────────────────
-    maxRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15 },
-    maxRowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.divider },
-    maxDot: { width: 9, height: 9, borderRadius: 5 },
-    maxLabel: { fontFamily: fonts.sansMedium, fontSize: 15.5, color: colors.foreground },
 
     // ── Achievements strip ───────────────────────────────────────────────
     achStrip: { gap: spacing.md, paddingRight: spacing.lg, paddingVertical: 2 },
