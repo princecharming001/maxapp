@@ -31,6 +31,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import api, { type MarketplaceItem } from '../../services/api';
+import { getCourseForMaxx, isCreatorCourse } from '../../data/courseContent';
 import { hexA } from '../../utils/scheduleAggregation';
 import { track } from '../../lib/analytics';
 
@@ -253,8 +254,22 @@ export default function MaxDetailScreen() {
             if (navigationRef.isReady()) navigationRef.navigate('Main', { screen: 'Chat', params: { initSchedule: maxxId } });
         } catch { navigation.goBack(); }
     };
+    // If this marketplace item is backed by a readable System-A course (e.g.
+    // coloringmax), the primary action opens the reader — courses with authored
+    // chapters are read, not just scheduled.
+    // Only CREATOR courses (e.g. coloringmax) open into the reader for free.
+    // Native maxes that happen to have a bundled course (skinmax) keep their
+    // normal paid enroll flow — gate on isCreatorCourse, not mere existence.
+    const readerCourseId = isCreatorCourse(getCourseForMaxx(item.id)) ? item.id : null;
+    const openReader = () => {
+        try {
+            const { navigationRef } = require('../../lib/navigationRef');
+            if (navigationRef.isReady()) navigationRef.navigate('MaxxDetail', { maxxId: item.id });
+        } catch { /* noop */ }
+    };
 
     const onCta = async () => {
+        if (readerCourseId) { openReader(); return; }
         if (item.entered) { goToSchedule(); return; }
         if (busy) return;
         setBusy(true);
@@ -409,18 +424,29 @@ export default function MaxDetailScreen() {
                 {isCourse && d.curriculum?.length ? (
                     <View style={styles.block}>
                         <Text style={styles.sectionLabel}>What's inside</Text>
+                        {readerCourseId ? (
+                            <TouchableOpacity
+                                style={[styles.openCourseBtn, { borderColor: base }]}
+                                onPress={openReader}
+                                activeOpacity={0.85}
+                            >
+                                <Ionicons name="book-outline" size={16} color={base} />
+                                <Text style={styles.openCourseText}>Open the full course</Text>
+                                <Ionicons name="arrow-forward" size={15} color={base} />
+                            </TouchableOpacity>
+                        ) : null}
                         <View style={styles.cardHair}>
                             {d.curriculum.map((w, i) => (
                                 <Accordion
                                     key={i}
                                     title={w.title}
-                                    badge={i === 0 ? 'Free preview' : undefined}
+                                    badge={!readerCourseId && i === 0 ? 'Free preview' : undefined}
                                     open={openWeek === i}
                                     onToggle={() => setOpenWeek(openWeek === i ? -1 : i)}
                                 >
                                     {w.lessons.map((l, j) => (
                                         <View key={j} style={styles.lessonRow}>
-                                            <Ionicons name={i === 0 ? 'play-circle-outline' : 'lock-closed-outline'} size={15} color={i === 0 ? base : MUTE} />
+                                            <Ionicons name={readerCourseId || i === 0 ? 'play-circle-outline' : 'lock-closed-outline'} size={15} color={readerCourseId || i === 0 ? base : MUTE} />
                                             <Text style={styles.lessonText}>{l}</Text>
                                         </View>
                                     ))}
@@ -498,9 +524,11 @@ export default function MaxDetailScreen() {
                 <View style={{ flex: 1 }}>
                     <Text style={styles.ctaPrice}>{item.price_label}</Text>
                     <Text style={styles.ctaSub}>
-                        {item.price_model === 'weekly'
-                            ? `${perDay} a day · cancel anytime`
-                            : item.weeks ? `${item.weeks} weeks · one payment` : 'one payment'}
+                        {readerCourseId
+                            ? 'Read anytime · no payment'
+                            : item.price_model === 'weekly'
+                                ? `${perDay} a day · cancel anytime`
+                                : item.weeks ? `${item.weeks} weeks · one payment` : 'one payment'}
                     </Text>
                 </View>
                 <TouchableOpacity
@@ -513,7 +541,7 @@ export default function MaxDetailScreen() {
                         <ActivityIndicator color="#fff" />
                     ) : (
                         <Text style={styles.ctaBtnText} numberOfLines={1}>
-                            {item.entered ? 'Open' : isCourse ? 'Enroll' : 'Start my plan'}
+                            {readerCourseId ? 'Open course' : item.entered ? 'Open' : isCourse ? 'Enroll' : 'Start my plan'}
                         </Text>
                     )}
                 </TouchableOpacity>
@@ -577,6 +605,12 @@ const styles = StyleSheet.create({
     lead: { fontFamily: 'Matter-Regular', fontSize: 16, color: SUB, lineHeight: 24, paddingHorizontal: 22, marginTop: 22 },
 
     block: { paddingHorizontal: 22, marginTop: 28 },
+    openCourseBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+        marginTop: 14, marginBottom: 2, paddingVertical: 13,
+        borderRadius: 14, borderWidth: 1.5, backgroundColor: CARD,
+    },
+    openCourseText: { fontFamily: 'Matter-SemiBold', fontSize: 14.5, color: INK, letterSpacing: 0.1 },
     sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: INK, marginBottom: 15 },
 
     // Cards

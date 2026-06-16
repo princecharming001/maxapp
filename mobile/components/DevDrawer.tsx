@@ -98,6 +98,7 @@ const GROUPS: { label: string; items: Jump[] }[] = [
             { label: 'Course list', state: 'paid', route: 'CourseList' },
             { label: 'Schedule (course)', state: 'paid', route: 'Schedule' },
             { label: 'Maxx detail (skinmax)', state: 'paid', route: 'MaxxDetail', params: { maxxId: 'skinmax' } },
+            { label: 'Coloring Max (Clay · creator course)', state: 'paid', route: 'MaxxDetail', params: { maxxId: 'coloringmax' } },
             { label: 'Fitmax plan', state: 'paid', route: 'FitmaxPlan' },
             { label: 'Fitmax workout tracker', state: 'paid', route: 'FitmaxWorkoutTracker' },
             { label: 'Fitmax calorie log', state: 'paid', route: 'FitmaxCalorieLog' },

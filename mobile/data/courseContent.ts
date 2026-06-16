@@ -42,8 +42,31 @@ export type CourseChapter = {
     sections: CourseSection[];
 };
 
+/** Attribution for a creator-authored course (creator courses only). */
+export type CourseCreator = {
+    name: string;
+    handle?: string;
+    verified?: boolean;
+    /** One-line "what they do" shown under the byline. */
+    tagline?: string;
+};
+
 export type CourseModule = {
-    maxxId: 'skinmax' | 'hairmax' | 'fitmax' | 'bonemax' | 'heightmax';
+    /**
+     * Native maxx id, or a creator-course id (e.g. 'coloringmax'). Native maxes
+     * pull their header (title/icon/description) from the API; creator courses
+     * are self-contained and supply their own title / subtitle / icon / creator
+     * below, so they render with no backend row.
+     */
+    maxxId: 'skinmax' | 'hairmax' | 'fitmax' | 'bonemax' | 'heightmax' | 'coloringmax';
+    /** Creator-course display title (used when there is no API maxx row). */
+    title?: string;
+    /** Creator-course one-line description for the header. */
+    subtitle?: string;
+    /** Creator-course header icon (Ionicons -outline). */
+    icon?: string;
+    /** Set on creator-authored courses; absent on native maxes. */
+    creator?: CourseCreator;
     /** Single accent color the entire course view tints with. */
     accent: string;
     /** ~10% opacity tint of `accent` for soft backgrounds. */
@@ -64,6 +87,7 @@ import { HAIRMAX_COURSE } from './courses/hairmax';
 import { FITMAX_COURSE } from './courses/fitmax';
 import { BONEMAX_COURSE } from './courses/bonemax';
 import { HEIGHTMAX_COURSE } from './courses/heightmax';
+import { COLORINGMAX_COURSE } from './courses/coloringmax';
 
 const COURSES: Record<string, CourseModule> = {
     skinmax: SKINMAX_COURSE,
@@ -71,7 +95,14 @@ const COURSES: Record<string, CourseModule> = {
     fitmax: FITMAX_COURSE,
     bonemax: BONEMAX_COURSE,
     heightmax: HEIGHTMAX_COURSE,
+    // First creator course — authored by Clay, self-contained (no API row).
+    coloringmax: COLORINGMAX_COURSE,
 };
+
+/** True when this course is creator-authored rather than a native maxx. */
+export function isCreatorCourse(course: CourseModule | null | undefined): boolean {
+    return !!course?.creator;
+}
 
 export function getCourseForMaxx(maxxId: string): CourseModule | null {
     return COURSES[maxxId] ?? null;
@@ -98,4 +129,4 @@ export function flattenSections(course: CourseModule): Array<{
 }
 
 /* Re-export the bundled modules so callers can grab a specific one. */
-export { SKINMAX_COURSE, HAIRMAX_COURSE, FITMAX_COURSE, BONEMAX_COURSE, HEIGHTMAX_COURSE };
+export { SKINMAX_COURSE, HAIRMAX_COURSE, FITMAX_COURSE, BONEMAX_COURSE, HEIGHTMAX_COURSE, COLORINGMAX_COURSE };

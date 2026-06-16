@@ -146,12 +146,27 @@ export default function MaxxDetailScreen() {
     const scheduleQuery = useMaxxScheduleQuery(maxxId, canSchedule);
     const activeSummaryQuery = useActiveSchedulesSummaryQuery(canSchedule);
 
-    const maxx = maxxQuery.data ?? null;
+    // First creator course (e.g. coloringmax): self-contained content with no
+    // API maxx row. Synthesize the header from the course so it renders with no
+    // backend, and skip the network loading gate for it (below).
+    const courseDef = getCourseForMaxx(maxxId);
+    const isCreatorCourse = !!courseDef?.creator;
+    const synthMaxx = isCreatorCourse
+        ? {
+              id: maxxId,
+              label: courseDef!.title ?? 'Course',
+              description: courseDef!.subtitle,
+              icon: courseDef!.icon ?? 'color-palette-outline',
+              modules: [],
+              concerns: [],
+          }
+        : null;
+    const maxx = maxxQuery.data ?? synthMaxx;
     const activeSchedule = scheduleQuery.data ?? null;
     const activeCount = activeSummaryQuery.data?.count ?? 0;
     const activeLabels = activeSummaryQuery.data?.labels ?? [];
 
-    const loading = !!maxxId && maxxQuery.isPending && !maxxQuery.data;
+    const loading = !!maxxId && maxxQuery.isPending && !maxxQuery.data && !isCreatorCourse;
     // Mirror backend: Chad=3, Chadlite=2. Was hardcoded basic=1 here, which
     // hid the Start Schedule button after the first add even though the
     // backend would have accepted a second.
@@ -320,8 +335,7 @@ export default function MaxxDetailScreen() {
     const previewPills = tagLabels.slice(0, MAX_PILLS);
     const morePillCount = tagLabels.length - previewPills.length;
 
-    const courseDef = getCourseForMaxx(maxxId);
-    const useAccentTheme = !!courseDef; // currently only skinmax has a course → accent treatment
+    const useAccentTheme = !!courseDef; // skinmax + the coloringmax creator course get the accent treatment
     // Every max carries its own color — the header icon, section bar and module
     // dots become that color (the craft.do color-pocket feel), not dead grey.
     const accent = courseDef?.accent ?? maxColor(maxxId);
@@ -331,11 +345,11 @@ export default function MaxxDetailScreen() {
         <View style={styles.container}>
             {useAccentTheme ? (
                 <ModuleHero
-                    title={getMaxxDisplayLabel(maxx)}
+                    title={isCreatorCourse ? (courseDef!.title ?? getMaxxDisplayLabel(maxx)) : getMaxxDisplayLabel(maxx)}
                     accent={accent}
                     accentSoft={accentSoft}
                     iconName={maxx.icon || 'sparkles-outline'}
-                    description={getMaxxDisplayDescription(maxx) ?? maxx.description}
+                    description={isCreatorCourse ? courseDef!.subtitle : (getMaxxDisplayDescription(maxx) ?? maxx.description)}
                     onBack={() => navigation.goBack()}
                     stats={
                         courseDef
@@ -488,14 +502,39 @@ export default function MaxxDetailScreen() {
                 )}
 
                 {courseDef ? (
-                    isPremium ? (
-                        <CourseTOC course={courseDef} onOpenSection={openReaderAt} />
-                    ) : (
-                        <CourseLockedCard
-                            accent={accent}
-                            onUpgrade={() => navigation.navigate('Payment')}
-                        />
-                    )
+                    <>
+                        {/* Creator byline — marks this as a creator course, not a native max. */}
+                        {courseDef.creator ? (
+                            <View style={{ marginBottom: spacing.lg }}>
+                                <Text style={{ fontFamily: fonts.sansSemiBold, fontSize: 11, letterSpacing: 1.6, color: colors.textMuted }}>
+                                    COURSE BY
+                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                                    <Text style={{ fontFamily: fonts.serif, fontSize: 20, color: colors.foreground, letterSpacing: -0.3 }}>
+                                        {courseDef.creator.name}
+                                    </Text>
+                                    {courseDef.creator.verified ? (
+                                        <Ionicons name="checkmark-circle" size={15} color={accent} style={{ marginLeft: 5 }} />
+                                    ) : null}
+                                </View>
+                                {courseDef.creator.tagline ? (
+                                    <Text style={{ fontFamily: fonts.sans, fontSize: 13, color: colors.textSecondary, marginTop: 3 }}>
+                                        {courseDef.creator.tagline}
+                                    </Text>
+                                ) : null}
+                            </View>
+                        ) : null}
+
+                        {/* Creator courses are open to read; native-max courses stay Chad-gated. */}
+                        {isPremium || isCreatorCourse ? (
+                            <CourseTOC course={courseDef} onOpenSection={openReaderAt} />
+                        ) : (
+                            <CourseLockedCard
+                                accent={accent}
+                                onUpgrade={() => navigation.navigate('Payment')}
+                            />
+                        )}
+                    </>
                 ) : null}
 
                 {/* Legacy MODULES list — only render for maxxes that

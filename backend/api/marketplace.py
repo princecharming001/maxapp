@@ -45,6 +45,17 @@ _MAXX_DISPLAY: dict[str, dict[str, str]] = {
 # Seeded creator courses (single-player supply so Explore isn't empty at launch).
 # Creator-set price + cadence. Replaced by real creator listings later.
 _SEED_COURSES: list[dict[str, Any]] = [
+    # The first creator course — Clay's Coloring Max. Free to read; the full
+    # readable chapters live in mobile/data/courses/coloringmax.ts (System-A
+    # reader, opened from the detail page). Listed first so it leads Explore.
+    {
+        "id": "coloringmax", "schedule_hints": {"sessions_per_week": 7, "minutes": 10, "window": "any"}, "title": "Coloring Max", "category": "skinmax",
+        "creator": {"name": "Clay", "handle": "clay", "verified": True},
+        "price_cents": 0, "price_model": "flat", "weeks": 2,
+        "rating": 4.9, "participants": 2100, "completion_rate": 0.77,
+        "blurb": "Brighten, don't lighten — make your natural coloring look intentional.",
+        "icon": "color-palette-outline", "color": "#BC7A3C",
+    },
     {
         "id": "course_glowup_30", "schedule_hints": {"sessions_per_week": 7, "minutes": 15, "window": "evening"}, "title": "30-Day Glow Up", "category": "skinmax",
         "creator": {"name": "Dr. Lena Park", "handle": "drlenapark", "verified": True},
@@ -83,6 +94,7 @@ _SEED_COURSES: list[dict[str, Any]] = [
 # Creator headshots, stable per handle (real portraits so Explore + the detail
 # pages read like a creator marketplace, not an icon grid).
 _AVATARS: dict[str, str] = {
+    "clay": "https://i.pravatar.cc/240?img=51",
     "drlenapark": "https://i.pravatar.cc/240?img=47",
     "coachmreed": "https://i.pravatar.cc/240?img=12",
     "ariamoves": "https://i.pravatar.cc/240?img=44",
@@ -115,6 +127,7 @@ _MAXX_MEDIA: dict[str, dict[str, Any]] = {
     "bonemax":   {"cover": _img("1620916566398-39f1143ab7be")},
 }
 _COURSE_MEDIA: dict[str, dict[str, Any]] = {
+    "coloringmax":          {"cover": _img("1620916566398-39f1143ab7be")},
     "course_glowup_30":     {"cover": _img("1598440947619-2c35fc9aa908"), "video": _VID_PEXELS},
     "course_lift101":       {"cover": _img("1517836357463-d25dfeac3438"), "inside": _VID_PEXELS},
     "course_posture_reset": {"cover": _img("1532012197267-da84d127e765")},
@@ -165,6 +178,56 @@ def _rev(name: str, img: int, rating: int, text: str) -> dict[str, Any]:
 # Rich "browse before you buy" content for each creator course — what's inside,
 # who's teaching, and proof — surfaced on the full detail page.
 _COURSE_DETAIL: dict[str, dict[str, Any]] = {
+    "coloringmax": {
+        "long_description": (
+            "Clay's complete coloring system for brown and tan skin. The whole idea: "
+            "brighten, don't lighten. You'll even and brighten your skin, wake up your "
+            "lips and eyes, use light to your advantage, and frame everything with the "
+            "right hair and facial hair — so your natural palette looks clean, healthy, "
+            "and intentional. Never about becoming lighter; always about raising the "
+            "quality of the tone you already have."
+        ),
+        "outcomes": [
+            "Brighter, more even skin — without lightening your tone",
+            "Rosier lips and clearer, higher-contrast eyes",
+            "Golden, photo-ready lighting you can recreate",
+            "Hair and facial hair that frame your face",
+            "A simple daily routine and a weekly coloring score",
+        ],
+        "for_you_if": [
+            "You think your skin is 'too dark' — it almost certainly isn't",
+            "Your coloring looks dull, uneven, or tired in photos",
+            "You want a clear system, not random tips",
+        ],
+        "curriculum": [
+            {"title": "1 · The Coloring Mindset", "lessons": ["Color, not just bone", "The seven pillars", "Brighten, don't lighten", "What's actually wrong", "Day 1: baseline selfie"]},
+            {"title": "2 · Skin — the baseline", "lessons": ["Skin is the canvas", "What bright skin looks like", "Centella, your brightening law", "Other brightening options", "The 7-day skin baseline"]},
+            {"title": "3 · Light — golden coloring", "lessons": ["The sun isn't the enemy", "What golden light does", "Use sun strategically", "The golden hour test"]},
+            {"title": "4 · Lips", "lessons": ["Lips carry a health signal", "The ideal lip", "The lip protocol", "Your daily lip task"]},
+            {"title": "5 · Eyes, teeth & contrast", "lessons": ["Eyes drive contrast", "White eyes + white teeth", "Eye goals", "Contacts for brown skin", "Contact safety", "Eye contrast check"]},
+            {"title": "6 · Hair — the brown gradient", "lessons": ["Hair frames the face", "Complement, don't clash", "Mocha brown highlights", "Shape & layers", "Your hair audit"]},
+            {"title": "7 · Facial hair & brows", "lessons": ["Intentional, not random", "Pick your look", "Goatee & mustache rules", "Brows that fit", "The 2-week facial hair test"]},
+            {"title": "8 · The 14-day plan", "lessons": ["Days 1–3: baseline", "Days 4–7: skin & lips", "Days 8–10: grooming", "Days 11–14: contrast & photos"]},
+            {"title": "9 · Track & score", "lessons": ["Morning checklist", "Night checklist", "The weekly coloring score", "Read your score", "The coloring max summary"]},
+        ],
+        "bio": (
+            "Clay is a looksmaxxing creator focused on coloring and contrast for brown "
+            "and tan skin. His whole approach is brighten-don't-lighten: work with your "
+            "natural tone, never against it."
+        ),
+        "credentials": ["Coloring & contrast specialist", "Brown/tan skin focus", "Brighten, don't lighten"],
+        "reviews": [
+            _rev("Rohan D.", 51, 5, "Changed how I see my own face. I stopped trying to look lighter and my skin actually looks better in photos now."),
+            _rev("Andre M.", 12, 5, "The golden-hour and contrast stuff is unreal. Two weeks and my pictures look completely different."),
+            _rev("Kofi A.", 33, 5, "Finally a guide made for my skin tone. The brown-gradient hair tip alone was worth it."),
+        ],
+        "faqs": [
+            {"q": "Is this about skin lightening?", "a": "No — the exact opposite. It's brighten, don't lighten: even tone, glow, and contrast while keeping your natural skin color."},
+            {"q": "Is it only for brown/tan skin?", "a": "It's written for brown and tan skin specifically — that's why the ingredient, lighting, hair, and contact picks are tuned for it."},
+            {"q": "Do I need to buy products?", "a": "No. It points you to types (a Centella or vitamin C brightener, a tinted lip balm, SPF) — use what you have or any drugstore option."},
+        ],
+        "guarantee": "Free to read, start to finish. Open it and see if it's for you.",
+    },
     "course_glowup_30": {
         "long_description": (
             "A board-certified dermatologist's 30-day reset. We strip your routine "
@@ -369,6 +432,8 @@ def _uid(current_user: dict) -> UUID:
 
 
 def _price_label(price_cents: int, price_model: str, weeks: int | None) -> str:
+    if price_cents <= 0:
+        return "Free"
     dollars = price_cents / 100
     if price_model == "weekly":
         return f"${dollars:.2f} / week"
@@ -743,6 +808,11 @@ async def enter(
     uid = _uid(current_user)
     user, entered = await _load_entered(db, uid)
     if item_id in entered:
+        return {"entered": True, "item_id": item_id, "kind": "course" if is_course else "maxx"}
+
+    if price_cents <= 0:
+        # Free course (the inaugural creator course) — grant directly, no checkout.
+        await fulfill_marketplace_purchase(db, str(uid), item_id, "free", None)
         return {"entered": True, "item_id": item_id, "kind": "course" if is_course else "maxx"}
 
     if settings.stripe_secret_key:
