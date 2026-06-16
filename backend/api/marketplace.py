@@ -119,27 +119,30 @@ _VID_PEXELS = "https://videos.pexels.com/video-files/4761426/4761426-uhd_2732_14
 # ever fails to load, so the section is never broken.
 _VID_LOOK = "https://download.samplelib.com/mp4/sample-10s.mp4"
 
+# Covers are aspirational male-face portraits (the "looksmaxxer" register the
+# Landing uses) — not product/gym stock — so browse reads as a face-first
+# marketplace. Each id is theme-matched (jaw, skin, hair, coloring, …).
 _MAXX_MEDIA: dict[str, dict[str, Any]] = {
-    "skinmax":   {"cover": _img("1556228578-8c89e6adf883"), "video": _VID_SAMPLE},
-    "fitmax":    {"cover": _img("1571019613454-1cb2f99b2d8b"), "inside": _VID_PEXELS},
-    "hairmax":   {"cover": _img("1522337660859-02fbefca4702")},
-    "heightmax": {"cover": _img("1512290923902-8a9f81dc236c")},
-    "bonemax":   {"cover": _img("1620916566398-39f1143ab7be")},
+    "skinmax":   {"cover": _img("1506794778202-cad84cf45f1d"), "video": _VID_SAMPLE},  # clear-skin frontal
+    "fitmax":    {"cover": _img("1488161628813-04466f872be2"), "inside": _VID_PEXELS}, # lean/fashion full-body
+    "hairmax":   {"cover": _img("1535713875002-d1d0cf377fde")},                        # hair-forward
+    "heightmax": {"cover": _img("1564564321837-a57b7070ac4f")},                        # standing portrait
+    "bonemax":   {"cover": _img("1500648767791-00dcc994a43e")},                        # jaw / hand-on-chin
 }
 _COURSE_MEDIA: dict[str, dict[str, Any]] = {
-    "coloringmax":          {"cover": _img("1620916566398-39f1143ab7be")},
-    "course_glowup_30":     {"cover": _img("1598440947619-2c35fc9aa908"), "video": _VID_PEXELS},
-    "course_lift101":       {"cover": _img("1517836357463-d25dfeac3438"), "inside": _VID_PEXELS},
-    "course_posture_reset": {"cover": _img("1532012197267-da84d127e765")},
-    "course_jaw_basics":    {"cover": _img("1611672585731-fa10603fb9e0")},
+    "coloringmax":          {"cover": _img("1463453091185-61582044d556")},                         # brown/tan model — coloring
+    "course_glowup_30":     {"cover": _img("1507003211169-0a1dd7228f2d"), "video": _VID_PEXELS},   # glowy frontal
+    "course_lift101":       {"cover": _img("1521119989659-a83eee488004"), "inside": _VID_PEXELS},  # rugged/strength
+    "course_posture_reset": {"cover": _img("1539571696357-5a69c17a67c6")},                         # upright portrait
+    "course_jaw_basics":    {"cover": _img("1500648767791-00dcc994a43e")},                         # jawline
 }
 _GALLERY_POOL: list[str] = [
     _img(p) for p in (
-        "1556228578-8c89e6adf883", "1571019613454-1cb2f99b2d8b",
-        "1522337660859-02fbefca4702", "1512290923902-8a9f81dc236c",
-        "1620916566398-39f1143ab7be", "1598440947619-2c35fc9aa908",
-        "1517836357463-d25dfeac3438", "1532012197267-da84d127e765",
-        "1611672585731-fa10603fb9e0", "1526506118085-60ce8714f8c5",
+        "1506794778202-cad84cf45f1d", "1488161628813-04466f872be2",
+        "1535713875002-d1d0cf377fde", "1564564321837-a57b7070ac4f",
+        "1500648767791-00dcc994a43e", "1507003211169-0a1dd7228f2d",
+        "1521119989659-a83eee488004", "1539571696357-5a69c17a67c6",
+        "1463453091185-61582044d556", "1506794778202-cad84cf45f1d",
     )
 ]
 
