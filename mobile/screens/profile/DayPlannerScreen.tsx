@@ -29,7 +29,15 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  Animated,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
+
+// Smooth the pill width change (short → full day name) on Android.
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -38,7 +46,6 @@ import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, fonts } from '../../theme/dark';
-import Chip from '../../components/ui/Chip';
 import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
 import DayTimeline from '../../components/planner/DayTimeline';
 import ObligationsManager, { ObligationsManagerHandle } from '../../components/planner/ObligationsManager';
@@ -306,6 +313,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                 <ScopePill
                   key={w.key}
                   label={w.short}
+                  expandedLabel={w.long}
                   active={scope === w.key}
                   edited={hasOverride(weekly, w.key)}
                   onPress={() => setScope(w.key)}
@@ -455,25 +463,65 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
 function ScopePill({
   label,
+  expandedLabel,
   active,
   edited,
   onPress,
 }: {
   label: string;
+  expandedLabel?: string;
   active: boolean;
   edited?: boolean;
   onPress: () => void;
 }) {
+  // Drive every visual off one spring so the selected pill lifts, scales and
+  // fills with ink in a single gesture — the "tap to expand" feel.
+  const p = useRef(new Animated.Value(active ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.spring(p, {
+      toValue: active ? 1 : 0,
+      useNativeDriver: false,
+      friction: 7,
+      tension: 120,
+    }).start();
+  }, [active, p]);
+
+  const backgroundColor = p.interpolate({ inputRange: [0, 1], outputRange: [colors.surface, colors.foreground] });
+  const borderColor = p.interpolate({ inputRange: [0, 1], outputRange: [colors.border, colors.foreground] });
+  const color = p.interpolate({ inputRange: [0, 1], outputRange: [colors.textSecondary, '#fff'] });
+  const scale = p.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const translateY = p.interpolate({ inputRange: [0, 1], outputRange: [0, -2] });
+
+  // The active weekday opens up to its full name; "Every day" has no expansion.
+  const shownLabel = active && expandedLabel ? expandedLabel : label;
+
   return (
-    <View style={styles.scopePillWrap}>
-      <Chip
-        active={active}
-        label={label}
-        onPress={onPress}
-        accessibilityLabel={`${label}${edited ? ', customized' : ''}`}
-      />
+    <TouchableOpacity
+      onPress={() => {
+        LayoutAnimation.configureNext(LayoutAnimation.create(180, 'easeInEaseOut', 'opacity'));
+        onPress();
+      }}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={`${active && expandedLabel ? expandedLabel : label}${edited ? ', customized' : ''}`}
+    >
+      <Animated.View
+        style={[
+          styles.scopePill,
+          active && styles.scopePillActiveElev,
+          { backgroundColor, borderColor, transform: [{ scale }, { translateY }] },
+        ]}
+      >
+        <Animated.Text
+          style={[styles.scopePillText, active && styles.scopePillTextActiveWeight, { color }]}
+          numberOfLines={1}
+        >
+          {shownLabel}
+        </Animated.Text>
+      </Animated.View>
       {edited && !active ? <View style={styles.editedDot} /> : null}
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -518,17 +566,39 @@ const styles = StyleSheet.create({
 
   // Scope selector.
   scopeBar: { marginHorizontal: -spacing.lg },
-  scopeScroll: { paddingHorizontal: spacing.lg, gap: 8, paddingVertical: 4 },
-  scopePillWrap: { position: 'relative' },
+  // Extra vertical room so the active pill can scale + lift without clipping.
+  scopeScroll: { paddingHorizontal: spacing.lg, gap: 8, paddingVertical: 8 },
+  scopePill: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    minHeight: 38,
+  },
+  // Soft drop shadow that reads as the selected pill floating above the rest.
+  scopePillActiveElev: {
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  scopePillText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.textSecondary, letterSpacing: 0.1 },
+  scopePillTextActiveWeight: { fontFamily: fonts.sansSemiBold },
+  // A small corner marker (top-right) for a weekday that differs from every-day.
   editedDot: {
     position: 'absolute',
-    top: 2,
-    right: 2,
+    top: 4,
+    right: 4,
     width: 7,
     height: 7,
-    borderRadius: 3.5,
+    borderRadius: 4,
     backgroundColor: ACCENT,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1.5,
     borderColor: colors.background,
   },
 
