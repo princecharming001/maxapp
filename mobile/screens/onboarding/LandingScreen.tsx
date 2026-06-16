@@ -1,19 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
     Platform,
-    ActivityIndicator,
-    Alert,
     Image,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../context/AuthContext';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import ShineOverlay from '../../components/ShineOverlay';
 
@@ -29,89 +25,16 @@ const HERO = require('../../assets/landing-hero.webp');
 
 export default function LandingScreen() {
     const navigation = useNavigation<any>();
-    const { fauxSignup, fauxSkipSignup, fauxFreshSignup } = useAuth();
-    const [demoLoading, setDemoLoading] = useState(false);
-    const [skipLoading, setSkipLoading] = useState(false);
-    const [freshLoading, setFreshLoading] = useState(false);
-
-    const handleTryNow = async () => {
-        if (demoLoading) return;
-        setDemoLoading(true);
-        try {
-            await fauxSignup();
-        } catch (e: any) {
-            const msg = e?.response?.data?.detail ?? e?.message ?? 'Something went wrong';
-            if (Platform.OS === 'web') {
-                window.alert(msg);
-            } else {
-                Alert.alert('Error', msg);
-            }
-        } finally {
-            setDemoLoading(false);
-        }
-    };
-
-    const handleDevOnboarding = async () => {
-        // DEV ONLY: throwaway account with empty onboarding so we land on
-        // the first onboarding question. Lets us replay the flow without
-        // typing the signup form every time.
-        if (freshLoading) return;
-        setFreshLoading(true);
-        try {
-            await fauxFreshSignup();
-        } catch (e: any) {
-            const msg = e?.response?.data?.detail ?? e?.message ?? 'Something went wrong';
-            if (Platform.OS === 'web') window.alert(msg);
-            else Alert.alert('Error', msg);
-        } finally {
-            setFreshLoading(false);
-        }
-    };
-
-    const handleSkip = async () => {
-        if (skipLoading) return;
-        setSkipLoading(true);
-        // eslint-disable-next-line no-console
-        console.log('[Skip] click → calling fauxSkipSignup…');
-        try {
-            await fauxSkipSignup();
-            // eslint-disable-next-line no-console
-            console.log('[Skip] fauxSkipSignup resolved — auth state should switch to Main; if it does not within 1.5s we hard-reload');
-            if (Platform.OS === 'web') {
-                // Belt-and-braces: if RootNavigator's reactive re-route doesn't kick in
-                // (stale stackKey, mid-transition focus), force a reload so the boot
-                // path picks up the now-stored tokens and routes to Main.
-                window.setTimeout(() => {
-                    if (typeof window !== 'undefined' && window.location?.pathname && !/\/(home|main)/i.test(window.location.pathname || '')) {
-                        // eslint-disable-next-line no-console
-                        console.log('[Skip] reactive re-route did not fire — reloading to /');
-                        window.location.replace('/');
-                    }
-                }, 1500);
-            }
-        } catch (e: any) {
-            // eslint-disable-next-line no-console
-            console.error('[Skip] fauxSkipSignup failed:', e);
-            const msg = e?.response?.data?.detail ?? e?.message ?? 'Something went wrong';
-            if (Platform.OS === 'web') {
-                window.alert(`Skip failed: ${msg}`);
-            } else {
-                Alert.alert('Error', msg);
-            }
-        } finally {
-            setSkipLoading(false);
-        }
-    };
 
     return (
         <View style={styles.root}>
             <View style={styles.phone}>
                 <Image source={HERO} style={styles.heroImg} resizeMode="cover" />
 
-                {/* Soft top vignette so the Skip pill + brand pill stay legible. */}
+                {/* Soft top vignette so the brand pill stays legible. */}
                 <LinearGradient
                     pointerEvents="none"
-                    colors={['rgba(20,17,14,0.18)', 'rgba(20,17,14,0)']}
+                    colors={['rgba(20,17,14,0.16)', 'rgba(20,17,14,0)']}
                     locations={[0, 1]}
                     style={styles.topVignette}
                 />
@@ -120,26 +43,6 @@ export default function LandingScreen() {
                 <View style={styles.brandPill}>
                     <Text style={styles.brandPillText}>max</Text>
                 </View>
-
-                {isWeb ? (
-                    <TouchableOpacity
-                        style={styles.skipPill}
-                        activeOpacity={0.7}
-                        onPress={handleSkip}
-                        disabled={skipLoading}
-                        accessibilityRole="button"
-                        accessibilityLabel="Skip to home"
-                    >
-                        {skipLoading ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                            <>
-                                <Text style={styles.skipPillText}>Skip</Text>
-                                <Ionicons name="chevron-forward" size={13} color="#fff" />
-                            </>
-                        )}
-                    </TouchableOpacity>
-                ) : null}
 
                 {/* ── Frosted translucent window with the brand + auth ── */}
                 <BlurView intensity={48} tint="light" style={styles.glass}>
@@ -173,53 +76,6 @@ export default function LandingScreen() {
                                 <Text style={styles.signinLink}>Sign in</Text>
                             </TouchableOpacity>
                         </View>
-
-                        {isWeb ? (
-                            <TouchableOpacity
-                                style={styles.tryLink}
-                                activeOpacity={0.7}
-                                onPress={handleTryNow}
-                                disabled={demoLoading}
-                                accessibilityRole="button"
-                                accessibilityLabel="Try it first, no account needed"
-                            >
-                                {demoLoading ? (
-                                    <ActivityIndicator size="small" color="#97928A" />
-                                ) : (
-                                    <Text style={styles.tryLinkText}>Try it first — no account needed</Text>
-                                )}
-                            </TouchableOpacity>
-                        ) : null}
-
-                        {/* DEV-only: bypass signup to test app states. Compiled out in prod. */}
-                        {__DEV__ ? (
-                            <View style={styles.devStack}>
-                                <TouchableOpacity
-                                    style={styles.devButton}
-                                    activeOpacity={0.7}
-                                    onPress={handleDevOnboarding}
-                                    disabled={freshLoading}
-                                >
-                                    {freshLoading ? (
-                                        <ActivityIndicator size="small" color="#fff" />
-                                    ) : (
-                                        <Text style={styles.devButtonText}>DEV → Test onboarding flow</Text>
-                                    )}
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.devButton}
-                                    activeOpacity={0.7}
-                                    onPress={handleSkip}
-                                    disabled={skipLoading}
-                                >
-                                    {skipLoading ? (
-                                        <ActivityIndicator size="small" color="#fff" />
-                                    ) : (
-                                        <Text style={styles.devButtonText}>DEV → Skip to home (paid demo)</Text>
-                                    )}
-                                </TouchableOpacity>
-                            </View>
-                        ) : null}
                     </View>
                 </BlurView>
             </View>
@@ -288,7 +144,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         paddingTop: 10,
         paddingHorizontal: 26,
-        paddingBottom: isWeb ? 26 : 42,
+        paddingBottom: isWeb ? 34 : 46,
         borderTopWidth: StyleSheet.hairlineWidth,
         borderColor: 'rgba(255,255,255,0.6)',
     },
@@ -302,13 +158,13 @@ const styles = StyleSheet.create({
         height: 5,
         borderRadius: 3,
         backgroundColor: 'rgba(28,26,23,0.18)',
-        marginBottom: 12,
+        marginBottom: 16,
     },
 
     // ── Brand (inside window) ──
     brand: {
         alignItems: 'flex-start',
-        marginBottom: 16,
+        marginBottom: 20,
     },
     heroLogo: {
         fontFamily: 'PlayfairDisplay',
@@ -336,13 +192,13 @@ const styles = StyleSheet.create({
     // ── Actions ──
     actions: {
         width: '100%',
-        gap: 11,
+        gap: 12,
     },
     signinRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 6,
+        marginTop: 8,
     },
     signinMuted: {
         fontFamily: 'Matter-Regular',
@@ -367,62 +223,5 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: CREAM,
         letterSpacing: 0.1,
-    },
-    tryLink: {
-        alignItems: 'center',
-        paddingVertical: 10,
-        marginTop: 2,
-    },
-    tryLinkText: {
-        fontFamily: 'Matter-Medium',
-        fontSize: 13.5,
-        color: '#6F6A61',
-        letterSpacing: 0.2,
-    },
-
-    // ── DEV ──
-    devStack: {
-        marginTop: 6,
-        gap: 6,
-    },
-    devButton: {
-        backgroundColor: 'rgba(10,10,11,0.8)',
-        borderRadius: 999,
-        paddingVertical: 9,
-        paddingHorizontal: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 36,
-    },
-    devButtonText: {
-        color: '#fff',
-        fontFamily: 'Matter-Bold',
-        fontSize: 11,
-        letterSpacing: 1.2,
-    },
-
-    // ── Skip ──
-    skipPill: {
-        position: 'absolute',
-        top: Platform.OS === 'ios' ? 60 : 26,
-        right: 20,
-        zIndex: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 3,
-        borderRadius: 999,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(255,255,255,0.5)',
-        backgroundColor: 'rgba(28,26,23,0.32)',
-        paddingVertical: 8,
-        paddingLeft: 15,
-        paddingRight: 11,
-        ...(isWeb && { cursor: 'pointer' as const }),
-    },
-    skipPillText: {
-        fontFamily: 'Matter-Medium',
-        fontSize: 13,
-        letterSpacing: 0.2,
-        color: '#fff',
     },
 });
