@@ -711,6 +711,15 @@ async def _build_course_schedule(
     await db.commit()
 
 
+# Creator courses whose SCHEDULE is produced by the native skeleton engine (a
+# data/maxes/<id>.md doc exists) even though they DISPLAY as free creator courses
+# in the marketplace. Entering one runs generate_and_persist — the same engine
+# native maxes use — instead of the generic placeholder-session builder, so the
+# user gets a real personalized routine off the doc. (Display/pricing stay
+# course-shaped: the id is only in _SEED_COURSES, never _MAXX_DISPLAY.)
+_NATIVE_SCHEDULED_COURSES = {"coloringmax"}
+
+
 async def _generate_program_schedule(
     db: AsyncSession, user: User, item_id: str, is_course: bool
 ) -> bool:
@@ -718,7 +727,7 @@ async def _generate_program_schedule(
     'N things landed on your week' is true the moment the sheet says it.
     Best-effort - a generation failure never blocks the purchase."""
     try:
-        if is_course:
+        if is_course and item_id not in _NATIVE_SCHEDULED_COURSES:
             course = next((c for c in _SEED_COURSES if c["id"] == item_id), None)
             if course is None:
                 return False

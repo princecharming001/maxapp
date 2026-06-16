@@ -17,6 +17,7 @@ const MAXX_DESCRIPTIONS: Record<string, string> = {
     fitmax:    'frame building and aesthetic leanness.',
     bonemax:   'facial structure and jawline.',
     heightmax: 'posture and perceived vertical.',
+    coloringmax: 'brighten, dont lighten.',
 };
 
 /**
@@ -35,6 +36,7 @@ export function getMaxxDisplayLabel(maxx: { id?: string; label?: string }): stri
     const id = String(maxx.id || '').toLowerCase().trim();
     const raw = String(maxx.label ?? maxx.id ?? '').trim();
     if (id === 'skinmax') return 'Skinmax';
+    if (id === 'coloringmax') return 'Coloring Max';
     return normalizeMaxxNameSuffix(raw || id);
 }
 

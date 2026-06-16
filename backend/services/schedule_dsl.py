@@ -230,7 +230,15 @@ def _parse_list(literal: str) -> list[Any]:
 
 
 def _coerce_literal(s: str) -> Any:
-    s = s.strip().strip("\"'")
+    s = s.strip()
+    # A QUOTED literal is an explicit string — the author wrote `"yes"` to mean
+    # the enum value "yes", not boolean True. Honor the quotes and skip keyword
+    # coercion. (Bare `yes`/`no`/`true`/... still coerce to bool for the
+    # boolean-flag idioms.) Without this, an enum option literally named `yes`
+    # can never be matched: `field in [yes, maybe]` becomes `[True, "maybe"]`
+    # and a stored "yes" string never equals boolean True.
+    if len(s) >= 2 and s[0] in "\"'" and s[-1] == s[0]:
+        return s[1:-1]
     low = s.lower()
     if low in ("true", "yes"):
         return True

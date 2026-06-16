@@ -326,9 +326,18 @@ def _place_block(
             n = max(1, int(cadence.split("=", 1)[1]))
         except ValueError:
             n = 7
-        # Phase-shift the start day (bounded by the period) so two every-N
-        # blocks from different maxxes don't perfectly overlap.
-        start = _phase(maxx_id, block.id, mod=n)
+        if n == n_days:
+            # A once-per-cycle anchor that exactly spans the window (e.g.
+            # every_n_days=14 on a 14-day cycle): pin it to day 0. There is
+            # only one occurrence, so phase-shifting to avoid clumping is
+            # pointless and would push a "day-1 baseline" off the start. A
+            # longer period (n > n_days, e.g. monthly_review every_n_days=30)
+            # still phase-shifts so it lands after the cycle as intended.
+            start = 0
+        else:
+            # Phase-shift the start day (bounded by the period) so two every-N
+            # blocks from different maxxes don't perfectly overlap.
+            start = _phase(maxx_id, block.id, mod=n)
         day_indices = list(range(start, n_days, n))
     elif cadence.startswith("weekly_on="):
         # Pin to a canonical weekday — e.g. weekly_on=sunday for the

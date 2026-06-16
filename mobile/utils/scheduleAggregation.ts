@@ -13,6 +13,7 @@ const DEFAULT_MAXX_LABELS: Record<string, string> = {
   fitmax: 'Fitmax',
   bonemax: 'Bonemax',
   heightmax: 'Heightmax',
+  coloringmax: 'Coloring Max',
 };
 
 const DEFAULT_MAXX_COLORS: Record<string, string> = {
@@ -21,6 +22,7 @@ const DEFAULT_MAXX_COLORS: Record<string, string> = {
   fitmax: '#10B981',
   bonemax: '#F59E0B',
   heightmax: '#6366F1',
+  coloringmax: '#BC7A3C',
 };
 
 /** Normalize DB/API maxx id (spacing, casing). */
@@ -33,6 +35,7 @@ export function normalizeMaxxId(raw: unknown): string {
   if (s === 'fit-max' || s === 'fitmax') return 'fitmax';
   if (s === 'bone-max' || s === 'bonemax') return 'bonemax';
   if (s === 'height-max' || s === 'heightmax') return 'heightmax';
+  if (s === 'coloring-max' || s === 'coloringmax') return 'coloringmax';
   return s;
 }
 
@@ -49,6 +52,7 @@ const DEFAULT_MAXX_ICONS: Record<string, string> = {
   fitmax: 'fitness-outline',
   bonemax: 'body-outline',
   heightmax: 'resize-outline',
+  coloringmax: 'color-palette-outline',
 };
 
 /**
