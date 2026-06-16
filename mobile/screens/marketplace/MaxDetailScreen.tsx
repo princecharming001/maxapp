@@ -269,7 +269,6 @@ export default function MaxDetailScreen() {
     };
 
     const onCta = async () => {
-        if (readerCourseId) { openReader(); return; }
         if (item.entered) { goToSchedule(); return; }
         if (busy) return;
         setBusy(true);
@@ -525,7 +524,7 @@ export default function MaxDetailScreen() {
                     <Text style={styles.ctaPrice}>{item.price_label}</Text>
                     <Text style={styles.ctaSub}>
                         {readerCourseId
-                            ? 'Read anytime · no payment'
+                            ? 'Free · adds to your schedule'
                             : item.price_model === 'weekly'
                                 ? `${perDay} a day · cancel anytime`
                                 : item.weeks ? `${item.weeks} weeks · one payment` : 'one payment'}
@@ -541,7 +540,7 @@ export default function MaxDetailScreen() {
                         <ActivityIndicator color="#fff" />
                     ) : (
                         <Text style={styles.ctaBtnText} numberOfLines={1}>
-                            {readerCourseId ? 'Open course' : item.entered ? 'Open' : isCourse ? 'Enroll' : 'Start my plan'}
+                            {item.entered ? 'Open' : readerCourseId ? 'Add to schedule' : isCourse ? 'Enroll' : 'Start my plan'}
                         </Text>
                     )}
                 </TouchableOpacity>
