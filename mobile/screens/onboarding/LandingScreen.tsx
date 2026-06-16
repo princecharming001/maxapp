@@ -7,7 +7,9 @@ import {
     Platform,
     ActivityIndicator,
     Alert,
+    Image,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
@@ -19,6 +21,10 @@ const WEB_MAX_WIDTH = 440;
 
 const INK = '#1C1A17';
 const CREAM = '#F7F0EA';
+
+// Editorial face hero — leads the screen with a man's face (media-centric),
+// fading into cream where the brand + auth live.
+const HERO = require('../../assets/landing-hero.webp');
 
 export default function LandingScreen() {
     const navigation = useNavigation<any>();
@@ -98,103 +104,114 @@ export default function LandingScreen() {
 
     return (
         <View style={styles.root}>
-            {isWeb ? (
-                <TouchableOpacity
-                    style={styles.skipPill}
-                    activeOpacity={0.7}
-                    onPress={handleSkip}
-                    disabled={skipLoading}
-                    accessibilityRole="button"
-                    accessibilityLabel="Skip to home"
-                >
-                    {skipLoading ? (
-                        <ActivityIndicator size="small" color={INK} />
-                    ) : (
-                        <>
-                            <Text style={styles.skipPillText}>Skip</Text>
-                            <Ionicons name="chevron-forward" size={13} color={INK} />
-                        </>
-                    )}
-                </TouchableOpacity>
-            ) : null}
+            <View style={styles.phone}>
+                <Image source={HERO} style={styles.heroImg} resizeMode="cover" />
+                {/* Cream scrim — face up top, fades to solid cream for the brand + CTAs. */}
+                <LinearGradient
+                    pointerEvents="none"
+                    colors={['rgba(247,240,234,0)', 'rgba(247,240,234,0)', CREAM, CREAM]}
+                    locations={[0, 0.4, 0.58, 1]}
+                    style={StyleSheet.absoluteFill}
+                />
 
-            <View style={styles.content}>
-                {/* ── Hero wordmark ── */}
-                <View style={styles.hero}>
-                    <Text style={styles.heroLogo}>max</Text>
-                    <Text style={styles.heroLine}>
-                        Your <Text style={styles.heroItalic}>looksmaxxing</Text> coach.
-                    </Text>
-                </View>
-
-                {/* ── Auth: one primary, one quiet social, sign-in as a link ── */}
-                <View style={styles.actions}>
+                {isWeb ? (
                     <TouchableOpacity
-                        style={styles.primaryBtn}
-                        activeOpacity={0.85}
-                        onPress={() => navigation.navigate('Signup')}
+                        style={styles.skipPill}
+                        activeOpacity={0.7}
+                        onPress={handleSkip}
+                        disabled={skipLoading}
                         accessibilityRole="button"
-                        accessibilityLabel="Create account"
+                        accessibilityLabel="Skip to home"
                     >
-                        <ShineOverlay />
-                        <Text style={styles.primaryBtnText}>Create account</Text>
+                        {skipLoading ? (
+                            <ActivityIndicator size="small" color={INK} />
+                        ) : (
+                            <>
+                                <Text style={styles.skipPillText}>Skip</Text>
+                                <Ionicons name="chevron-forward" size={13} color={INK} />
+                            </>
+                        )}
                     </TouchableOpacity>
+                ) : null}
 
-                    <GoogleSignInButton />
-
-                    <View style={styles.signinRow}>
-                        <Text style={styles.signinMuted}>Already have an account? </Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('Login')} hitSlop={8} activeOpacity={0.7}>
-                            <Text style={styles.signinLink}>Sign in</Text>
-                        </TouchableOpacity>
+                <View style={styles.content}>
+                    {/* ── Brand, set over the cream like an editorial cover line ── */}
+                    <View style={styles.brand}>
+                        <Text style={styles.heroLogo}>max</Text>
+                        <Text style={styles.heroLine}>
+                            Your <Text style={styles.heroItalic}>looksmaxxing</Text> coach.
+                        </Text>
                     </View>
 
-                    {isWeb ? (
+                    {/* ── Auth: one primary, one quiet social, sign-in as a link ── */}
+                    <View style={styles.actions}>
                         <TouchableOpacity
-                            style={styles.tryLink}
-                            activeOpacity={0.7}
-                            onPress={handleTryNow}
-                            disabled={demoLoading}
+                            style={styles.primaryBtn}
+                            activeOpacity={0.85}
+                            onPress={() => navigation.navigate('Signup')}
                             accessibilityRole="button"
-                            accessibilityLabel="Try it first, no account needed"
+                            accessibilityLabel="Create account"
                         >
-                            {demoLoading ? (
-                                <ActivityIndicator size="small" color="#97928A" />
-                            ) : (
-                                <Text style={styles.tryLinkText}>Try it first — no account needed</Text>
-                            )}
+                            <ShineOverlay />
+                            <Text style={styles.primaryBtnText}>Create account</Text>
                         </TouchableOpacity>
-                    ) : null}
 
-                    {/* DEV-only: bypass signup to test app states. Compiled out in prod. */}
-                    {__DEV__ ? (
-                        <View style={styles.devStack}>
-                            <TouchableOpacity
-                                style={styles.devButton}
-                                activeOpacity={0.7}
-                                onPress={handleDevOnboarding}
-                                disabled={freshLoading}
-                            >
-                                {freshLoading ? (
-                                    <ActivityIndicator size="small" color="#fff" />
-                                ) : (
-                                    <Text style={styles.devButtonText}>DEV → Test onboarding flow</Text>
-                                )}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.devButton}
-                                activeOpacity={0.7}
-                                onPress={handleSkip}
-                                disabled={skipLoading}
-                            >
-                                {skipLoading ? (
-                                    <ActivityIndicator size="small" color="#fff" />
-                                ) : (
-                                    <Text style={styles.devButtonText}>DEV → Skip to home (paid demo)</Text>
-                                )}
+                        <GoogleSignInButton />
+
+                        <View style={styles.signinRow}>
+                            <Text style={styles.signinMuted}>Already have an account? </Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('Login')} hitSlop={8} activeOpacity={0.7}>
+                                <Text style={styles.signinLink}>Sign in</Text>
                             </TouchableOpacity>
                         </View>
-                    ) : null}
+
+                        {isWeb ? (
+                            <TouchableOpacity
+                                style={styles.tryLink}
+                                activeOpacity={0.7}
+                                onPress={handleTryNow}
+                                disabled={demoLoading}
+                                accessibilityRole="button"
+                                accessibilityLabel="Try it first, no account needed"
+                            >
+                                {demoLoading ? (
+                                    <ActivityIndicator size="small" color="#97928A" />
+                                ) : (
+                                    <Text style={styles.tryLinkText}>Try it first — no account needed</Text>
+                                )}
+                            </TouchableOpacity>
+                        ) : null}
+
+                        {/* DEV-only: bypass signup to test app states. Compiled out in prod. */}
+                        {__DEV__ ? (
+                            <View style={styles.devStack}>
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    activeOpacity={0.7}
+                                    onPress={handleDevOnboarding}
+                                    disabled={freshLoading}
+                                >
+                                    {freshLoading ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text style={styles.devButtonText}>DEV → Test onboarding flow</Text>
+                                    )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.devButton}
+                                    activeOpacity={0.7}
+                                    onPress={handleSkip}
+                                    disabled={skipLoading}
+                                >
+                                    {skipLoading ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text style={styles.devButtonText}>DEV → Skip to home (paid demo)</Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        ) : null}
+                    </View>
                 </View>
             </View>
         </View>
@@ -207,36 +224,49 @@ const styles = StyleSheet.create({
         backgroundColor: CREAM,
         ...(isWeb && { alignItems: 'center' as const }),
     },
+    phone: {
+        flex: 1,
+        width: '100%',
+        position: 'relative',
+        overflow: 'hidden',
+        backgroundColor: '#E7DFCF',
+        ...(isWeb && { maxWidth: WEB_MAX_WIDTH }),
+    },
+    heroImg: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+    },
     content: {
         flex: 1,
         width: '100%',
         paddingHorizontal: 28,
         paddingTop: 104,
-        paddingBottom: 48,
-        justifyContent: 'space-between',
-        ...(isWeb && { maxWidth: WEB_MAX_WIDTH }),
+        paddingBottom: 44,
+        justifyContent: 'flex-end',
     },
 
-    // ── Hero ──
-    hero: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
+    // ── Brand ──
+    brand: {
+        alignItems: 'flex-start',
+        marginBottom: 26,
     },
     heroLogo: {
         fontFamily: 'PlayfairDisplay',
-        fontSize: 80,
+        fontSize: 64,
         fontWeight: '300',
         color: INK,
-        letterSpacing: -3,
-        marginBottom: 22,
-        lineHeight: 86,
+        letterSpacing: -2.5,
+        lineHeight: 66,
+        marginBottom: 10,
     },
     heroLine: {
         fontFamily: 'Matter-Medium',
         fontSize: 16.5,
         color: '#5C574E',
-        textAlign: 'center',
+        textAlign: 'left',
         letterSpacing: 0.2,
         lineHeight: 24,
     },
@@ -279,20 +309,6 @@ const styles = StyleSheet.create({
         fontFamily: 'Matter-SemiBold',
         fontSize: 15,
         color: CREAM,
-        letterSpacing: 0.1,
-    },
-    outlineBtn: {
-        borderRadius: 999,
-        borderWidth: 1.5,
-        borderColor: INK,
-        paddingVertical: 15.5,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    outlineBtnText: {
-        fontFamily: 'Matter-SemiBold',
-        fontSize: 15,
-        color: INK,
         letterSpacing: 0.1,
     },
     tryLink: {
@@ -339,8 +355,8 @@ const styles = StyleSheet.create({
         gap: 3,
         borderRadius: 999,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: '#E8E0D3',
-        backgroundColor: '#F9F3EC',
+        borderColor: 'rgba(255,255,255,0.6)',
+        backgroundColor: 'rgba(247,240,234,0.7)',
         paddingVertical: 8,
         paddingLeft: 15,
         paddingRight: 11,
