@@ -15,10 +15,9 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     RefreshControl,
-    useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import api, { type MarketplaceItem } from '../../services/api';
@@ -42,8 +41,6 @@ function fmtK(n?: number): string {
 
 export default function MarketplaceScreen() {
     const insets = useSafeAreaInsets();
-    const { width: winW } = useWindowDimensions();
-    const tileW = Math.floor((winW - GUTTER * 2 - 14) / 2); // 2-col; 14 between cols
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const [maxxes, setMaxxes] = useState<MarketplaceItem[]>([]);
@@ -154,9 +151,9 @@ export default function MarketplaceScreen() {
                             <Text style={styles.sectionLabel}>Maxes</Text>
                             <Text style={styles.sectionNote}>$3.99 / week each</Text>
                         </View>
-                        <View style={[styles.grid, styles.gutter]}>
-                            {fMaxxes.map((m) => (
-                                <MaxTile key={m.id} item={m} width={tileW} onPress={() => navigation.push('MaxDetail', { item: m })} />
+                        <View style={styles.gutter}>
+                            {fMaxxes.map((m, i) => (
+                                <MaxRow key={m.id} item={m} first={i === 0} onPress={() => navigation.push('MaxDetail', { item: m })} />
                             ))}
                         </View>
                     </>
@@ -167,16 +164,11 @@ export default function MarketplaceScreen() {
                         <View style={[styles.sectionHead, styles.gutter, { marginTop: 40 }]}>
                             <Text style={styles.sectionLabel}>Creator courses</Text>
                         </View>
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            keyboardShouldPersistTaps="handled"
-                            contentContainerStyle={{ paddingHorizontal: GUTTER, gap: 14 }}
-                        >
-                            {fCourses.map((c) => (
-                                <MaxTile key={c.id} item={c} width={tileW} creator onPress={() => navigation.push('MaxDetail', { item: c })} />
+                        <View style={styles.gutter}>
+                            {fCourses.map((c, i) => (
+                                <MaxRow key={c.id} item={c} creator first={i === 0} onPress={() => navigation.push('MaxDetail', { item: c })} />
                             ))}
-                        </ScrollView>
+                        </View>
                     </>
                 ) : null}
             </ScrollView>
@@ -185,16 +177,16 @@ export default function MarketplaceScreen() {
 }
 
 /**
- * One square tile, shared by native maxes (grid) and creator maxes (carousel)
- * so both read at the SAME size. Photography leads; a thin colour cap is the
- * per-max signature; the serif name + a meta line sit over a soft scrim.
- * Creator tiles add the creator's avatar in a circle (their IG/TikTok pic).
+ * One editorial list row, shared by native maxes and creator courses. A crisp
+ * framed thumbnail leads (the max's colour fills in when there's no image); the
+ * serif name sits over a meta line — member count for a max, the creator's
+ * handle for a course; a chevron closes the row.
  */
-function MaxTile({
-    item, width, onPress, creator,
+function MaxRow({
+    item, first, onPress, creator,
 }: {
     item: MarketplaceItem;
-    width: number;
+    first?: boolean;
     onPress: () => void;
     creator?: boolean;
 }) {
@@ -202,45 +194,24 @@ function MaxTile({
     const meta = creator
         ? `@${item.creator.handle}${item.creator.verified ? ' ✓' : ''}${item.rating ? `   ★ ${item.rating.toFixed(1)}` : ''}`
         : (item.participants ? `${fmtK(item.participants)} members` : item.tagline);
-    const avatar = item.creator?.avatar;
     return (
-        <TouchableOpacity style={{ width }} activeOpacity={0.9} onPress={onPress}>
-            <View style={[styles.tileImg, { height: width }]}>
+        <TouchableOpacity
+            style={[styles.row, !first && styles.rowBorder]}
+            activeOpacity={0.6}
+            onPress={onPress}
+        >
+            <View style={styles.thumb}>
                 {item.image_url ? (
-                    <Image source={{ uri: item.image_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={240} />
+                    <Image source={{ uri: item.image_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
                 ) : (
                     <View style={[StyleSheet.absoluteFill, { backgroundColor: base }]} />
                 )}
-                <View style={[styles.tileRule, { backgroundColor: base }]} />
-                <LinearGradient
-                    colors={['transparent', 'rgba(20,17,14,0.04)', 'rgba(20,17,14,0.78)']}
-                    locations={[0, 0.5, 1]}
-                    style={StyleSheet.absoluteFill}
-                />
-
-                {creator ? (
-                    <View style={styles.avatarRing}>
-                        {avatar ? (
-                            <Image source={{ uri: avatar }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
-                        ) : (
-                            <View style={[StyleSheet.absoluteFill, styles.avatarFallback, { backgroundColor: base }]}>
-                                <Text style={styles.avatarInitial}>{(item.creator?.name || '?').charAt(0).toUpperCase()}</Text>
-                            </View>
-                        )}
-                    </View>
-                ) : null}
-
-                {item.entered ? (
-                    <View style={[styles.tileChip, { backgroundColor: base }]}>
-                        <Text style={styles.tileChipText}>Open</Text>
-                    </View>
-                ) : null}
-
-                <View style={styles.tileOverlay}>
-                    <Text style={styles.tileTitle} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.tileSocial} numberOfLines={1}>{meta}</Text>
-                </View>
             </View>
+            <View style={styles.rowMid}>
+                <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={styles.rowSub} numberOfLines={1}>{meta}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={MUTE} />
         </TouchableOpacity>
     );
 }
@@ -266,22 +237,14 @@ const styles = StyleSheet.create({
     sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 13, color: INK },
     sectionNote: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE },
 
-    // Shared square tile (native grid + creator carousel)
-    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 16 },
-    tileImg: { width: '100%', borderRadius: 18, overflow: 'hidden', backgroundColor: '#EFE7DC' },
-    tileRule: { position: 'absolute', top: 0, left: 0, right: 0, height: 3 },
-    tileOverlay: { position: 'absolute', left: 12, right: 12, bottom: 12 },
-    tileTitle: { fontFamily: SERIF, fontSize: 17, color: '#fff', letterSpacing: -0.3 },
-    tileSocial: { fontFamily: 'Matter-Medium', fontSize: 11.5, color: 'rgba(255,255,255,0.85)', marginTop: 3 },
-    tileChip: { position: 'absolute', top: 11, right: 11, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-    tileChipText: { fontFamily: 'Matter-SemiBold', fontSize: 11, color: '#fff' },
-
-    // Creator avatar (their IG / TikTok pic) — circle, top-left of the cover
-    avatarRing: {
-        position: 'absolute', top: 11, left: 11, width: 34, height: 34, borderRadius: 17,
-        borderWidth: 2, borderColor: '#fff', overflow: 'hidden', backgroundColor: '#EFE7DC',
-        shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 4, shadowOffset: { width: 0, height: 1 },
+    // Editorial list row
+    row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 14 },
+    rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
+    thumb: {
+        width: 56, height: 56, borderRadius: 3, overflow: 'hidden',
+        backgroundColor: '#EFE7DC', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
     },
-    avatarFallback: { alignItems: 'center', justifyContent: 'center' },
-    avatarInitial: { fontFamily: SERIF, fontSize: 15, color: '#fff' },
+    rowMid: { flex: 1, minWidth: 0 },
+    rowTitle: { fontFamily: SERIF, fontSize: 20, color: INK, letterSpacing: -0.3 },
+    rowSub: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE, marginTop: 3 },
 });
