@@ -986,9 +986,14 @@ export default function MasterScheduleScreen() {
           </TouchableOpacity>
         )}
         <View style={styles.headerTextCol}>
-          <Text style={styles.headerTitle}>{newNav ? 'Today' : 'Schedule'}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{newNav ? 'Today' : 'Schedule'}</Text>
         </View>
-        <StreakFireBadge streakDays={scheduleStreak.current} />
+        <View style={styles.headerRight}>
+          {hiddenLifeCount > 0 ? (
+            <Toggle label="Maxxes only" value={maxxesOnly} onValueChange={toggleMaxxesOnly} />
+          ) : null}
+          <StreakFireBadge streakDays={scheduleStreak.current} />
+        </View>
       </View>
 
       <View style={styles.bodyBelowHeader}>
@@ -1027,12 +1032,6 @@ export default function MasterScheduleScreen() {
             );
           })}
         </ScrollView>
-
-        {hiddenLifeCount > 0 ? (
-          <View style={styles.filterRow}>
-            <Toggle label="Maxxes only" value={maxxesOnly} onValueChange={toggleMaxxesOnly} />
-          </View>
-        ) : null}
 
         <ScrollView
           style={styles.taskList}
@@ -1327,7 +1326,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   taskList: { flex: 1, minHeight: 0, paddingHorizontal: spacing.lg },
-  filterRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0 },
   maxxesEmpty: { paddingVertical: spacing.xl, paddingHorizontal: spacing.sm },
   maxxesEmptyText: { fontFamily: fonts.sans, fontSize: 13.5, color: colors.textMuted, lineHeight: 20, textAlign: 'center' },
   /* Life rows (work / sleep) — same shape as a regular taskRow but
