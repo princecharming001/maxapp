@@ -9,6 +9,7 @@ import {
     Alert,
     Image,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,8 +23,8 @@ const WEB_MAX_WIDTH = 440;
 const INK = '#1C1A17';
 const CREAM = '#F7F0EA';
 
-// Editorial face hero — leads the screen with a man's face (media-centric),
-// fading into cream where the brand + auth live.
+// Media-centric hero — a real frontal face (web photo), with auth living in a
+// frosted translucent window over it.
 const HERO = require('../../assets/landing-hero.webp');
 
 export default function LandingScreen() {
@@ -106,13 +107,19 @@ export default function LandingScreen() {
         <View style={styles.root}>
             <View style={styles.phone}>
                 <Image source={HERO} style={styles.heroImg} resizeMode="cover" />
-                {/* Cream scrim — face up top, fades to solid cream for the brand + CTAs. */}
+
+                {/* Soft top vignette so the Skip pill + brand pill stay legible. */}
                 <LinearGradient
                     pointerEvents="none"
-                    colors={['rgba(247,240,234,0)', 'rgba(247,240,234,0)', CREAM, CREAM]}
-                    locations={[0, 0.4, 0.58, 1]}
-                    style={StyleSheet.absoluteFill}
+                    colors={['rgba(20,17,14,0.18)', 'rgba(20,17,14,0)']}
+                    locations={[0, 1]}
+                    style={styles.topVignette}
                 />
+
+                {/* Brand pill, top-center — echoes the reference's status pill. */}
+                <View style={styles.brandPill}>
+                    <Text style={styles.brandPillText}>max</Text>
+                </View>
 
                 {isWeb ? (
                     <TouchableOpacity
@@ -124,26 +131,28 @@ export default function LandingScreen() {
                         accessibilityLabel="Skip to home"
                     >
                         {skipLoading ? (
-                            <ActivityIndicator size="small" color={INK} />
+                            <ActivityIndicator size="small" color="#fff" />
                         ) : (
                             <>
                                 <Text style={styles.skipPillText}>Skip</Text>
-                                <Ionicons name="chevron-forward" size={13} color={INK} />
+                                <Ionicons name="chevron-forward" size={13} color="#fff" />
                             </>
                         )}
                     </TouchableOpacity>
                 ) : null}
 
-                <View style={styles.content}>
-                    {/* ── Brand, set over the cream like an editorial cover line ── */}
+                {/* ── Frosted translucent window with the brand + auth ── */}
+                <BlurView intensity={48} tint="light" style={styles.glass}>
+                    <View style={styles.glassTint} pointerEvents="none" />
+                    <View style={styles.handle} />
+
                     <View style={styles.brand}>
-                        <Text style={styles.heroLogo}>max</Text>
+                        <Text style={styles.heroLogo}>Your looks,{'\n'}maxed.</Text>
                         <Text style={styles.heroLine}>
                             Your <Text style={styles.heroItalic}>looksmaxxing</Text> coach.
                         </Text>
                     </View>
 
-                    {/* ── Auth: one primary, one quiet social, sign-in as a link ── */}
                     <View style={styles.actions}>
                         <TouchableOpacity
                             style={styles.primaryBtn}
@@ -212,7 +221,7 @@ export default function LandingScreen() {
                             </View>
                         ) : null}
                     </View>
-                </View>
+                </BlurView>
             </View>
         </View>
     );
@@ -229,7 +238,7 @@ const styles = StyleSheet.create({
         width: '100%',
         position: 'relative',
         overflow: 'hidden',
-        backgroundColor: '#E7DFCF',
+        backgroundColor: '#C7CBD0',
         ...(isWeb && { maxWidth: WEB_MAX_WIDTH }),
     },
     heroImg: {
@@ -239,58 +248,106 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
-    content: {
-        flex: 1,
-        width: '100%',
-        paddingHorizontal: 28,
-        paddingTop: 104,
-        paddingBottom: 44,
-        justifyContent: 'flex-end',
+    topVignette: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 150,
     },
 
-    // ── Brand ──
+    // ── Top brand pill (frosted) ──
+    brandPill: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 60 : 26,
+        alignSelf: 'center',
+        backgroundColor: 'rgba(255,255,255,0.55)',
+        borderRadius: 999,
+        paddingVertical: 7,
+        paddingHorizontal: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(255,255,255,0.7)',
+        zIndex: 10,
+    },
+    brandPillText: {
+        fontFamily: 'PlayfairDisplay',
+        fontSize: 19,
+        fontWeight: '500',
+        letterSpacing: -0.5,
+        color: INK,
+    },
+
+    // ── Frosted window ──
+    glass: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        borderTopLeftRadius: 34,
+        borderTopRightRadius: 34,
+        overflow: 'hidden',
+        paddingTop: 10,
+        paddingHorizontal: 26,
+        paddingBottom: isWeb ? 26 : 42,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(255,255,255,0.6)',
+    },
+    glassTint: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(247,240,234,0.62)',
+    },
+    handle: {
+        alignSelf: 'center',
+        width: 40,
+        height: 5,
+        borderRadius: 3,
+        backgroundColor: 'rgba(28,26,23,0.18)',
+        marginBottom: 12,
+    },
+
+    // ── Brand (inside window) ──
     brand: {
         alignItems: 'flex-start',
-        marginBottom: 26,
+        marginBottom: 16,
     },
     heroLogo: {
         fontFamily: 'PlayfairDisplay',
-        fontSize: 64,
-        fontWeight: '300',
+        fontSize: 34,
+        fontWeight: '400',
         color: INK,
-        letterSpacing: -2.5,
-        lineHeight: 66,
-        marginBottom: 10,
+        letterSpacing: -1.2,
+        lineHeight: 36,
+        marginBottom: 8,
     },
     heroLine: {
         fontFamily: 'Matter-Medium',
-        fontSize: 16.5,
+        fontSize: 14.5,
         color: '#5C574E',
         textAlign: 'left',
         letterSpacing: 0.2,
-        lineHeight: 24,
+        lineHeight: 21,
     },
     heroItalic: {
         fontFamily: 'Fraunces-Italic',
-        fontSize: 17.5,
+        fontSize: 15.5,
         color: INK,
     },
 
     // ── Actions ──
     actions: {
         width: '100%',
-        gap: 12,
+        gap: 11,
     },
     signinRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 8,
+        marginTop: 6,
     },
     signinMuted: {
         fontFamily: 'Matter-Regular',
         fontSize: 13.5,
-        color: '#97928A',
+        color: '#6F6A61',
     },
     signinLink: {
         fontFamily: 'Matter-SemiBold',
@@ -313,13 +370,13 @@ const styles = StyleSheet.create({
     },
     tryLink: {
         alignItems: 'center',
-        paddingVertical: 12,
+        paddingVertical: 10,
         marginTop: 2,
     },
     tryLinkText: {
         fontFamily: 'Matter-Medium',
         fontSize: 13.5,
-        color: '#97928A',
+        color: '#6F6A61',
         letterSpacing: 0.2,
     },
 
@@ -329,7 +386,7 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     devButton: {
-        backgroundColor: 'rgba(10,10,11,0.85)',
+        backgroundColor: 'rgba(10,10,11,0.8)',
         borderRadius: 999,
         paddingVertical: 9,
         paddingHorizontal: 14,
@@ -347,7 +404,7 @@ const styles = StyleSheet.create({
     // ── Skip ──
     skipPill: {
         position: 'absolute',
-        top: Platform.OS === 'ios' ? 60 : 28,
+        top: Platform.OS === 'ios' ? 60 : 26,
         right: 20,
         zIndex: 10,
         flexDirection: 'row',
@@ -355,8 +412,8 @@ const styles = StyleSheet.create({
         gap: 3,
         borderRadius: 999,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(255,255,255,0.6)',
-        backgroundColor: 'rgba(247,240,234,0.7)',
+        borderColor: 'rgba(255,255,255,0.5)',
+        backgroundColor: 'rgba(28,26,23,0.32)',
         paddingVertical: 8,
         paddingLeft: 15,
         paddingRight: 11,
@@ -366,6 +423,6 @@ const styles = StyleSheet.create({
         fontFamily: 'Matter-Medium',
         fontSize: 13,
         letterSpacing: 0.2,
-        color: INK,
+        color: '#fff',
     },
 });
