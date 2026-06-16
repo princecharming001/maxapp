@@ -10,7 +10,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import ShineOverlay from '../../components/ShineOverlay';
 
 const isWeb = Platform.OS === 'web';
@@ -54,8 +53,6 @@ export default function LandingScreen() {
                         <Text style={styles.primaryBtnText}>Get started</Text>
                         <Ionicons name="arrow-forward" size={18} color={INK} style={styles.primaryArrow} />
                     </TouchableOpacity>
-
-                    <GoogleSignInButton variant="glass" />
 
                     <View style={styles.signinRow}>
                         <Text style={styles.signinMuted}>Already have an account? </Text>
@@ -133,7 +130,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         overflow: 'hidden',
         borderCurve: 'continuous',
-        marginBottom: 12,
         ...(Platform.OS === 'ios'
             ? { shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } }
             : { elevation: 8 }),
