@@ -7,6 +7,7 @@ import {
     Platform,
     Image,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
@@ -18,8 +19,8 @@ const WEB_MAX_WIDTH = 440;
 const INK = '#1C1A17';
 const WHITE = '#FFFFFF';
 
-// Full-bleed editorial face — the whole screen IS the image. Brand + auth float
-// over a bottom scrim, no panel.
+// The whole screen is the face; brand + auth live in a frosted window at the
+// bottom (reference: a "scan your face" hero).
 const HERO = require('../../assets/landing-hero.webp');
 
 export default function LandingScreen() {
@@ -30,54 +31,44 @@ export default function LandingScreen() {
             <View style={styles.phone}>
                 <Image source={HERO} style={styles.heroImg} resizeMode="cover" />
 
-                {/* Bottom-up scrim so the brand + buttons stay legible over the photo. */}
+                {/* Bottom-up scrim so the headline reads over the photo. */}
                 <LinearGradient
                     pointerEvents="none"
-                    colors={['rgba(18,15,12,0)', 'rgba(18,15,12,0)', 'rgba(18,15,12,0.5)', 'rgba(18,15,12,0.96)']}
-                    locations={[0, 0.34, 0.6, 1]}
+                    colors={['rgba(26,18,12,0)', 'rgba(26,18,12,0)', 'rgba(26,18,12,0.42)']}
+                    locations={[0, 0.48, 1]}
                     style={StyleSheet.absoluteFill}
                 />
-                {/* Faint top scrim to seat the brand pill. */}
-                <LinearGradient
-                    pointerEvents="none"
-                    colors={['rgba(18,15,12,0.35)', 'rgba(18,15,12,0)']}
-                    locations={[0, 1]}
-                    style={styles.topScrim}
-                />
 
-                {/* Brand pill, top-center. */}
-                <View style={styles.brandPill}>
-                    <Text style={styles.brandPillText}>max</Text>
-                </View>
+                {/* ── Headline overlay + frosted auth window ── */}
+                <View style={styles.bottomStack}>
+                    <Text style={styles.headline}>Your looks,{'\n'}maxed.</Text>
 
-                {/* ── Floating brand + auth ── */}
-                <View style={styles.bottom}>
-                    <Text style={styles.heroLogo}>Your looks,{'\n'}maxed.</Text>
-                    <Text style={styles.heroLine}>
-                        Your <Text style={styles.heroItalic}>looksmaxxing</Text> coach.
-                    </Text>
+                    <BlurView intensity={42} tint="light" style={styles.glass}>
+                        <View style={styles.glassTint} pointerEvents="none" />
+                        <View style={styles.handle} />
 
-                    <View style={styles.actions}>
-                        <TouchableOpacity
-                            style={styles.primaryBtn}
-                            activeOpacity={0.9}
-                            onPress={() => navigation.navigate('Signup')}
-                            accessibilityRole="button"
-                            accessibilityLabel="Create account"
-                        >
-                            <ShineOverlay />
-                            <Text style={styles.primaryBtnText}>Create account</Text>
-                        </TouchableOpacity>
-
-                        <GoogleSignInButton variant="glass" />
-
-                        <View style={styles.signinRow}>
-                            <Text style={styles.signinMuted}>Already have an account? </Text>
-                            <TouchableOpacity onPress={() => navigation.navigate('Login')} hitSlop={8} activeOpacity={0.7}>
-                                <Text style={styles.signinLink}>Sign in</Text>
+                        <View style={styles.actions}>
+                            <TouchableOpacity
+                                style={styles.primaryBtn}
+                                activeOpacity={0.9}
+                                onPress={() => navigation.navigate('Signup')}
+                                accessibilityRole="button"
+                                accessibilityLabel="Get started"
+                            >
+                                <ShineOverlay />
+                                <Text style={styles.primaryBtnText}>Get started</Text>
                             </TouchableOpacity>
+
+                            <GoogleSignInButton variant="glass" />
+
+                            <View style={styles.signinRow}>
+                                <Text style={styles.signinMuted}>Already have an account? </Text>
+                                <TouchableOpacity onPress={() => navigation.navigate('Login')} hitSlop={8} activeOpacity={0.7}>
+                                    <Text style={styles.signinLink}>Sign in</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                    </View>
+                    </BlurView>
                 </View>
             </View>
         </View>
@@ -87,7 +78,7 @@ export default function LandingScreen() {
 const styles = StyleSheet.create({
     root: {
         flex: 1,
-        backgroundColor: '#100D0A',
+        backgroundColor: '#1B140E',
         ...(isWeb && { alignItems: 'center' as const }),
     },
     phone: {
@@ -95,7 +86,7 @@ const styles = StyleSheet.create({
         width: '100%',
         position: 'relative',
         overflow: 'hidden',
-        backgroundColor: '#100D0A',
+        backgroundColor: '#A99A88',
         ...(isWeb && { maxWidth: WEB_MAX_WIDTH }),
     },
     heroImg: {
@@ -105,65 +96,50 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
-    topScrim: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 130,
-    },
 
-    // ── Top brand pill ──
-    brandPill: {
-        position: 'absolute',
-        top: Platform.OS === 'ios' ? 60 : 26,
-        alignSelf: 'center',
-        backgroundColor: 'rgba(255,255,255,0.16)',
-        borderRadius: 999,
-        paddingVertical: 7,
-        paddingHorizontal: 20,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(255,255,255,0.4)',
-        zIndex: 10,
-    },
-    brandPillText: {
-        fontFamily: 'PlayfairDisplay',
-        fontSize: 19,
-        fontWeight: '500',
-        letterSpacing: -0.5,
-        color: WHITE,
-    },
-
-    // ── Floating bottom content ──
-    bottom: {
+    // ── Bottom stack (headline over the face + frosted window) ──
+    bottomStack: {
         position: 'absolute',
         left: 0,
         right: 0,
         bottom: 0,
-        paddingHorizontal: 28,
-        paddingBottom: isWeb ? 36 : 50,
     },
-    heroLogo: {
+    headline: {
         fontFamily: 'PlayfairDisplay',
-        fontSize: 46,
+        fontSize: 42,
         fontWeight: '400',
         color: WHITE,
-        letterSpacing: -1.8,
-        lineHeight: 48,
-        marginBottom: 10,
+        letterSpacing: -1.6,
+        lineHeight: 44,
+        paddingHorizontal: 30,
+        marginBottom: 18,
+        textShadowColor: 'rgba(0,0,0,0.35)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 12,
     },
-    heroLine: {
-        fontFamily: 'Matter-Medium',
-        fontSize: 15,
-        color: 'rgba(255,255,255,0.78)',
-        letterSpacing: 0.2,
-        lineHeight: 22,
-        marginBottom: 26,
+
+    // ── Frosted window ──
+    glass: {
+        borderTopLeftRadius: 34,
+        borderTopRightRadius: 34,
+        overflow: 'hidden',
+        paddingTop: 12,
+        paddingHorizontal: 24,
+        paddingBottom: isWeb ? 30 : 46,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(255,255,255,0.35)',
     },
-    heroItalic: {
-        fontFamily: 'Fraunces-Italic',
-        fontSize: 16,
-        color: WHITE,
+    glassTint: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(120,96,72,0.42)',
+    },
+    handle: {
+        alignSelf: 'center',
+        width: 40,
+        height: 5,
+        borderRadius: 3,
+        backgroundColor: 'rgba(255,255,255,0.5)',
+        marginBottom: 18,
     },
 
     // ── Actions ──
@@ -172,7 +148,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     primaryBtn: {
-        height: 54,
+        height: 56,
         backgroundColor: WHITE,
         borderRadius: 999,
         alignItems: 'center',
@@ -182,7 +158,7 @@ const styles = StyleSheet.create({
     },
     primaryBtnText: {
         fontFamily: 'Matter-SemiBold',
-        fontSize: 15,
+        fontSize: 15.5,
         color: INK,
         letterSpacing: 0.2,
     },
@@ -190,12 +166,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 8,
+        marginTop: 6,
     },
     signinMuted: {
         fontFamily: 'Matter-Regular',
         fontSize: 13.5,
-        color: 'rgba(255,255,255,0.7)',
+        color: 'rgba(255,255,255,0.82)',
     },
     signinLink: {
         fontFamily: 'Matter-SemiBold',
