@@ -23,6 +23,7 @@ from models.leaderboard import ChatRequest, ChatResponse
 from models.sqlalchemy_models import ChatHistory, Scan, User, UserSchedule
 from services.coaching_service import coaching_service
 from services.chat_telemetry import fast_path_snapshot, note_chat_turn
+from services.chat_ack_variety import format_ack_line, onboarding_ack_prefix, rotate_ack_opener
 from services.lc_agent import make_chat_tools, run_chat_agent
 from services.lc_memory import history_dicts_to_lc_messages
 from services.nutrition_service import nutrition_service
@@ -377,6 +378,7 @@ def _finalize_assistant_message(text: str) -> str:
         return text
     out = _scrub_tech_leak(text)
     out = _strip_ai_leadins(out)
+    out = rotate_ack_opener(out)
     out = _strip_em_dashes(out)
     out = _enforce_paragraph_breaks(out)
     return out.replace("*", "").lower()
@@ -3354,7 +3356,10 @@ async def _handle_context_change(
                 await _persist_user_wake_sleep(user, db, None, value)
             await db.commit()
             return (
-                f"got it, {kind.replace('_',' ')} now {value}. retimed your active schedules.",
+                format_ack_line(
+                    f"{kind}:{value}",
+                    f"{kind.replace('_', ' ')} now {value}. retimed your active schedules.",
+                ),
                 [], None,
             )
         # Otherwise fall through and treat as new turn (cancel pending).
@@ -3381,7 +3386,10 @@ async def _handle_context_change(
             await _persist_user_wake_sleep(user, db, None, value)
         await db.commit()
         return (
-            f"got it, {kind.replace('_',' ')} now {value}. retimed your active schedules.",
+            format_ack_line(
+                f"{kind}:{value}",
+                f"{kind.replace('_', ' ')} now {value}. retimed your active schedules.",
+            ),
             [], None,
         )
 
@@ -3417,7 +3425,10 @@ def _humanize_context_ack(kind: str, value: object) -> str:
         if pv == "none":
             return "good, you're up and moving plenty. kept your routines light on desk resets."
         if pv in ("light", "heavy"):
-            return "got it, lot of sitting. dropped posture resets into your day to fight it."
+            return format_ack_line(
+                f"posture:{pv}",
+                "lot of sitting. dropped posture resets into your day to fight it.",
+            )
         return "noted, posture's on the radar. routines updated to match."
 
     # Boolean-shaped concerns: "you have/don't have X".
@@ -3433,16 +3444,16 @@ def _humanize_context_ack(kind: str, value: object) -> str:
 
     # Time / numeric kinds with a clean string form.
     if k == "wake_time":
-        return f"got it, wake at {v}. routines retimed around it."
+        return format_ack_line(f"wake:{v}", f"wake at {v}. routines retimed around it.")
     if k == "sleep_time":
-        return f"got it, bed at {v}. routines retimed around it."
+        return format_ack_line(f"sleep:{v}", f"bed at {v}. routines retimed around it.")
     if k == "training" and isinstance(v, (str, int)):
-        return f"got it, training {v}. workouts re-spaced to fit."
+        return format_ack_line(f"training:{v}", f"training {v}. workouts re-spaced to fit.")
     if k == "equipment":
-        return f"got it, equipment is {v}. workouts updated to match."
+        return format_ack_line(f"equipment:{v}", f"equipment is {v}. workouts updated to match.")
 
     # Generic fallback: phrase it like a coach, not a JSON dump.
-    return "got it, saved that. routines updated to match."
+    return format_ack_line(f"{k}:{v}", "saved that. routines updated to match.")
 
 
 # (Old _handle_context_change body removed — replaced by the chat_intent_detector
@@ -3591,6 +3602,7 @@ async def _run_onboarding_questioner(
             field_to_question_payload,
             coerce_answer,
             detect_max_start_intent,
+            expand_field_answer,
         )
         from services.task_catalog_service import warm_catalog, is_loaded, get_doc
         from services.user_context_service import get_context, merge_context, merged_user_state
@@ -3672,8 +3684,8 @@ async def _run_onboarding_questioner(
         )
 
     # Save the answer to persistent context (also lives in onboarding overlay
-    # for the generator).
-    update = {last_qid: coerced}
+    # for the generator). Composite questions expand into legacy field IDs.
+    update = expand_field_answer(last_field, coerced)
     next_state = {**state, **update}
     next_field = peek_next_question(maxx_id, next_state)
     if next_field is not None:
@@ -3682,7 +3694,7 @@ async def _run_onboarding_questioner(
         await merge_context(user_id, {**update, "_onboarding_pending": new_pending}, db)
         payload = field_to_question_payload(next_field)
         return _finish_onboarding_turn(
-            "got it. " + payload["text"].lower(),
+            onboarding_ack_prefix(msg) + payload["text"].lower(),
             payload,
         )
 

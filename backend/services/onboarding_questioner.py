@@ -85,7 +85,7 @@ def field_to_question_payload(field_spec: dict) -> dict:
 
     payload: dict[str, Any] = {"text": qtext, "field_id": fid}
 
-    if ftype == "enum":
+    if ftype in ("enum", "composite"):
         opts = field_spec.get("options") or {}
         # `options` is {value: label}. UI shows labels but answers map back.
         # We expose ordered labels as choices; coerce_answer maps label→value.
@@ -139,7 +139,7 @@ def coerce_answer(field_spec: dict, raw: str) -> Optional[Any]:
     ftype = str(field_spec.get("type") or "str").strip().lower()
     low = text.lower()
 
-    if ftype == "enum":
+    if ftype in ("enum", "composite"):
         opts = field_spec.get("options") or {}
         if not isinstance(opts, dict):
             return None
@@ -159,6 +159,8 @@ def coerce_answer(field_spec: dict, raw: str) -> Optional[Any]:
                 break
         if best:
             return best
+        if ftype == "composite":
+            return None
         # 4) keyword heuristic per common skinmax cases
         keywords = {
             "acne": ["acne", "pimple", "breakout", "zit"],
@@ -305,6 +307,24 @@ def coerce_answer(field_spec: dict, raw: str) -> Optional[Any]:
 
     # str — accept whatever they typed.
     return text
+
+
+def expand_field_answer(field_spec: dict, coerced: Any) -> dict[str, Any]:
+    """Turn a coerced answer into context key/value updates.
+
+    Composite fields expand one chip answer into multiple legacy field IDs
+    so existing max-doc DSL rules keep working unchanged.
+    """
+    ftype = str(field_spec.get("type") or "str").strip().lower()
+    fid = str(field_spec.get("id") or "")
+    if ftype != "composite":
+        return {fid: coerced}
+    expands = field_spec.get("expands") or {}
+    key = str(coerced)
+    mapping = expands.get(key)
+    if not isinstance(mapping, dict):
+        return {}
+    return {str(k): v for k, v in mapping.items()}
 
 
 # --------------------------------------------------------------------------- #

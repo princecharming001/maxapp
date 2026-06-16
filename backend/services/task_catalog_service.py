@@ -139,6 +139,20 @@ def missing_required(maxx_id: str, user_ctx: dict[str, Any]) -> list[dict]:
         fid = f.get("id")
         if not fid:
             continue
+        ftype = str(f.get("type") or "str").strip().lower()
+        if ftype == "composite":
+            fills = f.get("fills") or []
+            if not fills:
+                for mapping in (f.get("expands") or {}).values():
+                    if isinstance(mapping, dict):
+                        fills = list(mapping.keys())
+                        break
+            if any(
+                user_ctx.get(k) is None or (isinstance(user_ctx.get(k), str) and not str(user_ctx.get(k)).strip())
+                for k in fills
+            ):
+                out.append(f)
+            continue
         v = user_ctx.get(fid)
         if v is None or (isinstance(v, str) and not v.strip()):
             out.append(f)

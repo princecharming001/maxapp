@@ -125,16 +125,38 @@ schedule_design:
         tasks: [hair.bloodwork_check]
 
 required_fields:
-  - id: hair_type
-    question: "What're you working with up top?"
-    type: enum
+  - id: hair_scalp_profile
+    question: "What's your hair and scalp like? Pick the closest match."
+    type: composite
+    fills: [hair_type, scalp_state]
     options:
-      straight: "Straight, no curl"
-      wavy: "Wavy, loose bends"
-      curly: "Curly, defined spirals"
-      coily: "Coily or kinky, tight coils"
+      straight_oily: "Straight, gets greasy fast"
+      straight_normal: "Straight, scalp feels fine"
+      wavy_normal: "Wavy, balanced scalp"
+      curly_dry: "Curly or coily, dry or flaky"
+      curly_normal: "Curly or coily, comfortable scalp"
+      sensitive: "Sensitive scalp, products irritate easily"
+    expands:
+      straight_oily:
+        hair_type: straight
+        scalp_state: oily
+      straight_normal:
+        hair_type: straight
+        scalp_state: normal
+      wavy_normal:
+        hair_type: wavy
+        scalp_state: normal
+      curly_dry:
+        hair_type: curly
+        scalp_state: dry
+      curly_normal:
+        hair_type: coily
+        scalp_state: normal
+      sensitive:
+        hair_type: wavy
+        scalp_state: sensitive
     required: true
-    why: "Wash cadence and product choice depend entirely on this."
+    why: "Wash cadence, shampoo choice, and leave-in rules depend on hair texture and scalp."
 
   - id: hair_loss_signs
     question: "Have you noticed any temple recession, crown thinning, or excess shedding?"
@@ -147,49 +169,59 @@ required_fields:
     required: true
     why: "Determines whether the loss-prevention track activates (minoxidil/microneedle/finasteride reminders)."
 
-  - id: scalp_state
-    question: "How's your scalp most days?"
-    type: enum
+  - id: styling_habits
+    question: "How do you usually style your hair? Product, heat tools, or wash-and-go?"
+    type: composite
+    fills: [daily_styling, heat_styling]
     options:
-      oily: "Greasy fast, oily by midday"
-      dry: "Dry, flaky or itchy sometimes"
-      normal: "Comfortable, no real issues"
-      sensitive: "Reactive, lots of products irritate it"
+      wash_go: "Wash and go, no product or heat"
+      product_no_heat: "Product most days, no heat tools"
+      light_heat: "Product plus heat once or twice a week"
+      heat_heavy: "Heat tools most days"
+    expands:
+      wash_go:
+        daily_styling: false
+        heat_styling: never
+      product_no_heat:
+        daily_styling: true
+        heat_styling: never
+      light_heat:
+        daily_styling: true
+        heat_styling: sometimes
+      heat_heavy:
+        daily_styling: false
+        heat_styling: often
     required: true
-    why: "Drives shampoo choice and wash frequency."
+    why: "Sets styling tasks, heat protectant, and deep-condition cadence."
 
-  - id: daily_styling
-    question: "Want your hair styled with product most days?"
-    type: yes_no
-    required: true
-    why: "Adds a styling task plus a wash-out reminder on heavy-product days. No just means wash-and-go."
-
-  - id: current_treatment
-    question: "On any hair-loss treatments right now? (so we don't double up)"
-    type: enum
+  - id: treatment_stack
+    question: "Any hair-loss treatments or tools you're on already?"
+    type: composite
+    fills: [current_treatment, dermaroller_owned]
     options:
       none: "Nothing yet"
-      topical_only: "Topical minoxidil (Rogaine or generic)"
+      topical_only: "Topical minoxidil only"
+      topical_dermaroller: "Minoxidil plus dermaroller"
       oral_topical: "Oral finasteride plus minoxidil"
-      full_stack: "Fin, min, and microneedle or dermastamp"
+      full_stack: "Full stack (fin, min, microneedle)"
+    expands:
+      none:
+        current_treatment: none
+        dermaroller_owned: false
+      topical_only:
+        current_treatment: topical_only
+        dermaroller_owned: false
+      topical_dermaroller:
+        current_treatment: topical_only
+        dermaroller_owned: true
+      oral_topical:
+        current_treatment: oral_topical
+        dermaroller_owned: false
+      full_stack:
+        current_treatment: full_stack
+        dermaroller_owned: true
     required: true
-    why: "Sets the starting point. None ramps from baseline, full_stack maintains, and we drop reminders for whatever you're already on."
-
-  - id: heat_styling
-    question: "Blow dryer, flat iron, curling iron, how often?"
-    type: enum
-    options:
-      never: "Never touch them"
-      sometimes: "Once or twice a week"
-      often: "Most days"
-    required: true
-    why: "Heat means a protectant task before each session plus a weekly deep-condition. Most days makes protectant mandatory; a couple times a week runs a lighter cadence."
-
-  - id: dermaroller_owned
-    question: "Got a 0.5mm dermaroller, or down to grab one?"
-    type: yes_no
-    required: true
-    why: "Gates the weekly microneedling task. If no, swap in hand massage (less effective but still a circulation boost)."
+    why: "Sets the starting point and gates microneedle tasks without double-counting treatments."
 
   - id: routine_time_pref
     question: "How much time do you actually want to put into hair each day?"

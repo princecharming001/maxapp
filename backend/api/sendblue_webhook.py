@@ -17,6 +17,7 @@ from db import AsyncSessionLocal
 from db.rds import RDSSessionLocal
 from models.sqlalchemy_models import ChatHistory, User
 from services.paywall_reply import generate_paywall_reply
+from services.chat_ack_variety import pick_ack_opener, sms_fallback_ack
 from services.sendblue_service import phone_lookup_candidates, sendblue_service
 from services.sms_mms_ingest import ingest_sendblue_media_progress_photo
 from api.chat import process_chat_message
@@ -177,11 +178,12 @@ async def _sendblue_inbound_core(
                     pass
             response_text = "my bad, hit a snag. try again."
         if not (response_text or "").strip():
-            response_text = "got it. open the app if you need more detail."
+            response_text = sms_fallback_ack(body or raw_number)
 
     combined = " ".join(p for p in [*parts, response_text.strip()] if p).strip()
     if not combined:
-        combined = "got it."
+        opener = pick_ack_opener(raw_number, allow_skip=False)
+        combined = opener.rstrip(",.") + "."
     if len(combined) > 1550:
         combined = combined[:1547] + "..."
 
