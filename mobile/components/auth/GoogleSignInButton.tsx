@@ -38,16 +38,19 @@ function ButtonShell({
     busy,
     error,
     onPress,
+    variant = 'solid',
 }: {
     label: string;
     busy: boolean;
     error: string | null;
     onPress: () => void;
+    variant?: 'solid' | 'glass';
 }) {
+    const glass = variant === 'glass';
     return (
         <View>
             <TouchableOpacity
-                style={styles.btn}
+                style={[styles.btn, glass && styles.btnGlass]}
                 activeOpacity={0.85}
                 onPress={onPress}
                 disabled={busy}
@@ -55,11 +58,11 @@ function ButtonShell({
                 accessibilityLabel={label}
             >
                 {busy ? (
-                    <ActivityIndicator color="#1C1A17" />
+                    <ActivityIndicator color={glass ? '#FFFFFF' : '#1C1A17'} />
                 ) : (
                     <>
                         <Ionicons name="logo-google" size={18} color="#4285F4" style={{ marginRight: 10 }} />
-                        <Text style={styles.label}>{label}</Text>
+                        <Text style={[styles.label, glass && styles.labelGlass]}>{label}</Text>
                     </>
                 )}
             </TouchableOpacity>
@@ -70,7 +73,7 @@ function ButtonShell({
 
 /** Real OAuth-backed button. Only mounted when client ids exist, so the
  *  useAuthRequest hook always receives valid input. */
-function RealGoogleButton({ cfg, label }: { cfg: Cfg; label: string }) {
+function RealGoogleButton({ cfg, label, variant }: { cfg: Cfg; label: string; variant?: 'solid' | 'glass' }) {
     const { signInWithGoogle } = useAuth();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -110,6 +113,7 @@ function RealGoogleButton({ cfg, label }: { cfg: Cfg; label: string }) {
             label={label}
             busy={busy}
             error={error}
+            variant={variant}
             onPress={async () => {
                 setError(null);
                 if (!request) {
@@ -131,7 +135,7 @@ function RealGoogleButton({ cfg, label }: { cfg: Cfg; label: string }) {
 
 /** DEV fallback when no OAuth client is configured: proves the identity path
  *  end-to-end on localhost. Never calls the OAuth hook. */
-function DevGoogleButton({ label }: { label: string }) {
+function DevGoogleButton({ label, variant }: { label: string; variant?: 'solid' | 'glass' }) {
     const { signInWithGoogleDev } = useAuth();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -141,6 +145,7 @@ function DevGoogleButton({ label }: { label: string }) {
             label={label}
             busy={busy}
             error={error}
+            variant={variant}
             onPress={async () => {
                 setError(null);
                 let email = 'demo.google@gmail.com';
@@ -167,7 +172,7 @@ function DevGoogleButton({ label }: { label: string }) {
     );
 }
 
-export function GoogleSignInButton({ label }: { label?: string }) {
+export function GoogleSignInButton({ label, variant }: { label?: string; variant?: 'solid' | 'glass' }) {
     const [cfg, setCfg] = useState<Cfg | null>(null);
 
     useEffect(() => {
@@ -180,8 +185,8 @@ export function GoogleSignInButton({ label }: { label?: string }) {
 
     const text = label || 'Continue with Google';
     if (cfg === null) return null;                  // config still loading
-    if (cfg.available) return <RealGoogleButton cfg={cfg} label={text} />;
-    if (__DEV__) return <DevGoogleButton label={text} />;
+    if (cfg.available) return <RealGoogleButton cfg={cfg} label={text} variant={variant} />;
+    if (__DEV__) return <DevGoogleButton label={text} variant={variant} />;
     return null;                                     // unconfigured in prod: hide
 }
 
@@ -197,11 +202,18 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderCurve: 'continuous',
     },
+    btnGlass: {
+        backgroundColor: 'rgba(255,255,255,0.14)',
+        borderColor: 'rgba(255,255,255,0.45)',
+    },
     label: {
         fontFamily: 'Matter-SemiBold',
         fontSize: 15,
         letterSpacing: 0.3,
         color: '#1C1A17',
+    },
+    labelGlass: {
+        color: '#FFFFFF',
     },
     error: {
         fontFamily: 'Matter-Regular',
