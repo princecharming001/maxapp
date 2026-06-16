@@ -1,13 +1,20 @@
 /**
  * PaymentScreen — two-tier subscription page, Craft aesthetic.
  *
- * Minimal + flat: warm cream canvas, one featured ink card (Chad) and one
- * quiet hairline card (Chadlite). A single muted-gold accent carries the
- * "most popular" cue + the premium checks; everything else is ink on cream.
- * No aurora gradients, no blur — clean and premium.
+ * Minimalist + flat: warm cream canvas, ONE dominant ink hero (Chad) and a
+ * deliberately quiet single-line option (Chadlite). Ink on cream, one muted-gold
+ * accent. No gradients, no blur.
  *
- * Sales structure kept: anchoring (weekly price), decoy (Chadlite is lighter),
- * social proof (most-popular), App Store auto-renew disclosure + Restore/legal.
+ * Conversion structure (ethical persuasion — no fake scarcity, no hidden
+ * billing; the auto-renew + cancel-anytime disclosure stays):
+ *   • Center-stage / visual dominance — Chad is the big card; Chadlite is a
+ *     subordinate row, so the eye and the default land on the premium tier.
+ *   • Anchoring via price-per-day — the weekly price reframed as "$0.86/day"
+ *     reads as trivially small.
+ *   • Decoy / value-gap — Chadlite is framed as "the basics"; a bridge line
+ *     ("only $2/week more") makes the upgrade feel negligible for everything.
+ *   • Social proof — "most popular" on Chad.
+ *   • Charm pricing — $5.99 / $3.99.
  *
  * Tiers:
  *   Chadlite (basic):   chatbot · 2 active programs · weekly face scan
@@ -38,12 +45,6 @@ import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../../constants/appl
 
 /* ── Tier features ────────────────────────────────────────────────────── */
 
-const BASIC_PERKS: { label: string; included: boolean }[] = [
-    { label: 'Chatbot access',           included: true  },
-    { label: '2 active programs',        included: true  },
-    { label: 'Weekly face scan',         included: true  },
-];
-
 const PREMIUM_PERKS: string[] = [
     'Chatbot Pro',
     '3 active programs',
@@ -51,6 +52,8 @@ const PREMIUM_PERKS: string[] = [
     'Full course library',
     'Priority support',
 ];
+
+const BASIC_SUMMARY = 'The basics — 2 programs, weekly scan';
 
 const IS_IOS = Platform.OS === 'ios';
 const INK = '#1C1A17';
@@ -62,6 +65,32 @@ const GOLD = '#C9A24E';
 // (__DEV__ false). Lets you skip Stripe/StoreKit and proceed exactly as if the
 // subscription had actually gone through.
 const SHOW_DEV_BYPASS = Platform.OS === 'web' && __DEV__;
+
+/* ── Price framing helpers (anchoring) ────────────────────────────────────
+   Parse a localized price like "$5.99" into a symbol + amount so we can show
+   a per-day figure and the Chad↔Chadlite delta. Only used when there's a
+   leading currency symbol (USD/GBP/…); trailing-symbol locales safely skip it
+   rather than render a wrong number. */
+function parseAmount(s: string): { sym: string; n: number } | null {
+    const m = String(s).match(/^\s*([^\d\s]+)?\s*(\d+(?:[.,]\d+)?)/);
+    if (!m) return null;
+    const sym = (m[1] || '').trim();
+    const n = parseFloat(m[2].replace(',', '.'));
+    if (!isFinite(n)) return null;
+    return { sym, n };
+}
+function perDayLabel(weekly: string): string | null {
+    const a = parseAmount(weekly);
+    if (!a || a.n <= 0 || !a.sym) return null;
+    return `${a.sym}${(a.n / 7).toFixed(2)}`;
+}
+function deltaLabel(premium: string, basic: string): string | null {
+    const p = parseAmount(premium);
+    const b = parseAmount(basic);
+    if (!p || !b || !p.sym || p.n <= b.n) return null;
+    const d = p.n - b.n;
+    return `${p.sym}${Number.isInteger(d) ? d.toFixed(0) : d.toFixed(2)}`;
+}
 
 export default function PaymentScreen() {
     const navigation = useNavigation<any>();
@@ -86,6 +115,8 @@ export default function PaymentScreen() {
     };
     const premiumPrice = priceFor(APPLE_IAP_PREMIUM_SKU, '$5.99');
     const basicPrice = priceFor(APPLE_IAP_BASIC_SKU, '$3.99');
+    const perDay = perDayLabel(premiumPrice);
+    const delta = deltaLabel(premiumPrice, basicPrice);
 
     // Dev bypass — activates the subscription server-side (same call the dev
     // drawer uses) then refreshes auth, so RootNavigator routes onward just
@@ -163,20 +194,27 @@ export default function PaymentScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* ── Hero ─────────────────────────────────────────── */}
-                <Text style={s.eyebrow}>CHOOSE YOUR PLAN</Text>
                 <Text style={s.headline}>Pick your level.</Text>
                 <Text style={s.subline}>Cancel anytime. Switch or stop whenever you want.</Text>
 
-                {/* ── PREMIUM (Chad) — featured ───────────────────── */}
+                {/* ── PREMIUM (Chad) — the hero ───────────────────── */}
                 <PremiumCard
                     busy={busy}
                     loadingTier={sub.loading}
                     price={premiumPrice}
+                    perDay={perDay}
                     onPress={() => handleSubscribe('premium')}
                 />
 
-                {/* ── BASIC (Chadlite) ─────────────────────────────── */}
-                <BasicCard
+                {/* Decoy bridge: makes the upgrade feel negligible. */}
+                {delta ? (
+                    <Text style={s.bridge}>
+                        Only <Text style={s.bridgeStrong}>{delta}/week</Text> more than Chadlite.
+                    </Text>
+                ) : null}
+
+                {/* ── BASIC (Chadlite) — quiet, subordinate row ────── */}
+                <BasicRow
                     busy={busy}
                     loadingTier={sub.loading}
                     price={basicPrice}
@@ -241,14 +279,15 @@ export default function PaymentScreen() {
     );
 }
 
-/* ── Premium card (featured, ink fill) ───────────────────────────────── */
+/* ── Premium card (the hero, ink fill) ───────────────────────────────── */
 
 function PremiumCard({
-    busy, loadingTier, price, onPress,
+    busy, loadingTier, price, perDay, onPress,
 }: {
     busy: boolean;
     loadingTier: 'basic' | 'premium' | null;
     price: string;
+    perDay: string | null;
     onPress: () => void;
 }) {
     return (
@@ -264,6 +303,7 @@ function PremiumCard({
                 <Text style={[s.priceValueLg, { color: CREAM }]}>{price}</Text>
                 <Text style={s.pricePerLight}>/week</Text>
             </View>
+            {perDay ? <Text style={s.perDay}>that's just {perDay} a day</Text> : null}
 
             <View style={s.cardDivider} />
 
@@ -273,7 +313,7 @@ function PremiumCard({
                         <View style={s.perkDot}>
                             <Ionicons name="checkmark" size={12} color={GOLD} />
                         </View>
-                        <Text style={[s.perkText, { color: 'rgba(247,240,234,0.92)' }]}>{p}</Text>
+                        <Text style={s.perkText}>{p}</Text>
                     </View>
                 ))}
             </View>
@@ -293,9 +333,9 @@ function PremiumCard({
     );
 }
 
-/* ── Basic card (quiet hairline) ─────────────────────────────────────── */
+/* ── Basic row (deliberately quiet, single line, still tappable) ──────── */
 
-function BasicCard({
+function BasicRow({
     busy, loadingTier, price, onPress,
 }: {
     busy: boolean;
@@ -304,35 +344,22 @@ function BasicCard({
     onPress: () => void;
 }) {
     return (
-        <View style={s.basicCard}>
-            <View style={s.basicHead}>
-                <Text style={s.cardName}>Chadlite</Text>
-                <View style={s.basicPriceRow}>
-                    <Text style={s.basicPriceValue}>{price}</Text>
-                    <Text style={s.pricePer}>/week</Text>
-                </View>
+        <TouchableOpacity
+            style={[s.liteRow, busy && s.ctaDisabled]}
+            onPress={onPress}
+            disabled={busy}
+            activeOpacity={0.7}
+        >
+            <View style={s.liteTextWrap}>
+                <Text style={s.liteName}>Chadlite</Text>
+                <Text style={s.liteSub}>{BASIC_SUMMARY}</Text>
             </View>
-
-            <View style={s.inlinePerks}>
-                {BASIC_PERKS.map((p, i) => (
-                    <View key={i} style={s.inlinePerk}>
-                        <Ionicons name="checkmark" size={13} color={GOLD} />
-                        <Text style={s.inlinePerkText}>{p.label}</Text>
-                    </View>
-                ))}
+            <View style={s.litePriceWrap}>
+                <Text style={s.litePrice}>{loadingTier === 'basic' ? '…' : price}</Text>
+                <Text style={s.liteWk}>/wk</Text>
             </View>
-
-            <TouchableOpacity
-                style={[s.ctaSecondary, busy && s.ctaDisabled]}
-                onPress={onPress}
-                disabled={busy}
-                activeOpacity={0.85}
-            >
-                <Text style={s.ctaSecondaryText}>
-                    {loadingTier === 'basic' ? 'Processing…' : 'Get Chadlite'}
-                </Text>
-            </TouchableOpacity>
-        </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
     );
 }
 
@@ -356,14 +383,6 @@ const s = StyleSheet.create({
     },
 
     /* hero */
-    eyebrow: {
-        fontFamily: fonts.sansSemiBold,
-        fontSize: 11,
-        letterSpacing: 1.8,
-        color: colors.textMuted,
-        marginTop: spacing.sm,
-        marginBottom: 10,
-    },
     headline: {
         fontFamily: fonts.serif,
         fontSize: 38,
@@ -371,6 +390,7 @@ const s = StyleSheet.create({
         color: colors.foreground,
         letterSpacing: -1.2,
         lineHeight: 42,
+        marginTop: spacing.md,
     },
     subline: {
         fontFamily: fonts.sans,
@@ -378,21 +398,20 @@ const s = StyleSheet.create({
         color: colors.textSecondary,
         lineHeight: 20,
         marginTop: 7,
-        marginBottom: spacing.md,
+        marginBottom: spacing.xl,
     },
 
-    /* premium card (ink fill) */
+    /* premium card (ink fill, the hero) */
     premiumCard: {
         backgroundColor: INK,
-        borderRadius: 24,
+        borderRadius: 26,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(201,162,78,0.35)',
-        paddingHorizontal: 22,
-        paddingVertical: 20,
-        marginBottom: spacing.md,
+        borderColor: 'rgba(201,162,78,0.30)',
+        paddingHorizontal: 24,
+        paddingVertical: 24,
         ...(Platform.OS === 'ios'
-            ? { shadowColor: '#3A352B', shadowOpacity: 0.14, shadowRadius: 22, shadowOffset: { width: 0, height: 10 } }
-            : { elevation: 5 }),
+            ? { shadowColor: '#3A352B', shadowOpacity: 0.16, shadowRadius: 26, shadowOffset: { width: 0, height: 12 } }
+            : { elevation: 6 }),
     },
     cardHead: {
         flexDirection: 'row',
@@ -411,98 +430,46 @@ const s = StyleSheet.create({
         letterSpacing: 1.2,
         color: INK,
     },
-
-    /* basic card (quiet secondary — a soft lift gives it presence
-       without the height of a full second card) */
-    basicCard: {
-        backgroundColor: colors.surfaceLight,
-        borderRadius: 24,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-        paddingVertical: 20,
-        paddingHorizontal: 22,
-        marginBottom: spacing.lg,
-        ...(Platform.OS === 'ios'
-            ? { shadowColor: '#3A352B', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } }
-            : { elevation: 2 }),
-    },
-    basicHead: {
-        flexDirection: 'row',
-        alignItems: 'baseline',
-        justifyContent: 'space-between',
-    },
-    basicPriceRow: {
-        flexDirection: 'row',
-        alignItems: 'baseline',
-        gap: 4,
-    },
-    basicPriceValue: {
-        fontFamily: fonts.serif,
-        fontSize: 24,
-        fontWeight: '400',
-        letterSpacing: -0.4,
-        color: colors.foreground,
-    },
-    inlinePerks: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        rowGap: 7,
-        columnGap: 14,
-        marginTop: 12,
-        marginBottom: spacing.md,
-    },
-    inlinePerk: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-    },
-    inlinePerkText: {
-        fontFamily: fonts.sans,
-        fontSize: 13.5,
-        color: colors.textPrimary,
-    },
-
-    /* shared per-card */
     cardName: {
         fontFamily: fonts.serif,
-        fontSize: 27,
+        fontSize: 28,
         fontWeight: '400',
         letterSpacing: -0.5,
-        color: colors.foreground,
     },
     priceRow: {
         flexDirection: 'row',
         alignItems: 'baseline',
         gap: 6,
-        marginTop: 8,
+        marginTop: 14,
     },
     priceValueLg: {
         fontFamily: fonts.serif,
-        fontSize: 40,
+        fontSize: 44,
         fontWeight: '400',
         letterSpacing: -0.5,
-        color: colors.foreground,
-    },
-    pricePer: {
-        fontFamily: fonts.sans,
-        fontSize: 13,
-        color: colors.textSecondary,
     },
     pricePerLight: {
         fontFamily: fonts.sans,
         fontSize: 13,
         color: 'rgba(247,240,234,0.55)',
     },
+    perDay: {
+        fontFamily: fonts.sansMedium,
+        fontSize: 12.5,
+        letterSpacing: 0.2,
+        color: GOLD,
+        marginTop: 5,
+    },
 
     cardDivider: {
         height: StyleSheet.hairlineWidth,
         backgroundColor: 'rgba(247,240,234,0.14)',
-        marginTop: spacing.md,
+        marginTop: spacing.lg,
     },
     perksList: {
-        marginTop: spacing.md,
+        marginTop: spacing.lg,
         marginBottom: spacing.lg,
-        gap: 11,
+        gap: 12,
     },
     perkRow: {
         flexDirection: 'row',
@@ -522,9 +489,9 @@ const s = StyleSheet.create({
         fontSize: 14.5,
         flex: 1,
         lineHeight: 20,
+        color: 'rgba(247,240,234,0.92)',
     },
 
-    /* CTAs */
     ctaPrimary: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -532,7 +499,7 @@ const s = StyleSheet.create({
         gap: 8,
         backgroundColor: CREAM,
         borderRadius: 999,
-        paddingVertical: 14,
+        paddingVertical: 15,
     },
     ctaPrimaryText: {
         fontFamily: fonts.sansSemiBold,
@@ -540,20 +507,63 @@ const s = StyleSheet.create({
         letterSpacing: 0.2,
         color: INK,
     },
-    ctaSecondary: {
-        borderRadius: 999,
-        borderWidth: 1.5,
-        borderColor: colors.foreground,
-        paddingVertical: 13,
-        alignItems: 'center',
+    ctaDisabled: { opacity: 0.45 },
+
+    /* decoy bridge line between the two tiers */
+    bridge: {
+        fontFamily: fonts.sans,
+        fontSize: 13,
+        color: colors.textSecondary,
+        textAlign: 'center',
+        marginTop: spacing.md,
+        marginBottom: spacing.md,
     },
-    ctaSecondaryText: {
+    bridgeStrong: {
         fontFamily: fonts.sansSemiBold,
-        fontSize: 15,
-        letterSpacing: 0.2,
         color: colors.foreground,
     },
-    ctaDisabled: { opacity: 0.45 },
+
+    /* basic — quiet subordinate row */
+    liteRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        backgroundColor: colors.surfaceLight,
+        borderRadius: 16,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        paddingVertical: 14,
+        paddingHorizontal: 18,
+        marginBottom: spacing.lg,
+    },
+    liteTextWrap: { flex: 1 },
+    liteName: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 16,
+        color: colors.textPrimary,
+        letterSpacing: -0.2,
+    },
+    liteSub: {
+        fontFamily: fonts.sans,
+        fontSize: 12.5,
+        color: colors.textMuted,
+        marginTop: 2,
+    },
+    litePriceWrap: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 2,
+    },
+    litePrice: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 15,
+        color: colors.textSecondary,
+    },
+    liteWk: {
+        fontFamily: fonts.sans,
+        fontSize: 12,
+        color: colors.textMuted,
+    },
 
     /* App Store compliance footer */
     disclosure: {
