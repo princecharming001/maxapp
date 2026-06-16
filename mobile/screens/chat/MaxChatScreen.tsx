@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -18,6 +19,14 @@ import ChatSliderInput, { SliderSpec } from '../../components/ChatSliderInput';
 import { renderRichText } from '../../utils/chatMarkdown';
 
 const PENDING_CHAT_KEY = '@max_pending_chat_v1';
+
+/** Starter prompts shown on the empty chat — tap to send, and they keep the
+ *  blank state from feeling bare. Short, in the app's blunt coach voice. */
+const EMPTY_STARTERS = [
+    'Build my plan for today',
+    'What should I use on my skin?',
+    'Rate my routine',
+];
 
 interface Message {
   /** Server id; absent on optimistically-appended turns until /history reload. */
@@ -647,8 +656,37 @@ export default function MaxChatScreen() {
 
     const ListEmpty = () => (
         <View style={styles.emptyState}>
+            {/* Quiet editorial backdrop so the screen reads as composed, not
+                blank: a warm wash + two ultra-faint concentric rings (a soft
+                "ask" ripple behind the title). Purely decorative. */}
+            <View pointerEvents="none" style={styles.emptyDecor}>
+                <LinearGradient
+                    colors={['transparent', 'rgba(212,160,23,0.05)']}
+                    style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.emptyRingOuter} />
+                <View style={styles.emptyRingInner} />
+            </View>
+
             <Text style={styles.emptyTitle}>ask anything.</Text>
             <Text style={styles.emptySubtitle}>routines, products, what to do today.</Text>
+
+            <View style={styles.starterGroup}>
+                <Text style={styles.starterEyebrow}>TRY ASKING</Text>
+                {EMPTY_STARTERS.map((s, i) => (
+                    <TouchableOpacity
+                        key={s}
+                        style={[styles.starterRow, i > 0 && styles.starterRowDivider]}
+                        activeOpacity={0.6}
+                        onPress={() => void sendMessage(s)}
+                        accessibilityRole="button"
+                        accessibilityLabel={s}
+                    >
+                        <Text style={styles.starterText}>{s}</Text>
+                        <Ionicons name="arrow-forward" size={15} color={colors.textMuted} />
+                    </TouchableOpacity>
+                ))}
+            </View>
         </View>
     );
 
@@ -953,6 +991,24 @@ const styles = StyleSheet.create({
     typingText: { fontSize: 14, color: colors.textMuted, fontStyle: 'italic' },
     attachmentImage: { width: 220, height: 160, borderRadius: 12, marginTop: spacing.sm },
     emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.xl },
+    // Decorative backdrop layer (behind the text). Centered rings + a wash.
+    emptyDecor: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+    emptyRingOuter: {
+        position: 'absolute',
+        width: 340,
+        height: 340,
+        borderRadius: 170,
+        borderWidth: 1,
+        borderColor: 'rgba(28,26,23,0.05)',
+    },
+    emptyRingInner: {
+        position: 'absolute',
+        width: 228,
+        height: 228,
+        borderRadius: 114,
+        borderWidth: 1,
+        borderColor: 'rgba(28,26,23,0.07)',
+    },
     emptyTitle: {
         fontFamily: fonts.serif,
         fontSize: 32,
@@ -968,6 +1024,27 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         letterSpacing: 0.1,
     },
+    // Tappable starter prompts — an editorial hairline-ruled list, not pills.
+    starterGroup: { marginTop: 40, width: '100%', maxWidth: 340, alignSelf: 'center' },
+    starterEyebrow: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 10.5,
+        letterSpacing: 1.8,
+        color: colors.textMuted,
+        textAlign: 'center',
+        textTransform: 'uppercase',
+        marginBottom: 8,
+    },
+    starterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 14,
+        paddingHorizontal: 4,
+        gap: 12,
+    },
+    starterRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderLight },
+    starterText: { flex: 1, fontFamily: fonts.serif, fontSize: 17, color: colors.foreground, letterSpacing: -0.2 },
     outerInputContainer: {
         padding: spacing.md,
         borderTopWidth: 1,
