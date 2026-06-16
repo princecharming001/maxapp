@@ -261,14 +261,18 @@ function PremiumCard({
             </View>
 
             <View style={s.priceRow}>
-                <Text style={[s.priceValue, { color: CREAM }]}>{price}</Text>
+                <Text style={[s.priceValueLg, { color: CREAM }]}>{price}</Text>
                 <Text style={s.pricePerLight}>/week</Text>
             </View>
+
+            <View style={s.cardDivider} />
 
             <View style={s.perksList}>
                 {PREMIUM_PERKS.map((p, i) => (
                     <View key={i} style={s.perkRow}>
-                        <Ionicons name="checkmark" size={16} color={GOLD} style={s.perkCheckIcon} />
+                        <View style={s.perkDot}>
+                            <Ionicons name="checkmark" size={12} color={GOLD} />
+                        </View>
                         <Text style={[s.perkText, { color: 'rgba(247,240,234,0.92)' }]}>{p}</Text>
                     </View>
                 ))}
@@ -281,7 +285,7 @@ function PremiumCard({
                 activeOpacity={0.85}
             >
                 <Text style={s.ctaPrimaryText}>
-                    {loadingTier === 'premium' ? 'Processing…' : 'Get Chad'}
+                    {loadingTier === 'premium' ? 'Processing…' : `Get Chad · ${price}/wk`}
                 </Text>
                 <Ionicons name="arrow-forward" size={16} color={INK} />
             </TouchableOpacity>
@@ -301,32 +305,19 @@ function BasicCard({
 }) {
     return (
         <View style={s.basicCard}>
-            <Text style={s.cardName}>Chadlite</Text>
-            <View style={s.priceRow}>
-                <Text style={s.priceValue}>{price}</Text>
-                <Text style={s.pricePer}>/week</Text>
+            <View style={s.basicHead}>
+                <Text style={s.cardName}>Chadlite</Text>
+                <View style={s.basicPriceRow}>
+                    <Text style={s.basicPriceValue}>{price}</Text>
+                    <Text style={s.pricePer}>/week</Text>
+                </View>
             </View>
 
-            <View style={s.perksList}>
+            <View style={s.inlinePerks}>
                 {BASIC_PERKS.map((p, i) => (
-                    <View key={i} style={s.perkRow}>
-                        <Ionicons
-                            name={p.included ? 'checkmark' : 'remove'}
-                            size={16}
-                            color={p.included ? INK : colors.textMuted}
-                            style={s.perkCheckIcon}
-                        />
-                        <Text
-                            style={[
-                                s.perkText,
-                                {
-                                    color: p.included ? colors.textPrimary : colors.textMuted,
-                                    textDecorationLine: p.included ? 'none' : 'line-through',
-                                },
-                            ]}
-                        >
-                            {p.label}
-                        </Text>
+                    <View key={i} style={s.inlinePerk}>
+                        <Ionicons name="checkmark" size={13} color={GOLD} />
+                        <Text style={s.inlinePerkText}>{p.label}</Text>
                     </View>
                 ))}
             </View>
@@ -375,26 +366,29 @@ const s = StyleSheet.create({
     },
     headline: {
         fontFamily: fonts.serif,
-        fontSize: 40,
+        fontSize: 38,
         fontWeight: '400',
         color: colors.foreground,
         letterSpacing: -1.2,
-        lineHeight: 46,
+        lineHeight: 42,
     },
     subline: {
         fontFamily: fonts.sans,
         fontSize: 14,
         color: colors.textSecondary,
         lineHeight: 20,
-        marginTop: 8,
-        marginBottom: spacing.xl,
+        marginTop: 7,
+        marginBottom: spacing.md,
     },
 
     /* premium card (ink fill) */
     premiumCard: {
         backgroundColor: INK,
         borderRadius: 24,
-        padding: spacing.xl,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(201,162,78,0.35)',
+        paddingHorizontal: 22,
+        paddingVertical: 20,
         marginBottom: spacing.md,
         ...(Platform.OS === 'ios'
             ? { shadowColor: '#3A352B', shadowOpacity: 0.14, shadowRadius: 22, shadowOffset: { width: 0, height: 10 } }
@@ -406,8 +400,7 @@ const s = StyleSheet.create({
         justifyContent: 'space-between',
     },
     popPill: {
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(201,162,78,0.6)',
+        backgroundColor: GOLD,
         borderRadius: 999,
         paddingVertical: 5,
         paddingHorizontal: 11,
@@ -415,18 +408,58 @@ const s = StyleSheet.create({
     popPillText: {
         fontFamily: fonts.sansSemiBold,
         fontSize: 10,
-        letterSpacing: 1.4,
-        color: GOLD,
+        letterSpacing: 1.2,
+        color: INK,
     },
 
-    /* basic card (quiet) */
+    /* basic card (quiet secondary — a soft lift gives it presence
+       without the height of a full second card) */
     basicCard: {
         backgroundColor: colors.surfaceLight,
         borderRadius: 24,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
-        padding: spacing.xl,
-        marginBottom: spacing.xl,
+        paddingVertical: 20,
+        paddingHorizontal: 22,
+        marginBottom: spacing.lg,
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#3A352B', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } }
+            : { elevation: 2 }),
+    },
+    basicHead: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        justifyContent: 'space-between',
+    },
+    basicPriceRow: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 4,
+    },
+    basicPriceValue: {
+        fontFamily: fonts.serif,
+        fontSize: 24,
+        fontWeight: '400',
+        letterSpacing: -0.4,
+        color: colors.foreground,
+    },
+    inlinePerks: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        rowGap: 7,
+        columnGap: 14,
+        marginTop: 12,
+        marginBottom: spacing.md,
+    },
+    inlinePerk: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+    },
+    inlinePerkText: {
+        fontFamily: fonts.sans,
+        fontSize: 13.5,
+        color: colors.textPrimary,
     },
 
     /* shared per-card */
@@ -443,10 +476,11 @@ const s = StyleSheet.create({
         gap: 6,
         marginTop: 8,
     },
-    priceValue: {
-        fontFamily: fonts.sansSemiBold,
+    priceValueLg: {
+        fontFamily: fonts.serif,
         fontSize: 40,
-        letterSpacing: -1.8,
+        fontWeight: '400',
+        letterSpacing: -0.5,
         color: colors.foreground,
     },
     pricePer: {
@@ -460,19 +494,28 @@ const s = StyleSheet.create({
         color: 'rgba(247,240,234,0.55)',
     },
 
+    cardDivider: {
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: 'rgba(247,240,234,0.14)',
+        marginTop: spacing.md,
+    },
     perksList: {
-        marginTop: spacing.lg,
-        marginBottom: spacing.xl,
-        gap: 13,
+        marginTop: spacing.md,
+        marginBottom: spacing.lg,
+        gap: 11,
     },
     perkRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 11,
     },
-    perkCheckIcon: {
-        width: 18,
-        textAlign: 'center',
+    perkDot: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(201,162,78,0.16)',
     },
     perkText: {
         fontFamily: fonts.sans,
@@ -489,7 +532,7 @@ const s = StyleSheet.create({
         gap: 8,
         backgroundColor: CREAM,
         borderRadius: 999,
-        paddingVertical: 16,
+        paddingVertical: 14,
     },
     ctaPrimaryText: {
         fontFamily: fonts.sansSemiBold,
@@ -501,7 +544,7 @@ const s = StyleSheet.create({
         borderRadius: 999,
         borderWidth: 1.5,
         borderColor: colors.foreground,
-        paddingVertical: 15,
+        paddingVertical: 13,
         alignItems: 'center',
     },
     ctaSecondaryText: {
