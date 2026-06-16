@@ -17,6 +17,7 @@ import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
 import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, moduleColorForSchedule, type MergedScheduleTask } from '../../utils/scheduleAggregation';
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
+import { useFlag } from '../../constants/featureFlags';
 import { CachedImage } from '../../components/CachedImage';
 import { StreakFireBadge } from '../../components/StreakFireBadge';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
@@ -202,6 +203,10 @@ export default function HomeScreen() {
         );
     }, [schedulesQuery.data]);
 
+    // Face-scan kill switch: when off, a just-paid user is NOT redirected into
+    // the scan-results flow (the scan is removed). Flip the flag to restore it.
+    const faceScan = useFlag('faceScan');
+
     useEffect(() => {
         if (!(user?.onboarding as { post_subscription_onboarding?: boolean })?.post_subscription_onboarding) {
             postPayRedirected.current = false;
@@ -210,11 +215,12 @@ export default function HomeScreen() {
 
     useFocusEffect(
         React.useCallback(() => {
+            if (!faceScan) return;
             const ob = user?.onboarding as { post_subscription_onboarding?: boolean } | undefined;
             if (!ob?.post_subscription_onboarding || postPayRedirected.current) return;
             postPayRedirected.current = true;
             navigation.navigate('FaceScanResults', { postPay: true });
-        }, [user?.onboarding, navigation]),
+        }, [user?.onboarding, navigation, faceScan]),
     );
 
     useEffect(() => {

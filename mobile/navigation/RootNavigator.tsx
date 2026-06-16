@@ -69,6 +69,10 @@ export function RootNavigator() {
     // the reveal behind its existing route name.
     const onboardingV2 = useFlag('onboardingV2');
     const revealV2 = useFlag('revealV2');
+    // Face-scan kill switch: when off, the legacy pre-pay funnel skips
+    // FeaturesIntro + FaceScan and sends a completed-but-unpaid user straight
+    // to the paywall (Payment). Flip the flag on to restore the scan funnel.
+    const faceScan = useFlag('faceScan');
     const OnboardingComponent = onboardingV2 ? OnboardingV2Screen : OnboardingScreen;
     const RevealComponent = revealV2 ? RevealV2Screen : RoutineRevealScreen;
 
@@ -103,9 +107,11 @@ export function RootNavigator() {
                 : !treatAsFull
                     ? !onboardingCompleted
                         ? 'Onboarding'
-                        : firstScanDone
-                            ? 'FaceScanResults'
-                            : 'FeaturesIntro'
+                        : !faceScan
+                            ? 'Payment'
+                            : firstScanDone
+                                ? 'FaceScanResults'
+                                : 'FeaturesIntro'
                     : postSubscriptionOnboarding && isPaid
                         ? 'ModuleSelect'
                         : 'Main';

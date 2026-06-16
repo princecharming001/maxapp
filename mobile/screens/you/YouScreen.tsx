@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
+import { useFlag } from '../../constants/featureFlags';
 import { useAuth } from '../../context/AuthContext';
 import { queryKeys } from '../../lib/queryClient';
 import api from '../../services/api';
@@ -72,6 +73,7 @@ export default function YouScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const { user } = useAuth();
+    const faceScanEnabled = useFlag('faceScan');
 
     const { data: schedData } = useQuery({
         queryKey: queryKeys.schedulesActiveFull,
@@ -132,17 +134,21 @@ export default function YouScreen() {
                             sub: 'Badges & milestones',
                             onPress: () => navigation.navigate('Achievements'),
                         },
-                        {
-                            icon: 'scan-outline',
-                            label: 'New scan',
-                            sub: 'Optional',
-                            onPress: () => navigation.navigate('FaceScan'),
-                        },
-                        {
-                            icon: 'images-outline',
-                            label: 'Scan archive',
-                            onPress: () => navigation.navigate('FaceScanArchive'),
-                        },
+                        ...(faceScanEnabled
+                            ? ([
+                                  {
+                                      icon: 'scan-outline',
+                                      label: 'New scan',
+                                      sub: 'Optional',
+                                      onPress: () => navigation.navigate('FaceScan'),
+                                  },
+                                  {
+                                      icon: 'images-outline',
+                                      label: 'Scan archive',
+                                      onPress: () => navigation.navigate('FaceScanArchive'),
+                                  },
+                              ] as Row[])
+                            : []),
                         {
                             icon: 'trending-up-outline',
                             label: 'Progress photos',

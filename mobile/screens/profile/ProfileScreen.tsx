@@ -16,6 +16,7 @@ import { useMaxxesQuery } from '../../hooks/useAppQueries';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
 import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
 import { userHasSignupPhone } from '../../utils/userPhone';
+import { useFlag } from '../../constants/featureFlags';
 
 const getImageModalWidth = (width: number) =>
     Platform.OS === 'web' && width > 600
@@ -72,6 +73,8 @@ export default function ProfileScreen() {
     const { width: winWidth } = useWindowDimensions();
     const imageModalWidth = getImageModalWidth(winWidth);
     const { user, refreshUser, isPaid, isPremium } = useAuth();
+    // Face-scan kill switch: hides the FACE SCORE card / scan entry points.
+    const faceScan = useFlag('faceScan');
     const maxxesQuery = useMaxxesQuery();
     const activeMaxxes = useMemo(() => {
         const allMaxxes = maxxesQuery.data?.maxes ?? [];
@@ -455,8 +458,9 @@ export default function ProfileScreen() {
                         ) : null}
                     </View>
 
-                    {/* ── Face-score trend (flat, card-less) ─────────── */}
-                    {faceScore != null ? (
+                    {/* ── Face-score trend (flat, card-less) — gated by the
+                        face-scan kill switch; hidden entirely when scan is off ── */}
+                    {faceScan && (faceScore != null ? (
                         <TouchableOpacity style={styles.section} onPress={onFaceScansPress} activeOpacity={0.7}>
                             <View style={styles.sectionHead}>
                                 <SectionLabel label="FACE SCORE" style={styles.sectionLabelInline} />
@@ -482,7 +486,7 @@ export default function ProfileScreen() {
                             <SectionLabel label="FACE SCORE" />
                             <Text style={styles.scoreLockedFlat}>See your face score ›</Text>
                         </TouchableOpacity>
-                    )}
+                    ))}
 
                     {/* ── Progress photos ────────────────────────────── */}
                     <View style={styles.section}>

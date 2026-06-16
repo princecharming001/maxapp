@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassButton } from '../../components/glass/GlassButton';
 import RevealChoreography, { type RevealRow } from '../../components/reveal/RevealChoreography';
+import { useFlag } from '../../constants/featureFlags';
 import { useAuth } from '../../context/AuthContext';
 import { getIosApnsDeviceTokenForBackend } from '../../services/registerIosPushToken';
 import { track } from '../../lib/analytics';
@@ -76,6 +77,7 @@ export default function RevealV2Screen() {
     const route = useRoute<any>();
     const insets = useSafeAreaInsets();
     const { user, refreshUser } = useAuth();
+    const faceScanEnabled = useFlag('faceScan');
     const [phase, setPhase] = useState<'reveal' | 'notifications' | 'scan'>('reveal');
     const [revealSettled, setRevealSettled] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -156,7 +158,13 @@ export default function RevealV2Screen() {
             }
         } finally {
             setBusy(false);
-            setPhase('scan');
+            // When the face-scan feature is off, the scan phase is unreachable —
+            // finish onboarding directly instead of advancing into it.
+            if (faceScanEnabled) {
+                setPhase('scan');
+            } else {
+                void completeOnboarding();
+            }
         }
     };
 
@@ -218,7 +226,12 @@ export default function RevealV2Screen() {
                                 loading={busy}
                                 onPress={enableNotifications}
                             />
-                            <GlassButton variant="glass" label="Not now" onPress={() => setPhase('scan')} />
+                            <GlassButton
+                                variant="glass"
+                                label="Not now"
+                                loading={!faceScanEnabled && busy}
+                                onPress={() => (faceScanEnabled ? setPhase('scan') : completeOnboarding())}
+                            />
                         </View>
                     </View>
                 ) : null}

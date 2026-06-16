@@ -20,6 +20,7 @@ import { TamaguiProvider } from 'tamagui';
 import tamaguiConfig from './tamagui.config';
 import PlannerMockups from './screens/_mocks/PlannerMockups';
 import api from './services/api';
+import { useFlag } from './constants/featureFlags';
 import {
     getPendingFaceScanSubmit,
     clearPendingFaceScanSubmit,
@@ -41,6 +42,7 @@ const NOTIFICATION_DEEP_LINK_ROUTES = new Set<string>(['ProgressArchive']);
 
 function AppNavigator() {
     const { isAuthenticated, isPaid, refreshUser, user, isScanUser } = useAuth();
+    const faceScanEnabled = useFlag('faceScan');
     const navRef = navigationRef;
     const appStateRef = useRef<AppStateStatus>(AppState.currentState);
     const recoveryRunning = useRef(false);
@@ -116,6 +118,9 @@ function AppNavigator() {
         // Scan-only users don't have a FeaturesIntro route and don't need pending-scan recovery
         // (unlimited scans, no queued upload lifecycle). Skip entirely.
         if (isScanUser) return;
+        // Face-scan kill switch: with the scan removed there are no pending
+        // uploads to recover, so this whole effect is inert when the flag is off.
+        if (!faceScanEnabled) return;
 
         const runRecovery = async () => {
             if (recoveryRunning.current) return;
@@ -184,7 +189,7 @@ function AppNavigator() {
             }
         });
         return () => sub.remove();
-    }, [isAuthenticated, user?.id, isScanUser, refreshUser, navRef]);
+    }, [isAuthenticated, user?.id, isScanUser, faceScanEnabled, refreshUser, navRef]);
 
     return (
         <NavigationContainer

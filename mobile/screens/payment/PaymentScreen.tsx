@@ -42,6 +42,7 @@ import { useStripeSubscription } from '../../hooks/useStripeSubscription';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { colors, fonts, spacing } from '../../theme/dark';
 import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
+import { useFlag } from '../../constants/featureFlags';
 
 /* ── Tier features ────────────────────────────────────────────────────── */
 
@@ -97,6 +98,13 @@ export default function PaymentScreen() {
     const insets = useSafeAreaInsets();
     const { user, refreshUser } = useAuth();
 
+    // Face-scan kill switch (constants/featureFlags). When off, the paywall does
+    // NOT gate purchase on a completed scan, and the scan-related perk/summary
+    // copy drops out so nothing references a feature the user can't reach.
+    const faceScanEnabled = useFlag('faceScan');
+    const premiumPerks = faceScanEnabled ? PREMIUM_PERKS : PREMIUM_PERKS.filter((p) => !/scan/i.test(p));
+    const basicSummary = faceScanEnabled ? BASIC_SUMMARY : 'The basics — 2 active programs';
+
     const stripe = useStripeSubscription();
     const apple = useAppleSubscription();
     const useAppleSim = !IS_IOS && __DEV__ && Platform.OS === 'web';
@@ -146,7 +154,7 @@ export default function PaymentScreen() {
     };
 
     const handleSubscribe = async (tier: 'basic' | 'premium') => {
-        if (user && !user.first_scan_completed) {
+        if (faceScanEnabled && user && !user.first_scan_completed) {
             const goScan = () => navigation.navigate('FaceScan');
             // Alert.alert's button callbacks are no-ops on react-native-web, which
             // left "Get Chad" a silent dead end in the web build. Use a native
@@ -203,6 +211,7 @@ export default function PaymentScreen() {
                     loadingTier={sub.loading}
                     price={premiumPrice}
                     perDay={perDay}
+                    perks={premiumPerks}
                     onPress={() => handleSubscribe('premium')}
                 />
 
@@ -218,6 +227,7 @@ export default function PaymentScreen() {
                     busy={busy}
                     loadingTier={sub.loading}
                     price={basicPrice}
+                    summary={basicSummary}
                     onPress={() => handleSubscribe('basic')}
                 />
 
@@ -282,12 +292,13 @@ export default function PaymentScreen() {
 /* ── Premium card (the hero, ink fill) ───────────────────────────────── */
 
 function PremiumCard({
-    busy, loadingTier, price, perDay, onPress,
+    busy, loadingTier, price, perDay, perks, onPress,
 }: {
     busy: boolean;
     loadingTier: 'basic' | 'premium' | null;
     price: string;
     perDay: string | null;
+    perks: string[];
     onPress: () => void;
 }) {
     return (
@@ -308,7 +319,7 @@ function PremiumCard({
             <View style={s.cardDivider} />
 
             <View style={s.perksList}>
-                {PREMIUM_PERKS.map((p, i) => (
+                {perks.map((p, i) => (
                     <View key={i} style={s.perkRow}>
                         <View style={s.perkDot}>
                             <Ionicons name="checkmark" size={12} color={GOLD} />
@@ -336,11 +347,12 @@ function PremiumCard({
 /* ── Basic row (deliberately quiet, single line, still tappable) ──────── */
 
 function BasicRow({
-    busy, loadingTier, price, onPress,
+    busy, loadingTier, price, summary, onPress,
 }: {
     busy: boolean;
     loadingTier: 'basic' | 'premium' | null;
     price: string;
+    summary: string;
     onPress: () => void;
 }) {
     return (
@@ -352,7 +364,7 @@ function BasicRow({
         >
             <View style={s.liteTextWrap}>
                 <Text style={s.liteName}>Chadlite</Text>
-                <Text style={s.liteSub}>{BASIC_SUMMARY}</Text>
+                <Text style={s.liteSub}>{summary}</Text>
             </View>
             <View style={s.litePriceWrap}>
                 <Text style={s.litePrice}>{loadingTier === 'basic' ? '…' : price}</Text>

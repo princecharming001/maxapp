@@ -268,7 +268,7 @@ function DevDrawerInner() {
 
 // Runtime feature-flag toggles (pivot slices ship dark behind these).
 function FlagsSection() {
-    const names: FlagName[] = ['newNav', 'todayV2', 'onboardingV2', 'revealV2', 'streakV2'];
+    const names: FlagName[] = ['newNav', 'todayV2', 'onboardingV2', 'revealV2', 'streakV2', 'faceScan'];
     return (
         <Section label="Feature flags">
             <Row>

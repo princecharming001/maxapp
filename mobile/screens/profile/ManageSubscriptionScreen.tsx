@@ -4,6 +4,7 @@ import { useNavigation, useFocusEffect, CommonActions } from '@react-navigation/
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
+import { useFlag } from '../../constants/featureFlags';
 import { useAuth } from '../../context/AuthContext';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
@@ -51,6 +52,11 @@ export default function ManageSubscriptionScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const { user, refreshUser, subscriptionTier } = useAuth();
+    const faceScanEnabled = useFlag('faceScan');
+    // When the face-scan feature is off, strip every scan-related perk/line so the
+    // paywall makes no promise the app can't keep. Flip the flag to fully restore.
+    const basicFeatures = faceScanEnabled ? BASIC_FEATURES : BASIC_FEATURES.filter((p) => !/scan/i.test(p));
+    const premiumFeatures = faceScanEnabled ? PREMIUM_FEATURES : PREMIUM_FEATURES.filter((p) => !/scan/i.test(p));
     const apple = useAppleSubscription();
     const appleRestoring = 'restoring' in apple ? !!apple.restoring : false;
     const [loading, setLoading] = useState(true);
@@ -120,16 +126,20 @@ export default function ManageSubscriptionScreen() {
             tier: 'basic' as const,
             name: 'Chadlite',
             tag: 'Core access',
-            sub: 'Chatbot, one active program, and a weekly face scan.',
-            features: BASIC_FEATURES,
+            sub: faceScanEnabled
+                ? 'Chatbot, one active program, and a weekly face scan.'
+                : 'Chatbot and one active program.',
+            features: basicFeatures,
             price: '$3.99',
         },
         {
             tier: 'premium' as const,
             name: 'Chad',
             tag: 'Full stack',
-            sub: 'Deeper coaching, daily scans, and the full library.',
-            features: PREMIUM_FEATURES,
+            sub: faceScanEnabled
+                ? 'Deeper coaching, daily scans, and the full library.'
+                : 'Deeper coaching and the full library.',
+            features: premiumFeatures,
             price: '$5.99',
         },
     ];
@@ -183,7 +193,9 @@ export default function ManageSubscriptionScreen() {
     const confirmDowngrade = () => {
         Alert.alert(
             'Switch to Basic?',
-            "You'll lose Premium benefits (extra programs, daily face scans, full course library). Stripe may credit or charge a prorated difference.",
+            faceScanEnabled
+                ? "You'll lose Premium benefits (extra programs, daily face scans, full course library). Stripe may credit or charge a prorated difference."
+                : "You'll lose Premium benefits (extra programs, full course library). Stripe may credit or charge a prorated difference.",
             [
                 { text: 'Keep Premium', style: 'cancel' },
                 { text: 'Switch to Basic', style: 'destructive', onPress: () => void runChangeTier('basic') },
