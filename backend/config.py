@@ -207,6 +207,9 @@ class Settings(BaseSettings):
     # When true (default), BoneMax uses a deterministic intake flow (workout/TMJ/gum/screen)
     # before schedule creation to avoid off-topic LLM drift and re-ask loops.
     chat_scripted_bonemax_onboarding: bool = Field(default=True)
+    # When true (default), max onboarding uses the LLM to pick the next question
+    # based on known user facts instead of walking a fixed markdown question list.
+    dynamic_onboarding_enabled: bool = Field(default=True)
 
     # UTC cutoff: accounts created before this see the main-app tour as already completed.
     # Set to the ISO-8601 deploy moment so existing subscribers are not surprised by a tour.

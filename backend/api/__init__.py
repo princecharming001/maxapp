@@ -23,3 +23,4 @@ from .marketplace import router as marketplace_router
 from .planner import router as planner_router
 from .analytics import router as analytics_router
 from .google import router as google_router
+from .onboarding import router as onboarding_router

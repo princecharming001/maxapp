@@ -3588,11 +3588,7 @@ async def _run_onboarding_questioner(
     message_text: str,
     db: AsyncSession,
 ) -> Optional[Tuple[str, list[str], Optional[dict]]]:
-    """If the user is mid-onboarding for a doc-driven max, drive the next
-    question deterministically using onboarding_questioner. Returns
-    (text, choices, input_widget) if the driver handled the turn, or None
-    to fall through to the legacy/agent path.
-    """
+    """Drive max onboarding — LLM-dynamic when enabled, else fixed doc questions."""
     try:
         from services.onboarding_questioner import (
             get_pending,
@@ -3606,6 +3602,15 @@ async def _run_onboarding_questioner(
         )
         from services.task_catalog_service import warm_catalog, is_loaded, get_doc
         from services.user_context_service import get_context, merge_context, merged_user_state
+        from services.dynamic_onboarding_service import (
+            is_dynamic_onboarding_enabled,
+            prepare_state_for_maxx,
+            build_question_payload,
+            missing_for_schedule,
+            resolve_after_prefill,
+            get_asked_field_ids,
+            append_asked_field,
+        )
     except Exception as _e:  # pragma: no cover
         logger.exception("question driver import failed: %s", _e)
         return None
@@ -3620,13 +3625,84 @@ async def _run_onboarding_questioner(
     state = merged_user_state(onboarding, persistent)
     pending = get_pending(state)
     msg = (message_text or "").strip()
+    dynamic = is_dynamic_onboarding_enabled()
 
-    # 1) Detect new start-intent — even if there's a pending onboarding for a
-    # DIFFERENT max. Without this, "I want to start skinmax" mid-hairmax
-    # gets coerced as the next hairmax field answer, fails, re-asks.
-    # When a pending exists for a different max, we abandon the half-finished
-    # one and start the new one fresh. (Prior answers stay in
-    # user_schedule_context for when they come back to that maxx later.)
+    async def _generate_complete(maxx_id: str, final_state: dict, last_update: dict) -> Tuple[str, list[str], Optional[dict]]:
+        await merge_context(user_id, {**last_update, **clear_pending(), "_dynamic_onboarding_asked": None}, db)
+        doc = get_doc(maxx_id)
+        try:
+            from services.schedule_runtime import generate_and_persist
+            result = await generate_and_persist(
+                user_id=user_id,
+                maxx_id=maxx_id,
+                db=db,
+                onboarding={**onboarding, **persistent, **final_state, **last_update},
+                wake_time=str(final_state.get("wake_time") or state.get("wake_time") or "07:00"),
+                sleep_time=str(final_state.get("sleep_time") or state.get("sleep_time") or "23:00"),
+                subscription_tier=getattr(user, "subscription_tier", None),
+            )
+            await db.commit()
+            n_days = len(result.get("days") or [])
+            name = (doc.display_name if doc else maxx_id).lower()
+            text = f"perfect. your {name} schedule is live — {n_days} days, day 1 starts now. tap schedule to see today."
+            return text, [], None
+        except Exception as e:
+            logger.exception("onboarding completion → generate failed: %s", e)
+            return f"i collected everything but generation hit a snag: {e}. retry?", [], None
+
+    async def _emit_dynamic_question(maxx_id: str, working_state: dict, persist: dict) -> Tuple[str, list[str], Optional[dict]]:
+        asked = get_asked_field_ids(working_state)
+        step, infer_updates = await resolve_after_prefill(maxx_id, {**working_state, **persist}, asked_field_ids=asked)
+        merged_updates = {**persist, **infer_updates}
+        merged_state = {**working_state, **merged_updates}
+
+        if step.done or not missing_for_schedule(maxx_id, merged_state):
+            if merged_updates:
+                await merge_context(user_id, merged_updates, db)
+            return await _generate_complete(maxx_id, merged_state, {})
+
+        fid = str(step.field_id or "")
+        payload = build_question_payload(maxx_id, fid, step.question_text)
+        new_pending = make_pending(maxx_id, fid)
+        await merge_context(
+            user_id,
+            {**merged_updates, "_onboarding_pending": new_pending, **append_asked_field(merged_state, fid)},
+            db,
+        )
+        return _finish_onboarding_turn(payload["text"].lower(), payload)
+
+    async def _emit_static_question(maxx_id: str, working_state: dict, prefix: str = "") -> Tuple[str, list[str], Optional[dict]]:
+        next_field = peek_next_question(maxx_id, working_state)
+        if next_field is None:
+            return await _generate_complete(maxx_id, working_state, {})
+        await merge_context(
+            user_id,
+            {**clear_pending(), **{"_onboarding_pending": make_pending(maxx_id, next_field["id"])}},
+            db,
+        )
+        payload = field_to_question_payload(next_field)
+        text = prefix + payload["text"].lower()
+        return _finish_onboarding_turn(text, payload)
+
+    async def _start_max(maxx_id: str, switch_note: str = "") -> Tuple[str, list[str], Optional[dict]]:
+        merged, prefill = prepare_state_for_maxx(maxx_id, state)
+        if prefill:
+            await merge_context(user_id, {**prefill, "_dynamic_onboarding_asked": []}, db)
+            merged = {**merged, **prefill}
+
+        if not missing_for_schedule(maxx_id, merged):
+            return await _generate_complete(maxx_id, merged, prefill)
+
+        if dynamic:
+            opener = switch_note or f"let's get your {get_doc(maxx_id).display_name.lower()} schedule going. "
+            payload_out = await _emit_dynamic_question(maxx_id, merged, prefill)
+            if payload_out[0]:
+                return opener + payload_out[0], payload_out[1], payload_out[2]
+            return payload_out
+
+        return await _emit_static_question(maxx_id, merged, switch_note)
+
+    # 1) New start-intent
     new_max = detect_max_start_intent(msg)
     if new_max:
         if pending and pending.get("max") != new_max:
@@ -3635,37 +3711,21 @@ async def _run_onboarding_questioner(
                 pending.get("max"), new_max,
             )
         if not pending or pending.get("max") != new_max:
-            next_field = peek_next_question(new_max, state)
-            if next_field is None:
-                # All required fields already known — let the agent handle it
-                # (it'll trigger generation directly).
-                return None
-            await merge_context(
-                user_id,
-                {**clear_pending(), **{"_onboarding_pending": make_pending(new_max, next_field["id"])}},
-                db,
-            )
-            payload = field_to_question_payload(next_field)
             switch_note = (
                 f"switching to your {get_doc(new_max).display_name.lower()} schedule. "
                 if pending and pending.get("max") != new_max
                 else f"let's get your {get_doc(new_max).display_name.lower()} schedule going. "
             )
-            text = switch_note + payload["text"].lower()
-            return _finish_onboarding_turn(text, payload)
-        # else: pending already matches new_max — just continue (treat as
-        # repeated start of the same flow; coerce step below handles it).
+            return await _start_max(new_max, switch_note)
 
-    # If no pending and no start-intent, hand off to other paths.
     if not pending:
         return None
 
-    # 2) Pending → coerce the user's answer, persist, advance.
+    # 2) Pending → coerce answer, persist, advance
     maxx_id = pending["max"]
     last_qid = pending["last_question"]
     doc = get_doc(maxx_id)
     if doc is None:
-        # Doc disappeared (unlikely) → bail to legacy path.
         await merge_context(user_id, clear_pending(), db)
         return None
 
@@ -3676,20 +3736,29 @@ async def _run_onboarding_questioner(
 
     coerced = coerce_answer(last_field, msg)
     if coerced is None:
-        # Re-ask, but keep state as-is.
         payload = field_to_question_payload(last_field)
+        if dynamic and last_field:
+            payload = build_question_payload(maxx_id, last_qid, payload.get("text"))
         return _finish_onboarding_turn(
             "didn't quite catch that — " + payload["text"].lower(),
             payload,
         )
 
-    # Save the answer to persistent context (also lives in onboarding overlay
-    # for the generator). Composite questions expand into legacy field IDs.
     update = expand_field_answer(last_field, coerced)
     next_state = {**state, **update}
+
+    if not missing_for_schedule(maxx_id, next_state):
+        return await _generate_complete(maxx_id, next_state, update)
+
+    if dynamic:
+        await merge_context(user_id, {**update, **append_asked_field(next_state, last_qid)}, db)
+        payload_out = await _emit_dynamic_question(maxx_id, next_state, {})
+        if payload_out[0]:
+            return onboarding_ack_prefix(msg) + payload_out[0], payload_out[1], payload_out[2]
+        return payload_out
+
     next_field = peek_next_question(maxx_id, next_state)
     if next_field is not None:
-        # More to ask. Update pending pointer + persist answer.
         new_pending = make_pending(maxx_id, next_field["id"])
         await merge_context(user_id, {**update, "_onboarding_pending": new_pending}, db)
         payload = field_to_question_payload(next_field)
@@ -3698,26 +3767,7 @@ async def _run_onboarding_questioner(
             payload,
         )
 
-    # All required fields collected → clear pending and generate.
-    await merge_context(user_id, {**update, **clear_pending()}, db)
-    try:
-        from services.schedule_runtime import generate_and_persist
-        result = await generate_and_persist(
-            user_id=user_id,
-            maxx_id=maxx_id,
-            db=db,
-            onboarding={**onboarding, **persistent, **update},
-            wake_time=str(state.get("wake_time") or "07:00"),
-            sleep_time=str(state.get("sleep_time") or "23:00"),
-            subscription_tier=getattr(user, "subscription_tier", None),
-        )
-        await db.commit()
-        n_days = len(result.get("days") or [])
-        text = f"perfect. your {doc.display_name.lower()} schedule is live — {n_days} days, day 1 starts now. tap schedule to see today."
-        return text, [], None
-    except Exception as e:
-        logger.exception("onboarding completion → generate failed: %s", e)
-        return f"i collected everything but generation hit a snag: {e}. retry?", [], None
+    return await _generate_complete(maxx_id, next_state, update)
 
 
 def _finish_onboarding_turn(text: str, payload: dict) -> Tuple[str, list[str], Optional[dict]]:
@@ -4172,12 +4222,27 @@ async def get_chat_history(
         state = merged_user_state(onboarding, persistent)
         pending = get_pending(state)
         if pending and get_doc(pending.get("max", "")):
-            next_field = peek_next_question(pending["max"], state)
+            maxx = pending["max"]
+            last_qid = pending.get("last_question")
+            doc = get_doc(maxx)
+            next_field = next(
+                (f for f in (doc.required_fields if doc else []) if f.get("id") == last_qid),
+                None,
+            )
+            if next_field is None:
+                next_field = peek_next_question(maxx, state)
             if next_field is not None:
-                payload = field_to_question_payload(next_field)
+                from services.dynamic_onboarding_service import (
+                    build_question_payload,
+                    is_dynamic_onboarding_enabled,
+                )
+                if is_dynamic_onboarding_enabled():
+                    payload = build_question_payload(maxx, str(next_field.get("id")), next_field.get("question"))
+                else:
+                    payload = field_to_question_payload(next_field)
                 pending_question = {
-                    "max": pending["max"],
-                    "field_id": next_field.get("id"),
+                    "max": maxx,
+                    "field_id": payload.get("field_id") or next_field.get("id"),
                     "text": payload.get("text"),
                     "choices": payload.get("choices") or [],
                     "input_widget": payload.get("input_widget"),

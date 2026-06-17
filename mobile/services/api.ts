@@ -1400,6 +1400,34 @@ class ApiService {
         return response.data;
     }
 
+    /** Dynamic max onboarding — model-driven next question (same flow as chat). */
+    async onboardingTurn(body: {
+        maxx_id?: string;
+        message?: string;
+        action?: 'start';
+    }) {
+        const response = await this.client.post('onboarding/turn', body, { timeout: 120_000 });
+        return response.data as {
+            status: 'questioning' | 'complete' | 'error';
+            assistant_text: string;
+            maxx_id?: string;
+            question?: {
+                field_id: string;
+                text: string;
+                choices: string[];
+                input_widget?: {
+                    type: 'slider';
+                    min: number;
+                    max: number;
+                    step: number;
+                    default: number;
+                    label: string;
+                    unit?: string;
+                } | null;
+            };
+        };
+    }
+
     async getChatHistory(opts?: {
         limit?: number;
         offset?: number;

@@ -28,6 +28,7 @@ from api import (
     planner_router,
     analytics_router,
     google_router,
+    onboarding_router,
 )
 
 
@@ -157,6 +158,7 @@ app.include_router(marketplace_router, prefix="/api")
 app.include_router(planner_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")
 app.include_router(google_router, prefix="/api")
+app.include_router(onboarding_router, prefix="/api")
 
 # Mount uploads directory
 uploads_dir = os.path.join(os.path.dirname(__file__), "uploads")
