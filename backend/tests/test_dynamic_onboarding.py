@@ -93,6 +93,21 @@ async def test_resolve_infers_when_llm_returns_value():
 
 
 @pytest.mark.asyncio
+async def test_fetch_rag_inspiration_mocked():
+    from services.dynamic_onboarding_service import fetch_rag_inspiration
+
+    class _Db:
+        pass
+
+    with patch(
+        "services.rag_service.retrieve_chunks",
+        new=AsyncMock(return_value=[{"content": "use ketoconazole shampoo 2x weekly", "metadata": {"section": "wash"}}]),
+    ):
+        text = await fetch_rag_inspiration(_Db(), "hairmax", target_field_id="hair_scalp_profile")
+    assert "ketoconazole" in text.lower() or "MODULE DOC" in text
+
+
+@pytest.mark.asyncio
 async def test_plan_inferred_value_expands():
     state = {"wake_time": "07:00", "sleep_time": "23:00"}
     llm_response = json.dumps({

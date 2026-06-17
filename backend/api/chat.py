@@ -3611,6 +3611,11 @@ async def _run_onboarding_questioner(
             get_asked_field_ids,
             append_asked_field,
         )
+        from services.user_persona_service import (
+            load_persona_block,
+            remember_onboarding_answer,
+            refresh_digital_persona_summary,
+        )
     except Exception as _e:  # pragma: no cover
         logger.exception("question driver import failed: %s", _e)
         return None
@@ -3627,8 +3632,35 @@ async def _run_onboarding_questioner(
     msg = (message_text or "").strip()
     dynamic = is_dynamic_onboarding_enabled()
 
+    async def _persona_block() -> str:
+        if not dynamic:
+            return ""
+        try:
+            pers = await get_context(user_id, db)
+            return await load_persona_block(db, user_id, onboarding=onboarding, persistent=pers)
+        except Exception:
+            return ""
+
+    async def _merge_personalization_signals(working: dict) -> dict:
+        try:
+            from services.personalization import state_signals as _pers_signals
+            sig = await _pers_signals(db, user_id)
+            if sig:
+                return {**working, **{k: v for k, v in sig.items() if v not in (None, "", [], {})}}
+        except Exception:
+            pass
+        return working
+
     async def _generate_complete(maxx_id: str, final_state: dict, last_update: dict) -> Tuple[str, list[str], Optional[dict]]:
         await merge_context(user_id, {**last_update, **clear_pending(), "_dynamic_onboarding_asked": None}, db)
+        if dynamic:
+            try:
+                pers = await get_context(user_id, db)
+                await refresh_digital_persona_summary(
+                    db, user_id, onboarding=onboarding, persistent={**pers, **final_state, **last_update}, maxx_id=maxx_id,
+                )
+            except Exception:
+                pass
         doc = get_doc(maxx_id)
         try:
             from services.schedule_runtime import generate_and_persist
@@ -3651,8 +3683,16 @@ async def _run_onboarding_questioner(
             return f"i collected everything but generation hit a snag: {e}. retry?", [], None
 
     async def _emit_dynamic_question(maxx_id: str, working_state: dict, persist: dict) -> Tuple[str, list[str], Optional[dict]]:
+        working_state = await _merge_personalization_signals(working_state)
+        persona = await _persona_block()
         asked = get_asked_field_ids(working_state)
-        step, infer_updates = await resolve_after_prefill(maxx_id, {**working_state, **persist}, asked_field_ids=asked)
+        step, infer_updates = await resolve_after_prefill(
+            maxx_id,
+            {**working_state, **persist},
+            asked_field_ids=asked,
+            db=db,
+            persona_block=persona,
+        )
         merged_updates = {**persist, **infer_updates}
         merged_state = {**working_state, **merged_updates}
 
@@ -3746,6 +3786,21 @@ async def _run_onboarding_questioner(
 
     update = expand_field_answer(last_field, coerced)
     next_state = {**state, **update}
+
+    if dynamic:
+        try:
+            await remember_onboarding_answer(
+                db, user_id,
+                maxx_id=maxx_id, field_id=last_qid, coerced=coerced,
+                raw_message=msg, field_spec=last_field,
+            )
+            pers = await get_context(user_id, db)
+            await refresh_digital_persona_summary(
+                db, user_id, onboarding=onboarding, persistent={**pers, **next_state}, maxx_id=maxx_id,
+            )
+            next_state = await _merge_personalization_signals(next_state)
+        except Exception as _pe:
+            logger.warning("onboarding persona update failed: %s", _pe)
 
     if not missing_for_schedule(maxx_id, next_state):
         return await _generate_complete(maxx_id, next_state, update)

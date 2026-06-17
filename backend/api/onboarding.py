@@ -32,6 +32,11 @@ from services.dynamic_onboarding_service import (
     prepare_state_for_maxx,
     resolve_after_prefill,
 )
+from services.user_persona_service import (
+    load_persona_block,
+    remember_onboarding_answer,
+    refresh_digital_persona_summary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +96,7 @@ async def onboarding_turn(
     state = merged_user_state(onboarding, persistent)
     pending = get_pending(state)
     msg = (body.message or "").strip()
+    persona = await load_persona_block(db, user_id, onboarding=onboarding, persistent=persistent)
 
     maxx_id = (body.maxx_id or "").strip().lower() or None
     if not maxx_id and pending:
@@ -119,7 +125,9 @@ async def onboarding_turn(
                 maxx_id=maxx_id,
             )
         asked = get_asked_field_ids(merged)
-        step, infer_updates = await resolve_after_prefill(maxx_id, merged, asked_field_ids=asked)
+        step, infer_updates = await resolve_after_prefill(
+            maxx_id, merged, asked_field_ids=asked, db=db, persona_block=persona,
+        )
         merged = {**merged, **infer_updates}
         if infer_updates:
             await merge_context(user_id, infer_updates, db)
@@ -176,7 +184,16 @@ async def onboarding_turn(
 
     update = expand_field_answer(last_field, coerced)
     next_state = {**state, **update}
+    await remember_onboarding_answer(
+        db, user_id, maxx_id=maxx_id, field_id=last_qid, coerced=coerced,
+        raw_message=msg, field_spec=last_field,
+    )
     await merge_context(user_id, {**update, **append_asked_field(next_state, last_qid)}, db)
+    pers = await get_context(user_id, db)
+    await refresh_digital_persona_summary(
+        db, user_id, onboarding=onboarding, persistent={**pers, **next_state}, maxx_id=maxx_id,
+    )
+    persona = await load_persona_block(db, user_id, onboarding=onboarding, persistent=await get_context(user_id, db))
 
     if not missing_for_schedule(maxx_id, next_state):
         await merge_context(user_id, {**clear_pending(), "_dynamic_onboarding_asked": None}, db)
@@ -187,7 +204,9 @@ async def onboarding_turn(
         )
 
     asked = get_asked_field_ids(next_state)
-    step, infer_updates = await resolve_after_prefill(maxx_id, next_state, asked_field_ids=asked)
+    step, infer_updates = await resolve_after_prefill(
+        maxx_id, next_state, asked_field_ids=asked, db=db, persona_block=persona,
+    )
     next_state = {**next_state, **infer_updates}
     if infer_updates:
         await merge_context(user_id, infer_updates, db)

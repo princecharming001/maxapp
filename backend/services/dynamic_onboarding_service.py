@@ -14,16 +14,18 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from config import settings
 from services.onboarding_questioner import (
     coerce_answer,
     expand_field_answer,
     field_to_question_payload,
-    make_pending,
 )
 from services.task_catalog_service import get_doc, missing_required
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +199,58 @@ def _missing_fields_brief(missing: list[dict]) -> str:
     return json.dumps(brief, ensure_ascii=False, indent=2)
 
 
+async def fetch_rag_inspiration(
+    db: Optional["AsyncSession"],
+    maxx_id: str,
+    *,
+    target_field_id: Optional[str] = None,
+    missing: Optional[list[dict]] = None,
+) -> str:
+    """Pull module doc snippets to inspire onboarding question wording (products, protocols)."""
+    if db is None:
+        return ""
+    try:
+        from services.rag_service import retrieve_chunks
+
+        field = _field_spec(maxx_id, target_field_id) if target_field_id else None
+        why = str((field or {}).get("why") or "")
+        question = str((field or {}).get("question") or target_field_id or "")
+        missing_ids = " ".join(str(f.get("id") or "") for f in (missing or [])[:5])
+        query = f"{maxx_id} onboarding {question} {why} {missing_ids} products protocol routine".strip()
+        chunks = await retrieve_chunks(db, maxx_id, query, k=3)
+        if not chunks:
+            chunks = await retrieve_chunks(db, maxx_id, f"{maxx_id} schedule protocol products", k=3)
+        if not chunks:
+            return ""
+        lines = [
+            "MODULE DOC INSPIRATION (use for question topics — shampoos, actives, timing — do NOT quote verbatim):"
+        ]
+        for i, c in enumerate(chunks, 1):
+            meta = c.get("metadata") or {}
+            section = meta.get("section") or c.get("doc_title") or "section"
+            body = (c.get("content") or "").strip()
+            if len(body) > 500:
+                body = body[:497] + "..."
+            lines.append(f"[{i}] {section}\n{body}")
+        return "\n\n".join(lines)
+    except Exception as e:
+        logger.warning("[dynamic_onboarding] RAG inspiration failed: %s", e)
+        return ""
+
+
+def _coach_voice_note() -> str:
+    provider = str(getattr(settings, "llm_provider", "") or "").strip().lower()
+    if provider == "huggingface":
+        return (
+            "Voice: fine-tuned Max coach — direct, lowercase-friendly, practical lookmaxxing tone. "
+            "Vary acknowledgments; never open with 'got it' every turn."
+        )
+    return (
+        "Voice: direct Max coach — lowercase-friendly, practical lookmaxxing tone. "
+        "Vary acknowledgments; never open with 'got it' every turn."
+    )
+
+
 def _parse_json_object(raw: str) -> dict[str, Any]:
     text = (raw or "").strip()
     if not text:
@@ -229,20 +283,28 @@ async def _llm_infer_fields(
     maxx_id: str,
     known: dict[str, Any],
     missing: list[dict],
+    *,
+    db: Optional["AsyncSession"] = None,
+    persona_block: str = "",
 ) -> dict[str, Any]:
     """Ask the model to silently fill fields already implied by known facts."""
     if not missing:
         return {}
     doc = get_doc(maxx_id)
     display = (doc.display_name if doc else maxx_id).lower()
+    rag_block = await fetch_rag_inspiration(db, maxx_id, missing=missing)
+    persona_section = f"\n\n{persona_block}\n" if persona_block else ""
+    rag_section = f"\n\n{rag_block}\n" if rag_block else ""
     prompt = f"""You are onboarding a user for their {display} schedule.
+
+{_coach_voice_note()}
 
 KNOWN USER FACTS (do NOT re-ask these):
 {format_known_facts_for_prompt(known)}
-
-MISSING FIELDS (only infer when clearly implied by KNOWN facts):
+{persona_section}
+MISSING FIELDS (only infer when clearly implied by KNOWN facts or persona):
 {_missing_fields_brief(missing)}
-
+{rag_section}
 Return JSON ONLY — an object mapping field_id -> value for fields you can infer with HIGH confidence.
 Use exact enum option keys from MISSING FIELDS, not display labels.
 For composite fields, use the composite field id and a valid composite option key.
@@ -276,6 +338,8 @@ async def plan_next_onboarding_step(
     state: dict[str, Any],
     *,
     asked_field_ids: Optional[list[str]] = None,
+    db: Optional["AsyncSession"] = None,
+    persona_block: str = "",
 ) -> DynamicOnboardingStep:
     """Step 3 — LLM chooses the next question or infers remaining fields."""
     known = build_known_facts(state, maxx_id)
@@ -290,24 +354,34 @@ async def plan_next_onboarding_step(
 
     doc = get_doc(maxx_id)
     display = (doc.display_name if doc else maxx_id).lower()
+    candidate_field = str(missing_not_asked[0].get("id") or "")
+    rag_block = await fetch_rag_inspiration(
+        db, maxx_id, target_field_id=candidate_field, missing=missing_not_asked,
+    )
+    persona_section = f"\n\n{persona_block}\n" if persona_block else ""
+    rag_section = f"\n\n{rag_block}\n" if rag_block else ""
 
     prompt = f"""You are Max, a direct lookmaxxing coach onboarding someone for {display}.
 
-KNOWN ABOUT THIS USER (never repeat these):
-{format_known_facts_for_prompt(known)}
+{_coach_voice_note()}
 
+DIGITAL PERSONA + KNOWN FACTS (never repeat these — includes other maxes they've set up):
+{format_known_facts_for_prompt(known)}
+{persona_section}
 STILL NEEDED FOR THEIR SCHEDULE:
 {_missing_fields_brief(missing_not_asked)}
 
 ALREADY ASKED THIS SESSION: {asked or "none"}
-
-Pick ONE missing field to ask about next OR infer it from KNOWN facts.
+{rag_section}
+Pick ONE missing field to ask about next OR infer it from KNOWN/persona facts.
 
 Rules:
-- Do NOT ask about anything in KNOWN.
-- One question only, conversational, lowercase-friendly, no "got it" opener.
-- If a field is clearly answered by KNOWN facts, infer it instead of asking.
+- Do NOT ask about anything already in KNOWN or persona.
+- Use MODULE DOC INSPIRATION for specific product/protocol angles (e.g. shampoo type, actives) when relevant.
+- One question only, conversational, lowercase-friendly.
+- If a field is clearly answered already, infer it instead of asking.
 - field_id MUST be one of the missing field ids.
+- Chip choices stay the same enum keys — you only rewrite the question text.
 
 Return JSON ONLY:
 {{"field_id": "...", "question": "...", "inferred_value": null}}
@@ -355,13 +429,21 @@ def build_question_payload(maxx_id: str, field_id: str, question_text: Optional[
     return payload
 
 
-async def apply_llm_prefill(maxx_id: str, state: dict[str, Any]) -> dict[str, Any]:
+async def apply_llm_prefill(
+    maxx_id: str,
+    state: dict[str, Any],
+    *,
+    db: Optional["AsyncSession"] = None,
+    persona_block: str = "",
+) -> dict[str, Any]:
     """Run LLM inference pass to auto-fill obvious gaps."""
     missing = missing_for_schedule(maxx_id, state)
     if not missing:
         return {}
     known = build_known_facts(state, maxx_id)
-    inferred_raw = await _llm_infer_fields(maxx_id, known, missing)
+    inferred_raw = await _llm_infer_fields(
+        maxx_id, known, missing, db=db, persona_block=persona_block,
+    )
     updates: dict[str, Any] = {}
     for fid, coerced in inferred_raw.items():
         spec = _field_spec(maxx_id, fid)
@@ -396,13 +478,15 @@ async def resolve_after_prefill(
     *,
     asked_field_ids: Optional[list[str]] = None,
     max_infer_loops: int = 4,
+    db: Optional["AsyncSession"] = None,
+    persona_block: str = "",
 ) -> tuple[DynamicOnboardingStep, dict[str, Any]]:
     """Apply LLM inference loops then return the next ask step or done."""
     merged = dict(state)
     persisted: dict[str, Any] = {}
     asked = list(asked_field_ids or [])
 
-    llm_fill = await apply_llm_prefill(maxx_id, merged)
+    llm_fill = await apply_llm_prefill(maxx_id, merged, db=db, persona_block=persona_block)
     if llm_fill:
         merged.update(llm_fill)
         persisted.update(llm_fill)
@@ -411,7 +495,9 @@ async def resolve_after_prefill(
         if not missing_for_schedule(maxx_id, merged):
             return DynamicOnboardingStep(done=True), persisted
 
-        step = await plan_next_onboarding_step(maxx_id, merged, asked_field_ids=asked)
+        step = await plan_next_onboarding_step(
+            maxx_id, merged, asked_field_ids=asked, db=db, persona_block=persona_block,
+        )
         if step.inferred_updates:
             merged.update(step.inferred_updates)
             persisted.update(step.inferred_updates)
