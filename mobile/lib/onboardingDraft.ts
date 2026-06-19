@@ -34,7 +34,7 @@ export type OnboardingAnswers = {
     skipLunch: boolean;
     skipDinner: boolean;
     anchors: string[];
-    workoutChoice: string;
+    workoutMin: number;
     weekendShift: boolean;
 };
 

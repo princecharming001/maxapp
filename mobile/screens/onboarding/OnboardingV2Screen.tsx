@@ -148,13 +148,6 @@ const ANCHORS = [
     { id: 'commute', label: 'Commute', icon: 'car-outline' },
 ] as const;
 
-const WORKOUTS = [
-    ['before_work', 'Before work', 'alarm-outline'],
-    ['lunch', 'Lunch', 'restaurant-outline'],
-    ['after_work', 'After work', 'briefcase-outline'],
-    ['evening', 'Evenings', 'moon-outline'],
-] as const;
-
 const CHRONOTYPES = [
     ['morning', 'Mornings', 'sunny-outline'],
     ['afternoon', 'Afternoons', 'partly-sunny-outline'],
@@ -171,13 +164,6 @@ const LOCATIONS = [
     ['hybrid', 'Hybrid'],
     ['home', 'From home'],
 ] as const;
-
-const WORKOUT_LABEL: Record<string, string> = {
-    before_work: 'Before work',
-    lunch: 'At lunch',
-    after_work: 'After work',
-    evening: 'In the evening',
-};
 
 function fmt12(min: number): string {
     let h = Math.floor(min / 60);
@@ -510,7 +496,7 @@ export default function OnboardingV2Screen() {
     const [skipLunch, setSkipLunch] = useState(false);
     const [skipDinner, setSkipDinner] = useState(false);
     const [anchors, setAnchors] = useState<string[]>([]);
-    const [workoutChoice, setWorkoutChoice] = useState<string>('after_work');
+    const [workoutMin, setWorkoutMin] = useState(7 * 60); // 7 AM default
     const [weekendShift, setWeekendShift] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -547,7 +533,7 @@ export default function OnboardingV2Screen() {
                 if (typeof a.skipLunch === 'boolean') setSkipLunch(a.skipLunch);
                 if (typeof a.skipDinner === 'boolean') setSkipDinner(a.skipDinner);
                 if (Array.isArray(a.anchors)) setAnchors(a.anchors);
-                if (typeof a.workoutChoice === 'string') setWorkoutChoice(a.workoutChoice);
+                if (typeof a.workoutMin === 'number') setWorkoutMin(a.workoutMin);
                 if (typeof a.weekendShift === 'boolean') setWeekendShift(a.weekendShift);
                 if (typeof d.step === 'number' && d.step >= 0) setStep(d.step);
             })
@@ -569,13 +555,13 @@ export default function OnboardingV2Screen() {
             goals, motivation, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
             workStartMin, workEndMin, workLocation, commuteMin, chronotype,
             breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
-            anchors, workoutChoice, weekendShift,
+            anchors, workoutMin, weekendShift,
         });
     }, [
         draftLoaded, step, goals, motivation, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
         workStartMin, workEndMin, workLocation, commuteMin, chronotype,
         breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
-        anchors, workoutChoice, weekendShift,
+        anchors, workoutMin, weekendShift,
     ]);
 
     // Wheel picker — `picker` holds the field currently being edited. A bumping
@@ -650,7 +636,7 @@ export default function OnboardingV2Screen() {
                     skipDinner && 'dinner',
                 ].filter(Boolean) as string[],
                 anchor_cues: anchors,
-                workout_window_choice: workoutChoice,
+                workout_time: hhmm(workoutMin),
                 weekend_shift: weekendShift,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
                 completed: false,
@@ -683,14 +669,6 @@ export default function OnboardingV2Screen() {
         }
     };
 
-    // Roughly when the workout / commute lands, so they sort into the day even
-    // though the user picked a window rather than an exact time.
-    const workoutSort =
-        workoutChoice === 'before_work' ? workStartMin - 60
-        : workoutChoice === 'lunch' ? lunchMin
-        : workoutChoice === 'evening' ? 19 * 60
-        : workEndMin + 1; // after_work / default
-
     // Built day-order, then sorted chronologically by start time so meals fall
     // where they actually happen (stable sort keeps Wake before a same-minute
     // Get ready, etc.).
@@ -703,7 +681,7 @@ export default function OnboardingV2Screen() {
         ...(hasCommute
             ? [{ icon: 'car-outline', label: 'Commute', value: `${commuteMin} min each way`, sort: workStartMin - commuteMin }]
             : []),
-        { icon: 'barbell-outline', label: 'Workout', value: WORKOUT_LABEL[workoutChoice] || 'After work', sort: workoutSort },
+        { icon: 'barbell-outline', label: 'Workout', value: fmt12(workoutMin), sort: workoutMin },
         ...(!skipBreakfast ? [{ icon: 'cafe-outline', label: 'Breakfast', value: fmt12(breakfastMin), sort: breakfastMin }] : []),
         ...(!skipLunch ? [{ icon: 'restaurant-outline', label: 'Lunch', value: fmt12(lunchMin), sort: lunchMin }] : []),
         ...(!skipDinner ? [{ icon: 'wine-outline', label: 'Dinner', value: fmt12(dinnerMin), sort: dinnerMin }] : []),
@@ -934,25 +912,31 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 8 — rhythm (workout + weekends) — icon cards
+        // 8 — rhythm (workout time + weekends)
         {
             title: 'Your rhythm',
             sub: 'So things land when they actually happen.',
             canNext: true,
             body: (
                 <View>
-                    <Text style={[styles.groupLabel, { marginTop: 0 }]}>WHEN WOULD YOU WORK OUT?</Text>
-                    <View style={{ gap: 10 }}>
-                        {WORKOUTS.map(([id, label, icon]) => (
-                            <OptionCard
-                                key={id}
-                                icon={icon}
-                                label={label}
-                                active={workoutChoice === id}
-                                onPress={() => setWorkoutChoice(id)}
-                            />
-                        ))}
-                    </View>
+                    <Text style={[styles.groupLabel, { marginTop: 0 }]}>WORKOUT TIME</Text>
+                    <TouchableOpacity
+                        onPress={() => openTime('When do you work out?', workoutMin, setWorkoutMin)}
+                        style={{
+                            paddingVertical: 14,
+                            paddingHorizontal: 16,
+                            backgroundColor: colors.background,
+                            borderRadius: 12,
+                            borderColor: colors.border,
+                            borderWidth: 1,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                        }}
+                    >
+                        <Text style={{ fontSize: 16, color: colors.text }}>{fmt12(workoutMin)}</Text>
+                        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                    </TouchableOpacity>
 
                     <Text style={styles.groupLabel}>WEEKENDS?</Text>
                     <View style={{ gap: 10 }}>
