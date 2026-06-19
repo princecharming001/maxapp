@@ -27,6 +27,7 @@ import MarketplaceScreen from '../screens/marketplace/MarketplaceScreen';
 import YouScreen from '../screens/you/YouScreen';
 import TodayV2Screen from '../screens/today/TodayScreen';
 import { useFlag } from '../constants/featureFlags';
+import { getRestoredTab, pickInitialTab } from '../lib/navState';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -208,6 +209,11 @@ function NewTabNavigator({ insets }: { insets: { bottom: number } }) {
     const TodayComponent = todayV2 ? TodayV2Screen : MasterScheduleScreen;
     return (
         <Tab.Navigator
+            // Restore the tab the user left (lib/navState); falls back to the
+            // first tab when there's nothing valid to restore.
+            initialRouteName={pickInitialTab(getRestoredTab(), [
+                'MasterScheduleTab', 'Explore', 'Chat', 'YouTab',
+            ])}
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: [
@@ -300,6 +306,11 @@ export default function TabNavigator() {
                 onStop={handleTourStop}
             >
             <Tab.Navigator
+                // Restore the tab the user left (lib/navState); falls back to
+                // Home when there's nothing valid to restore.
+                initialRouteName={pickInitialTab(getRestoredTab(), [
+                    'Home', 'MasterScheduleTab', 'PlannerTab', 'Explore', 'Chat', 'Forums',
+                ])}
                 screenOptions={{
                     headerShown: false,
                     tabBarStyle: [

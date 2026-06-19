@@ -1,16 +1,20 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, View, Platform, type AppStateStatus, type ViewStyle } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { CommonActions, NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RootNavigator } from './navigation/RootNavigator';
 import { queryClient } from './lib/queryClient';
+import { hydrateQueryClient, startQueryPersistence } from './lib/queryPersist';
+import { installGlobalErrorHandlers } from './lib/globalErrorHandlers';
+import AppErrorBoundary from './components/AppErrorBoundary';
+import { loadRestoredTab, persistActiveTab, extractActiveTab } from './lib/navState';
 import { navigationRef } from './lib/navigationRef';
 import { colors } from './theme/dark';
 import MaxLoadingView from './components/MaxLoadingView';
@@ -31,6 +35,11 @@ import {
 import './services/localScheduleNotifications';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+// Install process-level crash safety nets ASAP (before any provider mounts) so
+// uncaught async errors / unhandled rejections can't silently white-screen the
+// app or crash-loop it at boot. Idempotent.
+installGlobalErrorHandlers();
 
 // DEV: set true to render the planner redesign mockups (design review only).
 const SHOW_PLANNER_MOCKS = false;
@@ -202,6 +211,10 @@ function AppNavigator() {
                     pendingDeepLinkRef.current = null;
                 }
             }}
+            // Remember which paid-app tab the user is on so a reload/relaunch
+            // restores it instead of bouncing to the default tab. Scoped + safe:
+            // persistActiveTab only writes known Main tabs (see lib/navState).
+            onStateChange={(state) => persistActiveTab(extractActiveTab(state))}
         >
             <StatusBar style="dark" />
             <RootNavigator />
@@ -233,15 +246,48 @@ export default function App() {
         'PlayfairDisplay-Italic': require('./assets/fonts/Fraunces-Italic.ttf'),
     });
 
+    // Restore the persisted React Query cache BEFORE the provider tree mounts,
+    // so the first paint of data screens shows last-known data instead of
+    // empty/loading. Persistence starts only AFTER hydration resolves so an
+    // early empty snapshot can't clobber the stored blob.
+    const [cacheHydrated, setCacheHydrated] = useState(false);
     useEffect(() => {
-        if (fontsLoaded) {
+        let cancelled = false;
+        let stopPersistence: (() => void) | undefined;
+        // Restore the persisted cache AND the last-active tab before the first
+        // paint, so data screens show last-known data and the user lands back on
+        // the tab they left.
+        void Promise.all([hydrateQueryClient(queryClient), loadRestoredTab()]).finally(() => {
+            if (cancelled) return;
+            setCacheHydrated(true);
+            stopPersistence = startQueryPersistence(queryClient);
+        });
+        return () => {
+            cancelled = true;
+            stopPersistence?.();
+        };
+    }, []);
+
+    // Foreground revalidation: tell React Query the app regained focus when it
+    // returns to the foreground, so stale queries refetch (self-heals data
+    // after a background/kill). RN-only; web keeps its default focus handling.
+    useEffect(() => {
+        const sub = AppState.addEventListener('change', (status: AppStateStatus) => {
+            if (Platform.OS !== 'web') focusManager.setFocused(status === 'active');
+        });
+        return () => sub.remove();
+    }, []);
+
+    useEffect(() => {
+        if (fontsLoaded && cacheHydrated) {
             void SplashScreen.hideAsync().catch(() => undefined);
         }
-    }, [fontsLoaded]);
+    }, [fontsLoaded, cacheHydrated]);
 
-    // Native: keep the OS splash visible until fonts load (matches MaxLoadingView look via assets/splash.png).
+    // Native: keep the OS splash visible until fonts AND the restored cache are
+    // ready (matches MaxLoadingView look via assets/splash.png).
     // Web: no native splash — show the same React loading UI.
-    if (!fontsLoaded) {
+    if (!fontsLoaded || !cacheHydrated) {
         if (Platform.OS === 'web') {
             return <MaxLoadingView />;
         }
@@ -263,19 +309,27 @@ export default function App() {
 
     return (
         <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
-            <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
-            <StripeProviderGate>
-                <QueryClientProvider client={queryClient}>
-                    <SafeAreaProvider style={{ flex: 1, backgroundColor: colors.background }}>
-                        <View style={[{ flex: 1, backgroundColor: colors.background }, webContainerStyle]}>
-                            <AuthProvider>
-                                <AppNavigator />
-                            </AuthProvider>
-                        </View>
-                    </SafeAreaProvider>
-                </QueryClientProvider>
-            </StripeProviderGate>
-            </TamaguiProvider>
+            {/* Top-level crash backstop. Wraps the entire provider tree so even a
+                provider/render crash shows a recovery screen instead of a white
+                screen; onReset clears the in-memory cache (the boundary itself
+                clears the boot-restored blobs) so recovery doesn't immediately
+                re-throw on the same poisoned state. Uses plain RN components, so
+                it renders even if Tamagui/providers are what failed. */}
+            <AppErrorBoundary label="root" onReset={() => { try { queryClient.clear(); } catch { /* ignore */ } }}>
+                <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
+                <StripeProviderGate>
+                    <QueryClientProvider client={queryClient}>
+                        <SafeAreaProvider style={{ flex: 1, backgroundColor: colors.background }}>
+                            <View style={[{ flex: 1, backgroundColor: colors.background }, webContainerStyle]}>
+                                <AuthProvider>
+                                    <AppNavigator />
+                                </AuthProvider>
+                            </View>
+                        </SafeAreaProvider>
+                    </QueryClientProvider>
+                </StripeProviderGate>
+                </TamaguiProvider>
+            </AppErrorBoundary>
         </GestureHandlerRootView>
     );
 }

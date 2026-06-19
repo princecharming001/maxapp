@@ -11,6 +11,8 @@ import {
     Linking,
     type AppStateStatus,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,7 +20,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { queryClient, queryKeys } from '../../lib/queryClient';
-import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
+import { colors, spacing, borderRadius, fonts } from '../../theme/dark';
 import { CachedImage } from '../../components/CachedImage';
 import AnalyzingScreen from './AnalyzingScreen';
 import {
@@ -68,6 +70,7 @@ const STEPS = [
 
 export default function FaceScanScreen() {
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
     const { user, isPaid, isPremium, isScanUser, refreshUser } = useAuth();
     const [permission, requestPermission] = useCameraPermissions();
     const cameraRef = useRef<CameraView>(null);
@@ -86,13 +89,16 @@ export default function FaceScanScreen() {
     const uploadActiveRef = useRef(false);
 
     const navigateToResults = useCallback(() => {
+        // `justSubmitted` tells the results screen this is the genuine
+        // post-upload hand-off — only then should it clear the captured-photo
+        // draft + pending flag. Post-pay redirects into FaceScanResults (from
+        // Home / Payment) must NOT carry it, or they'd wipe an unrelated
+        // in-progress scan draft.
+        const resultsRoute = { name: 'FaceScanResults', params: { justSubmitted: true } };
         if (isScanUser) {
             // ScanOnlyNavigator only contains FaceScan + FaceScanResults; FeaturesIntro doesn't exist there.
             navigation.dispatch(
-                CommonActions.reset({
-                    index: 0,
-                    routes: [{ name: 'FaceScanResults' }],
-                }),
+                CommonActions.reset({ index: 0, routes: [resultsRoute] }),
             );
             return;
         }
@@ -100,17 +106,14 @@ export default function FaceScanScreen() {
         // back into the stack — that's only for the first-scan onboarding flow.
         if (user?.first_scan_completed) {
             navigation.dispatch(
-                CommonActions.reset({
-                    index: 0,
-                    routes: [{ name: 'FaceScanResults' }],
-                }),
+                CommonActions.reset({ index: 0, routes: [resultsRoute] }),
             );
             return;
         }
         navigation.dispatch(
             CommonActions.reset({
                 index: 1,
-                routes: [{ name: 'FeaturesIntro' }, { name: 'FaceScanResults' }],
+                routes: [{ name: 'FeaturesIntro' }, resultsRoute],
             }),
         );
     }, [navigation, isScanUser, user?.first_scan_completed]);
@@ -448,8 +451,12 @@ export default function FaceScanScreen() {
                 queryKey: queryKeys.schedulesActiveFull,
                 refetchType: 'all',
             });
-            await clearPendingFaceScanSubmit();
-            await clearFaceScanDraft();
+            // Hand off to the results screen, which clears the pending flag +
+            // captured-photo draft once it has actually MOUNTED. Clearing them
+            // here — before navigation is confirmed — risked wiping the photos
+            // and disabling recovery if the app was killed in the gap. Leaving
+            // the pending flag set until results mounts means any interruption
+            // still recovers straight to results on the next launch.
             navigateToResults();
             didLeaveScan = true;
         } catch (err: unknown) {
@@ -477,7 +484,7 @@ export default function FaceScanScreen() {
 
     if (!bootstrapped) {
         return (
-            <View style={[styles.container, styles.bootstrapRoot]}>
+            <View style={[styles.root, styles.bootstrapRoot]}>
                 <ActivityIndicator size="large" color={colors.foreground} />
                 <Text style={styles.bootstrapHint}>Restoring your scan…</Text>
             </View>
@@ -486,7 +493,7 @@ export default function FaceScanScreen() {
 
     if (!permission?.granted) {
         return (
-            <View style={[styles.container, styles.permWrap]}>
+            <View style={[styles.root, styles.permWrap]}>
                 <Text style={styles.permText}>Camera access is needed for your face scan.</Text>
                 <TouchableOpacity style={styles.permBtn} onPress={() => void onEnableCamera()}>
                     <Text style={styles.permBtnText}>Allow camera</Text>
@@ -496,11 +503,50 @@ export default function FaceScanScreen() {
     }
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIcon} hitSlop={12}>
-                    <Ionicons name="arrow-back" size={20} color={colors.foreground} />
-                </TouchableOpacity>
+        <View style={styles.root}>
+            {/* ── Full-bleed camera / preview ───────────────────────── */}
+            {hasCurrent ? (
+                <CachedImage uri={currentUri!} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : appActive ? (
+                <CameraView
+                    key={cameraSession}
+                    ref={cameraRef}
+                    style={StyleSheet.absoluteFill}
+                    facing={facing}
+                    mode="picture"
+                    // Front camera preview is auto-mirrored (selfie view). Mirror the
+                    // captured photo too so the saved image matches what the user saw —
+                    // otherwise it flips left/right on capture.
+                    mirror={facing === 'front'}
+                />
+            ) : (
+                <View style={[StyleSheet.absoluteFill, styles.cameraPaused]}>
+                    <Text style={styles.cameraPausedText}>Camera paused</Text>
+                </View>
+            )}
+
+            {/* Top scrim */}
+            <LinearGradient
+                pointerEvents="none"
+                colors={['rgba(0,0,0,0.52)', 'transparent']}
+                style={styles.topScrim}
+            />
+            {/* Bottom scrim */}
+            <LinearGradient
+                pointerEvents="none"
+                colors={['transparent', 'rgba(0,0,0,0.68)']}
+                style={styles.bottomScrim}
+            />
+
+            {/* ── Header: back + dots ───────────────────────────────── */}
+            <View style={[styles.header, { paddingTop: Math.max(insets.top + 10, 52) }]}>
+                {navigation.canGoBack() ? (
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIcon} hitSlop={12}>
+                        <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.9)" />
+                    </TouchableOpacity>
+                ) : (
+                    <View style={styles.headerIcon} />
+                )}
                 <View style={styles.stepDots}>
                     {STEPS.map((_, i) => (
                         <View
@@ -516,72 +562,42 @@ export default function FaceScanScreen() {
                 <View style={styles.headerIcon} />
             </View>
 
+            {/* ── Title block ───────────────────────────────────────── */}
             <View style={styles.titleBlock}>
                 <Text style={styles.title}>{step.title}</Text>
                 <Text style={styles.instruction}>{step.instruction}</Text>
             </View>
 
-            <View style={styles.cameraContainer}>
-                {hasCurrent ? (
-                    <CachedImage uri={currentUri!} style={styles.preview} />
-                ) : appActive ? (
-                    <>
-                        <CameraView
-                            key={cameraSession}
-                            ref={cameraRef}
-                            style={styles.camera}
-                            facing={facing}
-                            mode="picture"
-                        />
-                        <TouchableOpacity
-                            style={styles.flipBtn}
-                            onPress={() => setFacing((f) => (f === 'front' ? 'back' : 'front'))}
-                            activeOpacity={0.85}
-                            hitSlop={8}
-                            accessibilityLabel="Flip camera"
-                        >
-                            <Ionicons name="camera-reverse-outline" size={22} color="#fff" />
-                        </TouchableOpacity>
-                    </>
-                ) : (
-                    <View style={[styles.camera, styles.cameraPaused]}>
-                        <Text style={styles.cameraPausedText}>Camera paused</Text>
-                    </View>
-                )}
-            </View>
-
-            <View style={styles.actions}>
-                {!hasCurrent && (
+            {/* ── Bottom controls ───────────────────────────────────── */}
+            <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 24, 40) }]}>
+                {!hasCurrent ? (
                     <View style={styles.captureRow}>
-                        <View style={styles.captureRowSpacer} />
-                        <View style={styles.captureControls}>
-                            <TouchableOpacity style={styles.primaryBtn} onPress={capture} activeOpacity={0.8}>
-                                <View style={styles.captureRing}>
-                                    <View style={styles.captureInner} />
-                                </View>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.uploadHit} onPress={pickFromLibrary} activeOpacity={0.7}>
-                                <Ionicons name="images-outline" size={22} color={colors.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-                        <View style={styles.captureRowSpacer} />
-                    </View>
-                )}
+                        {/* Upload from library */}
+                        <TouchableOpacity style={styles.sideAction} onPress={pickFromLibrary} activeOpacity={0.7}>
+                            <Ionicons name="images-outline" size={26} color="rgba(255,255,255,0.80)" />
+                        </TouchableOpacity>
 
-                {hasCurrent && (
+                        {/* Shutter — glassy translucent */}
+                        <TouchableOpacity style={styles.shutterOuter} onPress={capture} activeOpacity={0.8}>
+                            <View style={styles.shutterInner} />
+                        </TouchableOpacity>
+
+                        {/* Spacer mirror */}
+                        <View style={styles.sideAction} />
+                    </View>
+                ) : (
                     <View style={styles.confirmedRow}>
-                        <TouchableOpacity style={styles.outlineBtn} onPress={retake} activeOpacity={0.8}>
-                            <Text style={styles.outlineBtnText}>Retake</Text>
+                        <TouchableOpacity style={styles.glassBtn} onPress={retake} activeOpacity={0.8}>
+                            <Text style={styles.glassBtnText}>Retake</Text>
                         </TouchableOpacity>
                         {stepIndex < STEPS.length - 1 ? (
-                            <TouchableOpacity style={styles.filledBtn} onPress={goNext} activeOpacity={0.8}>
-                                <Text style={styles.filledBtnText}>Next angle</Text>
-                                <Ionicons name="arrow-forward" size={16} color={colors.background} />
+                            <TouchableOpacity style={styles.solidBtn} onPress={goNext} activeOpacity={0.8}>
+                                <Text style={styles.solidBtnText}>Next angle</Text>
+                                <Ionicons name="arrow-forward" size={16} color="#000" />
                             </TouchableOpacity>
                         ) : (
-                            <TouchableOpacity style={styles.filledBtn} onPress={submitScans} activeOpacity={0.8}>
-                                <Text style={styles.filledBtnText}>Analyze</Text>
-                                <Ionicons name="sparkles" size={16} color={colors.background} />
+                            <TouchableOpacity style={styles.solidBtn} onPress={submitScans} activeOpacity={0.8}>
+                                <Text style={styles.solidBtnText}>Analyze</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -593,23 +609,17 @@ export default function FaceScanScreen() {
                     </TouchableOpacity>
                 )}
             </View>
-
-            <Text style={styles.hint}>
-                {isPremium
-                    ? 'One scan per day · Premium'
-                    : isPaid
-                      ? 'One scan included · Upgrade for daily scans'
-                      : 'Free preview scan · Three angles'}
-            </Text>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
+    root: { flex: 1, backgroundColor: '#000' },
+
+    /* permission / bootstrap */
     bootstrapRoot: { justifyContent: 'center', alignItems: 'center', gap: spacing.md },
     bootstrapHint: { fontSize: 14, color: colors.textMuted },
-    permWrap: { justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
+    permWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
     permText: { fontSize: 15, color: colors.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: spacing.lg },
     permBtn: {
         backgroundColor: colors.foreground,
@@ -618,162 +628,142 @@ const styles = StyleSheet.create({
         borderRadius: borderRadius.full,
     },
     permBtnText: { fontSize: 15, fontWeight: '600', color: colors.background },
+
+    /* scrims */
+    topScrim: {
+        position: 'absolute',
+        top: 0, left: 0, right: 0,
+        height: '38%',
+    },
+    bottomScrim: {
+        position: 'absolute',
+        bottom: 0, left: 0, right: 0,
+        height: '42%',
+    },
+
+    /* header */
     header: {
+        position: 'absolute',
+        top: 0, left: 0, right: 0,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: 56,
-        paddingHorizontal: spacing.lg,
+        paddingHorizontal: 20,
     },
     headerIcon: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-    stepDots: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
+    stepDots: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     stepDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: colors.surface,
+        width: 8, height: 8, borderRadius: 4,
+        backgroundColor: 'rgba(255,255,255,0.35)',
     },
-    stepDotActive: {
-        width: 24,
-        backgroundColor: colors.foreground,
-    },
-    stepDotDone: {
-        backgroundColor: colors.foreground,
-    },
+    stepDotActive: { width: 24, backgroundColor: '#FFFFFF' },
+    stepDotDone:   { backgroundColor: 'rgba(255,255,255,0.75)' },
+
+    /* title */
     titleBlock: {
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing.lg,
+        position: 'absolute',
+        top: 108,
+        left: 0, right: 0,
         alignItems: 'center',
+        paddingHorizontal: 24,
     },
     title: {
-        fontFamily: fonts.serif,
-        fontSize: 24,
-        fontWeight: '400',
-        color: colors.foreground,
-        letterSpacing: -0.3,
+        fontFamily: fonts.sansLight,
+        fontSize: 20,
+        fontWeight: '300',
+        color: 'rgba(255,255,255,0.90)',
+        letterSpacing: 0.8,
         textAlign: 'center',
+        textTransform: 'uppercase',
     },
     instruction: {
-        fontSize: 14,
-        color: colors.textSecondary,
+        fontFamily: fonts.sans,
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.42)',
         textAlign: 'center',
         marginTop: 4,
+        letterSpacing: 0.1,
     },
-    cameraContainer: {
-        flex: 1,
-        marginHorizontal: spacing.lg,
-        marginTop: spacing.lg,
-        borderRadius: borderRadius.xl,
-        overflow: 'hidden',
-        backgroundColor: '#000',
-        minHeight: 360,
-    },
-    camera: { flex: 1, width: '100%', minHeight: 360 },
-    flipBtn: {
-        position: 'absolute',
-        top: 12,
-        right: 12,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.45)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+
+    /* camera */
     cameraPaused: { backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' },
     cameraPausedText: { color: '#fff', fontSize: 15, opacity: 0.85 },
-    preview: { flex: 1, width: '100%', minHeight: 360 },
-    actions: {
-        paddingHorizontal: spacing.lg,
-        paddingTop: spacing.lg,
-        paddingBottom: spacing.md,
+
+    /* bottom bar */
+    bottomBar: {
+        position: 'absolute',
+        bottom: 0, left: 0, right: 0,
         alignItems: 'center',
+        paddingHorizontal: 24,
+        gap: 10,
     },
+
+    /* capture row */
     captureRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'space-between',
         width: '100%',
+        paddingHorizontal: 8,
     },
-    captureRowSpacer: {
-        flex: 1,
-        minWidth: 0,
+    sideAction: {
+        width: 48, height: 48,
+        alignItems: 'center', justifyContent: 'center',
     },
-    captureControls: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 28,
+
+    /* glassy shutter button */
+    shutterOuter: {
+        width: 80, height: 80, borderRadius: 40,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,0.28)',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        alignItems: 'center', justifyContent: 'center',
     },
-    primaryBtn: {
-        alignItems: 'center',
-        justifyContent: 'center',
+    shutterInner: {
+        width: 58, height: 58, borderRadius: 29,
+        backgroundColor: 'rgba(255,255,255,0.48)',
     },
-    captureRing: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        borderWidth: 3,
-        borderColor: colors.foreground,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    captureInner: {
-        width: 58,
-        height: 58,
-        borderRadius: 29,
-        backgroundColor: colors.foreground,
-    },
-    uploadHit: {
-        width: 48,
-        height: 48,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+
+    /* confirmed state */
     confirmedRow: {
         flexDirection: 'row',
-        gap: 12,
+        gap: 10,
         width: '100%',
     },
-    outlineBtn: {
+    glassBtn: {
         flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: borderRadius.full,
+        alignItems: 'center', justifyContent: 'center',
+        paddingVertical: 15,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.18)',
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-        paddingVertical: 14,
+        borderColor: 'rgba(255,255,255,0.35)',
     },
-    outlineBtnText: {
+    glassBtnText: {
+        fontFamily: fonts.sansMedium,
         fontSize: 15,
-        fontWeight: '500',
-        color: colors.foreground,
+        color: '#FFFFFF',
     },
-    filledBtn: {
+    solidBtn: {
         flex: 1,
         flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: 'center', justifyContent: 'center',
         gap: 6,
-        backgroundColor: colors.foreground,
-        borderRadius: borderRadius.full,
-        paddingVertical: 14,
+        paddingVertical: 15,
+        borderRadius: 999,
+        backgroundColor: '#FFFFFF',
     },
-    filledBtnText: {
+    solidBtnText: {
+        fontFamily: fonts.sansSemiBold,
         fontSize: 15,
-        fontWeight: '600',
-        color: colors.background,
+        color: '#000000',
     },
-    linkBack: { alignItems: 'center', paddingVertical: spacing.sm, marginTop: spacing.xs },
-    linkBackText: { color: colors.textMuted, fontSize: 13 },
-    hint: {
-        fontSize: 12,
-        color: colors.textMuted,
-        textAlign: 'center',
-        paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.lg,
+
+    /* previous angle */
+    linkBack: { paddingVertical: 4 },
+    linkBackText: {
+        fontFamily: fonts.sans,
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.45)',
     },
 });

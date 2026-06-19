@@ -8,6 +8,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getItemAsync } from '../services/storage';
 import api, { subscribeAuthLost } from '../services/api';
 import { clearFaceScanDraft, clearPendingFaceScanSubmit } from '../lib/faceScanDraft';
+import { clearOnboardingDraft } from '../lib/onboardingDraft';
+import { clearRestoredTab } from '../lib/navState';
+import {
+    clearPersistedQueryCache,
+    getPersistedCacheUserId,
+    setPersistUserId,
+} from '../lib/queryPersist';
 import { getIosApnsDeviceTokenForBackend } from '../services/registerIosPushToken';
 
 type SubscriptionTier = 'basic' | 'premium' | null;
@@ -141,6 +148,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const token = await getItemAsync('access_token');
             if (token) {
                 const userData = await api.getMe();
+                // Cross-user guard: the query cache was hydrated at boot before
+                // we knew who's logged in. If the persisted blob belongs to a
+                // DIFFERENT user (a prior session that ended without teardown),
+                // drop it now — before this user's screens mount — so we never
+                // flash the previous user's data.
+                try {
+                    const cachedUid = await getPersistedCacheUserId();
+                    if (cachedUid && userData?.id && cachedUid !== userData.id) {
+                        await clearPersistedQueryCache().catch(() => undefined);
+                        queryClient.clear();
+                    }
+                } catch {
+                    /* ignore — worst case is a brief stale flash, refetch fixes it */
+                }
                 setUser(userData);
             }
         } catch {
@@ -148,11 +169,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [queryClient]);
 
     useEffect(() => {
         void checkAuth();
     }, [checkAuth]);
+
+    // Stamp the persisted query cache with the current user so a different
+    // user's cold start can detect + drop a stale blob. Covers every path that
+    // sets `user` (login, signup, faux, refresh, logout→null).
+    useEffect(() => {
+        setPersistUserId(user?.id ?? null);
+    }, [user?.id]);
 
     // When the api layer detects a permanently-invalid session (refresh 401'd,
     // account deleted, key rotated), tear down auth state so React Query hooks
@@ -168,6 +196,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
             void clearPendingFaceScanSubmit().catch(() => undefined);
             void clearFaceScanDraft().catch(() => undefined);
+            void clearOnboardingDraft().catch(() => undefined);
+            void clearRestoredTab().catch(() => undefined);
+            void clearPersistedQueryCache().catch(() => undefined);
         });
         return unsubscribe;
     }, [queryClient]);
@@ -245,6 +276,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         queryClient.clear();
         await clearPendingFaceScanSubmit().catch(() => undefined);
         await clearFaceScanDraft().catch(() => undefined);
+        await clearOnboardingDraft().catch(() => undefined);
+        await clearRestoredTab().catch(() => undefined);
+        await clearPersistedQueryCache().catch(() => undefined);
     }, [queryClient]);
 
     const refreshUser = useCallback(async (): Promise<User> => {
@@ -259,6 +293,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         await clearPendingFaceScanSubmit().catch(() => undefined);
         await clearFaceScanDraft().catch(() => undefined);
+        await clearOnboardingDraft().catch(() => undefined);
+        await clearRestoredTab().catch(() => undefined);
+        await clearPersistedQueryCache().catch(() => undefined);
     }, []);
 
     const subscriptionTier: SubscriptionTier = (user?.subscription_tier as SubscriptionTier) ?? null;

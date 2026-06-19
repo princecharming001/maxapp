@@ -5,6 +5,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 const DRAFT_DIR = `${FileSystem.documentDirectory ?? ''}face-scan-draft`;
 const META_KEY = '@max_face_scan_draft_meta_v1';
 const PENDING_KEY = '@max_face_scan_pending_submit_v1';
+// An in-flight scan upload + analysis resolves in well under this. A pending
+// flag older than this is orphaned (recovery never cleared it after some edge
+// case) and must not haunt the user forever — treat it as expired.
+const PENDING_TTL_MS = 30 * 60 * 1000;
 
 type DraftMeta = {
     v: 1;
@@ -31,7 +35,18 @@ export async function getPendingFaceScanSubmit(): Promise<{ userId: string } | n
     try {
         const raw = await AsyncStorage.getItem(PENDING_KEY);
         if (!raw) return null;
-        const o = JSON.parse(raw) as { userId?: string };
+        const o = JSON.parse(raw) as { userId?: string; at?: string };
+        // TTL guard: a flag older than a plausible analysis window is orphaned;
+        // clear it and report "nothing pending" so recovery doesn't loop on it.
+        if (o.at) {
+            const ageMs = Date.now() - new Date(o.at).getTime();
+            // Unparseable timestamp (NaN) is treated as expired too — a corrupt
+            // flag must not become immortal and defeat the orphan cleanup.
+            if (!Number.isFinite(ageMs) || ageMs > PENDING_TTL_MS) {
+                await AsyncStorage.removeItem(PENDING_KEY).catch(() => undefined);
+                return null;
+            }
+        }
         return typeof o.userId === 'string' ? { userId: o.userId } : null;
     } catch {
         return null;

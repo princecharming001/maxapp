@@ -7,7 +7,10 @@ export const queryClient = new QueryClient({
             // 5min staleTime: most screens don't need sub-minute freshness, and this
             // cuts focus-refetch storms when users tab between screens.
             staleTime: 5 * 60 * 1000,
-            gcTime: 30 * 60 * 1000,
+            // 24h GC so persisted/restored cache (lib/queryPersist, maxAge 24h)
+            // isn't evicted from memory before it can be re-shown — gcTime must
+            // be >= the persister's maxAge or restored data gets dropped.
+            gcTime: 24 * 60 * 60 * 1000,
             // Don't retry auth errors (401/403) — the axios interceptor already tried
             // a refresh; retrying here just multiplies the request storm when the
             // session is permanently dead.
@@ -24,8 +27,14 @@ export const queryClient = new QueryClient({
             // chatting actually pick up the new data the moment they're
             // remounted, instead of showing stale state until manual pull.
             refetchOnMount: true,
-            refetchOnWindowFocus: false,
-            // RN: reconnect refetch is the only auto-refresh we want.
+            // Foreground revalidation: focusManager is wired to AppState in
+            // App.tsx, so on RN this fires ONLY when the whole app returns to
+            // the foreground (not on screen/tab switches — those don't blur the
+            // app), and only refetches queries already past staleTime (5min).
+            // That self-heals data after a background/kill without refetch
+            // storms.
+            refetchOnWindowFocus: true,
+            // RN: also refetch when the network reconnects.
             refetchOnReconnect: true,
         },
     },

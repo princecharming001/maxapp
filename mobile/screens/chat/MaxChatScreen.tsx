@@ -6,6 +6,7 @@ import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
@@ -16,9 +17,15 @@ import { colors, spacing, borderRadius, typography, fonts } from '../../theme/da
 import { CachedImage } from '../../components/CachedImage';
 import ChatConversationsDrawer from '../../components/ChatConversationsDrawer';
 import ChatSliderInput, { SliderSpec } from '../../components/ChatSliderInput';
+import ChatHabitPicker, { HabitPickerSpec } from '../../components/ChatHabitPicker';
 import { renderRichText } from '../../utils/chatMarkdown';
 
 const PENDING_CHAT_KEY = '@max_pending_chat_v1';
+
+/** Widgets the chat knows how to render inline (slider question / habit picker). */
+function isRenderableWidget(w: any): boolean {
+    return !!w && (w.type === 'slider' || w.type === 'habit_picker');
+}
 
 /** Starter prompts shown on the empty chat — tap to send, and they keep the
  *  blank state from feeling bare. Short, in the app's blunt coach voice. */
@@ -35,8 +42,12 @@ interface Message {
   content: string;
   attachment_url?: string;
   attachment_type?: string;
+  /** Local device uri for an optimistic image bubble (renders before upload completes). */
+  localImageUri?: string;
   isTyping?: boolean;
   typingMode?: ChatTypingMode;
+  /** Set on a freshly-received reply so it streams in (history loads instantly). */
+  justArrived?: boolean;
   /** When this message replied to an earlier one, the inline quote strip. */
   reply_to?: { id: string; role: 'user' | 'assistant'; preview: string } | null;
 }
@@ -206,6 +217,127 @@ function pickTypingMode(
     return 'default';
 }
 
+// ─── ChatGPT look & animations ────────────────────────────────────────────────
+const CG_BG = '#FFFFFF';
+const CG_INK = '#0D0D0D';
+const CG_USER_BUBBLE = '#F4F4F4';
+const CG_MUTE = '#8E8E93';
+const CG_ICON = '#5D5D5D';
+const HS = { top: 10, bottom: 10, left: 10, right: 10 };
+
+// "Thinking" — ChatGPT's shimmering placeholder while the reply is generated.
+function ThinkingShimmer() {
+  const a = useRef(new Animated.Value(0.35)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(a, { toValue: 0.95, duration: 700, useNativeDriver: true }),
+        Animated.timing(a, { toValue: 0.35, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [a]);
+  return <Animated.Text style={[cg.thinking, { opacity: a }]}>Thinking</Animated.Text>;
+}
+
+// Typewriter reveal with a blinking caret while streaming; swaps to the fully
+// formatted (rich) text once complete. Mirrors ChatGPT's token streaming.
+function StreamingText({
+  text, animate, plainStyle, renderRich,
+}: {
+  text: string; animate: boolean; plainStyle: any; renderRich: (t: string) => React.ReactNode;
+}) {
+  const [n, setN] = useState(animate ? 0 : text.length);
+  const blink = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!animate) { setN(text.length); return; }
+    setN(0);
+    let i = 0;
+    const total = text.length;
+    const per = Math.max(2, Math.round(total / 200));
+    const id = setInterval(() => {
+      i = Math.min(total, i + per);
+      setN(i);
+      if (i >= total) clearInterval(id);
+    }, 18);
+    return () => clearInterval(id);
+  }, [animate, text]);
+  useEffect(() => {
+    if (!animate) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(blink, { toValue: 1, duration: 480, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 0, duration: 480, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [animate, blink]);
+
+  if (!animate || n >= text.length) return <>{renderRich(text)}</>;
+  return (
+    <Text style={plainStyle}>
+      {text.slice(0, n)}
+      <Animated.Text style={[plainStyle, cg.caret, { opacity: blink }]}>▍</Animated.Text>
+    </Text>
+  );
+}
+
+// The black circular action button — morphs mic → up-arrow → stop, with a pop.
+// States: loading (generating, disabled stop) · send (has text) · listening
+// (voice capture active, tap to stop) · mic (idle, tap to dictate).
+function MorphSend({ loading, hasText, listening, onPress }: { loading: boolean; hasText: boolean; listening: boolean; onPress: () => void }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const state = loading ? 'stop' : hasText ? 'send' : listening ? 'listening' : 'mic';
+  useEffect(() => {
+    scale.setValue(0.7);
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 5, tension: 160 }).start();
+  }, [state, scale]);
+  // Soft pulse while listening so the user sees the mic is hot.
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!listening) { pulse.setValue(1); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.6, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [listening, pulse]);
+  return (
+    <TouchableOpacity onPress={onPress} disabled={loading} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={loading ? 'Generating' : hasText ? 'Send' : listening ? 'Stop voice' : 'Voice'}>
+      <Animated.View style={[cg.sendCircle, listening && cg.sendCircleLive, { transform: [{ scale }], opacity: listening ? pulse : 1 }]}>
+        {loading ? <View style={cg.stopSquare} />
+          : hasText ? <Ionicons name="arrow-up" size={20} color="#fff" />
+          : listening ? <View style={cg.stopSquare} />
+          : <Ionicons name="mic" size={18} color="#fff" />}
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+// Copy / thumbs row under each assistant reply (ChatGPT's message toolbar).
+function AssistantActions({ text }: { text: string }) {
+  const [vote, setVote] = useState<0 | 1 | -1>(0);
+  const copy = () => { try { (globalThis as any).navigator?.clipboard?.writeText?.(text); } catch { /* native: no-op */ } };
+  return (
+    <View style={cg.actions}>
+      <TouchableOpacity onPress={copy} hitSlop={HS} style={cg.actionBtn} accessibilityLabel="Copy">
+        <Ionicons name="copy-outline" size={16} color={CG_ICON} />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => setVote((v) => (v === 1 ? 0 : 1))} hitSlop={HS} style={cg.actionBtn} accessibilityLabel="Good response">
+        <Ionicons name={vote === 1 ? 'thumbs-up' : 'thumbs-up-outline'} size={16} color={CG_ICON} />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => setVote((v) => (v === -1 ? 0 : -1))} hitSlop={HS} style={cg.actionBtn} accessibilityLabel="Bad response">
+        <Ionicons name={vote === -1 ? 'thumbs-down' : 'thumbs-down-outline'} size={16} color={CG_ICON} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function MaxChatScreen() {
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
@@ -227,12 +359,17 @@ export default function MaxChatScreen() {
     // Optional structured input widget (slider) returned by the backend for
     // numeric questions. Mutually-exclusive UI: when this is non-null we
     // render <ChatSliderInput /> in place of the quick-reply chip row.
-    const [inputWidget, setInputWidget] = useState<SliderSpec | null>(null);
+    const [inputWidget, setInputWidget] = useState<SliderSpec | HabitPickerSpec | null>(null);
+    const [applyingHabits, setApplyingHabits] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
     /** When the user swipes right on a bubble, we show a quote bar above
      *  the input and send the next message with reply_to_message_id set. */
     const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
     const flatListRef = useRef<FlashListRef<Message>>(null);
+    const inputRef = useRef<TextInput>(null);
+    /** Voice dictation (Web Speech API on web; keyboard-dictation fallback on native). */
+    const [listening, setListening] = useState(false);
+    const recognitionRef = useRef<any>(null);
     const initScheduleHandled = useRef(false);
     const initQuestionHandled = useRef<string | null>(null);
     const appStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -332,6 +469,18 @@ export default function MaxChatScreen() {
         // subsequent send while this is in flight starts fresh.
         const replyId = replyTarget?.id ?? undefined;
         if (replyTarget) setReplyTarget(null);
+        // Persist the in-flight message BEFORE the request fires. Previously the
+        // pending blob was only written in the catch on a network error, so a
+        // force-kill / OS-suspend that happened WHILE the request was in flight
+        // (no catch ever runs) lost the message entirely. Writing it up front
+        // means the foreground retry below picks it up after any interruption.
+        // It's cleared the instant a response arrives; the only downside is that
+        // a kill in the tiny window after the server commits but before the
+        // clear could re-send (a duplicate user turn — far better than a lost one).
+        await AsyncStorage.setItem(
+            PENDING_CHAT_KEY,
+            JSON.stringify({ msg, initContext, chatIntent }),
+        ).catch(() => undefined);
         try {
             const { response, choices, multi_choice, input_widget, conversation_id } = await api.sendChatMessage(
                 msg,
@@ -342,6 +491,8 @@ export default function MaxChatScreen() {
                 activeConversationId ?? undefined,
                 replyId,
             );
+            // Committed server-side — drop the pending blob so it isn't re-sent.
+            await AsyncStorage.removeItem(PENDING_CHAT_KEY).catch(() => undefined);
             // Adopt the server-assigned conversation on first message so the
             // mobile client stays aligned with backend routing (no second call).
             // CRITICAL: also bump seededForConversation in lockstep so the seed
@@ -355,12 +506,12 @@ export default function MaxChatScreen() {
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: response },
+                { role: 'assistant', content: response, justArrived: true },
             ]);
             setServerChoices(Array.isArray(choices) ? choices : []);
             setMultiChoice(!!multi_choice);
             setMultiPicked(new Set());
-            setInputWidget(input_widget && input_widget.type === 'slider' ? input_widget as SliderSpec : null);
+            setInputWidget(isRenderableWidget(input_widget) ? (input_widget as SliderSpec | HabitPickerSpec) : null);
             // Invalidate the conversations list so the sidebar reorders + renames.
             queryClient.invalidateQueries({ queryKey: queryKeys.chatConversations });
             // Schedule + maxes can change as a side effect of any chat turn
@@ -385,13 +536,13 @@ export default function MaxChatScreen() {
         } catch (e: any) {
             console.error('sendMessageWithContext error:', e?.response?.data || e?.message || e);
             const serverMsg = e?.response?.data?.response || e?.response?.data?.detail;
-            // No HTTP response = network error / timeout (e.g. iOS suspended us mid-request).
-            // Persist the message so it auto-retries when the app returns to foreground.
-            if (!e?.response) {
-                await AsyncStorage.setItem(
-                    PENDING_CHAT_KEY,
-                    JSON.stringify({ msg, initContext, chatIntent }),
-                ).catch(() => undefined);
+            // HTTP error => the server received and rejected this turn; clear the
+            // pre-persisted pending blob so it doesn't auto-retry a request that
+            // will just fail again (matches the prior "don't retry HTTP errors"
+            // behaviour). Network error / no response => LEAVE it queued so the
+            // foreground retry (trySendPending) resends when connectivity is back.
+            if (e?.response) {
+                await AsyncStorage.removeItem(PENDING_CHAT_KEY).catch(() => undefined);
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
@@ -402,16 +553,33 @@ export default function MaxChatScreen() {
         }
     };
 
-    // Retry any message that was queued while offline
+    // Always retry with the LATEST sendMessageWithContext (via a ref) so a
+    // recovered message targets the current conversation, not the null id
+    // captured at mount.
+    const sendMessageRef = useRef(sendMessageWithContext);
+    sendMessageRef.current = sendMessageWithContext;
+    const retryingRef = useRef(false);
+
+    // Retry any message that was queued while offline / interrupted mid-send.
     useEffect(() => {
         const trySendPending = async () => {
+            if (retryingRef.current) return; // don't stack concurrent retries
             const raw = await AsyncStorage.getItem(PENDING_CHAT_KEY).catch(() => null);
             if (!raw) return;
             let queued: { msg: string; initContext?: string; chatIntent?: string } | null = null;
             try { queued = JSON.parse(raw); } catch { return; }
             if (!queued?.msg) return;
-            await AsyncStorage.removeItem(PENDING_CHAT_KEY).catch(() => undefined);
-            sendMessageWithContext(queued.msg, queued.initContext, queued.chatIntent);
+            // IMPORTANT: do NOT remove the blob here. sendMessageWithContext
+            // re-persists it before its request and clears it only on success
+            // (or HTTP rejection). If the send bails because another send is in
+            // flight, or fails again, the message stays queued for the next
+            // retry instead of being deleted-then-dropped (the old bug).
+            retryingRef.current = true;
+            try {
+                await sendMessageRef.current(queued.msg, queued.initContext, queued.chatIntent);
+            } finally {
+                retryingRef.current = false;
+            }
         };
         const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
             const prev = appStateRef.current;
@@ -460,12 +628,12 @@ export default function MaxChatScreen() {
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: response },
+                { role: 'assistant', content: response, justArrived: true },
             ]);
             setServerChoices(Array.isArray(choices) ? choices : []);
             setMultiChoice(!!multi_choice);
             setMultiPicked(new Set());
-            setInputWidget(input_widget && input_widget.type === 'slider' ? input_widget as SliderSpec : null);
+            setInputWidget(isRenderableWidget(input_widget) ? (input_widget as SliderSpec | HabitPickerSpec) : null);
             // Update the cache for the ACTIVE conversation, not the legacy
             // single-thread key. Without this, tapping a chip wrote to
             // queryKeys.chatHistory while the screen was reading from
@@ -480,7 +648,7 @@ export default function MaxChatScreen() {
                     messages: [
                         ...prevMsgs,
                         { role: 'user', content: userContent } as Message,
-                        { role: 'assistant', content: response } as Message,
+                        { role: 'assistant', content: response, justArrived: true } as Message,
                     ],
                     conversationId: (conversation_id ?? activeConversationId) ?? null,
                 };
@@ -542,148 +710,284 @@ export default function MaxChatScreen() {
         return renderRichText(text, { baseStyle, onLinkPress: openUrl });
     }, [openUrl]);
 
-    const renderMessage = ({ item }: { item: Message }) => {
+    const newChat = () => {
+        setActiveConversationId(null);
+        setSeededForConversation(null);
+        setMessages([]);
+        setServerChoices([]);
+        setInputWidget(null);
+        setReplyTarget(null);
+        queryClient.invalidateQueries({
+            predicate: (q) => q.queryKey[0] === 'chat' && q.queryKey[1] === 'history',
+        });
+    };
+
+    // ── Habit picker submit: persist want/avoid for this max + re-expand it ──
+    const applyHabitPrefs = async (spec: HabitPickerSpec, wanted: string[], avoided: string[]) => {
+        if (applyingHabits) return;
+        // Nothing picked → just dismiss without a server round-trip.
+        if (wanted.length === 0 && avoided.length === 0) {
+            setInputWidget(null);
+            return;
+        }
+        if (!spec.schedule_id) {
+            setInputWidget(null);
+            return;
+        }
+        setApplyingHabits(true);
+        try {
+            await api.updateHabitPrefs(spec.schedule_id, wanted, avoided);
+            setInputWidget(null);
+            const parts: string[] = [];
+            if (wanted.length) parts.push(`added ${wanted.length}`);
+            if (avoided.length) parts.push(`skipping ${avoided.length}`);
+            setMessages((prev) => [
+                ...prev,
+                { role: 'assistant', content: `Updated your plan — ${parts.join(', ')}. Check the Schedule tab to see it.` },
+            ]);
+            // The plan changed — refresh the schedule-driven views.
+            queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull, refetchType: 'all' });
+            queryClient.invalidateQueries({ queryKey: queryKeys.activeSchedulesSummary, refetchType: 'all' });
+            queryClient.invalidateQueries({ queryKey: queryKeys.maxes, refetchType: 'all' });
+        } catch (e: any) {
+            setInputWidget(null);
+            setMessages((prev) => [
+                ...prev,
+                { role: 'assistant', content: "Couldn't update those habits just now — you can tweak any task from the Schedule tab." },
+            ]);
+        } finally {
+            setApplyingHabits(false);
+        }
+    };
+
+    // ── "+" button: pick a photo and send it to Max ──────────────────────
+    // Uploads to the chat-file endpoint, then sends a chat turn with the
+    // attachment. Optimistic bubble renders the local image immediately.
+    const sendImageMessage = async (uri: string, caption: string) => {
+        if (loading) return;
+        setLoading(true);
+        setServerChoices([]);
+        setInputWidget(null);
+        setMessages((prev) => [
+            ...prev,
+            { role: 'user', content: caption, localImageUri: uri, attachment_type: 'image' },
+            { role: 'assistant', content: '', isTyping: true, typingMode: 'analysis' },
+        ]);
+        const replyId = replyTarget?.id ?? undefined;
+        if (replyTarget) setReplyTarget(null);
+        try {
+            const formData = new FormData();
+            if (Platform.OS === 'web') {
+                const blob = await fetch(uri).then((r) => r.blob());
+                formData.append('file', blob, 'upload.jpg');
+            } else {
+                const filename = uri.split('/').pop() || 'upload.jpg';
+                const match = /\.(\w+)$/.exec(filename);
+                formData.append('file', { uri, name: filename, type: match ? `image/${match[1]}` : 'image' } as any);
+            }
+            const uploadRes = await api.uploadChatFile(formData);
+            const { response, choices, multi_choice, input_widget, conversation_id } = await api.sendChatMessage(
+                caption || 'What do you think of this?',
+                uploadRes.url,
+                'image',
+                undefined,
+                undefined,
+                activeConversationId ?? undefined,
+                replyId,
+            );
+            if (conversation_id && conversation_id !== activeConversationId) {
+                setActiveConversationId(conversation_id);
+                setSeededForConversation(conversation_id);
+            }
+            setMessages((prev) => [
+                ...prev.filter((m) => !m.isTyping),
+                { role: 'assistant', content: response, justArrived: true },
+            ]);
+            setServerChoices(Array.isArray(choices) ? choices : []);
+            setMultiChoice(!!multi_choice);
+            setMultiPicked(new Set());
+            setInputWidget(isRenderableWidget(input_widget) ? (input_widget as SliderSpec | HabitPickerSpec) : null);
+            queryClient.invalidateQueries({ queryKey: queryKeys.chatConversations });
+        } catch (e: any) {
+            console.error('sendImageMessage error:', e?.response?.data || e?.message || e);
+            setMessages((prev) => [
+                ...prev.filter((m) => !m.isTyping),
+                { role: 'assistant', content: 'Could not send that image. Try again in a sec.' },
+            ]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const pickAndSendImage = async () => {
+        if (loading) return;
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                quality: 0.8,
+            });
+            if (result.canceled || !result.assets?.[0]?.uri) return;
+            const caption = input.trim();
+            setInput('');
+            await sendImageMessage(result.assets[0].uri, caption);
+        } catch (e) {
+            console.error('pickAndSendImage error:', e);
+        }
+    };
+
+    // ── Mic button: voice dictation ──────────────────────────────────────
+    // Web: Web Speech API streams transcript into the input. Native: no STT
+    // module is bundled, so focus the field — the keyboard's own mic key is
+    // then one tap away.
+    const toggleVoice = () => {
+        if (Platform.OS !== 'web') {
+            inputRef.current?.focus();
+            return;
+        }
+        const w = globalThis as any;
+        const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
+        if (!SR) {
+            inputRef.current?.focus();
+            return;
+        }
+        if (listening) {
+            try { recognitionRef.current?.stop?.(); } catch { /* noop */ }
+            setListening(false);
+            return;
+        }
+        try {
+            const rec = new SR();
+            rec.lang = 'en-US';
+            rec.interimResults = true;
+            rec.continuous = false;
+            rec.onresult = (e: any) => {
+                let t = '';
+                for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+                setInput(t);
+            };
+            rec.onend = () => setListening(false);
+            rec.onerror = () => setListening(false);
+            recognitionRef.current = rec;
+            setListening(true);
+            rec.start();
+        } catch {
+            setListening(false);
+            inputRef.current?.focus();
+        }
+    };
+
+    // The single circular-button action: send if there's text, else dictate.
+    const onActionPress = () => {
+        if (loading) return;
+        if (input.trim()) { void sendMessage(); return; }
+        toggleVoice();
+    };
+
+    const renderMessage = ({ item, index }: { item: Message; index: number }) => {
         if (item.isTyping) {
             return (
-                <View style={styles.messageRow}>
-                    <View style={[styles.bubble, styles.assistantBubble, styles.typingBubble]}>
-                        <ChatTypingIndicator mode={item.typingMode ?? 'default'} style={styles.typingText} />
-                    </View>
+                <View style={cg.assistantRow}>
+                    <ThinkingShimmer />
                 </View>
             );
         }
-        if (!item.content?.trim() && !(item.attachment_url && item.attachment_type === 'image')) return null;
+        const hasImage = item.attachment_type === 'image' && (item.localImageUri || item.attachment_url);
+        if (!item.content?.trim() && !hasImage) return null;
 
         const isAssistant = item.role === 'assistant';
         const productLinks = isAssistant && item.content ? extractProductLinks(item.content) : [];
         const displayText = productLinks.length > 0 ? stripProductLinkLines(item.content!) : item.content;
         const canReply = !!item.id; // optimistic turns have no real id yet
+        const isLast = index === messages.length - 1;
 
         const commitReply = () => {
-            setReplyTarget({
-                id: item.id!,
-                role: item.role,
-                preview: (item.content || '').slice(0, 120),
-            });
+            setReplyTarget({ id: item.id!, role: item.role, preview: (item.content || '').slice(0, 120) });
         };
 
-        // The bubble itself.
-        const bubble = (
-            <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.assistantBubble]}>
-                {item.reply_to ? (
-                    <View style={[
-                        styles.replyQuote,
-                        item.role === 'user' && { borderLeftColor: 'rgba(255,255,255,0.45)' },
-                    ]}>
-                        <Text style={[
-                            styles.replyQuoteRole,
-                            item.role === 'user' && { color: 'rgba(255,255,255,0.7)' },
-                        ]}>
-                            {item.reply_to.role === 'user' ? 'You' : 'Max'}
-                        </Text>
-                        <Text
-                            style={[
-                                styles.replyQuoteText,
-                                item.role === 'user' && { color: 'rgba(255,255,255,0.85)' },
-                            ]}
-                            numberOfLines={2}
-                        >
-                            {item.reply_to.preview}
-                        </Text>
-                    </View>
-                ) : null}
-                {displayText ? renderLinkedText(displayText, [styles.messageText, item.role === 'user' && styles.userMessageText]) : null}
-                {productLinks.length > 0 && (
-                    <View style={styles.productLinksContainer}>
-                        {productLinks.map((link, i) => (
-                            <TouchableOpacity
-                                key={i}
-                                style={styles.productLinkButton}
-                                onPress={() => openUrl(link.url)}
-                                activeOpacity={0.7}
-                                accessibilityRole="link"
-                                accessibilityLabel={`Open ${link.label}`}
-                            >
-                                <Ionicons name="cart-outline" size={14} color={colors.foreground} style={{ marginRight: 6 }} />
-                                <Text style={styles.productLinkText} numberOfLines={1}>{link.label}</Text>
-                                <Ionicons name="open-outline" size={12} color={colors.textMuted} style={{ marginLeft: 6 }} />
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                )}
-                {item.attachment_url && item.attachment_type === 'image' && (
-                    <CachedImage uri={api.resolveAttachmentUrl(item.attachment_url)} style={styles.attachmentImage} contentFit="contain" />
-                )}
+        const replyQuote = item.reply_to ? (
+            <View style={cg.replyQuote}>
+                <Text style={cg.replyQuoteRole}>{item.reply_to.role === 'user' ? 'You' : 'Max'}</Text>
+                <Text style={cg.replyQuoteText} numberOfLines={2}>{item.reply_to.preview}</Text>
             </View>
-        );
-
-        // Two parallel reply paths:
-        //   - Swipe-right (PanResponder) — native iMessage-style gesture.
-        //   - Tiny always-visible reply icon — discoverable, works in every
-        //     browser even when scroll/text-selection wins the gesture race.
-        // Web research: Discord, Telegram-Web, Slack all use explicit
-        // buttons because trackpad/mouse swipe handlers are inherently
-        // unreliable across browsers; swipe on mobile native is the
-        // expected gesture there. We support both.
-        const replyIcon = canReply ? (
-            <TouchableOpacity
-                onPress={commitReply}
-                style={styles.bubbleReplyButton}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel="Reply"
-            >
-                <Ionicons name="arrow-undo-outline" size={13} color={colors.textMuted} />
-            </TouchableOpacity>
         ) : null;
 
-        const bubbleRow = (
-            <View style={[styles.messageRow, item.role === 'user' && styles.userMessageRow]}>
-                {item.role === 'user' ? replyIcon : null}
-                {bubble}
-                {item.role !== 'user' ? replyIcon : null}
+        const image = hasImage ? (
+            <CachedImage
+                uri={item.localImageUri ?? api.resolveAttachmentUrl(item.attachment_url)}
+                style={styles.attachmentImage}
+                contentFit="contain"
+            />
+        ) : null;
+
+        if (isAssistant) {
+            // Assistant: plain, full-width text (no bubble) — the ChatGPT pattern.
+            const animate = !!item.justArrived && isLast && !loading;
+            const content = (
+                <View style={cg.assistantRow}>
+                    {replyQuote}
+                    {displayText ? (
+                        <StreamingText
+                            text={displayText}
+                            animate={animate}
+                            plainStyle={cg.assistantText}
+                            renderRich={(t) => renderLinkedText(t, [cg.assistantText])}
+                        />
+                    ) : null}
+                    {productLinks.length > 0 && (
+                        <View style={styles.productLinksContainer}>
+                            {productLinks.map((link, i) => (
+                                <TouchableOpacity
+                                    key={i}
+                                    style={styles.productLinkButton}
+                                    onPress={() => openUrl(link.url)}
+                                    activeOpacity={0.7}
+                                    accessibilityRole="link"
+                                    accessibilityLabel={`Open ${link.label}`}
+                                >
+                                    <Ionicons name="cart-outline" size={14} color={colors.foreground} style={{ marginRight: 6 }} />
+                                    <Text style={styles.productLinkText} numberOfLines={1}>{link.label}</Text>
+                                    <Ionicons name="open-outline" size={12} color={colors.textMuted} style={{ marginLeft: 6 }} />
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+                    {image}
+                    {!animate && displayText ? <AssistantActions text={displayText} /> : null}
+                </View>
+            );
+            if (!canReply) return content;
+            return <ReplySwipeableRow onCommit={commitReply}>{content}</ReplySwipeableRow>;
+        }
+
+        // User: light-gray rounded bubble, right-aligned.
+        const userBlock = (
+            <View style={cg.userRow}>
+                <View style={cg.userBubble}>
+                    {replyQuote}
+                    {displayText ? <Text style={cg.userText}>{displayText}</Text> : null}
+                    {image}
+                </View>
             </View>
         );
-
-        if (!canReply) return bubbleRow;
-
-        return (
-            <ReplySwipeableRow onCommit={commitReply}>
-                {bubbleRow}
-            </ReplySwipeableRow>
-        );
+        if (!canReply) return userBlock;
+        return <ReplySwipeableRow onCommit={commitReply}>{userBlock}</ReplySwipeableRow>;
     };
 
     const ListEmpty = () => (
-        <View style={styles.emptyState}>
-            {/* Quiet editorial backdrop so the screen reads as composed, not
-                blank: a warm wash + two ultra-faint concentric rings (a soft
-                "ask" ripple behind the title). Purely decorative. */}
-            <View pointerEvents="none" style={styles.emptyDecor}>
-                <LinearGradient
-                    colors={['transparent', 'rgba(212,160,23,0.05)']}
-                    style={StyleSheet.absoluteFill}
-                />
-                <View style={styles.emptyRingOuter} />
-                <View style={styles.emptyRingInner} />
-            </View>
-
-            <Text style={styles.emptyTitle}>ask anything.</Text>
-            <Text style={styles.emptySubtitle}>routines, products, what to do today.</Text>
-
-            <View style={styles.starterGroup}>
-                <Text style={styles.starterEyebrow}>TRY ASKING</Text>
-                {EMPTY_STARTERS.map((s, i) => (
+        <View style={cg.empty}>
+            <Text style={cg.emptyTitle}>What can I help with?</Text>
+            <View style={cg.emptyChips}>
+                {EMPTY_STARTERS.map((s) => (
                     <TouchableOpacity
                         key={s}
-                        style={[styles.starterRow, i > 0 && styles.starterRowDivider]}
-                        activeOpacity={0.6}
+                        style={cg.emptyChip}
+                        activeOpacity={0.7}
                         onPress={() => void sendMessage(s)}
                         accessibilityRole="button"
                         accessibilityLabel={s}
                     >
-                        <Text style={styles.starterText}>{s}</Text>
-                        <Ionicons name="arrow-forward" size={15} color={colors.textMuted} />
+                        <Text style={cg.emptyChipText}>{s}</Text>
                     </TouchableOpacity>
                 ))}
             </View>
@@ -698,18 +1002,24 @@ export default function MaxChatScreen() {
                 over-correction that left a weird ~90pt gap above the
                 keyboard on tall iPhones. */}
             <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
-                <View style={[styles.header, { paddingTop: Math.max(insets.top + spacing.md, 52) }]}>
+                <View style={[cg.header, { paddingTop: Math.max(insets.top + 6, 44) }]}>
                     <TouchableOpacity
-                        style={styles.headerMenuButton}
+                        style={cg.headerBtn}
                         onPress={() => setDrawerOpen(true)}
                         accessibilityLabel="Open chat list"
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        hitSlop={HS}
                     >
-                        <Ionicons name="menu" size={22} color={colors.foreground} />
+                        <Ionicons name="menu" size={22} color={CG_INK} />
                     </TouchableOpacity>
-                    <Text style={styles.headerEyebrow}>Coach</Text>
-                    <Text style={styles.title}>Max</Text>
-                    <Text style={styles.subtitle}>Your lookmaxxing coach</Text>
+                    <Text style={cg.headerTitle}>Max</Text>
+                    <TouchableOpacity
+                        style={cg.headerBtn}
+                        onPress={newChat}
+                        accessibilityLabel="New chat"
+                        hitSlop={HS}
+                    >
+                        <Ionicons name="create-outline" size={22} color={CG_INK} />
+                    </TouchableOpacity>
                 </View>
 
                 <ChatConversationsDrawer
@@ -767,6 +1077,17 @@ export default function MaxChatScreen() {
                             <ChatSliderInput
                                 spec={inputWidget}
                                 onSubmit={(v) => sendMessage(String(v))}
+                            />
+                        </View>
+                    )}
+                    {/* Per-max habit picker → shown right after a schedule is built. */}
+                    {!loading && inputWidget && inputWidget.type === 'habit_picker' && (
+                        <View style={styles.quickReplyStack}>
+                            <ChatHabitPicker
+                                spec={inputWidget}
+                                disabled={applyingHabits}
+                                onSubmit={(wanted, avoided) => applyHabitPrefs(inputWidget, wanted, avoided)}
+                                onSkip={() => setInputWidget(null)}
                             />
                         </View>
                     )}
@@ -873,23 +1194,26 @@ export default function MaxChatScreen() {
                             </TouchableOpacity>
                         </View>
                     ) : null}
-                    <View style={styles.inputContainer}>
+                    <View style={cg.inputPill}>
+                        <TouchableOpacity style={cg.plusBtn} hitSlop={HS} accessibilityLabel="Attach photo" onPress={() => void pickAndSendImage()} disabled={loading}>
+                            <Ionicons name="add" size={24} color={CG_ICON} />
+                        </TouchableOpacity>
                         <TextInput
-                            style={styles.input}
-                            placeholder={replyTarget ? "Reply..." : "Ask Max anything..."}
-                            placeholderTextColor={colors.textMuted}
+                            ref={inputRef}
+                            style={cg.input}
+                            placeholder={replyTarget ? 'Reply…' : 'Ask Max anything'}
+                            placeholderTextColor={CG_MUTE}
                             value={input}
                             onChangeText={setInput}
                             multiline
-                            editable={!loading}
+                            textAlignVertical="center"
+                            // Stay editable while a reply is generating so the user can
+                            // compose their next message; sendMessage() still guards on
+                            // `loading` so the second turn won't fire until this one lands.
+                            editable
+                            onSubmitEditing={() => void sendMessage()}
                         />
-                        <TouchableOpacity
-                            style={[styles.sendButton, !input.trim() && styles.disabledButton]}
-                            onPress={() => void sendMessage()}
-                            disabled={!input.trim() || loading}
-                        >
-                            {loading ? <ActivityIndicator size="small" color={colors.buttonText} /> : <Ionicons name="send" size={18} color={colors.buttonText} />}
-                        </TouchableOpacity>
+                        <MorphSend loading={loading} hasText={!!input.trim()} listening={listening} onPress={onActionPress} />
                     </View>
                 </View>
             </KeyboardAvoidingView>
@@ -898,7 +1222,7 @@ export default function MaxChatScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, backgroundColor: CG_BG },
     keyboardView: { flex: 1 },
     historyLoading: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: spacing.xxl },
     header: {
@@ -1046,10 +1370,9 @@ const styles = StyleSheet.create({
     starterRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderLight },
     starterText: { flex: 1, fontFamily: fonts.serif, fontSize: 17, color: colors.foreground, letterSpacing: -0.2 },
     outerInputContainer: {
-        padding: spacing.md,
-        borderTopWidth: 1,
-        borderTopColor: colors.borderLight,
-        backgroundColor: colors.card,
+        paddingHorizontal: 12,
+        paddingTop: 6,
+        backgroundColor: CG_BG,
     },
     quickReplyStack: {
         // Vertical stack — each option on its own row. Reads cleaner than
@@ -1201,4 +1524,66 @@ const styles = StyleSheet.create({
         borderColor: colors.foreground,
     },
     disabledButton: { opacity: 0.35 },
+});
+
+// ─── ChatGPT-style visual layer ───────────────────────────────────────────────
+const cg = StyleSheet.create({
+    header: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: 12, paddingBottom: 8, backgroundColor: CG_BG,
+    },
+    headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { fontFamily: fonts.sansSemiBold, fontSize: 17, color: CG_INK, letterSpacing: -0.2 },
+
+    assistantRow: { paddingHorizontal: 4, paddingTop: 6, paddingBottom: 8, marginBottom: 2 },
+    assistantText: { fontSize: 16, lineHeight: 25, color: CG_INK, letterSpacing: 0 },
+    caret: { color: CG_INK },
+
+    userRow: { alignItems: 'flex-end', marginBottom: 10, paddingHorizontal: 4 },
+    userBubble: { maxWidth: '84%', backgroundColor: CG_USER_BUBBLE, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 11 },
+    userText: { fontSize: 16, lineHeight: 23, color: CG_INK },
+
+    thinking: { fontSize: 16, lineHeight: 25, color: CG_MUTE, fontWeight: '500' },
+
+    actions: { flexDirection: 'row', gap: 4, marginTop: 10 },
+    actionBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
+
+    replyQuote: { borderLeftWidth: 2, borderLeftColor: '#D0D0D0', paddingLeft: 8, paddingVertical: 2, marginBottom: 6 },
+    replyQuoteRole: { fontSize: 11, fontWeight: '700', color: CG_MUTE, marginBottom: 1 },
+    replyQuoteText: { fontSize: 13, color: CG_MUTE },
+
+    inputPill: {
+        flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 26,
+        paddingLeft: 6, paddingRight: 6, paddingVertical: 5, borderWidth: 1, borderColor: '#E5E5E5', minHeight: 50,
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }
+            : { elevation: 1 }),
+    },
+    plusBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    // The pill (alignItems:'center') vertically centers this field; a single
+    // line of text/placeholder must therefore sit centered WITHIN the field.
+    // lineHeight + symmetric padding + textAlignVertical:'center' keeps the
+    // "Ask Max anything" placeholder on the pill's centerline across web,
+    // iOS (multiline UITextView inset) and Android (includeFontPadding).
+    input: {
+        flex: 1,
+        color: CG_INK,
+        fontSize: 16,
+        lineHeight: 20,
+        paddingTop: Platform.OS === 'ios' ? 8 : 4,
+        paddingBottom: Platform.OS === 'ios' ? 8 : 4,
+        paddingHorizontal: 6,
+        maxHeight: 120,
+        textAlignVertical: 'center',
+        ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
+    },
+    sendCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: CG_INK, alignItems: 'center', justifyContent: 'center' },
+    sendCircleLive: { backgroundColor: '#C0452C' },
+    stopSquare: { width: 13, height: 13, borderRadius: 3, backgroundColor: '#fff' },
+
+    empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, backgroundColor: CG_BG },
+    emptyTitle: { fontFamily: fonts.sansSemiBold, fontSize: 24, color: CG_INK, letterSpacing: -0.4, textAlign: 'center', marginBottom: 26 },
+    emptyChips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+    emptyChip: { borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 999, paddingHorizontal: 15, paddingVertical: 10, backgroundColor: '#FFFFFF' },
+    emptyChipText: { fontFamily: fonts.sansMedium, fontSize: 14, color: '#3D3D3D' },
 });
