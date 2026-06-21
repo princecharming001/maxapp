@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
+    ActivityIndicator,
     Modal,
     ScrollView,
     StyleSheet,
@@ -72,6 +73,88 @@ function formatDayLabel(dateStr: string): string {
         : d === 2 || d === 22 ? 'nd'
         : d === 3 || d === 23 ? 'rd' : 'th';
     return `${SHORT_MONTHS[m - 1]} ${d}${suffix}, ${y}`;
+}
+
+function httpStatus(err: unknown): number | null {
+    const e = err as any;
+    return e?.response?.status ?? e?.status ?? null;
+}
+
+// ─── Calendar status states ───────────────────────────────────────────────────
+type CalStatus =
+    | { kind: 'loading' }
+    | { kind: 'paywall' }
+    | { kind: 'error'; msg: string; retry: () => void }
+    | { kind: 'empty' }
+    | { kind: 'ok' };
+
+function CalendarStatusCard({
+    status,
+    onUpgrade,
+}: {
+    status: CalStatus;
+    onUpgrade: () => void;
+}) {
+    if (status.kind === 'ok') return null;
+
+    if (status.kind === 'loading') {
+        return (
+            <View style={cs.wrap}>
+                <ActivityIndicator size="small" color={MUTE} />
+                <Text style={cs.body}>Loading your progress…</Text>
+            </View>
+        );
+    }
+
+    if (status.kind === 'paywall') {
+        return (
+            <View style={cs.wrap}>
+                <View style={cs.iconCircle}>
+                    <Ionicons name="lock-closed-outline" size={22} color={INK} />
+                </View>
+                <Text style={cs.title}>Scan history is a paid feature</Text>
+                <Text style={cs.body}>
+                    Upgrade to Chad or Chadlite to unlock face analysis, see your
+                    appeal / rating / potential over time, and track progress in this calendar.
+                </Text>
+                <TouchableOpacity style={cs.btn} onPress={onUpgrade} activeOpacity={0.8}>
+                    <Text style={cs.btnText}>Upgrade →</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    if (status.kind === 'error') {
+        return (
+            <View style={cs.wrap}>
+                <View style={cs.iconCircle}>
+                    <Ionicons name="wifi-outline" size={22} color={INK} />
+                </View>
+                <Text style={cs.title}>Couldn't load progress data</Text>
+                <Text style={cs.body}>{status.msg}</Text>
+                <TouchableOpacity style={cs.btn} onPress={status.retry} activeOpacity={0.8}>
+                    <Text style={cs.btnText}>Try again</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    if (status.kind === 'empty') {
+        return (
+            <View style={cs.wrap}>
+                <View style={cs.iconCircle}>
+                    <Ionicons name="camera-outline" size={22} color={INK} />
+                </View>
+                <Text style={cs.title}>No scans yet</Text>
+                <Text style={cs.body}>
+                    Tap the scan button at the bottom of the screen to take your first
+                    face scan. Your photo and scores will appear here.
+                </Text>
+            </View>
+        );
+    }
+
+    return null;
 }
 
 // ─── Day detail modal ─────────────────────────────────────────────────────────
@@ -332,8 +415,9 @@ function Section({ title, rows }: { title: string; rows: Row[] }) {
 export default function YouScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const { user } = useAuth();
+    const { user, isPaid, isScanUser } = useAuth();
     const faceScanEnabled = useFlag('faceScan');
+    const canSeeScanHistory = isPaid || isScanUser;
 
     const [dayModal, setDayModal] = useState<DayData | null>(null);
 
@@ -344,19 +428,66 @@ export default function YouScreen() {
     });
     const streak = schedData?.schedule_streak?.current ?? 0;
 
-    const { data: progressPhotosData } = useQuery({
+    const {
+        data: progressPhotosData,
+        isError: photosError,
+        error: photosErrorRaw,
+        isPending: photosLoading,
+        refetch: refetchPhotos,
+    } = useQuery({
         queryKey: ['progressPhotos'],
         queryFn: () => api.getProgressPhotos(),
         staleTime: 60_000,
+        retry: 1,
     });
-    const { data: scanHistoryData } = useQuery({
+
+    const {
+        data: scanHistoryData,
+        isError: scansError,
+        error: scansErrorRaw,
+        isPending: scansLoading,
+        refetch: refetchScans,
+    } = useQuery({
         queryKey: ['scanHistory'],
         queryFn: () => api.getScanHistory(),
         staleTime: 60_000,
+        retry: 1,
+        enabled: canSeeScanHistory,
     });
 
     const progressPhotos: any[] = (progressPhotosData as any)?.photos ?? (Array.isArray(progressPhotosData) ? progressPhotosData : []);
     const scanPts = useMemo(() => parseScanPoints(scanHistoryData), [scanHistoryData]);
+
+    // Derive the calendar's status: drives the status card shown above/instead of the calendar
+    const calStatus = useMemo((): CalStatus => {
+        if (photosLoading || (canSeeScanHistory && scansLoading)) return { kind: 'loading' };
+        if (photosError) {
+            const code = httpStatus(photosErrorRaw);
+            if (code === 402 || code === 403) return { kind: 'paywall' };
+            return {
+                kind: 'error',
+                msg: 'Check your connection and try again.',
+                retry: () => { void refetchPhotos(); void refetchScans(); },
+            };
+        }
+        if (scansError && canSeeScanHistory) {
+            const code = httpStatus(scansErrorRaw);
+            if (code === 402 || code === 403) return { kind: 'paywall' };
+            return {
+                kind: 'error',
+                msg: 'Could not load your scan history. Check your connection.',
+                retry: () => void refetchScans(),
+            };
+        }
+        if (!canSeeScanHistory && progressPhotos.length === 0) return { kind: 'empty' };
+        if (canSeeScanHistory && progressPhotos.length === 0 && scanPts.length === 0) return { kind: 'empty' };
+        return { kind: 'ok' };
+    }, [
+        photosLoading, scansLoading, photosError, scansError,
+        photosErrorRaw, scansErrorRaw, canSeeScanHistory,
+        progressPhotos.length, scanPts.length,
+        refetchPhotos, refetchScans,
+    ]);
 
     // date → scan metrics, most recent scan per day wins
     const scanByDate = useMemo(() => {
@@ -423,13 +554,20 @@ export default function YouScreen() {
                     <Text style={styles.sectionTitle}>PROGRESS</Text>
                     <GlassCard radius={20}>
                         <View style={styles.calendarInner}>
-                            <ProgressCalendar
-                                progressPhotos={progressPhotos}
-                                scanByDate={scanByDate}
-                                scanPts={scanPts}
-                                onDayPress={setDayModal}
-                                onScanDay={handleNewScan}
-                            />
+                            {calStatus.kind !== 'ok' ? (
+                                <CalendarStatusCard
+                                    status={calStatus}
+                                    onUpgrade={() => navigation.navigate('ManageSubscription')}
+                                />
+                            ) : (
+                                <ProgressCalendar
+                                    progressPhotos={progressPhotos}
+                                    scanByDate={scanByDate}
+                                    scanPts={scanPts}
+                                    onDayPress={setDayModal}
+                                    onScanDay={handleNewScan}
+                                />
+                            )}
                         </View>
                     </GlassCard>
                 </View>
@@ -749,5 +887,51 @@ const md = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.85)',
         alignItems: 'center',
         justifyContent: 'center',
+    },
+});
+
+const cs = StyleSheet.create({
+    wrap: {
+        alignItems: 'center',
+        paddingVertical: 32,
+        paddingHorizontal: 20,
+        gap: 8,
+    },
+    iconCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#F2F1EF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 4,
+    },
+    title: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 15,
+        color: INK,
+        textAlign: 'center',
+        letterSpacing: -0.2,
+    },
+    body: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 13,
+        color: MUTE,
+        textAlign: 'center',
+        lineHeight: 19,
+        marginTop: 2,
+    },
+    btn: {
+        marginTop: 10,
+        backgroundColor: INK,
+        borderRadius: 999,
+        paddingHorizontal: 22,
+        paddingVertical: 10,
+    },
+    btnText: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 13,
+        color: ON_INK,
+        letterSpacing: 0.2,
     },
 });
