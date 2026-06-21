@@ -1,6 +1,12 @@
+import asyncio
 import json
 import logging
 from typing import Optional
+
+# Hard ceiling on a single face-scan vision analysis. Prevents a hung LLM
+# provider from leaving the client stuck on "Analyzing…" forever — on timeout
+# the scan is marked failed and the app shows a retry instead of hanging.
+_SCAN_ANALYSIS_TIMEOUT_S = 75.0
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from datetime import datetime, timedelta
@@ -232,7 +238,10 @@ async def upload_scan_triple(
     scan_id = str(scan_row.id)
 
     try:
-        analysis = await llm_analyze_triple_full(front_data, left_data, right_data, onboarding_ctx)
+        analysis = await asyncio.wait_for(
+            llm_analyze_triple_full(front_data, left_data, right_data, onboarding_ctx),
+            timeout=_SCAN_ANALYSIS_TIMEOUT_S,
+        )
 
         # First-scan cap: if this is the user's first scan, force psl_tier
         # to be no higher than HTN. The LLM occasionally hands back
@@ -279,6 +288,14 @@ async def upload_scan_triple(
         await _maybe_notify_scan_whatsapp(user, overall_score)
 
         return {"scan_id": scan_id, "analysis": analysis}
+    except asyncio.TimeoutError:
+        scan_row.processing_status = "failed"
+        scan_row.error_message = "analysis_timeout"
+        await db.commit()
+        raise HTTPException(
+            status_code=504,
+            detail="Your scan took too long to analyze. Please try again.",
+        )
     except Exception as e:
         scan_row.processing_status = "failed"
         scan_row.error_message = str(e)
@@ -369,7 +386,10 @@ async def analyze_scan(
 
         user_orm = await db.get(User, user_uuid)
         onboarding_ctx = json.dumps(user_orm.onboarding or {}, default=str) if user_orm else "{}"
-        analysis = await llm_analyze_triple_full(front_data, left_data, right_data, onboarding_ctx)
+        analysis = await asyncio.wait_for(
+            llm_analyze_triple_full(front_data, left_data, right_data, onboarding_ctx),
+            timeout=_SCAN_ANALYSIS_TIMEOUT_S,
+        )
         scan.analysis = analysis
         scan.processing_status = "completed"
         await db.commit()

@@ -359,6 +359,37 @@ async def _run_column_migrations():
     except Exception as e:
         print(f"[INFO] rag_documents id default migration note: {e}")
 
+    # Prevent DUPLICATE active maxx schedules (double-tap / network retry on
+    # "add a max"). First collapse any existing duplicates to the newest row per
+    # (user_id, maxx_id), then enforce it with a partial unique index. The index
+    # only covers active maxx rows — course schedules (maxx_id NULL) and
+    # deactivated history are unaffected.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("SET lock_timeout = '5s'"))
+            await conn.execute(text("""
+                UPDATE user_schedules s
+                SET is_active = FALSE, updated_at = NOW()
+                WHERE s.is_active = TRUE
+                  AND s.maxx_id IS NOT NULL
+                  AND EXISTS (
+                      SELECT 1 FROM user_schedules s2
+                      WHERE s2.user_id = s.user_id
+                        AND s2.maxx_id = s.maxx_id
+                        AND s2.is_active = TRUE
+                        AND (s2.created_at > s.created_at
+                             OR (s2.created_at = s.created_at AND s2.id > s.id))
+                  )
+            """))
+            await conn.execute(text("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_user_schedules_active_maxx
+                ON user_schedules (user_id, maxx_id)
+                WHERE is_active = TRUE AND maxx_id IS NOT NULL
+            """))
+        print("[OK] user_schedules active-maxx uniqueness enforced")
+    except Exception as e:
+        print(f"[INFO] user_schedules uniqueness migration note: {e}")
+
 async def close_db():
     """Close database connections"""
     try:

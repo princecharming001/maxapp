@@ -437,12 +437,17 @@ export default function MaxChatScreen() {
         // NOTE: keep an action verb ("set up" / "start") + the max name in the
         // opener — services.onboarding_questioner.detect_max_start_intent gates
         // the personalization-question flow on exactly that.
+        // forceNewConversation: a max's onboarding ALWAYS starts its own thread.
+        // Without this, launching (say) heightmax while the screen still holds
+        // the fitmax conversation id would route heightmax's intake into the
+        // fitmax thread — the "max bleed" bug.
         sendMessageWithContext(
             setup
                 ? `Let's set up my ${maxxLabel}. Ask me what you need to tailor it to me.`
                 : `I want to start my ${maxxLabel} schedule.`,
             initSchedule,
             'start_schedule',
+            true,
         );
     }, [route.params?.initSchedule, loading, historyReady]);
 
@@ -455,11 +460,20 @@ export default function MaxChatScreen() {
         sendMessageWithContext(initQuestion);
     }, [route.params?.initQuestion, loading, historyReady]);
 
-    const sendMessageWithContext = async (msg: string, initContext?: string, chatIntent?: string) => {
+    const sendMessageWithContext = async (msg: string, initContext?: string, chatIntent?: string, forceNewConversation?: boolean) => {
         if (!msg.trim() || loading) return;
         setLoading(true);
         setServerChoices([]);
         setInputWidget(null);
+        // Starting a new max's onboarding opens a fresh thread: drop the active
+        // conversation id (so the request carries none and the backend creates a
+        // dedicated thread) and clear the visible transcript so the new max's
+        // intake doesn't render under the previous max's messages.
+        if (forceNewConversation) {
+            setActiveConversationId(null);
+            setSeededForConversation(null);
+            setMessages([]);
+        }
         setMessages((prev) => [
             ...prev,
             { role: 'user', content: msg },
@@ -488,7 +502,7 @@ export default function MaxChatScreen() {
                 undefined,
                 initContext,
                 chatIntent,
-                activeConversationId ?? undefined,
+                forceNewConversation ? undefined : (activeConversationId ?? undefined),
                 replyId,
             );
             // Committed server-side — drop the pending blob so it isn't re-sent.
@@ -503,6 +517,11 @@ export default function MaxChatScreen() {
             if (conversation_id && conversation_id !== activeConversationId) {
                 setActiveConversationId(conversation_id);
                 setSeededForConversation(conversation_id);
+            }
+            // If a new habit_picker arrives while one is already visible, dismiss the old one first
+            // to prevent two pickers from appearing in a row in the chat history.
+            if (input_widget?.type === 'habit_picker' && inputWidget?.type === 'habit_picker') {
+                setInputWidget(null);
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),

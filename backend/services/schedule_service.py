@@ -16,6 +16,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from config import settings
@@ -959,7 +960,13 @@ class ScheduleService:
         start_date = datetime.now(user_tz).date()
 
         try:
-            raw = await asyncio.to_thread(sync_llm_json_response, prompt)
+            # Hard ceiling so a hung LLM provider can't leave the user stuck on
+            # a "building your schedule…" spinner forever — on timeout we fall
+            # through to the deterministic fallback below and still ship a plan.
+            raw = await asyncio.wait_for(
+                asyncio.to_thread(sync_llm_json_response, prompt),
+                timeout=float(getattr(settings, "llm_timeout_seconds", 25)) * 2 + 10,
+            )
             schedule_data = json.loads(raw)
         except Exception as e:
             logger.error(
@@ -1064,10 +1071,22 @@ class ScheduleService:
                 & (UserSchedule.is_active == True)
             )
         )
-        for sched in existing_result.scalars().all():
+        prior_active = list(existing_result.scalars().all())
+        # Carry the user's durable customizations forward onto the regenerated
+        # schedule so re-adding a max (or regenerating) doesn't silently drop
+        # their moved task times / habit picks.
+        carried_ctx: dict = {}
+        for sched in prior_active:
+            for k in ("time_overrides", "excluded_catalog_ids", "wanted_catalog_ids"):
+                v = (sched.schedule_context or {}).get(k)
+                if v:
+                    carried_ctx[k] = v
             sched.is_active = False
             sched.updated_at = datetime.utcnow()
-        await db.commit()
+        # NOTE: do NOT commit here. The deactivation must land in the SAME
+        # transaction as the new INSERT below (single commit at the end) so a
+        # crash/DB error between them can never leave the user with the old
+        # schedule deactivated and no replacement — i.e. zero active schedules.
 
         prefs = {
             "wake_time": wake_time,
@@ -1173,6 +1192,12 @@ class ScheduleService:
                 if onboarding.get(key) is not None:
                     sched_ctx[key] = onboarding[key]
 
+        # Restore the user's prior customizations (moved times / habit picks)
+        # captured from the schedule we just deactivated, so a re-add or
+        # regenerate preserves them instead of reverting to defaults.
+        for k, v in carried_ctx.items():
+            sched_ctx.setdefault(k, v)
+
         schedule_row = UserSchedule(
             user_id=user_uuid,
             schedule_type="maxx",
@@ -1238,7 +1263,24 @@ class ScheduleService:
                 flag_modified(user, "onboarding")
                 user.updated_at = datetime.utcnow()
         db.add(schedule_row)
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            # A concurrent "add this max" (double-tap / retry) already created the
+            # active schedule and the partial unique index rejected this one.
+            # Treat as idempotent success: return the schedule that won the race.
+            await db.rollback()
+            winner = await db.execute(
+                select(UserSchedule).where(
+                    (UserSchedule.user_id == user_uuid)
+                    & (UserSchedule.maxx_id == maxx_id)
+                    & (UserSchedule.is_active == True)
+                ).order_by(UserSchedule.created_at.desc())
+            )
+            existing = winner.scalars().first()
+            if existing is not None:
+                return self._schedule_to_dict(existing)
+            raise
         await db.refresh(schedule_row)
 
         return self._schedule_to_dict(schedule_row)
@@ -2730,12 +2772,9 @@ class ScheduleService:
         if not already_completed or feedback_logged:
             await db.commit()
 
-        user_uuid = UUID(user_id)
-        user_row = await db.get(User, user_uuid)
-        all_schedules = await self.get_all_active_schedules(user_id, db)
-        streak = await sync_master_schedule_streak(user_row, all_schedules, db)
-
-        return {"status": "completed", "completion_stats": stats, "schedule_streak": streak}
+        # Return immediately with stats. Streak sync is deferred to background/on-demand to avoid
+        # blocking on expensive multi-schedule merge operation. Mobile handles optimistic UI.
+        return {"status": "completed", "completion_stats": stats}
 
     def _recalc_completion_stats_from_days(self, days: list) -> dict:
         """Derive completion_stats from task statuses (keeps totals accurate when uncompleting)."""
@@ -2783,12 +2822,9 @@ class ScheduleService:
 
         await db.commit()
 
-        user_uuid = UUID(user_id)
-        user_row = await db.get(User, user_uuid)
-        all_schedules = await self.get_all_active_schedules(user_id, db)
-        streak = await sync_master_schedule_streak(user_row, all_schedules, db)
-
-        return {"status": "pending", "completion_stats": stats, "schedule_streak": streak}
+        # Return immediately with stats. Streak sync is deferred to background/on-demand to avoid
+        # blocking on expensive multi-schedule merge operation. Mobile handles optimistic UI.
+        return {"status": "pending", "completion_stats": stats}
 
     def _fallback_adapt_changes_summary(
         self, old_days: list, new_days: list, feedback: str
@@ -3160,6 +3196,50 @@ class ScheduleService:
             "scope": "series" if series else "instance",
             "removed_count": removed,
             "catalog_id": target_catalog_id if series else None,
+        }
+
+    async def set_habit_prefs(
+        self,
+        user_id: str,
+        schedule_id: str,
+        db: AsyncSession,
+        wanted_catalog_ids: list[str] | None = None,
+        avoided_catalog_ids: list[str] | None = None,
+    ) -> dict:
+        """Persist the chat habit-picker's want/avoid choices onto ONE schedule.
+
+        Writes schedule_context.wanted_catalog_ids / avoided_catalog_ids — the
+        per-max analog of excluded_catalog_ids. The caller then re-expands just
+        this max (regenerate_active_schedules(only_max=…)) so the picks take
+        effect: avoided ids are dropped (essential floor protected), wanted ids
+        are ensured present. Idempotent — each call replaces the prior sets.
+        """
+        schedule = await self._load_schedule(schedule_id, user_id, db)
+        if not schedule:
+            raise ValueError("Schedule not found")
+
+        def _clean(ids: list[str] | None) -> list[str]:
+            # dedupe (preserve order), drop blanks, cap to a sane size.
+            return list(dict.fromkeys(str(x) for x in (ids or []) if x))[:60]
+
+        avoided = _clean(avoided_catalog_ids)
+        avoided_set = set(avoided)
+        # A habit can't be both wanted and avoided — avoid wins (safety/explicit).
+        wanted = [w for w in _clean(wanted_catalog_ids) if w not in avoided_set]
+
+        ctx = dict(schedule.schedule_context or {})
+        ctx["wanted_catalog_ids"] = wanted
+        ctx["avoided_catalog_ids"] = avoided
+        schedule.schedule_context = ctx
+        flag_modified(schedule, "schedule_context")
+        schedule.updated_at = datetime.utcnow()
+        await db.commit()
+        return {
+            "status": "ok",
+            "schedule_id": str(schedule.id),
+            "maxx_id": schedule.maxx_id,
+            "wanted": wanted,
+            "avoided": avoided,
         }
 
     async def get_maxx_schedule(self, user_id: str, maxx_id: str, db: AsyncSession) -> Optional[dict]:

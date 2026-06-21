@@ -123,6 +123,19 @@ def _coerce_chat_intent(raw: Optional[str]) -> Optional[str]:
     return None
 
 
+def _maxx_thread_title(maxx_id: str) -> str:
+    """Human title for the dedicated chat thread a new max's onboarding opens."""
+    pretty = {
+        "skinmax": "Skinmax",
+        "hairmax": "Hairmax",
+        "heightmax": "Heightmax",
+        "fitmax": "Fitmax",
+        "bonemax": "Bonemax",
+    }
+    label = pretty.get(maxx_id) or (maxx_id[:1].upper() + maxx_id[1:])
+    return f"{label} plan"
+
+
 def _looks_like_link_request(text: str) -> bool:
     s = (text or "").lower()
     return (
@@ -3572,6 +3585,58 @@ def _filter_actives_by_name(actives: list, message_text: str) -> list:
     return hit
 
 
+# Maxes that have an in-app habit picker (mobile data/habitCatalog.ts). The
+# post-generation picker is offered only for these.
+_HABIT_PICKER_MAXES = {"skinmax", "hairmax", "fitmax", "heightmax", "bonemax", "coloringmax"}
+
+
+async def _active_schedule_ids(user_id: str, db: AsyncSession) -> set[str]:
+    """Snapshot the user's active schedule ids (so we can tell, after dispatch,
+    whether a NEW schedule was generated this turn)."""
+    try:
+        res = await db.execute(
+            select(UserSchedule.id).where(
+                (UserSchedule.user_id == UUID(user_id)) & (UserSchedule.is_active.is_(True))
+            )
+        )
+        return {str(r) for r in res.scalars().all()}
+    except Exception:
+        return set()
+
+
+async def _habit_picker_for_new_schedule(
+    user_id: str, db: AsyncSession, before_ids: set[str],
+) -> Optional[dict]:
+    """If a max's schedule was just generated this turn (a new active schedule
+    id appeared vs `before_ids`), return its habit-picker input_widget. Runs
+    after every dispatch path, so the picker shows whether the deterministic
+    questioner OR the tool-calling agent did the generation. The mobile renders
+    the chips from its local catalog keyed by maxx_id."""
+    try:
+        res = await db.execute(
+            select(UserSchedule.id, UserSchedule.maxx_id)
+            .where((UserSchedule.user_id == UUID(user_id)) & (UserSchedule.is_active.is_(True)))
+            .order_by(UserSchedule.created_at.desc())
+        )
+        for sid, mid in res.all():
+            if str(sid) in before_ids:
+                continue
+            if (mid or "") not in _HABIT_PICKER_MAXES:
+                continue
+            from services.task_catalog_service import get_doc
+            doc = get_doc(mid)
+            label = f"Tune your {doc.display_name} plan" if doc else "Tune your plan"
+            return {
+                "type": "habit_picker",
+                "maxx_id": mid,
+                "schedule_id": str(sid),
+                "label": label,
+            }
+    except Exception as _e:
+        logger.warning("habit-picker post-gen detect failed: %s", _e)
+    return None
+
+
 async def _run_onboarding_questioner(
     user_id: str,
     message_text: str,
@@ -3609,46 +3674,33 @@ async def _run_onboarding_questioner(
     pending = get_pending(state)
     msg = (message_text or "").strip()
 
-    # 1) Detect new start-intent — even if there's a pending onboarding for a
-    # DIFFERENT max. Without this, "I want to start skinmax" mid-hairmax
-    # gets coerced as the next hairmax field answer, fails, re-asks.
-    # When a pending exists for a different max, we abandon the half-finished
-    # one and start the new one fresh. (Prior answers stay in
-    # user_schedule_context for when they come back to that maxx later.)
+    # Detect a possible "start a different max" intent in the free text.
     new_max = detect_max_start_intent(msg)
-    if new_max:
-        if pending and pending.get("max") != new_max:
-            logger.info(
-                "[onboarding] mid-pending switch: %s -> %s; abandoning prior pending",
-                pending.get("max"), new_max,
-            )
-        if not pending or pending.get("max") != new_max:
-            next_field = peek_next_question(new_max, state)
-            if next_field is None:
-                # All required fields already known — let the agent handle it
-                # (it'll trigger generation directly).
-                return None
-            await merge_context(
-                user_id,
-                {**clear_pending(), **{"_onboarding_pending": make_pending(new_max, next_field["id"])}},
-                db,
-            )
-            payload = field_to_question_payload(next_field)
-            switch_note = (
-                f"switching to your {get_doc(new_max).display_name.lower()} schedule. "
-                if pending and pending.get("max") != new_max
-                else f"let's get your {get_doc(new_max).display_name.lower()} schedule going. "
-            )
-            text = switch_note + payload["text"].lower()
-            return _finish_onboarding_turn(text, payload)
-        # else: pending already matches new_max — just continue (treat as
-        # repeated start of the same flow; coerce step below handles it).
 
-    # If no pending and no start-intent, hand off to other paths.
+    # ── No pending onboarding ────────────────────────────────────────────
+    # A free-text start-intent begins that max's intake. (Explicit taps from
+    # the marketplace arrive as chat_intent=start_schedule and already opened a
+    # dedicated thread upstream; this only handles the typed "start skinmax".)
     if not pending:
-        return None
+        if not new_max:
+            return None
+        next_field = peek_next_question(new_max, state)
+        if next_field is None:
+            # All required fields already known — let the agent trigger gen.
+            return None
+        await merge_context(
+            user_id,
+            {**clear_pending(), "_onboarding_pending": make_pending(new_max, next_field["id"])},
+            db,
+        )
+        payload = field_to_question_payload(next_field)
+        text = (
+            f"let's get your {get_doc(new_max).display_name.lower()} schedule going. "
+            + payload["text"].lower()
+        )
+        return _finish_onboarding_turn(text, payload)
 
-    # 2) Pending → coerce the user's answer, persist, advance.
+    # ── Pending onboarding for some max A ────────────────────────────────
     maxx_id = pending["max"]
     last_qid = pending["last_question"]
     doc = get_doc(maxx_id)
@@ -3662,8 +3714,44 @@ async def _run_onboarding_questioner(
         await merge_context(user_id, clear_pending(), db)
         return None
 
+    # Interpret the message as the ANSWER to A's current question FIRST. A valid
+    # answer always wins over a free-text max name — this stops a legit answer
+    # that happens to mention another max (e.g. "improve my posture" hits the
+    # heightmax keyword) from derailing the in-progress intake.
     coerced = coerce_answer(last_field, msg)
     if coerced is None:
+        # Not a usable answer. If the user clearly asked to start a DIFFERENT
+        # max, switch — but into that max's OWN thread so the new intake does
+        # not bleed into this conversation. Otherwise just re-ask A's question.
+        if new_max and new_max != maxx_id:
+            next_field = peek_next_question(new_max, state)
+            if next_field is None:
+                return None
+            # Open a dedicated thread for the new max and pin the request
+            # contextvar to it so the switch question + its answers persist
+            # there, not in max A's conversation (the cross-thread "bleed").
+            try:
+                from services import chat_conversations_service as _conv
+                from models.sqlalchemy_models import active_conversation_id as _acid
+                _new_conv = await _conv.create_conversation(
+                    db, user_id=user_id, title=_maxx_thread_title(new_max), channel="app",
+                )
+                _acid.set(_new_conv.id)
+            except Exception as _e:
+                logger.warning("[onboarding] could not open thread for max switch: %s", _e)
+            await merge_context(
+                user_id,
+                {**clear_pending(), "_onboarding_pending": make_pending(new_max, next_field["id"])},
+                db,
+            )
+            logger.info("[onboarding] free-text switch %s -> %s (own thread)", maxx_id, new_max)
+            payload = field_to_question_payload(next_field)
+            text = (
+                f"switching to your {get_doc(new_max).display_name.lower()} schedule. "
+                + payload["text"].lower()
+            )
+            return _finish_onboarding_turn(text, payload)
+
         # Re-ask, but keep state as-is.
         payload = field_to_question_payload(last_field)
         return _finish_onboarding_turn(
@@ -3701,7 +3789,14 @@ async def _run_onboarding_questioner(
         )
         await db.commit()
         n_days = len(result.get("days") or [])
-        text = f"perfect. your {doc.display_name.lower()} schedule is live — {n_days} days, day 1 starts now. tap schedule to see today."
+        text = (
+            f"perfect. your {doc.display_name.lower()} schedule is live — {n_days} days, "
+            f"day 1 starts now. quick last step — pick the habits you want in it, "
+            f"and tap any you'd rather skip:"
+        )
+        # The habit-picker widget is attached centrally after dispatch (see
+        # _habit_picker_for_new_schedule) so it fires for BOTH this questioner
+        # path and the agent path that also generates.
         return text, [], None
     except Exception as e:
         logger.exception("onboarding completion → generate failed: %s", e)
@@ -3903,6 +3998,32 @@ async def _send_message_locked(
 
     user_id = current_user["id"]
 
+    # ── New-max onboarding → its own chat thread ─────────────────────────
+    # When the client kicks off a new max's setup it sends chat_intent=
+    # start_schedule with the max id in init_context. The mobile initSchedule
+    # effect emits this exactly ONCE, on the opener (subsequent onboarding
+    # answers carry neither field), so this fires a single time per setup.
+    # Spin up a fresh conversation titled after the max so each max's
+    # onboarding lives in its own thread in the chat list, then pin
+    # data.conversation_id + the request-scoped contextvar to it so every
+    # downstream path (questioner / process_chat_message / end-of-turn id
+    # resolution) persists into and returns the new thread.
+    try:
+        _new_maxx = (
+            _coerce_chat_maxx_id(data.init_context)
+            if _coerce_chat_intent(data.chat_intent) == "start_schedule"
+            else None
+        )
+        if _new_maxx:
+            from models.sqlalchemy_models import active_conversation_id as _acid
+            _new_conv = await _conv.create_conversation(
+                db, user_id=user_id, title=_maxx_thread_title(_new_maxx), channel="app",
+            )
+            data.conversation_id = str(_new_conv.id)
+            _acid.set(_new_conv.id)
+    except Exception as _e:
+        logger.warning("[chat] could not open dedicated thread for new max: %s", _e)
+
     # Tier 0 — passive fact extraction. Catches vegetarian/allergic-to/lives-in/
     # weighs-X/has-eczema/etc. and merges into user_schedule_context.user_facts.
     # Pure regex, ~1ms, never blocks or returns a reply — just builds the
@@ -3919,6 +4040,11 @@ async def _send_message_locked(
             await merge_context(user_id, {FACTS_KEY: merged_facts}, db)
     except Exception as _e:
         logger.warning("fact extractor failed (non-fatal): %s", _e)
+
+    # Snapshot active schedules BEFORE any path runs, so after dispatch we can
+    # tell whether a max's schedule was newly generated this turn and offer the
+    # habit picker for it (path-agnostic — works for questioner AND agent).
+    _sched_ids_before = await _active_schedule_ids(user_id, db)
 
     # Context-change hook (runs FIRST — before the questioner / agent).
     # When the user volunteers a wake/sleep change mid-conversation, we
@@ -4042,6 +4168,11 @@ async def _send_message_locked(
             response_text = cleaned_text
             choices = mcq_choices
             multi_choice = multi_flag
+
+    # If a max's schedule was just generated this turn (and no upstream path
+    # already attached a widget), offer the in-chat habit picker for it.
+    if iw is None and not choices:
+        iw = await _habit_picker_for_new_schedule(user_id, db, _sched_ids_before)
 
     return ChatResponse(
         response=response_text,
