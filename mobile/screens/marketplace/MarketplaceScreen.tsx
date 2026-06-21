@@ -1,54 +1,62 @@
 /**
- * MarketplaceScreen (Explore) — browse + enter native maxes ($3.99/wk each) and
- * creator courses. Media-forward + editorial (Apple / craft.do register): cover
- * imagery, Fraunces serif names, a calm cream page, the max's colour as a
- * whisper. A minimalist search filters everything. Native maxes and creator
- * maxes share ONE square tile size; creator tiles carry the creator's avatar in
- * a circle. Tapping anything opens MaxDetail.
+ * MarketplaceScreen (Explore) — Revolut "Learn"-style layout in the onboarding
+ * cream/ink register: a serif title with a search button that slides open to
+ * full width (taking over the title), pill tabs (All / Native / Creator), a
+ * "New" horizontal carousel (All tab only), then a 2-column grid. Cards are
+ * cover-image posters with a dark scrim + serif title. Tapping opens MaxDetail.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     ScrollView,
     TouchableOpacity,
+    TextInput,
     ActivityIndicator,
     RefreshControl,
+    Animated,
+    Easing,
+    useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import api, { type MarketplaceItem } from '../../services/api';
-import SearchBar from '../../components/ui/SearchBar';
 
-const INK = '#1C1A17';
-const MUTE = '#97928A';
-const SUB = '#5C574E';
-const CREAM = '#F7F0EA';
-const CARD = '#FCFAF6';
-const BORDER = '#E8E0D3';
-const GOLD = '#2C6BED';
+// Onboarding "Stoic" black-and-white palette (matches OnboardingV2Screen).
+const INK = '#000000';
+const ON_INK = '#FFFFFF';
+const MUTE = '#9A9A9A';
+const SUB = '#6B6B6B';
+const CREAM = '#F1F1EF';        // soft off-white canvas
+const CARD = '#FFFFFF';
+const BORDER = 'rgba(0,0,0,0.06)';
+const GOLD = '#000000';         // neutral fallback for image-less posters
 const SERIF = 'Fraunces';
 const SERIF_I = 'Fraunces-Italic';
 const GUTTER = 22;
 
-function fmtK(n?: number): string {
-    if (!n) return '';
-    return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${n}`;
-}
+type Tab = 'all' | 'native' | 'creator';
 
 export default function MarketplaceScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
+    const { width } = useWindowDimensions();
     const [maxxes, setMaxxes] = useState<MarketplaceItem[]>([]);
     const [courses, setCourses] = useState<MarketplaceItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [query, setQuery] = useState('');
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [tab, setTab] = useState<Tab>('all');
+
+    const searchAnim = useRef(new Animated.Value(0)).current;
+    const inputRef = useRef<TextInput>(null);
 
     const load = useCallback(async () => {
         try {
@@ -57,7 +65,18 @@ export default function MarketplaceScreen() {
             setMaxxes(data.maxxes || []);
             setCourses(data.courses || []);
         } catch (e: any) {
-            setError('Could not load Explore. Pull to retry.');
+            // Surface WHY it failed so the user knows whether to wait, check
+            // their connection, or retry — instead of one opaque message.
+            const status = e?.response?.status;
+            const isNetwork = !e?.response;
+            const msg = isNetwork
+                ? "Can't reach the server — check your connection and pull to retry."
+                : status === 503 || status === 504
+                    ? 'Server is waking up. Give it a moment and pull to retry.'
+                    : status === 401
+                        ? 'Your session expired. Sign in again.'
+                        : 'Could not load Explore. Pull to retry.';
+            setError(msg);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -85,6 +104,19 @@ export default function MarketplaceScreen() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [navigation, loading]);
 
+    const toggleSearch = () => {
+        const opening = !searchOpen;
+        setSearchOpen(opening);
+        if (!opening) setQuery('');
+        Animated.timing(searchAnim, {
+            toValue: opening ? 1 : 0,
+            duration: 300,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+        if (opening) setTimeout(() => inputRef.current?.focus(), 120);
+    };
+
     const q = query.trim().toLowerCase();
     const matches = useCallback(
         (it: MarketplaceItem) =>
@@ -95,7 +127,28 @@ export default function MarketplaceScreen() {
     );
     const fMaxxes = useMemo(() => maxxes.filter(matches), [maxxes, matches]);
     const fCourses = useMemo(() => courses.filter(matches), [courses, matches]);
-    const noResults = !!q && fMaxxes.length === 0 && fCourses.length === 0;
+
+    const combined = useMemo<MarketplaceItem[]>(
+        () => (tab === 'native' ? fMaxxes : tab === 'creator' ? fCourses : [...fMaxxes, ...fCourses]),
+        [tab, fMaxxes, fCourses],
+    );
+    const suggested = useMemo(() => combined.slice(0, 5), [combined]);
+    const emptyMsg = combined.length === 0
+        ? (q ? `No matches for “${query.trim()}”.` : 'Nothing here yet.')
+        : null;
+
+    const open = (item: MarketplaceItem) => navigation.push('MaxDetail', { item });
+
+    const featureW = Math.min(320, width - GUTTER * 2 - 36);
+    const gridW = (width - GUTTER * 2 - 14) / 2;
+    const gridLabel = tab === 'native' ? 'All maxes' : tab === 'creator' ? 'All courses' : 'All';
+
+    // Search slides from a 42px circle (right) to the full content width,
+    // fading the title out underneath it.
+    const fullW = width - GUTTER * 2;
+    const searchWidth = searchAnim.interpolate({ inputRange: [0, 1], outputRange: [42, fullW] });
+    const titleOpacity = searchAnim.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0], extrapolate: 'clamp' });
+    const inputOpacity = searchAnim.interpolate({ inputRange: [0.45, 1], outputRange: [0, 1], extrapolate: 'clamp' });
 
     if (loading) {
         return (
@@ -116,21 +169,62 @@ export default function MarketplaceScreen() {
                 keyboardShouldPersistTaps="handled"
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} tintColor={INK} />}
             >
+                {/* Title + sliding search */}
                 <View style={styles.head}>
-                    <Text style={styles.h1}>Find your <Text style={styles.h1i}>max</Text></Text>
-                    <Text style={styles.h1sub}>Pick what you're working on. Max fits it into your real week.</Text>
+                    <Animated.Text style={[styles.h1, { opacity: titleOpacity }]} numberOfLines={1}>
+                        Find your <Text style={styles.h1i}>max</Text>
+                    </Animated.Text>
+
+                    <Animated.View style={[styles.searchWrap, { width: searchWidth }]}>
+                        <TouchableOpacity
+                            onPress={searchOpen ? undefined : toggleSearch}
+                            disabled={searchOpen}
+                            activeOpacity={0.7}
+                            style={styles.searchIcon}
+                            accessibilityRole="button"
+                            accessibilityLabel="Search"
+                        >
+                            <Ionicons name="search" size={18} color={searchOpen ? MUTE : INK} />
+                        </TouchableOpacity>
+                        <Animated.View style={{ flex: 1, opacity: inputOpacity }}>
+                            <TextInput
+                                ref={inputRef}
+                                style={styles.searchInput}
+                                value={query}
+                                onChangeText={setQuery}
+                                editable={searchOpen}
+                                placeholder="Search maxes & creators"
+                                placeholderTextColor={MUTE}
+                                returnKeyType="search"
+                                autoCorrect={false}
+                                autoCapitalize="none"
+                            />
+                        </Animated.View>
+                        {searchOpen ? (
+                            <TouchableOpacity onPress={toggleSearch} style={styles.searchClose} hitSlop={10} accessibilityLabel="Close search">
+                                <Ionicons name="close" size={18} color={MUTE} />
+                            </TouchableOpacity>
+                        ) : null}
+                    </Animated.View>
                 </View>
 
-                {/* Minimalist search */}
-                <View style={[styles.gutter, { marginTop: 18 }]}>
-                    <SearchBar
-                        value={query}
-                        onChangeText={setQuery}
-                        placeholder="Search maxes & creators"
-                        returnKeyType="search"
-                        autoCorrect={false}
-                        autoCapitalize="none"
-                    />
+                {/* Pill tabs — All / Native / Creator */}
+                <View style={[styles.gutter, styles.tabs]}>
+                    {([['all', 'All'], ['native', 'Native'], ['creator', 'Creator']] as const).map(([key, label]) => {
+                        const on = tab === key;
+                        return (
+                            <TouchableOpacity
+                                key={key}
+                                style={[styles.tab, on && styles.tabOn]}
+                                onPress={() => setTab(key)}
+                                activeOpacity={0.8}
+                                accessibilityRole="tab"
+                                accessibilityState={{ selected: on }}
+                            >
+                                <Text style={[styles.tabLabel, on && styles.tabLabelOn]}>{label}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
 
                 {error ? (
@@ -139,34 +233,42 @@ export default function MarketplaceScreen() {
                     </View>
                 ) : null}
 
-                {noResults ? (
+                {emptyMsg ? (
                     <View style={[styles.gutter, { marginTop: 40 }]}>
-                        <Text style={styles.noResults}>No matches for “{query.trim()}”.</Text>
+                        <Text style={styles.noResults}>{emptyMsg}</Text>
                     </View>
                 ) : null}
 
-                {fMaxxes.length > 0 ? (
+                {/* New — horizontal carousel (only on the All tab) */}
+                {tab === 'all' && suggested.length > 0 ? (
                     <>
                         <View style={[styles.sectionHead, styles.gutter]}>
-                            <Text style={styles.sectionLabel}>Maxes</Text>
-                            <Text style={styles.sectionNote}>$3.99 / week each</Text>
+                            <Text style={styles.sectionLabel}>New</Text>
                         </View>
-                        <View style={styles.gutter}>
-                            {fMaxxes.map((m, i) => (
-                                <MaxRow key={m.id} item={m} first={i === 0} onPress={() => navigation.push('MaxDetail', { item: m })} />
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={{ paddingHorizontal: GUTTER, gap: 14 }}
+                            decelerationRate="fast"
+                            snapToInterval={featureW + 14}
+                            snapToAlignment="start"
+                        >
+                            {suggested.map((it) => (
+                                <FeatureCard key={it.id} item={it} width={featureW} onPress={() => open(it)} />
                             ))}
-                        </View>
+                        </ScrollView>
                     </>
                 ) : null}
 
-                {fCourses.length > 0 ? (
+                {/* All — 2-column poster grid */}
+                {combined.length > 0 ? (
                     <>
-                        <View style={[styles.sectionHead, styles.gutter, { marginTop: 40 }]}>
-                            <Text style={styles.sectionLabel}>Creator courses</Text>
+                        <View style={[styles.sectionHead, styles.gutter, { marginTop: 34 }]}>
+                            <Text style={styles.sectionLabel}>{gridLabel}</Text>
                         </View>
-                        <View style={styles.gutter}>
-                            {fCourses.map((c, i) => (
-                                <MaxRow key={c.id} item={c} creator first={i === 0} onPress={() => navigation.push('MaxDetail', { item: c })} />
+                        <View style={[styles.gutter, styles.grid]}>
+                            {combined.map((it) => (
+                                <GridCard key={it.id} item={it} width={gridW} onPress={() => open(it)} />
                             ))}
                         </View>
                     </>
@@ -176,42 +278,55 @@ export default function MarketplaceScreen() {
     );
 }
 
-/**
- * One editorial list row, shared by native maxes and creator courses. A crisp
- * framed thumbnail leads (the max's colour fills in when there's no image); the
- * serif name sits over a meta line — member count for a max, the creator's
- * handle for a course; a chevron closes the row.
- */
-function MaxRow({
-    item, first, onPress, creator,
-}: {
-    item: MarketplaceItem;
-    first?: boolean;
-    onPress: () => void;
-    creator?: boolean;
-}) {
+/** Cover image + dark scrim + serif title — the shared poster look. */
+function PosterContent({ item }: { item: MarketplaceItem }) {
     const base = item.color || GOLD;
-    const meta = creator
-        ? `@${item.creator.handle}${item.creator.verified ? ' ✓' : ''}${item.rating ? `   ★ ${item.rating.toFixed(1)}` : ''}`
-        : (item.participants ? `${fmtK(item.participants)} members` : item.tagline);
+    const isCreator = !item.native;
     return (
-        <TouchableOpacity
-            style={[styles.row, !first && styles.rowBorder]}
-            activeOpacity={0.6}
-            onPress={onPress}
-        >
-            <View style={styles.thumb}>
-                {item.image_url ? (
-                    <Image source={{ uri: item.image_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
-                ) : (
-                    <View style={[StyleSheet.absoluteFill, { backgroundColor: base }]} />
-                )}
+        <>
+            {item.image_url ? (
+                <Image source={{ uri: item.image_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+            ) : (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: base }]} />
+            )}
+            <LinearGradient
+                colors={['rgba(20,18,23,0)', 'rgba(20,18,23,0.35)', 'rgba(20,18,23,0.88)']}
+                locations={[0, 0.45, 1]}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+            />
+            {isCreator ? (
+                <View style={styles.creatorTag}>
+                    <Text style={styles.creatorTagText}>@{item.creator.handle}</Text>
+                </View>
+            ) : null}
+        </>
+    );
+}
+
+/** Large carousel poster. */
+function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: number; onPress: () => void }) {
+    return (
+        <TouchableOpacity style={[styles.feature, { width }]} activeOpacity={0.85} onPress={onPress}>
+            <PosterContent item={item} />
+            <View style={styles.featureBody}>
+                <Text style={styles.featureTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={styles.featureSub} numberOfLines={2}>{item.tagline}</Text>
+                <View style={styles.pricePill}><Text style={styles.pricePillText}>{item.price_label}</Text></View>
             </View>
-            <View style={styles.rowMid}>
-                <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.rowSub} numberOfLines={1}>{meta}</Text>
+        </TouchableOpacity>
+    );
+}
+
+/** Small 2-column poster. */
+function GridCard({ item, width, onPress }: { item: MarketplaceItem; width: number; onPress: () => void }) {
+    return (
+        <TouchableOpacity style={[styles.gridCard, { width }]} activeOpacity={0.85} onPress={onPress}>
+            <PosterContent item={item} />
+            <View style={styles.gridBody}>
+                <Text style={styles.gridTitle} numberOfLines={2}>{item.title}</Text>
+                <Text style={styles.gridSub} numberOfLines={1}>{item.price_label}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={MUTE} />
         </TouchableOpacity>
     );
 }
@@ -222,29 +337,51 @@ const styles = StyleSheet.create({
     loadingText: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE },
 
     gutter: { paddingHorizontal: GUTTER },
-    head: { paddingHorizontal: GUTTER },
-    h1: { fontFamily: SERIF, fontSize: 38, color: INK, letterSpacing: -0.9, lineHeight: 42 },
+    head: { paddingHorizontal: GUTTER, minHeight: 46, justifyContent: 'center' },
+    h1: { fontFamily: SERIF, fontSize: 40, color: INK, letterSpacing: -1, lineHeight: 44, paddingRight: 52 },
     h1i: { fontFamily: SERIF_I, color: INK },
-    h1sub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: SUB, lineHeight: 21, marginTop: 10, maxWidth: '92%' },
 
-    // Search
+    // Sliding search (collapsed = 42px circle on the right; open = full width)
+    searchWrap: {
+        position: 'absolute', right: GUTTER, height: 42, borderRadius: 21,
+        backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
+        flexDirection: 'row', alignItems: 'center', overflow: 'hidden',
+    },
+    searchIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+    searchInput: { fontFamily: 'Matter-Regular', fontSize: 15, color: INK, paddingVertical: 0, paddingRight: 8 },
+    searchClose: { width: 38, height: 42, alignItems: 'center', justifyContent: 'center' },
+
+    // Pill tabs
+    tabs: { flexDirection: 'row', gap: 8, marginTop: 20 },
+    tab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, backgroundColor: 'transparent' },
+    tabOn: { backgroundColor: INK },
+    tabLabel: { fontFamily: 'Matter-Medium', fontSize: 14.5, color: MUTE, letterSpacing: 0.2 },
+    tabLabelOn: { fontFamily: 'Matter-SemiBold', color: ON_INK },
+
     noResults: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE },
 
     errorCard: { marginTop: 16, padding: 16, borderRadius: 16, backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
     errorText: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#B23A3A' },
 
-    sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 30, marginBottom: 14 },
-    sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 13, color: INK },
-    sectionNote: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE },
+    sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 26, marginBottom: 14 },
+    sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 18, color: INK, letterSpacing: -0.2 },
 
-    // Editorial list row
-    row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 14 },
-    rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
-    thumb: {
-        width: 56, height: 56, borderRadius: 3, overflow: 'hidden',
-        backgroundColor: '#EFE7DC', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
-    },
-    rowMid: { flex: 1, minWidth: 0 },
-    rowTitle: { fontFamily: SERIF, fontSize: 20, color: INK, letterSpacing: -0.3 },
-    rowSub: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE, marginTop: 3 },
+    // Creator handle tag (top-left on a poster)
+    creatorTag: { position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+    creatorTagText: { fontFamily: 'Matter-Medium', fontSize: 11.5, color: '#FFFFFF', letterSpacing: 0.2 },
+
+    // Feature carousel poster
+    feature: { height: 220, borderRadius: 20, overflow: 'hidden', backgroundColor: INK },
+    featureBody: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 18 },
+    featureTitle: { fontFamily: SERIF, fontSize: 26, color: '#FFFFFF', letterSpacing: -0.4 },
+    featureSub: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: 'rgba(255,255,255,0.82)', lineHeight: 19, marginTop: 4 },
+    pricePill: { alignSelf: 'flex-start', marginTop: 12, backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
+    pricePillText: { fontFamily: 'Matter-SemiBold', fontSize: 12, color: INK, letterSpacing: 0.2 },
+
+    // Grid poster
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+    gridCard: { height: 168, borderRadius: 16, overflow: 'hidden', backgroundColor: INK },
+    gridBody: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 13 },
+    gridTitle: { fontFamily: SERIF, fontSize: 18, color: '#FFFFFF', letterSpacing: -0.3, lineHeight: 22 },
+    gridSub: { fontFamily: 'Matter-Medium', fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
 });

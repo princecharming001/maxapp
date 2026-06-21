@@ -2,6 +2,7 @@
 Storage Service - S3 or local fallback for image storage
 """
 
+import asyncio
 import os
 from typing import Optional
 import uuid
@@ -177,16 +178,19 @@ class S3StorageService:
             unique_id = str(uuid.uuid4())[:8]
             key = f"scans/{user_id}/{timestamp}_{image_type}_{unique_id}.jpg"
             
-            self.s3_client.put_object(
+            # boto3 is synchronous — run it off the event loop so a slow S3
+            # round-trip doesn't block every other request on this worker.
+            await asyncio.to_thread(
+                self.s3_client.put_object,
                 Bucket=self.bucket,
                 Key=key,
                 Body=image_data,
-                ContentType="image/jpeg"
+                ContentType="image/jpeg",
             )
-            
+
             url = f"https://{self.bucket}.s3.{settings.aws_s3_region}.amazonaws.com/{key}"
             return url
-            
+
         except self.ClientError as e:
             print(f"S3 upload error: {e}")
             return None
@@ -211,7 +215,8 @@ class S3StorageService:
             unique = str(uuid.uuid4())[:8]
             key = f"progress_pics/{user_id}/{iso}_{unique}{ext}"
             extra = {"ContentType": content_type or "image/jpeg"}
-            self.s3_client.put_object(
+            await asyncio.to_thread(
+                self.s3_client.put_object,
                 Bucket=self.bucket,
                 Key=key,
                 Body=image_data,
@@ -233,16 +238,17 @@ class S3StorageService:
             unique_id = str(uuid.uuid4())[:8]
             key = f"scans/{user_id}/{timestamp}_scan_{unique_id}.mp4"
             
-            self.s3_client.put_object(
+            await asyncio.to_thread(
+                self.s3_client.put_object,
                 Bucket=self.bucket,
                 Key=key,
                 Body=video_data,
-                ContentType="video/mp4"
+                ContentType="video/mp4",
             )
-            
+
             url = f"https://{self.bucket}.s3.{settings.aws_s3_region}.amazonaws.com/{key}"
             return url
-            
+
         except self.ClientError as e:
             print(f"S3 video upload error: {e}")
             return None
@@ -250,21 +256,21 @@ class S3StorageService:
     async def get_image(self, key: str) -> Optional[bytes]:
         """Download an image from S3"""
         try:
-            response = self.s3_client.get_object(
-                Bucket=self.bucket,
-                Key=key
-            )
-            return response["Body"].read()
+            def _fetch() -> bytes:
+                response = self.s3_client.get_object(Bucket=self.bucket, Key=key)
+                return response["Body"].read()
+            return await asyncio.to_thread(_fetch)
         except self.ClientError as e:
             print(f"S3 download error: {e}")
             return None
-    
+
     async def delete_image(self, key: str) -> bool:
         """Delete an image from S3"""
         try:
-            self.s3_client.delete_object(
+            await asyncio.to_thread(
+                self.s3_client.delete_object,
                 Bucket=self.bucket,
-                Key=key
+                Key=key,
             )
             return True
         except self.ClientError as e:

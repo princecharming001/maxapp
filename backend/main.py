@@ -79,7 +79,10 @@ app.add_middleware(GZipMiddleware, minimum_size=800)
 # (Expo web is often :8081; DEBUG=false alone would previously drop the regex and break signup from web.)
 _cors_origins = settings.cors_origins_list
 _app_env = (getattr(settings, "app_env", "") or "").strip().lower()
-_allow_localhost_regex = _app_env != "production" or getattr(settings, "debug", False)
+# Localhost/LAN origins are allowed ONLY outside production. Do NOT also key this
+# on `debug` — a stray DEBUG=true in production must never widen CORS to let a
+# local proxy make credentialed cross-origin requests.
+_allow_localhost_regex = _app_env != "production"
 # LAN IPs: Expo web opened as http://192.168.x.x:8081 (phone) must be allowed to call the API.
 _cors_regex = (
     (
