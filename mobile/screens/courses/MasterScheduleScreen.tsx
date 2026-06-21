@@ -1178,7 +1178,6 @@ export default function MasterScheduleScreen() {
                 <TouchableOpacity
                   style={[styles.taskRow, isDone && styles.taskRowDone]}
                   onPress={() => {
-                    if (isLife) return;
                     navigation.navigate('TaskDetail', {
                       title: task.title,
                       catalog_id: task.catalog_id,

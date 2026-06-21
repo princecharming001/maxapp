@@ -6,7 +6,7 @@
  * existing DayPlannerScreen), Purchases (entered programs w/ prices),
  * Settings, Manage subscription, Legal. Streak ring at the top.
  */
-import React from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
     ScrollView,
     StyleSheet,
@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CachedImage } from '../../components/CachedImage';
 
 import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
@@ -25,6 +26,136 @@ import { useFlag } from '../../constants/featureFlags';
 import { useAuth } from '../../context/AuthContext';
 import { queryKeys } from '../../lib/queryClient';
 import api from '../../services/api';
+
+const CAL_INK = '#111113';
+const CAL_ON_INK = '#FFFFFF';
+const CAL_MUTE = '#9A9A9A';
+const CAL_TRACK = '#E4E3E0';
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function parseScanPoints(raw: any): { score: number; at?: string }[] {
+    const list = raw?.scans ?? raw?.history ?? (Array.isArray(raw) ? raw : []) ?? [];
+    return (list as any[])
+        .map((s: any) => {
+            const score = Number(
+                s?.overall_score ?? s?.rating ?? s?.score ?? s?.analysis?.psl_rating?.appeal ?? s?.psl_rating?.appeal,
+            );
+            return Number.isFinite(score) ? { score, at: s?.created_at as string | undefined } : null;
+        })
+        .filter(Boolean)
+        .sort((a: any, b: any) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime()) as { score: number; at?: string }[];
+}
+
+function ProgressCalendar({
+    progressPhotos,
+    scanPts,
+    onPhotoPress,
+    onScanDay,
+}: {
+    progressPhotos: any[];
+    scanPts: { score: number; at?: string }[];
+    onPhotoPress: (photo: any) => void;
+    onScanDay: () => void;
+}) {
+    const today = useMemo(() => new Date(), []);
+    const [viewYear, setViewYear] = useState(today.getFullYear());
+    const [viewMonth, setViewMonth] = useState(today.getMonth());
+
+    const goBack = useCallback(() => {
+        if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
+        else setViewMonth(m => m - 1);
+    }, [viewMonth]);
+
+    const goForward = useCallback(() => {
+        if (viewYear > today.getFullYear() || (viewYear === today.getFullYear() && viewMonth >= today.getMonth())) return;
+        if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
+        else setViewMonth(m => m + 1);
+    }, [viewMonth, viewYear, today]);
+
+    const isFuture = viewYear > today.getFullYear() || (viewYear === today.getFullYear() && viewMonth >= today.getMonth());
+
+    const photoByDate = useMemo(() => {
+        const map: Record<string, any> = {};
+        progressPhotos.forEach(ph => {
+            if (ph.created_at) {
+                const d = ph.created_at.split('T')[0];
+                if (!map[d]) map[d] = ph;
+            }
+        });
+        return map;
+    }, [progressPhotos]);
+
+    const scanDateSet = useMemo(() => {
+        const s = new Set<string>();
+        scanPts.forEach(pt => { if (pt.at) s.add(pt.at.split('T')[0]); });
+        return s;
+    }, [scanPts]);
+
+    const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
+    const startOffset = (firstWeekday + 6) % 7;
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    const cells: number[] = [];
+    for (let i = 0; i < startOffset; i++) cells.push(0);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(0);
+
+    return (
+        <View>
+            <View style={cal.header}>
+                <TouchableOpacity onPress={goBack} hitSlop={8} style={cal.navBtn}>
+                    <Ionicons name="chevron-back" size={18} color={CAL_INK} />
+                </TouchableOpacity>
+                <Text style={cal.monthLabel}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
+                <TouchableOpacity onPress={goForward} hitSlop={8} style={cal.navBtn} disabled={isFuture}>
+                    <Ionicons name="chevron-forward" size={18} color={isFuture ? CAL_TRACK : CAL_INK} />
+                </TouchableOpacity>
+            </View>
+            <View style={cal.dayRow}>
+                {['M','T','W','T','F','S','S'].map((d, i) => (
+                    <Text key={i} style={cal.dayHead}>{d}</Text>
+                ))}
+            </View>
+            <View style={cal.grid}>
+                {cells.map((day, i) => {
+                    if (!day) return <View key={`e${i}`} style={cal.cell} />;
+                    const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const photo = photoByDate[dateStr];
+                    const hasScan = scanDateSet.has(dateStr);
+                    const isToday = dateStr === todayStr;
+                    const hasContent = !!photo || hasScan;
+                    return (
+                        <TouchableOpacity
+                            key={dateStr}
+                            style={cal.cell}
+                            onPress={() => {
+                                if (photo) onPhotoPress(photo);
+                                else if (isToday) onScanDay();
+                            }}
+                            activeOpacity={hasContent || isToday ? 0.7 : 1}
+                        >
+                            {photo ? (
+                                <View style={[cal.thumb, isToday && cal.thumbToday]}>
+                                    <CachedImage
+                                        uri={api.resolveAttachmentUrl(photo.image_url)}
+                                        style={{ width: '100%', height: '100%' }}
+                                        contentFit="cover"
+                                    />
+                                </View>
+                            ) : (
+                                <View style={[cal.dayNum, isToday && cal.dayNumToday]}>
+                                    <Text style={[cal.dayText, isToday && cal.dayTextToday]}>{day}</Text>
+                                    {hasScan && !photo ? <View style={cal.scanDot} /> : null}
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    );
+                })}
+            </View>
+        </View>
+    );
+}
 
 type Row = {
     icon: keyof typeof Ionicons.glyphMap;
@@ -82,6 +213,20 @@ export default function YouScreen() {
     });
     const streak = schedData?.schedule_streak?.current ?? 0;
 
+    const { data: progressPhotosData } = useQuery({
+        queryKey: ['progressPhotos'],
+        queryFn: () => api.getProgressPhotos(),
+        staleTime: 60_000,
+    });
+    const { data: scanHistoryData } = useQuery({
+        queryKey: ['scanHistory'],
+        queryFn: () => api.getScanHistory(),
+        staleTime: 60_000,
+    });
+
+    const progressPhotos: any[] = (progressPhotosData as any)?.photos ?? (Array.isArray(progressPhotosData) ? progressPhotosData : []);
+    const scanPts = parseScanPoints(scanHistoryData);
+
     const { data: market } = useQuery({
         queryKey: ['marketplaceBrowse'],
         queryFn: () => api.getMarketplace(),
@@ -107,26 +252,42 @@ export default function YouScreen() {
                 <Text style={styles.kicker}>you</Text>
                 <Text style={styles.title}>{firstName}</Text>
 
+                {/* Streak pill */}
                 <View style={styles.streakWrap}>
                     <GlassCard radius={20}>
-                    <View style={styles.streakCard}>
-                        <View style={styles.streakRing}>
-                            <Text style={styles.streakNumber}>{streak}</Text>
+                        <View style={styles.streakCard}>
+                            <View style={styles.streakRing}>
+                                <Text style={styles.streakNumber}>{streak}</Text>
+                            </View>
+                            <View style={styles.streakText}>
+                                <Text style={styles.streakLabel}>day streak</Text>
+                                <Text style={styles.streakSub}>
+                                    {streak > 0
+                                        ? 'Showing up. That is the whole game.'
+                                        : 'Close out today to start one.'}
+                                </Text>
+                            </View>
                         </View>
-                        <View style={styles.streakText}>
-                            <Text style={styles.streakLabel}>day streak</Text>
-                            <Text style={styles.streakSub}>
-                                {streak > 0
-                                    ? 'Showing up. That is the whole game.'
-                                    : 'Close out today to start one.'}
-                            </Text>
+                    </GlassCard>
+                </View>
+
+                {/* Progress calendar */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>PROGRESS</Text>
+                    <GlassCard radius={20}>
+                        <View style={styles.calendarInner}>
+                            <ProgressCalendar
+                                progressPhotos={progressPhotos}
+                                scanPts={scanPts}
+                                onPhotoPress={(photo) => navigation.navigate('ProgressArchive')}
+                                onScanDay={() => navigation.navigate('FaceScan')}
+                            />
                         </View>
-                    </View>
                     </GlassCard>
                 </View>
 
                 <Section
-                    title="PROGRESS"
+                    title="ACHIEVEMENTS"
                     rows={[
                         {
                             icon: 'trophy-outline',
@@ -136,12 +297,6 @@ export default function YouScreen() {
                         },
                         ...(faceScanEnabled
                             ? ([
-                                  {
-                                      icon: 'scan-outline',
-                                      label: 'New scan',
-                                      sub: 'Optional',
-                                      onPress: () => navigation.navigate('FaceScan'),
-                                  },
                                   {
                                       icon: 'images-outline',
                                       label: 'Scan archive',
@@ -309,4 +464,22 @@ const styles = StyleSheet.create({
         color: '#8C887E',
         marginTop: 1,
     },
+    calendarInner: { padding: 14 },
+});
+
+const cal = StyleSheet.create({
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+    navBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
+    monthLabel: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: CAL_INK, letterSpacing: -0.2 },
+    dayRow: { flexDirection: 'row', marginBottom: 4 },
+    dayHead: { flex: 1, textAlign: 'center', fontFamily: 'Matter-Medium', fontSize: 10.5, color: CAL_MUTE, letterSpacing: 0.2 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap' },
+    cell: { width: `${100 / 7}%` as any, aspectRatio: 1, padding: 1.5, alignItems: 'center', justifyContent: 'center' },
+    thumb: { width: '92%', height: '92%', borderRadius: 5, overflow: 'hidden' },
+    thumbToday: { borderWidth: 1.5, borderColor: CAL_INK },
+    dayNum: { width: '80%', height: '80%', borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
+    dayNumToday: { backgroundColor: CAL_INK },
+    dayText: { fontFamily: 'Matter-Regular', fontSize: 11.5, color: CAL_INK },
+    dayTextToday: { color: CAL_ON_INK, fontFamily: 'Matter-SemiBold' },
+    scanDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#2E7D52', marginTop: 1 },
 });

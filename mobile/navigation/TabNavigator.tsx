@@ -352,7 +352,7 @@ export default function TabNavigator() {
                 // Restore the tab the user left (lib/navState); falls back to
                 // Home when there's nothing valid to restore.
                 initialRouteName={pickInitialTab(getRestoredTab(), [
-                    'Home', 'MasterScheduleTab', 'PlannerTab', 'Explore', 'Chat', 'Forums',
+                    'Home', 'MasterScheduleTab', 'ScanCenter', 'Explore', 'Chat', 'Forums',
                 ])}
                 screenOptions={{
                     headerShown: false,
@@ -361,6 +361,7 @@ export default function TabNavigator() {
                         {
                             height: 52 + insets.bottom,
                             paddingBottom: insets.bottom,
+                            overflow: 'visible' as any,
                         },
                     ],
                     tabBarActiveTintColor: colors.foreground,
@@ -395,18 +396,11 @@ export default function TabNavigator() {
                     }}
                 />
                 <Tab.Screen
-                    name="PlannerTab"
-                    component={PlannerTab}
+                    name="ScanCenter"
+                    component={ScanPlaceholder}
                     options={{
-                        title: 'Planner',
-                        tabBarLabel: 'Planner',
-                        tabBarIcon: ({ color }) => (
-                            <AttachStep index={TOUR_STEP.PLANNER_TAB}>
-                                <View style={styles.tourIconWrap}>
-                                    <Ionicons name="time-outline" size={22} color={color} />
-                                </View>
-                            </AttachStep>
-                        ),
+                        tabBarLabel: 'Scan',
+                        tabBarButton: () => <ScanCenterButton />,
                     }}
                 />
                 <Tab.Screen
