@@ -12,8 +12,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export type FlagName = 'newNav' | 'todayV2' | 'onboardingV2' | 'revealV2' | 'streakV2' | 'faceScan';
 
 const DEFAULTS: Record<FlagName, boolean> = {
-    newNav: false,
-    todayV2: false,
+    newNav: true,
+    todayV2: true,
     onboardingV2: true,
     revealV2: false,
     streakV2: false,

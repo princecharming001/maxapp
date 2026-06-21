@@ -34,6 +34,41 @@ const Stack = createNativeStackNavigator();
 
 function ScanPlaceholder() { return null; }
 
+function ScanCenterButton() {
+    const scanNav = useNavigation<any>();
+    return (
+        <TouchableOpacity
+            onPress={() => scanNav.navigate('FaceScan')}
+            style={scanBtnStyles.touch}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Scan"
+        >
+            <View style={scanBtnStyles.circle}>
+                <Ionicons name="scan" size={22} color="#FFFFFF" />
+            </View>
+        </TouchableOpacity>
+    );
+}
+
+const scanBtnStyles = StyleSheet.create({
+    touch: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    circle: {
+        width: 54,
+        height: 54,
+        borderRadius: 27,
+        backgroundColor: '#111113',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: -18,
+        shadowColor: '#000',
+        shadowOpacity: 0.22,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: -2 },
+        elevation: 6,
+    },
+});
+
 // Render the week planner as a tab root (no back button — it isn't pushed).
 function PlannerTab() {
     return <DayPlannerScreen embedded />;
@@ -212,13 +247,13 @@ function NewTabNavigator({ insets }: { insets: { bottom: number } }) {
             // Restore the tab the user left (lib/navState); falls back to the
             // first tab when there's nothing valid to restore.
             initialRouteName={pickInitialTab(getRestoredTab(), [
-                'MasterScheduleTab', 'Explore', 'Chat', 'YouTab',
+                'MasterScheduleTab', 'Explore', 'ScanCenter', 'Chat', 'YouTab',
             ])}
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: [
                     styles.tabBarGlass,
-                    { height: 52 + insets.bottom, paddingBottom: insets.bottom },
+                    { height: 52 + insets.bottom, paddingBottom: insets.bottom, overflow: 'visible' as any },
                 ],
                 tabBarActiveTintColor: colors.foreground,
                 tabBarInactiveTintColor: colors.textMuted,
@@ -245,6 +280,14 @@ function NewTabNavigator({ insets }: { insets: { bottom: number } }) {
                     tabBarIcon: ({ color }) => (
                         <Ionicons name="compass-outline" size={22} color={color} />
                     ),
+                }}
+            />
+            <Tab.Screen
+                name="ScanCenter"
+                component={ScanPlaceholder}
+                options={{
+                    tabBarLabel: 'Scan',
+                    tabBarButton: () => <ScanCenterButton />,
                 }}
             />
             <Tab.Screen
@@ -435,6 +478,7 @@ const styles = StyleSheet.create({
         borderTopWidth: StyleSheet.hairlineWidth,
         borderTopColor: 'rgba(17,17,19,0.06)',
         paddingTop: spacing.xs,
+        overflow: 'visible',
         ...shadows.lg,
         ...(Platform.OS === 'web' ? { backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' } : {}),
     } as any,

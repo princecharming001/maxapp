@@ -43,6 +43,7 @@ type PlannerTask = {
     task_id?: string;
     schedule_id?: string;
     maxx_id?: string;
+    catalog_id?: string;
     title?: string;
     description?: string;
     time?: string;
@@ -217,6 +218,8 @@ export default function TodayScreen() {
         ),
     });
 
+    const taskToggleInFlightRef = useRef(new Set<string>());
+
     const doneMutation = useMutation({
         mutationFn: (t: PlannerTask) =>
             api.completeScheduleTask(t.schedule_id!, t.task_id!),
@@ -251,15 +254,21 @@ export default function TodayScreen() {
             return snapshotAndPatch(patchStatus(t.task_id, 'pending'));
         },
         onError: (_e, _t, ctx) => rollback(ctx),
-        onSettled: () => queryClient.invalidateQueries({ queryKey: TODAY_QK }),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull }),
     });
 
     const markDone = (t: PlannerTask) => {
+        const key = `${t.schedule_id}:${t.task_id}`;
+        if (taskToggleInFlightRef.current.has(key)) return;
+        taskToggleInFlightRef.current.add(key);
+
         if (undoTimer.current) clearTimeout(undoTimer.current);
         // The undo button waits for the in-flight complete to land before
         // firing uncomplete - otherwise the two PUTs race and the server can
         // finish in the wrong order.
-        const promise = doneMutation.mutateAsync(t).catch(() => {});
+        const promise = doneMutation.mutateAsync(t).catch(() => {}).finally(() => {
+            taskToggleInFlightRef.current.delete(key);
+        });
         setUndo({ task: t, promise });
         undoTimer.current = setTimeout(() => setUndo(null), 4000);
     };
@@ -354,9 +363,17 @@ export default function TodayScreen() {
     };
 
     const read = data?.today_read;
-    const dateLabel = now
-        .toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
-        .toUpperCase();
+    const dateLabel = (() => {
+        const midnight = new Date(now);
+        midnight.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const diffDays = Math.round((midnight.getTime() - today.getTime()) / 86_400_000);
+        if (diffDays === 0) return 'TODAY';
+        if (diffDays === 1) return 'TOMORROW';
+        if (diffDays === -1) return 'YESTERDAY';
+        return now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase();
+    })();
 
     return (
         <ScreenBackdrop>
@@ -670,8 +687,13 @@ export default function TodayScreen() {
                                                     style={{ flex: 1 }}
                                                     activeOpacity={0.7}
                                                     accessibilityRole="button"
-                                                    accessibilityLabel={`${t.title}, options`}
-                                                    onPress={() => setTaskSheet(t)}
+                                                    accessibilityLabel={`${t.title}, view steps`}
+                                                    onPress={() => navigation.navigate('TaskDetail', {
+                                                        title: t.title,
+                                                        catalog_id: t.catalog_id,
+                                                        description: t.description,
+                                                        task_id: t.task_id,
+                                                    })}
                                                 >
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                                                         <Text
@@ -925,9 +947,9 @@ const styles = StyleSheet.create({
         paddingVertical: 5,
         paddingHorizontal: 10,
         borderRadius: 999,
-        backgroundColor: '#EFE7DC',
+        backgroundColor: '#F0F0F0',
         borderWidth: 1,
-        borderColor: '#E2DBCD',
+        borderColor: '#E5E5E5',
     },
     stateChipText: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE },
     noticeCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
@@ -989,7 +1011,7 @@ const styles = StyleSheet.create({
         borderRadius: 999,
         backgroundColor: '#FFFFFF',
         borderWidth: 1,
-        borderColor: '#E2DBCD',
+        borderColor: '#E5E5E5',
         minHeight: 32,
     },
     heldChipText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: MUTE },

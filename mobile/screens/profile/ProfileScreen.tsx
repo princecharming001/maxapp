@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Animated, Pressable, Platform, useWindowDimensions, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -7,7 +7,6 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { CachedImage } from '../../components/CachedImage';
-import Svg, { Polyline, Circle as SvgCircle } from 'react-native-svg';
 import SectionLabel from '../../components/SectionLabel';
 import AchievementBadge from '../../components/achievements/AchievementBadge';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
@@ -16,7 +15,6 @@ import { useMaxxesQuery } from '../../hooks/useAppQueries';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
 import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
 import { userHasSignupPhone } from '../../utils/userPhone';
-import { useFlag } from '../../constants/featureFlags';
 
 const getImageModalWidth = (width: number) =>
     Platform.OS === 'web' && width > 600
@@ -47,34 +45,212 @@ function parseScanPoints(raw: any): { score: number; at?: string }[] {
     return pts;
 }
 
-// Minimal axis-less sparkline of the score trend; last point dotted in the accent.
-function Sparkline({ points }: { points: number[] }) {
-    const W = 100, H = 46, pad = 5;
-    const min = Math.min(...points);
-    const max = Math.max(...points);
-    const span = max - min || 1;
-    const coords = points.map((p, i) => {
-        const x = pad + (i / (points.length - 1)) * (W - pad * 2);
-        const y = H - pad - ((p - min) / span) * (H - pad * 2);
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-    });
-    const [lx, ly] = coords[coords.length - 1].split(',').map(Number);
+// ── Onboarding light black/white palette (Cal AI × Stoic) ──────────────────────
+const BG = '#F1F1EF';
+const CARD = '#FFFFFF';
+const INK = '#111113';
+const ON_INK = '#FFFFFF';
+const SUB = '#6B6B6B';
+const MUTE = '#9A9A9A';
+const TRACK = '#E4E3E0';
+const SOFT = { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 1 } as const;
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function ProgressCalendar({
+    progressPhotos,
+    scanPts,
+    onPhotoPress,
+    onScanDay,
+}: {
+    progressPhotos: any[];
+    scanPts: { score: number; at?: string }[];
+    onPhotoPress: (photo: any) => void;
+    onScanDay: () => void;
+}) {
+    const today = useMemo(() => new Date(), []);
+    const [viewYear, setViewYear] = useState(today.getFullYear());
+    const [viewMonth, setViewMonth] = useState(today.getMonth());
+
+    const goBack = useCallback(() => {
+        if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
+        else setViewMonth(m => m - 1);
+    }, [viewMonth]);
+
+    const goForward = useCallback(() => {
+        if (viewYear > today.getFullYear() || (viewYear === today.getFullYear() && viewMonth >= today.getMonth())) return;
+        if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
+        else setViewMonth(m => m + 1);
+    }, [viewMonth, viewYear, today]);
+
+    const isFuture = viewYear > today.getFullYear() || (viewYear === today.getFullYear() && viewMonth >= today.getMonth());
+
+    const photoByDate = useMemo(() => {
+        const map: Record<string, any> = {};
+        progressPhotos.forEach(ph => {
+            if (ph.created_at) {
+                const d = ph.created_at.split('T')[0];
+                if (!map[d]) map[d] = ph;
+            }
+        });
+        return map;
+    }, [progressPhotos]);
+
+    const scanDateSet = useMemo(() => {
+        const s = new Set<string>();
+        scanPts.forEach(pt => { if (pt.at) s.add(pt.at.split('T')[0]); });
+        return s;
+    }, [scanPts]);
+
+    const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
+    const startOffset = (firstWeekday + 6) % 7;
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    const cells: number[] = [];
+    for (let i = 0; i < startOffset; i++) cells.push(0);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(0);
+
     return (
-        <Svg width={W} height={H}>
-            <Polyline points={coords.join(' ')} fill="none" stroke={colors.foreground} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            <SvgCircle cx={lx} cy={ly} r={2.6} fill={colors.accent} />
-        </Svg>
+        <View>
+            <View style={cal.header}>
+                <TouchableOpacity onPress={goBack} hitSlop={8} style={cal.navBtn}>
+                    <Ionicons name="chevron-back" size={18} color={INK} />
+                </TouchableOpacity>
+                <Text style={cal.monthLabel}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
+                <TouchableOpacity onPress={goForward} hitSlop={8} style={cal.navBtn} disabled={isFuture}>
+                    <Ionicons name="chevron-forward" size={18} color={isFuture ? TRACK : INK} />
+                </TouchableOpacity>
+            </View>
+            <View style={cal.dayRow}>
+                {['M','T','W','T','F','S','S'].map((d, i) => (
+                    <Text key={i} style={cal.dayHead}>{d}</Text>
+                ))}
+            </View>
+            <View style={cal.grid}>
+                {cells.map((day, i) => {
+                    if (!day) return <View key={`e${i}`} style={cal.cell} />;
+                    const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const photo = photoByDate[dateStr];
+                    const hasScan = scanDateSet.has(dateStr);
+                    const isToday = dateStr === todayStr;
+                    const hasContent = !!photo || hasScan;
+
+                    return (
+                        <TouchableOpacity
+                            key={dateStr}
+                            style={cal.cell}
+                            onPress={() => {
+                                if (photo) onPhotoPress(photo);
+                                else if (isToday) onScanDay();
+                            }}
+                            activeOpacity={hasContent || isToday ? 0.7 : 1}
+                        >
+                            {photo ? (
+                                <View style={[cal.thumb, isToday && cal.thumbToday]}>
+                                    <CachedImage
+                                        uri={api.resolveAttachmentUrl(photo.image_url)}
+                                        style={{ width: '100%', height: '100%' }}
+                                        contentFit="cover"
+                                    />
+                                </View>
+                            ) : (
+                                <View style={[cal.dayNum, isToday && cal.dayNumToday]}>
+                                    <Text style={[cal.dayText, isToday && cal.dayTextToday]}>{day}</Text>
+                                    {hasScan && !photo ? <View style={cal.scanDot} /> : null}
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    );
+                })}
+            </View>
+        </View>
     );
 }
+
+const cal = StyleSheet.create({
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+    navBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
+    monthLabel: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK, letterSpacing: -0.2 },
+    dayRow: { flexDirection: 'row', marginBottom: 4 },
+    dayHead: { flex: 1, textAlign: 'center', fontFamily: 'Matter-Medium', fontSize: 10.5, color: MUTE, letterSpacing: 0.2 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap' },
+    cell: { width: `${100 / 7}%` as any, aspectRatio: 1, padding: 1.5, alignItems: 'center', justifyContent: 'center' },
+    thumb: { width: '92%', height: '92%', borderRadius: 5, overflow: 'hidden' },
+    thumbToday: { borderWidth: 1.5, borderColor: INK },
+    dayNum: { width: '80%', height: '80%', borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
+    dayNumToday: { backgroundColor: INK },
+    dayText: { fontFamily: 'Matter-Regular', fontSize: 11.5, color: INK },
+    dayTextToday: { color: ON_INK, fontFamily: 'Matter-SemiBold' },
+    scanDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#2E7D52', marginTop: 1 },
+});
+
+const p = StyleSheet.create({
+    root: { flex: 1, backgroundColor: BG },
+    topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 2 },
+    iconBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+    loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    scroll: { paddingHorizontal: 20, paddingBottom: 36 },
+
+    identity: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginBottom: 18 },
+    idLeft: { flex: 1, paddingRight: 16 },
+    name: { fontFamily: 'Matter-SemiBold', fontSize: 25, color: INK, letterSpacing: -0.5, lineHeight: 29 },
+    editPill: { alignSelf: 'flex-start', marginTop: 12, backgroundColor: INK, borderRadius: 999, paddingHorizontal: 15, paddingVertical: 7 },
+    editPillText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: ON_INK, letterSpacing: 0.1 },
+    avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#E4E3E0' },
+    avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+
+    card: { backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, marginBottom: 10, ...SOFT },
+    cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+    cardTitle: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: INK, letterSpacing: -0.2 },
+    seeAll: { fontFamily: 'Matter-Medium', fontSize: 13, color: MUTE },
+    cheer: { fontFamily: 'Matter-Medium', fontSize: 12, color: SUB },
+    eyebrow: { fontFamily: 'Matter-Medium', fontSize: 10, color: MUTE, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 4 },
+
+    journeyRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 },
+    journeyNext: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK, letterSpacing: -0.2 },
+    journeyProg: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK, letterSpacing: -0.2 },
+    maxChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    maxChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F2F1EF', borderRadius: 999, paddingLeft: 8, paddingRight: 11, paddingVertical: 5 },
+    maxChipDot: { width: 6, height: 6, borderRadius: 3 },
+    maxChipText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: INK, letterSpacing: -0.1 },
+    segRow: { flexDirection: 'row', gap: 5 },
+    seg: { flex: 1, height: 5, borderRadius: 3, backgroundColor: TRACK },
+    segOn: { backgroundColor: INK },
+
+    daysRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+    dayPill: { width: 33, height: 52, borderRadius: 16, backgroundColor: '#F2F1EF', alignItems: 'center', justifyContent: 'center', gap: 6 },
+    dayPillToday: { backgroundColor: INK },
+    dayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'transparent' },
+    dayDotOn: { backgroundColor: INK },
+    dayDotToday: { backgroundColor: ON_INK },
+    dayLetter: { fontFamily: 'Matter-Medium', fontSize: 12, color: SUB },
+    dayLetterToday: { color: ON_INK, fontFamily: 'Matter-SemiBold' },
+
+    weekStats: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+    weekVal: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: INK, letterSpacing: -0.3 },
+
+    faceRow: { flexDirection: 'row', alignItems: 'flex-end' },
+    faceNum: { fontFamily: 'Matter-SemiBold', fontSize: 30, color: INK, letterSpacing: -1, lineHeight: 32 },
+    faceUnit: { fontFamily: 'Matter-Medium', fontSize: 13, color: MUTE, marginLeft: 2, marginBottom: 4 },
+    faceDelta: { fontFamily: 'Matter-Medium', fontSize: 13, marginLeft: 9, marginBottom: 5 },
+    faceArch: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: SUB, marginLeft: 'auto', marginBottom: 6 },
+    faceLocked: { fontFamily: 'Matter-Medium', fontSize: 14.5, color: INK },
+
+    trophyStrip: { gap: 14, paddingVertical: 2 },
+    trophyItem: { alignItems: 'center', width: 62 },
+    trophyLabel: { fontFamily: 'Matter-Medium', fontSize: 10.5, color: SUB, marginTop: 7, textAlign: 'center' },
+    trophyEmpty: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: MUTE, lineHeight: 20 },
+});
 
 export default function ProfileScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const { width: winWidth } = useWindowDimensions();
     const imageModalWidth = getImageModalWidth(winWidth);
-    const { user, refreshUser, isPaid, isPremium } = useAuth();
+    const { user, refreshUser, isPaid } = useAuth();
     // Face-scan kill switch: hides the FACE SCORE card / scan entry points.
-    const faceScan = useFlag('faceScan');
     const maxxesQuery = useMaxxesQuery();
     const activeMaxxes = useMemo(() => {
         const allMaxxes = maxxesQuery.data?.maxes ?? [];
@@ -291,21 +467,6 @@ export default function ProfileScreen() {
         finally { setSaveLoading(false); }
     };
 
-    const onFaceScansPress = () => {
-        if (isPremium) {
-            navigation.navigate('FaceScanArchive');
-        } else {
-            Alert.alert(
-                'Face scans',
-                'Face scans are not available on Basic. Upgrade to Premium for daily scans.',
-                [
-                    { text: 'OK', style: 'cancel' },
-                    { text: 'Upgrade', onPress: () => navigation.navigate('ManageSubscription') },
-                ],
-            );
-        }
-    };
-
     const renderSkeleton = () => (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             <View style={styles.topBarSkeletonPad} />
@@ -345,247 +506,182 @@ export default function ProfileScreen() {
         </ScrollView>
     );
 
-    const summary = user?.onboarding?.facial_scan_summary;
-    const faceScore = typeof summary?.overall_score === 'number' ? summary.overall_score : null;
-    const potential = typeof summary?.potential_score === 'number' ? summary.potential_score : null;
-    const archetype = summary?.archetype;
     const streak = user?.profile?.master_schedule_streak ?? user?.profile?.streak_days ?? 0;
-    const photoCount = progressPhotos.length;
-    const firstScore = scanPts.length ? scanPts[0].score : null;
-    const scoreDelta = faceScore != null && firstScore != null ? +(faceScore - firstScore).toFixed(1) : null;
     const achList: any[] = achievements?.achievements ?? [];
     const earnedAch = achList.filter((a) => a.earned);
     const nextAch = achList
         .filter((a) => !a.earned && a.progress)
         .sort((a, b) => (b.progress.current / b.progress.target) - (a.progress.current / a.progress.target))[0];
-    const stripAch = [...earnedAch, ...(nextAch ? [nextAch] : [])].slice(0, 8);
+    // ── Derived values for the redesigned (pliability-style) layout ──
+    const fullName = user?.first_name
+        ? `${user.first_name} ${user.last_name || ''}`.trim()
+        : (user?.username || (user?.email ? user.email.split('@')[0] : 'You'));
+    // Maxes the user is actively running vs. the full catalog — the card tracks
+    // how many they have right now.
+    const allMaxes = maxxesQuery.data?.maxes ?? [];
+    const totalMaxes = Math.max(allMaxes.length || 5, activeMaxxes.length);
+    const maxesActive = Math.min(activeMaxxes.length, totalMaxes);
+    const goExplore = () => navigation.navigate('Main', { screen: 'Explore' });
+    const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const jsDay = new Date().getDay();          // 0=Sun … 6=Sat
+    const todayIdx = (jsDay + 6) % 7;           // Mon=0 … Sun=6
+    const streakClamped = Math.max(0, Math.min(streak, todayIdx + 1));
+    const achEarnedCount = achievements?.earned_count ?? earnedAch.length;
+    const achTotal = achievements?.total ?? achList.length;
 
     return (
-        <View style={styles.container}>
-            <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 12) }]}>
-                <TouchableOpacity
-                    onPress={() => navigation.goBack()}
-                    style={styles.iconButton}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Go back"
-                >
-                    <Ionicons name="arrow-back" size={20} color={colors.foreground} />
-                </TouchableOpacity>
-                {/* Username intentionally hidden — keeps the header airy
-                    and lets the body content lead. */}
+        <View style={p.root}>
+            <View style={[p.topBar, { paddingTop: Math.max(insets.top, 10) }]}>
+                {navigation.canGoBack() ? (
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={p.iconBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Go back">
+                        <Ionicons name="arrow-back" size={20} color={INK} />
+                    </TouchableOpacity>
+                ) : <View style={p.iconBtn} />}
                 <View style={{ flex: 1 }} />
-                <TouchableOpacity
-                    onPress={() => navigation.navigate('Settings')}
-                    style={styles.iconButton}
-                    activeOpacity={0.7}
-                    accessibilityLabel="Settings"
-                    accessibilityRole="button"
-                >
-                    <Ionicons name="settings-outline" size={20} color={colors.foreground} />
+                <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={p.iconBtn} activeOpacity={0.7} accessibilityLabel="Settings" accessibilityRole="button">
+                    <Ionicons name="settings-outline" size={22} color={INK} />
                 </TouchableOpacity>
             </View>
 
             {loading ? (
-                renderSkeleton()
+                <View style={p.loadingWrap}><ActivityIndicator color={INK} /></View>
             ) : (
-                <Animated.ScrollView showsVerticalScrollIndicator={false} style={{ opacity: fadeAnim }} contentContainerStyle={styles.scrollContent}>
-                    {/* SMS coaching banner removed — phone-verification flow
-                        is no longer part of the app. Push notifications are
-                        the default channel for paid users. */}
+                <Animated.ScrollView showsVerticalScrollIndicator={false} style={{ opacity: fadeAnim }} contentContainerStyle={p.scroll}>
 
                     {/* ── Identity ───────────────────────────────────── */}
-                    <View style={styles.identitySection}>
-                        <View style={styles.idRow}>
-                            <TouchableOpacity
-                                onPress={handleEditPress}
-                                activeOpacity={0.85}
-                                accessibilityRole="button"
-                                accessibilityLabel="Edit profile photo"
-                            >
-                                {user?.profile?.avatar_url ? (
-                                    <CachedImage uri={api.resolveAttachmentUrl(user.profile.avatar_url)} style={styles.avatarImage} />
-                                ) : (
-                                    <View style={styles.avatarPlaceholder}>
-                                        <Ionicons name="person" size={28} color={colors.textMuted} />
+                    <View style={p.identity}>
+                        <View style={p.idLeft}>
+                            <Text style={p.name} numberOfLines={2}>{fullName}</Text>
+                            <TouchableOpacity style={p.editPill} onPress={handleEditPress} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Edit profile">
+                                <Text style={p.editPillText}>Edit Profile</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <TouchableOpacity onPress={handleEditPress} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Edit profile photo">
+                            {user?.profile?.avatar_url ? (
+                                <CachedImage uri={api.resolveAttachmentUrl(user.profile.avatar_url)} style={p.avatar} />
+                            ) : (
+                                <View style={[p.avatar, p.avatarPlaceholder]}><Ionicons name="person" size={26} color={MUTE} /></View>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* ── Your Maxes — tracks how many you're running now ── */}
+                    <View style={p.card}>
+                        <View style={p.cardHead}>
+                            <Text style={p.cardTitle}>Your Maxes</Text>
+                            <TouchableOpacity onPress={goExplore} hitSlop={8} activeOpacity={0.7}>
+                                <Text style={p.seeAll}>See all →</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={p.journeyRow}>
+                            <View style={{ flex: 1, paddingRight: 12 }}>
+                                <Text style={p.eyebrow}>ACTIVE</Text>
+                                {activeMaxxes.length ? (
+                                    <View style={p.maxChips}>
+                                        {activeMaxxes.map((m: any) => (
+                                            <TouchableOpacity
+                                                key={m.id}
+                                                style={p.maxChip}
+                                                onPress={() => navigation.navigate('MaxxDetail', { maxxId: m.id })}
+                                                activeOpacity={0.7}
+                                            >
+                                                <View style={[p.maxChipDot, { backgroundColor: normalizeMaxxTintHex(m.color) }]} />
+                                                <Text style={p.maxChipText}>{getMaxxDisplayLabel(m)}</Text>
+                                            </TouchableOpacity>
+                                        ))}
                                     </View>
+                                ) : (
+                                    <TouchableOpacity onPress={goExplore} activeOpacity={0.7}>
+                                        <Text style={p.journeyNext}>Add your first max →</Text>
+                                    </TouchableOpacity>
                                 )}
-                            </TouchableOpacity>
-
-                            <View style={styles.idText}>
-                                <Text style={styles.headerName} numberOfLines={1}>
-                                    {user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user?.email}
-                                </Text>
-                                {(user?.username || streak > 0) ? (
-                                    <Text style={styles.headerMeta} numberOfLines={1}>
-                                        {user?.username ? `@${user.username}` : ''}
-                                        {user?.username && streak > 0 ? '   ·   ' : ''}
-                                        {streak > 0 ? `${streak} day streak` : ''}
-                                    </Text>
-                                ) : null}
                             </View>
-
-                            <TouchableOpacity onPress={handleEditPress} hitSlop={8} activeOpacity={0.7} style={styles.editBtn}>
-                                <Text style={styles.editLink}>Edit</Text>
-                            </TouchableOpacity>
+                            <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={p.eyebrow}>TRACKING</Text>
+                                <Text style={p.journeyProg}>{maxesActive}/{totalMaxes}</Text>
+                            </View>
                         </View>
-
-                        {user?.profile?.bio ? (
-                            <Text style={styles.headerBio}>{user.profile.bio}</Text>
-                        ) : (
-                            <TouchableOpacity onPress={handleEditPress} activeOpacity={0.7}>
-                                <Text style={styles.headerBioGhost}>Add a one-liner</Text>
-                            </TouchableOpacity>
-                        )}
-
-                        {activeMaxxes.length > 0 ? (
-                            <View style={styles.maxxTagsRow}>
-                                {activeMaxxes.map((m: any) => {
-                                    const tint = normalizeMaxxTintHex(m.color);
-                                    return (
-                                        <TouchableOpacity
-                                            key={m.id}
-                                            style={styles.maxxTag}
-                                            onPress={() => navigation.navigate('MaxxDetail', { maxxId: m.id })}
-                                            activeOpacity={0.6}
-                                        >
-                                            <View style={[styles.maxxDot, { backgroundColor: tint }]} />
-                                            <Text style={styles.maxxTagText}>{getMaxxDisplayLabel(m)}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-                        ) : null}
+                        <View style={p.segRow}>
+                            {Array.from({ length: totalMaxes }).map((_, i) => (
+                                <View key={i} style={[p.seg, i < maxesActive && p.segOn]} />
+                            ))}
+                        </View>
                     </View>
 
-                    {/* ── Face-score trend (flat, card-less) — gated by the
-                        face-scan kill switch; hidden entirely when scan is off ── */}
-                    {faceScan && (faceScore != null ? (
-                        <TouchableOpacity style={styles.section} onPress={onFaceScansPress} activeOpacity={0.7}>
-                            <View style={styles.sectionHead}>
-                                <SectionLabel label="FACE SCORE" style={styles.sectionLabelInline} />
-                                <View style={{ flex: 1 }} />
-                                {scanPts.length >= 2 ? <Sparkline points={scanPts.map((p) => p.score)} /> : null}
+                    {/* ── Weekly Progress (streak) ───────────────────── */}
+                    <View style={p.card}>
+                        <View style={p.cardHead}>
+                            <Text style={p.cardTitle}>Weekly Progress</Text>
+                        </View>
+                        <View style={p.daysRow}>
+                            {DAYS.map((d, i) => {
+                                const today = i === todayIdx;
+                                const done = !today && i <= todayIdx && i >= todayIdx - streakClamped + 1;
+                                return (
+                                    <View key={i} style={[p.dayPill, today && p.dayPillToday]}>
+                                        <View style={[p.dayDot, done && p.dayDotOn, today && p.dayDotToday]} />
+                                        <Text style={[p.dayLetter, today && p.dayLetterToday]}>{d}</Text>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                        <View style={p.weekStats}>
+                            <View>
+                                <Text style={p.eyebrow}>THIS WEEK</Text>
+                                <Text style={p.weekVal}>{streak} day{streak === 1 ? '' : 's'}</Text>
                             </View>
-                            <View style={styles.scoreRow}>
-                                <Text style={styles.scoreNum}>{faceScore.toFixed(1)}</Text>
-                                {scoreDelta != null && scoreDelta !== 0 ? (
-                                    <Text style={[styles.scoreDelta, { color: scoreDelta > 0 ? colors.success : colors.error }]}>
-                                        {scoreDelta > 0 ? '+' : ''}{scoreDelta}
-                                    </Text>
-                                ) : potential != null ? (
-                                    <Text style={styles.scoreDeltaMuted}>{potential.toFixed(1)} potential</Text>
-                                ) : null}
-                            </View>
-                            <Text style={styles.scoreSub}>
-                                {archetype ? `${archetype}   ·   ` : ''}View all scans ›
-                            </Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <TouchableOpacity style={styles.section} onPress={onFaceScansPress} activeOpacity={0.7}>
-                            <SectionLabel label="FACE SCORE" />
-                            <Text style={styles.scoreLockedFlat}>See your face score ›</Text>
-                        </TouchableOpacity>
-                    ))}
-
-                    {/* ── Progress photos ────────────────────────────── */}
-                    <View style={styles.section}>
-                        <View style={styles.sectionHead}>
-                            <SectionLabel label="PROGRESS" style={styles.sectionLabelInline} />
-                            {photoCount ? <Text style={styles.sectionCount}>{photoCount}</Text> : null}
-                            <View style={{ flex: 1 }} />
-                            <TouchableOpacity
-                                style={[styles.addPill, uploadingProgress && styles.actionBtnDisabled]}
-                                onPress={uploadProgressImage}
-                                disabled={uploadingProgress}
-                                activeOpacity={0.8}
-                                accessibilityRole="button"
-                                accessibilityLabel={uploadingProgress ? 'Uploading progress photo' : 'Add progress photo'}
-                            >
-                                <Ionicons name="add" size={16} color={colors.accent} />
-                                <Text style={styles.addPillText}>{uploadingProgress ? 'Uploading…' : 'Add'}</Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('Main', { screen: 'MasterScheduleTab' })} activeOpacity={0.7} style={{ alignItems: 'flex-end' }}>
+                                <Text style={p.eyebrow}>SCHEDULE</Text>
+                                <Text style={p.weekVal}>Open →</Text>
                             </TouchableOpacity>
                         </View>
-
-                        {photoCount === 0 ? (
-                            <TouchableOpacity
-                                style={styles.emptyState}
-                                onPress={uploadProgressImage}
-                                activeOpacity={0.85}
-                                accessibilityRole="button"
-                                accessibilityLabel="Add your first progress photo"
-                            >
-                                <Ionicons name="camera-outline" size={26} color={colors.textMuted} style={{ marginBottom: 10 }} />
-                                <Text style={styles.emptyTitle}>Start your timeline</Text>
-                                <Text style={styles.emptySub}>Add a front-facing photo today. Take one each week to watch it change.</Text>
-                            </TouchableOpacity>
-                        ) : (
-                            <>
-                                <View style={styles.photoGrid}>
-                                    {progressPhotos.map((item, index) => (
-                                        <TouchableOpacity
-                                            key={item.id}
-                                            style={styles.photoGridItem}
-                                            onPress={() => openProgressArchiveAt(index)}
-                                            activeOpacity={0.9}
-                                            accessibilityRole="button"
-                                            accessibilityLabel={`Progress photo ${index + 1}`}
-                                        >
-                                            <CachedImage uri={api.resolveAttachmentUrl(item.image_url)} style={styles.photoGridImage} />
-                                            {item.face_rating != null && Number.isFinite(Number(item.face_rating)) ? (
-                                                <Text style={styles.progressRatingBadge}>
-                                                    {formatFaceRatingLabel(Number(item.face_rating))}
-                                                </Text>
-                                            ) : null}
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                                <Text style={styles.privacyNote}>Your photos stay private to you.</Text>
-                            </>
-                        )}
                     </View>
 
-                    {/* ── Achievements ───────────────────────────────── */}
-                    <View style={styles.section}>
-                        <View style={styles.sectionHead}>
-                            <SectionLabel label="ACHIEVEMENTS" style={styles.sectionLabelInline} />
-                            <View style={{ flex: 1 }} />
-                            {achievements ? (
-                                <Text style={styles.sectionCount}>{achievements.earned_count} / {achievements.total}</Text>
-                            ) : null}
+                    {/* ── Progress Calendar ──────────────────────────── */}
+                    <View style={p.card}>
+                        <View style={p.cardHead}>
+                            <Text style={p.cardTitle}>Progress</Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('FaceScanArchive')} hitSlop={8} activeOpacity={0.7}>
+                                <Text style={p.seeAll}>All scans →</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <ProgressCalendar
+                            progressPhotos={progressPhotos}
+                            scanPts={scanPts}
+                            onPhotoPress={(photo) => {
+                                const idx = progressPhotos.findIndex(p => p.id === photo.id);
+                                setSelectedPhotoIndex(idx >= 0 ? idx : 0);
+                                setProgressModalVisible(true);
+                            }}
+                            onScanDay={() => navigation.navigate('FaceScan')}
+                        />
+                    </View>
+
+                    {/* ── Trophy Case (achievements) ─────────────────── */}
+                    <View style={p.card}>
+                        <View style={p.cardHead}>
+                            <Text style={p.cardTitle}>Trophy Case</Text>
                             <TouchableOpacity onPress={() => navigation.navigate('Achievements')} hitSlop={8} activeOpacity={0.7}>
-                                <Text style={styles.seeAll}>  See all ›</Text>
+                                <Text style={p.seeAll}>{achTotal ? `${achEarnedCount}/${achTotal}  →` : 'See all →'}</Text>
                             </TouchableOpacity>
                         </View>
-                        {stripAch.length ? (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achStrip}>
-                                {stripAch.map((a: any) => (
-                                    <TouchableOpacity
-                                        key={a.code || a.title}
-                                        style={styles.achItem}
-                                        onPress={() => navigation.navigate('Achievements')}
-                                        activeOpacity={0.85}
-                                    >
-                                        <AchievementBadge
-                                            icon={a.icon}
-                                            code={a.code}
-                                            tier={a.tier}
-                                            earned={a.earned}
-                                            size={58}
-                                            progress={a.progress ? a.progress.current / a.progress.target : null}
-                                        />
-                                        <Text style={styles.achItemLabel} numberOfLines={1}>{a.title}</Text>
+                        {earnedAch.length ? (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={p.trophyStrip}>
+                                {earnedAch.slice(0, 12).map((a: any) => (
+                                    <TouchableOpacity key={a.code || a.title} style={p.trophyItem} onPress={() => navigation.navigate('Achievements')} activeOpacity={0.85}>
+                                        <AchievementBadge icon={a.icon} code={a.code} tier={a.tier} earned size={52} progress={null} />
+                                        <Text style={p.trophyLabel} numberOfLines={1}>{a.title}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </ScrollView>
                         ) : (
                             <TouchableOpacity onPress={() => navigation.navigate('Achievements')} activeOpacity={0.7}>
-                                <Text style={styles.emptySub}>Finish your first routine to earn your first badge ›</Text>
+                                <Text style={p.trophyEmpty}>Looks like you haven&apos;t earned a badge yet!</Text>
                             </TouchableOpacity>
                         )}
                     </View>
 
-                    <View style={{ height: spacing.xxxl }} />
+                    <View style={{ height: 40 }} />
                 </Animated.ScrollView>
             )}
 
