@@ -30,6 +30,7 @@ def _supabase_connect_args() -> dict:
     """
     args: dict = {
         "timeout": 10,
+        "command_timeout": 15,
         "ssl": "require",
         "server_settings": {
             "application_name": "maxapp_backend",
@@ -52,7 +53,7 @@ engine = create_async_engine(
     pool_size=settings.supabase_db_pool_size,
     max_overflow=settings.supabase_db_max_overflow,
     pool_recycle=180,
-    pool_timeout=10,
+    pool_timeout=5,
     pool_pre_ping=True,
     connect_args=_supabase_connect_args(),
 )

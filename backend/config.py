@@ -33,8 +33,10 @@ class Settings(BaseSettings):
     supabase_db_name: str = Field(default="postgres")
     # Defaults allow multiple concurrent requests. If you connect through Supabase Session
     # pooler (5432) and hit MaxClientsInSessionMode, lower these via env.
-    supabase_db_pool_size: int = Field(default=5)
-    supabase_db_max_overflow: int = Field(default=5)
+    # Session mode has a strict global limit (~15 total). Reduce pool_size + max_overflow
+    # to stay well under that limit, or switch to Transaction mode (port 6543) in Supabase Dashboard.
+    supabase_db_pool_size: int = Field(default=3)
+    supabase_db_max_overflow: int = Field(default=2)
 
     # AWS RDS (shared data)
     aws_rds_host: str = Field(default="localhost")
@@ -66,6 +68,9 @@ class Settings(BaseSettings):
     # Google Gemini -- still required for face-scan vision (HF TGI text endpoint can't do images)
     gemini_api_key: str = Field(default="")
     gemini_model: str = Field(default="gemini-2.5-flash")
+    # Anthropic Claude -- used for face-scan vision when LLM_PROVIDER=claude
+    anthropic_api_key: str = Field(default="")
+    anthropic_model: str = Field(default="claude-haiku-4-5")
     # OpenAI -- still required for face-scan vision fallback when Gemini key is missing
     openai_api_key: str = Field(default="")
     openai_model: str = Field(default="gpt-4o-mini")
