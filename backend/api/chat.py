@@ -19,6 +19,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db, get_rds_db_optional
 from middleware.auth_middleware import get_current_user
+from middleware.rate_limit import rate_limit
 from models.leaderboard import ChatRequest, ChatResponse
 from models.sqlalchemy_models import ChatHistory, Scan, User, UserSchedule
 from services.coaching_service import coaching_service
@@ -3966,7 +3967,11 @@ async def _extract_facts_bg(user_id: str, user_msg: str, assistant_response: str
         logger.info("bg fact extract setup failed (non-fatal): %s", e)
 
 
-@router.post("/message", response_model=ChatResponse)
+@router.post(
+    "/message",
+    response_model=ChatResponse,
+    dependencies=[Depends(rate_limit(limit=60, window_s=60, scope="chat"))],
+)
 async def send_message(
     data: ChatRequest,
     background_tasks: BackgroundTasks,

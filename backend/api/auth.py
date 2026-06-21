@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from db import get_db
 from middleware import get_current_user
+from middleware.rate_limit import rate_limit
 from models.sqlalchemy_models import PasswordResetOTP, User
 from models.user import (
     AuthMessageResponse,
@@ -117,7 +118,11 @@ def create_refresh_token(user_id: str) -> str:
     return jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
-@router.post("/signup", response_model=TokenResponse)
+@router.post(
+    "/signup",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit(limit=10, window_s=3600, scope="signup"))],
+)
 async def signup(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     """
     Create a new user account
@@ -393,7 +398,11 @@ async def faux_signup_skip(db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit(limit=10, window_s=300, scope="login"))],
+)
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     """
     OAuth2 form login: use `username` field for email, username, or phone.
@@ -419,7 +428,11 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     )
 
 
-@router.post("/login/json", response_model=TokenResponse)
+@router.post(
+    "/login/json",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit(limit=10, window_s=300, scope="login"))],
+)
 async def login_json(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
     """
     Login with JSON — `identifier` (or legacy `email`): email, username, or phone.
@@ -599,7 +612,11 @@ _GENERIC_RESET_MSG = (
 )
 
 
-@router.post("/forgot-password/sms", response_model=AuthMessageResponse)
+@router.post(
+    "/forgot-password/sms",
+    response_model=AuthMessageResponse,
+    dependencies=[Depends(rate_limit(limit=5, window_s=3600, scope="forgot_sms"))],
+)
 async def forgot_password_sms(
     body: ForgotPasswordSmsRequest,
     db: AsyncSession = Depends(get_db),
@@ -666,7 +683,11 @@ async def forgot_password_sms(
     return AuthMessageResponse(message=_GENERIC_RESET_MSG)
 
 
-@router.post("/forgot-password/sms/confirm", response_model=AuthMessageResponse)
+@router.post(
+    "/forgot-password/sms/confirm",
+    response_model=AuthMessageResponse,
+    dependencies=[Depends(rate_limit(limit=10, window_s=900, scope="forgot_sms_confirm"))],
+)
 async def forgot_password_sms_confirm(
     body: ForgotPasswordSmsConfirm,
     db: AsyncSession = Depends(get_db),

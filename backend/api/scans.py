@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from db import get_db
 from middleware.auth_middleware import require_paid_user, get_current_user
+from middleware.rate_limit import rate_limit
 from services.storage_service import storage_service
 from services.llm_router import llm_analyze_triple_full
 from models.sqlalchemy_models import Scan, Leaderboard, User
@@ -146,7 +147,10 @@ def _overall_from_analysis(analysis: dict) -> float:
         return 0.0
 
 
-@router.post("/upload-triple")
+@router.post(
+    "/upload-triple",
+    dependencies=[Depends(rate_limit(limit=20, window_s=3600, scope="scan"))],
+)
 async def upload_scan_triple(
     front: UploadFile = File(...),
     left: UploadFile = File(...),
