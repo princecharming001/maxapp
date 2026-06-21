@@ -1093,6 +1093,32 @@ export default function FaceScanResultsScreen() {
             </View>
         );
     }
+    // Failed scan or completed scan with no analysis both render as a blank
+    // screen — catch them here and give the user an actionable error + retry.
+    const scanFailed = scan?.processing_status === 'failed';
+    const missingAnalysis = !hydrating && scan && scan.processing_status === 'completed' && !a;
+    if (scanFailed || missingAnalysis) {
+        const goRescan = () => {
+            if (isScanUser) navigation.reset({ index: 0, routes: [{ name: 'FaceScan' }] });
+            else if (navigation.canGoBack()) navigation.goBack();
+            else navigation.navigate('FaceScan');
+        };
+        return (
+            <View style={[s.root, s.fetchingRoot]}>
+                <Text style={s.fetchErrorText}>
+                    {scanFailed
+                        ? 'Analysis didn’t complete. Try scanning again with clear, well-lit photos.'
+                        : 'Results aren’t ready yet. Pull to retry or scan again.'}
+                </Text>
+                <TouchableOpacity style={s.fetchRetryBtn} onPress={missingAnalysis ? bootstrap : goRescan} activeOpacity={0.85}>
+                    <Text style={s.fetchRetryText}>{missingAnalysis ? 'Retry' : 'Scan again'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.fetchSkipBtn} onPress={headerBack} activeOpacity={0.85}>
+                    <Text style={s.fetchSkipText}>Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     const ascensionLabelText = ascensionMonths > 0 ? `${ascensionMonths} months` : '—';
     const ratingColorScore = ratingDisplay ?? RATING_DISPLAY_MIN;
