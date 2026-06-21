@@ -15,19 +15,12 @@ const DEFAULTS: Record<FlagName, boolean> = {
     newNav: true,
     todayV2: true,
     onboardingV2: true,
-    revealV2: false,
-    streakV2: false,
-    // Kill switch for the AI face-scan feature. `false` removes it everywhere:
-    // the onboarding funnel skips it, the paywall no longer gates purchase on
-    // it, and every scan CTA (Profile face-score card, You "New scan"/archive,
-    // RevealV2 prompt, Home post-pay redirect) is hidden. The scan SCREENS stay
-    // registered but unreachable, so flipping this back to `true` fully restores
-    // the feature in one line — every gate reads this flag. Scan-only accounts
-    // (isScanUser) are a separate product and intentionally NOT gated by this.
-    faceScan: false,
+    revealV2: true,
+    streakV2: true,
+    faceScan: true,
 };
 
-const STORAGE_KEY = 'max.featureFlags.v1';
+const STORAGE_KEY = 'max.featureFlags.v2';
 
 let current: Record<FlagName, boolean> = { ...DEFAULTS };
 const listeners = new Set<() => void>();
