@@ -142,6 +142,11 @@ class Settings(BaseSettings):
     # only needed for partner-level operations (currently none), left blank
     # so the feature degrades gracefully when not configured.
     onairos_partner_api_key: str = Field(default="", description="Optional Onairos partner API key")
+    # Onairos *client* SDK key (the `ona_...` value the mobile SDK initializes with).
+    # Served to the app at runtime via GET /api/onairos/config so it is NOT baked
+    # into the IPA bundle (where it would be publicly extractable) and can be
+    # rotated server-side without an app release.
+    onairos_api_key: str = Field(default="", description="Onairos client SDK key served to the app at runtime")
     onairos_http_timeout_seconds: float = Field(
         default=6.0, description="HTTP timeout for Onairos inference calls"
     )
@@ -248,7 +253,10 @@ class Settings(BaseSettings):
     # Application
     app_name: str = Field(default="Max")
     app_env: str = Field(default="development")
-    debug: bool = Field(default=True)
+    # Default OFF. When True, the global exception handler returns raw exception
+    # text to clients (stack traces, DB schema, file paths) — never in production.
+    # Set DEBUG=true explicitly for local development only.
+    debug: bool = Field(default=False)
     # SQLAlchemy query echo -- off by default, independent of `debug`. Turning this
     # on in production (Render/Fly/etc.) floods the log pipeline with a full SELECT
     # dump for every single authenticated request, which crushes dashboards and

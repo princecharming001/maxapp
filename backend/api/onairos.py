@@ -60,6 +60,19 @@ def _iso(ts) -> Optional[str]:
     return ts.isoformat() if ts else None
 
 
+@router.get("/config")
+async def onairos_config(current_user: dict = Depends(get_current_user)):
+    """Serve the Onairos client SDK key at runtime (authenticated).
+
+    Keeps the `ona_...` key OUT of the app bundle — the app fetches it here
+    after sign-in instead of reading a baked-in EXPO_PUBLIC_ env var. `enabled`
+    is false when no key is configured so the client can hide the feature.
+    """
+    from config import settings
+    key = (getattr(settings, "onairos_api_key", "") or "").strip()
+    return {"enabled": bool(key), "api_key": key}
+
+
 @router.post("/connect", status_code=status.HTTP_200_OK)
 async def connect(
     body: OnairosConnectBody,

@@ -103,24 +103,41 @@ class LocalStorageService:
             print(f"Local video storage error: {e}")
             return None
     
+    def _safe_path(self, key: str) -> Optional[str]:
+        """Resolve a storage key to an absolute path INSIDE storage_dir.
+
+        Guards against path traversal: a key like '../../etc/passwd' must not
+        be able to escape the uploads directory. Returns None if the resolved
+        path would land outside storage_dir.
+        """
+        rel = key.replace("/uploads/", "").lstrip("/")
+        base = os.path.abspath(self.storage_dir)
+        resolved = os.path.abspath(os.path.join(base, rel))
+        # commonpath raises if paths are on different drives; treat that as unsafe.
+        try:
+            if os.path.commonpath([base, resolved]) != base:
+                return None
+        except ValueError:
+            return None
+        return resolved
+
     async def get_image(self, key: str) -> Optional[bytes]:
         """Read image from local filesystem"""
         try:
-            # Convert URL path to file path
-            filepath = os.path.join(self.storage_dir, key.replace("/uploads/", ""))
-            if os.path.exists(filepath):
+            filepath = self._safe_path(key)
+            if filepath and os.path.exists(filepath):
                 with open(filepath, "rb") as f:
                     return f.read()
             return None
         except Exception as e:
             print(f"Local read error: {e}")
             return None
-    
+
     async def delete_image(self, key: str) -> bool:
         """Delete image from local filesystem"""
         try:
-            filepath = os.path.join(self.storage_dir, key.replace("/uploads/", ""))
-            if os.path.exists(filepath):
+            filepath = self._safe_path(key)
+            if filepath and os.path.exists(filepath):
                 os.remove(filepath)
             return True
         except Exception as e:

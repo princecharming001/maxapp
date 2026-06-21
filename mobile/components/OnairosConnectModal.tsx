@@ -7,8 +7,12 @@
  * and pass the resolved {apiUrl, accessToken, approvedRequests, userData}
  * bundle to our backend via apiService.connectOnairos(...).
  *
- * Renders a graceful "unavailable" state when EXPO_PUBLIC_ONAIROS_API_KEY
- * is not set, so the feature can ship behind a build-time flag.
+ * Renders a graceful "unavailable" state when the Onairos key is not
+ * configured server-side, so the feature can ship behind a runtime flag.
+ *
+ * The SDK key is fetched at runtime via useOnairosConfig() (GET /onairos/config)
+ * rather than read from a bundled EXPO_PUBLIC_ env var, so it is not extractable
+ * from the shipped IPA.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -22,6 +26,7 @@ import {
 } from 'react-native';
 
 import apiService from '../services/api';
+import { useOnairosConfig } from '../hooks/useOnairosConfig';
 
 type OnairosResolvedPayload = {
     success: boolean;
@@ -75,7 +80,7 @@ export default function OnairosConnectModal({
     onConnected,
 }: OnairosConnectModalProps) {
     const sdk = useMemo(() => loadOnairosSdk(), []);
-    const apiKey = (process.env.EXPO_PUBLIC_ONAIROS_API_KEY || '').trim();
+    const { apiKey } = useOnairosConfig();
 
     const [initializing, setInitializing] = useState<boolean>(false);
     const [initError, setInitError] = useState<string | null>(null);
@@ -161,8 +166,8 @@ export default function OnairosConnectModal({
                     {!canRender && (
                         <View style={styles.notice}>
                             <Text style={styles.noticeText}>
-                                Onairos is unavailable in this build. Set
-                                EXPO_PUBLIC_ONAIROS_API_KEY and install
+                                Onairos is unavailable right now. Configure the
+                                Onairos key on the server and install
                                 @onairos/react-native to enable it.
                             </Text>
                         </View>

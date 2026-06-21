@@ -106,6 +106,7 @@ def _user_dict(user: User) -> dict:
         "last_progress_prompt_date": user.last_progress_prompt_date,
         "has_apns_token": bool((user.apns_device_token or "").strip()),
         "coaching_tone": getattr(user, "coaching_tone", None) or "default",
+        "auth_provider": getattr(user, "auth_provider", None) or "password",
     }
 
 

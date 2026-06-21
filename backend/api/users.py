@@ -1666,8 +1666,19 @@ async def delete_my_account(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if not verify_password(body.password, user.password_hash):
-        raise HTTPException(status_code=400, detail="Incorrect password")
+    # Google/OAuth-only accounts have a random unusable password_hash and no
+    # password the user could enter — requiring one here would make it
+    # IMPOSSIBLE for them to delete their account (an App Store 5.1.1(v)
+    # rejection). They are already authenticated by a valid JWT, so for those
+    # accounts the session itself is sufficient re-auth. Password accounts must
+    # still confirm with their password.
+    is_oauth_only = str(getattr(user, "auth_provider", "") or "").lower() not in ("", "password") \
+        or bool(getattr(user, "google_sub", None))
+    if not is_oauth_only:
+        if not (body.password or "").strip():
+            raise HTTPException(status_code=400, detail="Password is required to delete this account")
+        if not verify_password(body.password, user.password_hash):
+            raise HTTPException(status_code=400, detail="Incorrect password")
 
     await rds_db.execute(
         update(ChannelMessage)

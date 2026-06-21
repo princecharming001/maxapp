@@ -152,8 +152,16 @@ function getExpoDevBundlerHost(): string | null {
  * - Native dev: if .env is still loopback, use Metro’s dev-machine IP (physical iPhone).
  */
 function resolveApiBaseUrl(): string {
-    const fromEnv =
-        process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || 'http://localhost:8000/api/';
+    const envValue = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+    // Fail fast in production builds: shipping with EXPO_PUBLIC_API_BASE_URL unset
+    // would silently point the app at localhost and every request would fail.
+    if (!envValue && !__DEV__) {
+        throw new Error(
+            'EXPO_PUBLIC_API_BASE_URL is not set for this production build. ' +
+            'Configure it in the EAS build profile before shipping.'
+        );
+    }
+    const fromEnv = envValue || 'http://localhost:8000/api/';
 
     if (__DEV__ && Platform.OS !== 'web' && envTargetsLoopback(fromEnv)) {
         const devHost = getExpoDevBundlerHost();
@@ -590,6 +598,12 @@ class ApiService {
     }
 
     // --- Onairos personalization ---
+    // Runtime config so the SDK key isn't baked into the app bundle.
+    async getOnairosConfig() {
+        const response = await this.client.get('onairos/config');
+        return response.data as { enabled: boolean; api_key: string };
+    }
+
     async connectOnairos(payload: {
         apiUrl: string;
         accessToken: string;
@@ -654,8 +668,10 @@ class ApiService {
         return response.data as { ok: boolean; updated: number };
     }
 
-    async deleteAccount(password: string) {
-        const response = await this.client.delete('users/me', { data: { password } });
+    async deleteAccount(password?: string) {
+        // Password is omitted for Google/OAuth accounts (they have none); the
+        // backend authorizes those via the session JWT.
+        const response = await this.client.delete('users/me', { data: { password: password ?? null } });
         return response.data;
     }
 
@@ -1366,19 +1382,13 @@ class ApiService {
         choices?: string[];
         /** When true the chip row renders multi-select with a Submit button. */
         multi_choice?: boolean;
-        // Optional structured input widget. When the backend wants the user
-        // to provide a numeric value, it returns a slider spec instead of
-        // (or alongside) text input. Mobile renders ChatSliderInput for it.
-        //   { type: "slider", min, max, step, default, label, unit }
-        input_widget?: {
-            type: 'slider';
-            min: number;
-            max: number;
-            step: number;
-            default: number;
-            label: string;
-            unit?: string;
-        } | null;
+        // Optional structured input widget. The backend returns either a
+        // numeric `slider` (→ ChatSliderInput) or a per-max `habit_picker`
+        // shown right after a schedule is built (→ ChatHabitPicker). Typed
+        // loosely (the widgets validate their own `type` before rendering).
+        //   slider:       { type, min, max, step, default, label, unit }
+        //   habit_picker: { type, maxx_id, schedule_id, label }
+        input_widget?: ({ type: string } & Record<string, any>) | null;
         conversation_id?: string | null;
     }> {
         const body: any = {
@@ -1397,6 +1407,29 @@ class ApiService {
             // @ts-expect-error custom flag consumed by response interceptor
             _skipNetRetry: true,
         });
+        return response.data;
+    }
+
+    /**
+     * Apply the chat habit-picker's want/avoid choices to one max's schedule.
+     * Writes them into schedule_context and re-expands just that max, so the
+     * picks take effect immediately. Used by the in-chat ChatHabitPicker.
+     */
+    async updateHabitPrefs(
+        scheduleId: string,
+        wantedCatalogIds: string[],
+        avoidedCatalogIds: string[],
+    ): Promise<{
+        status: string;
+        schedule: { id: string; maxx_id: string; days: any[] } | null;
+        wanted: string[];
+        avoided: string[];
+    }> {
+        const response = await this.client.post(
+            `schedules/${scheduleId}/habit-prefs`,
+            { wanted_catalog_ids: wantedCatalogIds, avoided_catalog_ids: avoidedCatalogIds },
+            { timeout: 60_000 },
+        );
         return response.data;
     }
 

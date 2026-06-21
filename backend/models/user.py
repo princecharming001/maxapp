@@ -353,6 +353,10 @@ class UserResponse(BaseModel):
         default=False,
         description="True if an APNs device token is stored (iOS push can be delivered).",
     )
+    auth_provider: Optional[str] = Field(
+        default="password",
+        description="How the account signs in: 'password' or 'google'. OAuth accounts have no password.",
+    )
     coaching_tone: Optional[str] = Field(
         default="default",
         description="Bot tone preference. One of: default | hardcore | gentle | influencer.",
@@ -420,6 +424,10 @@ class BlockUserRequest(BaseModel):
 
 
 class DeleteAccountRequest(BaseModel):
-    """Confirm account deletion with password (App Store Guideline 5.1.1)."""
+    """Confirm account deletion (App Store Guideline 5.1.1).
 
-    password: str = Field(..., min_length=1, max_length=200)
+    Password is required for password accounts but optional for Google/OAuth
+    accounts (which have no password) — the endpoint enforces this per account.
+    """
+
+    password: Optional[str] = Field(default=None, max_length=200)

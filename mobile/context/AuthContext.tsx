@@ -22,6 +22,8 @@ type SubscriptionTier = 'basic' | 'premium' | null;
 interface User {
     id: string;
     email: string;
+    /** 'password' | 'google'. OAuth accounts have no password to confirm with. */
+    auth_provider?: string;
     /** Present when account was created with phone; read-only in profile. */
     phone_number?: string;
     first_name?: string;
@@ -109,7 +111,7 @@ interface AuthContextType {
     /** Returns latest user from API (e.g. after payment) so callers can branch before next render. */
     refreshUser: () => Promise<User>;
     /** Permanently delete the signed-in account (App Store account-deletion requirement). */
-    deleteAccount: (password: string) => Promise<void>;
+    deleteAccount: (password?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -287,7 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return userData;
     }, []);
 
-    const deleteAccount = useCallback(async (password: string) => {
+    const deleteAccount = useCallback(async (password?: string) => {
         await api.deleteAccount(password);
         await api.clearTokens();
         setUser(null);

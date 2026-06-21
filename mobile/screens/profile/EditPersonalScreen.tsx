@@ -18,6 +18,7 @@ import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
 import OnairosConnectModal from '../../components/OnairosConnectModal';
+import { useOnairosConfig } from '../../hooks/useOnairosConfig';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { maxHomeMaxxesForUser } from '../../utils/maxxLimits';
 import { getMaxxDisplayDescription, getMaxxDisplayLabel } from '../../utils/maxxDisplay';
@@ -101,6 +102,7 @@ export default function EditPersonalScreen() {
   const { width } = useWindowDimensions();
   const isWide = width > 600;
   const { user, refreshUser } = useAuth();
+  const { enabled: onairosEnabled } = useOnairosConfig();
   const maxxesQuery = useMaxxesQuery();
   const [loading, setLoading] = useState(false);
   // Onairos modal — opens from the "external personalization" card.
@@ -637,7 +639,7 @@ export default function EditPersonalScreen() {
               {/* Onairos personalization card — let users connect or refresh
                   their cross-app personality/habit data. The chatbot picks up
                   the new traits on the next turn via coaching_service. */}
-              {(process.env.EXPO_PUBLIC_ONAIROS_API_KEY || '').trim() ? (
+              {onairosEnabled ? (
                 <View style={styles.card}>
                   {sectionKicker('EXTERNAL PERSONALIZATION')}
                   <Text style={styles.cardTitle}>Connect your apps</Text>

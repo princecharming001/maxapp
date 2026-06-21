@@ -58,14 +58,22 @@ async def resolve_user_by_login_identifier(db: AsyncSession, raw: str) -> User |
     if not s:
         return None
     s_lower = s.lower()
+    # Try the most-likely match for the shape of the input first, but always
+    # fall through to a username lookup so any valid username resolves —
+    # even an all-digit one (which would otherwise read as a phone) or one
+    # that happens to contain an "@".
     if "@" in s:
         result = await db.execute(select(User).where(User.email == s_lower))
-        return result.scalar_one_or_none()
+        user = result.scalar_one_or_none()
+        if user:
+            return user
     if len(_digits_only(s)) >= 10:
         normalized = normalize_phone(s)
         candidates = list(dict.fromkeys(phone_lookup_candidates(normalized) + [normalized]))
         result = await db.execute(select(User).where(User.phone_number.in_(candidates)))
-        return result.scalar_one_or_none()
+        user = result.scalar_one_or_none()
+        if user:
+            return user
     result = await db.execute(select(User).where(User.username == s_lower))
     return result.scalar_one_or_none()
 
@@ -807,4 +815,5 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
         last_username_change=current_user.get("last_username_change"),
         has_apns_token=current_user.get("has_apns_token", False),
         coaching_tone=current_user.get("coaching_tone") or "default",
+        auth_provider=current_user.get("auth_provider") or "password",
     )

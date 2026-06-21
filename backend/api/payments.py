@@ -434,7 +434,23 @@ async def apple_verify(
             )
 
     if not server_verified:
-        logger.info("Using client-trust fallback for Apple IAP user %s", current_user["id"])
+        # SECURITY: never trust a client-reported product_id in production — that
+        # would let anyone POST {transaction_id, product_id:"premium"} and unlock
+        # paid features for free. The client-trust path exists ONLY as a dev
+        # convenience before the App Store Server API keys are wired up.
+        _is_prod = str(getattr(settings, "app_env", "") or "").strip().lower() == "production"
+        if _is_prod:
+            logger.error(
+                "Apple IAP could not be server-verified in production "
+                "(configured=%s) — refusing client-trust activation: user=%s tid=%s",
+                apple.apple_iap_configured(), current_user["id"], tid,
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Could not verify your purchase right now. Please try again shortly.",
+            )
+
+        logger.info("Using client-trust fallback for Apple IAP user %s (non-production)", current_user["id"])
         client_pid = (body.product_id or "").strip()
         tier = apple.tier_for_product_id(client_pid) if client_pid else None
         if not tier:

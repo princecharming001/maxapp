@@ -69,7 +69,8 @@ function Row({
 export default function SettingsScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const { isPaid, logout, deleteAccount } = useAuth();
+    const { isPaid, logout, deleteAccount, user } = useAuth();
+    const isOAuthAccount = String((user as any)?.auth_provider || 'password').toLowerCase() !== 'password';
     const supportEmail =
         String((Constants.expoConfig?.extra as { supportEmail?: string } | undefined)?.supportEmail || '').trim() ||
         LEGAL_SUPPORT_EMAIL;
@@ -102,13 +103,14 @@ export default function SettingsScreen() {
     };
 
     const confirmDeleteAccount = async () => {
-        if (!deletePassword.trim()) {
+        // Google/OAuth accounts have no password — authorize via session instead.
+        if (!isOAuthAccount && !deletePassword.trim()) {
             Alert.alert('Password required', 'Enter your password to delete your account.');
             return;
         }
         setDeleteBusy(true);
         try {
-            await deleteAccount(deletePassword.trim());
+            await deleteAccount(isOAuthAccount ? undefined : deletePassword.trim());
             setDeletePassword('');
             setDeleteModalVisible(false);
         } catch (e: any) {
@@ -193,14 +195,24 @@ export default function SettingsScreen() {
                     ))}
                 </View>
 
-                {/* ── Account ────────────────────────────────────────── */}
+                {/* ── Account & Data ──────────────────────────────────── */}
+                {/* Account deletion must be visible/accessible in-app (Apple
+                    Guideline 5.1.1(v) + GDPR). Keep it in this section, not
+                    buried below the version string. */}
                 <View style={st.section}>
-                    <Text style={st.sectionLabel}>Account</Text>
+                    <Text style={st.sectionLabel}>Account & Data</Text>
                     <Row
                         label="Sign out"
                         labelColor={colors.textSecondary}
                         onPress={confirmSignOut}
                         trailing={null}
+                    />
+                    <Row
+                        label="Delete account"
+                        hint="Permanently erase your account and data"
+                        labelColor="#D7263D"
+                        onPress={() => setDeleteModalVisible(true)}
+                        trailing={<Ionicons name="trash-outline" size={16} color="#D7263D" style={{ opacity: 0.7 }} />}
                     />
                 </View>
 
@@ -208,14 +220,6 @@ export default function SettingsScreen() {
                     v{Constants.expoConfig?.version ?? '-'}
                     {Constants.expoConfig?.ios?.buildNumber ? ` (${Constants.expoConfig.ios.buildNumber})` : ''}
                 </Text>
-
-                <TouchableOpacity
-                    onPress={() => setDeleteModalVisible(true)}
-                    activeOpacity={0.4}
-                    style={st.dangerTap}
-                >
-                    <Text style={st.dangerText}>Delete account</Text>
-                </TouchableOpacity>
 
                 <View style={{ height: Platform.OS === 'ios' ? 56 : 40 }} />
             </ScrollView>
@@ -234,18 +238,20 @@ export default function SettingsScreen() {
                         <Text style={st.modalBody}>
                             This permanently removes your account and all personal data. This cannot be undone.
                         </Text>
-                        <TextInput
-                            style={st.modalInput}
-                            placeholder="Enter your password"
-                            placeholderTextColor={colors.textMuted}
-                            secureTextEntry
-                            value={deletePassword}
-                            onChangeText={setDeletePassword}
-                            autoCapitalize="none"
-                            editable={!deleteBusy}
-                            returnKeyType="done"
-                            onSubmitEditing={confirmDeleteAccount}
-                        />
+                        {!isOAuthAccount && (
+                            <TextInput
+                                style={st.modalInput}
+                                placeholder="Enter your password"
+                                placeholderTextColor={colors.textMuted}
+                                secureTextEntry
+                                value={deletePassword}
+                                onChangeText={setDeletePassword}
+                                autoCapitalize="none"
+                                editable={!deleteBusy}
+                                returnKeyType="done"
+                                onSubmitEditing={confirmDeleteAccount}
+                            />
+                        )}
                         <View style={st.modalBtns}>
                             <TouchableOpacity style={st.modalCancelBtn} onPress={() => setDeleteModalVisible(false)}>
                                 <Text style={st.modalCancelLabel}>Cancel</Text>
