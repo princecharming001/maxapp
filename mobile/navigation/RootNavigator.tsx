@@ -20,7 +20,6 @@ import FaceScanResultsScreen from '../screens/scan/FaceScanResultsScreen';
 import SmsCoachingIntroScreen from '../screens/scan/SmsCoachingIntroScreen';
 import SendblueConnectScreen from '../screens/scan/SendblueConnectScreen';
 import NotificationChannelsScreen from '../screens/scan/NotificationChannelsScreen';
-import ModuleSelectScreen from '../screens/scan/ModuleSelectScreen';
 import ScanDetailScreen from '../screens/scan/ScanDetailScreen';
 import PaymentScreen from '../screens/payment/PaymentScreen';
 import PaymentThankYouScreen from '../screens/payment/PaymentThankYouScreen';
@@ -48,6 +47,7 @@ import FitmaxWorkoutTrackerScreen from '../screens/courses/FitmaxWorkoutTrackerS
 import FitmaxCalorieLogScreen from '../screens/courses/FitmaxCalorieLogScreen';
 import FitmaxProgressScreen from '../screens/courses/FitmaxProgressScreen';
 import FitmaxModuleScreen from '../screens/courses/FitmaxModuleScreen';
+import TaskDetailScreen from '../screens/task/TaskDetailScreen';
 import TabNavigator from './TabNavigator';
 import LandingScreen from '../screens/onboarding/LandingScreen';
 import LegalDocumentScreen from '../screens/legal/LegalDocumentScreen';
@@ -82,11 +82,10 @@ export function RootNavigator() {
 
     const onboardingCompleted = user?.onboarding?.completed === true;
     const firstScanDone = user?.first_scan_completed === true;
-    const postSubscriptionOnboarding = !!(user?.onboarding as Record<string, unknown> | undefined)?.post_subscription_onboarding;
 
     /**
      * Pre-pay:  Onboarding -> FeaturesIntro -> FaceScan -> FaceScanResults (locked) -> Payment.
-     * Post-pay: Main (HomeScreen redirects to FaceScanResults postPay) -> ModuleSelect -> Main.
+     * Post-pay: Main (HomeScreen redirects to FaceScanResults postPay) -> Main.
      *
      * SMS + notification screens (SmsCoachingIntro, SendblueConnect, SmsSetup,
      * NotificationChannels) stay registered in the paid stack and are reachable
@@ -99,7 +98,7 @@ export function RootNavigator() {
     const treatAsFull = isPaid || (onboardingV2 && onboardingCompleted);
 
     const initialRoute = !isAuthenticated
-        ? 'Landing'
+        ? 'Login'
         : isScanUser
             ? 'ScanOnly'
             : user?.is_admin
@@ -112,9 +111,7 @@ export function RootNavigator() {
                             : firstScanDone
                                 ? 'FaceScanResults'
                                 : 'FeaturesIntro'
-                    : postSubscriptionOnboarding && isPaid
-                        ? 'ModuleSelect'
-                        : 'Main';
+                    : 'Main';
 
     const stackKey = !isAuthenticated
         ? 'guest'
@@ -177,7 +174,6 @@ export function RootNavigator() {
                     <Stack.Screen name="SendblueConnect" component={SendblueConnectScreen} />
                     <Stack.Screen name="SmsSetup" component={SmsSetupScreen} />
                     <Stack.Screen name="NotificationChannels" component={NotificationChannelsScreen} />
-                    <Stack.Screen name="ModuleSelect" component={ModuleSelectScreen} />
                     <Stack.Screen name="Profile" component={ProfileScreen} />
                     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="EditPersonal" component={EditPersonalScreen} />
@@ -204,6 +200,7 @@ export function RootNavigator() {
                     <Stack.Screen name="FitmaxCalorieLog" component={FitmaxCalorieLogScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxProgress" component={FitmaxProgressScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxModule" component={FitmaxModuleScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} options={{ headerShown: false }} />
                 </>
             )}

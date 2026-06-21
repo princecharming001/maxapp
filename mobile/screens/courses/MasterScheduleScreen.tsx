@@ -8,7 +8,9 @@ import {
   RefreshControl,
   Platform,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
+import { CachedImage } from '../../components/CachedImage';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -41,6 +43,29 @@ import { StreakFireBadge } from '../../components/StreakFireBadge';
 import MaxLoadingView from '../../components/MaxLoadingView';
 import NavMigrationCard from '../../components/NavMigrationCard';
 import { useFlag } from '../../constants/featureFlags';
+
+const INK    = '#000000';
+const ON_INK = '#FFFFFF';
+const BG     = '#F1F1EF';
+const MUTE   = '#9A9A9A';
+const HAIR   = 'rgba(0,0,0,0.06)';
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function toDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Days laid out for a month grid: leading nulls pad to the first weekday, then 1..N, then trailing nulls to fill the last week row. */
+function buildCalendarDays(year: number, month: number): (number | null)[] {
+  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const out: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) out.push(null);
+  for (let d = 1; d <= daysInMonth; d++) out.push(d);
+  while (out.length % 7 !== 0) out.push(null);
+  return out;
+}
 
 function formatTimeTo12Hour(time24: string) {
   if (!time24 || typeof time24 !== 'string' || !time24.includes(':')) return time24 || '';
@@ -253,6 +278,53 @@ export default function MasterScheduleScreen() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editMinutes, setEditMinutes] = useState<number>(7 * 60);
 
+  // Monthly calendar grid (Diary-style): which month is on screen + the user's
+  // daily progress photos, mapped per day so each cell can show that day's pic.
+  const { width: winWidth } = useWindowDimensions();
+  const calToday = new Date();
+  const [viewYear, setViewYear] = useState(calToday.getFullYear());
+  const [viewMonth, setViewMonth] = useState(calToday.getMonth());
+  const [progressPhotos, setProgressPhotos] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getProgressPhotos()
+      .then((res: any) => { if (!cancelled) setProgressPhotos(res?.photos || []); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  const photoByDate = useMemo(() => {
+    const map: Record<string, any> = {};
+    const sorted = [...progressPhotos].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+    for (const p of sorted) {
+      const k = toDateKey(new Date(p.created_at));
+      if (!map[k]) map[k] = p; // most-recent photo wins for that day
+    }
+    return map;
+  }, [progressPhotos]);
+
+  const calDays = useMemo(() => buildCalendarDays(viewYear, viewMonth), [viewYear, viewMonth]);
+
+  const CAL_H_PAD = spacing.lg;
+  const cellSize = Math.floor((winWidth - CAL_H_PAD * 2) / 7);
+
+  const prevMonth = useCallback(() => {
+    setViewMonth((m) => {
+      if (m === 0) { setViewYear((y) => y - 1); return 11; }
+      return m - 1;
+    });
+  }, []);
+  const nextMonth = useCallback(() => {
+    setViewMonth((m) => {
+      if (m === 11) { setViewYear((y) => y + 1); return 0; }
+      return m + 1;
+    });
+  }, []);
+
   const schedules = schedulesQuery.data?.schedules ?? [];
   const maxxes = maxesQuery.data?.maxes ?? [];
   const loading =
@@ -322,16 +394,11 @@ export default function MasterScheduleScreen() {
     };
   }, [reviewStorageKey]);
 
-  useEffect(() => {
-    if (reviewShownRef.current) return;
-    if (!reviewedLoaded || loading) return;
-    if (!user?.is_paid) return;
-    if (activeScheduleIds.length === 0 || routineParts.length === 0) return;
-    if (activeScheduleIds.some((id) => !reviewedIds.has(id))) {
-      reviewShownRef.current = true;
-      setReviewActive(true);
-    }
-  }, [reviewedLoaded, loading, user?.is_paid, activeScheduleIds, routineParts.length, reviewedIds]);
+  // Routine-preview sheet removed from the flow — it no longer auto-presents.
+  // (The sheet component stays available for manual/other use, but the schedule
+  // screen never pops it on first visit.)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { reviewShownRef.current = true; }, []);
 
   const handleRemovePart = useCallback(
     (part: RoutinePart) => {
@@ -996,52 +1063,102 @@ export default function MasterScheduleScreen() {
         </View>
       </View>
 
-      <View style={styles.bodyBelowHeader}>
-        {selectedDate ? (
-          <Text style={styles.monthLabel}>
-            {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+      <ScrollView
+        style={styles.bodyBelowHeader}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
+        }
+      >
+        {/* ── Month nav ── */}
+        <View style={styles.monthNav}>
+          <TouchableOpacity onPress={prevMonth} style={styles.monthNavArrow} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Previous month">
+            <Ionicons name="chevron-back" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+          <Text style={styles.monthNavLabel}>
+            {new Date(viewYear, viewMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </Text>
-        ) : null}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.dayStripScroll}
-          contentContainerStyle={styles.daySelectorContainer}
-        >
-          {merged.dates.map((dateStr) => {
-            const isSelected = dateStr === selectedDate;
-            const date = new Date(dateStr + 'T00:00:00');
-            const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-            const dayNum = date.getDate();
-            const dayTasks = merged.byDate[dateStr] || [];
-            const dayDone = dayTasks.length > 0 && dayTasks.every((t) => t.status === 'completed');
+          <TouchableOpacity onPress={nextMonth} style={styles.monthNavArrow} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Next month">
+            <Ionicons name="chevron-forward" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Day-of-week labels ── */}
+        <View style={[styles.dowRow, { paddingHorizontal: CAL_H_PAD }]}>
+          {DAY_LABELS.map((d) => (
+            <Text key={d} style={[styles.dowLabel, { width: cellSize }]}>{d}</Text>
+          ))}
+        </View>
+
+        {/* ── Monthly calendar grid: each day shows that day's progress photo,
+              number stays readable, a tick marks a fully-completed day. Tap a
+              day to load its checklist below. ── */}
+        <View style={[styles.calGrid, { paddingHorizontal: CAL_H_PAD }]}>
+          {calDays.map((day, i) => {
+            if (day === null) {
+              return <View key={`pad-${i}`} style={{ width: cellSize, height: cellSize + 4 }} />;
+            }
+            const dayKey = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const photo = photoByDate[dayKey];
+            const isToday = dayKey === (calendarTodayKey || toDateKey(new Date()));
+            const isSelected = dayKey === selectedDate;
+            const dayTasks = merged.byDate[dayKey] || [];
+            const hasTasks = dayTasks.length > 0;
+            const complete = hasTasks && dayTasks.every((t) => t.status === 'completed');
+            const selectable = hasTasks || merged.dates.includes(dayKey);
+            const innerW = cellSize - 6;
             return (
               <TouchableOpacity
-                key={dateStr}
-                style={styles.dayPill}
-                onPress={() => setSelectedDate(dateStr)}
-                activeOpacity={0.7}
+                key={dayKey}
+                style={[styles.calCell, { width: cellSize, height: cellSize + 4 }]}
+                activeOpacity={selectable || photo ? 0.8 : 1}
+                disabled={!selectable && !photo}
+                onPress={() => { if (selectable) setSelectedDate(dayKey); }}
                 accessibilityRole="button"
-                accessibilityLabel={`Select ${dayName} ${dayNum}`}
+                accessibilityLabel={`${dayKey}${complete ? ', all done' : hasTasks ? ', has tasks' : ''}`}
               >
-                <Text style={[styles.dayPillLabel, isSelected && styles.dayPillLabelActive]}>{dayName}</Text>
-                <Text style={[styles.dayPillNumber, isSelected && styles.dayPillNumberActive]}>{dayNum}</Text>
-                {isSelected && <View style={styles.dayUnderline} />}
-                {!isSelected && dayDone && <View style={styles.dayCompleteDot} />}
+                <View style={[
+                  styles.calCellInner,
+                  { width: innerW, height: innerW },
+                  photo ? styles.calCellPhoto : styles.calCellPlain,
+                  isToday && !isSelected && styles.calCellToday,
+                  isSelected && styles.calCellSelected,
+                ]}>
+                  {photo ? (
+                    <CachedImage
+                      uri={api.resolveAttachmentUrl(photo.image_url)}
+                      style={{ position: 'absolute', top: 0, left: 0, width: innerW, height: innerW }}
+                      contentFit="cover"
+                    />
+                  ) : null}
+                  <Text style={[
+                    styles.calDayNum,
+                    photo ? styles.calDayNumPhoto : styles.calDayNumPlain,
+                  ]}>
+                    {day}
+                  </Text>
+                  {complete ? (
+                    <View style={styles.calCompleteTick}>
+                      <Ionicons name="checkmark" size={10} color={colors.background} />
+                    </View>
+                  ) : hasTasks ? (
+                    <View style={styles.calTaskDot} />
+                  ) : null}
+                </View>
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
 
-        <ScrollView
-          style={styles.taskList}
-          contentContainerStyle={{ paddingBottom: 100 }}
-          showsVerticalScrollIndicator={false}
-          nestedScrollEnabled
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
-          }
-        >
+        {/* ── Selected day's checklist ── */}
+        {selectedDate ? (
+          <Text style={styles.selectedDayHeading}>
+            {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </Text>
+        ) : null}
+
+        <View style={styles.taskListInner}>
           <NavMigrationCard />
           {/* Single fluid timeline — no Morning/Midday/Evening buckets.
               Regular tasks + work/sleep pseudo-tasks merged + sorted by
@@ -1061,12 +1178,19 @@ export default function MasterScheduleScreen() {
                 <TouchableOpacity
                   style={[styles.taskRow, isDone && styles.taskRowDone]}
                   onPress={() => {
-                    if (isLife) return;   // life tasks have no expand-detail
-                    setExpandedTaskId((prev) => (prev === task.task_id ? null : task.task_id));
+                    if (isLife) return;
+                    navigation.navigate('TaskDetail', {
+                      title: task.title,
+                      catalog_id: task.catalog_id,
+                      description: task.description,
+                      moduleLabel: task.moduleLabel,
+                      moduleColor: task.moduleColor,
+                      task_id: task.task_id,
+                    });
                   }}
                   activeOpacity={0.75}
                   accessibilityRole="button"
-                  accessibilityLabel={`${isExpanded ? 'Collapse' : 'Expand'} details for ${stripDuplicateModulePrefix(task.title, task.moduleLabel)}`}
+                  accessibilityLabel={`View steps for ${stripDuplicateModulePrefix(task.title, task.moduleLabel)}`}
                 >
                   <View style={[styles.scheduleTaskAccent, { backgroundColor: task.moduleColor }]} />
                   <TouchableOpacity
@@ -1187,7 +1311,7 @@ export default function MasterScheduleScreen() {
                   </View>
                   {!isLife ? (
                     <Ionicons
-                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                      name="chevron-forward"
                       size={14}
                       color={colors.textMuted}
                     />
@@ -1203,8 +1327,8 @@ export default function MasterScheduleScreen() {
               </Text>
             </View>
           ) : null}
-        </ScrollView>
-      </View>
+        </View>
+      </ScrollView>
 
       <RoutineReviewSheet
         visible={reviewActive}
@@ -1230,7 +1354,7 @@ function formatTime12(hhmm: string): string {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: BG },
   center: { justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
@@ -1250,11 +1374,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
   },
   headerTitle: {
-    fontFamily: fonts.serif,
+    fontFamily: 'Matter-Bold',
     fontSize: 28,
-    fontWeight: '400',
-    letterSpacing: -0.4,
-    color: colors.foreground,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+    color: INK,
   },
   daySelectorContainer: {
     paddingHorizontal: spacing.lg,
@@ -1266,21 +1390,30 @@ const styles = StyleSheet.create({
   },
   dayPill: {
     alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     minWidth: 40,
+    gap: 4,
   },
   dayPillLabel: {
+    fontFamily: 'Matter-Regular',
     fontSize: 10,
-    fontWeight: '500',
-    color: colors.textMuted,
+    fontWeight: '400',
+    color: MUTE,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: 2,
+    letterSpacing: 0.8,
   },
-  dayPillLabelActive: { color: colors.foreground, fontWeight: '700' },
-  dayPillNumber: { fontSize: 14, fontWeight: '500', color: colors.textMuted },
-  dayPillNumberActive: { color: colors.foreground, fontWeight: '700' },
+  dayPillLabelActive: { color: MUTE },
+  dayPillCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayPillCircleActive: { backgroundColor: INK },
+  dayPillNumber: { fontFamily: 'Matter-SemiBold', fontSize: 14, fontWeight: '600', color: INK },
+  dayPillNumberActive: { color: ON_INK },
   dayUnderline: {
     width: 16,
     height: 2,
@@ -1292,13 +1425,14 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.textSecondary,
+    backgroundColor: MUTE,
     marginTop: 5,
   },
   monthLabel: {
+    fontFamily: 'Matter-SemiBold',
     fontSize: 11,
-    fontWeight: '500',
-    color: colors.textMuted,
+    fontWeight: '600',
+    color: MUTE,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
     paddingHorizontal: spacing.lg,
@@ -1306,9 +1440,10 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   timeGroupLabel: {
+    fontFamily: 'Matter-SemiBold',
     fontSize: 10,
     fontWeight: '600',
-    color: colors.textMuted,
+    color: MUTE,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
     marginTop: spacing.lg,
@@ -1326,9 +1461,100 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   taskList: { flex: 1, minHeight: 0, paddingHorizontal: spacing.lg },
+  taskListInner: { paddingHorizontal: spacing.lg },
+
+  // ── Monthly calendar (Diary) grid ──
+  monthNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  monthNavArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: HAIR,
+  },
+  monthNavLabel: {
+    fontFamily: 'Matter-SemiBold',
+    fontSize: 18,
+    fontWeight: '600',
+    letterSpacing: -0.3,
+    color: INK,
+  },
+  dowRow: { flexDirection: 'row', marginBottom: 6 },
+  dowLabel: {
+    textAlign: 'center',
+    fontFamily: 'Matter-SemiBold',
+    fontSize: 11,
+    fontWeight: '600',
+    color: MUTE,
+    letterSpacing: 0.8,
+  },
+  calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calCell: { alignItems: 'center', justifyContent: 'flex-start', paddingBottom: 2 },
+  calCellInner: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: HAIR,
+  },
+  calCellPlain: {},
+  calCellPhoto: { borderWidth: 0 },
+  calCellToday: { borderColor: colors.foreground, borderWidth: 1.5 },
+  calCellSelected: { borderColor: colors.foreground, borderWidth: 2.5 },
+  calDayNum: { position: 'absolute', top: 5, left: 7, fontSize: 13, fontWeight: '700', zIndex: 2 },
+  calDayNumPlain: { color: colors.foreground },
+  calDayNumPhoto: {
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  calCompleteTick: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.foreground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+  },
+  calTaskDot: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.textMuted,
+    zIndex: 3,
+  },
+  selectedDayHeading: {
+    fontFamily: 'Matter-Bold',
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+    color: INK,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0 },
   maxxesEmpty: { paddingVertical: spacing.xl, paddingHorizontal: spacing.sm },
-  maxxesEmptyText: { fontFamily: fonts.sans, fontSize: 13.5, color: colors.textMuted, lineHeight: 20, textAlign: 'center' },
+  maxxesEmptyText: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: MUTE, lineHeight: 20, textAlign: 'center' },
   /* Life rows (work / sleep) — same shape as a regular taskRow but
      painted in the foreground (black) so the user reads them as part
      of the timeline, not floating chrome. Bleeds full-width like
@@ -1375,11 +1601,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   taskCheck: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     borderWidth: 1.2,
-    borderColor: colors.textMuted,
+    borderColor: MUTE,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
@@ -1392,25 +1618,28 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   taskTime: {
+    fontFamily: 'Matter-Regular',
     fontSize: 12,
-    fontWeight: '500',
-    color: colors.textMuted,
+    fontWeight: '400',
+    color: MUTE,
     minWidth: 62,
   },
   taskTimeDone: { textDecorationLine: 'line-through' },
-  taskTitle: { fontSize: 15, fontWeight: '500', color: colors.foreground, flex: 1 },
-  taskTitleDone: { textDecorationLine: 'line-through', color: colors.textMuted },
+  taskTitle: { fontFamily: 'Matter-Medium', fontSize: 15, fontWeight: '500', color: INK, flex: 1 },
+  taskTitleDone: { textDecorationLine: 'line-through', color: MUTE },
   taskMeta: {
     ...typography.caption,
-    color: colors.textMuted,
+    fontFamily: 'Matter-Regular',
+    color: MUTE,
     marginTop: 4,
     marginLeft: 62 + spacing.sm,
   },
   taskDescription: {
     ...typography.bodySmall,
+    fontFamily: 'Matter-Regular',
     marginTop: 8,
     lineHeight: 20,
-    color: colors.textSecondary,
+    color: MUTE,
     marginLeft: 62 + spacing.sm,
   },
   taskActionRow: {
@@ -1426,11 +1655,12 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   timeEditorLabel: {
+    fontFamily: 'Matter-SemiBold',
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
-    color: colors.textMuted,
+    color: MUTE,
     marginBottom: 10,
   },
   timeEditorActions: {
@@ -1446,9 +1676,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   editorCancelText: {
+    fontFamily: 'Matter-SemiBold',
     fontSize: 13,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: MUTE,
   },
   editorSaveBtn: {
     paddingVertical: 8,
@@ -1457,9 +1688,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.foreground,
   },
   editorSaveText: {
+    fontFamily: 'Matter-Bold',
     fontSize: 13,
     fontWeight: '700',
-    color: colors.background,
+    color: ON_INK,
   },
   emptyState: { flex: 1, paddingHorizontal: spacing.xl },
   emptyStateMinimal: {
@@ -1483,18 +1715,19 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
   },
   emptyTitleMinimal: {
-    fontFamily: fonts.serif,
+    fontFamily: 'Matter-Bold',
     fontSize: 22,
-    fontWeight: '400',
-    letterSpacing: -0.3,
-    color: colors.foreground,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+    color: INK,
     textAlign: 'center',
   },
   emptySubtitleMinimal: {
+    fontFamily: 'Matter-Regular',
     fontSize: 14,
     fontWeight: '400',
     lineHeight: 21,
-    color: colors.textMuted,
+    color: MUTE,
     textAlign: 'center',
     marginTop: spacing.sm,
     marginBottom: spacing.xl,
