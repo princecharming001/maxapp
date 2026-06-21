@@ -8,6 +8,23 @@ from typing import Optional
 # the scan is marked failed and the app shows a retry instead of hanging.
 _SCAN_ANALYSIS_TIMEOUT_S = 75.0
 
+# Per-image upload cap. A face photo is well under this; the limit stops a
+# malicious/buggy client from forcing the server to buffer + vision-analyze a
+# huge payload (memory exhaustion + runaway LLM cost).
+_MAX_IMAGE_BYTES = 12 * 1024 * 1024  # 12 MB
+
+
+def _validate_image_upload(data: bytes, content_type: Optional[str], label: str) -> None:
+    """Reject oversized or non-image uploads before any expensive processing."""
+    if len(data) > _MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"{label} image is too large (max {_MAX_IMAGE_BYTES // (1024 * 1024)}MB).",
+        )
+    ct = (content_type or "").lower()
+    if ct and not ct.startswith("image/"):
+        raise HTTPException(status_code=400, detail=f"{label} must be an image.")
+
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from datetime import datetime, timedelta
 from uuid import UUID
@@ -61,12 +78,9 @@ async def _update_leaderboard_after_scan(
         db.add(entry)
 
     await db.commit()
-
-    all_entries_result = await db.execute(select(Leaderboard).order_by(Leaderboard.score.desc()))
-    all_entries = all_entries_result.scalars().all()
-    for rank, e in enumerate(all_entries, 1):
-        e.rank = rank
-    await db.commit()
+    # NOTE: rank is computed on read (see api/leaderboard.py). We no longer
+    # rewrite every row's rank on each scan — that was O(n) writes per upload
+    # and serialized concurrent scans.
 
 
 async def _maybe_notify_scan_whatsapp(user: Optional[User], overall_score: Optional[float]) -> None:
@@ -217,6 +231,9 @@ async def upload_scan_triple(
     right_data = await right.read()
     if not front_data or not left_data or not right_data:
         raise HTTPException(status_code=400, detail="All three images (front, left, right) are required")
+    _validate_image_upload(front_data, front.content_type, "Front")
+    _validate_image_upload(left_data, left.content_type, "Left")
+    _validate_image_upload(right_data, right.content_type, "Right")
 
     front_url = await storage_service.upload_image(front_data, uid_str, "front")
     left_url = await storage_service.upload_image(left_data, uid_str, "left")
@@ -436,12 +453,7 @@ async def analyze_scan(
             db.add(entry)
 
         await db.commit()
-
-        all_entries_result = await db.execute(select(Leaderboard).order_by(Leaderboard.score.desc()))
-        all_entries = all_entries_result.scalars().all()
-        for rank, e in enumerate(all_entries, 1):
-            e.rank = rank
-        await db.commit()
+        # rank is computed on read (api/leaderboard.py); no O(n) rewrite here.
 
         return {"message": "Analysis complete", "scan_id": scan_id}
 

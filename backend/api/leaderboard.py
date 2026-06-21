@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from datetime import datetime
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from db import get_db
 from middleware.auth_middleware import require_paid_user
 from models.sqlalchemy_models import Leaderboard, User, Scan
@@ -20,26 +20,31 @@ async def get_leaderboard(
     current_user: dict = Depends(require_paid_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get leaderboard rankings"""
+    """Get leaderboard rankings.
+
+    Rank is computed on read (ORDER BY score) rather than maintained as a stored
+    column rewritten on every scan — that write was O(n) per scan and serialized
+    uploads. Admins are excluded in SQL (no per-row user fetch / N+1).
+    """
     result = await db.execute(
-        select(Leaderboard).order_by(Leaderboard.rank).limit(limit)
+        select(Leaderboard, User.email)
+        .join(User, User.id == Leaderboard.user_id)
+        .where(User.is_admin == False)  # noqa: E712
+        .order_by(Leaderboard.score.desc())
+        .limit(limit)
     )
     entries = []
-    for entry in result.scalars().all():
-        user = await db.get(User, entry.user_id)
-        if user and user.is_admin:
-            continue
+    for rank, (entry, email) in enumerate(result.all(), 1):
         entries.append({
-            "rank": entry.rank or 0,
+            "rank": rank,
             "user_id": str(entry.user_id),
-            "user_email": user.email[:3] + "***" if user else "Anonymous",
+            "user_email": (email[:3] + "***") if email else "Anonymous",
             "score": entry.score or 0,
             "level": entry.level or 0,
             "streak_days": entry.streak_days or 0,
             "improvement_percentage": entry.improvement_percentage or 0
         })
-    total = len(entries)
-    return {"entries": entries, "total_users": total}
+    return {"entries": entries, "total_users": len(entries)}
 
 
 @router.get("/me")
@@ -55,9 +60,28 @@ async def get_my_rank(
     user_uuid = UUID(user_id)
     result = await db.execute(select(Leaderboard).where(Leaderboard.user_id == user_uuid))
     entry = result.scalar_one_or_none()
-    total_result = await db.execute(select(Leaderboard))
-    total = len(total_result.scalars().all())
-    
+
+    async def _non_admin_total() -> int:
+        q = await db.execute(
+            select(func.count())
+            .select_from(Leaderboard)
+            .join(User, User.id == Leaderboard.user_id)
+            .where(User.is_admin == False)  # noqa: E712
+        )
+        return int(q.scalar() or 0)
+
+    async def _rank_for(score: float) -> int:
+        # 1 + number of non-admin entries strictly ahead. Computed on read.
+        q = await db.execute(
+            select(func.count())
+            .select_from(Leaderboard)
+            .join(User, User.id == Leaderboard.user_id)
+            .where((User.is_admin == False) & (Leaderboard.score > score))  # noqa: E712
+        )
+        return int(q.scalar() or 0) + 1
+
+    total = await _non_admin_total()
+
     # If no leaderboard entry, check if user has completed scans and create entry
     if not entry:
         latest_scan_result = await db.execute(
@@ -95,26 +119,14 @@ async def get_my_rank(
             )
             db.add(new_entry)
             await db.commit()
-            
-            # Recalculate all ranks
-            all_entries_result = await db.execute(
-                select(Leaderboard).order_by(Leaderboard.score.desc())
-            )
-            all_entries = all_entries_result.scalars().all()
-            for rank, e in enumerate(all_entries, 1):
-                e.rank = rank
-            await db.commit()
-            
-            # Fetch the newly created entry with rank
-            result = await db.execute(select(Leaderboard).where(Leaderboard.user_id == user_uuid))
-            entry = result.scalar_one_or_none()
-            total_result = await db.execute(select(Leaderboard))
-            total = len(total_result.scalars().all())
+            await db.refresh(new_entry)
+            entry = new_entry
+            total = await _non_admin_total()
         else:
             return {"rank": None, "total_users": total, "message": "Complete a scan to join"}
-    
+
     return {
-        "rank": entry.rank or 0,
+        "rank": await _rank_for(entry.score or 0),
         "total_users": total,
         "score": entry.score or 0,
         "level": entry.level or 0,

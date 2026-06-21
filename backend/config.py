@@ -31,12 +31,14 @@ class Settings(BaseSettings):
     supabase_db_user: str = Field(default="postgres")
     supabase_db_password: str = Field(default="")
     supabase_db_name: str = Field(default="postgres")
-    # Defaults allow multiple concurrent requests. If you connect through Supabase Session
-    # pooler (5432) and hit MaxClientsInSessionMode, lower these via env.
-    # Session mode has a strict global limit (~15 total). Reduce pool_size + max_overflow
-    # to stay well under that limit, or switch to Transaction mode (port 6543) in Supabase Dashboard.
-    supabase_db_pool_size: int = Field(default=3)
-    supabase_db_max_overflow: int = Field(default=2)
+    # Connection-pool sizing. Left as None so db/sqlalchemy.py picks values that
+    # match the pooler MODE: small for Session pooler (5432, ~15 global client
+    # cap → MaxClientsInSessionMode if exceeded), large for the Transaction
+    # pooler / Supavisor (6543, multiplexes thousands of clients). Set these env
+    # vars to pin explicit values; otherwise the mode-aware defaults apply.
+    # Production recommendation: SUPABASE_DB_PORT=6543.
+    supabase_db_pool_size: Optional[int] = Field(default=None)
+    supabase_db_max_overflow: Optional[int] = Field(default=None)
 
     # AWS RDS (shared data)
     aws_rds_host: str = Field(default="localhost")

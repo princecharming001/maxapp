@@ -47,15 +47,37 @@ def _supabase_connect_args() -> dict:
     return args
 
 
+def _pool_params() -> dict:
+    """Size the connection pool to the pooler MODE.
+
+    Supabase Session pooler (5432) hands each client an exclusive backend and
+    caps total clients very low (~15) → keep the pool tiny. The Transaction
+    pooler / Supavisor (6543) multiplexes thousands of clients onto a few
+    backends → a larger pool is safe and needed to serve real concurrency.
+    Recommended production: SUPABASE_DB_PORT=6543. Env values, when set, win.
+    """
+    port = getattr(settings, "supabase_db_port", 5432)
+    host = (getattr(settings, "supabase_db_host", "") or "").lower()
+    transaction_mode = port == 6543
+    if transaction_mode:
+        size = getattr(settings, "supabase_db_pool_size", None) or 10
+        overflow = getattr(settings, "supabase_db_max_overflow", None) or 10
+        recycle = 900
+    else:
+        # Session mode: stay well under the ~15 global client cap.
+        size = getattr(settings, "supabase_db_pool_size", None) or 3
+        overflow = getattr(settings, "supabase_db_max_overflow", None) or 2
+        recycle = 180
+    return {"pool_size": int(size), "max_overflow": int(overflow), "pool_recycle": recycle}
+
+
 engine = create_async_engine(
     _clean_asyncpg_url(settings.supabase_db_url),
     echo=getattr(settings, "sql_echo", False),
-    pool_size=settings.supabase_db_pool_size,
-    max_overflow=settings.supabase_db_max_overflow,
-    pool_recycle=180,
     pool_timeout=5,
     pool_pre_ping=True,
     connect_args=_supabase_connect_args(),
+    **_pool_params(),
 )
 
 # Session factory
