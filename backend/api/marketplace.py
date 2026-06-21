@@ -502,11 +502,15 @@ async def _load_entered(db: AsyncSession, uid: UUID) -> tuple[User, set[str]]:
 @router.get("")
 async def browse(
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ):
     """Browse the marketplace: native maxes + creator courses, with prices and
-    whether the user has already entered each. Open to any logged-in user."""
-    _, entered = await _load_entered(db, _uid(current_user))
+    whether the user has already entered each. Open to any logged-in user.
+
+    current_user already carries the full onboarding blob from get_current_user,
+    so we extract entered items directly instead of hitting the DB again.
+    """
+    ob = current_user.get("onboarding") or {}
+    entered = set(ob.get("entered_maxxes") or []) | set(ob.get("entered_courses") or [])
     return {
         "maxxes": [_maxx_card(mid, entered) for mid in _MAXX_DISPLAY],
         "courses": [_course_card(c, entered) for c in _SEED_COURSES],

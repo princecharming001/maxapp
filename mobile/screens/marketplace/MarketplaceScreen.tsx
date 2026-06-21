@@ -22,9 +22,31 @@ import {
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import api, { type MarketplaceItem } from '../../services/api';
+
+const CACHE_KEY = 'marketplace_cache_v1';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function readCache(): Promise<{ maxxes: MarketplaceItem[]; courses: MarketplaceItem[] } | null> {
+    try {
+        const raw = await AsyncStorage.getItem(CACHE_KEY);
+        if (!raw) return null;
+        const { data, ts } = JSON.parse(raw);
+        if (Date.now() - ts > CACHE_TTL_MS) return null;
+        return data;
+    } catch {
+        return null;
+    }
+}
+
+async function writeCache(data: { maxxes: MarketplaceItem[]; courses: MarketplaceItem[] }) {
+    try {
+        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
+    } catch {}
+}
 
 // Onboarding "Stoic" black-and-white palette (matches OnboardingV2Screen).
 const INK = '#000000';
@@ -58,21 +80,47 @@ export default function MarketplaceScreen() {
     const searchAnim = useRef(new Animated.Value(0)).current;
     const inputRef = useRef<TextInput>(null);
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (opts?: { isRetry?: boolean }) => {
         try {
             setError(null);
+            // Seed from cache instantly so the screen is never blank on revisit.
+            if (!opts?.isRetry) {
+                const cached = await readCache();
+                if (cached) {
+                    setMaxxes(cached.maxxes || []);
+                    setCourses(cached.courses || []);
+                    setLoading(false);
+                }
+            }
             const data = await api.getMarketplace();
             setMaxxes(data.maxxes || []);
             setCourses(data.courses || []);
+            void writeCache(data);
         } catch (e: any) {
-            // Surface WHY it failed so the user knows whether to wait, check
-            // their connection, or retry — instead of one opaque message.
             const status = e?.response?.status;
             const isNetwork = !e?.response;
+            // 502 = Render proxy returning "service unavailable" during cold boot.
+            const isColdStart = status === 502 || status === 503 || status === 504;
+
+            if (isColdStart && !opts?.isRetry) {
+                // Auto-retry once after 4 s — Render typically finishes booting by then.
+                setTimeout(() => void load({ isRetry: true }), 4000);
+                return;
+            }
+
+            // If we already have cached data, silently swallow the error — the
+            // user already sees content; no need to replace it with an error card.
+            const hasCachedContent = maxxes.length > 0 || courses.length > 0;
+            if (hasCachedContent) {
+                setRefreshing(false);
+                setLoading(false);
+                return;
+            }
+
             const msg = isNetwork
                 ? "Can't reach the server — check your connection and pull to retry."
-                : status === 503 || status === 504
-                    ? 'Server is waking up. Give it a moment and pull to retry.'
+                : isColdStart
+                    ? 'Server is starting up. Pull to retry in a moment.'
                     : status === 401
                         ? 'Your session expired. Sign in again.'
                         : 'Could not load Explore. Pull to retry.';
@@ -81,7 +129,8 @@ export default function MarketplaceScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [maxxes.length, courses.length]);
 
     useEffect(() => { void load(); }, [load]);
 
