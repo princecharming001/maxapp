@@ -11,7 +11,7 @@ import SectionLabel from '../../components/SectionLabel';
 import AchievementBadge from '../../components/achievements/AchievementBadge';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { formatFaceRatingLabel } from '../../utils/faceRatingLabel';
-import { useMaxxesQuery } from '../../hooks/useAppQueries';
+import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
 import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
 import { userHasSignupPhone } from '../../utils/userPhone';
@@ -252,12 +252,18 @@ export default function ProfileScreen() {
     const { user, refreshUser, isPaid } = useAuth();
     // Face-scan kill switch: hides the FACE SCORE card / scan entry points.
     const maxxesQuery = useMaxxesQuery();
+    const schedulesFullQuery = useActiveSchedulesFullQuery();
     const activeMaxxes = useMemo(() => {
         const allMaxxes = maxxesQuery.data?.maxes ?? [];
-        const userGoalIds = new Set(((user?.onboarding?.goals || []) as string[]).map((g: string) => g.toLowerCase()));
-        if (userGoalIds.size === 0) return [];
-        return allMaxxes.filter((m: any) => m.id && userGoalIds.has(m.id.toLowerCase()));
-    }, [maxxesQuery.data, user?.onboarding?.goals]);
+        const schedules = schedulesFullQuery.data?.schedules ?? [];
+        const enrolledIds = new Set(
+            schedules
+                .filter((s: any) => s.maxx_id && s.maxx_id !== 'life')
+                .map((s: any) => String(s.maxx_id).toLowerCase())
+        );
+        if (!enrolledIds.size) return [];
+        return allMaxxes.filter((m: any) => m.id && enrolledIds.has(String(m.id).toLowerCase()));
+    }, [maxxesQuery.data, schedulesFullQuery.data]);
     const [loading, setLoading] = useState(true);
     const [progressPhotos, setProgressPhotos] = useState<any[]>([]);
     const [achievements, setAchievements] = useState<any | null>(null);
