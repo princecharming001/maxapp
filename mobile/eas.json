@@ -21,12 +21,12 @@
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://maxapp-api.onrender.com/api/"
+        "EXPO_PUBLIC_API_BASE_URL": "https://maxapp-api.onrender.com/api/",
+        "RCT_NEW_ARCH_ENABLED": "1"
       },
       "autoIncrement": true,
       "ios": {
-        "autoIncrement": false,
-        "image": "macos-sequoia-15.4-xcode-16.3"
+        "autoIncrement": false
       },
       "android": {
         "buildType": "app-bundle"

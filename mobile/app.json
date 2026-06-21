@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cannon.mobile",
-      "buildNumber": "311",
+      "buildNumber": "312",
       "entitlements": {
         "aps-environment": "production"
       },
@@ -83,6 +83,7 @@
       ],
       "react-native-iap"
     ],
+    "newArchEnabled": true,
     "scheme": "cannon",
     "platforms": [
       "ios",
