@@ -255,6 +255,18 @@ def _build_demo_onboarding() -> dict:
     }
 
 
+def _block_in_production() -> None:
+    """Hard-disable dev-only demo endpoints in any real deployment.
+
+    The faux-signup endpoints are UNAUTHENTICATED and mint accounts directly —
+    `/faux-signup-skip` even creates a fully-paid premium user. In production
+    that is a complete paywall bypass for anyone who can reach the API, so we
+    refuse outright. Returns 404 (not 403) so the routes are indistinguishable
+    from non-existent ones to an outside probe."""
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Not found")
+
+
 def _new_demo_identity(prefix: str = "demo") -> tuple[str, str, str, str]:
     tag = _random_string(10)
     email = f"{prefix}_{tag}@trymax.app"
@@ -270,6 +282,7 @@ async def faux_signup(db: AsyncSession = Depends(get_db)):
     Create a throwaway demo account with pre-completed onboarding so the user
     lands directly on FeaturesIntro → FaceScan.  No real PII required.
     """
+    _block_in_production()
     email, username, password, phone = _new_demo_identity("demo")
 
     user = User(
@@ -311,6 +324,7 @@ async def faux_signup_fresh(db: AsyncSession = Depends(get_db)):
     Apple Sign-In identity. The other faux-signup variants pre-fill
     onboarding so they skip past it.
     """
+    _block_in_production()
     email, username, password, phone = _new_demo_identity("fresh")
 
     user = User(
@@ -350,6 +364,7 @@ async def faux_signup_skip(db: AsyncSession = Depends(get_db)):
     onboarding done + post-subscription steps done) so the client lands
     directly on the Main/home tab, skipping auth, onboarding, scan, and payment.
     """
+    _block_in_production()
     email, username, password, phone = _new_demo_identity("skip")
 
     onboarding_data = _build_demo_onboarding()

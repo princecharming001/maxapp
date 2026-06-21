@@ -147,6 +147,59 @@ def _overall_from_analysis(analysis: dict) -> float:
         return 0.0
 
 
+def _redacted_analysis(analysis: dict) -> dict:
+    """Paywall-safe projection of a scan analysis for NON-paid users.
+
+    Returns only the teaser fields the locked results UI needs (overall, a
+    capped potential, appeal, tier/archetype/ascension) and drops the full
+    per-feature breakdown (feature_scores, proportions, side_profile, etc.).
+    `locked: True` tells the client to render lock icons. Used everywhere a
+    free user can receive an analysis — both the live upload response and the
+    latest-scan fetch — so the complete paid analysis never crosses the wire."""
+    a = analysis or {}
+    overall_score = _overall_from_analysis(a)
+    try:
+        pot = float(a.get("potential_score", overall_score))
+    except (TypeError, ValueError):
+        pot = overall_score
+    pot = max(0.0, min(10.0, pot))
+    pr = a.get("psl_rating") if isinstance(a.get("psl_rating"), dict) else {}
+    appeal = overall_score
+    try:
+        if pr.get("appeal") is not None:
+            appeal = float(pr["appeal"])
+    except (TypeError, ValueError):
+        pass
+    appeal = max(0.0, min(10.0, appeal))
+    tier_s = pr.get("psl_tier") if isinstance(pr.get("psl_tier"), str) else ""
+    arch_s = pr.get("archetype") if isinstance(pr.get("archetype"), str) else ""
+    try:
+        asc_m = int(pr.get("ascension_time_months") or 0)
+    except (TypeError, ValueError):
+        asc_m = 0
+    try:
+        age_s = int(pr.get("age_score") or 0)
+    except (TypeError, ValueError):
+        age_s = 0
+    return {
+        "overall_score": overall_score,
+        "potential_score": pot,
+        "scan_summary": a.get("scan_summary") or {"overall_score": overall_score},
+        "umax_metrics": a.get("umax_metrics"),
+        "preview_blurb": a.get("preview_blurb"),
+        "psl_rating": {
+            "psl_score": overall_score,
+            "potential": pot,
+            "appeal": appeal,
+            "psl_tier": tier_s,
+            "ascension_time_months": max(0, min(120, asc_m)),
+            "age_score": max(0, min(99, age_s)),
+            "archetype": arch_s[:200] if arch_s else "",
+        },
+        "locked": True,
+    }
+
+
 @router.post(
     "/upload-triple",
     dependencies=[Depends(rate_limit(limit=20, window_s=3600, scope="scan"))],
@@ -312,7 +365,13 @@ async def upload_scan_triple(
         await _update_leaderboard_after_scan(db, user_uuid, overall_score)
         await _maybe_notify_scan_whatsapp(user, overall_score)
 
-        return {"scan_id": scan_id, "analysis": analysis}
+        # Never ship the full analysis to a non-paid user — even though the
+        # client currently only reads overall_score, the raw response is
+        # network-inspectable. Free users get the same redacted teaser the
+        # locked results screen renders; paid users get the full analysis.
+        treat_as_paid = is_paid or is_scan_user
+        out_analysis = analysis if treat_as_paid else _redacted_analysis(analysis)
+        return {"scan_id": scan_id, "analysis": out_analysis}
     except asyncio.TimeoutError:
         scan_row.processing_status = "failed"
         scan_row.error_message = "analysis_timeout"
@@ -504,51 +563,7 @@ async def get_latest_scan(
     }
 
     if scan.analysis:
-        if treat_as_paid:
-            response["analysis"] = scan.analysis
-        else:
-            a = scan.analysis or {}
-            overall_score = _overall_from_analysis(a)
-            try:
-                pot = float(a.get("potential_score", overall_score))
-            except (TypeError, ValueError):
-                pot = overall_score
-            pot = max(0.0, min(10.0, pot))
-            pr = a.get("psl_rating") if isinstance(a.get("psl_rating"), dict) else {}
-            appeal = overall_score
-            try:
-                if pr.get("appeal") is not None:
-                    appeal = float(pr["appeal"])
-            except (TypeError, ValueError):
-                pass
-            appeal = max(0.0, min(10.0, appeal))
-            tier_s = pr.get("psl_tier") if isinstance(pr.get("psl_tier"), str) else ""
-            arch_s = pr.get("archetype") if isinstance(pr.get("archetype"), str) else ""
-            try:
-                asc_m = int(pr.get("ascension_time_months") or 0)
-            except (TypeError, ValueError):
-                asc_m = 0
-            try:
-                age_s = int(pr.get("age_score") or 0)
-            except (TypeError, ValueError):
-                age_s = 0
-            response["analysis"] = {
-                "overall_score": overall_score,
-                "potential_score": pot,
-                "scan_summary": a.get("scan_summary") or {"overall_score": overall_score},
-                "umax_metrics": a.get("umax_metrics"),
-                "preview_blurb": a.get("preview_blurb"),
-                "psl_rating": {
-                    "psl_score": overall_score,
-                    "potential": pot,
-                    "appeal": appeal,
-                    "psl_tier": tier_s,
-                    "ascension_time_months": max(0, min(120, asc_m)),
-                    "age_score": max(0, min(99, age_s)),
-                    "archetype": arch_s[:200] if arch_s else "",
-                },
-                "locked": True,
-            }
+        response["analysis"] = scan.analysis if treat_as_paid else _redacted_analysis(scan.analysis)
 
     return response
 

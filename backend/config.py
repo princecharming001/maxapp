@@ -332,13 +332,21 @@ class Settings(BaseSettings):
             f"@{self.aws_rds_host}:{self.aws_rds_port}/{self.aws_rds_database}"
         )
 
-    def validate_production_config(self) -> None:
-        """Fail fast when critical Supabase DB env vars are missing in production."""
+    @property
+    def is_production(self) -> bool:
+        """True in any real deployment. `app_env` alone is unreliable (easy to
+        leave at the default), so we also treat the Render/PRODUCTION platform
+        env vars as authoritative. Used to hard-disable dev-only endpoints
+        (faux signups, dev Google sign-in, test-activate) so they can never mint
+        free/paid accounts or bypass the paywall in production."""
         app_env = (self.app_env or "").strip().lower()
-        is_production = app_env == "production" or bool(
+        return app_env == "production" or bool(
             os.getenv("RENDER") or os.getenv("PRODUCTION")
         )
-        if not is_production:
+
+    def validate_production_config(self) -> None:
+        """Fail fast when critical Supabase DB env vars are missing in production."""
+        if not self.is_production:
             return
 
         errors: list[str] = []
