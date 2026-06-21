@@ -570,11 +570,17 @@ async def get_scan_history(
     scans_list = result.scalars().all()
     scans = []
     for s in scans_list:
+        a = s.analysis or {}
+        pr = a.get("psl_rating") if isinstance(a.get("psl_rating"), dict) else {}
+        appeal_raw = pr.get("appeal")
+        potential_raw = pr.get("potential") if pr.get("potential") not in (None, "") else a.get("potential_score")
         scans.append(
             {
                 "id": str(s.id),
                 "created_at": s.created_at,
-                "overall_score": _overall_from_analysis(s.analysis or {}),
+                "overall_score": _overall_from_analysis(a),
+                "appeal": float(appeal_raw) if appeal_raw not in (None, "") else None,
+                "potential": float(potential_raw) if potential_raw not in (None, "") else None,
             }
         )
     return {"scans": scans}

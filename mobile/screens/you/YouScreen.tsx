@@ -1,18 +1,12 @@
-/**
- * You hub (spec 3.1) - the profile/progress home under the 4-tab nav.
- *
- * Glass list: Scan & Progress (archives + "New scan" CTA - the camera ask
- * happens THERE, never earlier), the ONE canonical Week view (pushes the
- * existing DayPlannerScreen), Purchases (entered programs w/ prices),
- * Settings, Manage subscription, Legal. Streak ring at the top.
- */
 import React, { useState, useMemo, useCallback } from 'react';
 import {
+    Modal,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
+    useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -27,34 +21,167 @@ import { useAuth } from '../../context/AuthContext';
 import { queryKeys } from '../../lib/queryClient';
 import api from '../../services/api';
 
-const CAL_INK = '#111113';
-const CAL_ON_INK = '#FFFFFF';
-const CAL_MUTE = '#9A9A9A';
-const CAL_TRACK = '#E4E3E0';
+// ─── Constants ───────────────────────────────────────────────────────────────
+const INK = '#111113';
+const ON_INK = '#FFFFFF';
+const MUTE = '#9A9A9A';
+const TRACK = '#E4E3E0';
+const CARD = '#FFFFFF';
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function parseScanPoints(raw: any): { score: number; at?: string }[] {
-    const list = raw?.scans ?? raw?.history ?? (Array.isArray(raw) ? raw : []) ?? [];
+// ─── Types ───────────────────────────────────────────────────────────────────
+type ScanPoint = { score: number; appeal?: number; potential?: number; at?: string };
+type DayData = { photo?: any; scan?: ScanPoint; dateStr: string };
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function parseScanPoints(raw: any): ScanPoint[] {
+    const list = raw?.scans ?? raw?.history ?? (Array.isArray(raw) ? raw : []);
     return (list as any[])
         .map((s: any) => {
-            const score = Number(
-                s?.overall_score ?? s?.rating ?? s?.score ?? s?.analysis?.psl_rating?.appeal ?? s?.psl_rating?.appeal,
-            );
-            return Number.isFinite(score) ? { score, at: s?.created_at as string | undefined } : null;
+            const score = Number(s?.overall_score ?? s?.rating ?? s?.score);
+            if (!Number.isFinite(score)) return null;
+            const appeal = s?.appeal != null ? Number(s.appeal) : undefined;
+            const potential = s?.potential != null ? Number(s.potential) : undefined;
+            return {
+                score,
+                appeal: Number.isFinite(appeal) ? appeal : undefined,
+                potential: Number.isFinite(potential) ? potential : undefined,
+                at: s?.created_at as string | undefined,
+            };
         })
         .filter(Boolean)
-        .sort((a: any, b: any) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime()) as { score: number; at?: string }[];
+        .sort((a: any, b: any) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime()) as ScanPoint[];
 }
 
+function fmtScore(v: number | undefined): string {
+    if (v == null || !Number.isFinite(v)) return '—';
+    return v.toFixed(1);
+}
+
+function scoreTint(v: number | undefined): string {
+    if (v == null) return INK;
+    if (v >= 7.5) return '#1A6E42';
+    if (v >= 5) return '#7A5C00';
+    return '#8B1A1A';
+}
+
+function formatDayLabel(dateStr: string): string {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const suffix = d === 1 || d === 21 || d === 31 ? 'st'
+        : d === 2 || d === 22 ? 'nd'
+        : d === 3 || d === 23 ? 'rd' : 'th';
+    return `${SHORT_MONTHS[m - 1]} ${d}${suffix}, ${y}`;
+}
+
+// ─── Day detail modal ─────────────────────────────────────────────────────────
+function DayModal({
+    data,
+    onClose,
+    onNewScan,
+}: {
+    data: DayData | null;
+    onClose: () => void;
+    onNewScan: () => void;
+}) {
+    const { width } = useWindowDimensions();
+    const insets = useSafeAreaInsets();
+    const cardW = Math.min(width - 40, 360);
+    const imgH = Math.round(cardW * 1.1);
+
+    if (!data) return null;
+    const { photo, scan, dateStr } = data;
+    const hasMetrics = scan && (scan.score != null || scan.appeal != null || scan.potential != null);
+
+    return (
+        <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+            <TouchableOpacity
+                style={md.backdrop}
+                activeOpacity={1}
+                onPress={onClose}
+            >
+                <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+                    <View style={[md.card, { width: cardW, paddingBottom: insets.bottom + 8 }]}>
+                        {/* Photo */}
+                        {photo ? (
+                            <View style={[md.imgWrap, { height: imgH }]}>
+                                <CachedImage
+                                    uri={api.resolveAttachmentUrl(photo.image_url)}
+                                    style={md.img}
+                                    contentFit="cover"
+                                />
+                                {/* Date badge */}
+                                <View style={md.dateBadge}>
+                                    <Text style={md.dateBadgeText}>{formatDayLabel(dateStr)}</Text>
+                                </View>
+                            </View>
+                        ) : (
+                            <View style={md.noPhotoWrap}>
+                                <Ionicons name="camera-outline" size={32} color={MUTE} />
+                                <Text style={md.noPhotoText}>{formatDayLabel(dateStr)}</Text>
+                                <TouchableOpacity style={md.scanCta} onPress={onNewScan} activeOpacity={0.8}>
+                                    <Text style={md.scanCtaText}>Take a photo →</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        {/* Metrics */}
+                        {hasMetrics ? (
+                            <View style={md.metrics}>
+                                <MetricTile label="RATING" value={scan!.score} />
+                                <View style={md.metricDivider} />
+                                <MetricTile label="APPEAL" value={scan!.appeal} />
+                                <View style={md.metricDivider} />
+                                <MetricTile label="POTENTIAL" value={scan!.potential} />
+                            </View>
+                        ) : scan ? (
+                            // Scan exists but no breakdown (old format)
+                            <View style={md.metrics}>
+                                <MetricTile label="SCORE" value={scan.score} />
+                            </View>
+                        ) : (
+                            <View style={md.noScanRow}>
+                                <Text style={md.noScanText}>No scan on this day</Text>
+                                <TouchableOpacity onPress={onNewScan} activeOpacity={0.8}>
+                                    <Text style={md.noScanCta}>Scan now →</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        {/* Close */}
+                        <TouchableOpacity style={md.close} onPress={onClose} hitSlop={12}>
+                            <Ionicons name="close" size={18} color={INK} />
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </TouchableOpacity>
+        </Modal>
+    );
+}
+
+function MetricTile({ label, value }: { label: string; value: number | undefined }) {
+    const tint = scoreTint(value);
+    return (
+        <View style={md.metricTile}>
+            <Text style={md.metricLabel}>{label}</Text>
+            <Text style={[md.metricValue, { color: tint }]}>{fmtScore(value)}</Text>
+            <Text style={md.metricSub}>/10</Text>
+        </View>
+    );
+}
+
+// ─── Progress calendar ────────────────────────────────────────────────────────
 function ProgressCalendar({
     progressPhotos,
+    scanByDate,
     scanPts,
-    onPhotoPress,
+    onDayPress,
     onScanDay,
 }: {
     progressPhotos: any[];
-    scanPts: { score: number; at?: string }[];
-    onPhotoPress: (photo: any) => void;
+    scanByDate: Record<string, ScanPoint>;
+    scanPts: ScanPoint[];
+    onDayPress: (data: DayData) => void;
     onScanDay: () => void;
 }) {
     const today = useMemo(() => new Date(), []);
@@ -85,12 +212,6 @@ function ProgressCalendar({
         return map;
     }, [progressPhotos]);
 
-    const scanDateSet = useMemo(() => {
-        const s = new Set<string>();
-        scanPts.forEach(pt => { if (pt.at) s.add(pt.at.split('T')[0]); });
-        return s;
-    }, [scanPts]);
-
     const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
     const startOffset = (firstWeekday + 6) % 7;
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -105,11 +226,11 @@ function ProgressCalendar({
         <View>
             <View style={cal.header}>
                 <TouchableOpacity onPress={goBack} hitSlop={8} style={cal.navBtn}>
-                    <Ionicons name="chevron-back" size={18} color={CAL_INK} />
+                    <Ionicons name="chevron-back" size={18} color={INK} />
                 </TouchableOpacity>
                 <Text style={cal.monthLabel}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
                 <TouchableOpacity onPress={goForward} hitSlop={8} style={cal.navBtn} disabled={isFuture}>
-                    <Ionicons name="chevron-forward" size={18} color={isFuture ? CAL_TRACK : CAL_INK} />
+                    <Ionicons name="chevron-forward" size={18} color={isFuture ? TRACK : INK} />
                 </TouchableOpacity>
             </View>
             <View style={cal.dayRow}>
@@ -122,18 +243,23 @@ function ProgressCalendar({
                     if (!day) return <View key={`e${i}`} style={cal.cell} />;
                     const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const photo = photoByDate[dateStr];
-                    const hasScan = scanDateSet.has(dateStr);
+                    const scan = scanByDate[dateStr];
                     const isToday = dateStr === todayStr;
-                    const hasContent = !!photo || hasScan;
+                    const hasContent = !!photo || !!scan;
+                    const tappable = hasContent || isToday;
+
                     return (
                         <TouchableOpacity
                             key={dateStr}
                             style={cal.cell}
                             onPress={() => {
-                                if (photo) onPhotoPress(photo);
-                                else if (isToday) onScanDay();
+                                if (hasContent) {
+                                    onDayPress({ photo, scan, dateStr });
+                                } else if (isToday) {
+                                    onScanDay();
+                                }
                             }}
-                            activeOpacity={hasContent || isToday ? 0.7 : 1}
+                            activeOpacity={tappable ? 0.7 : 1}
                         >
                             {photo ? (
                                 <View style={[cal.thumb, isToday && cal.thumbToday]}>
@@ -142,11 +268,12 @@ function ProgressCalendar({
                                         style={{ width: '100%', height: '100%' }}
                                         contentFit="cover"
                                     />
+                                    {scan && <View style={cal.scanBadge} />}
                                 </View>
                             ) : (
-                                <View style={[cal.dayNum, isToday && cal.dayNumToday]}>
+                                <View style={[cal.dayNum, isToday && cal.dayNumToday, scan && cal.dayNumScan]}>
                                     <Text style={[cal.dayText, isToday && cal.dayTextToday]}>{day}</Text>
-                                    {hasScan && !photo ? <View style={cal.scanDot} /> : null}
+                                    {scan && !isToday ? <View style={cal.scanDot} /> : null}
                                 </View>
                             )}
                         </TouchableOpacity>
@@ -157,6 +284,7 @@ function ProgressCalendar({
     );
 }
 
+// ─── Section list helpers ─────────────────────────────────────────────────────
 type Row = {
     icon: keyof typeof Ionicons.glyphMap;
     label: string;
@@ -200,11 +328,14 @@ function Section({ title, rows }: { title: string; rows: Row[] }) {
     );
 }
 
+// ─── Screen ───────────────────────────────────────────────────────────────────
 export default function YouScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const { user } = useAuth();
     const faceScanEnabled = useFlag('faceScan');
+
+    const [dayModal, setDayModal] = useState<DayData | null>(null);
 
     const { data: schedData } = useQuery({
         queryKey: queryKeys.schedulesActiveFull,
@@ -225,7 +356,19 @@ export default function YouScreen() {
     });
 
     const progressPhotos: any[] = (progressPhotosData as any)?.photos ?? (Array.isArray(progressPhotosData) ? progressPhotosData : []);
-    const scanPts = parseScanPoints(scanHistoryData);
+    const scanPts = useMemo(() => parseScanPoints(scanHistoryData), [scanHistoryData]);
+
+    // date → scan metrics, most recent scan per day wins
+    const scanByDate = useMemo(() => {
+        const map: Record<string, ScanPoint> = {};
+        scanPts.forEach(pt => {
+            if (pt.at) {
+                const d = pt.at.split('T')[0];
+                map[d] = pt;
+            }
+        });
+        return map;
+    }, [scanPts]);
 
     const { data: market } = useQuery({
         queryKey: ['marketplaceBrowse'],
@@ -237,8 +380,12 @@ export default function YouScreen() {
         ...(market?.courses ?? []),
     ].filter((item: any) => item.entered);
 
-    const firstName =
-        (user as any)?.first_name || (user as any)?.username || 'you';
+    const firstName = (user as any)?.first_name || (user as any)?.username || 'you';
+
+    const handleNewScan = useCallback(() => {
+        setDayModal(null);
+        navigation.navigate('FaceScan');
+    }, [navigation]);
 
     return (
         <ScreenBackdrop>
@@ -252,7 +399,7 @@ export default function YouScreen() {
                 <Text style={styles.kicker}>you</Text>
                 <Text style={styles.title}>{firstName}</Text>
 
-                {/* Streak pill */}
+                {/* Streak */}
                 <View style={styles.streakWrap}>
                     <GlassCard radius={20}>
                         <View style={styles.streakCard}>
@@ -278,9 +425,10 @@ export default function YouScreen() {
                         <View style={styles.calendarInner}>
                             <ProgressCalendar
                                 progressPhotos={progressPhotos}
+                                scanByDate={scanByDate}
                                 scanPts={scanPts}
-                                onPhotoPress={(photo) => navigation.navigate('ProgressArchive')}
-                                onScanDay={() => navigation.navigate('FaceScan')}
+                                onDayPress={setDayModal}
+                                onScanDay={handleNewScan}
                             />
                         </View>
                     </GlassCard>
@@ -383,10 +531,17 @@ export default function YouScreen() {
                     ]}
                 />
             </ScrollView>
+
+            <DayModal
+                data={dayModal}
+                onClose={() => setDayModal(null)}
+                onNewScan={handleNewScan}
+            />
         </ScreenBackdrop>
     );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
     content: { paddingHorizontal: 20 },
     kicker: {
@@ -413,23 +568,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    streakNumber: {
-        fontFamily: 'Matter-SemiBold',
-        fontSize: 20,
-        color: '#1C1A17',
-    },
+    streakNumber: { fontFamily: 'Matter-SemiBold', fontSize: 20, color: '#1C1A17' },
     streakText: { marginLeft: 14, flex: 1 },
-    streakLabel: {
-        fontFamily: 'Matter-SemiBold',
-        fontSize: 15,
-        color: '#1C1A17',
-    },
-    streakSub: {
-        fontFamily: 'Matter-Regular',
-        fontSize: 13,
-        color: '#8C887E',
-        marginTop: 2,
-    },
+    streakLabel: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: '#1C1A17' },
+    streakSub: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#8C887E', marginTop: 2 },
     section: { marginTop: 24 },
     sectionTitle: {
         fontFamily: 'Matter-SemiBold',
@@ -440,6 +582,7 @@ const styles = StyleSheet.create({
         marginLeft: 4,
     },
     cardInner: { paddingHorizontal: 4 },
+    calendarInner: { padding: 14 },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -453,33 +596,158 @@ const styles = StyleSheet.create({
     },
     rowIcon: { width: 28, alignItems: 'center' },
     rowText: { flex: 1, marginLeft: 10 },
-    rowLabel: {
-        fontFamily: 'Matter-Regular',
-        fontSize: 15,
-        color: '#1C1A17',
-    },
-    rowSub: {
-        fontFamily: 'Matter-Regular',
-        fontSize: 12,
-        color: '#8C887E',
-        marginTop: 1,
-    },
-    calendarInner: { padding: 14 },
+    rowLabel: { fontFamily: 'Matter-Regular', fontSize: 15, color: '#1C1A17' },
+    rowSub: { fontFamily: 'Matter-Regular', fontSize: 12, color: '#8C887E', marginTop: 1 },
 });
 
 const cal = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
     navBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
-    monthLabel: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: CAL_INK, letterSpacing: -0.2 },
+    monthLabel: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK, letterSpacing: -0.2 },
     dayRow: { flexDirection: 'row', marginBottom: 4 },
-    dayHead: { flex: 1, textAlign: 'center', fontFamily: 'Matter-Medium', fontSize: 10.5, color: CAL_MUTE, letterSpacing: 0.2 },
+    dayHead: { flex: 1, textAlign: 'center', fontFamily: 'Matter-Medium', fontSize: 10.5, color: MUTE, letterSpacing: 0.2 },
     grid: { flexDirection: 'row', flexWrap: 'wrap' },
     cell: { width: `${100 / 7}%` as any, aspectRatio: 1, padding: 1.5, alignItems: 'center', justifyContent: 'center' },
-    thumb: { width: '92%', height: '92%', borderRadius: 5, overflow: 'hidden' },
-    thumbToday: { borderWidth: 1.5, borderColor: CAL_INK },
+    thumb: { width: '92%', height: '92%', borderRadius: 5, overflow: 'hidden', position: 'relative' },
+    thumbToday: { borderWidth: 1.5, borderColor: INK },
+    scanBadge: {
+        position: 'absolute', bottom: 3, right: 3,
+        width: 6, height: 6, borderRadius: 3,
+        backgroundColor: '#2E7D52',
+        borderWidth: 1, borderColor: '#fff',
+    },
     dayNum: { width: '80%', height: '80%', borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
-    dayNumToday: { backgroundColor: CAL_INK },
-    dayText: { fontFamily: 'Matter-Regular', fontSize: 11.5, color: CAL_INK },
-    dayTextToday: { color: CAL_ON_INK, fontFamily: 'Matter-SemiBold' },
+    dayNumToday: { backgroundColor: INK },
+    dayNumScan: { backgroundColor: 'rgba(46,125,82,0.10)' },
+    dayText: { fontFamily: 'Matter-Regular', fontSize: 11.5, color: INK },
+    dayTextToday: { color: ON_INK, fontFamily: 'Matter-SemiBold' },
     scanDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#2E7D52', marginTop: 1 },
+});
+
+const md = StyleSheet.create({
+    backdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    card: {
+        backgroundColor: CARD,
+        borderRadius: 24,
+        overflow: 'hidden',
+    },
+    imgWrap: {
+        width: '100%',
+        position: 'relative',
+    },
+    img: {
+        width: '100%',
+        height: '100%',
+    },
+    dateBadge: {
+        position: 'absolute',
+        bottom: 12,
+        left: 12,
+        backgroundColor: 'rgba(0,0,0,0.52)',
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+    },
+    dateBadgeText: {
+        fontFamily: 'Matter-Medium',
+        fontSize: 12,
+        color: '#fff',
+        letterSpacing: 0.2,
+    },
+    noPhotoWrap: {
+        alignItems: 'center',
+        paddingVertical: 36,
+        paddingHorizontal: 24,
+        gap: 8,
+    },
+    noPhotoText: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 15,
+        color: INK,
+        marginTop: 4,
+    },
+    scanCta: {
+        marginTop: 6,
+        backgroundColor: INK,
+        borderRadius: 999,
+        paddingHorizontal: 18,
+        paddingVertical: 9,
+    },
+    scanCtaText: {
+        fontFamily: 'Matter-Medium',
+        fontSize: 13,
+        color: ON_INK,
+        letterSpacing: 0.2,
+    },
+    metrics: {
+        flexDirection: 'row',
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: 'rgba(17,17,19,0.08)',
+    },
+    metricTile: {
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: 20,
+        paddingHorizontal: 4,
+    },
+    metricDivider: {
+        width: StyleSheet.hairlineWidth,
+        backgroundColor: 'rgba(17,17,19,0.08)',
+        marginVertical: 14,
+    },
+    metricLabel: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 9,
+        letterSpacing: 1.4,
+        color: MUTE,
+        marginBottom: 6,
+    },
+    metricValue: {
+        fontFamily: 'PlayfairDisplay-Regular',
+        fontSize: 28,
+        color: INK,
+        lineHeight: 30,
+    },
+    metricSub: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 10,
+        color: MUTE,
+        marginTop: 1,
+    },
+    noScanRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: 'rgba(17,17,19,0.08)',
+    },
+    noScanText: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 13,
+        color: MUTE,
+    },
+    noScanCta: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 13,
+        color: INK,
+    },
+    close: {
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: 'rgba(255,255,255,0.85)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
 });
