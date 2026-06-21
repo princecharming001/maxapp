@@ -6,8 +6,8 @@
 export type FlagName = 'newNav' | 'todayV2' | 'onboardingV2' | 'revealV2' | 'streakV2' | 'faceScan';
 
 const FLAGS: Record<FlagName, boolean> = {
-    newNav: false,
-    todayV2: false,
+    newNav: true,
+    todayV2: true,
     onboardingV2: true,
     revealV2: true,
     streakV2: true,
