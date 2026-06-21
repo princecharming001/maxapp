@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Platform, View, Text, TouchableOpacity, Modal } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { colors, spacing, shadows, fonts, borderRadius } from '../theme/dark';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,12 +41,24 @@ function ScanCenterButton() {
         <TouchableOpacity
             onPress={() => scanNav.navigate('FaceScan')}
             style={scanBtnStyles.touch}
-            activeOpacity={0.85}
+            activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="Scan"
         >
-            <View style={scanBtnStyles.circle}>
-                <Ionicons name="scan" size={22} color="#FFFFFF" />
+            {/* Clear, frosted-glass scan button (Apple-style): a translucent
+                squircle with a real blur, a hairline white rim and a soft drop
+                shadow. The icon stays ink-dark for contrast against the light
+                frost. overflow:hidden clips the blur to the circle. */}
+            <View style={scanBtnStyles.circleWrap}>
+                <BlurView
+                    intensity={Platform.OS === 'ios' ? 36 : 60}
+                    tint="light"
+                    style={scanBtnStyles.blur}
+                    experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+                >
+                    <View style={scanBtnStyles.sheen} />
+                    <Ionicons name="scan" size={23} color="#111113" />
+                </BlurView>
             </View>
         </TouchableOpacity>
     );
@@ -53,19 +66,29 @@ function ScanCenterButton() {
 
 const scanBtnStyles = StyleSheet.create({
     touch: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    circle: {
-        width: 54,
-        height: 54,
-        borderRadius: 27,
-        backgroundColor: '#111113',
-        alignItems: 'center',
-        justifyContent: 'center',
+    circleWrap: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
         marginTop: -18,
-        shadowColor: '#000',
-        shadowOpacity: 0.22,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: -2 },
-        elevation: 6,
+        overflow: 'hidden',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(255,255,255,0.65)',
+        backgroundColor: 'rgba(255,255,255,0.16)',
+        shadowColor: '#111113',
+        shadowOpacity: 0.18,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 8,
+        ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
+    },
+    blur: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    // Faint top-down highlight so the glass catches light like an iOS control.
+    sheen: {
+        position: 'absolute',
+        top: 0, left: 0, right: 0,
+        height: '52%',
+        backgroundColor: 'rgba(255,255,255,0.28)',
     },
 });
 
@@ -380,16 +403,20 @@ export default function TabNavigator() {
                         ),
                     }}
                 />
+                {/* Planner replaces the old Schedule tab — the day-planner
+                    timeline is now the second tab. Route name stays
+                    'MasterScheduleTab' so existing navigate() calls and the
+                    onboarding tour step keep working. */}
                 <Tab.Screen
                     name="MasterScheduleTab"
-                    component={MasterScheduleScreen}
+                    component={PlannerTab}
                     options={{
-                        title: 'Schedule',
-                        tabBarLabel: 'Schedule',
+                        title: 'Planner',
+                        tabBarLabel: 'Planner',
                         tabBarIcon: ({ color }) => (
                             <AttachStep index={TOUR_STEP.SCHEDULE_TAB}>
                                 <View style={styles.tourIconWrap}>
-                                    <Ionicons name="calendar-outline" size={22} color={color} />
+                                    <Ionicons name="map-outline" size={22} color={color} />
                                 </View>
                             </AttachStep>
                         ),

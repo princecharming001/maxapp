@@ -177,12 +177,15 @@ export default function MarketplaceScreen() {
     const fMaxxes = useMemo(() => maxxes.filter(matches), [maxxes, matches]);
     const fCourses = useMemo(() => courses.filter(matches), [courses, matches]);
 
+    // Creator courses are temporarily disabled. The Creator tab shows a
+    // "coming soon" state and courses are excluded from All — native maxes
+    // only. (fCourses is still computed so re-enabling is a one-line change.)
     const combined = useMemo<MarketplaceItem[]>(
-        () => (tab === 'native' ? fMaxxes : tab === 'creator' ? fCourses : [...fMaxxes, ...fCourses]),
-        [tab, fMaxxes, fCourses],
+        () => (tab === 'creator' ? [] : fMaxxes),
+        [tab, fMaxxes],
     );
     const suggested = useMemo(() => combined.slice(0, 5), [combined]);
-    const emptyMsg = combined.length === 0
+    const emptyMsg = tab !== 'creator' && combined.length === 0
         ? (q ? `No matches for “${query.trim()}”.` : 'Nothing here yet.')
         : null;
 
@@ -279,6 +282,20 @@ export default function MarketplaceScreen() {
                 {error ? (
                     <View style={styles.gutter}>
                         <View style={styles.errorCard}><Text style={styles.errorText}>{error}</Text></View>
+                    </View>
+                ) : null}
+
+                {/* Creator tab — temporary "coming soon" placeholder while creator
+                    courses are disabled. */}
+                {tab === 'creator' ? (
+                    <View style={[styles.gutter, styles.comingSoon]}>
+                        <View style={styles.comingSoonIcon}>
+                            <Ionicons name="sparkles-outline" size={26} color={INK} />
+                        </View>
+                        <Text style={styles.comingSoonTitle}>Creators coming soon</Text>
+                        <Text style={styles.comingSoonSub}>
+                            We&apos;re lining up creator courses. Check back shortly.
+                        </Text>
                     </View>
                 ) : null}
 
@@ -408,6 +425,15 @@ const styles = StyleSheet.create({
     tabLabelOn: { fontFamily: 'Matter-SemiBold', color: ON_INK },
 
     noResults: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE },
+
+    // Creator "coming soon" placeholder
+    comingSoon: { marginTop: 64, alignItems: 'center' },
+    comingSoonIcon: {
+        width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, marginBottom: 18,
+    },
+    comingSoonTitle: { fontFamily: SERIF, fontSize: 26, color: INK, letterSpacing: -0.4 },
+    comingSoonSub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE, marginTop: 8, textAlign: 'center', lineHeight: 21, maxWidth: 280 },
 
     errorCard: { marginTop: 16, padding: 16, borderRadius: 16, backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
     errorText: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#B23A3A' },

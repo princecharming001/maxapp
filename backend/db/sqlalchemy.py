@@ -22,12 +22,37 @@ def _clean_asyncpg_url(raw_url: str) -> str:
     return urlunparse(clean)
 
 
+def _connection_mode() -> str:
+    """Resolve the ACTUAL Supabase connection mode from host + port.
+
+    This is the crux of the MaxClientsInSessionMode (EMAXCONNSESSION) error.
+    Supabase exposes three endpoints and only one scales:
+      - direct  `db.<ref>.supabase.co:5432`            — no pooler, ~60 conn cap
+      - session `aws-0-<region>.pooler.supabase.com:5432` — Supavisor SESSION mode,
+                 each client holds a dedicated backend, GLOBAL cap ~15 clients
+      - txn     `aws-0-<region>.pooler.supabase.com:6543` — Supavisor TRANSACTION
+                 mode, multiplexes thousands of clients onto a few backends
+
+    Transaction mode requires BOTH the pooler host AND port 6543 (and a tenant
+    username `postgres.<ref>`). Setting only the port to 6543 while the host is
+    still the direct/session endpoint does NOT give transaction mode — so we key
+    the pool sizing off this resolved mode, never off the port alone. Otherwise a
+    half-config would size the pool UP (to 20) while the connection stays in
+    session mode (cap 15) — which is exactly what makes EMAXCONNSESSION worse.
+    """
+    port = getattr(settings, "supabase_db_port", 5432)
+    host = (getattr(settings, "supabase_db_host", "") or "").lower()
+    is_pooler = "pooler.supabase" in host
+    if is_pooler and port == 6543:
+        return "transaction"
+    if is_pooler:
+        return "session"
+    return "direct"
+
+
 def _supabase_connect_args() -> dict:
-    """
-    Supabase Session pooler (5432) allows very few client slots → MaxClientsInSessionMode.
-    Prefer Transaction pooler (6543) in Supabase Dashboard → Connect → Transaction mode.
-    asyncpg must disable statement cache through Supabase pooler hosts (PgBouncer).
-    """
+    """asyncpg connect args. Statement cache MUST be disabled through any
+    Supabase pooler host (PgBouncer/Supavisor) or prepared statements break."""
     args: dict = {
         "timeout": 10,
         "command_timeout": 15,
@@ -40,36 +65,67 @@ def _supabase_connect_args() -> dict:
             "search_path": "public,extensions",
         },
     }
-    port = getattr(settings, "supabase_db_port", 5432)
     host = (getattr(settings, "supabase_db_host", "") or "").lower()
-    if port == 6543 or "pooler.supabase" in host:
+    if "pooler.supabase" in host or getattr(settings, "supabase_db_port", 5432) == 6543:
         args["statement_cache_size"] = 0
     return args
 
 
 def _pool_params() -> dict:
-    """Size the connection pool to the pooler MODE.
+    """Size the connection pool to the RESOLVED connection mode (not the port).
 
-    Supabase Session pooler (5432) hands each client an exclusive backend and
-    caps total clients very low (~15) → keep the pool tiny. The Transaction
-    pooler / Supavisor (6543) multiplexes thousands of clients onto a few
-    backends → a larger pool is safe and needed to serve real concurrency.
-    Recommended production: SUPABASE_DB_PORT=6543. Env values, when set, win.
+    Session mode shares a GLOBAL ~15-client cap across every worker, instance
+    AND the scheduler — so the per-process pool must stay tiny or several
+    workers collectively blow the cap. Transaction mode has no such cap, so a
+    larger pool is safe and needed for real concurrency. Env values win when set.
+    Recommended production: pooler host + SUPABASE_DB_PORT=6543 + user
+    `postgres.<project-ref>`.
     """
-    port = getattr(settings, "supabase_db_port", 5432)
-    host = (getattr(settings, "supabase_db_host", "") or "").lower()
-    transaction_mode = port == 6543
-    if transaction_mode:
-        size = getattr(settings, "supabase_db_pool_size", None) or 10
-        overflow = getattr(settings, "supabase_db_max_overflow", None) or 10
+    mode = _connection_mode()
+    env_size = getattr(settings, "supabase_db_pool_size", None)
+    env_overflow = getattr(settings, "supabase_db_max_overflow", None)
+    if mode == "transaction":
+        size = env_size or 10
+        overflow = env_overflow or 10
         recycle = 900
+    elif mode == "direct":
+        size = env_size or 5
+        overflow = env_overflow or 5
+        recycle = 300
     else:
-        # Session mode: stay well under the ~15 global client cap.
-        size = getattr(settings, "supabase_db_pool_size", None) or 3
-        overflow = getattr(settings, "supabase_db_max_overflow", None) or 2
+        # Session mode: stay well under the ~15 GLOBAL client cap. Per process.
+        size = env_size or 2
+        overflow = env_overflow or 1
         recycle = 180
     return {"pool_size": int(size), "max_overflow": int(overflow), "pool_recycle": recycle}
 
+
+def _log_db_config() -> None:
+    """Print the resolved DB connection mode + pool at boot so misconfig is
+    visible in Render logs at a glance (the EMAXCONNSESSION fix is usually an
+    env change, and this tells you immediately whether it took effect)."""
+    mode = _connection_mode()
+    host = (getattr(settings, "supabase_db_host", "") or "")
+    port = getattr(settings, "supabase_db_port", 5432)
+    user = (getattr(settings, "supabase_db_user", "") or "")
+    pp = _pool_params()
+    print(f"[DB] mode={mode} host={host} port={port} "
+          f"pool_size={pp['pool_size']} max_overflow={pp['max_overflow']}")
+    if mode == "session":
+        print("[DB][WARN] SESSION mode — global ~15-client cap (EMAXCONNSESSION risk). "
+              "For scale set the POOLER host (aws-0-<region>.pooler.supabase.com) + "
+              "SUPABASE_DB_PORT=6543 (Transaction mode).")
+    if mode != "direct" and "." not in user:
+        print(f"[DB][WARN] Pooler host but user='{user}' has no project ref. Supavisor "
+              "usually needs SUPABASE_DB_USER=postgres.<project-ref> — without it the "
+              "pooler can reject/fallback and you stay session-capped.")
+    if port == 6543 and "pooler.supabase" not in host.lower():
+        print("[DB][WARN] PORT=6543 but host is not a pooler host — transaction mode "
+              "needs the aws-0-<region>.pooler.supabase.com host. This will not connect "
+              "in transaction mode.")
+
+
+_log_db_config()
 
 engine = create_async_engine(
     _clean_asyncpg_url(settings.supabase_db_url),
