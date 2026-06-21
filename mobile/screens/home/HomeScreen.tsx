@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { AttachStep } from 'react-native-spotlight-tour';
@@ -80,6 +81,21 @@ const ring = StyleSheet.create({
 
 /* ─── Helpers ─── */
 
+type DayCell = { date: string; index: number; total: number; done: number; isToday: boolean };
+
+// Onboarding "Stoic" black-and-white palette (matches OnboardingV2Screen).
+const BW = {
+    bg: '#F1F1EF',
+    ink: '#000000',
+    onInk: '#FFFFFF',
+    card: '#FFFFFF',
+    sub: '#6B6B6B',
+    mute: '#9A9A9A',
+    hair: 'rgba(0,0,0,0.06)',
+    pillOff: '#E7E7E4',
+    track: '#E2E1DE',
+} as const;
+
 function formatTimeTo12Hour(time24: string) {
     if (!time24 || typeof time24 !== 'string' || !time24.includes(':')) return time24 || '';
     try {
@@ -101,6 +117,13 @@ function formatScheduleDayLabel(isoDate: string | undefined | null) {
     if (parts.length !== 3 || parts.some((n) => isNaN(n))) return null;
     const [y, m, d] = parts;
     const dt = new Date(y, m - 1, d);
+    // Relative label for the nearby days; fall back to the full date otherwise.
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((dt.getTime() - today.getTime()) / 86_400_000);
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays === -1) return 'Yesterday';
     return dt.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
@@ -110,6 +133,103 @@ function greetingForHour(): string {
     if (h < 17) return 'Good afternoon,';
     return 'Good evening,';
 }
+
+/* ─── Gradient habit card (per-max colour, grainy gradient fill) ─── */
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+    const h = (hex || '').replace('#', '');
+    const f = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+    const n = parseInt(f || '6b6b6b', 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+// amt > 0 lightens toward white, amt < 0 darkens toward black.
+function shade(hex: string, amt: number): string {
+    const { r, g, b } = hexToRgb(hex);
+    const t = amt >= 0 ? 255 : 0;
+    const p = Math.abs(amt);
+    return `rgb(${Math.round(r + (t - r) * p)},${Math.round(g + (t - g) * p)},${Math.round(b + (t - b) * p)})`;
+}
+function luminance(hex: string): number {
+    const { r, g, b } = hexToRgb(hex);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+function textOn(hex: string): string {
+    return luminance(hex) > 0.62 ? '#15130F' : '#FFFFFF';
+}
+
+function GradientHabit({
+    row, done, busy, onToggle, onOpen,
+}: {
+    row: MergedScheduleTask; done: boolean; busy: boolean; onToggle: () => void; onOpen: () => void;
+}) {
+    const c = row.moduleColor && /^#/.test(row.moduleColor) ? row.moduleColor : '#8E8E93';
+    // Unchecked: white card with black text. Checked: brand color gradient with white text.
+    const txt = done ? (textOn(c) === '#15130F' ? '#15130F' : '#FFFFFF') : '#111113';
+    const subColor = done ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.45)';
+    return (
+        <TouchableOpacity style={gh.card} activeOpacity={0.92} onPress={onOpen}>
+            {done ? (
+                <>
+                    {/* colored gradient fill — only when completed */}
+                    <LinearGradient
+                        colors={[shade(c, 0.3), c, shade(c, -0.14)]}
+                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                        style={StyleSheet.absoluteFill}
+                    />
+                    <LinearGradient
+                        pointerEvents="none"
+                        colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']}
+                        start={{ x: 0, y: 0 }} end={{ x: 0.7, y: 0.8 }}
+                        style={StyleSheet.absoluteFill}
+                    />
+                </>
+            ) : (
+                /* white background when unchecked */
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FFFFFF' }]} />
+            )}
+            <View style={gh.inner}>
+                <TouchableOpacity
+                    style={gh.checkHit}
+                    onPress={onToggle}
+                    disabled={busy}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: done, disabled: busy }}
+                >
+                    {busy ? (
+                        <ActivityIndicator size="small" color={txt} />
+                    ) : done ? (
+                        <View style={[gh.checkDone, { backgroundColor: 'rgba(255,255,255,0.28)' }]}>
+                            <Ionicons name="checkmark" size={20} color={c} />
+                        </View>
+                    ) : (
+                        <View style={[gh.checkOpen, { borderColor: 'rgba(0,0,0,0.18)' }]} />
+                    )}
+                </TouchableOpacity>
+                <View style={gh.body}>
+                    <Text style={[gh.title, { color: txt }]} numberOfLines={1}>{row.title}</Text>
+                    <Text style={[gh.sub, { color: subColor }]} numberOfLines={1}>
+                        {row.moduleLabel || formatTimeTo12Hour(row.time)}
+                    </Text>
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+}
+
+const gh = StyleSheet.create({
+    card: {
+        minHeight: 88, borderRadius: 22, overflow: 'hidden', marginBottom: 12,
+        shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 3,
+    },
+    inner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 16, paddingVertical: 18 },
+    checkHit: { padding: 2 },
+    checkDone: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.82)', alignItems: 'center', justifyContent: 'center' },
+    checkOpen: { width: 48, height: 48, borderRadius: 24, borderWidth: 2 },
+    body: { flex: 1, minWidth: 0 },
+    title: { fontSize: 17, fontFamily: fonts.sansSemiBold, fontWeight: '600', letterSpacing: -0.3 },
+    sub: { fontSize: 13.5, fontFamily: fonts.sans, marginTop: 3 },
+});
 
 /* ─── Screen ─── */
 
@@ -121,7 +241,7 @@ export default function HomeScreen() {
     const maxesQuery = useMaxxesQuery();
     const schedulesQuery = useActiveSchedulesFullQuery();
 
-    const [completingTaskKey, setCompletingTaskKey] = useState<string | null>(null);
+    const taskToggleInFlightRef = useRef(new Set<string>());
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(18)).current;
@@ -185,6 +305,45 @@ export default function HomeScreen() {
         }
     }, [schedulesQuery.data, maxes]);
 
+    // Day strip + "Day X of N" \u2014 derived from the full schedule horizon. Each
+    // entry is one scheduled date with its completion tally.
+    const { days, todayIndex, dayCount, byDate, today } = useMemo(() => {
+        const full = schedulesQuery.data;
+        const fallbackToday = new Date().toISOString().split('T')[0];
+        if (!full) return { days: [] as DayCell[], todayIndex: 1, dayCount: 0, byDate: {} as Record<string, MergedScheduleTask[]>, today: fallbackToday };
+        try {
+            const { labels, colors: colorMap } = buildMaxxMaps(maxes);
+            const merged = mergeSchedules(full.schedules || [], labels, colorMap);
+            const today =
+                full.today_date || full.schedule_streak?.today_date || fallbackToday;
+            const dates = Object.keys(merged.byDate)
+                .filter((d) => (merged.byDate[d] || []).length > 0)
+                .sort();
+            const cells: DayCell[] = dates.map((d, i) => {
+                const rows = merged.byDate[d] || [];
+                const total = rows.length;
+                const done = rows.filter((r) => r.status === 'completed').length;
+                return { date: d, index: i + 1, total, done, isToday: d === today };
+            });
+            const tIndex = dates.filter((d) => d <= today).length || 1;
+            return { days: cells, todayIndex: tIndex, dayCount: dates.length, byDate: merged.byDate, today };
+        } catch {
+            return { days: [] as DayCell[], todayIndex: 1, dayCount: 0, byDate: {} as Record<string, MergedScheduleTask[]>, today: fallbackToday };
+        }
+    }, [schedulesQuery.data, maxes]);
+
+    // Which day's tasks the HABITS list shows. Null → today; tapping a day pill
+    // selects that date. (Synthetic days on the empty strip just show no tasks.)
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const activeDate = selectedDate ?? today;
+    const selectedRows = byDate[activeDate] || [];
+
+    // The strip is ALWAYS shown — even with no program, so the day rhythm reads.
+    // When there's no real schedule yet, synthesize a 30-day strip (today = 1).
+    const stripDays: DayCell[] = days.length > 0
+        ? days
+        : Array.from({ length: 30 }, (_, i) => ({ date: `synthetic-${i + 1}`, index: i + 1, total: 0, done: 0, isToday: i === 0 }));
+
     const querySchedulesError =
         schedulesQuery.isError && schedulesQuery.error
             ? String((schedulesQuery.error as Error)?.message || 'Could not load today\u2019s tasks.')
@@ -202,6 +361,20 @@ export default function HomeScreen() {
             new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
         );
     }, [schedulesQuery.data]);
+
+    // Header label + day index update when a non-today pill is tapped.
+    const activeDisplayLabel = useMemo(() => {
+        if (!selectedDate) return todayDisplayLabel;
+        return (
+            formatScheduleDayLabel(selectedDate) ||
+            new Date(selectedDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+        );
+    }, [selectedDate, todayDisplayLabel]);
+
+    const activeDayIndex = useMemo(() => {
+        if (!selectedDate) return todayIndex;
+        return stripDays.find((d) => d.date === selectedDate)?.index ?? todayIndex;
+    }, [selectedDate, stripDays, todayIndex]);
 
     // Face-scan kill switch: when off, a just-paid user is NOT redirected into
     // the scan-results flow (the scan is removed). Flip the flag to restore it.
@@ -257,11 +430,14 @@ export default function HomeScreen() {
     const totalCount = scheduleRows.length;
 
     const toggleTodayTask = async (row: MergedScheduleTask) => {
-        const key = `${row.scheduleId}-${row.task_id}`;
-        if (completingTaskKey) return;
-        setCompletingTaskKey(key);
+        const key = `${row.scheduleId}:${row.task_id}`;
+        if (taskToggleInFlightRef.current.has(key)) return;
+        taskToggleInFlightRef.current.add(key);
+
         const completing = row.status !== 'completed';
         const newStatus = completing ? 'completed' : 'pending';
+        // Cancel in-flight refetches so they don't overwrite the optimistic update.
+        await queryClient.cancelQueries({ queryKey: queryKeys.schedulesActiveFull });
         const prevData = queryClient.getQueryData(queryKeys.schedulesActiveFull);
         queryClient.setQueryData(queryKeys.schedulesActiveFull, (old: any) => {
             if (!old?.schedules) return old;
@@ -278,7 +454,6 @@ export default function HomeScreen() {
                 }),
             };
         });
-        setCompletingTaskKey(null);
         try {
             if (completing) {
                 await api.completeScheduleTask(row.scheduleId, row.task_id);
@@ -289,6 +464,8 @@ export default function HomeScreen() {
         } catch (e) {
             console.error('toggleTodayTask', e);
             queryClient.setQueryData(queryKeys.schedulesActiveFull, prevData);
+        } finally {
+            taskToggleInFlightRef.current.delete(key);
         }
     };
 
@@ -313,10 +490,7 @@ export default function HomeScreen() {
 
                     {/* ── TOP BAR ── */}
                     <View style={[s.topBar, { paddingTop: Math.max(insets.top + 12, 52) }]}>
-                        <View style={s.topLeft}>
-                            <Text style={s.greeting}>{greeting}</Text>
-                            <Text style={s.userName} numberOfLines={1}>{userName}</Text>
-                        </View>
+                        <View style={{ flex: 1 }} />
                         <View style={s.topRight}>
                             {scheduleStreak.current > 0 && (
                                 <StreakFireBadge streakDays={scheduleStreak.current} variant="header" />
@@ -344,150 +518,98 @@ export default function HomeScreen() {
                         </View>
                     </View>
 
-                    {/* ── PROGRAMS (horizontal scroll, top of screen) ── */}
-                    {activeMaxxes.length > 0 && (
-                        <AttachStep index={TOUR_STEP.PROGRAMS} fill>
-                            <View style={s.programsBar}>
-                                <ScrollView
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={s.programsScroll}
-                                >
-                                    {activeMaxxes.map((maxx) => {
-                                        const tint = normalizeMaxxTintHex(maxx.color);
-                                        return (
-                                            <TouchableOpacity
-                                                key={maxx.id}
-                                                style={s.programPill}
-                                                onPress={() => maxx.isCourse
-                                                    ? navigation.navigate('MasterScheduleTab')
-                                                    : navigation.navigate('MaxxDetail', { maxxId: maxx.maxxId })}
-                                                activeOpacity={0.72}
-                                            >
-                                                <View style={[s.programDot, { backgroundColor: tint }]} />
-                                                <Text style={s.programName} numberOfLines={1}>
-                                                    {maxx.label}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                    <TouchableOpacity
-                                        style={s.addPill}
-                                        onPress={() => navigation.navigate('Explore')}
-                                        activeOpacity={0.65}
-                                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Add a program"
-                                    >
-                                        <Ionicons name="add" size={16} color={colors.textMuted} />
-                                    </TouchableOpacity>
-                                </ScrollView>
-                            </View>
-                        </AttachStep>
-                    )}
+                    {/* ── HEADER: kicker + DAY X / N ── */}
+                    <View style={s.header}>
+                        <Text style={s.kicker} numberOfLines={1}>
+                            {(activeDisplayLabel || 'TODAY').toUpperCase()}
+                        </Text>
+                        <Text style={s.dayTitle}>
+                            DAY {activeDayIndex}
+                            <Text style={s.dayTitleMuted}> / 365</Text>
+                        </Text>
+                    </View>
 
-                    {/* ── PROGRESS HERO ── */}
+                    {/* ── DAY STRIP — always shown; tap a day to see its tasks ── */}
                     <AttachStep index={TOUR_STEP.PROGRESS} fill>
-                        <TouchableOpacity
-                            style={s.progressHero}
-                            onPress={() => navigation.navigate('MasterScheduleTab')}
-                            activeOpacity={0.8}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${completedCount} of ${totalCount} tasks completed. Open schedule.`}
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={s.stripScroll}
                         >
-                            {schedulesLoading ? (
-                                <ActivityIndicator size="large" color={colors.textMuted} style={{ height: RING_SIZE }} />
-                            ) : (
-                                <ProgressRing done={completedCount} total={totalCount} />
-                            )}
-                            <View style={s.progressMeta}>
-                                <Text style={s.dateLabel}>{todayDisplayLabel}</Text>
-                                {scheduleStreak.current > 0 && (
-                                    <View style={s.streakRow}>
-                                        <View style={s.streakDot} />
-                                        <Text style={s.streakText}>
-                                            {scheduleStreak.current} day{scheduleStreak.current === 1 ? '' : 's'} streak
-                                        </Text>
-                                    </View>
-                                )}
-                            </View>
-                        </TouchableOpacity>
+                            {stripDays.map((d) => {
+                                const onPill = selectedDate ? d.date === selectedDate : d.isToday;
+                                const complete = d.total > 0 && d.done >= d.total;
+                                const partial = d.done > 0 && d.done < d.total;
+                                // Pill background: black only when complete; colorless otherwise.
+                                // Selected-but-incomplete gets a border outline instead.
+                                const pillStyle = complete
+                                    ? { backgroundColor: BW.ink, borderWidth: 0 }
+                                    : onPill
+                                        ? { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: BW.ink }
+                                        : { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: BW.track };
+                                const numColor = complete ? BW.onInk : onPill ? BW.ink : BW.mute;
+                                const dotStyle = complete
+                                    ? { backgroundColor: BW.onInk }
+                                    : partial
+                                        ? { backgroundColor: onPill ? BW.ink : BW.mute }
+                                        : { borderWidth: 1.5, borderColor: onPill ? BW.ink : BW.track };
+                                return (
+                                    <TouchableOpacity
+                                        key={d.date}
+                                        style={[s.dayPill, pillStyle]}
+                                        activeOpacity={0.85}
+                                        onPress={() => setSelectedDate(d.date)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Day ${d.index}`}
+                                    >
+                                        <Text style={[s.dayNum, { color: numColor }]}>{d.index}</Text>
+                                        <View style={[s.dayDot, dotStyle]} />
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
                     </AttachStep>
 
-                    {/* ── TASKS ── */}
-                    <View style={s.section}>
-                        <View style={s.sectionHead}>
-                            <Text style={s.sectionLabel}>Today's tasks</Text>
-                            {scheduleRows.length > 0 && (
-                                <Text style={s.sectionCount}>
-                                    {completedCount}/{totalCount}
-                                </Text>
-                            )}
-                        </View>
+                    {/* ── HABITS ── */}
+                    <AttachStep index={TOUR_STEP.PROGRAMS} fill>
+                        <View style={s.section}>
+                            <Text style={s.sectionLabel}>HABITS</Text>
 
-                        {displaySchedulesError ? (
-                            <Text style={s.errorText}>{displaySchedulesError}</Text>
-                        ) : null}
+                            {displaySchedulesError ? (
+                                <Text style={s.errorText}>{displaySchedulesError}</Text>
+                            ) : null}
 
-                        {!schedulesLoading && !displaySchedulesError && scheduleRows.length === 0 ? (
-                            <View style={s.emptyTasks}>
-                                <Text style={s.emptyText}>No tasks for today. Start a program to begin.</Text>
-                            </View>
-                        ) : null}
+                            {schedulesLoading && scheduleRows.length === 0 ? (
+                                <ActivityIndicator color={BW.mute} style={{ marginTop: 24 }} />
+                            ) : null}
 
-                        {scheduleRows.map((row, idx) => {
-                            const done = row.status === 'completed';
-                            const rowKey = `${row.scheduleId}-${row.task_id}`;
-                            const busy = completingTaskKey === rowKey;
-                            return (
-                                <View key={rowKey}>
-                                    {idx > 0 && <View style={s.hairline} />}
-                                    <View style={[s.taskRow, done && s.taskRowDone]}>
-                                        <TouchableOpacity
-                                            style={s.checkHit}
-                                            onPress={() => toggleTodayTask(row)}
-                                            disabled={busy}
-                                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                            accessibilityRole="checkbox"
-                                            accessibilityState={{ checked: done, disabled: busy }}
-                                        >
-                                            {busy ? (
-                                                <ActivityIndicator size="small" color={colors.textMuted} />
-                                            ) : done ? (
-                                                <View style={[s.checkCircle, s.checkDone]}>
-                                                    <Ionicons name="checkmark" size={11} color={colors.buttonText} />
-                                                </View>
-                                            ) : (
-                                                <View style={s.checkCircle} />
-                                            )}
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={s.taskTap}
-                                            onPress={() => navigation.navigate('Schedule', { scheduleId: row.scheduleId })}
-                                            activeOpacity={0.75}
-                                        >
-                                            <View style={[s.taskAccent, { backgroundColor: row.moduleColor }]} />
-                                            <View style={s.taskBody}>
-                                                <Text style={[s.taskTime, done && s.taskMuted]}>{formatTimeTo12Hour(row.time)}</Text>
-                                                <Text style={[s.taskTitle, done && s.taskTitleDone]} numberOfLines={1}>{row.title}</Text>
-                                            </View>
-                                        </TouchableOpacity>
-                                    </View>
+                            {!schedulesLoading && !displaySchedulesError && selectedRows.length === 0 ? (
+                                <View style={s.emptyTasks}>
+                                    <Text style={s.emptyText}>
+                                        {activeDate === today
+                                            ? 'No habits for today. Start a program to begin.'
+                                            : 'No habits scheduled for this day.'}
+                                    </Text>
                                 </View>
-                            );
-                        })}
+                            ) : null}
 
-                        {!schedulesLoading && !displaySchedulesError && scheduleRows.length > 0 && (
-                            <TouchableOpacity
-                                onPress={() => navigation.navigate('MasterScheduleTab')}
-                                style={s.scheduleBtn}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={s.scheduleBtnText}>View full schedule</Text>
-                                <Ionicons name="arrow-forward" size={12} color={colors.textMuted} />
-                            </TouchableOpacity>
-                        )}
-                    </View>
+                            {selectedRows.map((row) => {
+                                const done = row.status === 'completed';
+                                const rowKey = `${row.scheduleId}:${row.task_id}`;
+                                const busy = taskToggleInFlightRef.current.has(rowKey);
+                                return (
+                                    <GradientHabit
+                                        key={rowKey}
+                                        row={row}
+                                        done={done}
+                                        busy={busy}
+                                        onToggle={() => toggleTodayTask(row)}
+                                        onOpen={() => navigation.navigate('Schedule', { scheduleId: row.scheduleId })}
+                                    />
+                                );
+                            })}
+                        </View>
+                    </AttachStep>
 
                     {/* ── EMPTY: no programs yet ── */}
                     {activeMaxxes.length === 0 && !schedulesLoading && (
@@ -496,8 +618,19 @@ export default function HomeScreen() {
                             onPress={() => navigation.navigate('Explore')}
                             activeOpacity={0.72}
                         >
-                            <Ionicons name="compass-outline" size={20} color={colors.textMuted} />
+                            <Ionicons name="compass-outline" size={20} color={BW.mute} />
                             <Text style={s.emptyProgramText}>Browse maxes in Explore</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {/* ── CTA ── */}
+                    {days.length > 0 && (
+                        <TouchableOpacity
+                            style={s.cta}
+                            onPress={() => navigation.navigate('MasterScheduleTab')}
+                            activeOpacity={0.88}
+                        >
+                            <Text style={s.ctaText}>SEE MY PROGRESS</Text>
                         </TouchableOpacity>
                     )}
 
@@ -512,7 +645,7 @@ export default function HomeScreen() {
 const PAD = 24;
 
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: colors.background },
+    root: { flex: 1, backgroundColor: BW.bg },
     scroll: { paddingBottom: spacing.xxxl + 40 },
 
     /* Top bar */
@@ -521,255 +654,79 @@ const s = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: PAD,
-        paddingBottom: 16,
+        paddingBottom: 8,
     },
-    topLeft: { flex: 1, minWidth: 0 },
-    greeting: {
-        fontSize: 13,
-        fontFamily: fonts.sans,
-        color: colors.textMuted,
-        letterSpacing: 0.2,
-        marginBottom: 2,
-    },
-    userName: {
-        fontFamily: fonts.serif,
-        fontSize: 28,
-        fontWeight: '400',
-        lineHeight: 34,
-        letterSpacing: -0.6,
-        color: colors.foreground,
-    },
-    topRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    topRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     avatarHit: { padding: 2 },
     avatar: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: colors.foreground,
-        alignItems: 'center',
-        justifyContent: 'center',
+        width: 38, height: 38, borderRadius: 19,
+        backgroundColor: BW.ink, alignItems: 'center', justifyContent: 'center',
     },
     avatarImg: { width: 38, height: 38, borderRadius: 19 },
-    avatarInitial: { fontSize: 15, fontWeight: '600', color: colors.buttonText },
+    avatarInitial: { fontSize: 15, fontFamily: fonts.sansSemiBold, fontWeight: '600', color: BW.onInk },
 
-    /* Progress hero */
-    progressHero: {
-        alignItems: 'center',
-        paddingVertical: 28,
-        marginHorizontal: PAD,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: colors.border,
+    /* Header — kicker + DAY X / N */
+    header: { paddingHorizontal: PAD, paddingTop: 10, paddingBottom: 18 },
+    kicker: {
+        fontSize: 12, fontFamily: fonts.sansSemiBold, fontWeight: '600',
+        color: BW.mute, letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 6,
     },
-    progressMeta: {
-        alignItems: 'center',
-        marginTop: 14,
-        gap: 6,
+    dayTitle: { fontSize: 44, fontFamily: fonts.sansBold, fontWeight: '800', color: BW.ink, letterSpacing: -1.5 },
+    dayTitleMuted: { color: BW.mute, fontWeight: '700' },
+
+    /* Day strip */
+    stripScroll: { paddingHorizontal: PAD, gap: 10, paddingBottom: 8 },
+    dayPill: {
+        width: 58, height: 84, borderRadius: 16, backgroundColor: BW.pillOff,
+        alignItems: 'center', justifyContent: 'center', gap: 12,
     },
-    dateLabel: {
-        fontSize: 13,
-        fontFamily: fonts.sansMedium,
-        fontWeight: '500',
-        color: colors.textSecondary,
-        letterSpacing: 0.3,
-    },
-    streakRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    streakDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: colors.foreground,
-    },
-    streakText: {
-        fontSize: 12,
-        fontFamily: fonts.sansMedium,
-        fontWeight: '500',
-        color: colors.foreground,
-        letterSpacing: 0.4,
-    },
+    dayPillOn: { backgroundColor: BW.ink },
+    dayNum: { fontSize: 17, fontFamily: fonts.sansSemiBold, fontWeight: '600', color: BW.ink },
+    dayNumOn: { color: BW.onInk },
+    dayDot: { width: 12, height: 12, borderRadius: 6 },
 
     /* Section */
-    section: {
-        paddingHorizontal: PAD,
-        paddingTop: 24,
+    section: { paddingHorizontal: PAD, paddingTop: 26 },
+    sectionLabel: {
+        fontSize: 13, fontFamily: fonts.sansBold, fontWeight: '800',
+        color: BW.ink, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 16,
     },
-    sectionHead: {
-        flexDirection: 'row',
-        alignItems: 'baseline',
-        justifyContent: 'space-between',
+    errorText: { ...typography.bodySmall, color: colors.error, marginBottom: spacing.sm },
+    emptyTasks: { paddingVertical: 24, alignItems: 'center' },
+    emptyText: { fontSize: 14, fontFamily: fonts.sans, color: BW.mute, marginBottom: 4 },
+
+    /* Habit cards */
+    habit: {
+        flexDirection: 'row', alignItems: 'center', gap: 16,
+        minHeight: 88, borderRadius: 20, paddingHorizontal: 16,
+        backgroundColor: BW.card, borderWidth: StyleSheet.hairlineWidth, borderColor: BW.hair,
         marginBottom: 12,
     },
-    sectionLabel: {
-        fontSize: 11,
-        fontFamily: fonts.sansMedium,
-        fontWeight: '500',
-        color: colors.textMuted,
-        letterSpacing: 2,
-        textTransform: 'uppercase',
+    habitDone: { backgroundColor: BW.ink, borderColor: BW.ink },
+    habitCheckHit: { padding: 2 },
+    habitCircle: {
+        width: 52, height: 52, borderRadius: 26,
+        borderWidth: 1.5, borderColor: BW.mute, backgroundColor: 'transparent',
+        alignItems: 'center', justifyContent: 'center',
     },
-    sectionCount: {
-        fontSize: 12,
-        fontFamily: fonts.sansMedium,
-        fontWeight: '500',
-        color: colors.textMuted,
-        letterSpacing: 0.3,
-    },
+    habitCircleDone: { backgroundColor: BW.onInk, borderColor: BW.onInk },
+    habitBody: { flex: 1, minWidth: 0 },
+    habitTitle: { fontSize: 17, fontFamily: fonts.sansSemiBold, fontWeight: '600', color: BW.ink, letterSpacing: -0.3 },
+    habitTitleDone: { color: BW.onInk },
+    habitSub: { fontSize: 14, fontFamily: fonts.sans, color: BW.mute, marginTop: 3 },
+    habitSubDone: { color: 'rgba(255,255,255,0.6)' },
 
-    /* Tasks */
-    hairline: {
-        height: StyleSheet.hairlineWidth,
-        backgroundColor: colors.borderLight,
+    /* CTA */
+    cta: {
+        marginHorizontal: PAD, marginTop: 22, height: 58, borderRadius: 999,
+        backgroundColor: BW.ink, alignItems: 'center', justifyContent: 'center',
     },
-    taskRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        paddingVertical: 14,
-    },
-    taskRowDone: { opacity: 0.45 },
-    checkHit: {
-        width: 28,
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-    },
-    checkCircle: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        borderWidth: 1.5,
-        borderColor: colors.border,
-        backgroundColor: 'transparent',
-    },
-    checkDone: {
-        backgroundColor: colors.foreground,
-        borderColor: colors.foreground,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    taskTap: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        minWidth: 0,
-    },
-    taskAccent: {
-        width: 2,
-        alignSelf: 'stretch',
-        minHeight: 36,
-        borderRadius: 1,
-        flexShrink: 0,
-    },
-    taskBody: { flex: 1, minWidth: 0 },
-    taskTime: {
-        fontSize: 11,
-        fontFamily: fonts.sansMedium,
-        fontWeight: '500',
-        color: colors.textMuted,
-        letterSpacing: 0.6,
-        marginBottom: 2,
-    },
-    taskTitle: {
-        fontSize: 15,
-        fontFamily: fonts.sansMedium,
-        fontWeight: '500',
-        color: colors.foreground,
-        letterSpacing: -0.2,
-    },
-    taskTitleDone: {
-        textDecorationLine: 'line-through',
-        color: colors.textMuted,
-    },
-    taskMuted: { color: colors.textMuted },
-    errorText: { ...typography.bodySmall, color: colors.error, marginBottom: spacing.sm },
-    emptyTasks: {
-        paddingVertical: 24,
-        alignItems: 'center',
-    },
-    emptyText: {
-        fontSize: 14,
-        fontFamily: fonts.sans,
-        color: colors.textMuted,
-        marginBottom: 4,
-    },
+    ctaText: { fontSize: 15, fontFamily: fonts.sansBold, fontWeight: '800', color: BW.onInk, letterSpacing: 0.6 },
 
-    scheduleBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: 40,
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: borderRadius.full,
-        backgroundColor: 'transparent',
-        marginTop: 16,
-        gap: 8,
-    },
-    scheduleBtnText: {
-        fontSize: 11,
-        fontFamily: fonts.sansMedium,
-        fontWeight: '500',
-        color: colors.foreground,
-        letterSpacing: 1.2,
-        textTransform: 'uppercase',
-    },
-
-    /* Programs bar (top, below greeting) */
-    programsBar: {
-        paddingBottom: 4,
-    },
-    programsScroll: {
-        gap: 8,
-        paddingHorizontal: PAD,
-    },
-    programPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingVertical: 7,
-        paddingHorizontal: 14,
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: borderRadius.full,
-        backgroundColor: colors.card,
-    },
-    programDot: {
-        width: 7,
-        height: 7,
-        borderRadius: 4,
-    },
-    programName: {
-        fontSize: 12,
-        fontFamily: fonts.sansMedium,
-        fontWeight: '500',
-        color: colors.foreground,
-        letterSpacing: -0.1,
-        maxWidth: 120,
-    },
-    addPill: {
-        paddingVertical: 6,
-        paddingHorizontal: 4,
-        alignItems: 'center',
-        justifyContent: 'center',
-        alignSelf: 'center',
-    },
+    /* Empty: no programs */
     emptyPrograms: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-        paddingVertical: 20,
-        paddingHorizontal: PAD,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+        paddingVertical: 20, paddingHorizontal: PAD,
     },
-    emptyProgramText: {
-        fontSize: 13,
-        fontFamily: fonts.sans,
-        color: colors.textMuted,
-        letterSpacing: 0.2,
-    },
+    emptyProgramText: { fontSize: 13, fontFamily: fonts.sans, color: BW.mute, letterSpacing: 0.2 },
 });

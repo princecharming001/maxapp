@@ -48,7 +48,7 @@ function haptic(kind: 'light' | 'success') {
     else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 }
 
-function TaskRow({ row, index, reduced }: { row: RevealRow; index: number; reduced: boolean }) {
+function TaskRow({ row, index, reduced, accent }: { row: RevealRow; index: number; reduced: boolean; accent: string }) {
     const isTask = row.kind === 'task';
     // ACT 2 timing: first task lands well under 900ms, ~180ms stagger after.
     const delay = isTask ? 550 + index * 180 : 80 + index * 60;
@@ -87,7 +87,7 @@ function TaskRow({ row, index, reduced }: { row: RevealRow; index: number; reduc
             <View
                 style={[
                     styles.trDot,
-                    { backgroundColor: isTask ? GOLD : 'rgba(17,17,19,0.2)' },
+                    { backgroundColor: isTask ? accent : 'rgba(17,17,19,0.2)' },
                 ]}
             />
             <View style={{ flex: 1 }}>
@@ -114,11 +114,14 @@ export function RevealChoreography({
     scope = 'first-day',
     closeLine,
     onComplete,
+    mono = false,
 }: {
     rows: RevealRow[];
     scope?: 'first-day' | 'new-program';
     closeLine?: string;
     onComplete?: () => void;
+    /** Black-and-white palette (no blue accent) — used on the white reveal screen. */
+    mono?: boolean;
 }) {
     const reduced = useReducedMotion();
     const scale = useSharedValue(1);
@@ -159,6 +162,7 @@ export function RevealChoreography({
 
     const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
+    const accent = mono ? '#111113' : GOLD;
     let taskIndex = -1;
     let structIndex = -1;
 
@@ -176,6 +180,7 @@ export function RevealChoreography({
                                     row={row}
                                     index={row.kind === 'task' ? taskIndex : structIndex}
                                     reduced={reduced}
+                                    accent={accent}
                                 />
                             );
                         })}
@@ -184,7 +189,7 @@ export function RevealChoreography({
             </Animated.View>
 
             {showClose && closeLine ? (
-                <Animated.Text entering={FadeIn.duration(reduced ? 200 : 400)} style={styles.closeLine}>
+                <Animated.Text entering={FadeIn.duration(reduced ? 200 : 400)} style={[styles.closeLine, mono && { color: '#6B6B6B' }]}>
                     {closeLine}
                 </Animated.Text>
             ) : null}

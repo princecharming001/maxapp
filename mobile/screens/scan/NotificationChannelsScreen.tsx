@@ -134,10 +134,9 @@ export default function NotificationChannelsScreen() {
 
             if (editMode) {
                 navigation.goBack();
-            } else if (next === 'Main') {
-                navigation.navigate('Main');
             } else {
-                navigation.navigate('ModuleSelect');
+                // Program picker (ModuleSelect) was removed — finish straight to Main.
+                navigation.navigate('Main');
             }
         } catch (e) {
             console.error(e);
@@ -193,9 +192,11 @@ export default function NotificationChannelsScreen() {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator
             >
-                <TouchableOpacity style={styles.backHit} onPress={() => navigation.goBack()} hitSlop={12}>
-                    <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-                </TouchableOpacity>
+                {navigation.canGoBack() ? (
+                    <TouchableOpacity style={styles.backHit} onPress={() => navigation.goBack()} hitSlop={12}>
+                        <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+                    </TouchableOpacity>
+                ) : null}
 
                 <Text style={styles.kicker}>Reminders</Text>
                 <Text style={styles.title}>How should Max reach you?</Text>

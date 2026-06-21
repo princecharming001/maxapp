@@ -1,8 +1,8 @@
-"""Which LLM backend to use: huggingface | gemini | openai | mistral."""
+"""Which LLM backend to use: huggingface | gemini | openai | mistral | claude."""
 
 from config import settings
 
-SUPPORTED_PROVIDERS = frozenset({"huggingface", "gemini", "openai", "mistral"})
+SUPPORTED_PROVIDERS = frozenset({"huggingface", "gemini", "openai", "mistral", "claude"})
 
 
 def llm_provider() -> str:
@@ -29,3 +29,7 @@ def use_mistral() -> bool:
 
 def use_gemini() -> bool:
     return llm_provider() == "gemini"
+
+
+def use_claude() -> bool:
+    return llm_provider() == "claude"

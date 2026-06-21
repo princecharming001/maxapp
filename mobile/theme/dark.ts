@@ -3,26 +3,25 @@
  * Clean, shadowed, typographic
  */
 
-// Craft-inspired palette: warm paper canvas, white surfaces, warm ink, one
-// calm blue accent. Flat and matte - no glass, no glow.
+// Clean B&W palette: pure white surfaces, near-black ink, neutral grays.
 export const colors = {
-    background: '#F7F0EA',    // Craft-style warm cream canvas (light + airy)
-    surface: '#EFE7DC',      // subtle inset
-    surfaceLight: '#F9F3EC',
+    background: '#FFFFFF',    // pure white canvas
+    surface: '#F2F2F2',      // subtle neutral inset
+    surfaceLight: '#F7F7F7',
     card: '#FFFFFF',
 
-    foreground: '#1C1A17',   // warm near-black ink
-    primary: '#1C1A17',
-    primaryLight: '#3A352B',
+    foreground: '#111113',   // near-black ink
+    primary: '#111113',
+    primaryLight: '#333333',
     primaryDark: '#000000',
 
-    accent: '#2C6BED',       // Craft blue (interactive / selected)
+    accent: '#2C6BED',       // blue (interactive / selected)
     accentLight: '#5A8CF2',
     accentMuted: 'rgba(44, 107, 237, 0.10)',
 
-    textPrimary: '#1C1A17',
-    textSecondary: '#5C574E',
-    textMuted: '#97928A',
+    textPrimary: '#111113',
+    textSecondary: '#555555',
+    textMuted: '#9A9A9A',
 
     success: '#2F9E60',
     warning: '#B5791C',
@@ -33,17 +32,17 @@ export const colors = {
     premiumLight: '#2C6BED18',
     premiumBorder: '#2C6BED40',
 
-    border: '#E8E0D3',       // warm hairline
-    borderLight: '#F0E9DE',
-    divider: '#E8E0D3',
+    border: 'rgba(0,0,0,0.08)',  // neutral hairline
+    borderLight: '#EBEBEB',
+    divider: '#E5E5E5',
 
-    gradientStart: '#F7F0EA',
-    gradientEnd: '#F0E8DD',
+    gradientStart: '#FFFFFF',
+    gradientEnd: '#F5F5F5',
 
     buttonText: '#FFFFFF',
 
-    overlay: 'rgba(28, 26, 23, 0.40)',
-    blur: 'rgba(247, 240, 234, 0.9)',
+    overlay: 'rgba(0,0,0,0.40)',
+    blur: 'rgba(255,255,255,0.9)',
 };
 
 export const spacing = {
@@ -122,31 +121,30 @@ export const typography = {
     },
 };
 
-// Whisper-soft, warm-toned shadows (Craft barely lifts surfaces off the page).
 export const shadows = {
     sm: {
-        shadowColor: '#3A352B',
+        shadowColor: '#000000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.04,
         shadowRadius: 4,
         elevation: 1,
     },
     md: {
-        shadowColor: '#3A352B',
+        shadowColor: '#000000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 14,
         elevation: 3,
     },
     lg: {
-        shadowColor: '#3A352B',
+        shadowColor: '#000000',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.07,
         shadowRadius: 24,
         elevation: 6,
     },
     xl: {
-        shadowColor: '#3A352B',
+        shadowColor: '#000000',
         shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.09,
         shadowRadius: 36,

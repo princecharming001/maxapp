@@ -1,14 +1,7 @@
-/**
- * ScreenBackdrop - the shared backdrop for every screen.
- *
- * Craft aesthetic: flat warm paper. No gradient, no glow orbs, no blur veil -
- * just a calm cream canvas that lets the flat surfaces and generous whitespace
- * do the work. Render screen content as children.
- */
 import React from 'react';
 import { View, StyleSheet, type ViewStyle, type StyleProp } from 'react-native';
 
-export const CRAFT_CANVAS = '#F7F0EA';
+export const CRAFT_CANVAS = '#F5F5F5';
 
 export function ScreenBackdrop({
     children,

@@ -1,35 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     Text,
     TextInput,
     TouchableOpacity,
     StyleSheet,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
     Animated,
-    Modal,
-    FlatList,
-    Pressable,
+    Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
-import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
-import { CachedImage } from '../../components/CachedImage';
+import { fonts } from '../../theme/dark';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
-import ShineOverlay from '../../components/ShineOverlay';
-import { PHONE_COUNTRIES, type PhoneCountry } from '../../constants/phoneCountryCodes';
 
-/**
- * Turn a backend 422 (Pydantic) validation list into a human sentence —
- * never leak raw messages like "String should have at least 1 character".
- * Returns { message, field } so the caller can also highlight the field.
- */
+// ─── Error helpers (unchanged) ────────────────────────────────────────────────
+
 function friendlyValidation(items: any[]): { message: string; field?: string } {
     for (const it of items) {
         const loc = Array.isArray(it?.loc) ? it.loc : [];
@@ -73,109 +64,86 @@ function signupErrorMessage(error: any): string {
 
     const d = res?.data?.detail;
     if (typeof d === 'string') return d;
-    if (Array.isArray(d) && d.length) {
-        return friendlyValidation(d).message;
-    }
-    if (d && typeof d === 'object' && 'message' in d) {
-        return String((d as { message?: string }).message);
-    }
+    if (Array.isArray(d) && d.length) return friendlyValidation(d).message;
+    if (d && typeof d === 'object' && 'message' in d) return String((d as { message?: string }).message);
     return res?.status ? 'Please check your details and try again.' : 'Could not create account';
 }
 
+// ─── Palette ──────────────────────────────────────────────────────────────────
+
+const WHITE = '#FFFFFF';
+const CANVAS = '#F1F1EF';   // soft off-white screen canvas (matches onboarding) — keeps inputs/buttons white so they lift off it
+const INK = '#111113';
+const BORDER = '#E2E2E2';
+const BORDER_FOCUS = '#111113';
+const BORDER_ERR = '#C0452C';
+const PH = '#A0A0A0';
+const MUTED = '#6B6B6B';
+const ERR_COLOR = '#C0452C';
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
 export default function SignupScreen() {
     const navigation = useNavigation<any>();
-    const { signup, refreshUser } = useAuth();
+    const insets = useSafeAreaInsets();
+    const { signup } = useAuth();
+
+    const [firstName, setFirstName] = useState('');
+    const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
-    const [username, setUsername] = useState('');
-    const [phoneNational, setPhoneNational] = useState('');
-    const [phoneCountry, setPhoneCountry] = useState<PhoneCountry>(PHONE_COUNTRIES[0]);
-    const [countryModalVisible, setCountryModalVisible] = useState(false);
-    const [avatarUri, setAvatarUri] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
     const [fieldErrorMessages, setFieldErrorMessages] = useState<Record<string, string>>({});
     const [apiError, setApiError] = useState<string | null>(null);
-    const [passwordMismatch, setPasswordMismatch] = useState(false);
-    const [acceptedPolicies, setAcceptedPolicies] = useState(false);
+    const [focusedField, setFocusedField] = useState<string | null>(null);
 
-    const fadeCard = useRef(new Animated.Value(0)).current;
-    const slideCard = useRef(new Animated.Value(30)).current;
-
-    const lastNameRef = useRef<TextInput>(null);
     const usernameRef = useRef<TextInput>(null);
     const emailRef = useRef<TextInput>(null);
     const passwordRef = useRef<TextInput>(null);
-    const confirmPasswordRef = useRef<TextInput>(null);
-    const phoneRef = useRef<TextInput>(null);
 
+    const fade = useRef(new Animated.Value(0)).current;
+    const slide = useRef(new Animated.Value(18)).current;
     useEffect(() => {
         Animated.parallel([
-            Animated.timing(fadeCard, { toValue: 1, duration: 600, delay: 200, useNativeDriver: true }),
-            Animated.timing(slideCard, { toValue: 0, duration: 600, delay: 200, useNativeDriver: true }),
+            Animated.timing(fade, { toValue: 1, duration: 500, delay: 80, useNativeDriver: true }),
+            Animated.timing(slide, { toValue: 0, duration: 500, delay: 80, useNativeDriver: true }),
         ]).start();
     }, []);
 
-    const pickImage = async () => {
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-            if (!result.canceled) setAvatarUri(result.assets[0].uri);
-        } catch {
-            Alert.alert(
-                "Can't open your photos",
-                "We could not open your photo library. Check that Max has photo access in Settings, then try again. You can also add a picture later in Profile."
-            );
-            return;
-        }
+    const clearErr = (field: string) => {
+        setFieldErrors((p) => ({ ...p, [field]: false }));
+        setFieldErrorMessages((p) => ({ ...p, [field]: '' }));
+        setApiError(null);
     };
 
     const handleSignup = async () => {
         const err: Record<string, boolean> = {};
         const msgs: Record<string, string> = {};
+
         if (!firstName.trim()) { err.firstName = true; msgs.firstName = 'Name is required.'; }
         if (!username.trim()) { err.username = true; msgs.username = 'Username is required.'; }
-        if (username.trim() && username.length < 3) err.username = true;
-        if (username.trim() && !/^[a-zA-Z0-9_]+$/.test(username)) err.username = true;
-        if (!email.trim()) {
-            err.email = true;
-            msgs.email = 'Email is required.';
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-            err.email = true;
-            msgs.email = 'Enter a valid email address.';
-        }
+        else if (username.length < 3) { err.username = true; msgs.username = 'Username needs at least 3 characters.'; }
+        else if (!/^[a-zA-Z0-9_]+$/.test(username)) { err.username = true; msgs.username = 'Letters, numbers, and underscores only.'; }
+        if (!email.trim()) { err.email = true; msgs.email = 'Email is required.'; }
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { err.email = true; msgs.email = 'Enter a valid email address.'; }
         if (!password) { err.password = true; msgs.password = 'Password is required.'; }
-        if (password && password.length < 8) err.password = true;
-        const pwdMismatch = false;
+        else if (password.length < 8) { err.password = true; msgs.password = 'Password needs at least 8 characters.'; }
 
         setFieldErrors(err);
-        setApiError(null);
         setFieldErrorMessages(msgs);
-        setPasswordMismatch(pwdMismatch);
+        setApiError(null);
         if (Object.keys(err).length > 0) return;
 
-        if (!acceptedPolicies) {
-            setApiError('Please agree to the Terms of Service and Privacy Policy to create an account.');
-            return;
-        }
-
         setLoading(true);
-        setApiError(null);
-        setFieldErrorMessages({});
         try {
-            // The form collects a single "Name"; split it into first/last.
             const nameParts = firstName.trim().split(/\s+/);
             const fn = nameParts[0] || firstName.trim();
             const ln = nameParts.slice(1).join(' ');
             await signup(email, password, fn, ln, username, undefined);
         } catch (error: any) {
             setFieldErrorMessages({});
-            // Field-level validation (422): highlight the offending field with a
-            // human message instead of dumping a raw validator string.
             const detail = error?.response?.data?.detail;
             if (Array.isArray(detail) && detail.length) {
                 const { message, field } = friendlyValidation(detail);
@@ -198,104 +166,217 @@ export default function SignupScreen() {
             } else {
                 setApiError(msg);
             }
+        } finally {
+            setLoading(false);
         }
-        finally { setLoading(false); }
     };
 
-    return (
-        <View style={styles.container}>
-            <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-                <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-                    <Animated.View style={[styles.card, { opacity: fadeCard, transform: [{ translateY: slideCard }] }]}>
-                        <Text style={styles.wordmark}>max</Text>
-                        <Text style={styles.tagline}>Create your account</Text>
+    const inputStyle = (field: string) => [
+        s.input,
+        focusedField === field && s.inputFocus,
+        fieldErrors[field] && s.inputError,
+    ];
 
-                        <View style={styles.form}>
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, fieldErrors.firstName && styles.labelError]}>NAME</Text>
-                                <TextInput style={[styles.input, fieldErrors.firstName && styles.inputError]} placeholder="Your name" placeholderTextColor={colors.textMuted} value={firstName} onChangeText={(t) => { setFirstName(t); setFieldErrors((p) => ({ ...p, firstName: false })); setFieldErrorMessages((p) => ({ ...p, firstName: '' })); setApiError(null); }} autoCapitalize="words" textContentType="givenName" autoComplete="name-given" returnKeyType="next" onSubmitEditing={() => usernameRef.current?.focus()} />
-                                {fieldErrorMessages.firstName ? <Text style={styles.helperError}>{fieldErrorMessages.firstName}</Text> : null}
+    return (
+        <View style={s.root}>
+            {/* Nav bar */}
+            <View style={[s.nav, { paddingTop: Math.max(insets.top, 14) }]}>
+                <TouchableOpacity
+                    style={s.navBtn}
+                    onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Landing')}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Back"
+                >
+                    <Ionicons name="arrow-back" size={20} color={INK} />
+                </TouchableOpacity>
+            </View>
+
+            <KeyboardAvoidingView style={s.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                <ScrollView
+                    contentContainerStyle={s.scroll}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <Animated.View style={{ opacity: fade, transform: [{ translateY: slide }] }}>
+
+                        {/* Wordmark + title */}
+                        <Text style={s.wordmark}>max</Text>
+                        <Text style={s.title}>Create your account</Text>
+
+                        {/* Fields */}
+                        <View style={s.fields}>
+
+                            {/* Full name */}
+                            <View style={s.fieldWrap}>
+                                <TextInput
+                                    style={inputStyle('firstName')}
+                                    placeholder="Full name"
+                                    placeholderTextColor={PH}
+                                    value={firstName}
+                                    onChangeText={(t) => { setFirstName(t); clearErr('firstName'); }}
+                                    autoCapitalize="words"
+                                    textContentType="name"
+                                    autoComplete="name"
+                                    returnKeyType="next"
+                                    onSubmitEditing={() => usernameRef.current?.focus()}
+                                    onFocus={() => setFocusedField('firstName')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                                {fieldErrorMessages.firstName ? <Text style={s.fieldErr}>{fieldErrorMessages.firstName}</Text> : null}
                             </View>
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, fieldErrors.username && styles.labelError]}>USERNAME</Text>
-                                <TextInput ref={usernameRef} style={[styles.input, fieldErrors.username && styles.inputError]} placeholder="Username" placeholderTextColor={colors.textMuted} value={username} onChangeText={(t) => { setUsername(t); setFieldErrors((p) => ({ ...p, username: false })); setFieldErrorMessages((p) => ({ ...p, username: '' })); setApiError(null); }} autoCapitalize="none" autoCorrect={false} textContentType="username" autoComplete="username" returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} />
-                                {fieldErrorMessages.username ? <Text style={styles.helperError}>{fieldErrorMessages.username}</Text> : null}
+
+                            {/* Username */}
+                            <View style={s.fieldWrap}>
+                                <TextInput
+                                    ref={usernameRef}
+                                    style={inputStyle('username')}
+                                    placeholder="Username"
+                                    placeholderTextColor={PH}
+                                    value={username}
+                                    onChangeText={(t) => { setUsername(t); clearErr('username'); }}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    textContentType="username"
+                                    autoComplete="username"
+                                    returnKeyType="next"
+                                    onSubmitEditing={() => emailRef.current?.focus()}
+                                    onFocus={() => setFocusedField('username')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                                {fieldErrorMessages.username ? <Text style={s.fieldErr}>{fieldErrorMessages.username}</Text> : null}
                             </View>
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, fieldErrors.email && styles.labelError]}>EMAIL</Text>
-                                <TextInput ref={emailRef} style={[styles.input, fieldErrors.email && styles.inputError]} placeholder="Email address" placeholderTextColor={colors.textMuted} value={email} onChangeText={(t) => { setEmail(t); setFieldErrors((p) => ({ ...p, email: false })); setFieldErrorMessages((p) => ({ ...p, email: '' })); setApiError(null); }} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" autoComplete="email" returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
-                                {fieldErrorMessages.email ? <Text style={styles.helperError}>{fieldErrorMessages.email}</Text> : null}
+
+                            {/* Email */}
+                            <View style={s.fieldWrap}>
+                                <TextInput
+                                    ref={emailRef}
+                                    style={inputStyle('email')}
+                                    placeholder="Email address"
+                                    placeholderTextColor={PH}
+                                    value={email}
+                                    onChangeText={(t) => { setEmail(t); clearErr('email'); }}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    textContentType="emailAddress"
+                                    autoComplete="email"
+                                    returnKeyType="next"
+                                    onSubmitEditing={() => passwordRef.current?.focus()}
+                                    onFocus={() => setFocusedField('email')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                                {fieldErrorMessages.email ? <Text style={s.fieldErr}>{fieldErrorMessages.email}</Text> : null}
                             </View>
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, fieldErrors.password && styles.labelError]}>PASSWORD</Text>
-                                <View style={[styles.passwordRow, fieldErrors.password && styles.inputError]}>
-                                    <TextInput ref={passwordRef} style={[styles.input, styles.passwordInput]} placeholder="Password" placeholderTextColor={colors.textMuted} value={password} onChangeText={(t) => { setPassword(t); setFieldErrors((p) => ({ ...p, password: false, confirmPassword: false })); setFieldErrorMessages((p) => ({ ...p, password: '' })); setPasswordMismatch(false); setApiError(null); }} secureTextEntry={!showPassword} autoCapitalize="none" autoCorrect={false} textContentType="newPassword" autoComplete="new-password" returnKeyType="done" onSubmitEditing={handleSignup} />
-                                    <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword((p) => !p)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                                        <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.textMuted} />
+
+                            {/* Password */}
+                            <View style={s.fieldWrap}>
+                                <View style={[s.input, s.passwordRow, focusedField === 'password' && s.inputFocus, fieldErrors.password && s.inputError]}>
+                                    <TextInput
+                                        ref={passwordRef}
+                                        style={s.passwordInput}
+                                        placeholder="Password"
+                                        placeholderTextColor={PH}
+                                        value={password}
+                                        onChangeText={(t) => { setPassword(t); clearErr('password'); }}
+                                        secureTextEntry={!showPassword}
+                                        autoCapitalize="none"
+                                        autoCorrect={false}
+                                        textContentType="newPassword"
+                                        autoComplete="new-password"
+                                        returnKeyType="done"
+                                        onSubmitEditing={handleSignup}
+                                        onFocus={() => setFocusedField('password')}
+                                        onBlur={() => setFocusedField(null)}
+                                    />
+                                    <TouchableOpacity
+                                        style={s.eyeBtn}
+                                        onPress={() => setShowPassword((v) => !v)}
+                                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                                    >
+                                        <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={MUTED} />
                                     </TouchableOpacity>
                                 </View>
-                                {fieldErrorMessages.password ? <Text style={styles.helperError}>{fieldErrorMessages.password}</Text> : null}
-                            </View>
-                            <View style={styles.policyRow}>
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        setAcceptedPolicies((v) => !v);
-                                        setApiError(null);
-                                    }}
-                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                    accessibilityRole="checkbox"
-                                    accessibilityState={{ checked: acceptedPolicies }}
-                                    accessibilityLabel="Agree to Terms of Service and Privacy Policy"
-                                >
-                                    <Ionicons
-                                        name={acceptedPolicies ? 'checkbox' : 'square-outline'}
-                                        size={22}
-                                        color={acceptedPolicies ? colors.foreground : colors.textMuted}
-                                        style={styles.policyCheckIcon}
-                                    />
-                                </TouchableOpacity>
-                                <Text style={styles.policyText}>
-                                    I agree to the{' '}
-                                    <Text
-                                        style={styles.policyLink}
-                                        onPress={() => navigation.navigate('LegalDocument', { document: 'terms' })}
-                                    >
-                                        Terms of Service
-                                    </Text>
-                                    {' '}and{' '}
-                                    <Text
-                                        style={styles.policyLink}
-                                        onPress={() => navigation.navigate('LegalDocument', { document: 'privacy' })}
-                                    >
-                                        Privacy Policy
-                                    </Text>
-                                    .
-                                </Text>
+                                {fieldErrorMessages.password ? <Text style={s.fieldErr}>{fieldErrorMessages.password}</Text> : null}
                             </View>
 
-                            {apiError && (
-                                <View style={styles.apiErrorBox}>
-                                    <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
-                                    <Text style={styles.apiErrorText}>{apiError}</Text>
-                                </View>
-                            )}
-
-                            <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleSignup} disabled={loading} activeOpacity={0.7}>
-                                {!loading ? <ShineOverlay /> : null}
-                                <Text style={styles.buttonText}>{loading ? 'Creating Account...' : 'Create Account'}</Text>
-                            </TouchableOpacity>
-
-                            <View style={styles.orRow}>
-                                <View style={styles.orLine} />
-                                <Text style={styles.orText}>or</Text>
-                                <View style={styles.orLine} />
-                            </View>
-                            <GoogleSignInButton label="Sign up with Google" />
                         </View>
 
-                        <TouchableOpacity onPress={() => navigation.navigate('Login')} activeOpacity={0.6} style={styles.linkContainer}>
-                            <Text style={styles.linkText}>Already have an account? <Text style={styles.linkBold}>Sign In</Text></Text>
+                        {/* API-level error */}
+                        {apiError ? (
+                            <View style={s.errBox}>
+                                <Text style={s.errBoxText}>{apiError}</Text>
+                            </View>
+                        ) : null}
+
+                        {/* Continue CTA */}
+                        <TouchableOpacity
+                            style={[s.cta, loading && s.ctaDisabled]}
+                            onPress={handleSignup}
+                            disabled={loading}
+                            activeOpacity={0.85}
+                            accessibilityRole="button"
+                            accessibilityLabel="Continue"
+                        >
+                            <Text style={s.ctaText}>{loading ? 'Creating account…' : 'Continue'}</Text>
                         </TouchableOpacity>
+
+                        {/* OR divider */}
+                        <View style={s.orRow}>
+                            <View style={s.orLine} />
+                            <Text style={s.orText}>OR</Text>
+                            <View style={s.orLine} />
+                        </View>
+
+                        {/* Social sign-in */}
+                        <View style={s.social}>
+                            <GoogleSignInButton label="Continue with Google" />
+                            <TouchableOpacity
+                                style={s.appleBtn}
+                                activeOpacity={0.85}
+                                onPress={() => Alert.alert('Apple Sign In', 'Coming soon.')}
+                                accessibilityRole="button"
+                                accessibilityLabel="Continue with Apple"
+                            >
+                                <Ionicons name="logo-apple" size={18} color={INK} />
+                                <Text style={s.appleBtnText}>Continue with Apple</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Terms */}
+                        <Text style={s.terms}>
+                            By tapping Continue, you agree to our{' '}
+                            <Text
+                                style={s.termsLink}
+                                onPress={() => navigation.navigate('LegalDocument', { document: 'terms' })}
+                            >
+                                Terms
+                            </Text>
+                            {' '}and{' '}
+                            <Text
+                                style={s.termsLink}
+                                onPress={() => navigation.navigate('LegalDocument', { document: 'privacy' })}
+                            >
+                                Privacy Policy
+                            </Text>
+                            .
+                        </Text>
+
+                        {/* Sign in link */}
+                        <TouchableOpacity
+                            style={s.signinRow}
+                            onPress={() => navigation.navigate('Login')}
+                            activeOpacity={0.7}
+                            accessibilityRole="button"
+                        >
+                            <Text style={s.signinText}>
+                                Already have an account?{' '}
+                                <Text style={s.signinLink}>Sign in</Text>
+                            </Text>
+                        </TouchableOpacity>
+
                     </Animated.View>
                 </ScrollView>
             </KeyboardAvoidingView>
@@ -303,172 +384,171 @@ export default function SignupScreen() {
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
-    keyboardView: { flex: 1 },
-    orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 14, gap: 10 },
-    orLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.18)' },
-    orText: { fontFamily: 'Matter-Medium', fontSize: 12, color: colors.textMuted },
-    scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.xxl },
-    card: {
-        backgroundColor: colors.card,
-        borderRadius: borderRadius.xl,
-        padding: spacing.xl,
-        borderWidth: 1,
-        borderColor: colors.border,
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+    root: { flex: 1, backgroundColor: CANVAS },
+
+    nav: {
+        paddingHorizontal: 20,
+        paddingBottom: 8,
     },
+    navBtn: {
+        width: 40, height: 40, borderRadius: 20,
+        backgroundColor: '#F4F4F4',
+        alignItems: 'center', justifyContent: 'center',
+    },
+
+    kav: { flex: 1 },
+    scroll: {
+        paddingHorizontal: 24,
+        paddingBottom: 40,
+        ...(Platform.OS === 'web' ? { maxWidth: 440, alignSelf: 'center' as const, width: '100%' } : {}),
+    },
+
     wordmark: {
         fontFamily: fonts.serif,
         fontSize: 48,
-        fontWeight: '400',
-        color: colors.foreground,
+        color: INK,
         letterSpacing: -1.5,
         textAlign: 'center',
-        marginBottom: spacing.xs,
+        marginTop: 20,
+        marginBottom: 6,
     },
-    tagline: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.xl, letterSpacing: 0.5 },
-    form: { gap: spacing.md + 4 },
-    avatarContainer: { alignSelf: 'center', marginBottom: spacing.md },
-    avatar: { width: 76, height: 76, borderRadius: 38, borderWidth: 1, borderColor: colors.border },
-    avatarPlaceholder: {
-        width: 76, height: 76, borderRadius: 38,
-        backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed',
+    title: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 22,
+        color: INK,
+        textAlign: 'center',
+        letterSpacing: -0.3,
+        marginBottom: 28,
     },
-    inputGroup: { gap: spacing.xs + 2 },
-    label: { ...typography.label, marginLeft: 2 },
-    labelOptional: { color: colors.textMuted, fontWeight: '400' },
+
+    fields: { gap: 12 },
+    fieldWrap: { gap: 4 },
+
     input: {
-        backgroundColor: colors.surface, borderRadius: borderRadius.sm,
-        paddingVertical: 14, paddingHorizontal: spacing.md,
-        color: colors.textPrimary, fontSize: 15,
-        borderWidth: 1, borderColor: colors.borderLight,
-    },
-    passwordRow: {
-        flexDirection: 'row', alignItems: 'center',
-        backgroundColor: colors.surface, borderRadius: borderRadius.sm,
-        borderWidth: 1, borderColor: colors.borderLight,
-    },
-    passwordInput: { flex: 1, backgroundColor: 'transparent', paddingRight: 44, borderWidth: 0 },
-    eyeButton: { position: 'absolute', right: 12, padding: 4 },
-    inputError: { borderWidth: 1, borderColor: colors.error },
-    labelError: { color: colors.error },
-    helperError: { fontSize: 12, color: colors.error, marginTop: 4, marginLeft: 2 },
-    apiErrorBox: {
-        backgroundColor: colors.error + '0F',
-        padding: spacing.md,
-        borderRadius: borderRadius.sm,
+        height: 56,
+        borderRadius: 14,
         borderWidth: 1,
-        borderColor: colors.error + '26',
+        borderColor: BORDER,
+        paddingHorizontal: 16,
+        fontFamily: 'Matter-Regular',
+        fontSize: 15,
+        color: INK,
+        backgroundColor: WHITE,
     },
-    apiErrorText: { fontSize: 13, color: colors.error, fontWeight: '400' },
-    textArea: { minHeight: 64, textAlignVertical: 'top' },
-    button: {
-        backgroundColor: colors.foreground, borderRadius: borderRadius.sm,
-        paddingVertical: 14, alignItems: 'center', marginTop: spacing.sm,
-        overflow: 'hidden',
-    },
-    buttonDisabled: { opacity: 0.4 },
-    buttonText: { ...typography.button },
-    linkContainer: { marginTop: spacing.xl, alignItems: 'center' },
-    linkText: { fontSize: 13, color: colors.textMuted },
-    linkBold: { color: colors.foreground, fontWeight: '500' },
-    policyRow: {
+    inputFocus: { borderColor: BORDER_FOCUS },
+    inputError: { borderColor: BORDER_ERR },
+
+    passwordRow: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: spacing.sm,
-        marginTop: spacing.sm,
-        paddingVertical: spacing.xs,
+        alignItems: 'center',
+        paddingHorizontal: 0,
     },
-    policyCheckIcon: { marginTop: 2 },
-    policyText: {
+    passwordInput: {
         flex: 1,
+        height: 54,
+        paddingHorizontal: 16,
+        fontFamily: 'Matter-Regular',
+        fontSize: 15,
+        color: INK,
+    },
+    eyeBtn: { paddingHorizontal: 14 },
+
+    fieldErr: {
+        fontFamily: 'Matter-Regular',
         fontSize: 12,
-        color: colors.textSecondary,
+        color: ERR_COLOR,
+        marginLeft: 4,
+    },
+
+    errBox: {
+        marginTop: 12,
+        backgroundColor: '#FEF2F0',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#F5C6C2',
+        padding: 12,
+    },
+    errBoxText: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 13,
+        color: ERR_COLOR,
         lineHeight: 18,
     },
-    policyLink: {
-        color: colors.foreground,
-        fontWeight: '500',
-        textDecorationLine: 'underline',
-        textDecorationColor: colors.foreground,
+
+    cta: {
+        height: 56,
+        borderRadius: 999,
+        backgroundColor: INK,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 20,
     },
-    phoneRow: {
+    ctaDisabled: { opacity: 0.45 },
+    ctaText: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 16,
+        color: WHITE,
+        letterSpacing: 0.2,
+    },
+
+    orRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.surface,
-        borderRadius: borderRadius.sm,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    countryCodeButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingVertical: 14,
-        paddingLeft: spacing.md,
-        paddingRight: spacing.sm,
-        borderRightWidth: 1,
-        borderRightColor: colors.border,
-        maxWidth: '42%',
-    },
-    countryCodeFlag: { fontSize: 18 },
-    countryCodeText: {
-        fontSize: 15,
-        fontWeight: '500',
-        color: colors.textPrimary,
-        flexShrink: 1,
-    },
-    phoneNationalInput: {
-        flex: 1,
-        paddingVertical: 14,
-        paddingHorizontal: spacing.md,
-        color: colors.textPrimary,
-        fontSize: 15,
-        minWidth: 0,
-    },
-    phoneHint: {
-        fontSize: 11,
-        color: colors.textMuted,
-        marginTop: 4,
-        marginLeft: 2,
-    },
-    modalBackdrop: {
-        flex: 1,
-        backgroundColor: colors.overlay,
-        justifyContent: 'flex-end',
-    },
-    modalSheet: {
-        backgroundColor: colors.card,
-        borderTopLeftRadius: borderRadius.xl,
-        borderTopRightRadius: borderRadius.xl,
-        maxHeight: '72%',
-        paddingBottom: Platform.OS === 'ios' ? 34 : spacing.lg,
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.divider,
-    },
-    modalTitle: { ...typography.h3 },
-    countryRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: spacing.lg,
+        marginVertical: 20,
         gap: 12,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: colors.divider,
     },
-    countryRowSelected: { backgroundColor: colors.surface },
-    countryRowFlag: { fontSize: 22, width: 32 },
-    countryRowName: { flex: 1, fontSize: 15, color: colors.textPrimary },
-    countryRowDial: { fontSize: 15, fontWeight: '500', color: colors.textSecondary, minWidth: 56, textAlign: 'right' },
+    orLine: { flex: 1, height: 1, backgroundColor: '#EBEBEB' },
+    orText: {
+        fontFamily: 'Matter-Medium',
+        fontSize: 11,
+        color: '#BBBBBB',
+        letterSpacing: 1.2,
+    },
+
+    social: { gap: 10 },
+    appleBtn: {
+        height: 54,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: BORDER,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        backgroundColor: WHITE,
+    },
+    appleBtnText: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 15,
+        color: INK,
+        letterSpacing: 0.3,
+    },
+
+    terms: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 12,
+        color: '#AAAAAA',
+        textAlign: 'center',
+        lineHeight: 18,
+        marginTop: 22,
+        paddingHorizontal: 8,
+    },
+    termsLink: {
+        color: MUTED,
+        textDecorationLine: 'underline',
+    },
+
+    signinRow: { marginTop: 18, alignItems: 'center' },
+    signinText: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 14,
+        color: MUTED,
+    },
+    signinLink: {
+        fontFamily: 'Matter-SemiBold',
+        color: INK,
+    },
 });

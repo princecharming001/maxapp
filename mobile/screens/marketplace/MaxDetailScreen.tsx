@@ -35,14 +35,14 @@ import { getCourseForMaxx, isCreatorCourse } from '../../data/courseContent';
 import { hexA } from '../../utils/scheduleAggregation';
 import { track } from '../../lib/analytics';
 
-const CANVAS = '#F7F0EA';
-const CARD = '#FCFAF6';
-const INK = '#1C1A17';
-const MUTE = '#97928A';
-const SUB = '#5C574E';
+const CANVAS = '#FFFFFF';
+const CARD = '#FFFFFF';
+const INK = '#111113';
+const MUTE = '#9A9A9A';
+const SUB = '#555555';
 const GOLD = '#2C6BED';
 const ACCENT = '#2F6B4E';
-const HAIRLINE = '#E8E0D3';
+const HAIRLINE = 'rgba(0,0,0,0.08)';
 const SERIF = 'Fraunces';
 const SERIF_I = 'Fraunces-Italic';
 
@@ -152,7 +152,7 @@ function MediaHero({ cover, video, base }: { cover?: string; video?: string; bas
                 <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />
             ) : null}
             <LinearGradient
-                colors={['rgba(20,17,14,0.26)', 'transparent', 'rgba(247,240,234,0)', CANVAS]}
+                colors={['rgba(0,0,0,0.26)', 'transparent', 'rgba(255,255,255,0)', CANVAS]}
                 locations={[0, 0.3, 0.76, 1]}
                 style={StyleSheet.absoluteFill}
             />
@@ -556,11 +556,11 @@ const styles = StyleSheet.create({
     topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, paddingHorizontal: 14, paddingBottom: 2 },
     backBtn: {
         width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: 'rgba(252,250,246,0.86)',
+        backgroundColor: 'rgba(255,255,255,0.86)',
     },
 
     // Media hero
-    hero: { width: '100%', height: 332, backgroundColor: '#EFE7DC' },
+    hero: { width: '100%', height: 332, backgroundColor: '#F0F0F0' },
     previewChip: {
         position: 'absolute', left: 20, bottom: 78,
         flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -572,8 +572,8 @@ const styles = StyleSheet.create({
     galleryBlock: { marginTop: 30 },
     galleryLabel: { paddingHorizontal: 22 },
     galleryRow: { paddingHorizontal: 22, gap: 12 },
-    galleryImg: { width: 200, height: 264, borderRadius: 18, backgroundColor: '#EFE7DC' },
-    insideVideo: { width: '100%', aspectRatio: 16 / 9, borderRadius: 18, overflow: 'hidden', backgroundColor: '#EFE7DC' },
+    galleryImg: { width: 200, height: 264, borderRadius: 18, backgroundColor: '#F0F0F0' },
+    insideVideo: { width: '100%', aspectRatio: 16 / 9, borderRadius: 18, overflow: 'hidden', backgroundColor: '#F0F0F0' },
     playCenter: { alignItems: 'center', justifyContent: 'center' },
     playCircle: {
         width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center',
@@ -651,7 +651,7 @@ const styles = StyleSheet.create({
 
     bioText: { fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, lineHeight: 23, marginTop: 14 },
     chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-    credChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F2EDE4', borderWidth: StyleSheet.hairlineWidth, borderColor: HAIRLINE },
+    credChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F2F2F2', borderWidth: StyleSheet.hairlineWidth, borderColor: HAIRLINE },
     credText: { fontFamily: 'Matter-Medium', fontSize: 12, color: SUB },
 
     revAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: HAIRLINE },

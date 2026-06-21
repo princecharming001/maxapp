@@ -205,6 +205,24 @@ def _build_hf_llm(max_tokens: int, temperature: float = 0.7) -> BaseChatModel:
     )
 
 
+def _build_claude_llm(max_tokens: int, temperature: float = 0.7) -> BaseChatModel:
+    from langchain_anthropic import ChatAnthropic
+
+    key = (settings.anthropic_api_key or "").strip()
+    if not key:
+        raise ValueError("ANTHROPIC_API_KEY is not set")
+
+    model = (settings.anthropic_model or "claude-haiku-4-5").strip()
+    return ChatAnthropic(
+        model=model,
+        api_key=key,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        timeout=settings.llm_timeout_seconds,
+        max_retries=0,
+    )
+
+
 def _build_mistral_llm(max_tokens: int, temperature: float = 0.7) -> BaseChatModel:
     from langchain_mistralai import ChatMistralAI
 
@@ -232,6 +250,7 @@ _BUILDERS = {
     "gemini":      _build_gemini_llm,
     "openai":      _build_openai_llm,
     "mistral":     _build_mistral_llm,
+    "claude":      _build_claude_llm,
 }
 
 _FALLBACK_ORDER: dict[str, list[str]] = {
@@ -240,6 +259,7 @@ _FALLBACK_ORDER: dict[str, list[str]] = {
     "gemini":  ["openai", "mistral"],
     "openai":  ["gemini", "mistral"],
     "mistral": ["gemini", "openai"],
+    "claude":  ["openai", "gemini"],
 }
 
 
@@ -405,6 +425,20 @@ def get_sync_json_llm(max_tokens: int = 4096) -> BaseChatModel:
             max_retries=0,
             model_kwargs={"response_format": {"type": "json_object"}},
         )
+    if provider == "claude":
+        from langchain_anthropic import ChatAnthropic
+        key = (settings.anthropic_api_key or "").strip()
+        if not key:
+            raise ValueError("ANTHROPIC_API_KEY is not set")
+        # Claude follows JSON instructions in the prompt; no response_format kwarg.
+        return ChatAnthropic(
+            model=(settings.anthropic_model or "claude-haiku-4-5").strip(),
+            api_key=key,
+            max_tokens=max_tokens,
+            temperature=0.2,
+            timeout=settings.llm_timeout_seconds,
+            max_retries=0,
+        )
     from langchain_google_genai import ChatGoogleGenerativeAI
     key = (settings.gemini_api_key or "").strip()
     if not key:
@@ -450,6 +484,18 @@ def get_vision_llm(json_mode: bool = False) -> BaseChatModel:
                 provider = "openai"
             else:
                 raise ValueError("Vision requires GEMINI_API_KEY or OPENAI_API_KEY")
+
+    if provider == "claude":
+        from langchain_anthropic import ChatAnthropic
+        key = (settings.anthropic_api_key or "").strip()
+        if not key:
+            raise ValueError("ANTHROPIC_API_KEY is not set")
+        return ChatAnthropic(
+            model=(settings.anthropic_model or "claude-haiku-4-5").strip(),
+            api_key=key,
+            max_tokens=4096,
+            temperature=0.1,
+        )
 
     if provider == "openai":
         from langchain_openai import ChatOpenAI

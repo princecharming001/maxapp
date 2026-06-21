@@ -376,6 +376,14 @@ class PslFeatureScoresBlock(BaseModel):
     skin: PslFeatureCell
     hairline: PslFeatureCell
     symmetry: PslFeatureCell
+    midface: PslFeatureCell
+    canthal_tilt: PslFeatureCell
+    hunter_eyes: PslFeatureCell
+    under_eye: PslFeatureCell
+    philtrum: PslFeatureCell
+    skin_texture: PslFeatureCell
+    hair_density: PslFeatureCell
+    facial_hair: PslFeatureCell
 
 
 class PslProportionsBlock(BaseModel):

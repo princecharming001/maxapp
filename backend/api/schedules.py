@@ -2,9 +2,11 @@
 Schedules API - AI-powered personalised schedules for course modules
 """
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db, get_rds_db
 from models.schedule import (
@@ -295,6 +297,49 @@ async def delete_task(
         return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+class HabitPrefsRequest(BaseModel):
+    wanted_catalog_ids: list[str] = []
+    avoided_catalog_ids: list[str] = []
+
+
+@router.post("/{schedule_id}/habit-prefs")
+async def set_habit_prefs(
+    schedule_id: str,
+    data: HabitPrefsRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Apply the chat habit-picker's want/avoid choices to one max's schedule.
+
+    Persists the picks into schedule_context, then re-expands just this max so
+    avoided habits are dropped and wanted ones are ensured present.
+    """
+    try:
+        res = await schedule_service.set_habit_prefs(
+            user_id=current_user["id"],
+            schedule_id=schedule_id,
+            db=db,
+            wanted_catalog_ids=data.wanted_catalog_ids,
+            avoided_catalog_ids=data.avoided_catalog_ids,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Apply immediately by re-expanding only this max with the new prefs.
+    # A regen failure must not lose the saved prefs (they apply on the next
+    # context change either way), so swallow + log rather than 500.
+    try:
+        from services.schedule_runtime import regenerate_active_schedules
+        await regenerate_active_schedules(
+            user_id=current_user["id"], db=db, only_max=res["maxx_id"], reason="habit_prefs",
+        )
+    except Exception as e:
+        logging.getLogger(__name__).warning("habit-prefs regen failed (saved anyway): %s", e)
+
+    schedule = await schedule_service.get_maxx_schedule(current_user["id"], res["maxx_id"], db=db)
+    return {"status": "ok", "schedule": schedule, "wanted": res["wanted"], "avoided": res["avoided"]}
 
 
 @router.put("/preferences")

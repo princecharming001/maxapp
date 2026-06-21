@@ -89,17 +89,35 @@ async def _call_gemini_triple(front: bytes, left: bytes, right: bytes, onboardin
     return await gemini_service.analyze_triple_full(front, left, right, onboarding_json)
 
 
+async def _call_claude_triple(front: bytes, left: bytes, right: bytes, onboarding_json: str):
+    from services.claude_service import claude_service
+
+    return await claude_service.analyze_triple_full(front, left, right, onboarding_json)
+
+
 async def llm_analyze_triple_full(
     front: bytes,
     left: bytes,
     right: bytes,
     onboarding_json: str = "{}",
 ) -> Dict[str, Any]:
-    primary_is_openai = use_openai()
-    primary = _call_openai_triple if primary_is_openai else _call_gemini_triple
-    fallback = _call_gemini_triple if primary_is_openai else _call_openai_triple
-    primary_name = "openai" if primary_is_openai else "gemini"
-    fallback_name = "gemini" if primary_is_openai else "openai"
+    from services.llm_provider import use_openai, use_gemini, use_claude
+
+    if use_claude():
+        primary = _call_claude_triple
+        fallback = _call_gemini_triple
+        primary_name, fallback_name = "claude", "gemini"
+    elif use_openai():
+        primary = _call_openai_triple
+        fallback = _call_gemini_triple
+        primary_name, fallback_name = "openai", "gemini"
+    else:
+        # Default to Gemini (covers gemini + huggingface + unrecognised providers)
+        if not (use_openai() or use_gemini() or use_claude()):
+            logger.warning("LLM_PROVIDER not set to a vision provider for face scan; defaulting to gemini")
+        primary = _call_gemini_triple
+        fallback = _call_openai_triple
+        primary_name, fallback_name = "gemini", "openai"
 
     try:
         return await primary(front, left, right, onboarding_json)

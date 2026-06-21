@@ -26,9 +26,9 @@ import { getIosApnsDeviceTokenForBackend } from '../../services/registerIosPushT
 import { track } from '../../lib/analytics';
 import api from '../../services/api';
 
-const INK = '#1C1A17';
-const GOLD = '#2C6BED';
-const MUTE = '#97928A';
+const INK = '#111113';
+const GOLD = '#111113';
+const MUTE = '#6B6B6B';
 
 // A couple of representative moments per max — the "taste". `bucket` places each
 // in the morning / midday / evening so they sort into a believable day.
@@ -120,8 +120,7 @@ export default function RevealV2Screen() {
 
     const taskCount = rows.filter((r) => r.kind === 'task').length;
     const closeLine =
-        'Just a taste — not your real plan yet. Pick the maxes you want in Explore and Max ' +
-        'builds each one around your real day, deeper and personalized to you.';
+        'Just a taste. Pick your maxes in Explore and Max builds the real plan around your day.';
 
     const completeOnboarding = async () => {
         setBusy(true);
@@ -169,7 +168,7 @@ export default function RevealV2Screen() {
     };
 
     return (
-        <ScreenBackdrop>
+        <ScreenBackdrop style={{ backgroundColor: '#F1F1EF' }}>
             <ScrollView
                 style={{ flex: 1 }}
                 contentContainerStyle={{
@@ -182,26 +181,29 @@ export default function RevealV2Screen() {
             >
                 {phase === 'reveal' ? (
                     <>
-                        <Text style={styles.title}>Here's your{'\n'}<Text style={{ fontFamily: 'Fraunces-Italic' }}>first</Text> day</Text>
-                        {taskCount === 0 ? (
-                            <Text style={[styles.sub, { marginTop: 22 }]}>
-                                Your day is set. Pick the maxes you want in Explore and Max builds each
-                                one around it.
-                            </Text>
-                        ) : (
-                            <View style={{ marginTop: 20 }}>
-                                <RevealChoreography
-                                    rows={rows}
-                                    scope="first-day"
-                                    closeLine={closeLine}
-                                    onComplete={() => {
-                                        setRevealSettled(true);
-                                        track('reveal_completed', { tasks: taskCount });
-                                    }}
-                                />
-                            </View>
-                        )}
-                        <View style={{ marginTop: 'auto', paddingTop: 24 }}>
+                        <View style={{ flex: 1, justifyContent: 'center' }}>
+                            <Text style={styles.title}>Here's your{'\n'}<Text style={{ fontFamily: 'Fraunces-Italic' }}>first</Text> day</Text>
+                            {taskCount === 0 ? (
+                                <Text style={[styles.sub, { marginTop: 22 }]}>
+                                    Your day is set. Pick the maxes you want in Explore and Max builds each
+                                    one around it.
+                                </Text>
+                            ) : (
+                                <View style={{ marginTop: 20 }}>
+                                    <RevealChoreography
+                                        rows={rows}
+                                        scope="first-day"
+                                        mono
+                                        closeLine={closeLine}
+                                        onComplete={() => {
+                                            setRevealSettled(true);
+                                            track('reveal_completed', { tasks: taskCount });
+                                        }}
+                                    />
+                                </View>
+                            )}
+                        </View>
+                        <View style={{ paddingTop: 24 }}>
                             <GlassButton
                                 variant="primary"
                                 label={taskCount === 0 ? 'Continue' : 'Looks right'}
@@ -266,7 +268,16 @@ export default function RevealV2Screen() {
                                 variant="glass"
                                 label="Skip for now"
                                 loading={busy}
-                                onPress={completeOnboarding}
+                                onPress={async () => {
+                                    // Skip the scan but still surface the paywall — land on
+                                    // Main (so "Skip" on Payment can go back into the app),
+                                    // then present Payment on top.
+                                    await completeOnboarding();
+                                    const { navigationRef } = require('../../lib/navigationRef');
+                                    setTimeout(() => {
+                                        if (navigationRef.isReady()) (navigationRef as any).navigate('Payment');
+                                    }, 450);
+                                }}
                             />
                         </View>
                     </View>

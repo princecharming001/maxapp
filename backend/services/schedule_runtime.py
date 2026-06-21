@@ -12,7 +12,7 @@ import logging
 import time
 from datetime import datetime
 from typing import Any, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,8 +21,9 @@ from models.sqlalchemy_models import User, UserSchedule
 from services.multi_module_collision import reconcile_schedules
 from services.schedule_adapter import adapt_schedule as _adapt
 from services.schedule_generator import generate_schedule as _generate
-from services.task_catalog_service import get_doc, missing_required, warm_catalog, is_loaded
+from services.task_catalog_service import get_doc, get_task, eligible_tasks, missing_required, warm_catalog, is_loaded
 from services.user_context_service import get_context, merged_user_state
+from services.schedule_validator import _ESSENTIAL_TAGS, _ANTAGONISTIC, HARD_DAILY_TASK_CAP
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,10 @@ async def generate_and_persist(
 
     # Multi-module collision pass against any other ACTIVE schedule the user has.
     days = result.days
+    # NOTE: per-max habit prefs (want/avoid) are NOT applied here. The first
+    # plan is generated bare; the chat habit-picker is shown right after, and
+    # the user's picks are written to this schedule's schedule_context and
+    # applied on the immediate follow-up regenerate_active_schedules(only_max=…).
     # Stamp ISO dates on each day so the master view + UI calendars work.
     # Day 0 = today, day N = today + N days.
     from datetime import timedelta as _td
@@ -492,11 +497,29 @@ async def regenerate_active_schedules(
         for i, d in enumerate(fixed_new):
             d["date"] = (today + _td(days=i)).isoformat()
 
-        # Honor parts the user explicitly pruned (scope="series" delete) so a
-        # re-expansion never resurrects a habit they killed.
-        excluded = set((sched.schedule_context or {}).get("excluded_catalog_ids") or [])
+        # Per-schedule habit prefs live in schedule_context:
+        #   excluded_catalog_ids  — series-delete ("remove this recurring task")
+        #   avoided_catalog_ids   — chat habit-picker "don't want this"
+        #   wanted_catalog_ids    — chat habit-picker "want this"
+        # Avoid = drop (unioned); the essential-tag guard keeps the daily floor.
+        sctx = sched.schedule_context or {}
+        excluded = set(sctx.get("excluded_catalog_ids") or [])
+        excluded |= set(sctx.get("avoided_catalog_ids") or [])
         if excluded:
             fixed_new = _drop_excluded_tasks(fixed_new, excluded)
+
+        # Ensure habits the user explicitly WANTED stay present on every regen.
+        wanted = set(sctx.get("wanted_catalog_ids") or []) - excluded
+        if wanted:
+            fixed_new = _ensure_wanted_tasks(fixed_new, wanted, mid, state=state, wake=wake, sleep=sleep)
+            # Re-space the injected tasks, then stamp canonical fields on them —
+            # the single-program regen path has no later normalize/reconcile pass,
+            # so without this an injected task persists missing importance /
+            # task_uuid / provenance and tiers inconsistently.
+            from services.human_time import humanize_days as _humanize_days
+            _humanize_days(fixed_new, state)
+            from services.task_fields import normalize_days as _normalize_days
+            _normalize_days(fixed_new, mid)
 
         # Honor times the user explicitly moved (scope="series" edit) so a
         # silent re-expansion re-pins their chosen time instead of snapping
@@ -548,7 +571,8 @@ async def regenerate_active_schedules(
 
 
 def _drop_excluded_tasks(days: list[dict], excluded: set[str]) -> list[dict]:
-    """Strip tasks whose catalog_id the user pruned (scope="series" delete).
+    """Strip tasks whose catalog_id the user pruned (scope="series" delete) OR
+    marked as an avoided habit in onboarding.
 
     Used after a fresh skeleton expansion so a part the user explicitly
     removed stays gone across regenerations. Returns shallow-copied days so
@@ -557,8 +581,146 @@ def _drop_excluded_tasks(days: list[dict], excluded: set[str]) -> list[dict]:
         return days
     out: list[dict] = []
     for d in days:
-        tasks = [t for t in (d.get("tasks") or []) if t.get("catalog_id") not in excluded]
+        # Never strip the daily FLOOR (foundation / cleanse / spf / workout): even
+        # if the user marked a foundation chip "avoid", removing it would drop the
+        # day below daily_task_budget min and gut the hygiene/training base. The
+        # avoid filter runs after the validator, which won't re-pad, so we protect
+        # essential-tagged tasks here.
+        tasks = [
+            t for t in (d.get("tasks") or [])
+            if t.get("catalog_id") not in excluded
+            or bool(set(t.get("tags") or []) & _ESSENTIAL_TAGS)
+        ]
         out.append({**d, "tasks": tasks})
+    return out
+
+
+# --------------------------------------------------------------------------- #
+#  Habit prefs (onboarding "Choose daily habits": want / avoid)               #
+# --------------------------------------------------------------------------- #
+
+def _hp_minutes(s: str) -> int:
+    if not isinstance(s, str) or ":" not in s:
+        return 0
+    try:
+        h, m = s.split(":", 1)
+        return int(h) * 60 + int(m)
+    except (ValueError, TypeError):
+        return 0
+
+
+def _window_to_time(window: str | None, wake: str, sleep: str) -> str:
+    """Best-effort time for an injected 'wanted' habit from its default_window.
+    Approximate — the collision/humanize passes tidy the exact slot afterward."""
+    w = _hp_minutes(wake) or 7 * 60
+    s = _hp_minutes(sleep) or 23 * 60
+    if s <= w:
+        s = w + 16 * 60
+    win = (window or "flexible").lower()
+    if "am" in win or win in ("morning", "wake", "open"):
+        m = w + 30
+    elif "pm" in win or "evening" in win or "night" in win or "close" in win:
+        m = s - 60
+    elif "mid" in win or "noon" in win or "lunch" in win:
+        m = 13 * 60
+    elif "workout" in win or "train" in win:
+        m = min(s - 90, max(w + 60, 18 * 60))
+    else:
+        m = (w + s) // 2
+    m = max(w, min(s - 15, m))
+    return f"{(m // 60) % 24:02d}:{m % 60:02d}"
+
+
+def _is_daily_freq(freq: Any) -> bool:
+    """True only when a catalog task is genuinely a daily habit, so an injected
+    'wanted' task lands on every day; otherwise it goes on day 0 and the
+    cadence/collision passes spread it. The real catalog schema (data/maxes)
+    uses {type: daily | n_per_week | every_n_days, n: N} — NOT per_week keys."""
+    if not isinstance(freq, dict):
+        return True
+    t = str(freq.get("type", "")).lower()
+    n = freq.get("n")
+    if t == "daily":
+        return True
+    if t == "n_per_week":
+        return isinstance(n, (int, float)) and n >= 7
+    if t == "every_n_days":
+        return isinstance(n, (int, float)) and n <= 1
+    # Legacy/unknown shapes: honor an explicit per-week count, else not daily.
+    pw = freq.get("per_week") or freq.get("times_per_week") or freq.get("days_per_week")
+    if isinstance(pw, (int, float)):
+        return pw >= 7
+    return False
+
+
+def _ensure_wanted_tasks(
+    days: list[dict], wanted: set[str], maxx_id: str, *, state: dict, wake: str, sleep: str,
+) -> list[dict]:
+    """Make sure habits the user explicitly WANTED appear in the plan.
+
+    Only injects catalog ids that are (a) real tasks for this max, (b) eligible
+    for the user (respects applies_when / contraindicated_when so we never force
+    an unsafe task), and (c) not already scheduled. Bounded so a long want-list
+    can't blow past the daily budget; the existing collision + humanize passes
+    then place/clean the injected tasks like any other."""
+    if not wanted or not days:
+        return days
+    try:
+        eligible_ids = {t.id for t in eligible_tasks(maxx_id, state)}
+    except Exception:
+        eligible_ids = set()
+    present: set[str] = set()
+    for d in days:
+        for t in (d.get("tasks") or []):
+            cid = t.get("catalog_id")
+            if cid:
+                present.add(cid)
+    to_add = [w for w in wanted if w in eligible_ids and w not in present][:6]
+    if not to_add:
+        return days
+    out = [{**d, "tasks": list(d.get("tasks") or [])} for d in days]
+
+    def _day_antagonist_present(day: dict, cid: str) -> bool:
+        # Don't inject a task whose known antagonist already sits on this day
+        # (e.g. skin.retinoid_pm + skin.dermastamp_pm). The validator only FLAGS
+        # such pairs; here we PREVENT them at the source.
+        on_day = {t.get("catalog_id") for t in (day.get("tasks") or [])}
+        for pair in _ANTAGONISTIC:
+            if cid in pair and (pair - {cid}) & on_day:
+                return True
+        return False
+
+    for cid in to_add:
+        td = get_task(maxx_id, cid)
+        if td is None:
+            continue
+        time_str = _window_to_time(td.default_window, wake, sleep)
+        target = out if _is_daily_freq(td.frequency) else out[:1]
+        for d in target:
+            # Skip days that are already at the hard cap (don't push a day over
+            # budget) or that already carry this habit's antagonist.
+            if len(d.get("tasks") or []) >= HARD_DAILY_TASK_CAP:
+                continue
+            if _day_antagonist_present(d, td.id):
+                continue
+            d["tasks"].append({
+                "task_id": str(uuid4()),
+                "catalog_id": td.id,
+                "title": td.title,
+                "description": td.description,
+                "time": time_str,
+                "duration_min": td.duration_min,
+                "duration_minutes": td.duration_min,
+                "tags": list(td.tags),
+                "status": "pending",
+                "intensity": float(td.intensity),
+                "group": None,
+                # importance>=4 + an entered program => protection_tier TIER_PURCHASED,
+                # so the cross-module collision trimmer keeps this user-asked-for
+                # habit instead of treating it as a droppable optional.
+                "importance": 4,
+                "user_requested": True,
+            })
     return out
 
 

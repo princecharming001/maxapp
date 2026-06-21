@@ -24,10 +24,11 @@
  * minimal padding, generous letter-spacing on labels.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Animated,
     Modal,
     Platform,
     Pressable,
@@ -132,6 +133,30 @@ export default function ChatConversationsDrawer({
     const queryClient = useQueryClient();
     const convQuery = useChatConversationsQuery();
     const { user, refreshUser } = useAuth();
+
+    /* Slide in from the LEFT (the menu button lives top-left, so the panel
+       enters from the same edge). Keep the Modal mounted through the exit
+       animation, then unmount. */
+    const tx = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+    const fade = useRef(new Animated.Value(0)).current;
+    const [mounted, setMounted] = useState(visible);
+
+    useEffect(() => {
+        if (visible) {
+            setMounted(true);
+            Animated.parallel([
+                Animated.timing(tx, { toValue: 0, duration: 240, useNativeDriver: true }),
+                Animated.timing(fade, { toValue: 1, duration: 240, useNativeDriver: true }),
+            ]).start();
+        } else {
+            Animated.parallel([
+                Animated.timing(tx, { toValue: -DRAWER_WIDTH, duration: 200, useNativeDriver: true }),
+                Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: true }),
+            ]).start(({ finished }) => {
+                if (finished) setMounted(false);
+            });
+        }
+    }, [visible, tx, fade]);
 
     const [creating, setCreating] = useState(false);
     const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -271,14 +296,16 @@ export default function ChatConversationsDrawer({
 
     /* ── Render ──────────────────────────────────────────────────────── */
     return (
-        <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
-            <Pressable style={s.backdrop} onPress={onClose} accessibilityLabel="Close" />
-            <View
+        <Modal animationType="none" transparent visible={mounted} onRequestClose={onClose}>
+            <Animated.View style={[s.backdrop, { opacity: fade }]} pointerEvents="none" />
+            <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
+            <Animated.View
                 style={[
                     s.drawer,
                     {
                         paddingTop: Math.max(insets.top + spacing.md, 44),
                         paddingBottom: Math.max(insets.bottom + spacing.sm, spacing.md),
+                        transform: [{ translateX: tx }],
                     },
                 ]}
             >
@@ -430,7 +457,7 @@ export default function ChatConversationsDrawer({
                         })}
                     </View>
                 </View>
-            </View>
+            </Animated.View>
         </Modal>
     );
 }
@@ -444,13 +471,13 @@ const s = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.55)',
     },
     drawer: {
-        // Anchored to the right so it slides in from the same side as the
-        // chat header's menu button (which we moved to bottom-right for
-        // thumb reach). Keeps the gesture model consistent.
+        // Anchored to the LEFT and slides in from the left edge — same side
+        // as the chat header's menu (hamburger) button, so the open gesture
+        // and the panel's entrance read as one motion.
         position: 'absolute',
         top: 0,
         bottom: 0,
-        right: 0,
+        left: 0,
         width: DRAWER_WIDTH,
         backgroundColor: C.bg,
         paddingHorizontal: spacing.md,

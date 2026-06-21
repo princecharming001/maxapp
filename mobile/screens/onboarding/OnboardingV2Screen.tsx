@@ -919,24 +919,20 @@ export default function OnboardingV2Screen() {
             canNext: true,
             body: (
                 <View>
-                    <Text style={[styles.groupLabel, { marginTop: 0 }]}>WORKOUT TIME</Text>
-                    <TouchableOpacity
-                        onPress={() => openTime('When do you work out?', workoutMin, setWorkoutMin)}
-                        style={{
-                            paddingVertical: 14,
-                            paddingHorizontal: 16,
-                            backgroundColor: colors.background,
-                            borderRadius: 12,
-                            borderColor: colors.border,
-                            borderWidth: 1,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                        }}
-                    >
-                        <Text style={{ fontSize: 16, color: colors.text }}>{fmt12(workoutMin)}</Text>
-                        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                    </TouchableOpacity>
+                    <View style={styles.shapeCard}>
+                        <TouchableOpacity
+                            style={styles.timeRow}
+                            activeOpacity={0.7}
+                            onPress={() => openTime('When do you work out?', workoutMin, setWorkoutMin)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Workout time, ${fmt12(workoutMin)}`}
+                        >
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.timeRowLabel}>Workout</Text>
+                                <Text style={styles.timeRowValue}>{fmt12(workoutMin)}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
 
                     <Text style={styles.groupLabel}>WEEKENDS?</Text>
                     <View style={{ gap: 10 }}>

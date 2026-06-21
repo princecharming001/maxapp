@@ -75,10 +75,15 @@ def protection_tier(maxx_id: str, task: dict, user_ctx: dict | None) -> int:
     unranked creator courses were trimmed first)."""
     purchased = str(maxx_id).strip().lower() in entered_programs(user_ctx)
     importance = _coerce_importance(task.get("importance"))
-    required = is_essential(task) or importance >= 4 or task.get("task_kind") == "fixed"
+    # A habit the user explicitly asked for ("wanted" in onboarding) carries
+    # user intent — never let the collision trimmer treat it as a droppable
+    # optional. Honor the flag at top tier for entered programs, and as an
+    # essential-strength floor otherwise so "never suppress" holds everywhere.
+    user_requested = bool(task.get("user_requested"))
+    required = is_essential(task) or importance >= 4 or task.get("task_kind") == "fixed" or user_requested
     if purchased and required:
         return TIER_PURCHASED
-    if is_essential(task):
+    if is_essential(task) or user_requested:
         return TIER_ESSENTIAL
     return TIER_OPTIONAL
 

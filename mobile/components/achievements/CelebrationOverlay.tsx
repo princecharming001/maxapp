@@ -19,7 +19,7 @@ import * as Haptics from 'expo-haptics';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { fonts, borderRadius, spacing } from '../../theme/dark';
-import { GLYPH, Tier } from './AchievementBadge';
+import AchievementBadge, { GLYPH, Tier } from './AchievementBadge';
 
 export type EarnedAchievement = {
     code: string; title: string; description: string; tier: Tier; icon: string;
@@ -32,22 +32,28 @@ const GOLD = '#C9A24E';
 const CREAM = '#FBF6EE';
 
 /**
- * CelebrationBadge — a minimal, fully transparent badge for the earn-moment:
- * one thin gold ring + a faint outer ring + the glyph, nothing behind it. No
- * filled medallion (that reads tacky here); the ink scrim shows straight
- * through the center.
+ * CelebrationBadge — the achievement's matte-black clay 3D icon (the same
+ * rotating clay piece used in the Trophy Case), seated on a cream disc so it
+ * reads on the dark scrim, framed by a thin gold ring.
  */
-function CelebrationBadge({ icon }: { icon: string }) {
-    const glyph = GLYPH[icon] || 'ribbon';
+function CelebrationBadge({ icon, code }: { icon: string; code: string }) {
     const SZ = 120;
+    const DISC = SZ - 22;
     return (
         <View style={{ width: SZ, height: SZ, alignItems: 'center', justifyContent: 'center' }}>
+            {/* cream disc — contrast for the matte-black clay, with a soft lift */}
+            <View
+                style={{
+                    position: 'absolute', width: DISC, height: DISC, borderRadius: DISC / 2, backgroundColor: CREAM,
+                    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8,
+                }}
+            />
             <Svg width={SZ} height={SZ} viewBox={`0 0 ${SZ} ${SZ}`}>
-                <Circle cx={SZ / 2} cy={SZ / 2} r={SZ / 2 - 2} fill="none" stroke="rgba(247,240,234,0.14)" strokeWidth={1} />
-                <Circle cx={SZ / 2} cy={SZ / 2} r={SZ / 2 - 17} fill="none" stroke={GOLD} strokeWidth={1.75} />
+                <Circle cx={SZ / 2} cy={SZ / 2} r={SZ / 2 - 2} fill="none" stroke="rgba(247,240,234,0.16)" strokeWidth={1} />
+                <Circle cx={SZ / 2} cy={SZ / 2} r={SZ / 2 - 11} fill="none" stroke={GOLD} strokeWidth={1.75} />
             </Svg>
             <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
-                <Ionicons name={glyph} size={42} color={CREAM} />
+                <AchievementBadge icon={icon} code={code} tier="gold" earned size={72} />
             </View>
         </View>
     );
@@ -157,7 +163,7 @@ export default function CelebrationOverlay({
                     </View>
 
                     <Animated.View style={badgeStyle}>
-                        <CelebrationBadge icon={current.icon} />
+                        <CelebrationBadge icon={current.icon} code={current.code} />
                     </Animated.View>
 
                     <Animated.View style={[styles.textWrap, textStyle]}>

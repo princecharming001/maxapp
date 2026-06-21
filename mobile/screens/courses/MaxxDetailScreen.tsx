@@ -12,10 +12,10 @@ import { getMaxxDisplayDescription, getMaxxDisplayLabel } from '../../utils/maxx
 import { useAuth } from '../../context/AuthContext';
 import { defaultFitmaxMacroSummary, deriveCalorieLogFromMessages } from '../../features/fitmax/fitmax';
 import { buildModuleReaderContent, modulePreviewFromContent, isFitmaxCourseShape } from '../../utils/maxxModuleReader';
-import CourseTOC from '../../components/CourseTOC';
 import CourseReader from '../../components/CourseReader';
 import { getCourseForMaxx } from '../../data/courseContent';
-import ModuleHero from '../../components/ModuleHero';
+import CourseHero from '../../components/CourseHero';
+import CourseTimeline from '../../components/CourseTimeline';
 import { maxColor, hexA } from '../../utils/scheduleAggregation';
 import SectionLabel from '../../components/SectionLabel';
 
@@ -339,34 +339,118 @@ export default function MaxxDetailScreen() {
     // Every max carries its own color — the header icon, section bar and module
     // dots become that color (the craft.do color-pocket feel), not dead grey.
     const accent = courseDef?.accent ?? maxColor(maxxId);
-    const accentSoft = courseDef?.accentSoft ?? hexA(maxColor(maxxId), 0.1);
+
+    /* ── Course path — Pliability hero + Alan timeline ──────────────────
+       Every maxx with a curated courseDef (native maxes + creator courses)
+       renders this editorial layout. Reading is gated to Chad for native
+       maxes; creator courses are open. */
+    if (courseDef) {
+        const lessonCount = courseDef.chapters.reduce((n, c) => n + c.sections.length, 0);
+        const totalMin = courseDef.chapters.reduce(
+            (sum, ch) =>
+                sum +
+                ch.sections.reduce((s2, sec) => {
+                    const m = /(\d+)/.exec(sec.eta || '');
+                    return s2 + (m ? parseInt(m[1], 10) : 0);
+                }, 0),
+            0,
+        );
+        const heroStats = [
+            { number: courseDef.chapters.length, label: 'Chapters' },
+            { number: lessonCount, label: 'Lessons' },
+            { number: totalMin || '—', label: totalMin ? 'Minutes' : 'Time' },
+        ];
+        const showTimeline = isPremium || isCreatorCourse;
+        const firstSectionId = courseDef.chapters[0]?.sections[0]?.id;
+
+        return (
+            <View style={styles.container}>
+                <ScrollView
+                    style={styles.scroll}
+                    contentContainerStyle={styles.courseScrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <CourseHero
+                        title={isCreatorCourse ? (courseDef.title ?? getMaxxDisplayLabel(maxx)) : getMaxxDisplayLabel(maxx)}
+                        description={isCreatorCourse ? courseDef.subtitle : (getMaxxDisplayDescription(maxx) ?? maxx.description)}
+                        accent={accent}
+                        iconName={maxx.icon || courseDef.icon || 'sparkles-outline'}
+                        creator={
+                            courseDef.creator
+                                ? { name: courseDef.creator.name, verified: courseDef.creator.verified, tagline: courseDef.creator.tagline }
+                                : null
+                        }
+                        stats={heroStats}
+                        onBack={() => navigation.goBack()}
+                    />
+
+                    {/* Primary CTA — the dominant action (schedule, or start reading) */}
+                    <View style={styles.ctaWrap}>
+                        {canSchedule && atLimit ? (
+                            <View style={styles.limitBanner}>
+                                <Ionicons name="alert-circle-outline" size={16} color={colors.textSecondary} />
+                                <Text style={styles.limitBannerText}>
+                                    You're at your limit of {maxActiveModules} active programs ({activeLabels.join(', ')}). Stop one first to start this.{!isPremium ? ' Or upgrade to Chad for a 3rd slot.' : ''}
+                                </Text>
+                            </View>
+                        ) : (
+                            <TouchableOpacity
+                                style={[styles.primaryCta, { backgroundColor: accent }]}
+                                activeOpacity={0.88}
+                                onPress={() => {
+                                    if (canSchedule) {
+                                        navigation.navigate('Main', { screen: 'Chat', params: { initSchedule: maxxId } });
+                                    } else if (firstSectionId) {
+                                        openReaderAt(firstSectionId);
+                                    }
+                                }}
+                            >
+                                <Text style={styles.primaryCtaText}>
+                                    {canSchedule ? (activeSchedule ? 'Update schedule' : 'Start schedule') : 'Start course'}
+                                </Text>
+                                <Ionicons name="arrow-forward" size={16} color={colors.buttonText} />
+                            </TouchableOpacity>
+                        )}
+
+                        {activeSchedule ? (
+                            <View style={styles.ctaLinkRow}>
+                                <TouchableOpacity
+                                    activeOpacity={0.6}
+                                    onPress={() => navigation.navigate('Schedule', { scheduleId: activeSchedule.id })}
+                                >
+                                    <Text style={[styles.linkText, { color: accent }]}>View schedule</Text>
+                                </TouchableOpacity>
+                                <View style={styles.linkSep} />
+                                <TouchableOpacity activeOpacity={0.6} onPress={handleStopSchedule}>
+                                    <Text style={styles.linkTextMuted}>Stop schedule</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : null}
+                    </View>
+
+                    {/* Body — chapter timeline, or the Chad-gate for locked native maxes */}
+                    {showTimeline ? (
+                        <CourseTimeline course={courseDef} accent={accent} onOpenSection={openReaderAt} />
+                    ) : (
+                        <View style={styles.lockedWrap}>
+                            <CourseLockedCard accent={accent} onUpgrade={() => navigation.navigate('Payment')} />
+                        </View>
+                    )}
+                </ScrollView>
+
+                <CourseReader
+                    visible={readerOpenSection !== null}
+                    course={courseDef}
+                    initialSectionId={readerOpenSection}
+                    onClose={closeReader}
+                />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
-            {useAccentTheme ? (
-                <ModuleHero
-                    title={isCreatorCourse ? (courseDef!.title ?? getMaxxDisplayLabel(maxx)) : getMaxxDisplayLabel(maxx)}
-                    accent={accent}
-                    accentSoft={accentSoft}
-                    iconName={maxx.icon || 'sparkles-outline'}
-                    description={isCreatorCourse ? courseDef!.subtitle : (getMaxxDisplayDescription(maxx) ?? maxx.description)}
-                    onBack={() => navigation.goBack()}
-                    stats={
-                        courseDef
-                            ? [
-                                  { number: courseDef.chapters.length, label: 'chapters' },
-                                  {
-                                      number: courseDef.chapters.reduce(
-                                          (n, c) => n + c.sections.length,
-                                          0
-                                      ),
-                                      label: 'lessons',
-                                  },
-                              ]
-                            : undefined
-                    }
-                />
-            ) : isFitmax ? (
+            {isFitmax ? (
                 <View style={styles.headerWrapFitmax}>
                     <TouchableOpacity
                         onPress={() => navigation.goBack()}
@@ -410,7 +494,7 @@ export default function MaxxDetailScreen() {
                             <View style={styles.limitBanner}>
                                 <Ionicons name="alert-circle-outline" size={16} color={colors.textSecondary} />
                                 <Text style={styles.limitBannerText}>
-                                    You're at your limit of {maxActiveModules} active program{maxActiveModules === 1 ? '' : 's'} ({activeLabels.join(', ')}). Stop one first to start this.{!isPremium ? ' Or upgrade to Chad for a 3rd slot.' : ''}
+                                    You're at your limit of {maxActiveModules} active programs ({activeLabels.join(', ')}). Stop one first to start this.{!isPremium ? ' Or upgrade to Chad for a 3rd slot.' : ''}
                                 </Text>
                             </View>
                         ) : (
@@ -456,7 +540,7 @@ export default function MaxxDetailScreen() {
                             <View style={styles.limitBanner}>
                                 <Ionicons name="alert-circle-outline" size={18} color={colors.textSecondary} />
                                 <Text style={styles.limitBannerText}>
-                                    You're at your limit of {maxActiveModules} active program{maxActiveModules === 1 ? '' : 's'} ({activeLabels.join(', ')}). Stop one first to start this.{!isPremium ? ' Or upgrade to Chad for a 3rd slot.' : ''}
+                                    You're at your limit of {maxActiveModules} active programs ({activeLabels.join(', ')}). Stop one first to start this.{!isPremium ? ' Or upgrade to Chad for a 3rd slot.' : ''}
                                 </Text>
                             </View>
                         ) : (
@@ -501,53 +585,13 @@ export default function MaxxDetailScreen() {
                     </View>
                 )}
 
-                {courseDef ? (
-                    <>
-                        {/* Creator byline — marks this as a creator course, not a native max. */}
-                        {courseDef.creator ? (
-                            <View style={{ marginBottom: spacing.lg }}>
-                                <Text style={{ fontFamily: fonts.sansSemiBold, fontSize: 11, letterSpacing: 1.6, color: colors.textMuted }}>
-                                    COURSE BY
-                                </Text>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                                    <Text style={{ fontFamily: fonts.serif, fontSize: 20, color: colors.foreground, letterSpacing: -0.3 }}>
-                                        {courseDef.creator.name}
-                                    </Text>
-                                    {courseDef.creator.verified ? (
-                                        <Ionicons name="checkmark-circle" size={15} color={accent} style={{ marginLeft: 5 }} />
-                                    ) : null}
-                                </View>
-                                {courseDef.creator.tagline ? (
-                                    <Text style={{ fontFamily: fonts.sans, fontSize: 13, color: colors.textSecondary, marginTop: 3 }}>
-                                        {courseDef.creator.tagline}
-                                    </Text>
-                                ) : null}
-                            </View>
-                        ) : null}
+                {/* Legacy MODULES list — courses with a curated `courseDef`
+                    render the new CourseHero + CourseTimeline layout above
+                    (early return). This path is only for maxxes without a
+                    course file. */}
+                <SectionLabel label="Modules" accent={accent} />
 
-                        {/* Creator courses are open to read; native-max courses stay Chad-gated. */}
-                        {isPremium || isCreatorCourse ? (
-                            <CourseTOC course={courseDef} onOpenSection={openReaderAt} />
-                        ) : (
-                            <CourseLockedCard
-                                accent={accent}
-                                onUpgrade={() => navigation.navigate('Payment')}
-                            />
-                        )}
-                    </>
-                ) : null}
-
-                {/* Legacy MODULES list — only render for maxxes that
-                    don't yet have a curated `courseDef`. Once a course is
-                    authored (skinmax today; rest soon), the TOC + Reader
-                    fully replace this section. */}
-                {!courseDef && (useAccentTheme ? (
-                    <SectionLabel label="Modules" accent={accent} />
-                ) : (
-                    <SectionLabel label="Modules" accent={accent} />
-                ))}
-
-                {!courseDef && modules.length === 0 && previewPills.length > 0 && (
+                {modules.length === 0 && previewPills.length > 0 && (
                     <View style={styles.pillWrap}>
                         {previewPills.map((label, i) => (
                             <View key={`pill-${maxx.id}-${i}`} style={styles.pillSmall}>
@@ -754,6 +798,37 @@ const styles = StyleSheet.create({
     macroChipMacros: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
     scroll: { flex: 1 },
     scrollContent: { padding: spacing.lg, paddingBottom: spacing.xxxl },
+    /* ── Course path (CourseHero + CourseTimeline) ─────────────────── */
+    courseScrollContent: { paddingBottom: spacing.xxxl },
+    ctaWrap: {
+        paddingHorizontal: spacing.lg,
+        marginTop: spacing.xl,
+        marginBottom: spacing.lg,
+    },
+    primaryCta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        borderRadius: borderRadius.full,
+        paddingVertical: 16,
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#3A352B', shadowOpacity: 0.14, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } }
+            : { elevation: 4 }),
+    },
+    primaryCtaText: {
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 15,
+        letterSpacing: 0.3,
+        color: colors.buttonText,
+    },
+    ctaLinkRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: spacing.md,
+    },
+    lockedWrap: { paddingHorizontal: spacing.lg },
     description: { fontSize: 15, color: colors.textSecondary, lineHeight: 24, marginBottom: spacing.xl },
     sectionLabel: { ...typography.label, marginBottom: spacing.md },
 

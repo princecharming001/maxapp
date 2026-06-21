@@ -8,42 +8,55 @@ import {
     KeyboardAvoidingView,
     Platform,
     Animated,
+    Alert,
 } from 'react-native';
-import { A11yBlurView as BlurView } from '../../components/glass/SolidFallback';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
-import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
-import { GlassCard } from '../../components/glass/GlassCard';
-import { GlassButton } from '../../components/glass/GlassButton';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
-import { GlassInput } from '../../components/glass/GlassInput';
+import { fonts } from '../../theme/dark';
 
-const isWeb = Platform.OS === 'web';
+// ─── Palette ──────────────────────────────────────────────────────────────────
+
+const WHITE = '#FFFFFF';
+const CANVAS = '#F1F1EF';   // soft off-white screen canvas (matches onboarding) — keeps inputs/buttons white so they lift off it
+const INK = '#111113';
+const BORDER = '#E2E2E2';
+const BORDER_FOCUS = '#111113';
+const BORDER_ERR = '#C0452C';
+const PH = '#A0A0A0';
+const MUTED = '#6B6B6B';
+const ERR_COLOR = '#C0452C';
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function LoginScreen() {
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
     const { login } = useAuth();
+
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [apiError, setApiError] = useState<string | null>(null);
+    const [focusedField, setFocusedField] = useState<string | null>(null);
 
     const passwordRef = useRef<TextInput>(null);
 
-    const fadeCard = useRef(new Animated.Value(0)).current;
-    const slideCard = useRef(new Animated.Value(20)).current;
+    const fade = useRef(new Animated.Value(0)).current;
+    const slide = useRef(new Animated.Value(18)).current;
     useEffect(() => {
         Animated.parallel([
-            Animated.timing(fadeCard, { toValue: 1, duration: 500, delay: 100, useNativeDriver: true }),
-            Animated.timing(slideCard, { toValue: 0, duration: 500, delay: 100, useNativeDriver: true }),
+            Animated.timing(fade, { toValue: 1, duration: 500, delay: 80, useNativeDriver: true }),
+            Animated.timing(slide, { toValue: 0, duration: 500, delay: 80, useNativeDriver: true }),
         ]).start();
     }, []);
 
     const handleLogin = async () => {
         if (!identifier.trim() || !password) {
-            setApiError('Please fill in all fields');
+            setApiError('Please fill in all fields.');
             return;
         }
         setLoading(true);
@@ -59,203 +72,310 @@ export default function LoginScreen() {
     };
 
     return (
-        <ScreenBackdrop style={isWeb ? styles.webCenter : undefined}>
-            <KeyboardAvoidingView
-                style={styles.keyboardView}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
-                <Animated.View
-                    style={[styles.cardWrap, { opacity: fadeCard, transform: [{ translateY: slideCard }] }]}
+        <View style={s.root}>
+            {/* Nav bar */}
+            <View style={[s.nav, { paddingTop: Math.max(insets.top, 14) }]}>
+                <TouchableOpacity
+                    style={s.navBtn}
+                    onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Landing')}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Back"
                 >
-                    <GlassCard radius={30} intensity={44}>
-                        <View style={styles.cardInner}>
-                            <Text style={styles.wordmark}>max</Text>
-                            <Text style={styles.tagline}>Looksmaxxing that fits your life</Text>
+                    <Ionicons name="arrow-back" size={20} color={INK} />
+                </TouchableOpacity>
+            </View>
 
-                            <View style={styles.form}>
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>EMAIL, USERNAME, OR PHONE</Text>
-                                    <GlassInput
-                                        placeholder="you@example.com"
-                                        value={identifier}
-                                        onChangeText={(t) => {
-                                            setIdentifier(t);
-                                            setApiError(null);
-                                        }}
-                                        keyboardType="default"
-                                        autoCapitalize="none"
-                                        autoCorrect={false}
-                                        textContentType="username"
-                                        autoComplete="username"
-                                        returnKeyType="next"
-                                        onSubmitEditing={() => passwordRef.current?.focus()}
-                                    />
-                                </View>
+            <KeyboardAvoidingView style={s.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+                <Animated.View
+                    style={[s.inner, { opacity: fade, transform: [{ translateY: slide }] }]}
+                >
+                    {/* Wordmark + title */}
+                    <Text style={s.wordmark}>max</Text>
+                    <Text style={s.title}>welcome back</Text>
 
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>PASSWORD</Text>
-                                    <View style={styles.glassField}>
-                                        <BlurView intensity={24} tint="light" style={StyleSheet.absoluteFill} />
-                                        <View style={styles.glassFieldInner}>
-                                            <TextInput
-                                                ref={passwordRef}
-                                                style={styles.passwordInput}
-                                                placeholder="Enter your password"
-                                                placeholderTextColor="#97928A"
-                                                value={password}
-                                                onChangeText={(t) => {
-                                                    setPassword(t);
-                                                    setApiError(null);
-                                                }}
-                                                secureTextEntry={!showPassword}
-                                                autoCapitalize="none"
-                                                autoCorrect={false}
-                                                textContentType="password"
-                                                autoComplete="current-password"
-                                                returnKeyType="go"
-                                                onSubmitEditing={handleLogin}
-                                            />
-                                            <TouchableOpacity
-                                                style={styles.viewPasswordBtn}
-                                                onPress={() => setShowPassword((v) => !v)}
-                                                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                                                accessibilityRole="button"
-                                                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-                                            >
-                                                <Ionicons
-                                                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                                                    size={20}
-                                                    color="#97928A"
-                                                />
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                </View>
+                    {/* Fields */}
+                    <View style={s.fields}>
 
-                                {apiError && (
-                                    <View style={styles.apiErrorBox}>
-                                        <Text style={styles.apiErrorText}>{apiError}</Text>
-                                    </View>
-                                )}
+                        {/* Identifier */}
+                        <TextInput
+                            style={[
+                                s.input,
+                                focusedField === 'id' && s.inputFocus,
+                                apiError && s.inputError,
+                            ]}
+                            placeholder="Email or username"
+                            placeholderTextColor={PH}
+                            value={identifier}
+                            onChangeText={(t) => { setIdentifier(t); setApiError(null); }}
+                            keyboardType="default"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            textContentType="username"
+                            autoComplete="username"
+                            returnKeyType="next"
+                            onSubmitEditing={() => passwordRef.current?.focus()}
+                            onFocus={() => setFocusedField('id')}
+                            onBlur={() => setFocusedField(null)}
+                        />
 
-                                <GlassButton
-                                    variant="primary"
-                                    label={loading ? 'Signing in…' : 'Sign In'}
-                                    onPress={handleLogin}
-                                    loading={loading}
-                                    style={styles.submit}
-                                />
-
-                                <View style={styles.orRow}>
-                                    <View style={styles.orLine} />
-                                    <Text style={styles.orText}>or</Text>
-                                    <View style={styles.orLine} />
-                                </View>
-                                <GoogleSignInButton />
-
-                                <TouchableOpacity
-                                    onPress={() => navigation.navigate('ForgotPassword')}
-                                    activeOpacity={0.6}
-                                    style={styles.forgotLink}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Forgot password"
-                                >
-                                    <Text style={styles.forgotText}>Forgot password?</Text>
-                                </TouchableOpacity>
-                            </View>
-
+                        {/* Password */}
+                        <View style={[
+                            s.input, s.passwordRow,
+                            focusedField === 'pw' && s.inputFocus,
+                            apiError && s.inputError,
+                        ]}>
+                            <TextInput
+                                ref={passwordRef}
+                                style={s.passwordInput}
+                                placeholder="Password"
+                                placeholderTextColor={PH}
+                                value={password}
+                                onChangeText={(t) => { setPassword(t); setApiError(null); }}
+                                secureTextEntry={!showPassword}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                textContentType="password"
+                                autoComplete="current-password"
+                                returnKeyType="go"
+                                onSubmitEditing={handleLogin}
+                                onFocus={() => setFocusedField('pw')}
+                                onBlur={() => setFocusedField(null)}
+                            />
                             <TouchableOpacity
-                                onPress={() => navigation.navigate('Signup')}
-                                activeOpacity={0.6}
-                                style={styles.linkContainer}
+                                style={s.eyeBtn}
+                                onPress={() => setShowPassword((v) => !v)}
+                                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                                 accessibilityRole="button"
-                                accessibilityLabel="Create account"
+                                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                             >
-                                <Text style={styles.linkText}>
-                                    New here? <Text style={styles.linkBold}>Create account</Text>
-                                </Text>
+                                <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={MUTED} />
                             </TouchableOpacity>
                         </View>
-                    </GlassCard>
+
+                    </View>
+
+                    {/* Forgot password */}
+                    <TouchableOpacity
+                        style={s.forgotRow}
+                        onPress={() => navigation.navigate('ForgotPassword')}
+                        activeOpacity={0.6}
+                        accessibilityRole="button"
+                    >
+                        <Text style={s.forgotText}>Forgot password?</Text>
+                    </TouchableOpacity>
+
+                    {/* API error */}
+                    {apiError ? (
+                        <View style={s.errBox}>
+                            <Text style={s.errBoxText}>{apiError}</Text>
+                        </View>
+                    ) : null}
+
+                    {/* Continue CTA */}
+                    <TouchableOpacity
+                        style={[s.cta, loading && s.ctaDisabled]}
+                        onPress={handleLogin}
+                        disabled={loading}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel="Continue"
+                    >
+                        <Text style={s.ctaText}>{loading ? 'Signing in…' : 'Continue'}</Text>
+                    </TouchableOpacity>
+
+                    {/* OR divider */}
+                    <View style={s.orRow}>
+                        <View style={s.orLine} />
+                        <Text style={s.orText}>OR</Text>
+                        <View style={s.orLine} />
+                    </View>
+
+                    {/* Social sign-in */}
+                    <View style={s.social}>
+                        <GoogleSignInButton label="Continue with Google" />
+                        <TouchableOpacity
+                            style={s.appleBtn}
+                            activeOpacity={0.85}
+                            onPress={() => Alert.alert('Apple Sign In', 'Coming soon.')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Continue with Apple"
+                        >
+                            <Ionicons name="logo-apple" size={18} color={INK} />
+                            <Text style={s.appleBtnText}>Continue with Apple</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Create account link */}
+                    <TouchableOpacity
+                        style={s.signupRow}
+                        onPress={() => navigation.navigate('Signup')}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                    >
+                        <Text style={s.signupText}>
+                            New here?{' '}
+                            <Text style={s.signupLink}>create account</Text>
+                        </Text>
+                    </TouchableOpacity>
+
                 </Animated.View>
             </KeyboardAvoidingView>
-        </ScreenBackdrop>
+        </View>
     );
 }
 
-const styles = StyleSheet.create({
-    webCenter: { alignItems: 'center' },
-    keyboardView: {
-        flex: 1,
-        justifyContent: 'center',
-        paddingHorizontal: 24,
-        width: '100%',
-        ...(isWeb && { maxWidth: 460, alignSelf: 'center' }),
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+    root: { flex: 1, backgroundColor: CANVAS },
+
+    nav: {
+        paddingHorizontal: 20,
+        paddingBottom: 8,
     },
-    cardWrap: { width: '100%' },
-    cardInner: { padding: 26 },
+    navBtn: {
+        width: 40, height: 40, borderRadius: 20,
+        backgroundColor: '#F4F4F4',
+        alignItems: 'center', justifyContent: 'center',
+    },
+
+    kav: { flex: 1 },
+    inner: {
+        flex: 1,
+        paddingHorizontal: 24,
+        paddingBottom: 40,
+        justifyContent: 'center',
+        ...(Platform.OS === 'web' ? { maxWidth: 440, alignSelf: 'center' as const, width: '100%' } : {}),
+    },
+
     wordmark: {
-        fontFamily: 'PlayfairDisplay',
-        fontSize: 50,
-        color: '#1C1A17',
+        fontFamily: fonts.serif,
+        fontSize: 48,
+        color: INK,
         letterSpacing: -1.5,
         textAlign: 'center',
         marginBottom: 6,
     },
-    tagline: {
+    title: {
         fontFamily: 'Matter-Regular',
-        fontSize: 13,
-        color: '#97928A',
+        fontSize: 22,
+        color: INK,
         textAlign: 'center',
-        marginBottom: 30,
-        letterSpacing: 0.4,
+        letterSpacing: -0.3,
+        marginBottom: 28,
     },
-    form: { gap: 16 },
-    inputGroup: { gap: 7 },
-    label: {
-        fontFamily: 'Matter-SemiBold',
-        fontSize: 10.5,
-        letterSpacing: 1.4,
-        color: '#97928A',
-        marginLeft: 2,
-    },
-    glassField: {
-        borderRadius: 16,
-        overflow: 'hidden',
+
+    fields: { gap: 12 },
+
+    input: {
+        height: 56,
+        borderRadius: 14,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
-        borderCurve: 'continuous',
+        borderColor: BORDER,
+        paddingHorizontal: 16,
+        fontFamily: 'Matter-Regular',
+        fontSize: 15,
+        color: INK,
+        backgroundColor: WHITE,
     },
-    glassFieldInner: {
+    inputFocus: { borderColor: BORDER_FOCUS },
+    inputError: { borderColor: BORDER_ERR },
+
+    passwordRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.78)',
+        paddingHorizontal: 0,
     },
     passwordInput: {
         flex: 1,
         height: 54,
-        paddingLeft: 16,
-        paddingRight: 8,
+        paddingHorizontal: 16,
         fontFamily: 'Matter-Regular',
         fontSize: 15,
-        color: '#1C1A17',
+        color: INK,
     },
-    viewPasswordBtn: { paddingVertical: 12, paddingHorizontal: 12, marginRight: 4 },
-    apiErrorBox: {
-        backgroundColor: 'rgba(178,58,58,0.08)',
-        padding: 12,
+    eyeBtn: { paddingHorizontal: 14 },
+
+    forgotRow: { alignItems: 'flex-end', marginTop: 10, marginBottom: 4 },
+    forgotText: {
+        fontFamily: 'Matter-Medium',
+        fontSize: 13,
+        color: MUTED,
+    },
+
+    errBox: {
+        marginTop: 10,
+        backgroundColor: '#FEF2F0',
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: 'rgba(178,58,58,0.18)',
+        borderColor: '#F5C6C2',
+        padding: 12,
     },
-    apiErrorText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#B23A3A' },
-    submit: { marginTop: 4 },
-    orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 14, gap: 10 },
-    orLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(17,17,19,0.15)' },
-    orText: { fontFamily: 'Matter-Medium', fontSize: 12, color: '#97928A' },
-    forgotLink: { marginTop: 10, alignItems: 'center' },
-    forgotText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#97928A' },
-    linkContainer: { marginTop: 22, alignItems: 'center' },
-    linkText: { fontFamily: 'Matter-Regular', fontSize: 13, color: '#97928A' },
-    linkBold: { fontFamily: 'Matter-SemiBold', color: '#1C1A17' },
+    errBoxText: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 13,
+        color: ERR_COLOR,
+        lineHeight: 18,
+    },
+
+    cta: {
+        height: 56,
+        borderRadius: 999,
+        backgroundColor: INK,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 16,
+    },
+    ctaDisabled: { opacity: 0.45 },
+    ctaText: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 16,
+        color: WHITE,
+        letterSpacing: 0.2,
+    },
+
+    orRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 20,
+        gap: 12,
+    },
+    orLine: { flex: 1, height: 1, backgroundColor: '#EBEBEB' },
+    orText: {
+        fontFamily: 'Matter-Medium',
+        fontSize: 11,
+        color: '#BBBBBB',
+        letterSpacing: 1.2,
+    },
+
+    social: { gap: 10 },
+    appleBtn: {
+        height: 54,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: BORDER,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        backgroundColor: WHITE,
+    },
+    appleBtnText: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 15,
+        color: INK,
+        letterSpacing: 0.3,
+    },
+
+    signupRow: { marginTop: 22, alignItems: 'center' },
+    signupText: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 14,
+        color: MUTED,
+    },
+    signupLink: {
+        fontFamily: 'Matter-Regular',
+        color: INK,
+    },
 });

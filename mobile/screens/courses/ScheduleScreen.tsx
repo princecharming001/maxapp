@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Alert, RefreshControl, Platform,
@@ -12,6 +12,12 @@ import { queryKeys } from '../../lib/queryClient';
 import { useMaxxesQuery } from '../../hooks/useAppQueries';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { buildMaxxMaps, moduleColorForSchedule, moduleLabelForSchedule } from '../../utils/scheduleAggregation';
+
+const INK    = '#000000';
+const ON_INK = '#FFFFFF';
+const BG     = '#F1F1EF';
+const MUTE   = '#9A9A9A';
+const HAIR   = 'rgba(0,0,0,0.06)';
 
 
 type Task = {
@@ -77,6 +83,7 @@ export default function ScheduleScreen() {
   const [generating, setGenerating] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const taskToggleInFlightRef = useRef(new Set<string>());
   // Tracks a real load failure so a network error doesn't look identical to
   // "you have no schedule" (which renders the Generate state).
   const [loadError, setLoadError] = useState(false);
@@ -157,6 +164,10 @@ export default function ScheduleScreen() {
 
   const handleToggleTask = async (taskId: string, currentStatus: string) => {
     if (!schedule) return;
+    const key = `${schedule.id}:${taskId}`;
+    if (taskToggleInFlightRef.current.has(key)) return;
+    taskToggleInFlightRef.current.add(key);
+
     const completing = currentStatus !== 'completed';
     setSchedule(prev => {
       if (!prev) return prev;
@@ -195,6 +206,8 @@ export default function ScheduleScreen() {
           }))
         };
       });
+    } finally {
+      taskToggleInFlightRef.current.delete(key);
     }
   };
 
@@ -362,9 +375,10 @@ export default function ScheduleScreen() {
               onPress={() => setSelectedDayIndex(idx)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.dayPillLabel, isSelected && styles.dayPillLabelActive]}>{dayName}</Text>
-              <Text style={[styles.dayPillNumber, isSelected && styles.dayPillNumberActive]}>{dayNum}</Text>
-              {isSelected && <View style={styles.dayUnderline} />}
+              <Text style={styles.dayPillLabel}>{dayName}</Text>
+              <View style={[styles.dayPillCircle, isSelected && styles.dayPillCircleActive]}>
+                <Text style={[styles.dayPillNumber, isSelected && styles.dayPillNumberActive]}>{dayNum}</Text>
+              </View>
               {!isSelected && dayCompleted && <View style={styles.dayCompleteDot} />}
             </TouchableOpacity>
           );
@@ -442,7 +456,7 @@ export default function ScheduleScreen() {
 
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: BG },
   center: { justifyContent: 'center', alignItems: 'center' },
 
   header: {
@@ -454,10 +468,10 @@ const styles = StyleSheet.create({
 
   emptyState: { flex: 1, paddingHorizontal: spacing.xl },
   emptyTitle: {
-    fontFamily: fonts.serif,
+    fontFamily: 'Matter-Bold',
     fontSize: 22,
-    color: colors.textPrimary,
-    letterSpacing: -0.3,
+    color: INK,
+    letterSpacing: -0.4,
     marginBottom: spacing.lg,
   },
   errorBody: {
@@ -497,43 +511,44 @@ const styles = StyleSheet.create({
   },
   dayPill: {
     alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     minWidth: 40,
+    gap: 4,
   },
   dayPillLabel: {
+    fontFamily: 'Matter-Regular',
     fontSize: 10,
-    fontWeight: '500' as const,
-    color: colors.textMuted,
+    fontWeight: '400' as const,
+    color: MUTE,
     textTransform: 'uppercase' as const,
-    letterSpacing: 0.6,
-    marginBottom: 2,
+    letterSpacing: 0.8,
   },
-  dayPillLabelActive: { color: colors.foreground, fontWeight: '700' as const },
-  dayPillNumber: { fontSize: 14, fontWeight: '500' as const, color: colors.textMuted },
-  dayPillNumberActive: { color: colors.foreground, fontWeight: '700' as const },
-  dayUnderline: {
-    width: 16,
-    height: 2,
-    backgroundColor: colors.foreground,
-    borderRadius: 1,
-    marginTop: 5,
+  dayPillCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  dayPillCircleActive: { backgroundColor: INK },
+  dayPillNumber: { fontFamily: 'Matter-SemiBold', fontSize: 14, fontWeight: '600' as const, color: INK },
+  dayPillNumberActive: { color: ON_INK },
   dayCompleteDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.textSecondary,
-    marginTop: 5,
+    backgroundColor: MUTE,
+    marginTop: 2,
   },
 
   taskList: { flex: 1, paddingHorizontal: spacing.lg },
 
   motivationText: {
-    fontFamily: fonts.serif,
-    fontSize: 16,
-    color: colors.textSecondary,
-    lineHeight: 26,
+    fontFamily: 'Matter-Regular',
+    fontSize: 15,
+    color: MUTE,
+    lineHeight: 22,
     fontStyle: 'italic' as const,
     marginTop: spacing.md,
     marginBottom: spacing.lg + spacing.sm,
@@ -591,7 +606,7 @@ const styles = StyleSheet.create({
   taskCheck: {
     width: 20, height: 20, borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.textMuted,
+    borderColor: MUTE,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
@@ -599,22 +614,24 @@ const styles = StyleSheet.create({
 
   taskContent: { flex: 1 },
   taskTime: {
+    fontFamily: 'Matter-Regular',
     fontSize: 10,
-    fontWeight: '500' as const,
-    color: colors.textMuted,
-    letterSpacing: 1,
+    fontWeight: '400' as const,
+    color: MUTE,
+    letterSpacing: 0.8,
     textTransform: 'uppercase' as const,
     marginBottom: 4,
   },
   taskTimeDone: { textDecorationLine: 'line-through' as const },
   taskTitle: {
+    fontFamily: 'Matter-Medium',
     fontSize: 15,
     fontWeight: '500' as const,
-    color: colors.foreground,
+    color: INK,
     marginBottom: 3,
   },
-  taskTitleDone: { textDecorationLine: 'line-through' as const, color: colors.textMuted },
-  taskDescription: { ...typography.bodySmall },
+  taskTitleDone: { textDecorationLine: 'line-through' as const, color: MUTE },
+  taskDescription: { ...typography.bodySmall, fontFamily: 'Matter-Regular' },
 
   
 });

@@ -276,7 +276,7 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, backgroundColor: '#F1F1EF' },   // soft off-white canvas (matches onboarding), not pure white/cream
     keyboardView: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
     card: {
         backgroundColor: colors.card,

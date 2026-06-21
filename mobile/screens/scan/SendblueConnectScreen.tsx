@@ -90,11 +90,8 @@ export default function SendblueConnectScreen() {
                         try {
                             await api.completeSendblueConnect({ sms_opt_in: false, app_notifications_opt_in: true });
                             await refreshUser();
-                            if (next === 'Main') {
-                                navigation.navigate('Main');
-                            } else {
-                                navigation.navigate('ModuleSelect');
-                            }
+                            // Program picker (ModuleSelect) removed — finish to Main.
+                            navigation.navigate('Main');
                         } catch (e) {
                             console.error(e);
                             Alert.alert('Error', 'Could not save. Check your connection and try again.');
@@ -134,9 +131,11 @@ export default function SendblueConnectScreen() {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator
             >
-                <TouchableOpacity style={styles.backHit} onPress={() => navigation.goBack()} hitSlop={12}>
-                    <Ionicons name="arrow-back" size={24} color={colors.foreground} />
-                </TouchableOpacity>
+                {navigation.canGoBack() ? (
+                    <TouchableOpacity style={styles.backHit} onPress={() => navigation.goBack()} hitSlop={12}>
+                        <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+                    </TouchableOpacity>
+                ) : null}
 
                 <Text style={styles.kicker}>One more step</Text>
                 <Text style={styles.title}>Text Max to connect</Text>

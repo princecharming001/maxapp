@@ -28,6 +28,10 @@ stripe>=7.12.0
 # Google Gemini (standalone - minimal dependencies)
 google-generativeai>=0.3.2
 
+# Anthropic Claude
+anthropic>=0.40.0
+langchain-anthropic>=0.3.0
+
 # OpenAI (when LLM_PROVIDER=openai)
 openai>=1.40.0
 

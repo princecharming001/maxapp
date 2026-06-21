@@ -128,7 +128,7 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
                             cx={RING / 2}
                             cy={RING / 2}
                             r={R}
-                            stroke="rgba(28,26,23,0.08)"
+                            stroke="rgba(0,0,0,0.10)"
                             strokeWidth={STROKE}
                             fill="none"
                         />
@@ -136,7 +136,7 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
                             cx={RING / 2}
                             cy={RING / 2}
                             r={R}
-                            stroke={colors.foreground}
+                            stroke="#000000"
                             strokeWidth={STROKE}
                             strokeLinecap="round"
                             fill="none"
@@ -166,7 +166,7 @@ export default function AnalyzingScreen({ currentStep = 0 }: Props) {
 const st = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: '#FFFFFF',
     },
     center: {
         flex: 1,
@@ -192,7 +192,7 @@ const st = StyleSheet.create({
     pct: {
         fontFamily: fonts.sansSemiBold,
         fontSize: 34,
-        color: colors.foreground,
+        color: '#000000',
         letterSpacing: -1.4,
         marginTop: 26,
         textAlign: 'center',
@@ -201,7 +201,7 @@ const st = StyleSheet.create({
     label: {
         fontFamily: fonts.sansMedium,
         fontSize: 14.5,
-        color: colors.textSecondary,
+        color: '#444444',
         letterSpacing: 0.2,
         marginTop: 8,
         textAlign: 'center',
@@ -209,7 +209,7 @@ const st = StyleSheet.create({
     hint: {
         fontFamily: fonts.sans,
         fontSize: 12,
-        color: colors.textMuted,
+        color: '#888888',
         textAlign: 'center',
         marginTop: 14,
         opacity: 0.7,

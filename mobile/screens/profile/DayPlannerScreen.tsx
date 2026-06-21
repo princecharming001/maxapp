@@ -48,6 +48,7 @@ import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, fonts } from '../../theme/dark';
 import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
 import DayTimeline from '../../components/planner/DayTimeline';
+import ScheduleGrid from '../../components/planner/ScheduleGrid';
 import ObligationsManager, { ObligationsManagerHandle } from '../../components/planner/ObligationsManager';
 import {
   DayShape,
@@ -100,6 +101,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   // The day the timeline + editor act on. "Every day" edits the base; a weekday
   // edits just that day (a minimal override diffed against the base).
   const [scope, setScope] = useState<Scope>('all');
+  // Agenda list vs. Timepage-style hour grid.
+  const [planView, setPlanView] = useState<'list' | 'grid'>('list');
 
   // Editor sheet: keep the scope set across the close animation to avoid a flash.
   const [editScope, setEditScope] = useState<Scope>('all');
@@ -326,23 +329,58 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           <View style={styles.section}>
             <View style={styles.scopeHead}>
               <Text style={styles.scopeTitle}>{scopeLabel}</Text>
-              {scopeOverridden ? (
-                <TouchableOpacity
-                  onPress={() => resetScope(scope as Weekday)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={styles.resetLink}>Reset to every day</Text>
-                </TouchableOpacity>
-              ) : null}
+              <View style={styles.scopeHeadRight}>
+                {scopeOverridden ? (
+                  <TouchableOpacity
+                    onPress={() => resetScope(scope as Weekday)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.resetLink}>Reset</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {/* List ↔ grid view toggle */}
+                <View style={styles.viewToggle}>
+                  {(['list', 'grid'] as const).map((m) => {
+                    const active = planView === m;
+                    return (
+                      <TouchableOpacity
+                        key={m}
+                        onPress={() => setPlanView(m)}
+                        style={[styles.viewToggleBtn, active && styles.viewToggleBtnActive]}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={m === 'list' ? 'Agenda view' : 'Grid view'}
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Ionicons
+                          name={m === 'list' ? 'list-outline' : 'grid-outline'}
+                          size={16}
+                          color={active ? colors.background : colors.textMuted}
+                        />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
 
-            <DayTimeline
-              day={dayForScope}
-              obligations={obligations}
-              scope={scope}
-              onEditShape={(focus) => openEditor(scope, focus)}
-              onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
-            />
+            {planView === 'list' ? (
+              <DayTimeline
+                day={dayForScope}
+                obligations={obligations}
+                scope={scope}
+                onEditShape={(focus) => openEditor(scope, focus)}
+                onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
+              />
+            ) : (
+              <ScheduleGrid
+                day={dayForScope}
+                obligations={obligations}
+                scope={scope}
+                onEditShape={(focus) => openEditor(scope, focus)}
+                onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
+              />
+            )}
           </View>
 
           {/* Commitments — the global, day-scoped obligations list. */}
@@ -615,7 +653,15 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   scopeTitle: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.foreground, letterSpacing: -0.2 },
+  scopeHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   resetLink: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: ACCENT, letterSpacing: 0.05 },
+  viewToggle: {
+    flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 999, padding: 2,
+  },
+  viewToggleBtn: {
+    width: 34, height: 28, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
+  },
+  viewToggleBtnActive: { backgroundColor: colors.foreground },
 
   sectionKicker: {
     fontFamily: fonts.sansSemiBold,

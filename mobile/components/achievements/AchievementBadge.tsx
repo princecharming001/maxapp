@@ -150,7 +150,7 @@ export default function AchievementBadge({
     // Fallback — icon has no clay asset: ring + glyph.
     const glyphName = GLYPH[icon] || 'ribbon';
     const glyphSize = size * 0.4;
-    const glyphColor = earned ? '#F7F0EA' : LOCKED_GLYPH;
+    const glyphColor = earned ? '#FFFFFF' : LOCKED_GLYPH;
     return (
         <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
             <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
