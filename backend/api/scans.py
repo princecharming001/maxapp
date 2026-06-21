@@ -235,9 +235,13 @@ async def upload_scan_triple(
     _validate_image_upload(left_data, left.content_type, "Left")
     _validate_image_upload(right_data, right.content_type, "Right")
 
-    front_url = await storage_service.upload_image(front_data, uid_str, "front")
-    left_url = await storage_service.upload_image(left_data, uid_str, "left")
-    right_url = await storage_service.upload_image(right_data, uid_str, "right")
+    # Upload the three images concurrently — they're independent, so there's no
+    # reason to pay three sequential round-trips to storage.
+    front_url, left_url, right_url = await asyncio.gather(
+        storage_service.upload_image(front_data, uid_str, "front"),
+        storage_service.upload_image(left_data, uid_str, "left"),
+        storage_service.upload_image(right_data, uid_str, "right"),
+    )
     if not all([front_url, left_url, right_url]):
         raise HTTPException(status_code=500, detail="Failed to store images")
 

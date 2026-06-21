@@ -171,7 +171,26 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "build": "20260505a"}
+    """Liveness + DB readiness probe.
+
+    Returns 200 {status:"healthy"} only when the database is reachable, so a
+    load balancer can route away from an instance whose DB connection is dead
+    instead of sending it live traffic. DB failure → 503 {status:"degraded"}.
+    """
+    from fastapi.responses import JSONResponse
+    from sqlalchemy import text as _text
+    from db.sqlalchemy import engine as _engine
+
+    db_ok = True
+    try:
+        async with _engine.connect() as conn:
+            await conn.execute(_text("SELECT 1"))
+    except Exception as e:
+        db_ok = False
+        logging.getLogger(__name__).warning("health check DB probe failed: %s", e)
+
+    body = {"status": "healthy" if db_ok else "degraded", "build": "20260505a", "db": db_ok}
+    return JSONResponse(status_code=200 if db_ok else 503, content=body)
 
 
 if __name__ == "__main__":
