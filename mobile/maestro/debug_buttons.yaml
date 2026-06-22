@@ -1,0 +1,10 @@
+appId: com.cannon.mobile
+---
+- launchApp
+- waitForAnimationToEnd
+- takeScreenshot: before_tap
+# Try tapping the second button (Sign In) by coordinate — bottom of screen
+- tapOn:
+    point: "50%,88%"
+- waitForAnimationToEnd
+- takeScreenshot: after_signin_button

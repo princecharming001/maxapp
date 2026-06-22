@@ -1,0 +1,13 @@
+appId: com.cannon.mobile
+---
+# Smoke: sign-in screen elements are all present and no error state visible.
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "max"
+- assertVisible: "welcome back"
+- assertVisible: "Email or username"
+- assertVisible: "Continue"
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"
+- takeScreenshot: signin_screen

@@ -1,0 +1,5 @@
+appId: com.cannon.mobile
+---
+- launchApp
+- waitForAnimationToEnd
+- takeScreenshot: app_opened

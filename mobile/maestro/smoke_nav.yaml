@@ -1,0 +1,16 @@
+appId: com.cannon.mobile
+---
+# Navigation smoke: verify the app launches and key UI is present, no crash.
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 15000
+- runFlow:
+    when:
+      visible: "This is the developer menu"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd:
+          timeout: 5000
+- takeScreenshot: nav_initial_state
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"

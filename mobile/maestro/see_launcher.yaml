@@ -1,0 +1,6 @@
+appId: com.cannon.mobile
+---
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: launcher_screen

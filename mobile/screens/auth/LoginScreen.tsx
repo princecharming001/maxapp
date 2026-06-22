@@ -212,6 +212,8 @@ export default function LoginScreen() {
                         onPress={() => navigation.navigate('Signup')}
                         activeOpacity={0.7}
                         accessibilityRole="button"
+                        accessibilityLabel="create account"
+                        testID="create-account-btn"
                     >
                         <Text style={s.signupText}>
                             New here?{' '}

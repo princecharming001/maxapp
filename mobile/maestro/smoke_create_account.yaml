@@ -1,0 +1,16 @@
+appId: com.cannon.mobile
+---
+# Smoke: sign-up entry point is accessible and the screen renders without crash.
+#
+# NOTE: Maestro's XCTest-based tap() doesn't fire React Native Fabric onPress
+# on iOS (New Architecture limitation). Navigation is verified manually or via
+# EAS-built TestFlight builds. This test covers accessibility presence only.
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "max"
+- assertVisible: "welcome back"
+- assertVisible: "create account"
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"
+- takeScreenshot: signin_with_create_account_link

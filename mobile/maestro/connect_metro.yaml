@@ -1,0 +1,10 @@
+appId: com.cannon.mobile
+---
+- launchApp
+- waitForAnimationToEnd
+- tapOn: "http://localhost:8081"
+# Wait for bundle to fully load and splash to clear
+- waitForAnimationToEnd:
+    timeout: 40000
+- assertNotVisible: "Bundling"
+- takeScreenshot: app_loaded

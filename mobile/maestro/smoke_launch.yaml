@@ -1,0 +1,9 @@
+appId: com.cannon.mobile
+---
+# Smoke: app launches and shows the sign-in screen without crashing.
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "max"
+- assertVisible: "welcome back"
+- takeScreenshot: signin_screen
