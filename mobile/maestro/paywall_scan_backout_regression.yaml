@@ -1,0 +1,45 @@
+appId: com.cannon.mobile
+---
+# Regression: non-paid user who completed onboarding must NOT reach Main.
+#
+# CORRECT BEHAVIOR (asserted here):
+#   A non-entitled user who has gone through onboarding and backed out of the
+#   face scan must be shown the Payment screen (or an equivalent paywall),
+#   not the main tab bar.
+#
+# CURRENT STATE: FAILS.
+#   RootNavigator.tsx:98 uses `treatAsFull = isPaid || (onboardingV2 && onboardingCompleted)`.
+#   A non-paid user with onboarding.completed=true gets treatAsFull=true and
+#   lands on Main.  This test will be RED until the gate is changed to be
+#   driven by paid entitlement state, not onboarding completion.
+#
+# Preconditions:
+#   - CLEAR_AUTH=1 ./setup_simulator.sh  (clear keychain)
+#   - Log in as a user whose backend row has:
+#       is_paid = false
+#       onboarding.completed = true
+#       first_scan_completed = false (or true — either way must stay gated)
+#   - The DevDrawer "Skip" button (if available) can be used to reach this
+#     state, OR use a dedicated test fixture account with those DB values.
+#
+# To reach the face-scan-back-out state manually:
+#   launch → FeaturesIntro → FaceScan → (back gesture) → this screen
+#   The test starts from wherever the app lands after that back-out.
+
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 15000
+
+# CORRECT BEHAVIOR: must see paywall / payment screen
+- assertVisible: "Max Pro"
+
+# CORRECT BEHAVIOR: must NOT see the home dashboard (which only paid users should reach)
+- assertNotVisible: "HABITS"
+
+# CORRECT BEHAVIOR: must NOT see bottom tab bar items (Home/Planner/Explore/Coach)
+- assertNotVisible: "Planner"
+- assertNotVisible: "Explore"
+- assertNotVisible: "Coach"
+
+- takeScreenshot: paywall_scan_backout_correct_state

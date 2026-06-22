@@ -627,6 +627,10 @@ async def save_onboarding(
 
     # Update onboarding data (normalize body metrics to chosen unit system)
     onboarding_data = data.model_dump()
+    # Strip server-owned entitlement keys — marketplace access is derived from
+    # the Purchase table, never from a client-supplied onboarding field (P0-1).
+    for _entitlement_key in ("entered_maxxes", "entered_courses"):
+        onboarding_data.pop(_entitlement_key, None)
     unit = str(onboarding_data.get("unit_system") or "imperial").strip().lower()
     height = onboarding_data.get("height")
     weight = onboarding_data.get("weight")

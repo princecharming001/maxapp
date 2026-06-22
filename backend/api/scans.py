@@ -185,8 +185,7 @@ def _redacted_analysis(analysis: dict) -> dict:
         "overall_score": overall_score,
         "potential_score": pot,
         "scan_summary": a.get("scan_summary") or {"overall_score": overall_score},
-        "umax_metrics": a.get("umax_metrics"),
-        "preview_blurb": a.get("preview_blurb"),
+        # umax_metrics and preview_blurb are premium — omitted for free users (P0-3).
         "psl_rating": {
             "psl_score": overall_score,
             "potential": pot,
