@@ -147,10 +147,11 @@ class ClaudeService:
         max_tokens: int = 1200,
     ) -> str:
         """Single-turn text completion — no history, no coaching context."""
-        if not (getattr(__import__("config", fromlist=["settings"]), "settings").anthropic_api_key or "").strip():
+        from config import settings as _settings
+        if not (_settings.anthropic_api_key or "").strip():
             return ""
         client = self._get_client()
-        model = (getattr(__import__("config", fromlist=["settings"]), "settings").anthropic_model or "claude-haiku-4-5").strip()
+        model = (_settings.anthropic_model or "claude-haiku-4-5").strip()
         kwargs: dict = {
             "model": model,
             "max_tokens": max_tokens,
