@@ -604,7 +604,13 @@ export default function HomeScreen() {
                                         done={done}
                                         busy={busy}
                                         onToggle={() => toggleTodayTask(row)}
-                                        onOpen={() => navigation.navigate('Schedule', { scheduleId: row.scheduleId })}
+                                        onOpen={() => navigation.navigate('TaskGuide', {
+                                            scheduleId: row.scheduleId,
+                                            taskId: row.task_id,
+                                            moduleColor: row.moduleColor,
+                                            moduleLabel: row.moduleLabel,
+                                            done: done,
+                                        })}
                                     />
                                 );
                             })}

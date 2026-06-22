@@ -48,6 +48,7 @@ import FitmaxCalorieLogScreen from '../screens/courses/FitmaxCalorieLogScreen';
 import FitmaxProgressScreen from '../screens/courses/FitmaxProgressScreen';
 import FitmaxModuleScreen from '../screens/courses/FitmaxModuleScreen';
 import TaskDetailScreen from '../screens/task/TaskDetailScreen';
+import TaskGuideScreen from '../screens/task/TaskGuideScreen';
 import TabNavigator from './TabNavigator';
 import LandingScreen from '../screens/onboarding/LandingScreen';
 import LegalDocumentScreen from '../screens/legal/LegalDocumentScreen';
@@ -195,6 +196,7 @@ export function RootNavigator() {
                     <Stack.Screen name="CourseDetail" component={CourseDetailScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="ChapterView" component={ChapterViewScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="Schedule" component={ScheduleScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="TaskGuide" component={TaskGuideScreen} options={{ headerShown: false, presentation: 'modal' }} />
                     <Stack.Screen name="MaxxDetail" component={MaxxDetailScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="MaxDetail" component={MaxDetailScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxPlan" component={FitmaxPlanScreen} options={{ headerShown: false }} />

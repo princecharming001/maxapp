@@ -17,8 +17,9 @@ from models.schedule import (
     AdaptScheduleRequest,
     EditTaskRequest,
 )
-from middleware.auth_middleware import get_current_user
+from middleware.auth_middleware import get_current_user, require_paid_user
 from services.schedule_service import schedule_service, ScheduleLimitError
+from services.task_guide_service import get_task_guide
 from services.schedule_streak import sync_master_schedule_streak
 from models.sqlalchemy_models import User
 from uuid import UUID
@@ -373,6 +374,30 @@ async def adapt_schedule(
         return {"schedule": schedule}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{schedule_id}/tasks/{task_id}/guide")
+async def get_task_guide_endpoint(
+    schedule_id: str,
+    task_id: str,
+    current_user: dict = Depends(require_paid_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return a step-by-step how-to guide for a specific schedule task.
+    Generated once via LLM (grounded on maxx protocols) and cached indefinitely.
+    """
+    try:
+        guide = await get_task_guide(
+            schedule_id=schedule_id,
+            task_id=task_id,
+            user_id=current_user["id"],
+            db=db,
+        )
+        return guide
+    except Exception as e:
+        logger.exception("get_task_guide failed: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to generate task guide")
 
 
 @router.post("/{schedule_id}/stop")

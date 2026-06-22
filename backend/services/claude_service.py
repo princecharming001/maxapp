@@ -140,6 +140,28 @@ class ClaudeService:
                 )
 
 
+    async def simple_completion(
+        self,
+        user_prompt: str,
+        system_prompt: str = "",
+        max_tokens: int = 1200,
+    ) -> str:
+        """Single-turn text completion — no history, no coaching context."""
+        if not (getattr(__import__("config", fromlist=["settings"]), "settings").anthropic_api_key or "").strip():
+            return ""
+        client = self._get_client()
+        model = (getattr(__import__("config", fromlist=["settings"]), "settings").anthropic_model or "claude-haiku-4-5").strip()
+        kwargs: dict = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": user_prompt}],
+        }
+        if system_prompt:
+            kwargs["system"] = system_prompt
+        response = await client.messages.create(**kwargs)
+        return _extract_text(response)
+
+
 def _extract_text(response: anthropic.types.Message) -> str:
     for block in response.content:
         if block.type == "text":

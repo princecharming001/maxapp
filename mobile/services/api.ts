@@ -1935,6 +1935,18 @@ class ApiService {
         return response.data;
     }
 
+    async getTaskGuide(scheduleId: string, taskId: string): Promise<{
+        task_key: string;
+        title: string;
+        overview: string;
+        steps: { n: number; title: string; body: string; tip: string | null }[];
+        duration_minutes: number;
+        why_it_matters: string;
+    }> {
+        const response = await this.client.get(`schedules/${scheduleId}/tasks/${taskId}/guide`);
+        return response.data;
+    }
+
     async getActiveSchedules(): Promise<{ count: number; labels: string[]; max: number }> {
         const response = await this.client.get('schedules/active/all');
         return response.data;
