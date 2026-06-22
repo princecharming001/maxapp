@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
 type AppState = 'guest' | 'unpaid' | 'paid';
@@ -22,7 +22,18 @@ function DevDrawerInner() {
             if (target === 'guest') await logout?.();
             else if (target === 'paid') await fauxSkipSignup?.();
             else await fauxFreshSignup?.();
-        } catch { /* ignore */ }
+        } catch (e: any) {
+            // Don't fail silently — a 404 here means the app is pointed at the
+            // prod backend (faux-signup is gated off there). Surface it so the
+            // button isn't a mystery dead-end. Fix: run a local backend +
+            // mobile/.env.local pointing at it. See that file for details.
+            const status = e?.response?.status;
+            const hint = status === 404
+                ? 'faux-signup is 404 on this backend — point the app at a LOCAL backend (see mobile/.env.local).'
+                : (e?.message ?? 'unknown error');
+            console.warn(`[DevDrawer] switch to "${target}" failed: ${hint}`);
+            Alert.alert('Dev switch failed', hint);
+        }
     }, [currentState, logout, fauxSkipSignup, fauxFreshSignup]);
 
     return (
