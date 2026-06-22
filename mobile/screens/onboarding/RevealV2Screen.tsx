@@ -126,10 +126,10 @@ export default function RevealV2Screen() {
         try {
             await api.saveOnboarding({ ...(ob as any), completed: true });
             await refreshUser();
-            // No max is preset — land on Main (Today), which points to Explore.
+            // Non-paid users must go through Payment before reaching Main.
             const { navigationRef } = require('../../lib/navigationRef');
             setTimeout(() => {
-                if (navigationRef.isReady()) (navigationRef as any).navigate('Main');
+                if (navigationRef.isReady()) (navigationRef as any).navigate('Payment');
             }, 350);
         } catch {
             // On the computer/web dev build the local save can fail (no backend);
@@ -138,7 +138,7 @@ export default function RevealV2Screen() {
             if (Platform.OS === 'web' && __DEV__) {
                 const { navigationRef } = require('../../lib/navigationRef');
                 setTimeout(() => {
-                    if (navigationRef.isReady()) (navigationRef as any).navigate('Main');
+                    if (navigationRef.isReady()) (navigationRef as any).navigate('Payment');
                 }, 350);
             } else {
                 setBusy(false);
@@ -224,16 +224,7 @@ export default function RevealV2Screen() {
                                 variant="glass"
                                 label="Skip for now"
                                 loading={busy}
-                                onPress={async () => {
-                                    // Skip the scan but still surface the paywall — land on
-                                    // Main (so "Skip" on Payment can go back into the app),
-                                    // then present Payment on top.
-                                    await completeOnboarding();
-                                    const { navigationRef } = require('../../lib/navigationRef');
-                                    setTimeout(() => {
-                                        if (navigationRef.isReady()) (navigationRef as any).navigate('Payment');
-                                    }, 450);
-                                }}
+                                onPress={completeOnboarding}
                             />
                         </View>
                     </View>

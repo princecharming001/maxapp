@@ -92,10 +92,10 @@ export function RootNavigator() {
      * from the post-scan flow. Push notifications default to ON for paid users;
      * they can still toggle device-level permissions via OS settings.
      */
-    // Under onboardingV2 the paywall lives in the marketplace: a user who
-    // finished onboarding gets the full app (Main/Today) whether or not they
-    // ever pay. The legacy tier funnel stays intact when the flag is off.
-    const treatAsFull = isPaid || (onboardingV2 && onboardingCompleted);
+    // Gate on paid entitlement ONLY — onboarding completion is not a substitute
+    // for payment. A user who completes onboarding without subscribing stays in
+    // the unpaid stack and must go through Payment to reach Main.
+    const treatAsFull = isPaid;
 
     const initialRoute = !isAuthenticated
         ? 'Login'
@@ -153,8 +153,10 @@ export function RootNavigator() {
                     <Stack.Screen name="Onboarding" component={OnboardingComponent} />
                     <Stack.Screen name="RoutineReveal" component={RevealComponent} />
                     <Stack.Screen name="FeaturesIntro" component={FeaturesIntroScreen} />
-                    <Stack.Screen name="FaceScan" component={FaceScanScreen} />
-                    <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} />
+                    {/* gestureEnabled:false prevents backing out of the scan flow
+                        into a state where the user could circumvent the paywall. */}
+                    <Stack.Screen name="FaceScan" component={FaceScanScreen} options={{ gestureEnabled: false }} />
+                    <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} options={{ gestureEnabled: false }} />
                     <Stack.Screen name="ScanDetail" component={ScanDetailScreen} />
                     <Stack.Screen name="Payment" component={PaymentScreen} />
                     <Stack.Screen name="PaymentThankYou" component={PaymentThankYouScreen} options={{ headerShown: false }} />
