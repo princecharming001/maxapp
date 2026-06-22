@@ -5,8 +5,9 @@ Schedules API - AI-powered personalised schedules for course modules
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_db, get_rds_db
 from models.schedule import (
@@ -19,7 +20,7 @@ from models.schedule import (
 )
 from middleware.auth_middleware import get_current_user, require_paid_user
 from services.schedule_service import schedule_service, ScheduleLimitError
-from services.task_guide_service import get_task_guide
+from services.task_guide_service import get_task_guide, pregenerate_for_schedule
 from services.schedule_streak import sync_master_schedule_streak
 from models.sqlalchemy_models import User
 from uuid import UUID
@@ -30,6 +31,7 @@ router = APIRouter(prefix="/schedules", tags=["Schedules"])
 @router.post("/generate")
 async def generate_schedule(
     data: GenerateScheduleRequest,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     rds_db: AsyncSession = Depends(get_rds_db),
@@ -46,6 +48,12 @@ async def generate_schedule(
             num_days=data.num_days,
             subscription_tier=current_user.get("subscription_tier"),
         )
+        if isinstance(schedule, dict) and schedule.get("id"):
+            background_tasks.add_task(
+                pregenerate_for_schedule,
+                str(schedule["id"]),
+                str(current_user["id"]),
+            )
         return {"schedule": schedule}
     except ScheduleLimitError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -58,6 +66,7 @@ async def generate_schedule(
 @router.post("/generate-maxx")
 async def generate_maxx_schedule(
     data: GenerateMaxxScheduleRequest,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     rds_db: AsyncSession = Depends(get_rds_db),
@@ -77,6 +86,12 @@ async def generate_maxx_schedule(
             height_components=data.height_components,
             subscription_tier=current_user.get("subscription_tier"),
         )
+        if isinstance(schedule, dict) and schedule.get("id"):
+            background_tasks.add_task(
+                pregenerate_for_schedule,
+                str(schedule["id"]),
+                str(current_user["id"]),
+            )
         return {"schedule": schedule}
     except ScheduleLimitError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -187,6 +202,24 @@ async def get_master_schedule(
         today_iso=today,
     )
     return {"days": out, "window_days": days}
+
+
+@router.post("/admin/guides/backfill")
+async def backfill_task_guides(
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: warm the task_guides cache for all active schedules in the background."""
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    rows = await db.execute(
+        text("SELECT id, user_id FROM user_schedules WHERE status = 'active'")
+    )
+    schedules = rows.fetchall()
+    for sid, uid in schedules:
+        background_tasks.add_task(pregenerate_for_schedule, str(sid), str(uid))
+    return {"queued": len(schedules)}
 
 
 @router.get("/{schedule_id}")
@@ -360,6 +393,7 @@ async def update_preferences(
 async def adapt_schedule(
     schedule_id: str,
     data: AdaptScheduleRequest,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -370,6 +404,11 @@ async def adapt_schedule(
             schedule_id=schedule_id,
             db=db,
             feedback=data.feedback,
+        )
+        background_tasks.add_task(
+            pregenerate_for_schedule,
+            schedule_id,
+            str(current_user["id"]),
         )
         return {"schedule": schedule}
     except ValueError as e:

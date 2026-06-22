@@ -43,30 +43,34 @@ function ScanCenterButton() {
         <TouchableOpacity
             onPress={() => scanNav.navigate('FaceScan')}
             style={scanBtnStyles.touch}
-            activeOpacity={0.75}
+            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Scan"
         >
             <View style={scanBtnStyles.circleWrap}>
-                {/* Strong frost — the substrate that gives glass its depth */}
+                {/* Minimal blur — keeps it clear, not frosted */}
                 <BlurView
-                    intensity={Platform.OS === 'ios' ? 65 : 80}
-                    tint="light"
+                    intensity={Platform.OS === 'ios' ? 14 : 30}
+                    tint="extraLight"
                     style={StyleSheet.absoluteFill}
                     experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
                 />
-                {/* Gradient specular: bright at the top, fading out by mid-circle.
-                    This is the key visual difference between "frosted" and "glass" —
-                    real glass catches the light unevenly. */}
+                {/* Top specular — the primary glass cue: bright crescent at the crown */}
                 <LinearGradient
-                    colors={['rgba(255,255,255,0.54)', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0)']}
-                    locations={[0, 0.52, 1]}
+                    colors={['rgba(255,255,255,0.96)', 'rgba(255,255,255,0.42)', 'rgba(255,255,255,0)']}
+                    locations={[0, 0.36, 0.72]}
                     style={StyleSheet.absoluteFill}
                     pointerEvents="none"
                 />
-                <Ionicons name="scan" size={24} color="#111113" />
-                {/* Slow shimmer sweep — subtle life without being distracting */}
-                <ShineOverlay width={62} intensity={0.13} period={5800} />
+                {/* Bottom depth shadow — makes the circle feel like a convex lens */}
+                <LinearGradient
+                    colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.07)']}
+                    locations={[0.48, 1]}
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                />
+                <Ionicons name="scan" size={20} color="rgba(17,17,19,0.72)" />
+                <ShineOverlay width={44} intensity={0.22} period={4800} />
             </View>
         </TouchableOpacity>
     );
@@ -81,14 +85,14 @@ const scanBtnStyles = StyleSheet.create({
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.07)',
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(255,255,255,0.75)',
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.92)',
         shadowColor: '#111113',
-        shadowOpacity: 0.12,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 4,
+        shadowOpacity: 0.1,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 3,
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
 });

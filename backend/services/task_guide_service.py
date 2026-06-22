@@ -26,6 +26,7 @@ Returns:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -206,6 +207,8 @@ CREATE TABLE IF NOT EXISTS task_guides (
 """
 
 _TABLE_READY = False
+# In-flight guard: prevents concurrent LLM calls for the same task key.
+_IN_FLIGHT: set[str] = set()
 
 
 async def _ensure_table(db: AsyncSession) -> None:
@@ -241,6 +244,80 @@ async def _cache_set(task_key: str, payload: dict, db: AsyncSession) -> None:
         {"k": task_key, "p": json.dumps(payload)},
     )
     await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Pre-generation — called as a BackgroundTask after schedule create/adapt
+# ---------------------------------------------------------------------------
+
+async def pregenerate_for_schedule(schedule_id: str, user_id: str) -> None:
+    """
+    Warm the task_guides cache for every distinct task in a schedule.
+    Opens its own DB session so it is safe to run after the request session
+    has been closed (FastAPI BackgroundTask context).
+    """
+    try:
+        from db import AsyncSessionLocal
+        async with AsyncSessionLocal() as db:
+            await _ensure_table(db)
+            row = await db.execute(
+                text(
+                    "SELECT days, maxx_id FROM user_schedules "
+                    "WHERE id = :sid AND user_id = :uid"
+                ),
+                {"sid": schedule_id, "uid": user_id},
+            )
+            sched = row.fetchone()
+            if not sched:
+                return
+            days, maxx_id = sched[0] or [], sched[1]
+
+            # Collect distinct tasks (deduplicated by normalised cache key)
+            seen: set[str] = set()
+            to_warm: list[dict] = []
+            for day in days:
+                for task in day.get("tasks", []):
+                    title = task.get("title", "")
+                    if not title:
+                        continue
+                    key = _normalise_key(title, maxx_id)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    to_warm.append({"key": key, "task": task})
+
+            if not to_warm:
+                return
+
+            logger.info("[task_guide] pre-generating %d tasks for schedule %s", len(to_warm), schedule_id)
+            sem = asyncio.Semaphore(3)
+
+            async def _warm(item: dict) -> None:
+                key: str = item["key"]
+                task: dict = item["task"]
+                if key in _IN_FLIGHT:
+                    return
+                cached = await _cache_get(key, db)
+                if cached:
+                    return
+                _IN_FLIGHT.add(key)
+                try:
+                    async with sem:
+                        title = task.get("title", "")
+                        desc = task.get("description", "")
+                        dur = int(task.get("duration_minutes") or 5)
+                        guide = await _generate_guide(title, desc, maxx_id, dur)
+                        guide["duration_minutes"] = guide.get("duration_minutes") or dur
+                        await _cache_set(key, guide, db)
+                        logger.info("[task_guide] pre-generated: %s", key)
+                except Exception as e:
+                    logger.warning("[task_guide] pregenerate failed for %s: %s", key, e)
+                finally:
+                    _IN_FLIGHT.discard(key)
+
+            await asyncio.gather(*[_warm(item) for item in to_warm])
+    except Exception as e:
+        logger.warning("[task_guide] pregenerate_for_schedule(%s) failed: %s", schedule_id, e)
 
 
 # ---------------------------------------------------------------------------
