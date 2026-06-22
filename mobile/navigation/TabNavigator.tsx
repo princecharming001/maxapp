@@ -3,6 +3,8 @@ import { StyleSheet, Platform, View, Text, TouchableOpacity, Modal } from 'react
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import ShineOverlay from '../components/ShineOverlay';
 import { colors, spacing, shadows, fonts, borderRadius } from '../theme/dark';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,24 +43,30 @@ function ScanCenterButton() {
         <TouchableOpacity
             onPress={() => scanNav.navigate('FaceScan')}
             style={scanBtnStyles.touch}
-            activeOpacity={0.8}
+            activeOpacity={0.75}
             accessibilityRole="button"
             accessibilityLabel="Scan"
         >
-            {/* Clear, frosted-glass scan button (Apple-style): a translucent
-                squircle with a real blur, a hairline white rim and a soft drop
-                shadow. The icon stays ink-dark for contrast against the light
-                frost. overflow:hidden clips the blur to the circle. */}
             <View style={scanBtnStyles.circleWrap}>
+                {/* Strong frost — the substrate that gives glass its depth */}
                 <BlurView
-                    intensity={Platform.OS === 'ios' ? 36 : 60}
+                    intensity={Platform.OS === 'ios' ? 65 : 80}
                     tint="light"
-                    style={scanBtnStyles.blur}
+                    style={StyleSheet.absoluteFill}
                     experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
-                >
-                    <View style={scanBtnStyles.sheen} />
-                    <Ionicons name="scan" size={23} color="#111113" />
-                </BlurView>
+                />
+                {/* Gradient specular: bright at the top, fading out by mid-circle.
+                    This is the key visual difference between "frosted" and "glass" —
+                    real glass catches the light unevenly. */}
+                <LinearGradient
+                    colors={['rgba(255,255,255,0.54)', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0)']}
+                    locations={[0, 0.52, 1]}
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                />
+                <Ionicons name="scan" size={24} color="#111113" />
+                {/* Slow shimmer sweep — subtle life without being distracting */}
+                <ShineOverlay width={62} intensity={0.13} period={5800} />
             </View>
         </TouchableOpacity>
     );
@@ -67,28 +75,21 @@ function ScanCenterButton() {
 const scanBtnStyles = StyleSheet.create({
     touch: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     circleWrap: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        marginTop: -18,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.07)',
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(255,255,255,0.65)',
-        backgroundColor: 'rgba(255,255,255,0.16)',
+        borderColor: 'rgba(255,255,255,0.75)',
         shadowColor: '#111113',
-        shadowOpacity: 0.18,
-        shadowRadius: 14,
-        shadowOffset: { width: 0, height: 6 },
-        elevation: 8,
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 4,
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
-    },
-    blur: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    // Faint top-down highlight so the glass catches light like an iOS control.
-    sheen: {
-        position: 'absolute',
-        top: 0, left: 0, right: 0,
-        height: '52%',
-        backgroundColor: 'rgba(255,255,255,0.28)',
     },
 });
 
