@@ -42,9 +42,25 @@ async def send_test_message(
     request: TestMessageRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Send a test message to verify Sendblue is working."""
+    """Send a test message — destination locked to the caller's own phone number
+    to prevent arbitrary SMS delivery to third-party numbers (P0-8)."""
+    caller_phone = (current_user.get("phone_number") or "").strip()
+    if not caller_phone:
+        raise HTTPException(
+            status_code=400,
+            detail="No phone number on your account. Add one in Settings first.",
+        )
+    # Strip non-digit chars for comparison (E.164 vs local format both work)
+    def _digits(s: str) -> str:
+        return "".join(c for c in s if c.isdigit())
+
+    if _digits(request.phone) != _digits(caller_phone):
+        raise HTTPException(
+            status_code=403,
+            detail="Test messages can only be sent to your own phone number.",
+        )
     success = await sendblue_service.send_whatsapp(
-        request.phone,
+        caller_phone,
         "🧪 Test from Max — Sendblue iMessage/SMS is connected. ✅",
     )
     if not success:

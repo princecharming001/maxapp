@@ -602,8 +602,7 @@ async def google_signin_dev(payload: dict, db: AsyncSession = Depends(get_db)):
     """DEV-ONLY: exercise the exact find-or-create + token path WITHOUT a real
     Google token, so the identity flow is testable before OAuth client IDs are
     provisioned. Disabled in production."""
-    if str(settings.app_env or "").strip().lower() == "production":
-        raise HTTPException(status_code=404, detail="Not found")
+    _block_in_production()  # parity with faux-signup endpoints (P0-7)
     email = str(payload.get("email") or "").strip().lower()
     if not email or "@" not in email:
         raise HTTPException(status_code=422, detail="email required")

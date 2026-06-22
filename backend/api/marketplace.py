@@ -860,7 +860,14 @@ async def enter(
         await db.commit()
         return {"entered": False, "checkout_url": session.url, "item_id": item_id}
 
-    # Stub capture (no Stripe configured): grant directly, record the purchase.
+    # Stub capture (no Stripe configured): only permitted in dev/test — in
+    # production a missing Stripe key must not silently grant free entitlements
+    # (P0-6 from the production audit).
+    if settings.is_production:
+        raise HTTPException(
+            status_code=503,
+            detail="Payment provider not configured. Contact support.",
+        )
     await fulfill_marketplace_purchase(db, str(uid), item_id, "stub", None)
     return {"entered": True, "item_id": item_id, "kind": "course" if is_course else "maxx"}
 
