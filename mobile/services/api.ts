@@ -150,6 +150,9 @@ function getExpoDevBundlerHost(): string | null {
  * - Web localhost: match page hostname (localhost vs 127.0.0.1) for PNA / cookies.
  * - Web on LAN IP: point API at same host as the page (phone browser → Mac).
  * - Native dev: if .env is still loopback, use Metro’s dev-machine IP (physical iPhone).
+ *   If Metro host detection fails on a real device, fall back to the production URL so
+ *   the app is never silently dead (SDK 54 dev client doesn’t expose debuggerHost outside
+ *   Expo Go when npx expo start is run without --lan).
  */
 function resolveApiBaseUrl(): string {
     const envValue = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
@@ -157,21 +160,24 @@ function resolveApiBaseUrl(): string {
     // would silently point the app at localhost and every request would fail.
     if (!envValue && !__DEV__) {
         throw new Error(
-            'EXPO_PUBLIC_API_BASE_URL is not set for this production build. ' +
-            'Configure it in the EAS build profile before shipping.'
+            ‘EXPO_PUBLIC_API_BASE_URL is not set for this production build. ‘ +
+            ‘Configure it in the EAS build profile before shipping.’
         );
     }
-    const fromEnv = envValue || 'http://localhost:8000/api/';
+    const fromEnv = envValue || ‘http://localhost:8000/api/’;
 
-    if (__DEV__ && Platform.OS !== 'web' && envTargetsLoopback(fromEnv)) {
+    if (__DEV__ && Platform.OS !== ‘web’ && envTargetsLoopback(fromEnv)) {
         const devHost = getExpoDevBundlerHost();
         if (devHost) {
             const next = replaceUrlHostname(fromEnv, devHost);
-            if (__DEV__) {
-                console.log(`[Max] API base ${next} (dev host from Metro; .env used loopback)`);
-            }
+            console.log(`[Max] API → ${next} (LAN swap; Metro host detected)`);
             return next;
         }
+        // Metro host not available (SDK 54 dev client without --lan on a real device).
+        // Fall back to production so the app actually works instead of silently failing.
+        const prodUrl = ‘https://maxapp-api.onrender.com/api/’;
+        console.warn(`[Max] API → ${prodUrl} (loopback fallback; set LAN IP in .env.local or run expo start --lan)`);
+        return prodUrl;
     }
 
     if (Platform.OS === 'web' && typeof window !== 'undefined' && __DEV__) {
