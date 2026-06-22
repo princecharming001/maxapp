@@ -578,7 +578,7 @@ export default function FaceScanScreen() {
                         </TouchableOpacity>
 
                         {/* Shutter — glassy translucent */}
-                        <TouchableOpacity style={styles.shutterOuter} onPress={capture} activeOpacity={0.8}>
+                        <TouchableOpacity style={styles.shutterOuter} onPress={capture} activeOpacity={0.8} accessibilityLabel="Capture photo" accessibilityRole="button">
                             <View style={styles.shutterInner} />
                         </TouchableOpacity>
 

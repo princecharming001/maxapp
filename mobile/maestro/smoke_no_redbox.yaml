@@ -1,0 +1,12 @@
+appId: com.cannon.mobile
+---
+# P0 Smoke: no React Native red box or error overlay on cold launch.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"
+- assertNotVisible: "Invariant Violation"
+- assertNotVisible: "TypeError"
+- takeScreenshot: smoke_no_redbox_pass

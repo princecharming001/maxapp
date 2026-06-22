@@ -1,0 +1,13 @@
+appId: com.cannon.mobile
+---
+# P0 Auth: submitting empty login form shows inline validation error.
+# Precondition: CLEAR_AUTH=1 ./setup_simulator.sh
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "Email or username"
+- tapOn:
+    accessibilityId: "Continue"
+- assertVisible: "Please fill in all fields."
+- takeScreenshot: auth_login_validation_fail

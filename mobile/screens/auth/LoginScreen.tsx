@@ -117,6 +117,7 @@ export default function LoginScreen() {
                             onSubmitEditing={() => passwordRef.current?.focus()}
                             onFocus={() => setFocusedField('id')}
                             onBlur={() => setFocusedField(null)}
+                            testID="email-input"
                         />
 
                         {/* Password */}
@@ -141,6 +142,7 @@ export default function LoginScreen() {
                                 onSubmitEditing={handleLogin}
                                 onFocus={() => setFocusedField('pw')}
                                 onBlur={() => setFocusedField(null)}
+                                testID="password-input"
                             />
                             <TouchableOpacity
                                 style={s.eyeBtn}

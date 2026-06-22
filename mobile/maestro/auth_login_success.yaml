@@ -1,0 +1,23 @@
+appId: com.cannon.mobile
+---
+# P0 Auth: valid credentials navigate away from login screen.
+# Precondition: CLEAR_AUTH=1 ./setup_simulator.sh
+# Env: MAX_TEST_EMAIL and MAX_TEST_PASSWORD must be set in the maestro env or .env.yaml
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "Email or username"
+- tapOn:
+    id: "email-input"
+- inputText: "${MAX_TEST_EMAIL}"
+- tapOn:
+    id: "password-input"
+- inputText: "${MAX_TEST_PASSWORD}"
+- hideKeyboard
+- tapOn:
+    accessibilityId: "Continue"
+- waitForAnimationToEnd:
+    timeout: 15000
+- assertNotVisible: "welcome back"
+- takeScreenshot: auth_login_success

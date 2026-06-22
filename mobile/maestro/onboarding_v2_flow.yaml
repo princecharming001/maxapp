@@ -1,0 +1,12 @@
+appId: com.cannon.mobile
+---
+# P1 Onboarding: V2 step 0 ("What are we working on?") renders without crash.
+# Precondition: logged-in user with onboarding NOT yet completed.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "What are we"
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"
+- takeScreenshot: onboarding_v2_step0_render

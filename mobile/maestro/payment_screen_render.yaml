@@ -1,0 +1,18 @@
+appId: com.cannon.mobile
+---
+# P1 Payment: payment screen renders "Max Pro" heading without crash.
+# Precondition: logged-in user (any tier) — reached via scan results unlock CTA.
+# This flow chains from paywall_scan_unlock_cta.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "Unlock your full results"
+- tapOn:
+    accessibilityId: "Unlock full results"
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertVisible: "Max Pro"
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"
+- takeScreenshot: payment_screen_render_pass

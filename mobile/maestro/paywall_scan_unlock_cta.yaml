@@ -1,0 +1,16 @@
+appId: com.cannon.mobile
+---
+# P0 Paywall: tapping the unlock CTA on scan results navigates to the payment screen.
+# Precondition: logged-in NON-paid user with a completed scan.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "Unlock your full results"
+- tapOn:
+    accessibilityId: "Unlock full results"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "Max Pro"
+- assertNotVisible: "Something went wrong"
+- takeScreenshot: paywall_scan_unlock_cta_pass

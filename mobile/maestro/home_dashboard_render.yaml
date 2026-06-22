@@ -1,0 +1,12 @@
+appId: com.cannon.mobile
+---
+# P1 Home: dashboard renders HABITS section and no red box for an authenticated user.
+# Precondition: logged-in paid (or onboarding-complete) user.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 15000
+- assertVisible: "HABITS"
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"
+- takeScreenshot: home_dashboard_render_pass

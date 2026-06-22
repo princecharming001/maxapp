@@ -54,6 +54,7 @@ function Row({
             activeOpacity={0.5}
             disabled={disabled}
             accessibilityRole="button"
+            accessibilityLabel={label}
         >
             <View style={st.rowBody}>
                 <Text style={[st.rowLabel, labelColor ? { color: labelColor } : undefined]}>{label}</Text>

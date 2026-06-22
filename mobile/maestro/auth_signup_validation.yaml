@@ -1,0 +1,19 @@
+appId: com.cannon.mobile
+---
+# P1 Auth: submitting empty signup form shows an error (not a crash).
+# Precondition: CLEAR_AUTH=1 ./setup_simulator.sh, then navigate to signup.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "welcome back"
+- tapOn:
+    accessibilityId: "create account"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "Create your account"
+- tapOn:
+    accessibilityId: "Continue"
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Invariant Violation"
+- takeScreenshot: auth_signup_validation_pass

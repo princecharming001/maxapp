@@ -1,0 +1,24 @@
+appId: com.cannon.mobile
+---
+# P2 Settings: tapping "Delete account" opens the confirmation modal.
+# Precondition: logged-in user on Settings screen.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 15000
+- tapOn:
+    accessibilityId: "Open profile"
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    accessibilityId: "Settings"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "Delete account"
+- tapOn:
+    accessibilityId: "Delete account"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible: "Delete account"
+- assertNotVisible: "Something went wrong"
+- takeScreenshot: settings_delete_account_modal_pass

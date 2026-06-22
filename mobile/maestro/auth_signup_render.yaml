@@ -1,0 +1,17 @@
+appId: com.cannon.mobile
+---
+# P0 Auth: tapping "create account" navigates to signup and renders the form.
+# Precondition: CLEAR_AUTH=1 ./setup_simulator.sh
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "welcome back"
+- tapOn:
+    accessibilityId: "create account"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "Create your account"
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"
+- takeScreenshot: auth_signup_render_pass

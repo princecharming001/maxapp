@@ -56,7 +56,7 @@ export default function LandingScreen() {
 
                     <View style={styles.signinRow}>
                         <Text style={styles.signinMuted}>Already have an account? </Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('Login')} hitSlop={8} activeOpacity={0.7}>
+                        <TouchableOpacity onPress={() => navigation.navigate('Login')} hitSlop={8} activeOpacity={0.7} accessibilityLabel="Sign in">
                             <Text style={styles.signinLink}>Sign in</Text>
                         </TouchableOpacity>
                     </View>

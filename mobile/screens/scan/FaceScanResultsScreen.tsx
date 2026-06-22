@@ -1365,7 +1365,7 @@ export default function FaceScanResultsScreen() {
                     {/* CTA */}
                     {!viewingHistory ? (
                         <>
-                            <TouchableOpacity style={s.cta} onPress={onPrimaryCta} activeOpacity={0.85}>
+                            <TouchableOpacity style={s.cta} onPress={onPrimaryCta} activeOpacity={0.85} accessibilityLabel="Unlock full results">
                                 <Text style={s.ctaText}>
                                     {isScanUser ? 'Scan Again' : locked ? 'Unlock full results' : postPay ? 'Get started' : 'Continue'}
                                 </Text>
@@ -1414,7 +1414,7 @@ export default function FaceScanResultsScreen() {
                                 : METRICS[expandedIdx].desc}
                         </Text>
                         {locked ? (
-                            <TouchableOpacity style={s.expandedUnlock} onPress={() => { setExpandedIdx(null); goPayment(); }} activeOpacity={0.85}>
+                            <TouchableOpacity style={s.expandedUnlock} onPress={() => { setExpandedIdx(null); goPayment(); }} activeOpacity={0.85} accessibilityLabel="Unlock full results">
                                 <Ionicons name="lock-open-outline" size={15} color="#111111" />
                                 <Text style={s.expandedUnlockText}>Unlock full results</Text>
                             </TouchableOpacity>

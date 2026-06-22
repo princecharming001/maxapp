@@ -1,0 +1,17 @@
+appId: com.cannon.mobile
+---
+# P1 Nav: "Sign in" link on landing screen navigates to login.
+# Precondition: CLEAR_AUTH=1 ./setup_simulator.sh AND no prior onboarding completed
+#               (app must route to Landing, not Login directly).
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "Get started"
+- tapOn:
+    accessibilityId: "Sign in"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "welcome back"
+- assertNotVisible: "Get started"
+- takeScreenshot: nav_landing_to_login_pass

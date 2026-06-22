@@ -1,0 +1,16 @@
+appId: com.cannon.mobile
+---
+# P1 Chat: Coach tab opens and renders the chat input without crashing.
+# Precondition: logged-in paid/onboarding-complete user.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 15000
+- tapOn:
+    text: "Coach"
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertVisible: "Ask Max anything"
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"
+- takeScreenshot: chat_entry_render_pass

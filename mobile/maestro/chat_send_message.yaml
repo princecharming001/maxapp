@@ -1,0 +1,23 @@
+appId: com.cannon.mobile
+---
+# P1 Chat: typing and sending a message shows a user bubble without crashing.
+# Precondition: logged-in paid/onboarding-complete user.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 15000
+- tapOn:
+    text: "Coach"
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertVisible: "Ask Max anything"
+- tapOn:
+    text: "Ask Max anything"
+- inputText: "Hello Max"
+- tapOn:
+    accessibilityId: "Send"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "Hello Max"
+- assertNotVisible: "Something went wrong"
+- takeScreenshot: chat_send_message_pass

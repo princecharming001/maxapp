@@ -1,0 +1,12 @@
+appId: com.cannon.mobile
+---
+# P0 Paywall: soft-gate audit — unpaid user who completed onboarding reaches full app.
+# Precondition: logged-in NON-paid user with onboarding.completed=true in DB.
+# This test PASSING is the FINDING (soft-gate bypass via RootNavigator.tsx:98).
+# After the fix (splitting entitlement from onboardingCompleted), invert to assertNotVisible.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "HABITS"
+- takeScreenshot: paywall_onboarding_bypass_found_gap

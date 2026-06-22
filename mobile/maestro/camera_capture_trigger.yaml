@@ -1,0 +1,21 @@
+appId: com.cannon.mobile
+---
+# P1 Scan: tapping the shutter button does not crash the app.
+# Precondition: camera permission granted on the simulator for com.cannon.mobile.
+# The shutter tap will fail to actually capture on a sim (no camera hardware),
+# but the app must not crash — the error path must be handled gracefully.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 15000
+- tapOn:
+    accessibilityId: "Scan"
+- waitForAnimationToEnd:
+    timeout: 8000
+- tapOn:
+    accessibilityId: "Capture photo"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Invariant Violation"
+- takeScreenshot: camera_capture_trigger_pass

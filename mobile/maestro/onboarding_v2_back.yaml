@@ -1,0 +1,16 @@
+appId: com.cannon.mobile
+---
+# P2 Onboarding: back navigation on step 0 does not crash (can't go further back).
+# Precondition: logged-in user with onboarding NOT completed.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "What are we"
+- tapOn:
+    accessibilityId: "Back"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Invariant Violation"
+- takeScreenshot: onboarding_v2_back_pass

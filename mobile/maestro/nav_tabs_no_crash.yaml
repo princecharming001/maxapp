@@ -1,0 +1,31 @@
+appId: com.cannon.mobile
+---
+# P1 Nav: tapping each bottom tab does not crash the app.
+# Precondition: logged-in paid/onboarding-complete user (full app access).
+# newNav=false → tabs are: Home / Planner / Scan / Explore / Coach
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 15000
+- assertVisible: "HABITS"
+- tapOn:
+    text: "Planner"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertNotVisible: "Something went wrong"
+- tapOn:
+    text: "Explore"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertNotVisible: "Something went wrong"
+- tapOn:
+    text: "Coach"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertNotVisible: "Something went wrong"
+- tapOn:
+    text: "Home"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "HABITS"
+- takeScreenshot: nav_tabs_no_crash_pass

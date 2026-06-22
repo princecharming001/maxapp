@@ -1,0 +1,16 @@
+appId: com.cannon.mobile
+---
+# P1 Scan: tapping the Scan tab button launches the face scan flow without crash.
+# Precondition: logged-in user (any tier). Camera permission must be granted on simulator.
+# NOTE: The Scan tab uses a custom tabBarButton (ScanCenterButton) with accessibilityLabel="Scan".
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 15000
+- tapOn:
+    accessibilityId: "Scan"
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"
+- takeScreenshot: camera_scan_entry_pass

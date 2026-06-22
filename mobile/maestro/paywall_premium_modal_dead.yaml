@@ -1,0 +1,14 @@
+appId: com.cannon.mobile
+---
+# P2 Paywall: PremiumGateModal never appears for any user (dead code audit).
+# RootNavigator.tsx TabNavigator has showGate never set true — this test
+# confirms the modal is permanently absent. If it ever appears, it's a regression.
+# Precondition: logged-in NON-paid user with onboarding NOT completed.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 15000
+- assertNotVisible: "Go Pro"
+- assertNotVisible: "Upgrade to Pro"
+- assertNotVisible: "Premium"
+- takeScreenshot: paywall_premium_modal_dead_pass

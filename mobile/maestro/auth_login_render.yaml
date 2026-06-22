@@ -1,0 +1,19 @@
+appId: com.cannon.mobile
+---
+# P0 Auth: login screen renders all required elements for a logged-out user.
+# Precondition: CLEAR_AUTH=1 ./setup_simulator.sh (logged-out cold start)
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "max"
+- assertVisible: "welcome back"
+- assertVisible: "Email or username"
+- assertVisible: "Password"
+- assertVisible: "Continue"
+- assertVisible: "Continue with Google"
+- assertVisible: "Continue with Apple"
+- assertVisible: "create account"
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"
+- takeScreenshot: auth_login_render_pass

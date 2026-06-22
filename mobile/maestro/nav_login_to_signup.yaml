@@ -1,0 +1,16 @@
+appId: com.cannon.mobile
+---
+# P0 Nav: "create account" link on login screen navigates to signup screen.
+# Precondition: CLEAR_AUTH=1 ./setup_simulator.sh
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "welcome back"
+- tapOn:
+    accessibilityId: "create account"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "Create your account"
+- assertNotVisible: "welcome back"
+- takeScreenshot: nav_login_to_signup_pass

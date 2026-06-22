@@ -1,0 +1,14 @@
+appId: com.cannon.mobile
+---
+# P0 Paywall: scan results hard-gate — free user sees locked state, not scores.
+# Precondition: logged-in NON-paid user with a completed scan in the backend fixture.
+# This test PASSING confirms the hard gate (FaceScanResultsScreen treatAsPaid check) works.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertVisible: "Your Analysis"
+- assertVisible: "Unlock your full results"
+- assertNotVisible: "Rating"
+- assertNotVisible: "Something went wrong"
+- takeScreenshot: paywall_scan_locked_free_pass

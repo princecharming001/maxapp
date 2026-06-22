@@ -1,0 +1,15 @@
+appId: com.cannon.mobile
+---
+# P2 Profile: profile screen renders without crash when opened from home.
+# Precondition: logged-in paid/onboarding-complete user.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 15000
+- tapOn:
+    accessibilityId: "Open profile"
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Error"
+- takeScreenshot: profile_render_pass

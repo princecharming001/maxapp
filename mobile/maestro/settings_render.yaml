@@ -1,0 +1,20 @@
+appId: com.cannon.mobile
+---
+# P2 Settings: settings screen renders with "Settings" header and "Delete account" row.
+# Precondition: logged-in user. Navigate via profile icon → settings gear.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 15000
+- tapOn:
+    accessibilityId: "Open profile"
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    accessibilityId: "Settings"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "Settings"
+- assertVisible: "Delete account"
+- assertNotVisible: "Something went wrong"
+- takeScreenshot: settings_render_pass
