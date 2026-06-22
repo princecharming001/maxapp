@@ -26,8 +26,8 @@ import {
     ActivityIndicator,
     RefreshControl,
     Linking,
-    Alert,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';

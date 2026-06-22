@@ -6,11 +6,11 @@ import {
     TouchableOpacity,
     TextInput,
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

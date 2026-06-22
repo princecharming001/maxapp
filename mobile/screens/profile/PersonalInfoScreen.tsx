@@ -6,11 +6,11 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   useWindowDimensions,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';

@@ -7,11 +7,11 @@ import {
     TouchableOpacity,
     Pressable,
     Platform,
-    Alert,
     TextInput,
     ActivityIndicator,
     Keyboard,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';

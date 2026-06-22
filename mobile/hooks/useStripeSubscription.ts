@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
-import { Alert, AppState, Platform } from 'react-native';
+import { AppState, Platform } from 'react-native'
+import { Alert } from '../components/InAppAlert';
 import { useStripe } from '@stripe/stripe-react-native';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';

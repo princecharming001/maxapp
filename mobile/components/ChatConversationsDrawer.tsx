@@ -27,7 +27,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Animated,
     Modal,
     Platform,
@@ -38,7 +37,8 @@ import {
     TextInput,
     TouchableOpacity,
     View,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from './InAppAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';

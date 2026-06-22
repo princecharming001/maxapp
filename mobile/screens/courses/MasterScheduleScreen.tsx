@@ -7,9 +7,9 @@ import {
   TouchableOpacity,
   RefreshControl,
   Platform,
-  Alert,
   useWindowDimensions,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 import { CachedImage } from '../../components/CachedImage';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';

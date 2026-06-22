@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, NativeSyntheticEvent, TextInputKeyPressEventData, Alert, AppState } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, NativeSyntheticEvent, TextInputKeyPressEventData, AppState } from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';

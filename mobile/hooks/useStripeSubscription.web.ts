@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
+import {  } from 'react-native'
+import { Alert } from '../components/InAppAlert';
 
 type Tier = 'basic' | 'premium';
 

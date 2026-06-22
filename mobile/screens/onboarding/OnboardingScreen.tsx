@@ -24,7 +24,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Alert,
     Animated,
     Easing,
     PanResponder,
@@ -34,7 +33,8 @@ import {
     TouchableOpacity,
     View,
     type LayoutChangeEvent,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';

@@ -13,10 +13,10 @@ import {
     FlatList,
     Pressable,
     Platform,
-    Alert,
     ActivityIndicator,
     KeyboardAvoidingView,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';

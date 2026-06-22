@@ -22,7 +22,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -32,7 +31,8 @@ import {
   Animated,
   LayoutAnimation,
   UIManager,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 
 // Smooth the pill width change (short → full day name) on Android.
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {

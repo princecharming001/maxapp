@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native'
+import { Alert } from '../components/InAppAlert';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIAP, ErrorCode, type Purchase, type Product } from 'react-native-iap';
 import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../constants/appleIap';

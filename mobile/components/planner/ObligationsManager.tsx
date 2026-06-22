@@ -25,8 +25,8 @@ import {
   Platform,
   KeyboardAvoidingView,
   useWindowDimensions,
-  Alert,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../InAppAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../../theme/dark';

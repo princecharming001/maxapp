@@ -6,11 +6,11 @@ import {
     TouchableOpacity,
     TextInput,
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     RefreshControl,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';

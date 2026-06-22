@@ -17,11 +17,11 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    Alert,
     Image,
     Platform,
     ActivityIndicator,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';

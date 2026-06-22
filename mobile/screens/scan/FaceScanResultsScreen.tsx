@@ -11,12 +11,12 @@ import {
     Easing,
     LayoutChangeEvent,
     Share,
-    Alert,
     AppState,
     BackHandler,
     useWindowDimensions,
     Pressable,
-} from 'react-native';
+} from 'react-native'
+import { Alert } from '../../components/InAppAlert';
 import Svg, { Circle } from 'react-native-svg';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';

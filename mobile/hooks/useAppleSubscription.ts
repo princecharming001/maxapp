@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native'
+import { Alert } from '../components/InAppAlert';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 

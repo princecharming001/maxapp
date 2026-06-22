@@ -19,6 +19,7 @@ import { navigationRef } from './lib/navigationRef';
 import { colors } from './theme/dark';
 import MaxLoadingView from './components/MaxLoadingView';
 import { StripeProviderGate } from './components/StripeProviderGate';
+import { InAppAlertHost } from './components/InAppAlert';
 import DevDrawer from './components/DevDrawer';
 import { TamaguiProvider } from 'tamagui';
 import tamaguiConfig from './tamagui.config';
@@ -324,6 +325,9 @@ export default function App() {
                                 <AuthProvider>
                                     <AppNavigator />
                                 </AuthProvider>
+                                {/* In-app alert host — renders Alert.alert() prompts as
+                                    on-brand modals instead of the native OS dialog. */}
+                                <InAppAlertHost />
                             </View>
                         </SafeAreaProvider>
                     </QueryClientProvider>

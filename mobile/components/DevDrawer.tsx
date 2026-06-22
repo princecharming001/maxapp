@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Alert } from './InAppAlert';
 import { useAuth } from '../context/AuthContext';
 
 type AppState = 'guest' | 'unpaid' | 'paid';
