@@ -62,6 +62,8 @@ function signupErrorMessage(error: any): string {
         return msg || 'Could not create account';
     }
 
+    if ((res?.status ?? 0) >= 500) return 'Something went wrong on our end. Please try again in a moment.';
+
     const d = res?.data?.detail;
     if (typeof d === 'string') return d;
     if (Array.isArray(d) && d.length) return friendlyValidation(d).message;
@@ -140,7 +142,7 @@ export default function SignupScreen() {
         try {
             const nameParts = firstName.trim().split(/\s+/);
             const fn = nameParts[0] || firstName.trim();
-            const ln = nameParts.slice(1).join(' ');
+            const ln = nameParts.slice(1).join(' ') || fn;
             await signup(email, password, fn, ln, username, undefined);
         } catch (error: any) {
             setFieldErrorMessages({});
