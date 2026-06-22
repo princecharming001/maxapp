@@ -22,7 +22,6 @@ import { GlassButton } from '../../components/glass/GlassButton';
 import RevealChoreography, { type RevealRow } from '../../components/reveal/RevealChoreography';
 import { useFlag } from '../../constants/featureFlags';
 import { useAuth } from '../../context/AuthContext';
-import { getIosApnsDeviceTokenForBackend } from '../../services/registerIosPushToken';
 import { track } from '../../lib/analytics';
 import api from '../../services/api';
 
@@ -78,7 +77,7 @@ export default function RevealV2Screen() {
     const insets = useSafeAreaInsets();
     const { user, refreshUser } = useAuth();
     const faceScanEnabled = useFlag('faceScan');
-    const [phase, setPhase] = useState<'reveal' | 'notifications' | 'scan'>('reveal');
+    const [phase, setPhase] = useState<'reveal' | 'scan'>('reveal');
     const [revealSettled, setRevealSettled] = useState(false);
     const [busy, setBusy] = useState(false);
     const [saveError, setSaveError] = useState(false);
@@ -148,25 +147,6 @@ export default function RevealV2Screen() {
         }
     };
 
-    const enableNotifications = async () => {
-        setBusy(true);
-        try {
-            if (Platform.OS === 'ios') {
-                const token = await getIosApnsDeviceTokenForBackend();
-                if (token) await api.registerPushToken(token).catch(() => {});
-            }
-        } finally {
-            setBusy(false);
-            // When the face-scan feature is off, the scan phase is unreachable —
-            // finish onboarding directly instead of advancing into it.
-            if (faceScanEnabled) {
-                setPhase('scan');
-            } else {
-                void completeOnboarding();
-            }
-        }
-    };
-
     return (
         <ScreenBackdrop style={{ backgroundColor: '#F1F1EF' }}>
             <ScrollView
@@ -208,34 +188,10 @@ export default function RevealV2Screen() {
                                 variant="primary"
                                 label={taskCount === 0 ? 'Continue' : 'Looks right'}
                                 disabled={taskCount > 0 && !revealSettled}
-                                onPress={() => setPhase('notifications')}
-                            />
-                        </View>
-                    </>
-                ) : null}
-
-                {phase === 'notifications' ? (
-                    <View style={{ flex: 1, justifyContent: 'center' }}>
-                        <Text style={styles.kicker}>ONE THING</Text>
-                        <Text style={styles.title}>Want Max to remind{'\n'}you at your times?</Text>
-                        <Text style={styles.sub}>
-                            A few quiet nudges a day, at the moments you set. No spam.
-                        </Text>
-                        <View style={{ gap: 10, marginTop: 28 }}>
-                            <GlassButton
-                                variant="primary"
-                                label="Turn on reminders"
-                                loading={busy}
-                                onPress={enableNotifications}
-                            />
-                            <GlassButton
-                                variant="glass"
-                                label="Not now"
-                                loading={!faceScanEnabled && busy}
                                 onPress={() => (faceScanEnabled ? setPhase('scan') : completeOnboarding())}
                             />
                         </View>
-                    </View>
+                    </>
                 ) : null}
 
                 {phase === 'scan' ? (
