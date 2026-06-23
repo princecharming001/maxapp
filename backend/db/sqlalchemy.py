@@ -53,20 +53,29 @@ def _connection_mode() -> str:
 def _supabase_connect_args() -> dict:
     """asyncpg connect args. Statement cache MUST be disabled through any
     Supabase pooler host (PgBouncer/Supavisor) or prepared statements break."""
+    host = (getattr(settings, "supabase_db_host", "") or "").lower()
+    port = getattr(settings, "supabase_db_port", 5432)
+    through_pooler = "pooler.supabase" in host or port == 6543
+
+    server_settings = {"application_name": "maxapp_backend"}
+    # CRITICAL: Supabase's Supavisor pooler only permits a whitelist of startup
+    # parameters. Sending `search_path` in the asyncpg startup packet makes the
+    # pooler CLOSE the connection immediately — surfacing as
+    # "connection was closed in the middle of operation" on the FIRST query, which
+    # silently breaks every DB call (login/signup included) in production.
+    # The DB role already defaults search_path to `public, extensions` (so pgvector's
+    # `vector` type still resolves unqualified), so we only set it as a startup param
+    # on a DIRECT connection — never through Supavisor.
+    if not through_pooler:
+        server_settings["search_path"] = "public,extensions"
+
     args: dict = {
         "timeout": 10,
         "command_timeout": 15,
         "ssl": "require",
-        "server_settings": {
-            "application_name": "maxapp_backend",
-            # Force `extensions` onto search_path so pgvector's `vector` type resolves
-            # unqualified. Supabase installs the extension into `extensions`, not `public`,
-            # and the default role search_path doesn't include it.
-            "search_path": "public,extensions",
-        },
+        "server_settings": server_settings,
     }
-    host = (getattr(settings, "supabase_db_host", "") or "").lower()
-    if "pooler.supabase" in host or getattr(settings, "supabase_db_port", 5432) == 6543:
+    if through_pooler:
         args["statement_cache_size"] = 0
     return args
 
