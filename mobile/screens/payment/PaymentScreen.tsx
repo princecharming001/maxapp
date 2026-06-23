@@ -183,15 +183,17 @@ export default function PaymentScreen() {
                 style={StyleSheet.absoluteFill}
             />
 
-            {/* ── Skip ─────────────────────────────────────────────── */}
-            <TouchableOpacity
-                style={[s.skip, { top: Math.max(insets.top + 8, 52) }]}
-                onPress={() => navigation.goBack()}
-                activeOpacity={0.7}
-                hitSlop={12}
-            >
-                <Text style={s.skipText}>Skip</Text>
-            </TouchableOpacity>
+            {/* ── Skip (DEV-only — real users can't bypass the paywall) ── */}
+            {SHOW_DEV_BYPASS && (
+                <TouchableOpacity
+                    style={[s.skip, { top: Math.max(insets.top + 8, 52) }]}
+                    onPress={() => navigation.goBack()}
+                    activeOpacity={0.7}
+                    hitSlop={12}
+                >
+                    <Text style={s.skipText}>Skip</Text>
+                </TouchableOpacity>
+            )}
 
             {/* ── Content column ───────────────────────────────────── */}
             <View style={[s.content, { paddingTop: Math.max(insets.top + 16, 60), paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
