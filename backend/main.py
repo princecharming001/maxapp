@@ -12,6 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from contextlib import asynccontextmanager
 import os
 import traceback
+import logging
 
 from config import settings
 from db import init_db, close_db, init_rds_db, close_rds_db
@@ -231,8 +232,11 @@ async def health_check():
         db_ok = False
         logging.getLogger(__name__).warning("health check DB probe failed: %s", e)
 
-    body = {"status": "healthy" if db_ok else "degraded", "build": "20260505a", "db": db_ok}
-    return JSONResponse(status_code=200 if db_ok else 503, content=body)
+    # Liveness, not readiness: always 200 while the process is up so a transient
+    # DB blip can't fail a deploy or crash-loop the instance under Render's health
+    # check. DB connectivity is reported in the body for observability.
+    body = {"status": "healthy" if db_ok else "degraded", "build": "20260622a", "db": db_ok}
+    return JSONResponse(status_code=200, content=body)
 
 
 if __name__ == "__main__":
