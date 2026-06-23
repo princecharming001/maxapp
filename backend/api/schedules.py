@@ -435,7 +435,7 @@ async def get_task_guide_endpoint(
         )
         return guide
     except Exception as e:
-        logger.exception("get_task_guide failed: %s", e)
+        logging.getLogger(__name__).exception("get_task_guide failed: %s", e)
         raise HTTPException(status_code=500, detail="Failed to generate task guide")
 
 
