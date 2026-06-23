@@ -17,6 +17,29 @@ import { useAuth } from '../../context/AuthContext';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import { fonts } from '../../theme/dark';
 
+// ─── Error helper ─────────────────────────────────────────────────────────────
+// Never echo a raw backend `detail` blindly — on a 5xx that string can be a raw
+// SQL / asyncpg stack trace. Map by shape: no response = network/timeout,
+// 5xx = our problem, otherwise show the (clean) detail like "Incorrect login".
+
+function loginErrorMessage(error: any): string {
+    const res = error?.response;
+    if (!res) {
+        const msg = String(error?.message || '');
+        const isTimeout = error?.code === 'ECONNABORTED' || /timeout/i.test(msg);
+        if (isTimeout || /Network Error|Failed to fetch|ECONNREFUSED|ENOTFOUND/i.test(msg)) {
+            return "Can't reach the server. Check your connection and try again in a moment.";
+        }
+        return 'Could not sign in. Please try again.';
+    }
+    const status = res?.status ?? 0;
+    if (status >= 500) return "We're having trouble reaching our servers. Please try again in a moment.";
+    const d = res?.data?.detail;
+    if (typeof d === 'string' && d) return d;
+    if (Array.isArray(d) && d.length && typeof d[0]?.msg === 'string') return 'Please check your details and try again.';
+    return 'Invalid credentials';
+}
+
 // ─── Palette ──────────────────────────────────────────────────────────────────
 
 const WHITE = '#FFFFFF';
@@ -64,8 +87,7 @@ export default function LoginScreen() {
         try {
             await login(identifier.trim(), password);
         } catch (error: any) {
-            const msg = error.response?.data?.detail || 'Invalid credentials';
-            setApiError(typeof msg === 'string' ? msg : 'Invalid credentials');
+            setApiError(loginErrorMessage(error));
         } finally {
             setLoading(false);
         }

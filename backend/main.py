@@ -120,19 +120,58 @@ class PrivateNetworkAccessMiddleware(BaseHTTPMiddleware):
 app.add_middleware(PrivateNetworkAccessMiddleware)
 
 
+_DB_CONN_ERROR_HINTS = (
+    "ConnectionDoesNotExist",
+    "connection was closed",
+    "connection is closed",
+    "ConnectionRefused",
+    "CannotConnectNow",
+    "TooManyConnections",
+    "InterfaceError",
+    "OperationalError",
+    "connection rejected",
+    "the database system is",
+)
+
+
+def _looks_like_db_outage(exc: Exception) -> bool:
+    """A dropped/unreachable Postgres connection should read as a transient
+    503 (try again), not a generic 500 — and never leak the raw SQL."""
+    blob = f"{type(exc).__name__}: {exc}"
+    return any(hint.lower() in blob.lower() for hint in _DB_CONN_ERROR_HINTS)
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Catch unhandled exceptions and return JSON with CORS headers."""
+    """Catch unhandled exceptions and return JSON with CORS headers.
+
+    Internal error text (stack traces, raw SQL, asyncpg messages) is NEVER
+    returned to clients in production — only when debug is on AND we are not in
+    a real deployment. This closes the info-disclosure where a DB outage echoed
+    the full failing SQL back to the app."""
     origin = request.headers.get("origin", "*")
+    headers = {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+    }
     if settings.debug:
         traceback.print_exc()
+
+    # A database connectivity failure is transient infrastructure, not a client
+    # mistake — surface it as 503 so the app can show "try again" and retry.
+    if _looks_like_db_outage(exc):
+        print(f"[DB][OUTAGE] {type(exc).__name__}: {str(exc)[:200]}")
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "We're having trouble reaching our servers. Please try again in a moment."},
+            headers=headers,
+        )
+
+    expose = settings.debug and not settings.is_production
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc) if settings.debug else "Internal server error"},
-        headers={
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Credentials": "true",
-        },
+        content={"detail": str(exc) if expose else "Internal server error"},
+        headers=headers,
     )
 
 
