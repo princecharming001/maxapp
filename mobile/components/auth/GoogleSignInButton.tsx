@@ -172,6 +172,63 @@ function DevGoogleButton({ label, variant }: { label: string; variant?: 'solid' 
     );
 }
 
+/** Native iOS Google Sign-In via @react-native-google-signin.
+ *
+ *  expo-auth-session's web `id_token` flow is rejected by Google for iOS OAuth
+ *  clients ("Access blocked: Authorization Error / invalid_request") — iOS
+ *  clients can't do the implicit id_token flow. The native SDK runs Google's
+ *  proper iOS flow and returns an ID token directly, which our backend verifies
+ *  the same way. The module is loaded lazily so web never touches the native code. */
+function NativeGoogleButton({ cfg, label, variant }: { cfg: Cfg; label: string; variant?: 'solid' | 'glass' }) {
+    const { signInWithGoogle } = useAuth();
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        try {
+            const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+            GoogleSignin.configure({
+                iosClientId: cfg.ios || undefined,
+                webClientId: cfg.web || undefined,
+                scopes: ['openid', 'email', 'profile'],
+            });
+        } catch {
+            setError('Google sign-in is unavailable on this build.');
+        }
+    }, [cfg.ios, cfg.web]);
+
+    const onPress = async () => {
+        setError(null);
+        setBusy(true);
+        try {
+            const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+            await GoogleSignin.hasPlayServices();
+            const res: any = await GoogleSignin.signIn();
+            // v13+ returns { type, data: { idToken } }; older returns { idToken }.
+            if (res?.type === 'cancelled') { setBusy(false); return; }
+            const idToken = res?.data?.idToken ?? res?.idToken;
+            if (!idToken) {
+                setError('Google did not return a token. Try again.');
+                setBusy(false);
+                return;
+            }
+            await signInWithGoogle(idToken);
+        } catch (e: any) {
+            const msg = String(e?.message || '');
+            const code = String(e?.code || '');
+            if (/cancel/i.test(msg) || code === 'SIGN_IN_CANCELLED' || code === '-5') {
+                setBusy(false);
+                return;
+            }
+            setError("Couldn't sign in with Google. Try again.");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return <ButtonShell label={label} busy={busy} error={error} variant={variant} onPress={onPress} />;
+}
+
 export function GoogleSignInButton({ label, variant }: { label?: string; variant?: 'solid' | 'glass' }) {
     const [cfg, setCfg] = useState<Cfg | null>(null);
 
@@ -185,7 +242,12 @@ export function GoogleSignInButton({ label, variant }: { label?: string; variant
 
     const text = label || 'Continue with Google';
     if (cfg === null) return null;                  // config still loading
-    if (cfg.available) return <RealGoogleButton cfg={cfg} label={text} variant={variant} />;
+    if (cfg.available) {
+        // iOS: native SDK (reliable id_token). Web/other: expo-auth-session flow.
+        return Platform.OS === 'ios'
+            ? <NativeGoogleButton cfg={cfg} label={text} variant={variant} />
+            : <RealGoogleButton cfg={cfg} label={text} variant={variant} />;
+    }
     if (__DEV__) return <DevGoogleButton label={text} variant={variant} />;
     return null;                                     // unconfigured in prod: hide
 }

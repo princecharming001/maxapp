@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cannon.mobile",
-      "buildNumber": "316",
+      "buildNumber": "317",
       "entitlements": {
         "aps-environment": "production"
       },
@@ -27,13 +27,6 @@
         "NSPhotoLibraryAddUsageDescription": "Max saves your face scan from results to your photo library when you choose Save to photos.",
         "UIBackgroundModes": [
           "remote-notification"
-        ],
-        "CFBundleURLTypes": [
-          {
-            "CFBundleURLSchemes": [
-              "com.googleusercontent.apps.459211330867-j5tppv11imgt45uiunbbpg1d9hplbh0o"
-            ]
-          }
         ]
       }
     },
@@ -89,7 +82,13 @@
           "enableGooglePay": true
         }
       ],
-      "react-native-iap"
+      "react-native-iap",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.459211330867-j5tppv11imgt45uiunbbpg1d9hplbh0o"
+        }
+      ]
     ],
     "newArchEnabled": true,
     "scheme": "cannon",
