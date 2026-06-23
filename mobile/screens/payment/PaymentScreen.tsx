@@ -43,7 +43,7 @@ const MUTED    = 'rgba(255,255,255,0.52)';
 const PLAN_BG  = 'rgba(18,16,13,0.60)';      // plan container
 const PLAN_SEL = 'rgba(255,255,255,0.12)';   // selected option inner highlight
 
-const HERO = require('../../assets/landing-hero.webp');
+const HERO = require('../../assets/paywall-hero.webp');
 
 const IS_IOS = Platform.OS === 'ios';
 const SHOW_DEV_BYPASS = __DEV__;
