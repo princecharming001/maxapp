@@ -250,7 +250,7 @@ export default function ProfileScreen() {
     const insets = useSafeAreaInsets();
     const { width: winWidth } = useWindowDimensions();
     const imageModalWidth = getImageModalWidth(winWidth);
-    const { user, refreshUser, isPaid } = useAuth();
+    const { user, refreshUser, isPaid, isPremium } = useAuth();
     // Face-scan kill switch: hides the FACE SCORE card / scan entry points.
     const maxxesQuery = useMaxxesQuery();
     const schedulesFullQuery = useActiveSchedulesFullQuery();
@@ -662,6 +662,11 @@ export default function ProfileScreen() {
                             }}
                             onScanDay={() => navigation.navigate('FaceScan')}
                         />
+                        {isPaid && !isPremium && (
+                            <Text style={p.chadliteNote}>
+                                Snap photos any day, they track here. A daily face rating is a Chad feature.
+                            </Text>
+                        )}
                     </View>
 
                     {/* ── Trophy Case (achievements) ─────────────────── */}
@@ -759,12 +764,20 @@ export default function ProfileScreen() {
                                     style={{ width: imageModalWidth, height: imageModalWidth * (4 / 3) }}
                                     contentFit="contain"
                                 />
-                                {progressPhotos[selectedPhotoIndex].face_rating != null &&
-                                Number.isFinite(Number(progressPhotos[selectedPhotoIndex].face_rating)) ? (
-                                    <Text style={styles.progressModalRatingBadge}>
-                                        {formatFaceRatingLabel(Number(progressPhotos[selectedPhotoIndex].face_rating))}
-                                    </Text>
-                                ) : null}
+                                {/* Daily face rating is a Chad (premium) feature.
+                                    ChadLite still keeps the photo, just no score. */}
+                                {isPremium
+                                    ? (progressPhotos[selectedPhotoIndex].face_rating != null &&
+                                        Number.isFinite(Number(progressPhotos[selectedPhotoIndex].face_rating)) ? (
+                                            <Text style={styles.progressModalRatingBadge}>
+                                                {formatFaceRatingLabel(Number(progressPhotos[selectedPhotoIndex].face_rating))}
+                                            </Text>
+                                        ) : null)
+                                    : (
+                                        <Text style={styles.progressModalRatingLocked}>
+                                            Daily rating · Chad only
+                                        </Text>
+                                    )}
                             </View>
                         )}
                         {progressPhotos[selectedPhotoIndex] && (
@@ -1094,6 +1107,14 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: colors.accent,
     },
+    chadliteNote: {
+        fontFamily: fonts.sans,
+        fontSize: 12.5,
+        color: MUTE,
+        lineHeight: 18,
+        marginTop: 12,
+        paddingHorizontal: 2,
+    },
 
     // ── Score (flat, card-less) ──────────────────────────────────────────
     scoreRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
@@ -1395,6 +1416,19 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: colors.card,
         backgroundColor: 'rgba(10, 10, 10, 0.5)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: borderRadius.sm,
+        overflow: 'hidden',
+    },
+    progressModalRatingLocked: {
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        fontSize: 11,
+        fontWeight: '600',
+        color: 'rgba(255,255,255,0.82)',
+        backgroundColor: 'rgba(10, 10, 10, 0.45)',
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: borderRadius.sm,
