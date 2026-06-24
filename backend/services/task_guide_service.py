@@ -88,22 +88,29 @@ def _protocol_grounding(maxx_id: Optional[str], task_title: str, task_descriptio
 # LLM prompt + call
 # ---------------------------------------------------------------------------
 
-_SYSTEM = """You are Max's step-by-step guide writer. When given a habit task, you output a
-JSON guide that breaks it into 3-5 clear, actionable steps a real person can follow.
+_SYSTEM = """You are Max's step-by-step guide writer. Given a habit task, output a JSON
+guide that breaks it into 3-5 simple, do-this-now steps a real person can follow, plus
+the products they need. Keep it plain and practical, not fancy.
 
 RULES:
-- Steps must be concrete and specific (what product, how long, what motion, etc.)
-- Titles are short (2-5 words), body is 1-3 sentences, tip is optional 1 sentence
-- overview and why_it_matters are 1-2 sentences each, conversational, like a friend
-- Return ONLY valid JSON matching the schema below — no markdown, no prose before/after
-- duration_minutes should reflect actual time to complete (not the schedule slot duration)
-- Never fabricate product names not in the protocol reference; use generic terms otherwise
+- Steps are concrete: what to do, how long, what motion/amount. 1-2 sentences each.
+- Titles short (2-5 words). tip is optional (1 short sentence) or null.
+- "products" lists what they need to do this task: 1-4 items, each {name, note}.
+  Use generic names (e.g. "gentle cleanser", "vitamin C serum") unless the protocol
+  reference names a specific one. note is a few words on what it's for. Empty list [] if
+  the task needs no products (e.g. a stretch, a walk).
+- overview and why_it_matters: 1-2 sentences each, conversational, like a friend.
+- Return ONLY valid JSON matching the schema. No markdown, no prose around it.
+- duration_minutes = actual time to complete.
 
 JSON SCHEMA (return exactly this shape):
 {
   "overview": "string",
   "steps": [
     { "n": 1, "title": "string", "body": "string", "tip": "string or null" }
+  ],
+  "products": [
+    { "name": "string", "note": "string" }
   ],
   "duration_minutes": 5,
   "why_it_matters": "string"
@@ -130,15 +137,24 @@ Return the JSON guide with 3-5 steps."""
 
     raw = ""
     try:
+        # Hard timeout so a slow/hung provider can NEVER leave the client stuck on
+        # "Preparing your guide…" — fall through to OpenAI, then the grounded
+        # fallback, fast.
         from services.claude_service import claude_service
-        raw = await claude_service.simple_completion(user_prompt, system_prompt=_SYSTEM, max_tokens=1200)
+        raw = await asyncio.wait_for(
+            claude_service.simple_completion(user_prompt, system_prompt=_SYSTEM, max_tokens=900),
+            timeout=22,
+        )
     except Exception as e:
-        logger.warning("Claude simple_completion failed (%s); trying openai fallback", e)
+        logger.warning("Claude guide gen failed/timed out (%s); trying openai fallback", e)
         try:
             from services.openai_service import openai_service
-            raw = await openai_service.completion_text(_SYSTEM + "\n\n" + user_prompt)
+            raw = await asyncio.wait_for(
+                openai_service.completion_text(_SYSTEM + "\n\n" + user_prompt),
+                timeout=22,
+            )
         except Exception as e2:
-            logger.warning("OpenAI completion_text also failed: %s", e2)
+            logger.warning("OpenAI guide gen also failed/timed out: %s", e2)
 
     if not raw:
         # Minimal safe fallback
@@ -164,6 +180,17 @@ def _validate(guide: dict) -> None:
     for s in guide["steps"]:
         assert isinstance(s.get("title"), str), "step missing title"
         assert isinstance(s.get("body"), str), "step missing body"
+    # products is optional — normalize to a clean list so the client always has
+    # the key (never KeyError on a guide cached before products existed).
+    prods = guide.get("products")
+    if not isinstance(prods, list):
+        guide["products"] = []
+    else:
+        guide["products"] = [
+            {"name": str(p.get("name", "")).strip(), "note": str(p.get("note", "")).strip()}
+            for p in prods
+            if isinstance(p, dict) and str(p.get("name", "")).strip()
+        ]
 
 
 def _fallback_guide(title: str, description: str, duration_minutes: int) -> dict:
@@ -189,6 +216,7 @@ def _fallback_guide(title: str, description: str, duration_minutes: int) -> dict
                 "tip": None,
             },
         ],
+        "products": [],
         "duration_minutes": duration_minutes or 5,
         "why_it_matters": "Building this habit consistently compounds into real results over time.",
     }

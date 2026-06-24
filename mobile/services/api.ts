@@ -1946,6 +1946,7 @@ class ApiService {
         title: string;
         overview: string;
         steps: { n: number; title: string; body: string; tip: string | null }[];
+        products?: { name: string; note: string }[];
         duration_minutes: number;
         why_it_matters: string;
     }> {

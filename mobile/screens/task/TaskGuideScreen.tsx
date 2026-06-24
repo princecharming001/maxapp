@@ -315,6 +315,7 @@ export default function TaskGuideScreen() {
                         title={guide.title}
                         overview={guide.overview}
                         duration={guide.duration_minutes}
+                        products={guide.products ?? []}
                         accent={accent}
                         scrollX={scrollX}
                         onNext={() => goToPage(1)}
@@ -356,9 +357,10 @@ export default function TaskGuideScreen() {
 // ── IntroPage ──────────────────────────────────────────────────────────────
 
 function IntroPage({
-    width, title, overview, duration, accent, scrollX, onNext,
+    width, title, overview, duration, products, accent, scrollX, onNext,
 }: {
     width: number; title: string; overview: string; duration: number;
+    products: { name: string; note: string }[];
     accent: string; scrollX: SharedValue<number>; onNext: () => void;
 }) {
     const heroStyle = useAnimatedStyle(() => ({
@@ -385,6 +387,21 @@ function IntroPage({
                 <Text style={ip.title}>{title}</Text>
                 <Text style={ip.overview}>{overview}</Text>
 
+                {products.length > 0 && (
+                    <View style={ip.products}>
+                        <Text style={ip.productsLabel}>WHAT YOU'LL NEED</Text>
+                        {products.map((p, i) => (
+                            <View key={`${p.name}-${i}`} style={ip.productRow}>
+                                <View style={[ip.productDot, { backgroundColor: accent }]} />
+                                <Text style={ip.productText}>
+                                    <Text style={ip.productName}>{p.name}</Text>
+                                    {p.note ? <Text style={ip.productNote}>{`  ·  ${p.note}`}</Text> : null}
+                                </Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
                 <View style={ip.durationRow}>
                     <Ionicons name="time-outline" size={14} color={MUTE} />
                     <Text style={ip.durationText}>{duration} min</Text>
@@ -406,6 +423,13 @@ const ip = StyleSheet.create({
     kicker: { fontFamily: fonts.sansBold, fontSize: 10, color: MUTE, letterSpacing: 2, marginBottom: 12 },
     title: { fontFamily: fonts.serif, fontSize: 38, color: INK, lineHeight: 44, letterSpacing: -1, marginBottom: 18 },
     overview: { fontFamily: fonts.sans, fontSize: 16, color: '#555', lineHeight: 24 },
+    products: { marginTop: 22, gap: 9 },
+    productsLabel: { fontFamily: fonts.sansBold, fontSize: 10, color: MUTE, letterSpacing: 2, marginBottom: 4 },
+    productRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    productDot: { width: 6, height: 6, borderRadius: 3 },
+    productText: { flex: 1, fontFamily: fonts.sans, fontSize: 14.5, color: INK, lineHeight: 20 },
+    productName: { fontFamily: fonts.sansMedium, color: INK },
+    productNote: { fontFamily: fonts.sans, color: MUTE },
     durationRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 16 },
     durationText: { fontFamily: fonts.sansMedium, fontSize: 13, color: MUTE },
     nextBtn: {
