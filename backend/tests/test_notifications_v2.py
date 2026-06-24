@@ -4,6 +4,7 @@ Covers success criteria 1-3, 5, 8, 9, 11 deterministically. Broadcast/admin
 (criterion 4) is covered in test_admin_notifications.py.
 """
 
+import os
 import re
 
 import pytest
@@ -116,6 +117,25 @@ def test_task_due_deeplinks_to_specific_task():
 
 def test_milestone_routes_to_achievements():
     assert compose(CAT_MILESTONE, **SAMPLE)["route"] == "Achievements"
+
+
+def test_mobile_allowlist_covers_every_backend_route():
+    """Guard against the backend route map and the mobile App.tsx deep-link
+    allow-list drifting apart — a route emitted by the server but missing from
+    App.tsx would silently fail to deep-link (criterion 6)."""
+    app_tsx = os.path.join(os.path.dirname(__file__), "..", "..", "mobile", "App.tsx")
+    if not os.path.exists(app_tsx):
+        pytest.skip("mobile/App.tsx not present in this checkout")
+    with open(app_tsx, "r", encoding="utf-8") as f:
+        src = f.read()
+    m = re.search(r"NOTIFICATION_DEEP_LINK_ROUTES\s*=\s*new Set<string>\(\[(.*?)\]\)", src, re.S)
+    assert m, "could not find NOTIFICATION_DEEP_LINK_ROUTES in App.tsx"
+    mobile_routes = set(re.findall(r"['\"]([A-Za-z]+)['\"]", m.group(1)))
+    # Every route the backend can emit must be handled by the mobile app.
+    backend_routes = {compose(c, **SAMPLE)["route"] for c in ALL_CATEGORIES}
+    missing = backend_routes - mobile_routes
+    assert not missing, f"App.tsx is missing deep-link routes the backend emits: {missing}"
+    assert backend_routes <= DEEP_LINK_ROUTES
 
 
 # --- planner: cap, priority, window, interval, dedup --------------------------
