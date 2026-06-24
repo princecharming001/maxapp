@@ -24,6 +24,7 @@ import {
     Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
@@ -282,8 +283,14 @@ export default function MaxDetailScreen() {
             track('enter', { item: item.id, kind: item.native ? 'maxx' : 'course' });
             setItem({ ...item, entered: true });
             if (isCourse) goToSchedule(); else goToChat(item.id);
-        } catch {
-            // keep page open; user can retry
+        } catch (e: any) {
+            // Slot cap reached or a Max is still in its weekly lock — the backend
+            // sends a clear 409 message; surface it instead of silently failing.
+            const detail = e?.response?.data?.detail;
+            const msg = typeof detail === 'string' && detail
+                ? detail
+                : "Couldn't add this Max right now. Please try again.";
+            Alert.alert('Max slots', msg);
         } finally {
             setBusy(false);
         }

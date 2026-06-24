@@ -31,7 +31,43 @@ from services.maxx_guidelines import get_maxx_guideline
 
 router = APIRouter(prefix="/marketplace", tags=["Marketplace"])
 
-MAXX_PRICE_CENTS = 399  # $3.99 / week per maxx
+# Native maxes are INCLUDED in the subscription — no per-max charge. How many a
+# user can run at once is the plan benefit instead: ChadLite (basic) = 2, Chad
+# (premium) = 3. Creator maxes/courses are still paid and do NOT count here.
+MAXX_PRICE_CENTS = 0
+_NATIVE_SLOTS_BY_TIER = {"premium": 3, "basic": 2}
+# Once added, a native max is locked on the schedule for a week before it can be
+# swapped out — users commit to a program instead of churning Maxes daily.
+_MAXX_SWAP_LOCK_DAYS = 7
+
+
+def _native_slot_cap(current_user: dict) -> int:
+    """Concurrent native-max slots for this user, by plan. Unpaid = 0."""
+    if not current_user.get("is_paid"):
+        return 0
+    tier = (current_user.get("subscription_tier") or "").strip().lower()
+    return _NATIVE_SLOTS_BY_TIER.get(tier, 2)  # default paid tier = basic (2)
+
+
+def _native_entered_ids(ob: dict) -> list[str]:
+    """Native maxes currently on the user's schedule (excludes creator courses)."""
+    return [m for m in (ob.get("entered_maxxes") or []) if m in _MAXX_DISPLAY]
+
+
+def _maxx_lock_until(ob: dict, maxx_id: str):
+    """The datetime this native max stays swap-locked until, or None if unlocked."""
+    from datetime import datetime, timedelta, timezone
+    at = (ob.get("maxx_entered_at") or {}).get(maxx_id)
+    if not at:
+        return None
+    try:
+        dt = datetime.fromisoformat(at)
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    until = dt + timedelta(days=_MAXX_SWAP_LOCK_DAYS)
+    return until if until > datetime.now(timezone.utc) else None
 
 # Display copy for the native maxes (voice-safe: outcome-first, no body-threat).
 _MAXX_DISPLAY: dict[str, dict[str, str]] = {
@@ -455,9 +491,9 @@ def _maxx_card(maxx_id: str, entered: set[str]) -> dict[str, Any]:
         "tagline": d.get("tagline") or (g.get("description") or ""),
         "icon": d.get("icon"),
         "color": d.get("color"),
-        "price_cents": MAXX_PRICE_CENTS,
-        "price_model": "weekly",
-        "price_label": _price_label(MAXX_PRICE_CENTS, "weekly", None),
+        "price_cents": 0,
+        "price_model": "included",
+        "price_label": "Included",
         "creator": {"name": "Max", "handle": "max", "verified": True},
         "native": True,
         "entered": maxx_id in entered,
@@ -511,9 +547,25 @@ async def browse(
     """
     ob = current_user.get("onboarding") or {}
     entered = set(ob.get("entered_maxxes") or []) | set(ob.get("entered_courses") or [])
+    cap = _native_slot_cap(current_user)
+    used = len(_native_entered_ids(ob))
+
+    def _maxx(mid: str) -> dict[str, Any]:
+        card = _maxx_card(mid, entered)
+        lu = _maxx_lock_until(ob, mid)
+        card["locked_until"] = lu.isoformat() if lu else None
+        return card
+
     return {
-        "maxxes": [_maxx_card(mid, entered) for mid in _MAXX_DISPLAY],
+        "maxxes": [_maxx(mid) for mid in _MAXX_DISPLAY],
         "courses": [_course_card(c, entered) for c in _SEED_COURSES],
+        # Plan benefit: how many native-max slots are used / available.
+        "slots": {
+            "used": used,
+            "cap": cap,
+            "remaining": max(0, cap - used),
+            "plan": "premium" if cap >= 3 else "basic" if cap == 2 else "none",
+        },
     }
 
 
@@ -525,9 +577,17 @@ async def get_item(
 ):
     """Full detail for one marketplace item (browse-before-buy), including the
     rich page content: outcomes, curriculum, instructor bio, reviews and FAQ."""
-    _, entered = await _load_entered(db, _uid(current_user))
+    user, entered = await _load_entered(db, _uid(current_user))
     if item_id in _MAXX_DISPLAY:
-        return {**_maxx_card(item_id, entered), "detail": {**_detail_for(item_id), **_detail_media(item_id, False)}}
+        ob = dict(user.onboarding or {})
+        cap = _native_slot_cap(current_user)
+        lu = _maxx_lock_until(ob, item_id)
+        return {
+            **_maxx_card(item_id, entered),
+            "locked_until": lu.isoformat() if lu else None,
+            "slots": {"used": len(_native_entered_ids(ob)), "cap": cap, "remaining": max(0, cap - len(_native_entered_ids(ob)))},
+            "detail": {**_detail_for(item_id), **_detail_media(item_id, False)},
+        }
     for c in _SEED_COURSES:
         if c["id"] == item_id:
             return {**_course_card(c, entered), "detail": {**_detail_for(item_id), **_detail_media(item_id, True)}}
@@ -537,7 +597,8 @@ async def get_item(
 def _item_meta(item_id: str) -> tuple[bool, int, str, "int | None", str]:
     """(is_course, price_cents, price_model, weeks, title) or raises 404."""
     if item_id in _MAXX_DISPLAY:
-        return False, MAXX_PRICE_CENTS, "weekly", None, _MAXX_DISPLAY[item_id]["label"]
+        # Native max: free + non-expiring ("included"), slot-gated by plan tier.
+        return False, 0, "included", None, _MAXX_DISPLAY[item_id]["label"]
     for c in _SEED_COURSES:
         if c["id"] == item_id:
             return True, int(c["price_cents"]), str(c["price_model"]), c.get("weeks"), c["title"]
@@ -545,12 +606,23 @@ def _item_meta(item_id: str) -> tuple[bool, int, str, "int | None", str]:
 
 
 def _set_entitlement(user: User, item_id: str, is_course: bool, granted: bool) -> None:
+    from datetime import datetime, timezone
     ob = dict(user.onboarding or {})
     key = "entered_courses" if is_course else "entered_maxxes"
     lst = [x for x in (ob.get(key) or []) if x != item_id]
     if granted:
         lst.append(item_id)
     ob[key] = lst
+    # Stamp when a native max was added so the weekly swap-lock has a clock.
+    # setdefault on grant keeps the original time if it's already entered (so a
+    # re-grant / idempotent webhook never resets the lock); pop on removal.
+    if not is_course and item_id in _MAXX_DISPLAY:
+        at = dict(ob.get("maxx_entered_at") or {})
+        if granted:
+            at.setdefault(item_id, datetime.now(timezone.utc).isoformat())
+        else:
+            at.pop(item_id, None)
+        ob["maxx_entered_at"] = at
     user.onboarding = ob  # reassign so SQLAlchemy flushes the JSON change
 
 
@@ -826,6 +898,24 @@ async def enter(
     if item_id in entered:
         return {"entered": True, "item_id": item_id, "kind": "course" if is_course else "maxx"}
 
+    # Native max: included with the plan, gated by tier slot count (not money).
+    if item_id in _MAXX_DISPLAY and not is_course:
+        cap = _native_slot_cap(current_user)
+        if cap <= 0:
+            raise HTTPException(status_code=403, detail="Subscribe to add Maxes to your schedule.")
+        used = len(_native_entered_ids(dict(user.onboarding or {})))
+        if used >= cap:
+            plan = "Chad" if cap >= 3 else "ChadLite"
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"You're using all {cap} of your {plan} Max slots. Swap one out to add this — "
+                    "a Max can be changed after it's been on your schedule for a week."
+                ),
+            )
+        await fulfill_marketplace_purchase(db, str(uid), item_id, "included", None)
+        return {"entered": True, "item_id": item_id, "kind": "maxx"}
+
     if price_cents <= 0:
         # Free course (the inaugural creator course) — grant directly, no checkout.
         await fulfill_marketplace_purchase(db, str(uid), item_id, "free", None)
@@ -890,6 +980,32 @@ async def cancel(
     uid = _uid(current_user)
     user, _ = await _load_entered(db, uid)
     is_course = _item_meta(item_id)[0]
+
+    # Native max: enforce the weekly swap-lock, then just remove it (it's free —
+    # no Stripe subscription to wind down, and "pause" doesn't apply).
+    if item_id in _MAXX_DISPLAY and not is_course:
+        ob = dict(user.onboarding or {})
+        locked_until = _maxx_lock_until(ob, item_id)
+        if locked_until is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"This Max is locked until {locked_until.date().isoformat()}. "
+                    "You can swap it once it's been on your schedule for a week."
+                ),
+            )
+        _set_entitlement(user, item_id, is_course=False, granted=False)
+        for row in (await db.execute(
+            select(Purchase).where(
+                (Purchase.user_id == uid)
+                & (Purchase.item_id == item_id)
+                & (Purchase.status.in_(("active", "paused", "pending")))
+            )
+        )).scalars().all():
+            row.status = "canceled"
+            row.updated_at = datetime.utcnow()
+        await db.commit()
+        return {"status": "removed", "item_id": item_id}
 
     purchase = (await db.execute(
         select(Purchase).where(
