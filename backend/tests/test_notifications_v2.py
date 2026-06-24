@@ -246,6 +246,20 @@ def test_backoff_ignores_tiny_sample():
     assert effective_cap(5, recent_delivered=2, recent_opened=0) == 5
 
 
+# --- kill switch (review item 10) --------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_kill_switch_short_circuits_apns(monkeypatch):
+    """Kill switch suppresses every push at the APNs layer, before any network
+    call — returns (False, None) without attempting delivery."""
+    import services.apns_service as apns
+    monkeypatch.setattr(apns.settings, "notif_kill_switch", True, raising=False)
+    # Even with a token present, nothing is sent.
+    ok, status = await apns.send_apns_alert("deadbeef", "title", "body")
+    assert ok is False and status is None
+
+
 # --- cross-channel dedup (criterion 10): one channel per user -----------------
 
 

@@ -116,6 +116,37 @@ async def test_sms_only_user_gets_sms_not_push(_fast_mode_and_noop_flag):
 
 
 @pytest.mark.asyncio
+async def test_dead_token_pruned_on_410(_fast_mode_and_noop_flag):
+    # APNs rejects an expired/invalid token (410) -> the planner prunes it so it
+    # stops retrying a dead token (review item 10).
+    task = _task()
+    sched = _schedule(task)
+    sched.days[0]["date"] = _fast_mode_and_noop_flag
+    user = _user(push=True)
+    with patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(False, 410))):
+        await _run(user, [sched])
+    assert user.apns_device_token is None
+    assert user.apns_token_updated_at is None
+
+
+@pytest.mark.asyncio
+async def test_kill_switch_suppresses_all_sends(_fast_mode_and_noop_flag, monkeypatch):
+    # Global kill switch pauses ALL outbound pushes instantly (review item 10).
+    monkeypatch.setattr(sj.settings, "notif_kill_switch", True, raising=False)
+    task = _task()
+    sched = _schedule(task)
+    sched.days[0]["date"] = _fast_mode_and_noop_flag
+    user = _user(push=True)
+    with patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))) as push:
+        # send_due_notifications short-circuits before touching the DB.
+        with patch.object(sj, "AsyncSessionLocal") as Session:
+            await sj.send_due_notifications()
+        assert push.await_count == 0
+        # short-circuits before opening a DB session
+        assert Session.call_count == 0
+
+
+@pytest.mark.asyncio
 async def test_already_pushed_task_not_resent(_fast_mode_and_noop_flag):
     task = _task()
     task["notification_sent_push"] = True  # already nudged on push
