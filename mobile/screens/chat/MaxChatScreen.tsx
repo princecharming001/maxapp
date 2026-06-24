@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } from 'expo-audio';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
@@ -491,6 +492,11 @@ export default function MaxChatScreen() {
     /** Voice dictation (Web Speech API on web; keyboard-dictation fallback on native). */
     const [listening, setListening] = useState(false);
     const recognitionRef = useRef<any>(null);
+    // Native voice = record (expo-audio, already in the build) -> Whisper. No new
+    // native module, so this can't break the build; it just won't capture audio
+    // on a simulator (no mic) — needs a real device.
+    const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+    const transcribingRef = useRef(false);
     const initScheduleHandled = useRef(false);
     const initQuestionHandled = useRef<string | null>(null);
     const appStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -994,9 +1000,40 @@ export default function MaxChatScreen() {
     // Web: Web Speech API streams transcript into the input. Native: no STT
     // module is bundled, so focus the field — the keyboard's own mic key is
     // then one tap away.
-    const toggleVoice = () => {
+    const toggleVoice = async () => {
         if (Platform.OS !== 'web') {
-            inputRef.current?.focus();
+            // Native: tap to record, tap again to stop + transcribe (Whisper).
+            if (transcribingRef.current) return;
+            try {
+                if (listening) {
+                    setListening(false);
+                    await audioRecorder.stop();
+                    const uri = audioRecorder.uri;
+                    if (!uri) { inputRef.current?.focus(); return; }
+                    transcribingRef.current = true;
+                    try {
+                        const text = (await api.transcribeAudio(uri)).trim();
+                        if (text) setInput((prev) => (prev ? `${prev} ${text}` : text));
+                        else inputRef.current?.focus();
+                    } catch {
+                        inputRef.current?.focus();
+                    } finally {
+                        transcribingRef.current = false;
+                    }
+                    return;
+                }
+                const { granted } = await requestRecordingPermissionsAsync();
+                if (!granted) { inputRef.current?.focus(); return; }
+                await audioRecorder.prepareToRecordAsync();
+                audioRecorder.record();
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* noop */ }
+                setListening(true);
+            } catch {
+                // Anything off (no mic, denied, module quirk) -> degrade to the
+                // keyboard so the user can still dictate via the OS mic.
+                setListening(false);
+                inputRef.current?.focus();
+            }
             return;
         }
         const w = globalThis as any;
@@ -1216,7 +1253,10 @@ export default function MaxChatScreen() {
                     />
                 )}
 
-                <View style={[styles.outerInputContainer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+                {/* Chat is a TAB screen — the tab bar already owns the bottom
+                    safe-area inset, so adding insets.bottom here double-counts it
+                    and floats the input too high. Just a small gap above the bar. */}
+                <View style={[styles.outerInputContainer, { paddingBottom: spacing.md }]}>
                     {/* Numeric question → slider widget. Mutually exclusive with
                         the quick-reply chip row below: when the backend asks
                         for a number it sends `input_widget`, not `choices`. */}

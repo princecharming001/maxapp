@@ -1421,6 +1421,19 @@ class ApiService {
         return response.data;
     }
 
+    /** Voice dictation: upload a recorded clip, get back the transcript text. */
+    async transcribeAudio(uri: string): Promise<string> {
+        const name = uri.split('/').pop() || 'audio.m4a';
+        const ext = (name.split('.').pop() || 'm4a').toLowerCase();
+        const form = new FormData();
+        form.append('file', { uri, name, type: `audio/${ext === 'caf' ? 'x-caf' : ext}` } as any);
+        const response = await this.client.post('chat/transcribe', form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 60_000,
+        });
+        return (response.data?.text as string) || '';
+    }
+
     /**
      * Apply the chat habit-picker's want/avoid choices to one max's schedule.
      * Writes them into schedule_context and re-expands just that max, so the

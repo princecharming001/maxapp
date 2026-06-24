@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Tuple
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -4400,6 +4400,34 @@ async def _send_message_locked(
         products=products_out,
         conversation_id=conv_id,
     )
+
+
+@router.post("/transcribe")
+async def transcribe_audio(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Voice dictation: the app records a short clip (expo-audio) and posts it
+    here; we transcribe it with OpenAI Whisper and return the text to drop into
+    the composer. Kept simple — no storage, no history."""
+    from config import settings
+    key = (settings.openai_api_key or "").strip()
+    if not key:
+        raise HTTPException(status_code=503, detail="Voice transcription is unavailable right now.")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="No audio received.")
+    import io
+    from openai import AsyncOpenAI
+    buf = io.BytesIO(data)
+    buf.name = file.filename or "audio.m4a"
+    try:
+        client = AsyncOpenAI(api_key=key)
+        tr = await client.audio.transcriptions.create(model="whisper-1", file=buf)
+        return {"text": (getattr(tr, "text", "") or "").strip()}
+    except Exception as e:
+        logger.warning("voice transcribe failed for user %s: %s", current_user.get("id"), e)
+        raise HTTPException(status_code=502, detail="Could not transcribe that. Try again.")
 
 
 @router.post("/trigger-check-in")
