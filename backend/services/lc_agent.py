@@ -19,6 +19,7 @@ LangChain providers (lc_providers.py).
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 import os
 import re
@@ -28,6 +29,83 @@ from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+# Per-turn product sink. recommend_product appends catalog hits here so the
+# chat API can return a STRUCTURED `products` array (name/brand/url/description/
+# image) instead of relying on the LLM to emit well-formed inline markdown
+# links. Reset at the start of each chat turn; read after the agent finishes.
+# A ContextVar keeps it task-local (safe under concurrent requests).
+_products_ctx: contextvars.ContextVar[Optional[list]] = contextvars.ContextVar(
+    "recommended_products", default=None
+)
+
+
+def reset_recommended_products() -> list:
+    """Start a fresh per-turn product sink and return it."""
+    sink: list = []
+    _products_ctx.set(sink)
+    return sink
+
+
+def get_recommended_products() -> list[dict]:
+    """Return the products collected this turn (deduped by url, max 6)."""
+    sink = _products_ctx.get()
+    if not sink:
+        return []
+    seen: set[str] = set()
+    out: list[dict] = []
+    for p in sink:
+        url = (p or {}).get("url") or ""
+        key = url or (p or {}).get("name") or ""
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+        if len(out) >= 6:
+            break
+    return out
+
+
+def _collect_recommended_products(hits: list) -> None:
+    """Append catalog ProductHits to the per-turn sink as card dicts. Live
+    (non-catalog) hits are skipped — they have no curated name/brand/image."""
+    sink = _products_ctx.get()
+    if sink is None:
+        return
+    for h in hits or []:
+        try:
+            if getattr(h, "source", "") != "catalog":
+                continue
+            sink.append({
+                "name": getattr(h, "name", "") or "",
+                "brand": getattr(h, "brand", "") or "",
+                "url": getattr(h, "url", "") or "",
+                "description": getattr(h, "snippet", "") or "",
+                "image": getattr(h, "image", "") or "",
+            })
+        except Exception:
+            continue
+
+
+def record_catalog_products(products: list) -> None:
+    """Append catalog Product objects (resolved from prose mentions by the
+    link validator) to the per-turn sink as card dicts. Called from
+    link_validator so the products we surface as cards are exactly the ones
+    Max named in the message — authoritative name/brand/url + our-words blurb."""
+    sink = _products_ctx.get()
+    if sink is None:
+        return
+    for p in products or []:
+        try:
+            sink.append({
+                "name": getattr(p, "name", "") or "",
+                "brand": getattr(p, "brand", "") or "",
+                "url": getattr(p, "display_url", None) or getattr(p, "url", "") or "",
+                "description": getattr(p, "rationale", "") or "",
+                "image": getattr(p, "image", "") or "",
+            })
+        except Exception:
+            continue
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.messages import BaseMessage
@@ -457,10 +535,16 @@ async def build_agent_system_prompt(
     try:
         if user_context:
             facts_blob = (user_context.get("user_facts")
-                          or (user_context.get("persistent_context") or {}).get("user_facts"))
-            if facts_blob:
-                from services.user_facts_service import format_facts_for_prompt
-                facts_str = format_facts_for_prompt(facts_blob)
+                          or (user_context.get("persistent_context") or {}).get("user_facts")) or {}
+            # Fold in durable onboarding profile facts (wake/sleep, skin/hair
+            # type, equipment, ...) so a fact captured in ANY maxx's setup is
+            # part of KNOWN PROFILE and never re-asked. user_facts wins on
+            # conflict (it reflects the most recent thing the user told chat).
+            from services.user_facts_service import format_facts_for_prompt, facts_from_onboarding
+            ob_facts = facts_from_onboarding((user_context or {}).get("onboarding"))
+            merged_facts = {**ob_facts, **(facts_blob or {})} if (ob_facts or facts_blob) else {}
+            if merged_facts:
+                facts_str = format_facts_for_prompt(merged_facts)
                 if facts_str:
                     # Placement matters for instruction-following. Anchor at top.
                     from services.user_facts_service import DIET_SUBSTITUTIONS
@@ -542,39 +626,68 @@ async def build_agent_system_prompt(
         "silently. Only ask for the new fields specific to the new maxx (e.g. "
         "user has wake=07:00 from hairmax -> don't re-ask it for skinmax).\n"
         "## PRODUCT LINKS: SURFACE PROACTIVELY\n"
+        "EXCEPTION FIRST: if it's a BROAD personal-rec question and you don't yet "
+        "know the fact that decides the pick (skin type, hair type, main concern, "
+        "goal), ASK the clarifying MCQ first (see CLARIFY section) -- do NOT dump a "
+        "covers-everyone routine or recommend products yet. Only surface products "
+        "once you know enough.\n"
         "Be eager, the user shouldn't have to ask. Call "
-        "`recommend_product(module, concern)` and link the results when: "
+        "`recommend_product(module, concern)` when: "
         "(a) they ask for a product/brand/link or 'what should i buy/use/get'; "
         "(b) you name any specific brand/product/supplement (cerave, the "
         "ordinary, niacinamide, creatine, minoxidil) even unasked; (c) your "
         "reply describes a routine with a product category (cleanser, "
         "moisturizer, spf, shampoo, protein, multivitamin), surface 1 pick.\n"
-        "Never say 'i don't have a link' / 'find this online' or any variant. "
-        "If the tool returned products, LINK them.\n"
+        "HOW THE LINKS SHOW UP: the app renders the recommended products as "
+        "tappable preview CARDS under your message automatically -- you do NOT "
+        "paste links. Just mention the product conversationally BY NAME in your "
+        "prose (e.g. 'grab the cerave hydrating cleanser') and let the card carry "
+        "the link.\n"
         "RULES:\n"
-        "1. Quote each catalog link's markdown VERBATIM: "
-        "`[Name](https://www.amazon.com/<Slug>/dp/<ASIN>)`. Never paraphrase or "
-        "alter the URL.\n"
-        "2. NEVER emit a search URL, invent ASINs, or use placeholder URLs "
-        "(`[Name](link)`, `(url)`, `(#)`, `(...)`).\n"
+        "1. NEVER paste a URL or markdown link in your reply. No "
+        "`[Name](https://...)`, no naked amazon.com links, no `(url)`/`(#)`/"
+        "`(...)`. The cards handle all links; a link in your prose is WRONG.\n"
+        "2. Still call recommend_product so the cards populate -- naming the "
+        "product without calling it means no card shows.\n"
         "3. If `recommend_product` returns nothing (rare), give the protocol "
         "with plain ingredient names, no apology.\n"
         "4. Dietary/sensitivity facts already filtered the catalog, trust it.\n"
     )
     chat_prompt += (
         "\n\n## CLARIFY VAGUE QUESTIONS WITH MCQ\n"
-        "When a question is too underspecified to answer well, ask ONE focused "
-        "clarifying question and offer 2-6 short (1-5 word) options via a marker "
-        "at the END of your reply:\n"
-        "  Single-pick (only one answer fits, e.g. skin type, experience level): "
+        "For a BROAD personal-rec question -- 'what should i use/do/take/eat', "
+        "'build me a routine/workout', 'help with my <skin/hair/diet>', 'where do "
+        "i start' -- whose right answer DEPENDS on a fact you don't already have "
+        "from KNOWN PROFILE, do NOT dump a generic protocol. LEAD with ONE focused "
+        "clarifying question + 2-6 short (1-5 word) tappable options via a marker "
+        "at the END of your reply. This takes PRECEDENCE over surfacing products: "
+        "ask first, recommend after they answer. A clarifying question written as "
+        "plain prose with no marker is WRONG -- it MUST be a marker so chips "
+        "render.\n"
+        "  Single-pick (one answer fits, e.g. skin type, experience level): "
         "[CHOICES]option a|option b|option c[/CHOICES]\n"
-        "  Multi-pick (several can apply, e.g. concerns, symptoms, equipment, "
+        "  Multi-pick (several apply, e.g. concerns, symptoms, equipment, "
         "allergies): [CHOICES_MULTI]option a|option b[/CHOICES_MULTI]\n"
+        "CUSTOM ANSWER: add `Something else` as the LAST option ONLY when a real "
+        "answer could fall outside your list (open-ended 'what's bothering you', "
+        "goals, preferences, symptoms) -- the app turns it into a type-your-own "
+        "box. Do NOT add it to closed questions with a fixed set (skin type, "
+        "experience level, biological sex, yes/no, equipment).\n"
         "Examples: 'help with skin' -> 'what's bothering you?' [CHOICES_MULTI]"
-        "acne|dryness|oily|sensitive|redness[/CHOICES_MULTI]  /  'start working "
-        "out' -> 'what do you have access to?' [CHOICES]full gym|home dumbbells|"
-        "bodyweight[/CHOICES]\n"
-        "Skip the marker for questions you can answer directly.\n"
+        "acne|dryness|oily|sensitive|redness|Something else[/CHOICES_MULTI]  /  "
+        "'what skincare should i use' -> 'what's your skin type?' [CHOICES]oily|dry|"
+        "combo|sensitive|not sure[/CHOICES]  /  'start working out' -> 'what do you "
+        "have access to?' [CHOICES]full gym|home dumbbells|bodyweight[/CHOICES]\n"
+        "HARD RULE: if your reply asks the user for a fact (skin type, hair type, "
+        "goal, main concern, equipment, days/week, experience) you MUST attach a "
+        "CHOICES/CHOICES_MULTI marker for THAT question. Asking a fact-question in "
+        "prose with no marker is a failure. 'what skincare should i use' and 'help "
+        "with my hair' are NOT answerable without skin/hair type -- ASK with a "
+        "marker, never give an everyone-routine.\n"
+        "ASK only when you're actually missing the fact you'd need. If KNOWN "
+        "PROFILE already answers it, or it's a SPECIFIC or general-knowledge "
+        "question ('what % niacinamide', 'is creatine safe', 'how much protein per "
+        "day'), answer directly -- NO marker.\n"
     )
     chat_prompt += (
         "\n\n## WEB SEARCH FALLBACK\n"
@@ -1914,6 +2027,9 @@ def make_chat_tools(
                     limit=3,
                 )
                 catalog_block = format_for_prompt(hits)
+                # Stash catalog hits as structured cards for the chat API to
+                # return (authoritative name/brand/url/image + our-words blurb).
+                _collect_recommended_products(hits)
                 source = "catalog" if hits and hits[0].source == "catalog" else (
                     "live" if hits else "none"
                 )

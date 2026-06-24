@@ -119,10 +119,11 @@ def _is_bad_url(url: str) -> bool:
 #  Catalog-link enrichment                                                    #
 # --------------------------------------------------------------------------- #
 
-def _enrich_brand_mentions(text: str, *, max_inserts: int = 4) -> tuple[str, int]:
+def _enrich_brand_mentions(text: str, *, max_inserts: int = 4, matched: Optional[list] = None) -> tuple[str, int]:
     """Where the bot mentioned a catalog product by name without a link,
     append a `(<direct-url>)` next to the FIRST mention. Limited to
-    `max_inserts` to avoid spammy answers."""
+    `max_inserts` to avoid spammy answers. Resolved Products are appended to
+    `matched` (for structured product cards)."""
     try:
         from services.product_catalog import load_catalog
         catalog = load_catalog()
@@ -224,6 +225,8 @@ def _enrich_brand_mentions(text: str, *, max_inserts: int = 4) -> tuple[str, int
             inserts += 1
             seen_ids.add(p.id)
             enriched_candidates.add(matched_label.lower())
+            if matched is not None:
+                matched.append(p)
 
     # Single-token brand fallback: scan for distinctive names ("Differin",
     # "Nizoral", "tretinoin", "creatine") not yet linked. Resolves via
@@ -260,6 +263,8 @@ def _enrich_brand_mentions(text: str, *, max_inserts: int = 4) -> tuple[str, int
                 out = out[: hit.end()] + ins + out[hit.end():]
                 inserts += 1
                 seen_ids.add(resolved.id)
+                if matched is not None:
+                    matched.append(resolved)
 
     return out, inserts
 
@@ -340,7 +345,7 @@ def _strip_bare_urls(text: str) -> tuple[str, int]:
 #  Public entry point                                                         #
 # --------------------------------------------------------------------------- #
 
-def _enrich_category_mentions(text: str, *, max_inserts: int = 2) -> tuple[str, int]:
+def _enrich_category_mentions(text: str, *, max_inserts: int = 2, matched: Optional[list] = None) -> tuple[str, int]:
     """When the bot mentions a product CATEGORY without any specific
     brand (e.g. 'use a moisturizer with ceramides', 'add creatine'),
     surface a single catalog pick for that category as an inline link.
@@ -424,6 +429,8 @@ def _enrich_category_mentions(text: str, *, max_inserts: int = 2) -> tuple[str, 
         link_regions = [(mr.start(), mr.end()) for mr in re.finditer(r"\[[^\]]+\]\([^\)]+\)", out)]
         inserts += 1
         seen_modules.add(module)
+        if matched is not None:
+            matched.append(p)
     return out, inserts
 
 
@@ -444,12 +451,25 @@ def validate_and_rewrite_links(text: str) -> str:
         return text
     original = text
 
+    # Catalog Products resolved from prose mentions this call — handed to the
+    # chat layer (via the per-turn product sink) so they render as preview
+    # cards. The inline links inserted below get stripped from the prose
+    # downstream; the cards carry the links instead.
+    matched: list = []
+
     text, rewrote, stripped = _rewrite_md_links(text)
     text, ph_rewrote, ph_stripped = _rewrite_placeholder_links(text)
     text, bare_stripped = _strip_bare_urls(text)
-    text, enriched = _enrich_brand_mentions(text)
-    text, cat_enriched = _enrich_category_mentions(text)
+    text, enriched = _enrich_brand_mentions(text, matched=matched)
+    text, cat_enriched = _enrich_category_mentions(text, matched=matched)
     enriched += cat_enriched
+
+    if matched:
+        try:
+            from services.lc_agent import record_catalog_products
+            record_catalog_products(matched)
+        except Exception:
+            pass
 
     if rewrote or stripped or ph_rewrote or ph_stripped or bare_stripped or enriched:
         logger.info(

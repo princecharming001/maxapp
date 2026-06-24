@@ -379,13 +379,45 @@ def _strip_ai_leadins(text: str) -> str:
     return out.strip()
 
 
-def _finalize_assistant_message(text: str) -> str:
+# Amazon product links are now carried by structured preview cards (the
+# `products` field), so any inline link the LLM still emits is noise. Strip
+# markdown links and bare URLs that point at amazon.com, plus the old
+# "- Name: https://..." bullet form, leaving just the product name in prose.
+# Non-amazon citations (e.g. one web_search source) are left untouched.
+# The link validator parks resolved catalog links as a parenthesized pill
+# next to the product name: " ([Label](amazon url))". With cards carrying the
+# links now, remove the WHOLE pill (incl. the wrapping parens + leading space)
+# so we don't leave an orphan "(Label)" in the prose.
+_AMZN_PILL_RE = re.compile(r"\s*\(\[[^\]]+\]\((?:https?:)?//?[^)]*amazon\.[^)]+\)\)", re.IGNORECASE)
+_AMZN_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\((https?://[^)]*amazon\.[^)]+)\)", re.IGNORECASE)
+_AMZN_BULLET_RE = re.compile(r"^[-*]\s*.+?:\s*https?://\S*amazon\.\S+\s*$", re.IGNORECASE | re.MULTILINE)
+_AMZN_BARE_URL_RE = re.compile(r"https?://\S*amazon\.\S+", re.IGNORECASE)
+
+
+def _strip_amazon_links(text: str) -> str:
+    if not text or "amazon" not in text.lower():
+        return text
+    out = _AMZN_PILL_RE.sub("", text)          # " ([Label](amazon url))" pill -> gone
+    out = _AMZN_MD_LINK_RE.sub(r"\1", out)     # [label](amazon url) -> label
+    out = _AMZN_BULLET_RE.sub("", out)         # "- Name: amazon url" line -> gone
+    out = _AMZN_BARE_URL_RE.sub("", out)       # leftover bare amazon urls -> gone
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    out = re.sub(r"\s+([,.;:!?])", r"\1", out)
+    out = re.sub(r"[ \t]+\n", "\n", out)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    return out.strip()
+
+
+def _finalize_assistant_message(text: str, *, keep_links: bool = False) -> str:
     """User-facing chat: edge enforcer. Order matters:
        1. Tech-leak scrub (system prompt fragments, kwarg-shapes).
        2. AI-template lead-ins / sign-offs.
        3. Em-dash cap (1 per response, rest become period/comma).
        4. Paragraph-break enforcement on wall-of-text answers.
-       5. Drop markdown asterisks + lowercase to Max voice.
+       5. Strip inline amazon links (cards carry them) — UNLESS keep_links,
+          which the explicit "give me links" fast path sets (its whole answer
+          IS the links, and they're amazon SEARCH links with no catalog card).
+       6. Drop markdown asterisks + lowercase to Max voice.
     """
     if not text:
         return text
@@ -393,6 +425,8 @@ def _finalize_assistant_message(text: str) -> str:
     out = _strip_ai_leadins(out)
     out = _strip_em_dashes(out)
     out = _enforce_paragraph_breaks(out)
+    if not keep_links:
+        out = _strip_amazon_links(out)
     return out.replace("*", "").lower()
 
 
@@ -2313,7 +2347,7 @@ async def process_chat_message(
             await db.commit()
             fast_path_snapshot("links")
             logger.info("[FAST_LINKS] user=%s maxx=%s", str(user_id)[:8], link_maxx[0])
-            return _finalize_assistant_message(link_response), []
+            return _finalize_assistant_message(link_response, keep_links=True), []
 
     if (
         not explicit_schedule_start
@@ -3022,7 +3056,7 @@ Ask ONE question at a time. Your very first response must ask the concern questi
                 db.add(assistant_message)
             await db.commit()
             logger.info("[FAST_LINKS] user=%s maxx=%s", str(user_id)[:8], link_maxx[0])
-            return _finalize_assistant_message(link_response), []
+            return _finalize_assistant_message(link_response, keep_links=True), []
 
     # --- RAG retrieval (legacy agent path only; fast knowledge turns return earlier) ---
     # retrieve_chunks returns [] on any failure, so chat degrades gracefully.
@@ -3252,7 +3286,8 @@ Ask ONE question at a time. Your very first response must ask the concern questi
             logger.warning("schedule mutation guard overridden despite forced adaptation flag")
 
 
-    # --- Enforce lowercase on all AI responses ---
+    # --- Strip inline amazon links (cards carry them) + lowercase ---
+    response_text = _strip_amazon_links(response_text)
     response_text = response_text.lower()
 
     # --- Save messages (app only; SMS is not stored) ---
@@ -3297,6 +3332,117 @@ Ask ONE question at a time. Your very first response must ask the concern questi
     if maxx_id and not existing_maxx:
         choices_out = _quick_replies_from_response(response_text)
     return response_text, choices_out
+
+
+# --------------------------------------------------------------------------- #
+#  Broad-question MCQ gate                                                     #
+# --------------------------------------------------------------------------- #
+# For broad personal-rec openers ("what skincare should i use", "build me a
+# workout", "what should i eat", "help with my hair") whose right answer
+# depends on a fact we don't yet have, the LLM is unreliable at leading with
+# the [CHOICES] marker — gpt-4o-mini often dumps a covers-everyone routine or
+# asks the question in plain prose with no marker. This deterministic gate
+# fires BEFORE the agent and returns a single in-voice clarifying question +
+# canonical chips. It SKIPS when the deciding fact is already known (so we
+# never re-ask) and never matches specific/general-knowledge questions
+# ("what % niacinamide"), so closed answers still flow straight to the agent.
+#
+# `Something else` is appended ONLY to open-ended questions (concern, goal);
+# closed questions (skin type, hair type, equipment) omit it. The mobile chip
+# renderer turns a `Something else` / `Other` chip into a focus-the-input
+# affordance instead of sending it.
+
+_REC_INTENT_RE = re.compile(
+    r"\b(should i (use|do|take|get|buy|try|start|begin)|what should i|what do i|"
+    r"build me|make me|help me|help with|how (do|should|can) i|where (do|should) i (start|begin)|"
+    r"recommend|give me a|set up a|i want to start|i wanna start|i need a|need help|"
+    r"get(ting)? started|where to start|best (routine|products|plan)|"
+    r"what.?s a good|what.?s the best (routine|plan)|start (a )?(routine|plan|working))\b",
+    re.IGNORECASE,
+)
+
+# Each broad domain: when a rec-intent opener mentions the domain but names NO
+# specific within it, the genuinely-missing fact is the user's GOAL/CONCERN —
+# which the opener never includes — so we ask it with canonical chips. If the
+# message already names a specific (acne, bench press, protein...), the agent
+# answers directly instead (no redundant ask), which also preserves the
+# "specific questions answer directly" regression guarantee.
+#   (domain_re, specific_re, question, choices, multi)
+_BROAD_DOMAINS = [
+    (
+        re.compile(r"\b(skin\s*care|skincare|skin|complexion)\b", re.IGNORECASE),
+        re.compile(r"\b(acne|pimple|breakout|blackhead|whitehead|wrinkle|aging|anti.?aging|"
+                   r"fine line|texture|pore|redness|rosacea|dark spot|hyperpigment|pigment|"
+                   r"melasma|dryness|dry skin|oili|blemish|eczema|sunscreen|spf|retinol|"
+                   r"retinoid|tretinoin|moisturiz|cleanser|serum|niacinamide|vitamin c|"
+                   r"exfoliat|dark circle)\b", re.IGNORECASE),
+        "what are you trying to fix?",
+        ["clearer skin", "less acne", "anti-aging", "even texture", "hydration", "Something else"],
+        True,
+    ),
+    (
+        re.compile(r"\b(hair|scalp|hairline|balding|beard)\b", re.IGNORECASE),
+        re.compile(r"\b(thinning|dandruff|dry hair|frizz|growth|grow|minoxidil|finasteride|"
+                   r"shampoo|conditioner|styl|gel|pomade|bald|receding|volume|breakage|"
+                   r"split end|type)\b", re.IGNORECASE),
+        "what's the hair goal?",
+        ["less thinning", "more growth", "dandruff/scalp", "styling", "general health", "Something else"],
+        True,
+    ),
+    (
+        re.compile(r"\b(workout|work out|working out|exercise|lift|lifting|gym|train|"
+                   r"training|get fit|getting fit|fitness)\b", re.IGNORECASE),
+        re.compile(r"\b(bench|squat|deadlift|bicep|chest|back day|leg day|cardio|abs|core|"
+                   r"push|pull|hypertrophy|5x5|ppl|split|marathon|run|hiit|mobility|stretch)\b",
+                   re.IGNORECASE),
+        "what's the main goal?",
+        ["build muscle", "lose fat", "get stronger", "general fitness", "Something else"],
+        False,
+    ),
+    (
+        re.compile(r"\b(eat|diet|nutrition|meal|meals|food|macros)\b", re.IGNORECASE),
+        re.compile(r"\b(protein|carb|keto|vegan|vegetarian|fasting|cut|bulk|recipe|"
+                   r"breakfast|lunch|dinner|snack|sugar)\b", re.IGNORECASE),
+        "what's the goal we're eating for?",
+        ["fat loss", "muscle gain", "more energy", "general health", "Something else"],
+        False,
+    ),
+]
+
+
+async def _broad_question_mcq(
+    user_id: str,
+    message_text: str,
+    db: AsyncSession,
+) -> Optional[Tuple[str, list[str], bool]]:
+    """Return (text, choices, multi) for a broad personal-rec opener that
+    names no specific (so its goal/concern is genuinely missing), else None.
+    Deterministic — guarantees chips for the broad cases the LLM is flaky on."""
+    msg = (message_text or "").strip().lower()
+    if not msg or len(msg) > 160:
+        return None
+
+    # Explicit "skin type" / "hair type" question — closed MCQ, NO custom option.
+    # (Demonstrates closed-question semantics; always returns chips.)
+    if re.search(r"\bskin\s*type\b", msg):
+        return ("got it -- what's your skin type?",
+                ["oily", "dry", "combination", "sensitive", "not sure"], False)
+    if re.search(r"\bhair\s*type\b", msg):
+        return ("what's your hair type?",
+                ["straight", "wavy", "curly", "coily", "not sure"], False)
+    # "what's bothering you about your skin" — open concern MCQ, custom warranted.
+    if re.search(r"\b(bothering|bugging|wrong with|main concern|biggest concern)\b", msg) and \
+       re.search(r"\bskin\b", msg):
+        return ("what's bugging you most about your skin?",
+                ["acne", "dryness", "oiliness", "redness", "texture", "Something else"], True)
+
+    if not _REC_INTENT_RE.search(msg):
+        return None
+
+    for domain_re, specific_re, q, choices, multi in _BROAD_DOMAINS:
+        if domain_re.search(msg) and not specific_re.search(msg):
+            return (q, list(choices), multi)
+    return None
 
 
 async def _handle_context_change(
@@ -3769,6 +3915,7 @@ async def _run_onboarding_questioner(
         # More to ask. Update pending pointer + persist answer.
         new_pending = make_pending(maxx_id, next_field["id"])
         await merge_context(user_id, {**update, "_onboarding_pending": new_pending}, db)
+        await _mirror_intake_to_facts(user_id, update, db)
         payload = field_to_question_payload(next_field)
         return _finish_onboarding_turn(
             "got it. " + payload["text"].lower(),
@@ -3777,6 +3924,7 @@ async def _run_onboarding_questioner(
 
     # All required fields collected → clear pending and generate.
     await merge_context(user_id, {**update, **clear_pending()}, db)
+    await _mirror_intake_to_facts(user_id, update, db)
     try:
         from services.schedule_runtime import generate_and_persist
         result = await generate_and_persist(
@@ -3802,6 +3950,29 @@ async def _run_onboarding_questioner(
     except Exception as e:
         logger.exception("onboarding completion → generate failed: %s", e)
         return f"i collected everything but generation hit a snag: {e}. retry?", [], None
+
+
+async def _mirror_intake_to_facts(user_id: str, update: dict, db: AsyncSession) -> None:
+    """Mirror a per-maxx intake answer into the user_facts blob so it becomes
+    part of KNOWN PROFILE and is never re-asked when the user sets up a
+    different maxx. Profile fields are mapped onto their canonical fact names;
+    everything else is stored under its own key. Internal `_`-prefixed control
+    keys are skipped."""
+    try:
+        from services.user_facts_service import merge_facts, FACTS_KEY, ONBOARDING_FACT_MAP
+        from services.user_context_service import get_context, merge_context
+        facts_update: dict = {}
+        for k, v in (update or {}).items():
+            if not k or k.startswith("_") or v in (None, "", []):
+                continue
+            facts_update[ONBOARDING_FACT_MAP.get(k, k)] = v
+        if not facts_update:
+            return
+        ctx = await get_context(user_id, db)
+        merged = merge_facts(ctx.get(FACTS_KEY) or {}, facts_update)
+        await merge_context(user_id, {FACTS_KEY: merged}, db)
+    except Exception as e:
+        logger.warning("intake->user_facts mirror failed (non-fatal): %s", e)
 
 
 def _finish_onboarding_turn(text: str, payload: dict) -> Tuple[str, list[str], Optional[dict]]:
@@ -4000,8 +4171,12 @@ async def _send_message_locked(
     rds_db: AsyncSession | None,
 ) -> "ChatResponse":
     from services import chat_conversations_service as _conv
+    from services.lc_agent import reset_recommended_products, get_recommended_products
 
     user_id = current_user["id"]
+    # Start a fresh per-turn product sink so recommend_product can hand us
+    # structured catalog cards to return (instead of parsing prose links).
+    reset_recommended_products()
 
     # ── New-max onboarding → its own chat thread ─────────────────────────
     # When the client kicks off a new max's setup it sends chat_intent=
@@ -4092,6 +4267,16 @@ async def _send_message_locked(
         message_text=data.message,
         db=db,
     )
+    # Broad-question MCQ gate. Deterministic clarifying chips for broad
+    # personal-rec openers whose deciding fact we don't yet know. Runs after
+    # the intake questioner (so a per-maxx intake owns the turn first) and
+    # before the agent (so the LLM never gets a chance to dump a generic
+    # routine). Returns None for specific/known questions -> agent answers.
+    broad_mcq = None
+    if driver_out is None:
+        broad_mcq = await _broad_question_mcq(
+            user_id=user_id, message_text=data.message, db=db,
+        )
     if driver_out is not None:
         response_text, choices, iw = driver_out
         # Persist the user message + assistant reply to ChatHistory so the
@@ -4104,6 +4289,29 @@ async def _send_message_locked(
             await db.commit()
         except Exception:
             await db.rollback()
+    elif broad_mcq is not None:
+        response_text, choices, _broad_multi = broad_mcq
+        try:
+            user_uuid = UUID(user_id)
+            db.add(ChatHistory(user_id=user_uuid, role="user", content=data.message, channel="app"))
+            db.add(ChatHistory(user_id=user_uuid, role="assistant", content=response_text, channel="app"))
+            await db.commit()
+        except Exception:
+            await db.rollback()
+        # Short-circuit: skip bg fact-extraction-affecting paths below is fine;
+        # return directly with the canonical multi flag so chips render right.
+        conv_id = data.conversation_id
+        if not conv_id:
+            conv = await _conv.resolve_active_conversation(
+                db, user_id=user_id, conversation_id=None, channel="app",
+            )
+            conv_id = str(conv.id)
+        return ChatResponse(
+            response=response_text.lower(),
+            choices=choices,
+            multi_choice=_broad_multi,
+            conversation_id=conv_id,
+        )
     else:
         # Tier 3 — generic schedule-modification fallback. Catches ad-hoc
         # edits the regex detector won't ("cancel gym on tuesdays",
@@ -4179,11 +4387,17 @@ async def _send_message_locked(
     if iw is None and not choices:
         iw = await _habit_picker_for_new_schedule(user_id, db, _sched_ids_before)
 
+    # Structured product cards: catalog hits collected by recommend_product this
+    # turn (authoritative name/brand/url/image), rendered as preview cards by the
+    # mobile client. Skip when we're asking a clarifying MCQ (chips own the turn).
+    products_out = [] if choices else get_recommended_products()
+
     return ChatResponse(
         response=response_text,
         choices=choices,
         multi_choice=multi_choice,
         input_widget=iw,
+        products=products_out,
         conversation_id=conv_id,
     )
 

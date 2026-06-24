@@ -44,6 +44,48 @@ logger = logging.getLogger(__name__)
 
 FACTS_KEY = "user_facts"
 
+# Stable single-value profile facts captured during onboarding / per-maxx
+# intake. Kept in the user_facts blob (synced from onboarding) so that a fact
+# given while setting up ONE maxx is visible — and never re-asked — when
+# starting another. Rendered into the KNOWN PROFILE prompt block.
+PROFILE_SCALARS = (
+    "wake_time", "sleep_time", "skin_type", "hair_type", "scalp_state",
+    "experience_level", "equipment", "age", "biological_sex", "primary_goal",
+    "primary_skin_concern", "work_location", "daily_styling",
+)
+
+# Onboarding-dict keys → user_facts keys to mirror. Most are identical; a few
+# map onboarding's naming onto the canonical fact name.
+ONBOARDING_FACT_MAP = {
+    "wake_time": "wake_time",
+    "sleep_time": "sleep_time",
+    "skin_type": "skin_type",
+    "hair_type": "hair_type",
+    "scalp_state": "scalp_state",
+    "experience_level": "experience_level",
+    "equipment": "equipment",
+    "age": "age",
+    "gender": "biological_sex",
+    "biological_sex": "biological_sex",
+    "primary_skin_concern": "primary_skin_concern",
+    "work_location": "work_location",
+    "daily_styling": "daily_styling",
+}
+
+
+def facts_from_onboarding(onboarding: dict | None) -> dict[str, Any]:
+    """Extract the durable, cross-maxx profile facts from an onboarding dict,
+    keyed by their canonical user_facts names. Empty values are dropped."""
+    if not onboarding:
+        return {}
+    out: dict[str, Any] = {}
+    for ob_key, fact_key in ONBOARDING_FACT_MAP.items():
+        v = onboarding.get(ob_key)
+        if v in (None, "", [], {}):
+            continue
+        out[fact_key] = v
+    return out
+
 
 # --------------------------------------------------------------------------- #
 #  Patterns                                                                   #
@@ -276,13 +318,26 @@ def format_facts_for_prompt(facts: dict[str, Any] | None, max_items: int = 24) -
             joined = ", ".join(str(x) for x in v[: max_items])
             if not joined:
                 continue
-            lines.append(f"- {_label(key)}: {joined}")
+            lines.append(f"- {_label(key)}: {v[0] if len(v) == 1 else joined}")
         else:
             lines.append(f"- {_label(key)}: {v}")
         count += 1
+    # Curated profile scalars (wake/sleep, skin/hair type, equipment, etc.).
+    # These come from onboarding + per-maxx intake (synced into user_facts) so
+    # a fact captured in ONE maxx is never re-asked when starting another.
+    for key in PROFILE_SCALARS:
+        v = facts.get(key)
+        if v in (None, "", []):
+            continue
+        if isinstance(v, (list, tuple)):
+            v = ", ".join(str(x) for x in v if x not in (None, "", []))
+            if not v:
+                continue
+        lines.append(f"- {_label(key)}: {v}")
+        count += 1
     if not lines:
         return ""
-    return "## KNOWN USER FACTS (don't contradict; use to personalize)\n" + "\n".join(lines)
+    return "## KNOWN PROFILE (don't contradict or re-ask; use to personalize)\n" + "\n".join(lines)
 
 
 def hard_constraints_reminder(facts: dict[str, Any] | None) -> str:
@@ -349,6 +404,18 @@ def _label(key: str) -> str:
         "preferences": "Preferences",
         "dislikes": "Dislikes / avoid",
         "equipment": "Equipment owned",
+        "wake_time": "Wake time",
+        "sleep_time": "Sleep time",
+        "skin_type": "Skin type",
+        "hair_type": "Hair type",
+        "scalp_state": "Scalp",
+        "experience_level": "Training experience",
+        "age": "Age",
+        "biological_sex": "Biological sex",
+        "primary_goal": "Primary goal",
+        "primary_skin_concern": "Main skin concern",
+        "work_location": "Works",
+        "daily_styling": "Hair styling",
     }.get(key, key.title())
 
 

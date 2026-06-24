@@ -85,6 +85,7 @@ products:
   - gentle_cleansing
   - beginner
   url: https://www.amazon.com/dp/B01N7T7JKJ
+  image: https://m.media-amazon.com/images/P/B01N7T7JKJ.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -106,6 +107,7 @@ products:
   - acne
   - gentle_cleansing
   url: https://www.amazon.com/dp/B01N1LL62W
+  image: https://m.media-amazon.com/images/P/B01N1LL62W.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -127,6 +129,7 @@ products:
   - barrier
   - all_skin_types
   url: https://www.amazon.com/cerave-pm-facial-moisturizing-lotion/dp/B00365DABC
+  image: https://m.media-amazon.com/images/P/B00365DABC.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -147,6 +150,7 @@ products:
   - eczema
   - barrier
   url: https://www.amazon.com/dp/B00TTD9BRC
+  image: https://m.media-amazon.com/images/P/B00TTD9BRC.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -168,6 +172,7 @@ products:
   - oily
   - exfoliation
   url: https://www.amazon.com/dp/B00949CTQQ
+  image: https://m.media-amazon.com/images/P/B00949CTQQ.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -190,6 +195,7 @@ products:
   - sensitive
   - daily_spf
   url: https://www.amazon.com/dp/B002MSN3QQ
+  image: https://m.media-amazon.com/images/P/B002MSN3QQ.jpg
   price_tier: premium
   tags:
     vegetarian: true
@@ -211,6 +217,7 @@ products:
   - dryness
   - gentle_cleansing
   url: https://www.amazon.com/dp/B01N9SPQHQ
+  image: https://m.media-amazon.com/images/P/B01N9SPQHQ.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -272,6 +279,7 @@ products:
   - hydration
   - plumping
   url: https://www.amazon.com/dp/B01MDTVZTZ
+  image: https://m.media-amazon.com/images/P/B01MDTVZTZ.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -293,6 +301,7 @@ products:
   - rosacea
   - acne
   url: https://www.amazon.com/the-ordinary-azelaic-acid-suspension-10/dp/B0DNN8Z1PD
+  image: https://m.media-amazon.com/images/P/B0DNN8Z1PD.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -314,6 +323,7 @@ products:
   - texture
   - dullness
   url: https://www.amazon.com/the-ordinary-glycolic-acid-7-toning-solution/dp/B071914GGL
+  image: https://m.media-amazon.com/images/P/B071914GGL.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -334,6 +344,7 @@ products:
   - retinoid
   - comedonal
   url: https://www.amazon.com/dp/B07L1PHSY9
+  image: https://m.media-amazon.com/images/P/B07L1PHSY9.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -355,6 +366,7 @@ products:
   - brightening
   - anti_aging
   url: https://www.amazon.com/dp/B0017T2MWW
+  image: https://m.media-amazon.com/images/P/B0017T2MWW.jpg
   price_tier: premium
   tags:
     vegetarian: true
@@ -376,6 +388,7 @@ products:
   - irritation
   - post_treatment
   url: https://www.amazon.com/la-roche-posay-cicaplast-baume-b5/dp/B0060OUV5Y
+  image: https://m.media-amazon.com/images/P/B0060OUV5Y.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -396,6 +409,7 @@ products:
   - regrowth
   - minoxidil
   url: https://www.amazon.com/men-s-rogaine-5-minoxidil-foam-3-month/dp/B0012BNVE8
+  image: https://m.media-amazon.com/images/P/B0012BNVE8.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -437,6 +451,7 @@ products:
   - dandruff
   - dht_inhibition
   url: https://www.amazon.com/nizoral-a-d-anti-dandruff-shampoo-ketoconazole-1/dp/B00AINMFAC
+  image: https://m.media-amazon.com/images/P/B00AINMFAC.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -458,6 +473,7 @@ products:
   - density
   - peptides
   url: https://www.amazon.com/the-ordinary-multi-peptide-serum-for-hair-density/dp/B09WMT8HYB
+  image: https://m.media-amazon.com/images/P/B09WMT8HYB.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -498,6 +514,7 @@ products:
   - muscle_gain
   - post_workout
   url: https://www.amazon.com/dp/B000GIPJ0M
+  image: https://m.media-amazon.com/images/P/B000GIPJ0M.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -543,6 +560,7 @@ products:
   - strength
   - muscle_gain
   url: https://www.amazon.com/dp/B0019LRY8A
+  image: https://m.media-amazon.com/images/P/B0019LRY8A.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -566,6 +584,7 @@ products:
   - mobility
   - thoracic_extension
   url: https://www.amazon.com/dp/B0040EGNIU
+  image: https://m.media-amazon.com/images/P/B0040EGNIU.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -586,6 +605,7 @@ products:
   - decompression
   - hangs
   url: https://www.amazon.com/dp/B001EYFQ28
+  image: https://m.media-amazon.com/images/P/B001EYFQ28.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -626,6 +646,7 @@ products:
   - masseter
   - mastic
   url: https://www.amazon.com/falim-sugarfree-mastic-chewing-gum-200ct/dp/B000RKU2QU
+  image: https://m.media-amazon.com/images/P/B000RKU2QU.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -648,6 +669,7 @@ products:
   - post_active
   - sensitive
   url: https://www.amazon.com/dp/B00PBX3L7K
+  image: https://m.media-amazon.com/images/P/B00PBX3L7K.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -691,6 +713,7 @@ products:
   - sensitive
   - all_skin_types
   url: https://www.amazon.com/la-roche-posay-toleriane-double-repair-face-moisturizer/dp/B01N9SPQHQ
+  image: https://m.media-amazon.com/images/P/B01N9SPQHQ.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -711,6 +734,7 @@ products:
   - brightening
   - anti_aging
   url: https://www.amazon.com/the-ordinary-vitamin-c-suspension-23-ha-spheres-2/dp/B07Y556CPP
+  image: https://m.media-amazon.com/images/P/B07Y556CPP.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -730,6 +754,7 @@ products:
   - acne
   - spot_treatment
   url: https://www.amazon.com/dp/B074PVTPBW
+  image: https://m.media-amazon.com/images/P/B074PVTPBW.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -770,6 +795,7 @@ products:
   - peptides
   - fine_lines
   url: https://www.amazon.com/the-ordinary-buffet-multi-peptide-serum/dp/B0BLHW7JZM
+  image: https://m.media-amazon.com/images/P/B0BLHW7JZM.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -791,6 +817,7 @@ products:
   - hair_loss
   - supplement
   url: https://www.amazon.com/now-foods-saw-palmetto-berries-320-mg/dp/B0013OXIFQ
+  image: https://m.media-amazon.com/images/P/B0013OXIFQ.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -831,6 +858,7 @@ products:
   - scalp_stimulation
   - hair_growth_adjunct
   url: https://www.amazon.com/mielle-organics-rosemary-mint-scalp-hair-strengthening-oil/dp/B07N7PK9QK
+  image: https://m.media-amazon.com/images/P/B07N7PK9QK.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -870,6 +898,7 @@ products:
   - strength
   - muscle_gain
   url: https://www.amazon.com/dp/B002DYIZEO
+  image: https://m.media-amazon.com/images/P/B002DYIZEO.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -892,6 +921,7 @@ products:
   - hydration
   - training_performance
   url: https://www.amazon.com/lmnt-recharge-electrolyte-drink-mix-variety-pack/dp/B0C1TG555G
+  image: https://m.media-amazon.com/images/P/B0C1TG555G.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -914,6 +944,7 @@ products:
   - magnesium
   - deficiency
   url: https://www.amazon.com/dp/B000BD0RT0
+  image: https://m.media-amazon.com/images/P/B000BD0RT0.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -1087,6 +1118,7 @@ products:
   - energy
   - beginner
   url: https://www.amazon.com/cellucor-c4-original-pre-workout/dp/B01N272UAI
+  image: https://m.media-amazon.com/images/P/B01N272UAI.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -1108,6 +1140,7 @@ products:
   - arch_support
   - all_day_wear
   url: https://www.amazon.com/powerstep-pinnacle-maxx-full-length-orthotic/dp/B000O5HE14
+  image: https://m.media-amazon.com/images/P/B000O5HE14.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -1148,6 +1181,7 @@ products:
   - spine
   - posture
   url: https://www.amazon.com/innova-itx9600-heavy-duty-inversion-table/dp/B0CN825GK1
+  image: https://m.media-amazon.com/images/P/B0CN825GK1.jpg
   price_tier: premium
   tags:
     vegetarian: true
@@ -1250,6 +1284,7 @@ products:
   - barrier
   - fragrance_free
   url: https://www.amazon.com/vanicream-daily-facial-moisturizer/dp/B08BW46XXK
+  image: https://m.media-amazon.com/images/P/B08BW46XXK.jpg
   price_tier: budget
   tags:
     vegetarian: true
@@ -1267,6 +1302,7 @@ products:
   - pigmentation
   - dullness
   url: https://www.amazon.com/the-ordinary-lactic-acid-10-ha/dp/B07NDNPCKW
+  image: https://m.media-amazon.com/images/P/B07NDNPCKW.jpg
   price_tier: budget
   tags:
     vegan: true
@@ -1315,6 +1351,7 @@ products:
   - blackheads
   - exfoliation
   url: https://www.amazon.com/stridex-maximum-strength-acne-pads/dp/B000O1KP1O
+  image: https://m.media-amazon.com/images/P/B000O1KP1O.jpg
   price_tier: budget
   tags:
     fragrance_free: false
@@ -1345,6 +1382,7 @@ products:
   - regrowth
   - supplement
   url: https://www.amazon.com/now-pumpkin-seed-oil-capsules/dp/B084XWMRRW
+  image: https://m.media-amazon.com/images/P/B084XWMRRW.jpg
   price_tier: budget
   tags:
     vegan: true
@@ -1389,6 +1427,7 @@ products:
   - recovery
   - general
   url: https://www.amazon.com/optimum-nutrition-opti-men-multivitamin/dp/B00K2RJAR0
+  image: https://m.media-amazon.com/images/P/B00K2RJAR0.jpg
   price_tier: mid
   tags:
     vegetarian: true
@@ -1403,6 +1442,7 @@ products:
   - endurance
   - supplement
   url: https://www.amazon.com/now-beta-alanine-powder-500g/dp/B0017KU74Q
+  image: https://m.media-amazon.com/images/P/B0017KU74Q.jpg
   price_tier: budget
   tags:
     vegan: true
@@ -1432,6 +1472,7 @@ products:
   - nasal_breathing
   - sleep
   url: https://www.amazon.com/3m-micropore-paper-tape-mouth-tape/dp/B0082A9FEM
+  image: https://m.media-amazon.com/images/P/B0082A9FEM.jpg
   price_tier: budget
   tags:
     {}
@@ -1445,6 +1486,7 @@ products:
   - nasal_breathing
   - sleep
   url: https://www.amazon.com/breathe-right-original-nasal-strips/dp/B0D14WZLB1
+  image: https://m.media-amazon.com/images/P/B0D14WZLB1.jpg
   price_tier: budget
   tags:
     {}
@@ -1459,6 +1501,7 @@ products:
   - posture
   - stretch
   url: https://www.amazon.com/gaiam-6mm-premium-yoga-mat/dp/B077V135W7
+  image: https://m.media-amazon.com/images/P/B077V135W7.jpg
   price_tier: budget
   tags:
     {}

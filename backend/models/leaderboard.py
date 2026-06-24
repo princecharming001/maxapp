@@ -94,6 +94,12 @@ class ChatResponse(BaseModel):
     # Mobile client interprets `type` and renders a slider + Submit button that
     # sends the chosen value back as the next user message.
     input_widget: Optional[dict] = Field(default=None)
+    # Structured product recommendations surfaced this turn (populated from the
+    # recommend_product tool's catalog hits, NOT parsed from prose). Mobile
+    # renders these as Amazon-style preview cards at the bottom of the message.
+    # Each item: {name, brand, url, description (our-words), image}. Authoritative
+    # name/brand/url come straight from the catalog so titles are always correct.
+    products: list[dict] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     # Echo back the conversation the message landed in — lets the mobile client
     # discover the server-assigned id on first message without a separate call.

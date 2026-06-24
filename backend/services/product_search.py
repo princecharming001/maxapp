@@ -61,6 +61,8 @@ class ProductHit:
     url: str          # canonical /dp/<ASIN> form
     snippet: str      # short DDG result snippet, ≤200 chars
     source: str       # "catalog" | "live"
+    brand: str = ""   # catalog brand; "" for live hits
+    image: str = ""   # curated catalog image URL; "" for live hits
 
     def to_markdown_bullet(self, max_snippet_chars: int = 100) -> str:
         s = self.snippet or ""
@@ -467,6 +469,8 @@ async def find_or_search(
                     url=p.display_url,
                     snippet=p.rationale,
                     source="catalog",
+                    brand=p.brand,
+                    image=p.image,
                 )
                 for p in cat_hits
             ]

@@ -63,6 +63,7 @@ class Product:
     tags: dict[str, Optional[bool]]
     rationale: str
     references: tuple[str, ...]
+    image: str = ""      # curated product image URL; "" when none (card renders without it)
 
     @property
     def display_url(self) -> str:
@@ -130,6 +131,7 @@ def load_catalog() -> tuple[Product, ...]:
                 tags={str(k): _coerce_tag(v) for k, v in (entry.get("tags") or {}).items()},
                 rationale=str(entry.get("rationale") or "").strip(),
                 references=tuple(str(r).strip() for r in (entry.get("references") or [])),
+                image=str(entry.get("image") or "").strip(),
             ))
         except Exception as e:
             logger.warning("[catalog] entry #%d skipped (%s): %s", i, e, entry.get("id"))

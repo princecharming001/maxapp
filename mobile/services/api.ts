@@ -1396,6 +1396,9 @@ class ApiService {
         //   slider:       { type, min, max, step, default, label, unit }
         //   habit_picker: { type, maxx_id, schedule_id, label }
         input_widget?: ({ type: string } & Record<string, any>) | null;
+        // Structured product recommendations rendered as preview cards under
+        // the reply. Populated from the catalog (authoritative name/brand/url).
+        products?: Array<{ name: string; brand?: string; url: string; description?: string; image?: string }>;
         conversation_id?: string | null;
     }> {
         const body: any = {

@@ -755,6 +755,22 @@ async def save_onboarding(
     user.updated_at = datetime.utcnow()
     await db.flush()
 
+    # Mirror durable profile facts (wake/sleep, skin/hair type, equipment, ...)
+    # into user_facts so they're part of KNOWN PROFILE and never re-asked when
+    # the user later sets up a different maxx. THE bug this fixes: onboarding
+    # answers used to live only in user.onboarding, so per-maxx intake (which
+    # reads user_facts) couldn't see them and re-asked.
+    try:
+        from services.user_facts_service import facts_from_onboarding, merge_facts, FACTS_KEY
+        from services.user_context_service import get_context, merge_context
+        ob_facts = facts_from_onboarding(onboarding_data)
+        if ob_facts:
+            existing_ctx = await get_context(str(user_uuid), db)
+            merged = merge_facts(existing_ctx.get(FACTS_KEY) or {}, ob_facts)
+            await merge_context(str(user_uuid), {FACTS_KEY: merged}, db)
+    except Exception as e:
+        logger.warning("onboarding->user_facts sync failed (non-fatal): %s", e)
+
     # Editing lifestyle (wake/sleep/work hours, workout time, get-ready time)
     # must propagate to the user's live schedules immediately — otherwise the
     # precise timings the user just set wouldn't take effect until they touch

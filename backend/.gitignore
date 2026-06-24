@@ -44,3 +44,5 @@ venv/
 next-env.d.ts
 *docs/
 *rag_info/
+# prebuilt python3.12 venv for local langchain (do not commit)
+.venv312/

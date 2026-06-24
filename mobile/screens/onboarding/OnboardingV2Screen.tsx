@@ -33,6 +33,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -138,6 +139,9 @@ const MOTIVATIONS = [
     { id: 'comment', label: 'Someone said something' },
     { id: 'long_term', label: 'Long term, no rush' },
     { id: 'curious', label: 'Just curious' },
+    // Open-ended escape hatch — picking this reveals a text box so the real
+    // reason isn't forced into one of the buckets above.
+    { id: 'other', label: 'Something else' },
 ] as const;
 
 // Each choice option carries its own icon (Cal AI style).
@@ -476,6 +480,8 @@ export default function OnboardingV2Screen() {
     const [dir, setDir] = useState(1); // +1 forward, -1 back — drives slide direction
     const [goals, setGoals] = useState<string[]>([]);
     const [motivation, setMotivation] = useState<string | null>(null);
+    // Free-text reason when motivation === 'other' (the custom answer path).
+    const [motivationOther, setMotivationOther] = useState('');
     const [wakeMin, setWakeMin] = useState(7 * 60);
     // Get-ready (AM routine) + wind-down (PM routine) are WINDOWS, not a time +
     // duration / a single bedtime. The wind-down window's END is bedtime.
@@ -515,6 +521,7 @@ export default function OnboardingV2Screen() {
                 const a = d.answers || {};
                 if (Array.isArray(a.goals)) setGoals(a.goals);
                 if (a.motivation === null || typeof a.motivation === 'string') setMotivation(a.motivation);
+                if (typeof a.motivationOther === 'string') setMotivationOther(a.motivationOther);
                 if (typeof a.wakeMin === 'number') setWakeMin(a.wakeMin);
                 if (typeof a.grStart === 'number') setGrStart(a.grStart);
                 if (typeof a.grEnd === 'number') setGrEnd(a.grEnd);
@@ -552,13 +559,13 @@ export default function OnboardingV2Screen() {
     useEffect(() => {
         if (!draftLoaded) return;
         void saveOnboardingDraft(step, {
-            goals, motivation, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
+            goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
             workStartMin, workEndMin, workLocation, commuteMin, chronotype,
             breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
             anchors, workoutMin, weekendShift,
         });
     }, [
-        draftLoaded, step, goals, motivation, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
+        draftLoaded, step, goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
         workStartMin, workEndMin, workLocation, commuteMin, chronotype,
         breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
         anchors, workoutMin, weekendShift,
@@ -612,6 +619,8 @@ export default function OnboardingV2Screen() {
                 goals,
                 priority_order: tokens,
                 motivation,
+                // Free-text reason when "Something else" was picked (custom path).
+                motivation_other: motivation === 'other' ? motivationOther.trim() : null,
                 wake_time: hhmm(wakeMin),
                 // Get-ready (AM routine) window — keep legacy scalars in sync.
                 get_ready_window: [hhmm(grStart), hhmm(grEnd)],
@@ -733,7 +742,8 @@ export default function OnboardingV2Screen() {
         {
             title: "What's pulling\nyou here?",
             sub: 'It helps Max talk to you straight.',
-            canNext: !!motivation,
+            // When "Something else" is picked, require a non-empty typed reason.
+            canNext: !!motivation && (motivation !== 'other' || motivationOther.trim().length > 0),
             body: (
                 <View style={{ gap: 10 }}>
                     {MOTIVATIONS.map((m) => {
@@ -752,6 +762,19 @@ export default function OnboardingV2Screen() {
                             </TouchableOpacity>
                         );
                     })}
+                    {motivation === 'other' && (
+                        <TextInput
+                            style={styles.otherInput}
+                            value={motivationOther}
+                            onChangeText={setMotivationOther}
+                            placeholder="Tell Max in your own words…"
+                            placeholderTextColor={MUTE}
+                            autoFocus
+                            multiline
+                            maxLength={140}
+                            accessibilityLabel="Your reason"
+                        />
+                    )}
                 </View>
             ),
         },
@@ -1152,6 +1175,18 @@ const styles = StyleSheet.create({
     tileLabel: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: INK },
     tileLabelCenter: { flex: 1, textAlign: 'center' },
     tileLabelActive: { color: ON_INK },
+    otherInput: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 16,
+        color: INK,
+        backgroundColor: CARD,
+        borderRadius: 22,
+        paddingHorizontal: 16,
+        paddingVertical: 15,
+        minHeight: 66,
+        textAlignVertical: 'top',
+        ...SOFT,
+    },
     tileTag: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 2 },
     tileTagActive: { color: 'rgba(255,255,255,0.6)' },
     rankBadge: { width: 24, height: 24, borderRadius: 12, backgroundColor: ON_INK, alignItems: 'center', justifyContent: 'center' },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AppState, type AppStateStatus, View, Text, StyleSheet, TextInput, TouchableOpacity, Pressable, PanResponder, Animated, KeyboardAvoidingView, Platform, ActivityIndicator, Linking } from 'react-native';
+import { AppState, type AppStateStatus, View, Text, StyleSheet, TextInput, TouchableOpacity, Pressable, PanResponder, Animated, KeyboardAvoidingView, Platform, ActivityIndicator, Linking, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
@@ -35,6 +35,15 @@ const EMPTY_STARTERS = [
     'Rate my routine',
 ];
 
+/** Structured product recommendation rendered as an Amazon-style preview card. */
+interface ProductCard {
+  name: string;
+  brand?: string;
+  url: string;
+  description?: string;
+  image?: string;
+}
+
 interface Message {
   /** Server id; absent on optimistically-appended turns until /history reload. */
   id?: string;
@@ -50,7 +59,17 @@ interface Message {
   justArrived?: boolean;
   /** When this message replied to an earlier one, the inline quote strip. */
   reply_to?: { id: string; role: 'user' | 'assistant'; preview: string } | null;
+  /** Structured product cards surfaced with this assistant reply. */
+  products?: ProductCard[];
 }
+
+// Chips whose text means "my answer isn't here" — tapping one focuses the
+// text input so the user can type a custom answer instead of sending the
+// chip. The backend appends one of these ONLY to open-ended MCQs.
+const CUSTOM_CHIP_LABELS = new Set([
+  'something else', 'other', 'none of these', 'type my own', 'type your own',
+]);
+const isCustomChip = (c: string) => CUSTOM_CHIP_LABELS.has(c.trim().toLowerCase());
 
 /** Active reply-target — set by swipe-right on a bubble; cleared on send / cancel. */
 interface ReplyTarget {
@@ -58,6 +77,90 @@ interface ReplyTarget {
     role: 'user' | 'assistant';
     preview: string;
 }
+
+/**
+ * Amazon-style product preview cards rendered at the bottom of an assistant
+ * message. 1–2 products stack vertically; 3+ lay out as a horizontal slider
+ * (Amazon-carousel style) so they never wall up. Each card shows the product
+ * image (gracefully omitted if missing), the catalog name, and our-words
+ * description, and opens the Amazon page on tap.
+ */
+function ProductCards({ products, onOpen }: { products: ProductCard[]; onOpen: (url: string) => void }) {
+    const items = (products || []).filter((p) => p && p.name && p.url);
+    if (items.length === 0) return null;
+    const slider = items.length > 2;
+
+    const Card = ({ p }: { p: ProductCard }) => (
+        <TouchableOpacity
+            style={[pcStyles.card, slider ? pcStyles.cardSlider : pcStyles.cardStacked]}
+            onPress={() => onOpen(p.url)}
+            activeOpacity={0.8}
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${p.name}`}
+        >
+            {p.image ? (
+                <CachedImage uri={p.image} style={slider ? pcStyles.imgSlider : pcStyles.imgStacked} contentFit="contain" />
+            ) : (
+                <View style={[slider ? pcStyles.imgSlider : pcStyles.imgStacked, pcStyles.imgFallback]}>
+                    <Ionicons name="cube-outline" size={22} color={colors.textMuted} />
+                </View>
+            )}
+            <View style={pcStyles.cardBody}>
+                {!!p.brand && <Text style={pcStyles.brand} numberOfLines={1}>{p.brand}</Text>}
+                <Text style={pcStyles.name} numberOfLines={2}>{p.name}</Text>
+                {!!p.description && (
+                    <Text style={pcStyles.desc} numberOfLines={slider ? 3 : 2}>{p.description}</Text>
+                )}
+                <View style={pcStyles.cta}>
+                    <Ionicons name="cart-outline" size={12} color={colors.textMuted} />
+                    <Text style={pcStyles.ctaText}>View on Amazon</Text>
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+
+    if (slider) {
+        return (
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={pcStyles.slider}
+                contentContainerStyle={pcStyles.sliderContent}
+            >
+                {items.map((p, i) => <Card key={`${p.url}-${i}`} p={p} />)}
+            </ScrollView>
+        );
+    }
+    return (
+        <View style={pcStyles.stack}>
+            {items.map((p, i) => <Card key={`${p.url}-${i}`} p={p} />)}
+        </View>
+    );
+}
+
+const pcStyles = StyleSheet.create({
+    slider: { marginTop: 10, marginHorizontal: -2 },
+    sliderContent: { gap: 10, paddingHorizontal: 2 },
+    stack: { marginTop: 10, gap: 8 },
+    card: {
+        backgroundColor: colors.surface,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        borderRadius: borderRadius.md,
+        overflow: 'hidden',
+    },
+    cardStacked: { flexDirection: 'row', alignItems: 'center', padding: 8 },
+    cardSlider: { width: 160, flexDirection: 'column' },
+    imgStacked: { width: 56, height: 56, borderRadius: borderRadius.sm, backgroundColor: colors.card },
+    imgSlider: { width: '100%', height: 120, backgroundColor: colors.card },
+    imgFallback: { alignItems: 'center', justifyContent: 'center' },
+    cardBody: { flex: 1, paddingHorizontal: 10, paddingVertical: 8, gap: 2 },
+    brand: { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.2 },
+    name: { fontSize: 13.5, fontWeight: '700', color: colors.foreground, letterSpacing: 0.05 },
+    desc: { fontSize: 12, color: colors.textMuted, lineHeight: 16 },
+    cta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+    ctaText: { fontSize: 11, fontWeight: '600', color: colors.textMuted },
+});
 
 /**
  * iMessage-style swipe-to-reply row.
@@ -511,7 +614,7 @@ export default function MaxChatScreen() {
         ).catch(() => undefined);
         try {
             abortRef.current = new AbortController();
-            const { response, choices, multi_choice, input_widget, conversation_id } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, products, conversation_id } = await api.sendChatMessage(
                 msg,
                 undefined,
                 undefined,
@@ -541,7 +644,7 @@ export default function MaxChatScreen() {
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: response, justArrived: true },
+                { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] },
             ]);
             setServerChoices(Array.isArray(choices) ? choices : []);
             setMultiChoice(!!multi_choice);
@@ -653,7 +756,7 @@ export default function MaxChatScreen() {
         if (replyTarget) setReplyTarget(null);
         try {
             abortRef.current = new AbortController();
-            const { response, choices, multi_choice, input_widget, conversation_id } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, products, conversation_id } = await api.sendChatMessage(
                 userContent,
                 undefined,
                 undefined,
@@ -672,7 +775,7 @@ export default function MaxChatScreen() {
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: response, justArrived: true },
+                { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] },
             ]);
             setServerChoices(Array.isArray(choices) ? choices : []);
             setMultiChoice(!!multi_choice);
@@ -692,7 +795,7 @@ export default function MaxChatScreen() {
                     messages: [
                         ...prevMsgs,
                         { role: 'user', content: userContent } as Message,
-                        { role: 'assistant', content: response, justArrived: true } as Message,
+                        { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] } as Message,
                     ],
                     conversationId: (conversation_id ?? activeConversationId) ?? null,
                 };
@@ -729,26 +832,6 @@ export default function MaxChatScreen() {
 
     const openUrl = useCallback((url: string) => {
         Linking.openURL(url).catch(() => undefined);
-    }, []);
-
-    const extractProductLinks = useCallback((text: string): { label: string; url: string }[] => {
-        const links: { label: string; url: string }[] = [];
-        const oldFormat = /^-\s*(.+?):\s*(https?:\/\/\S+)/gm;
-        let m: RegExpExecArray | null;
-        while ((m = oldFormat.exec(text)) !== null) {
-            links.push({ label: m[1].trim(), url: m[2].trim() });
-        }
-        const mdFormat = /\[([^\]]+)\]\((https?:\/\/www\.amazon\.com\/s\?[^\s)]+)\)/g;
-        while ((m = mdFormat.exec(text)) !== null) {
-            if (!links.some(l => l.url === m![2])) {
-                links.push({ label: m[1].trim(), url: m[2].trim() });
-            }
-        }
-        return links;
-    }, []);
-
-    const stripProductLinkLines = useCallback((text: string): string => {
-        return text.replace(/^-\s*.+?:\s*https?:\/\/\S+\s*$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
     }, []);
 
     const renderLinkedText = useCallback((text: string, baseStyle: any) => {
@@ -835,7 +918,7 @@ export default function MaxChatScreen() {
             }
             const uploadRes = await api.uploadChatFile(formData);
             abortRef.current = new AbortController();
-            const { response, choices, multi_choice, input_widget, conversation_id } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, products, conversation_id } = await api.sendChatMessage(
                 caption || 'What do you think of this?',
                 uploadRes.url,
                 'image',
@@ -851,7 +934,7 @@ export default function MaxChatScreen() {
             }
             setMessages((prev) => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: response, justArrived: true },
+                { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] },
             ]);
             setServerChoices(Array.isArray(choices) ? choices : []);
             setMultiChoice(!!multi_choice);
@@ -957,8 +1040,10 @@ export default function MaxChatScreen() {
         if (!item.content?.trim() && !hasImage) return null;
 
         const isAssistant = item.role === 'assistant';
-        const productLinks = isAssistant && item.content ? extractProductLinks(item.content) : [];
-        const displayText = productLinks.length > 0 ? stripProductLinkLines(item.content!) : item.content;
+        // Products are returned structured (item.products) and rendered as
+        // preview cards; the prose no longer carries inline links.
+        const productCards = isAssistant ? (item.products ?? []) : [];
+        const displayText = item.content;
         const canReply = !!item.id; // optimistic turns have no real id yet
         const isLast = index === messages.length - 1;
 
@@ -995,23 +1080,8 @@ export default function MaxChatScreen() {
                             renderRich={(t) => renderLinkedText(t, [cg.assistantText])}
                         />
                     ) : null}
-                    {productLinks.length > 0 && (
-                        <View style={styles.productLinksContainer}>
-                            {productLinks.map((link, i) => (
-                                <TouchableOpacity
-                                    key={i}
-                                    style={styles.productLinkButton}
-                                    onPress={() => openUrl(link.url)}
-                                    activeOpacity={0.7}
-                                    accessibilityRole="link"
-                                    accessibilityLabel={`Open ${link.label}`}
-                                >
-                                    <Ionicons name="cart-outline" size={14} color={colors.foreground} style={{ marginRight: 6 }} />
-                                    <Text style={styles.productLinkText} numberOfLines={1}>{link.label}</Text>
-                                    <Ionicons name="open-outline" size={12} color={colors.textMuted} style={{ marginLeft: 6 }} />
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                    {productCards.length > 0 && (
+                        <ProductCards products={productCards} onOpen={openUrl} />
                     )}
                     {image}
                     {!animate && displayText ? <AssistantActions text={displayText} /> : null}
@@ -1154,33 +1224,66 @@ export default function MaxChatScreen() {
                     )}
                     {!loading && !inputWidget && quickReplies.length > 0 && !multiChoice && (
                         <View style={styles.quickReplyStack}>
-                            {quickReplies.map((choice) => (
-                                <TouchableOpacity
-                                    key={choice}
-                                    style={styles.quickReplyButton}
-                                    onPress={() => sendMessage(choice)}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text
-                                        style={styles.quickReplyText}
-                                        numberOfLines={1}
-                                        ellipsizeMode="tail"
+                            {quickReplies.map((choice) => {
+                                const custom = isCustomChip(choice);
+                                return (
+                                    <TouchableOpacity
+                                        key={choice}
+                                        style={styles.quickReplyButton}
+                                        // A custom/"something else" chip focuses the text
+                                        // input so the user can type their own answer
+                                        // instead of sending the chip label.
+                                        onPress={() => (custom ? inputRef.current?.focus() : sendMessage(choice))}
+                                        activeOpacity={0.7}
                                     >
-                                        {choice}
-                                    </Text>
-                                    <Ionicons
-                                        name="chevron-forward"
-                                        size={14}
-                                        color={colors.textMuted}
-                                    />
-                                </TouchableOpacity>
-                            ))}
+                                        <Text
+                                            style={styles.quickReplyText}
+                                            numberOfLines={1}
+                                            ellipsizeMode="tail"
+                                        >
+                                            {custom ? 'something else…' : choice}
+                                        </Text>
+                                        <Ionicons
+                                            name={custom ? 'create-outline' : 'chevron-forward'}
+                                            size={14}
+                                            color={colors.textMuted}
+                                        />
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </View>
                     )}
                     {!loading && !inputWidget && quickReplies.length > 0 && multiChoice && (
                         <View style={styles.quickReplyStack}>
                             {quickReplies.map((choice) => {
                                 const on = multiPicked.has(choice);
+                                const custom = isCustomChip(choice);
+                                if (custom) {
+                                    // Custom chip: not a toggle — focuses the input so the
+                                    // user can type an answer outside the offered options.
+                                    return (
+                                        <TouchableOpacity
+                                            key={choice}
+                                            style={styles.quickReplyButton}
+                                            onPress={() => inputRef.current?.focus()}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Ionicons
+                                                name="create-outline"
+                                                size={16}
+                                                color={colors.textMuted}
+                                                style={{ marginRight: 4 }}
+                                            />
+                                            <Text
+                                                style={styles.quickReplyText}
+                                                numberOfLines={1}
+                                                ellipsizeMode="tail"
+                                            >
+                                                something else…
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                }
                                 return (
                                     <TouchableOpacity
                                         key={choice}
@@ -1354,24 +1457,6 @@ const styles = StyleSheet.create({
     messageText: { fontSize: 15, lineHeight: 23, color: colors.foreground, letterSpacing: 0.05 },
     userMessageText: { color: colors.buttonText },
     linkText: { color: '#60A5FA', textDecorationLine: 'underline' },
-    productLinksContainer: { marginTop: 10, gap: 6 },
-    productLinkButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.surface,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-        borderRadius: borderRadius.md,
-        paddingHorizontal: 12,
-        paddingVertical: 9,
-    },
-    productLinkText: {
-        flex: 1,
-        fontSize: 13.5,
-        fontWeight: '600',
-        color: colors.foreground,
-        letterSpacing: 0.05,
-    },
     typingBubble: { paddingVertical: 10, paddingHorizontal: 16 },
     typingText: { fontSize: 14, color: colors.textMuted, fontStyle: 'italic' },
     attachmentImage: { width: 220, height: 160, borderRadius: 12, marginTop: spacing.sm },
