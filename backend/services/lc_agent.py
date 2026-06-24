@@ -2217,7 +2217,19 @@ async def run_chat_agent(
             "The assistant took too long. Please try again. Your message was saved."
         ) from None
 
-    response_text = (result.get("output") or "").strip()
+    # Agent output is usually a string, but some providers / tool-calling paths
+    # return it as a list of content blocks (str or {"text"|"content": ...}).
+    # Coerce to text before stripping so a list never crashes the whole turn.
+    _raw_out = result.get("output")
+    if isinstance(_raw_out, list):
+        _parts = []
+        for _p in _raw_out:
+            if isinstance(_p, str):
+                _parts.append(_p)
+            elif isinstance(_p, dict):
+                _parts.append(str(_p.get("text") or _p.get("content") or ""))
+        _raw_out = " ".join(p for p in _parts if p)
+    response_text = (str(_raw_out) if _raw_out else "").strip()
 
     # Hard-constraint validator: post-check the agent's final answer
     # against user_facts. If the agent recommended chicken to a
