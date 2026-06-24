@@ -2035,6 +2035,45 @@ async def _bg_detect_tone(user_id: str, recent_history: list[dict]) -> None:
         logger.warning("bg tone detection failed for %s: %s", user_id, e)
 
 
+# ── SAFETY: self-harm / crisis guardrail ─────────────────────────────────────
+# Deterministic (NOT the LLM) so a suicidal message can never be missed and
+# answered with coaching or a product card. Generous on purpose — a false
+# positive (showing crisis resources to someone who's fine) is far cheaper than
+# a false negative.
+_SELF_HARM_RE = re.compile(
+    r"\b("
+    r"kill (?:myself|me)|killing myself|end(?:ing)? (?:my life|it all)|"
+    r"want(?:ing)?\s+to\s+die|wanna\s+die|suicidal|suicide|take my (?:own )?life|"
+    r"hurt(?:ing)?\s+myself|harm(?:ing)?\s+myself|self[\s-]?harm|cut(?:ting)?\s+myself|"
+    r"no reason to live|don'?t want to (?:be here|live|exist)|better off dead|want to be dead"
+    r")\b",
+    re.IGNORECASE,
+)
+# "kms" is ambiguous in a fitness app (kilometers). Only treat it as crisis slang
+# for "kill myself": an intent verb in front, or it starts the message. Never
+# after a number ("5 kms", "how many kms").
+_KMS_RE = re.compile(
+    r"(?:^|\b(?:wanna|gonna|want(?:ing)?\s+to|going\s+to|finna|imma|i'?ll|i'?m\s+gonna|"
+    r"about\s+to|need\s+to|gotta|just|to)\s+)kms\b",
+    re.IGNORECASE,
+)
+
+_CRISIS_RESPONSE = (
+    "hey, i'm really glad you told me, and i'm taking this seriously. this is bigger "
+    "than anything i can coach you through, and you deserve real support right now:\n\n"
+    "- US: call or text 988 (suicide & crisis lifeline), 24/7, free, confidential\n"
+    "- immediate danger: call 911 or go to your nearest ER\n"
+    "- outside the US: findahelpline.com lists a free line for your country\n\n"
+    "you're not alone in this, and reaching out to one of those is the strongest "
+    "thing you can do right now. please talk to them, ok? i'm still here too."
+)
+
+
+def _looks_like_self_harm(text: str) -> bool:
+    t = text or ""
+    return bool(_SELF_HARM_RE.search(t) or _KMS_RE.search(t))
+
+
 async def process_chat_message(
     user_id: str,
     message_text: str,
@@ -2161,6 +2200,18 @@ async def process_chat_message(
     active_schedule = await schedule_service.get_current_schedule(user_id, db=db)
     user = await db.get(User, user_uuid)
     onboarding = _merge_onboarding_with_schedule_prefs(user)
+
+    # SAFETY: a self-harm / crisis message takes absolute precedence over ALL
+    # coaching, routing, products, and schedule actions. Short-circuit here
+    # before any LLM/RAG/agent path runs. Persist the turn so it shows in
+    # history; return no choices and no product links.
+    if _looks_like_self_harm(message_text):
+        if _persist_chat_history(channel):
+            db.add(ChatHistory(user_id=user_uuid, role="user", content=message_text, channel=channel, created_at=datetime.utcnow()))
+            db.add(ChatHistory(user_id=user_uuid, role="assistant", content=_CRISIS_RESPONSE, channel=channel, created_at=datetime.utcnow()))
+            await db.commit()
+        return _CRISIS_RESPONSE, []
+
     active_hint = str((active_schedule or {}).get("maxx_id") or "").strip() or None
     explicit_chat_intent = _coerce_chat_intent(chat_intent)
     explicit_schedule_start = explicit_chat_intent == "start_schedule"
