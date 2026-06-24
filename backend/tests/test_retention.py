@@ -80,31 +80,34 @@ def test_perfect_day_stat_from_streak_payload():
 #  Personalized reminder copy                                                 #
 # --------------------------------------------------------------------------- #
 
-def test_reminder_tones_are_distinct_and_value_first():
-    blunt = personalized_reminder({"comms_style": {"tone": "blunt"}, "goals": {"why": "feel more confident"}},
-                                  maxx_label="Skinmax", slot="pm")
-    gentle = personalized_reminder({"comms_style": {"tone": "gentle"}, "goals": {"why": "clearer skin"}},
-                                   maxx_label="Skinmax", slot="am", name="Anish")
-    default = personalized_reminder({}, maxx_label="Skinmax", slot="spf")
-    # blunt is short + imperative
-    assert "Go." in blunt["body"]
-    # gentle is warm + references the goal
-    assert "clearer skin" in gentle["body"]
-    assert "gentle" in gentle["title"].lower()
-    # default is plain + value-first (duration), no shame language anywhere
-    assert "10 seconds" in default["body"]
-    for c in (blunt, gentle, default):
-        low = (c["title"] + " " + c["body"]).lower()
-        assert "failed" not in low and "lost" not in low and "don't lose" not in low
+def test_reminder_is_short_and_passes_taste_bar():
+    # v2: the legacy shim now returns the new dry-witty task-due copy. It must be
+    # short, lowercase-voiced, name the task/maxx, and pass the taste bar.
+    from services.notification_copy import passes_taste_bar
+
+    out = personalized_reminder({"goals": {"why": "feel more confident"}},
+                                maxx_label="Skinmax", slot="pm", name="Anish")
+    assert len(out["title"].split()) <= 6
+    assert len(out["body"]) <= 90
+    low = (out["title"] + " " + out["body"]).lower()
+    assert "skinmax" in low or "evening routine" in low  # names the task
+    assert passes_taste_bar(out["title"]) and passes_taste_bar(out["body"])
+    assert "failed" not in low and "lost" not in low and "don't lose" not in low
 
 
 def test_reminder_goal_reference_appears_when_known():
-    out = personalized_reminder({"comms_style": {"tone": "gentle"}, "goals": {"why": "the wedding in June"}},
-                                maxx_label="Fitmax", slot="workout")
-    assert "wedding in June" in out["body"]
+    # v2 rotates templates, so the goal surfaces on SOME lines (not every one).
+    from services.notification_copy import CAT_TASK_DUE, compose
+
+    bodies = [
+        compose(CAT_TASK_DUE, task="workout", why="the wedding in June", rotation=i)["title"]
+        + compose(CAT_TASK_DUE, task="workout", why="the wedding in June", rotation=i)["body"]
+        for i in range(6)
+    ]
+    assert any("wedding in June" in b for b in bodies)
 
 
 def test_reminder_falls_back_cleanly_without_profile():
     out = personalized_reminder({}, maxx_label="your", slot="default")
     assert out["title"] and out["body"]
-    assert "your routine" in out["title"].lower()
+    assert "routine" in (out["title"] + out["body"]).lower()
