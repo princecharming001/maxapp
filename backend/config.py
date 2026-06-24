@@ -237,6 +237,18 @@ class Settings(BaseSettings):
         description="True → api.sandbox.push.apple.com (Xcode debug builds only); False → production (TestFlight / App Store)",
     )
 
+    # --- Notifications v2 daily planner (services.notification_planner) ------
+    # 4-6/day is a CEILING, not a quota. Min interval keeps pushes from clumping.
+    notif_daily_cap: int = Field(default=5, description="Max pushes/day per user (clamped 4-6)")
+    notif_min_interval_min: int = Field(default=90, description="Minimum minutes between any two pushes")
+    notif_lapse_days: int = Field(default=4, description="No app-open for this many days => lapsed (re-engagement)")
+    notif_foreground_suppress_min: int = Field(default=5, description="Suppress pushes if app used within this many minutes")
+    notif_broadcast_weekly_cap: int = Field(default=2, description="Global cap on admin broadcasts per rolling week")
+    # Adaptive backoff: ignored pushes step a user's frequency DOWN toward 1-2/day.
+    notif_backoff_min_delivered: int = Field(default=6, description="Min delivered before low-open backoff kicks in")
+    # Kill switch: True pauses ALL outbound pushes instantly (ops lever).
+    notif_kill_switch: bool = Field(default=False, description="Pause ALL push sends instantly")
+
     # Apple In-App Purchase -- App Store Server API v1 (transaction verification)
     apple_app_store_connect_issuer_id: str = Field(default="", description="Issuer ID from App Store Connect → Keys → In-App Purchase")
     apple_app_store_connect_key_id: str = Field(default="", description="Key ID for the In-App Purchase API key")
