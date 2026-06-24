@@ -1,8 +1,12 @@
 """
-Scheduler Job - Background tasks: SMS schedule reminders, coaching check-ins,
-bedtime progress-picture prompts (SMS/MMS), weekly resets.
-Schedule task reminders are SMS-only (mandatory for active schedules; not written to chat).
-Proactive SMS (coaching, bedtime, weekly) is not stored in in-app chat history.
+Scheduler Job - Background tasks: push/SMS schedule reminders (governed by the
+v2 notification PLANNER), coaching check-ins, bedtime progress-picture prompts,
+weekly resets, queued-broadcast worker.
+
+Task reminders are PUSH-FIRST (APNs); SMS is the fallback when push is off. The
+single daily planner (services.notification_planner) governs WHICH and WHEN, so
+there is exactly one path that emits task pushes — never push AND SMS for the
+same task (cross-channel dedup).
 """
 
 import logging
@@ -25,10 +29,35 @@ from services.notification_prefs import (
     mark_schedule_push_sent,
 )
 from services.apns_service import send_apns_alert, apns_response_should_invalidate_token
+from services.notification_copy import CAT_TASK_DUE, build_push_custom
+from services.notification_candidates import build_candidates
+from services.notification_planner import (
+    PlannerConfig,
+    PlannerContext,
+    plan_day,
+    due_now,
+    effective_cap,
+)
+import services.notification_state as ns
+from services.schedule_streak import STREAK_KEY
 from models.sqlalchemy_models import UserSchedule, User, UserCoachingState
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _user_why(onboarding: dict | None) -> str | None:
+    ob = onboarding or {}
+    for k in ("why", "goal", "primary_goal", "motivation"):
+        v = ob.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip().rstrip(".")
+    goals = ob.get("goals")
+    if isinstance(goals, dict):
+        v = goals.get("why")
+        if isinstance(v, str) and v.strip():
+            return v.strip().rstrip(".")
+    return None
 
 # When sms_scheduler_test_fast_mode: avoid spamming coaching / weekly every minute (once per uid until server restart).
 _COACHING_FAST_TEST_UIDS: set = set()
@@ -165,10 +194,16 @@ def _pending_morning_wake_tasks_today(schedules: list, today_iso: str) -> bool:
 
 
 async def send_due_notifications():
-    """Check for schedule tasks that are due; send SMS and/or APNs (deduped per user)."""
+    """Planner-governed push/SMS sends. The v2 daily planner is the SINGLE path
+    that emits task reminders + the broad daily categories: it enforces the
+    per-user cap, min-interval, wake/sleep window, dedup, adaptive backoff and
+    foreground suppression, and picks ONE channel per user (push, else SMS) so a
+    task is never double-notified across channels."""
+    if bool(getattr(settings, "notif_kill_switch", False)):
+        return
     try:
-        if _sms_fast_mode():
-            logger.debug("SMS fast mode: schedule reminders ignore task time window (today's pending tasks only)")
+        cfg = PlannerConfig.from_settings()
+        lapse_days = int(getattr(settings, "notif_lapse_days", 4) or 4)
         async with AsyncSessionLocal() as db:
             result = await db.execute(select(UserSchedule).where(UserSchedule.is_active == True))
             schedules = result.scalars().all()
@@ -178,187 +213,148 @@ async def send_due_notifications():
                 by_user[schedule.user_id].append(schedule)
 
             for user_id, user_schedules in by_user.items():
-                user = await db.get(User, user_id)
-                if not user:
-                    continue
-                want_sms = bool(user.phone_number) and onboarding_allows_proactive_sms(user.onboarding)
-                want_push = user_allows_proactive_push(user.onboarding, user.apns_device_token)
-                if not want_sms and not want_push:
-                    continue
-
-                tz_name = (user.onboarding or {}).get("timezone", "UTC")
                 try:
-                    user_tz = ZoneInfo(tz_name)
-                except Exception:
-                    user_tz = ZoneInfo("UTC")
-
-                now_utc = datetime.now(ZoneInfo("UTC"))
-                local_now = now_utc.astimezone(user_tz)
-                today_iso = local_now.date().isoformat()
-
-                candidates: list[dict] = []
-                for schedule in user_schedules:
-                    prefs = schedule.preferences or {}
-                    days = schedule.days or []
-                    for day in days:
-                        if day.get("date") != today_iso:
-                            continue
-                        for task in day.get("tasks", []):
-                            if not schedule_needs_any_channel(
-                                task, want_sms=want_sms, want_push=want_push
-                            ):
-                                continue
-                            task_time = task.get("time", "")
-                            parts = _parse_task_time_parts(task_time)
-                            if not parts:
-                                continue
-                            task_hour, task_min = parts
-                            try:
-                                task_dt = local_now.replace(
-                                    hour=task_hour, minute=task_min, second=0, microsecond=0
-                                )
-                            except ValueError:
-                                continue
-                            reminder_offset = prefs.get("notification_minutes_before", 5)
-                            notify_at = task_dt - timedelta(minutes=reminder_offset)
-                            window_end = task_dt + timedelta(
-                                minutes=SCHEDULE_REMINDER_GRACE_AFTER_TASK_MINUTES
-                            )
-                            in_window = notify_at <= local_now <= window_end
-                            if not (_sms_fast_mode() or in_window):
-                                continue
-                            bucket = _notification_intent_bucket(task)
-                            key = _dedupe_group_key(bucket, task_dt, task)
-                            candidates.append(
-                                {
-                                    "schedule": schedule,
-                                    "task": task,
-                                    "task_time_str": task_time,
-                                    "key": key,
-                                }
-                            )
-
-                groups: dict[tuple, list[dict]] = defaultdict(list)
-                for c in candidates:
-                    groups[c["key"]].append(c)
-
-                # CONDUCTOR HARD GATES (spec 4.4): pure functions of
-                # deterministic inputs - quiet hours in the user's tz, daily
-                # nudge budget, min interval, per-task ignore floor. Per-user
-                # conductor state lives in user.profile["jitai"].
-                from services.conductor import (
-                    GateContext,
-                    budget_for,
-                    hard_gates,
-                    ignore_count,
-                    minutes_since_last,
-                    record_send,
-                )
-
-                jitai = dict((user.profile or {}).get("jitai") or {})
-                ob_g = dict(user.onboarding or {})
-                wake_parts = _parse_task_time_parts(str(ob_g.get("wake_time") or "07:00")) or (7, 0)
-                sleep_parts = _parse_task_time_parts(str(ob_g.get("sleep_time") or "23:00")) or (23, 0)
-                nudges_today, checkins_today = budget_for(jitai, local_now.date())
-                now_min_local = local_now.hour * 60 + local_now.minute
-
-                gated_groups: dict[tuple, list[dict]] = {}
-                for _key, group in groups.items():
-                    first_task = group[0]["task"]
-                    ctx = GateContext(
-                        now_min=now_min_local,
-                        wake_min=wake_parts[0] * 60 + wake_parts[1],
-                        sleep_min=sleep_parts[0] * 60 + sleep_parts[1],
-                        nudges_sent_today=nudges_today,
-                        checkins_sent_today=checkins_today,
-                        minutes_since_last_nudge=minutes_since_last(
-                            jitai, local_now.replace(tzinfo=None)
-                        ),
-                        task_already_nudged=schedule_push_marked_sent(first_task)
-                        and schedule_sms_marked_sent(first_task),
-                        task_ignore_count=ignore_count(
-                            jitai, str(first_task.get("task_uuid") or "")
-                        ),
-                    )
-                    allowed, reason = hard_gates(ctx)
-                    if not allowed and not _sms_fast_mode():
-                        logger.debug(
-                            "Conductor gate blocked nudge for %s (%s)", user.id, reason
-                        )
-                        continue
-                    gated_groups[_key] = group
-                groups = gated_groups
-
-                touched_schedules: set = set()
-                sent_any_group = False
-                for _key, group in groups.items():
-                    sms_unsent = [it for it in group if not schedule_sms_marked_sent(it["task"])]
-                    push_unsent = [it for it in group if not schedule_push_marked_sent(it["task"])]
-
-                    if want_sms and sms_unsent:
-                        sms_payload = [(it["task"], it["task_time_str"]) for it in sms_unsent]
-                        success = await sendblue_service.send_schedule_reminder_group(
-                            user.phone_number, sms_payload
-                        )
-                        if success:
-                            for item in sms_unsent:
-                                mark_schedule_sms_sent(item["task"])
-                                touched_schedules.add(item["schedule"])
-                            logger.info(
-                                "Sent deduped schedule SMS to user %s (%s task(s), key=%s)",
-                                user.id,
-                                len(sms_unsent),
-                                _key,
-                            )
-
-                    if want_push and push_unsent and (user.apns_device_token or "").strip():
-                        push_payload = [(it["task"], it["task_time_str"]) for it in push_unsent]
-                        title, body = sendblue_service.build_schedule_reminder_push_content(push_payload)
-                        ok, http_status = await send_apns_alert(
-                            user.apns_device_token, title, body
-                        )
-                        if apns_response_should_invalidate_token(http_status):
-                            user.apns_device_token = None
-                            user.apns_token_updated_at = None
-                        if ok:
-                            for item in push_unsent:
-                                mark_schedule_push_sent(item["task"])
-                                touched_schedules.add(item["schedule"])
-                            logger.info(
-                                "Sent deduped schedule APNs to user %s (%s task(s), key=%s)",
-                                user.id,
-                                len(push_unsent),
-                                _key,
-                            )
-                            from services.analytics_log import log_server_event
-                            await log_server_event(
-                                user.id, "nudge_sent",
-                                {"channel": "push", "task_count": len(push_unsent)},
-                            )
-                            # Spend conductor budget for this decision point.
-                            jitai = record_send(
-                                jitai, local_now.date(),
-                                is_checkin=False,
-                                now=local_now.replace(tzinfo=None),
-                            )
-                            nudges_today += 1
-                            sent_any_group = True
-
-                for schedule in touched_schedules:
-                    flag_modified(schedule, "days")
-                    schedule.updated_at = datetime.utcnow()
-
-                # Persist conductor budget/interval state per user.
-                if sent_any_group:
-                    p2 = dict(user.profile or {})
-                    p2["jitai"] = jitai
-                    user.profile = p2
-                    flag_modified(user, "profile")
+                    await _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days)
+                except Exception as ue:
+                    logger.warning("planner send failed for %s: %s", user_id, ue, exc_info=True)
 
             await db.commit()
 
     except Exception as e:
         logger.error(f"Scheduler job error: {e}", exc_info=True)
+
+
+async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
+    user = await db.get(User, user_id)
+    if not user:
+        return
+    want_sms = bool(user.phone_number) and onboarding_allows_proactive_sms(user.onboarding)
+    want_push = user_allows_proactive_push(user.onboarding, user.apns_device_token)
+    if not want_sms and not want_push:
+        return
+    # Cross-channel dedup (review item 4): exactly ONE channel per user.
+    channel = "push" if want_push else "sms"
+
+    ob = dict(user.onboarding or {})
+    try:
+        user_tz = ZoneInfo(ob.get("timezone") or "UTC")
+    except Exception:
+        user_tz = ZoneInfo("UTC")
+    local_now = datetime.now(ZoneInfo("UTC")).astimezone(user_tz)
+    local_naive = local_now.replace(tzinfo=None)
+    today_iso = local_now.date().isoformat()
+    now_min = local_now.hour * 60 + local_now.minute
+
+    wake_p = _parse_task_time_parts(str(ob.get("wake_time") or "07:00")) or (7, 0)
+    sleep_p = _parse_task_time_parts(str(ob.get("sleep_time") or "23:00")) or (23, 0)
+    wake_min, sleep_min = wake_p[0] * 60 + wake_p[1], sleep_p[0] * 60 + sleep_p[1]
+
+    profile = dict(user.profile or {})
+    state = ns.get_state(profile)
+
+    # Foreground suppression — never push while the app is open / just used.
+    if channel == "push" and not _sms_fast_mode() and ns.foreground_recent(
+        state, local_naive, cfg.foreground_suppress_min
+    ):
+        return
+
+    # Gather today's tasks across all active schedules; keep a uuid -> (schedule,
+    # task) map so we can mark the right one sent.
+    tasks: list[dict] = []
+    ref: dict[str, tuple] = {}
+    for schedule in user_schedules:
+        for day in (schedule.days or []):
+            if day.get("date") != today_iso:
+                continue
+            for task in day.get("tasks", []):
+                parts = _parse_task_time_parts(task.get("time", ""))
+                if not parts:
+                    continue
+                uuid = str(task.get("task_uuid") or task.get("uuid") or f"{schedule.maxx_id}:{task.get('title','')}:{parts[0]}{parts[1]}")
+                tasks.append({
+                    "uuid": uuid,
+                    "title": task.get("title") or "your routine",
+                    "time_min": parts[0] * 60 + parts[1],
+                    "maxx": schedule.maxx_id,
+                    "pending": task.get("status") == "pending",
+                })
+                ref[uuid] = (schedule, task)
+
+    active_plans = {s.maxx_id for s in user_schedules}
+    streak = int(profile.get(STREAK_KEY) or 0)
+    name = (user.first_name or ob.get("first_name") or "").strip() or None
+    why = _user_why(ob)
+
+    deliv, opened, returning = ns.backoff_inputs(state, local_now, lapse_days=lapse_days)
+    cap = effective_cap(cfg.cap, recent_delivered=deliv, recent_opened=opened, returning_lapsed=returning)
+
+    lapsed = ns.is_lapsed(state, local_now, lapse_days)
+    cands = build_candidates(
+        tasks=tasks, now_min=now_min, wake_min=wake_min, sleep_min=sleep_min,
+        weekday=local_now.weekday(), name=name, why=why, streak=streak,
+        active_plans=active_plans, rotation=deliv, lapsed=lapsed,
+    )
+    # SMS users only get task reminders (broad categories are push-only to avoid
+    # SMS spam); push users get the full set.
+    if channel == "sms":
+        cands = [c for c in cands if c.category == CAT_TASK_DUE]
+
+    # Tasks already nudged on THIS channel are off the table.
+    already = {
+        uuid for uuid, (_s, t) in ref.items()
+        if (schedule_push_marked_sent(t) if channel == "push" else schedule_sms_marked_sent(t))
+    }
+
+    ctx = PlannerContext(
+        now_min=now_min, wake_min=wake_min, sleep_min=sleep_min,
+        cap=cap, min_interval_min=cfg.min_interval_min,
+        muted_categories=ns.muted_categories(ob),
+        already_nudged_tasks=frozenset(already),
+        already_sent_keys=ns.sent_keys_today(state, today_iso),
+        foreground_recent=False,
+    )
+    selected = plan_day(ctx, cands)
+    due = due_now(selected, now_min) if not _sms_fast_mode() else selected
+
+    touched_schedules: set = set()
+    changed = False
+    for c in due:
+        if c.dedup_key in ns.sent_keys_today(state, today_iso):
+            continue
+        ok = False
+        if channel == "push":
+            custom = build_push_custom(c.category, c.route, c.params)
+            ok, http_status = await send_apns_alert(
+                (user.apns_device_token or "").strip(), c.title, c.body, custom=custom
+            )
+            if apns_response_should_invalidate_token(http_status):
+                user.apns_device_token = None
+                user.apns_token_updated_at = None
+                break
+        else:  # sms — task reminders only
+            ok = bool(await sendblue_service.send_coaching_sms(user.phone_number, c.body))
+
+        if not ok:
+            continue
+        state = ns.record_delivered(state, local_now)
+        state = ns.record_sent(state, today_iso, c.dedup_key, local_now)
+        state = ns.push_recent_template(state, c.category, c.template_id)
+        changed = True
+        if c.category == CAT_TASK_DUE and c.task_uuid in ref:
+            sched, task = ref[c.task_uuid]
+            if channel == "push":
+                mark_schedule_push_sent(task)
+            else:
+                mark_schedule_sms_sent(task)
+            touched_schedules.add(sched)
+        logger.info("notif planner sent %s to %s via %s", c.category, user.id, channel)
+
+    for sched in touched_schedules:
+        flag_modified(sched, "days")
+        sched.updated_at = datetime.utcnow()
+    if changed:
+        user.profile = ns.put_state(dict(user.profile or {}), state)
+        flag_modified(user, "profile")
 
 
 def _parse_sleep_hh_mm(raw: str | None) -> tuple[int, int] | None:
@@ -451,9 +447,10 @@ async def send_bedtime_progress_picture_prompts():
                     want_sms = bool(user.phone_number) and onboarding_allows_proactive_sms(
                         user.onboarding
                     )
-                    want_push = user_allows_proactive_push(
-                        user.onboarding, user.apns_device_token
-                    )
+                    # Push is consolidated into the v2 planner
+                    # (send_due_notifications). Legacy coaching jobs are SMS-only
+                    # so there's exactly one path emitting pushes.
+                    want_push = False
                     if not want_sms and not want_push:
                         continue
 
@@ -679,9 +676,10 @@ async def send_coaching_check_ins():
                     want_sms = bool(user.phone_number) and onboarding_allows_proactive_sms(
                         user.onboarding
                     )
-                    want_push = user_allows_proactive_push(
-                        user.onboarding, user.apns_device_token
-                    )
+                    # Push is consolidated into the v2 planner
+                    # (send_due_notifications). Legacy coaching jobs are SMS-only
+                    # so there's exactly one path emitting pushes.
+                    want_push = False
                     if not want_sms and not want_push:
                         await db.commit()
                         continue
@@ -764,9 +762,10 @@ async def send_weekly_resets():
                     want_sms = bool(user.phone_number) and onboarding_allows_proactive_sms(
                         user.onboarding
                     )
-                    want_push = user_allows_proactive_push(
-                        user.onboarding, user.apns_device_token
-                    )
+                    # Push is consolidated into the v2 planner
+                    # (send_due_notifications). Legacy coaching jobs are SMS-only
+                    # so there's exactly one path emitting pushes.
+                    want_push = False
                     if not want_sms and not want_push:
                         continue
 
@@ -864,8 +863,14 @@ async def send_winback_pushes():
 
     Each rung fires at most once per gap (tracked in profile). Copy goes
     through the voice gate like every outbound string.
+
+    RETIRED: re-engagement for lapsed users is now owned by the v2 planner
+    (``notification_candidates`` CAT_REENGAGE, gated on ``is_lapsed`` with gentle
+    ramp-up), so push has a single path. Kept as a no-op for the scheduler
+    registration; safe to delete once the registration is removed.
     """
-    from datetime import date as _date, timedelta as _td
+    return
+    from datetime import date as _date, timedelta as _td  # noqa: F401  (dead)
     from zoneinfo import ZoneInfo
 
     from services.schedule_streak import LAST_PERFECT_KEY
@@ -999,6 +1004,85 @@ async def keep_plan_horizons():
         logger.error(f"Horizon job error: {e}", exc_info=True)
 
 
+async def send_queued_notifications():
+    """Deliver queued pushes (e.g. broadcasts queued for an asleep user's next
+    in-window slot) whose scheduled_for has arrived — still subject to the
+    planner's window + cap + min-interval (review item 5), never bypassing them."""
+    if bool(getattr(settings, "notif_kill_switch", False)):
+        return
+    try:
+        from models.sqlalchemy_models import ScheduledNotification
+        from services.notification_copy import build_push_custom, _CATEGORY_ROUTE
+        from services.notification_planner import in_window, PlannerConfig
+        cfg = PlannerConfig.from_settings()
+        now_utc = datetime.now(ZoneInfo("UTC"))
+        async with AsyncSessionLocal() as db:
+            res = await db.execute(
+                select(ScheduledNotification)
+                .where(
+                    (ScheduledNotification.status == "pending")
+                    & (ScheduledNotification.scheduled_for <= now_utc.replace(tzinfo=None))
+                )
+                .limit(500)
+            )
+            rows = res.scalars().all()
+            for row in rows:
+                try:
+                    user = await db.get(User, row.user_id)
+                    if not user or not user_allows_proactive_push(user.onboarding, user.apns_device_token):
+                        row.status = "cancelled"
+                        continue
+                    ob = dict(user.onboarding or {})
+                    category = row.category_id or "broadcast"
+                    if category in ns.muted_categories(ob):
+                        row.status = "cancelled"
+                        continue
+                    try:
+                        tz = ZoneInfo(ob.get("timezone") or "UTC")
+                    except Exception:
+                        tz = ZoneInfo("UTC")
+                    local_now = now_utc.astimezone(tz)
+                    now_min = local_now.hour * 60 + local_now.minute
+                    wake_p = _parse_task_time_parts(str(ob.get("wake_time") or "07:00")) or (7, 0)
+                    sleep_p = _parse_task_time_parts(str(ob.get("sleep_time") or "23:00")) or (23, 0)
+                    wake_min, sleep_min = wake_p[0] * 60 + wake_p[1], sleep_p[0] * 60 + sleep_p[1]
+                    if not in_window(now_min, wake_min, sleep_min):
+                        continue  # still asleep — try again next tick
+                    state = ns.get_state(user.profile)
+                    today_iso = local_now.date().isoformat()
+                    # Respect the per-user daily cap + min-interval so a queued
+                    # broadcast can't push a user over the ceiling.
+                    if ns.sent_count_today(state, today_iso) >= cfg.cap:
+                        continue
+                    last = ns.last_send_min_today(state, today_iso)
+                    if last is not None and (now_min - last) < cfg.min_interval_min:
+                        continue
+                    route = _CATEGORY_ROUTE.get(category, "Home")
+                    custom = build_push_custom(category, route, {"category": category})
+                    name = ((user.profile or {}).get("identity") or {}).get("name")
+                    title = "from max" if not name else f"from max, {name}"
+                    ok, http_status = await send_apns_alert(
+                        (user.apns_device_token or "").strip(), title, row.message, custom=custom
+                    )
+                    if apns_response_should_invalidate_token(http_status):
+                        user.apns_device_token = None
+                        user.apns_token_updated_at = None
+                        row.status = "failed"
+                        continue
+                    if ok:
+                        state = ns.record_delivered(state, local_now)
+                        state = ns.record_sent(state, today_iso, f"cat:{category}", local_now)
+                        user.profile = ns.put_state(dict(user.profile or {}), state)
+                        flag_modified(user, "profile")
+                        row.status = "sent"
+                        row.sent_at = now_utc.replace(tzinfo=None)
+                except Exception as re_err:
+                    logger.warning("queued notif %s failed: %s", row.id, re_err)
+            await db.commit()
+    except Exception as e:
+        logger.error(f"Queued notifications job error: {e}", exc_info=True)
+
+
 def start_scheduler(app):
     """Start the APScheduler background job."""
     try:
@@ -1070,10 +1154,10 @@ def start_scheduler(app):
             **job_defaults,
         )
         scheduler.add_job(
-            send_winback_pushes,
+            send_queued_notifications,
             "interval",
-            minutes=1 if fast else 30,
-            id="winback_pushes",
+            minutes=sched_m,
+            id="queued_notifications",
             **job_defaults,
         )
         from services.prompt_loader import refresh_prompt_cache

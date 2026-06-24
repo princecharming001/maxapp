@@ -16,6 +16,7 @@ from services.notification_copy import (
     CAT_MORNING_PREVIEW,
     CAT_EVENING_RECAP,
     CAT_STREAK,
+    CAT_REENGAGE,
     CAT_TIP,
     compose,
 )
@@ -39,10 +40,18 @@ def build_candidates(
     streak: int,
     active_plans: set,
     rotation: int = 0,
+    lapsed: bool = False,
 ) -> list[Candidate]:
     pending = [t for t in tasks if t.get("pending")]
     pending_count = len(pending)
     cands: list[Candidate] = []
+
+    # 0. Re-engagement — ONLY for a genuinely lapsed user (prior activity, no
+    # recent opens). Fires once near wake; replaces the daily flow that day so
+    # we don't pile reminders on someone who's away (review items 5, 8).
+    if lapsed:
+        copy = compose(CAT_REENGAGE, name=name, why=why, rotation=rotation)
+        return [_broad(CAT_REENGAGE, min(wake_min + 30, sleep_min - 1), copy)]
 
     # 1. Task-due — names the task; one per pending task (plan-relevant by
     # construction, since the task comes from an active schedule).
