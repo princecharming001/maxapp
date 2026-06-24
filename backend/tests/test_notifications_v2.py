@@ -13,6 +13,7 @@ from services.notification_copy import (
     CAT_TASK_DUE,
     CAT_STREAK,
     CAT_MILESTONE,
+    CAT_TIP,
     DEEP_LINK_ROUTES,
     compose,
     passes_taste_bar,
@@ -222,3 +223,50 @@ def test_backoff_ramps_lapsed_user_gently():
 def test_backoff_ignores_tiny_sample():
     # too few delivered to judge -> full cap
     assert effective_cap(5, recent_delivered=2, recent_opened=0) == 5
+
+
+# --- candidate builder: empty-state + plan-relevance guards -------------------
+
+from services.notification_candidates import build_candidates
+
+_TASKS = [{"uuid": "t1", "title": "morning skincare", "time_min": 480, "maxx": "skinmax", "pending": True}]
+
+
+def _cats(**kw):
+    base = dict(
+        tasks=_TASKS, now_min=480, wake_min=420, sleep_min=1380, weekday=0,
+        name="anish", why="a sharper jaw", streak=6, active_plans={"skinmax"},
+    )
+    base.update(kw)
+    return [c.category for c in build_candidates(**base)]
+
+
+def test_new_user_no_streak_push():
+    assert CAT_STREAK not in _cats(streak=0)
+    assert CAT_STREAK not in _cats(streak=1)
+
+
+def test_established_user_gets_streak_push():
+    assert CAT_STREAK in _cats(streak=6)
+
+
+def test_no_recap_when_nothing_pending():
+    done = [{"uuid": "t1", "title": "x", "time_min": 480, "maxx": "skinmax", "pending": False}]
+    assert "evening_recap" not in _cats(tasks=done)
+
+
+def test_tip_requires_active_plan_and_weekday():
+    assert CAT_TIP not in _cats(active_plans=set())     # no plan
+    assert CAT_TIP not in _cats(weekday=6)              # weekend
+    assert CAT_TIP in _cats(active_plans={"skinmax"}, weekday=0)
+
+
+def test_task_due_candidate_carries_task_deeplink():
+    cands = build_candidates(
+        tasks=_TASKS, now_min=480, wake_min=420, sleep_min=1380, weekday=1,
+        name="anish", why=None, streak=0, active_plans={"skinmax"},
+    )
+    td = next(c for c in cands if c.category == CAT_TASK_DUE)
+    assert td.route == "TaskGuide"
+    assert td.params["task_uuid"] == "t1"
+    assert "skincare" in (td.title + td.body).lower()
