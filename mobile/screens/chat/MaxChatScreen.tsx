@@ -462,6 +462,10 @@ export default function MaxChatScreen() {
     /** Keys on the active conversation so switching threads forces a re-seed
      *  from the query data (prevents stale messages from the previous thread). */
     const [seededForConversation, setSeededForConversation] = useState<string | null>(null);
+    /** True after the "new chat" button is tapped: stay on a blank thread and do
+     *  NOT auto-load the most-recent conversation (which is what the null-id
+     *  history query resolves to). Cleared once a real conversation is adopted. */
+    const [pendingNewChat, setPendingNewChat] = useState(false);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     // Lets the Stop button cancel an in-flight reply. A fresh controller is
@@ -495,6 +499,10 @@ export default function MaxChatScreen() {
 
     useEffect(() => {
         if (!chatHistoryQuery.isSuccess) return;
+        // New-chat requested: stay on a blank thread. The null-id history query
+        // resolves to the most-recent conversation, so without this we'd
+        // immediately repaint (and re-adopt) the old chat the user just left.
+        if (pendingNewChat) { setHistoryReady(true); return; }
         const data = chatHistoryQuery.data;
         // data shape was Message[] pre-multi-chat; now {messages, conversationId, pendingQuestion}.
         const msgs: Message[] = Array.isArray(data) ? data : data?.messages ?? [];
@@ -526,7 +534,15 @@ export default function MaxChatScreen() {
                 setInputWidget(pendingQ.input_widget as SliderSpec);
             }
         }
-    }, [chatHistoryQuery.isSuccess, chatHistoryQuery.data, activeConversationId, seededForConversation]);
+    }, [chatHistoryQuery.isSuccess, chatHistoryQuery.data, activeConversationId, seededForConversation, pendingNewChat]);
+
+    // Clear the new-chat flag once a real conversation is adopted (the first send
+    // creates one and sets activeConversationId). Done here, not at send time, so
+    // the flag stays up THROUGH the send and the optimistic first message isn't
+    // wiped by the still-resolving most-recent-thread history query.
+    useEffect(() => {
+        if (activeConversationId) setPendingNewChat(false);
+    }, [activeConversationId]);
 
     useEffect(() => {
         if (chatHistoryQuery.isError) {
@@ -842,6 +858,7 @@ export default function MaxChatScreen() {
     }, [openUrl]);
 
     const newChat = () => {
+        setPendingNewChat(true);
         setActiveConversationId(null);
         setSeededForConversation(null);
         setMessages([]);
