@@ -16,6 +16,7 @@ import { installGlobalErrorHandlers } from './lib/globalErrorHandlers';
 import AppErrorBoundary from './components/AppErrorBoundary';
 import { loadRestoredTab, persistActiveTab, extractActiveTab } from './lib/navState';
 import { navigationRef } from './lib/navigationRef';
+import { consumePostPayPending } from './lib/postPayNav';
 import { colors } from './theme/dark';
 import MaxLoadingView from './components/MaxLoadingView';
 import { StripeProviderGate } from './components/StripeProviderGate';
@@ -119,6 +120,27 @@ function AppNavigator() {
             pendingDeepLinkRef.current = null;
         }
     }, [isAuthenticated, isPaid, user?.id, navRef]);
+
+    // Post-purchase routing: when a verified purchase flips isPaid, the paid
+    // stack remounts and we drop the user straight into the post-pay flow
+    // (FaceScanResults). Driven by a one-shot flag set in the IAP success
+    // handler — NOT the isPaid transition alone — so existing subscribers
+    // opening the app are never sent here. Retries briefly while the freshly
+    // remounted paid stack finishes mounting its FaceScanResults route.
+    useEffect(() => {
+        if (!isPaid) return;
+        if (!consumePostPayPending()) return;   // one-shot; only right after a purchase
+        if (!faceScanEnabled) return;            // face-scan kill switch
+        let tries = 0;
+        const go = () => {
+            if (navRef.isReady()) {
+                navRef.navigate('FaceScanResults' as never, { postPay: true } as never);
+            } else if (tries++ < 20) {
+                setTimeout(go, 150);
+            }
+        };
+        go();
+    }, [isPaid, faceScanEnabled, navRef]);
 
     // Root-level face scan recovery: runs whenever the app comes back to the
     // foreground so a pending upload that was interrupted in the background

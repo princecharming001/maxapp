@@ -7,6 +7,7 @@ import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../constants/appleIa
 import { useAuth } from '../context/AuthContext';
 import { prefetchMainTabData } from '../lib/prefetchMainTabData';
 import { queryKeys } from '../lib/queryClient';
+import { markPostPayPending } from '../lib/postPayNav';
 import api from '../services/api';
 
 type Tier = 'basic' | 'premium';
@@ -83,6 +84,12 @@ export function useAppleSubscription() {
                         return;
                     }
 
+                    // Mark BEFORE refreshUser so the flag is already set when
+                    // refreshUser flips isPaid and App.tsx's effect fires. Only
+                    // for a real user-initiated purchase — never a StoreKit
+                    // replay/restore — so existing subscribers aren't dropped
+                    // into the post-pay flow on launch.
+                    if (isUserInitiated) markPostPayPending();
                     await refreshUser();
                     void queryClient.invalidateQueries({ queryKey: queryKeys.maxes });
                     prefetchMainTabData(queryClient);
