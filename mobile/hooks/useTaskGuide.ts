@@ -8,11 +8,21 @@ export type TaskGuideStep = {
     tip: string | null;
 };
 
+export type TaskGuideProduct = {
+    name: string;
+    note: string;
+    /** Direct amazon /dp/ page resolved from the catalog; "" when unmatched. */
+    url?: string;
+    /** Curated product image URL; "" when none. */
+    image?: string;
+};
+
 export type TaskGuide = {
     task_key: string;
     title: string;
     overview: string;
     steps: TaskGuideStep[];
+    products?: TaskGuideProduct[];
     duration_minutes: number;
     why_it_matters: string;
 };

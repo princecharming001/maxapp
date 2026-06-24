@@ -408,16 +408,100 @@ def _strip_amazon_links(text: str) -> str:
     return out.strip()
 
 
+_BULLET_LINE_RE = re.compile(r"^(\s*)[-*•]\s+(.+)$")
+_NUM_LINE_RE = re.compile(r"^(\s*)(\d{1,2})[.)]\s+(.+)$")
+
+
+def _bold_lead_phrase(content: str) -> str:
+    """Bold the lead phrase of a list item (the key term). If the item is
+    'term: detail' bold the term; otherwise bold the first 2-4 words. Leaves
+    content that already opens with **bold** untouched (idempotent)."""
+    c = content.strip()
+    if c.startswith("**"):
+        return c
+    # 'lead phrase: rest' → bold the lead phrase.
+    m = re.match(r"([^:*]{2,48}):\s+(.+)$", c)
+    if m:
+        return f"**{m.group(1).strip()}**: {m.group(2).strip()}"
+    # Otherwise bold the first 2-4 words (stop before sentence-ending punct).
+    m = re.match(r"([\w''/+%&-]+(?:\s+[\w''/+%&-]+){1,3})(\b.*)$", c)
+    if m:
+        lead = m.group(1).strip()
+        rest = m.group(2).strip()
+        rest = re.sub(r"^[,:]\s*", "", rest)
+        return f"**{lead}** {rest}".strip()
+    return c
+
+
+def _split_inline_numbered(text: str) -> str:
+    """The model often glues the first list item to its intro sentence
+    ('here's a quick plan: 1. repair... \\n2. reduce...'), so only the 2nd+
+    items start a line. When a real numbered run exists (1. AND 2. present),
+    break each ' N. ' that follows other text onto its own line so the
+    line-based normalizer can see the whole list. The ' ' + '\\s+' after the
+    dot guards against decimals like '3.14' (no following space)."""
+    if not text:
+        return text
+    if not (re.search(r"(?:^|\s)1[.)]\s", text) and re.search(r"(?:^|\s)2[.)]\s", text)):
+        return text
+    return re.sub(r"(\S)[ \t]+(\d{1,2}[.)])\s+", r"\1\n\2 ", text)
+
+
+def _normalize_list_formatting(text: str) -> str:
+    """Multi-point answers must render as a NUMBERED list with bolded lead
+    phrases (success criterion 8). The LLM ignores the prompt rule under load,
+    so enforce it deterministically: when a message has 3+ list items (bullets
+    or numbers), renumber them sequentially and bold each lead phrase. Lists
+    with <3 items and single-fact prose are left alone."""
+    if not text:
+        return text
+    text = _split_inline_numbered(text)
+    if "\n" not in text:
+        return text
+    lines = text.split("\n")
+    list_idx = [
+        i for i, ln in enumerate(lines)
+        if _BULLET_LINE_RE.match(ln) or _NUM_LINE_RE.match(ln)
+    ]
+    if len(list_idx) < 3:
+        return text
+    n = 0
+    prev = None
+    for i in range(len(lines)):
+        bm = _BULLET_LINE_RE.match(lines[i])
+        nm = _NUM_LINE_RE.match(lines[i])
+        if not (bm or nm):
+            prev = None
+            continue
+        # Reset numbering when a non-list line broke the run.
+        if prev is not None and prev != i - 1:
+            n = 0
+        n += 1
+        prev = i
+        content = bm.group(2) if bm else nm.group(3)
+        lines[i] = f"{n}. {_bold_lead_phrase(content)}"
+    return "\n".join(lines)
+
+
+def _keep_bold_drop_stray_asterisks(text: str) -> str:
+    """Keep well-formed **bold** spans (the mobile renderer styles them) but
+    drop stray single asterisks so the user never sees raw markdown emphasis."""
+    out = re.sub(r"\*\*([^*]+)\*\*", lambda m: "\x01" + m.group(1) + "\x02", text)
+    out = out.replace("*", "")
+    return out.replace("\x01", "**").replace("\x02", "**")
+
+
 def _finalize_assistant_message(text: str, *, keep_links: bool = False) -> str:
     """User-facing chat: edge enforcer. Order matters:
        1. Tech-leak scrub (system prompt fragments, kwarg-shapes).
        2. AI-template lead-ins / sign-offs.
        3. Em-dash cap (1 per response, rest become period/comma).
        4. Paragraph-break enforcement on wall-of-text answers.
-       5. Strip inline amazon links (cards carry them) — UNLESS keep_links,
+       5. Numbered-list + bold-lead normalization for 3+ point answers.
+       6. Strip inline amazon links (cards carry them) — UNLESS keep_links,
           which the explicit "give me links" fast path sets (its whole answer
           IS the links, and they're amazon SEARCH links with no catalog card).
-       6. Drop markdown asterisks + lowercase to Max voice.
+       7. Keep **bold**, drop stray asterisks, lowercase to Max voice.
     """
     if not text:
         return text
@@ -425,9 +509,10 @@ def _finalize_assistant_message(text: str, *, keep_links: bool = False) -> str:
     out = _strip_ai_leadins(out)
     out = _strip_em_dashes(out)
     out = _enforce_paragraph_breaks(out)
+    out = _normalize_list_formatting(out)
     if not keep_links:
         out = _strip_amazon_links(out)
-    return out.replace("*", "").lower()
+    return _keep_bold_drop_stray_asterisks(out).lower()
 
 
 # Marker the LLM emits when it wants to clarify with MCQ chips. Server
@@ -1724,6 +1809,16 @@ def _looks_like_informational_question(text: str) -> bool:
         r"\bshould i (use|take|buy|start)\b",
         r"\bdefine\b",
         r"\bmeaning of\b",
+        # Advice / how-to requests ("give me tips to sleep well", "best way to
+        # sleep", "ways to improve sleep") are informational, NOT schedule
+        # mutations — without this the bare word "sleep"/"wake" misroutes them
+        # to the schedule-edit handler.
+        r"\btips?\b",
+        r"\badvice\b",
+        r"\bbest way\b",
+        r"\bways to\b",
+        r"\bhelp me (?:with|sleep|fix|improve|get|fall)\b",
+        r"\bhow (?:can|do) i (?:get|improve|fix|fall|stay)\b",
     )
     for pat in patterns:
         if re.search(pat, t, re.I):
@@ -2042,10 +2137,13 @@ async def _bg_detect_tone(user_id: str, recent_history: list[dict]) -> None:
 # a false negative.
 _SELF_HARM_RE = re.compile(
     r"\b("
-    r"kill (?:myself|me)|killing myself|end(?:ing)? (?:my life|it all)|"
+    r"kill (?:myself|me)|killing myself|"
+    r"(?:going to|gonna|wanna|want(?:ing)?\s+to|about to|ready to|need to|gotta|finna|imma)\s+end\s+(?:it|my life|it all|things|everything|my own life)|"
+    r"end(?:ing)? (?:my life|it all|my own life)|"
     r"want(?:ing)?\s+to\s+die|wanna\s+die|suicidal|suicide|take my (?:own )?life|"
     r"hurt(?:ing)?\s+myself|harm(?:ing)?\s+myself|self[\s-]?harm|cut(?:ting)?\s+myself|"
-    r"no reason to live|don'?t want to (?:be here|live|exist)|better off dead|want to be dead"
+    r"no reason to live|don'?t want to (?:be here|live|exist)|better off dead|want to be dead|"
+    r"can'?t (?:do this anymore|go on)|don'?t want to wake up"
     r")\b",
     re.IGNORECASE,
 )
@@ -3337,9 +3435,11 @@ Ask ONE question at a time. Your very first response must ask the concern questi
             logger.warning("schedule mutation guard overridden despite forced adaptation flag")
 
 
-    # --- Strip inline amazon links (cards carry them) + lowercase ---
+    # --- Numbered-list+bold normalization, strip inline amazon links
+    #     (cards carry them), keep **bold**, lowercase to Max voice ---
+    response_text = _normalize_list_formatting(response_text)
     response_text = _strip_amazon_links(response_text)
-    response_text = response_text.lower()
+    response_text = _keep_bold_drop_stray_asterisks(response_text).lower()
 
     # --- Save messages (app only; SMS is not stored) ---
     if _persist_chat_history(channel):

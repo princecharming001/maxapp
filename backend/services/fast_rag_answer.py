@@ -541,6 +541,10 @@ async def answer_from_chunks(
 - If the evidence does not contain the requested detail, say you don't have that in the course material.
 - Do not use outside knowledge, assumptions, or speculation.
 - Do not include citations or source labels in the final answer.
+
+## FORMAT (overrides the length rule on structure, not length)
+- If the answer is 3+ steps / tips / points OR describes a routine / regimen / protocol with multiple actions, you MUST format it as a NUMBERED markdown list (`1. ...` `2. ...` each on its own line) with the lead phrase of each item in **bold**. NEVER write a multi-step routine as a flowing paragraph.
+- A single-fact or 1-2 sentence answer stays short prose. Do not force a list onto it.
 """
     # Long-term user facts (vegetarian / allergies / health / etc.) — same
     # source the agent path uses. Inject NEAR THE TOP of the system prompt

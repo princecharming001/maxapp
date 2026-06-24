@@ -19,6 +19,8 @@ import {
     ScrollView,
     ActivityIndicator,
     Platform,
+    Linking,
+    Image,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -360,7 +362,7 @@ function IntroPage({
     width, title, overview, duration, products, accent, scrollX, onNext,
 }: {
     width: number; title: string; overview: string; duration: number;
-    products: { name: string; note: string }[];
+    products: { name: string; note: string; url?: string; image?: string }[];
     accent: string; scrollX: SharedValue<number>; onNext: () => void;
 }) {
     const heroStyle = useAnimatedStyle(() => ({
@@ -390,15 +392,35 @@ function IntroPage({
                 {products.length > 0 && (
                     <View style={ip.products}>
                         <Text style={ip.productsLabel}>WHAT YOU'LL NEED</Text>
-                        {products.map((p, i) => (
-                            <View key={`${p.name}-${i}`} style={ip.productRow}>
-                                <View style={[ip.productDot, { backgroundColor: accent }]} />
-                                <Text style={ip.productText}>
-                                    <Text style={ip.productName}>{p.name}</Text>
-                                    {p.note ? <Text style={ip.productNote}>{`  ·  ${p.note}`}</Text> : null}
-                                </Text>
-                            </View>
-                        ))}
+                        {products.map((p, i) => {
+                            const tappable = !!p.url;
+                            const inner = (
+                                <>
+                                    {p.image ? (
+                                        <Image source={{ uri: p.image }} style={ip.productImage} resizeMode="contain" />
+                                    ) : (
+                                        <View style={[ip.productDot, { backgroundColor: accent }]} />
+                                    )}
+                                    <Text style={ip.productText}>
+                                        <Text style={ip.productName}>{p.name}</Text>
+                                        {p.note ? <Text style={ip.productNote}>{`  ·  ${p.note}`}</Text> : null}
+                                    </Text>
+                                    {tappable ? <Ionicons name="open-outline" size={15} color={MUTE} /> : null}
+                                </>
+                            );
+                            return tappable ? (
+                                <TouchableOpacity
+                                    key={`${p.name}-${i}`}
+                                    style={ip.productRow}
+                                    activeOpacity={0.7}
+                                    onPress={() => Linking.openURL(p.url!).catch(() => {})}
+                                >
+                                    {inner}
+                                </TouchableOpacity>
+                            ) : (
+                                <View key={`${p.name}-${i}`} style={ip.productRow}>{inner}</View>
+                            );
+                        })}
                     </View>
                 )}
 
@@ -427,6 +449,7 @@ const ip = StyleSheet.create({
     productsLabel: { fontFamily: fonts.sansBold, fontSize: 10, color: MUTE, letterSpacing: 2, marginBottom: 4 },
     productRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
     productDot: { width: 6, height: 6, borderRadius: 3 },
+    productImage: { width: 34, height: 34, borderRadius: 6, backgroundColor: '#f0ece4' },
     productText: { flex: 1, fontFamily: fonts.sans, fontSize: 14.5, color: INK, lineHeight: 20 },
     productName: { fontFamily: fonts.sansMedium, color: INK },
     productNote: { fontFamily: fonts.sans, color: MUTE },

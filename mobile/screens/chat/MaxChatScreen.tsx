@@ -348,14 +348,21 @@ function ThinkingShimmer() {
 // Typewriter reveal with a blinking caret while streaming; swaps to the fully
 // formatted (rich) text once complete. Mirrors ChatGPT's token streaming.
 function StreamingText({
-  text, animate, plainStyle, renderRich,
+  text, animate, plainStyle, renderRich, onShown,
 }: {
   text: string; animate: boolean; plainStyle: any; renderRich: (t: string) => React.ReactNode;
+  /** Fired once when this message begins its (one and only) reveal. */
+  onShown?: () => void;
 }) {
   const [n, setN] = useState(animate ? 0 : text.length);
   const blink = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!animate) { setN(text.length); return; }
+    // Mark shown immediately (via a ref in the parent, so it does NOT
+    // re-render and interrupt this animation). Any later remount of this
+    // row on scroll reads the flag and renders the final text instantly
+    // instead of re-playing the typewriter. This is the scroll-regenerate fix.
+    onShown?.();
     setN(0);
     let i = 0;
     const total = text.length;
@@ -489,6 +496,12 @@ export default function MaxChatScreen() {
     const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
     const flatListRef = useRef<FlashListRef<Message>>(null);
     const inputRef = useRef<TextInput>(null);
+    // Keys of assistant messages that have already played their typewriter
+    // reveal. FlashList recycles rows on scroll, which remounts StreamingText;
+    // without this guard a message re-animates ("regenerates") every time it
+    // scrolls back into view. A ref (not state) so marking it shown can't
+    // re-render and interrupt the in-flight animation.
+    const shownMsgKeysRef = useRef<Set<string>>(new Set());
     /** Voice dictation (Web Speech API on web; keyboard-dictation fallback on native). */
     const [listening, setListening] = useState(false);
     const recognitionRef = useRef<any>(null);
@@ -1122,7 +1135,12 @@ export default function MaxChatScreen() {
 
         if (isAssistant) {
             // Assistant: plain, full-width text (no bubble) — the ChatGPT pattern.
-            const animate = !!item.justArrived && isLast && !loading;
+            // Animate ONCE: only a freshly-arrived last message that hasn't
+            // already revealed. The shown-key guard survives FlashList row
+            // recycling so scrolling away and back never replays the reveal.
+            const msgKey = item.id ?? `local:${item.role}:${item.content}`;
+            const animate =
+                !!item.justArrived && isLast && !loading && !shownMsgKeysRef.current.has(msgKey);
             const content = (
                 <View style={cg.assistantRow}>
                     {replyQuote}
@@ -1132,6 +1150,7 @@ export default function MaxChatScreen() {
                             animate={animate}
                             plainStyle={cg.assistantText}
                             renderRich={(t) => renderLinkedText(t, [cg.assistantText])}
+                            onShown={() => shownMsgKeysRef.current.add(msgKey)}
                         />
                     ) : null}
                     {productCards.length > 0 && (

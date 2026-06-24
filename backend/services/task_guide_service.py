@@ -181,16 +181,42 @@ def _validate(guide: dict) -> None:
         assert isinstance(s.get("title"), str), "step missing title"
         assert isinstance(s.get("body"), str), "step missing body"
     # products is optional — normalize to a clean list so the client always has
-    # the key (never KeyError on a guide cached before products existed).
+    # the key (never KeyError on a guide cached before products existed). Each
+    # product name is resolved against the catalog to attach an authoritative
+    # `url` (the DIRECT amazon /dp/ page) and curated `image` so the client can
+    # render a tappable card. Unresolved products keep an empty url/image and
+    # the card still renders (just not tappable) — never a search-results link.
     prods = guide.get("products")
     if not isinstance(prods, list):
         guide["products"] = []
     else:
-        guide["products"] = [
-            {"name": str(p.get("name", "")).strip(), "note": str(p.get("note", "")).strip()}
-            for p in prods
-            if isinstance(p, dict) and str(p.get("name", "")).strip()
-        ]
+        try:
+            from services.product_catalog import lookup_by_name
+        except Exception:
+            lookup_by_name = None  # type: ignore
+        clean: list[dict] = []
+        for p in prods:
+            if not isinstance(p, dict):
+                continue
+            name = str(p.get("name", "")).strip()
+            if not name:
+                continue
+            url, image = "", ""
+            if lookup_by_name is not None:
+                try:
+                    hit = lookup_by_name(name)
+                    if hit:
+                        url = hit.display_url
+                        image = hit.image
+                except Exception:
+                    pass
+            clean.append({
+                "name": name,
+                "note": str(p.get("note", "")).strip(),
+                "url": url,
+                "image": image,
+            })
+        guide["products"] = clean
 
 
 def _fallback_guide(title: str, description: str, duration_minutes: int) -> dict:
@@ -265,8 +291,8 @@ async def _cache_set(task_key: str, payload: dict, db: AsyncSession) -> None:
         text(
             """
             INSERT INTO task_guides (task_key, payload)
-            VALUES (:k, :p::jsonb)
-            ON CONFLICT (task_key) DO UPDATE SET payload = :p::jsonb, created_at = NOW()
+            VALUES (:k, CAST(:p AS jsonb))
+            ON CONFLICT (task_key) DO UPDATE SET payload = CAST(:p AS jsonb), created_at = NOW()
             """
         ),
         {"k": task_key, "p": json.dumps(payload)},

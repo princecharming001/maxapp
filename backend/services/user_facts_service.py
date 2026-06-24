@@ -127,7 +127,7 @@ _BODY = [
 _LIFESTYLE = [
     (re.compile(r"\bi\s+live\s+in\s+([a-z][a-z\s,\-']{2,40})", re.IGNORECASE),
      lambda m: ("lifestyle", f"lives in {_trim_clause(m.group(1))}")),
-    (re.compile(r"\bi\s+work\s+(?:the\s+)?night\s+shift\b", re.IGNORECASE),
+    (re.compile(r"\bi\s+(?:work|am on|'?m on)\s+(?:the\s+)?nights?\b|\bi\s+work\s+(?:the\s+)?night\s*shifts?\b|\bnight\s*shift\s+worker\b", re.IGNORECASE),
      lambda m: ("lifestyle", "night shift")),
     (re.compile(r"\bi\s+work\s+from\s+home\b", re.IGNORECASE),
      lambda m: ("lifestyle", "wfh")),
@@ -135,6 +135,18 @@ _LIFESTYLE = [
      lambda m: ("lifestyle", "student")),
     (re.compile(r"\bi\s+(?:work out|train)\s+(in the (?:morning|evening|afternoon)|at night|early|late)\b", re.IGNORECASE),
      lambda m: ("preferences", f"workout {m.group(1).lower()}")),
+]
+
+# Equipment / access — what the user can train with.
+_EQUIPMENT = [
+    (re.compile(r"\b(?:i have (?:no|zero)|i don'?t have(?: a)?|no)\s+(?:gym|gym access|gym membership)\b", re.IGNORECASE),
+     lambda m: ("equipment", "no gym")),
+    (re.compile(r"\bi\s+(?:only\s+)?(?:train|work\s*out|workout|lift)?\s*(?:at\s+)?home\s+only\b|\bhome\s+(?:gym\s+)?only\b", re.IGNORECASE),
+     lambda m: ("equipment", "home only")),
+    (re.compile(r"\bi\s+have\s+(?:a\s+)?(dumbbells?|barbell|kettlebells?|pull[- ]?up bar|resistance bands?|bench|squat rack|foam roller|jump rope)\b", re.IGNORECASE),
+     lambda m: ("equipment", m.group(1).lower())),
+    (re.compile(r"\bi\s+(?:have|got)\s+(?:a\s+)?(?:full\s+)?gym(?:\s+access|\s+membership)?\b", re.IGNORECASE),
+     lambda m: ("equipment", "full gym")),
 ]
 
 # Climate.
@@ -165,7 +177,7 @@ _HEALTH = [
      lambda m: ("health", m.group(1).lower())),
 ]
 
-ALL_PATTERNS = _DIET + _ALLERGY + _BODY + _LIFESTYLE + _CLIMATE + _DISLIKE + _HEALTH
+ALL_PATTERNS = _DIET + _ALLERGY + _BODY + _LIFESTYLE + _EQUIPMENT + _CLIMATE + _DISLIKE + _HEALTH
 
 
 # --------------------------------------------------------------------------- #
@@ -269,7 +281,18 @@ def merge_facts(existing: dict[str, Any] | None, new: dict[str, Any]) -> dict[st
             out[parent] = sub
             stated_at[key] = today
         elif isinstance(value, list):
-            existing_list = list(out.get(key) or [])
+            prev = out.get(key)
+            # Guard against a key that was previously stored as a scalar
+            # (e.g. `equipment` set from onboarding) now receiving a list
+            # from chat extraction: `list("full gym")` would explode the
+            # string into characters. Coerce a non-list scalar into a
+            # single-element list first.
+            if isinstance(prev, list):
+                existing_list = list(prev)
+            elif prev in (None, "", {}):
+                existing_list = []
+            else:
+                existing_list = [prev]
             for v in value:
                 # Canonicalize at merge time so storage stays clean —
                 # any future stored fact is in canonical form regardless
@@ -303,7 +326,7 @@ def format_facts_for_prompt(facts: dict[str, Any] | None, max_items: int = 24) -
     if not facts:
         return ""
     lines: list[str] = []
-    order = ("diet", "allergies", "health", "body", "lifestyle", "preferences", "dislikes", "equipment")
+    order = ("diet", "allergies", "health", "body", "lifestyle", "preferences", "dislikes")
     count = 0
     for key in order:
         v = facts.get(key)
