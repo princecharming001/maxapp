@@ -253,8 +253,16 @@ function TourTrigger() {
         if (ob?.post_subscription_onboarding) return;
         if (ob?.main_app_tour_completed) return;
 
-        fired.current = true;
-        const id = setTimeout(() => start(), 600);
+        // Mark fired INSIDE the timeout, not before it. If a dependency changes
+        // within the 600ms window (e.g. the user object refreshing right after
+        // payment), the cleanup clears this timer — and if we'd already set
+        // fired=true the tour would be lost until the tab remounts (the "X out
+        // and re-enter" workaround). Setting it in the callback lets the effect
+        // re-run and reschedule until it actually fires.
+        const id = setTimeout(() => {
+            fired.current = true;
+            start();
+        }, 600);
         return () => clearTimeout(id);
     }, [isPaid, user?.onboarding, start]);
 

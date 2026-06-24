@@ -210,17 +210,31 @@ export function useAppleSubscription() {
 
             const sku = tier === 'premium' ? APPLE_IAP_PREMIUM_SKU : APPLE_IAP_BASIC_SKU;
 
-            // Fire requestPurchase immediately so StoreKit opens its sheet
-            // with no perceptible delay. If the products cache happens to be
-            // empty (e.g. first launch, fetch still in flight), kick off a
-            // background warmup but do NOT block the purchase flow on it —
-            // StoreKit can present the sheet for a valid SKU regardless, and
-            // blocking here was costing up to ~15s of retry/backoff before the
-            // sheet appeared.
-            const productCached = products.some((p) => (p as { productId?: string }).productId === sku);
+            // If the product is already cached, fire requestPurchase immediately
+            // so StoreKit opens its sheet with no perceptible delay.
+            // If it is NOT cached, do ONE bounded fetch first and confirm THIS
+            // sku is actually available before requesting. Firing a purchase for
+            // a sku StoreKit doesn't know (e.g. a just-approved product still
+            // propagating to sandbox, or a transient empty fetch) silently does
+            // nothing — no sheet, no error — which reads as a dead button. A
+            // bounded check lets us give real feedback instead.
+            let productCached = products.some((p) => (p as { productId?: string }).productId === sku);
             if (!productCached) {
-                console.log('[AppleIAP] Cache miss at subscribe time; warming in background:', sku);
-                void loadProducts();
+                console.log('[AppleIAP] Cache miss at subscribe time; fetching before purchase:', sku);
+                try {
+                    const list = await loadProducts();
+                    productCached = list.some((p) => (p as { productId?: string }).productId === sku);
+                } catch (err) {
+                    console.warn('[AppleIAP] product fetch before purchase failed:', err);
+                }
+                if (!productCached) {
+                    console.error('[AppleIAP] Product not available from StoreKit, aborting purchase:', sku);
+                    Alert.alert(
+                        'Plan not available yet',
+                        "This plan isn't available from the App Store right now. If it was just set up, it can take a little while to appear — please try again shortly.",
+                    );
+                    return false;
+                }
             }
 
             requestInFlightRef.current = true;
