@@ -436,8 +436,10 @@ export default function HomeScreen() {
 
         const completing = row.status !== 'completed';
         const newStatus = completing ? 'completed' : 'pending';
-        // Cancel in-flight refetches so they don't overwrite the optimistic update.
-        await queryClient.cancelQueries({ queryKey: queryKeys.schedulesActiveFull });
+        // Optimistic update FIRST (synchronous) so the checkbox flips instantly —
+        // never gated on the network. THEN cancel any in-flight refetch so it
+        // can't clobber the optimistic state. Awaiting cancelQueries before the
+        // flip (the old order) added a network-shaped delay before the check.
         const prevData = queryClient.getQueryData(queryKeys.schedulesActiveFull);
         queryClient.setQueryData(queryKeys.schedulesActiveFull, (old: any) => {
             if (!old?.schedules) return old;
@@ -454,13 +456,18 @@ export default function HomeScreen() {
                 }),
             };
         });
+        void queryClient.cancelQueries({ queryKey: queryKeys.schedulesActiveFull });
         try {
             if (completing) {
                 await api.completeScheduleTask(row.scheduleId, row.task_id);
+                // Only a COMPLETE can earn a streak/achievement/celebration, so
+                // only then do the silent background re-sync. Uncompleting needs
+                // no refetch — the optimistic state is already correct, and the
+                // full /active/full refetch is the heavy "extra" work to avoid.
+                void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
             } else {
                 await api.uncompleteScheduleTask(row.scheduleId, row.task_id);
             }
-            void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
         } catch (e) {
             console.error('toggleTodayTask', e);
             queryClient.setQueryData(queryKeys.schedulesActiveFull, prevData);
@@ -596,7 +603,10 @@ export default function HomeScreen() {
                             {selectedRows.map((row) => {
                                 const done = row.status === 'completed';
                                 const rowKey = `${row.scheduleId}:${row.task_id}`;
-                                const busy = taskToggleInFlightRef.current.has(rowKey);
+                                // No spinner: the optimistic flip already shows the
+                                // result instantly. Concurrent taps are guarded
+                                // inside toggleTodayTask (taskToggleInFlightRef).
+                                const busy = false;
                                 return (
                                     <GradientHabit
                                         key={rowKey}
