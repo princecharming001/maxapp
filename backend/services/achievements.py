@@ -208,6 +208,10 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
                 logger.debug("achievement check failed for %s: %s", a.code, e)
         if newly:
             await db.commit()
+            try:
+                await _send_milestone_push(db, user, streak)
+            except Exception as e:
+                logger.debug("milestone push skipped: %s", e)
         return newly
     except Exception as e:
         # Unique-constraint race (concurrent evaluate) or any DB hiccup — never
@@ -218,6 +222,81 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
             pass
         logger.warning("achievement evaluate failed (non-fatal): %s", e)
         return []
+
+
+async def _send_milestone_push(db: AsyncSession, user, streak: dict) -> None:
+    """Event-driven milestone push on achievement unlock. Respects the v2
+    planner ceiling: window, per-user daily cap, min-interval, mute, foreground
+    suppression, kill switch — never floods (review item 5)."""
+    from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo
+    from config import settings as _settings
+    from sqlalchemy.orm.attributes import flag_modified
+    from services.notification_prefs import user_allows_proactive_push
+    from services.apns_service import send_apns_alert, apns_response_should_invalidate_token
+    from services.notification_copy import CAT_MILESTONE, compose, build_push_custom
+    from services.notification_planner import PlannerConfig, in_window
+    import services.notification_state as ns
+
+    if bool(getattr(_settings, "notif_kill_switch", False)):
+        return
+    ob = dict(user.onboarding or {})
+    if not user_allows_proactive_push(ob, user.apns_device_token):
+        return
+    if CAT_MILESTONE in ns.muted_categories(ob):
+        return
+    cfg = PlannerConfig.from_settings()
+    try:
+        tz = ZoneInfo(ob.get("timezone") or "UTC")
+    except Exception:
+        tz = ZoneInfo("UTC")
+    local_now = _dt.now(ZoneInfo("UTC")).astimezone(tz)
+    now_min = local_now.hour * 60 + local_now.minute
+
+    def _hhmm(raw, d):
+        try:
+            s = str(raw).strip().upper()
+            if "AM" in s or "PM" in s:
+                t = _dt.strptime(s, "%I:%M %p").time()
+                return t.hour * 60 + t.minute
+            p = s.replace(".", ":").split(":")
+            return int(p[0]) * 60 + int(p[1][:2])
+        except Exception:
+            return d
+    wake_min = _hhmm(ob.get("wake_time"), 7 * 60)
+    sleep_min = _hhmm(ob.get("sleep_time"), 23 * 60)
+    if not in_window(now_min, wake_min, sleep_min):
+        return  # asleep — skip (milestones don't wake people)
+
+    state = ns.get_state(user.profile)
+    if ns.foreground_recent(state, local_now.replace(tzinfo=None), cfg.foreground_suppress_min):
+        return  # they're in the app and will see the celebration anyway
+    today_iso = local_now.date().isoformat()
+    if "cat:milestone" in ns.sent_keys_today(state, today_iso):
+        return  # already sent a milestone push today
+    if ns.sent_count_today(state, today_iso) >= cfg.cap:
+        return  # at the daily ceiling — don't flood
+    last = ns.last_send_min_today(state, today_iso)
+    if last is not None and (now_min - last) < cfg.min_interval_min:
+        return
+
+    name = (user.first_name or ob.get("first_name") or "").strip() or None
+    copy = compose(CAT_MILESTONE, name=name, streak=int((streak or {}).get("current") or 0))
+    custom = build_push_custom(CAT_MILESTONE, copy["route"], copy["params"])
+    ok, http_status = await send_apns_alert(
+        (user.apns_device_token or "").strip(), copy["title"], copy["body"], custom=custom
+    )
+    if apns_response_should_invalidate_token(http_status):
+        user.apns_device_token = None
+        user.apns_token_updated_at = None
+        await db.commit()
+        return
+    if ok:
+        state = ns.record_delivered(state, local_now)
+        state = ns.record_sent(state, today_iso, "cat:milestone", local_now)
+        user.profile = ns.put_state(dict(user.profile or {}), state)
+        flag_modified(user, "profile")
+        await db.commit()
 
 
 async def list_for_user(db: AsyncSession, user, *, streak: dict, schedules: list[dict]) -> dict[str, Any]:

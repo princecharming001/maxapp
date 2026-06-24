@@ -48,8 +48,16 @@ const SHOW_PLANNER_MOCKS = false;
 
 // Routes a push notification is allowed to deep-link into. Keep this an
 // explicit allow-list — we never navigate to an arbitrary route name handed
-// to us inside a notification payload.
-const NOTIFICATION_DEEP_LINK_ROUTES = new Set<string>(['ProgressArchive']);
+// to us inside a notification payload. Mirrors backend
+// services/notification_copy.DEEP_LINK_ROUTES so every category's push opens
+// the right screen (task -> TaskGuide, milestone -> Achievements, etc.).
+const NOTIFICATION_DEEP_LINK_ROUTES = new Set<string>([
+    'Home',
+    'TaskGuide',
+    'Achievements',
+    'Profile',
+    'ProgressArchive',
+]);
 
 function AppNavigator() {
     const { isAuthenticated, isPaid, refreshUser, user, isScanUser } = useAuth();
@@ -60,16 +68,22 @@ function AppNavigator() {
     // A deep-link target that arrived from a notification tap before the
     // navigator (or the stack screen it points at) was mounted — flushed once
     // navigation is ready. Covers the cold-start-from-tap case.
-    const pendingDeepLinkRef = useRef<string | null>(null);
+    const pendingDeepLinkRef = useRef<{ route: string; params?: Record<string, unknown> } | null>(null);
 
-    const goToNotificationRoute = useCallback(
-        (route: unknown) => {
+    const goToNotificationData = useCallback(
+        (data: unknown) => {
+            const d = (data ?? {}) as { route?: unknown; params?: unknown };
+            const route = d.route;
             if (typeof route !== 'string' || !NOTIFICATION_DEEP_LINK_ROUTES.has(route)) return;
+            const params =
+                d.params && typeof d.params === 'object' ? (d.params as Record<string, unknown>) : undefined;
+            // Report the tap so the backend's adaptive backoff counts an "open".
+            void api.post('/notifications/opened').catch(() => undefined);
             if (navRef.isReady()) {
-                navRef.navigate(route as never);
+                navRef.navigate(route as never, params as never);
                 pendingDeepLinkRef.current = null;
             } else {
-                pendingDeepLinkRef.current = route;
+                pendingDeepLinkRef.current = { route, params };
             }
         },
         [navRef],
@@ -80,13 +94,20 @@ function AppNavigator() {
     useEffect(() => {
         if (Platform.OS !== 'ios') return;
         void Notifications.setBadgeCountAsync(0).catch(() => undefined);
+        // Heartbeat so the server suppresses pushes while the app is in use
+        // (foreground suppression). Best-effort; ignored for signed-out users.
+        const pingActivity = () => {
+            if (isAuthenticated) void api.post('/notifications/activity').catch(() => undefined);
+        };
+        pingActivity();
         const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
             if (next === 'active') {
                 void Notifications.setBadgeCountAsync(0).catch(() => undefined);
+                pingActivity();
             }
         });
         return () => sub.remove();
-    }, []);
+    }, [isAuthenticated]);
 
     // Notification-tap deep-linking: send the user where the push points. The
     // bedtime progress-pic push carries { route: 'ProgressArchive' } so a tap
@@ -94,20 +115,20 @@ function AppNavigator() {
     useEffect(() => {
         let mounted = true;
         const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-            goToNotificationRoute(response?.notification?.request?.content?.data?.route);
+            goToNotificationData(response?.notification?.request?.content?.data);
         });
         // Cold-start: the app was launched by tapping a notification while it
         // wasn't running. The listener above won't fire for that tap.
         void Notifications.getLastNotificationResponseAsync()
             .then((response) => {
-                if (mounted) goToNotificationRoute(response?.notification?.request?.content?.data?.route);
+                if (mounted) goToNotificationData(response?.notification?.request?.content?.data);
             })
             .catch(() => undefined);
         return () => {
             mounted = false;
             sub.remove();
         };
-    }, [goToNotificationRoute]);
+    }, [goToNotificationData]);
 
     // Flush a deferred deep-link once the navigator and its target stack are
     // mounted. Re-runs as auth/paid state resolves (the ProgressArchive screen
@@ -116,7 +137,7 @@ function AppNavigator() {
     useEffect(() => {
         const pending = pendingDeepLinkRef.current;
         if (pending && navRef.isReady()) {
-            navRef.navigate(pending as never);
+            navRef.navigate(pending.route as never, pending.params as never);
             pendingDeepLinkRef.current = null;
         }
     }, [isAuthenticated, isPaid, user?.id, navRef]);
