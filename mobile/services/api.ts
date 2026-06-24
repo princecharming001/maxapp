@@ -1383,6 +1383,7 @@ class ApiService {
         chatIntent?: string,
         conversationId?: string | null,
         replyToMessageId?: string | null,
+        signal?: AbortSignal,
     ): Promise<{
         response: string;
         choices?: string[];
@@ -1410,6 +1411,7 @@ class ApiService {
         // so allow up to 120s before timing out.
         const response = await this.client.post('chat/message', body, {
             timeout: 120_000,
+            signal,
             // @ts-expect-error custom flag consumed by response interceptor
             _skipNetRetry: true,
         });

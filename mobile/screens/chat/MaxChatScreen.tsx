@@ -284,6 +284,16 @@ function StreamingText({
   );
 }
 
+/** True when an error is just the user hitting Stop (axios cancel / AbortController). */
+function isAbortError(e: any): boolean {
+  return (
+    e?.code === 'ERR_CANCELED' ||
+    e?.name === 'CanceledError' ||
+    e?.name === 'AbortError' ||
+    e?.message === 'canceled'
+  );
+}
+
 // The black circular action button — morphs mic → up-arrow → stop, with a pop.
 // States: loading (generating, disabled stop) · send (has text) · listening
 // (voice capture active, tap to stop) · mic (idle, tap to dictate).
@@ -308,7 +318,7 @@ function MorphSend({ loading, hasText, listening, onPress }: { loading: boolean;
     return () => loop.stop();
   }, [listening, pulse]);
   return (
-    <TouchableOpacity onPress={onPress} disabled={loading} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={loading ? 'Generating' : hasText ? 'Send' : listening ? 'Stop voice' : 'Voice'}>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={loading ? 'Stop' : hasText ? 'Send' : listening ? 'Stop voice' : 'Voice'}>
       <Animated.View style={[cg.sendCircle, listening && cg.sendCircleLive, { transform: [{ scale }], opacity: listening ? pulse : 1 }]}>
         {loading ? <View style={cg.stopSquare} />
           : hasText ? <Ionicons name="arrow-up" size={20} color="#fff" />
@@ -351,6 +361,10 @@ export default function MaxChatScreen() {
     const [seededForConversation, setSeededForConversation] = useState<string | null>(null);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    // Lets the Stop button cancel an in-flight reply. A fresh controller is
+    // created per send; tapping Stop aborts it (axios throws a cancel error,
+    // which the catch treats as a clean stop, not a failure).
+    const abortRef = useRef<AbortController | null>(null);
     const [serverChoices, setServerChoices] = useState<string[]>([]);
     /** When true, the chip row renders multi-select w/ a Submit button. */
     const [multiChoice, setMultiChoice] = useState<boolean>(false);
@@ -496,6 +510,7 @@ export default function MaxChatScreen() {
             JSON.stringify({ msg, initContext, chatIntent }),
         ).catch(() => undefined);
         try {
+            abortRef.current = new AbortController();
             const { response, choices, multi_choice, input_widget, conversation_id } = await api.sendChatMessage(
                 msg,
                 undefined,
@@ -504,6 +519,7 @@ export default function MaxChatScreen() {
                 chatIntent,
                 forceNewConversation ? undefined : (activeConversationId ?? undefined),
                 replyId,
+                abortRef.current.signal,
             );
             // Committed server-side — drop the pending blob so it isn't re-sent.
             await AsyncStorage.removeItem(PENDING_CHAT_KEY).catch(() => undefined);
@@ -553,6 +569,13 @@ export default function MaxChatScreen() {
                 refetchType: 'all',
             });
         } catch (e: any) {
+            if (isAbortError(e)) {
+                // User tapped Stop: drop the typing bubble and clear the queued
+                // message so the foreground retry doesn't resend it.
+                setMessages(prev => prev.filter((m) => !m.isTyping));
+                await AsyncStorage.removeItem(PENDING_CHAT_KEY).catch(() => undefined);
+                return;
+            }
             console.error('sendMessageWithContext error:', e?.response?.data || e?.message || e);
             const serverMsg = e?.response?.data?.response || e?.response?.data?.detail;
             // HTTP error => the server received and rejected this turn; clear the
@@ -629,6 +652,7 @@ export default function MaxChatScreen() {
         const replyId = replyTarget?.id ?? undefined;
         if (replyTarget) setReplyTarget(null);
         try {
+            abortRef.current = new AbortController();
             const { response, choices, multi_choice, input_widget, conversation_id } = await api.sendChatMessage(
                 userContent,
                 undefined,
@@ -637,6 +661,7 @@ export default function MaxChatScreen() {
                 undefined,
                 activeConversationId ?? undefined,
                 replyId,
+                abortRef.current.signal,
             );
             // Adopt server-assigned conversation in lockstep so a refetch
             // doesn't clobber the optimistic turns (same race that hit
@@ -681,6 +706,10 @@ export default function MaxChatScreen() {
                 },
             });
         } catch (e: any) {
+            if (isAbortError(e)) {
+                setMessages(prev => prev.filter((m) => !m.isTyping));
+                return;
+            }
             console.error(e);
             const serverMsg = e?.response?.data?.response || e?.response?.data?.detail;
             if (!e?.response) {
@@ -805,6 +834,7 @@ export default function MaxChatScreen() {
                 formData.append('file', { uri, name: filename, type: match ? `image/${match[1]}` : 'image' } as any);
             }
             const uploadRes = await api.uploadChatFile(formData);
+            abortRef.current = new AbortController();
             const { response, choices, multi_choice, input_widget, conversation_id } = await api.sendChatMessage(
                 caption || 'What do you think of this?',
                 uploadRes.url,
@@ -813,6 +843,7 @@ export default function MaxChatScreen() {
                 undefined,
                 activeConversationId ?? undefined,
                 replyId,
+                abortRef.current.signal,
             );
             if (conversation_id && conversation_id !== activeConversationId) {
                 setActiveConversationId(conversation_id);
@@ -828,6 +859,10 @@ export default function MaxChatScreen() {
             setInputWidget(isRenderableWidget(input_widget) ? (input_widget as SliderSpec | HabitPickerSpec) : null);
             queryClient.invalidateQueries({ queryKey: queryKeys.chatConversations });
         } catch (e: any) {
+            if (isAbortError(e)) {
+                setMessages((prev) => prev.filter((m) => !m.isTyping));
+                return;
+            }
             console.error('sendImageMessage error:', e?.response?.data || e?.message || e);
             setMessages((prev) => [
                 ...prev.filter((m) => !m.isTyping),
@@ -896,9 +931,16 @@ export default function MaxChatScreen() {
         }
     };
 
-    // The single circular-button action: send if there's text, else dictate.
+    // The single circular-button action: STOP if a reply is generating, else
+    // send if there's text, else dictate.
     const onActionPress = () => {
-        if (loading) return;
+        if (loading) {
+            // Cancel the in-flight reply. The send path's catch sees the abort,
+            // drops the typing bubble, and the finally clears loading.
+            abortRef.current?.abort();
+            abortRef.current = null;
+            return;
+        }
         if (input.trim()) { void sendMessage(); return; }
         toggleVoice();
     };
