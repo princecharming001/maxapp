@@ -1,0 +1,49 @@
+appId: com.cannon.mobile
+---
+# DISCOVERY: Onboarding funnel (unpaid new user)
+# Tests: OnboardingV2 steps, RevealV2, Payment screen render
+# Precondition: NOT logged in (clearState:true)
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 12000
+
+# Get past landing to login, then we can only observe (no real account to use)
+# So: just check Landing → Login → Signup screens for visual issues
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_onboarding_landing_fresh
+
+# Navigate to signup to see the full onboarding entry point
+- tapOn:
+    text: "Create account"
+    optional: true
+- tapOn:
+    text: "Get started"
+    optional: true
+- tapOn:
+    text: "Sign up"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 6000
+
+- assertWithAI:
+    assertion: "A signup/create-account screen is shown with input fields for email and/or name, and a continue or create button. The 'max' brand name or logo is visible."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_signup_fresh
+
+# Tap into the email field to trigger keyboard layout
+- tapOn:
+    text: "Email"
+    optional: true
+- tapOn:
+    text: "email"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_signup_keyboard
+
+# Dismiss keyboard and go back
+- pressKey: Escape
+- waitForAnimationToEnd:
+    timeout: 2000

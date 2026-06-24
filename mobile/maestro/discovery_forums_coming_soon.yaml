@@ -1,0 +1,28 @@
+appId: com.cannon.mobile
+---
+# DISCOVERY: Forums "coming soon" overlay — hidden tab but reachable via deep link / navigate
+# Also checks any other ComingSoonOverlay instances
+# Precondition: logged-in paid user
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 18000
+
+# Forums tab is hidden (tabBarButton: () => null) but the stack is registered.
+# We can test the coming-soon overlay by observing what happens if user somehow
+# reaches it. Since there's no tab button, we verify the tab bar does NOT
+# show a Forums tab (which would be dead UI).
+- assertWithAI:
+    assertion: "The bottom tab bar shows exactly these labels: Home, Planner, Scan, Explore, Chat. There is no 'Forums' label in the tab bar."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_forums_tab_absent
+
+# Check the ComingSoonOverlay component by looking at Explore (no gating)
+# then checking if there are any "coming soon" screens reachable
+- tapOn:
+    text: "Explore"
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertWithAI:
+    assertion: "The Explore tab shows real content (program cards), not a 'coming soon' placeholder. If a coming-soon overlay IS shown, that is a defect — report it."
+- takeScreenshot: discovery_explore_not_coming_soon

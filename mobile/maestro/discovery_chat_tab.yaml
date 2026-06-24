@@ -1,0 +1,51 @@
+appId: com.cannon.mobile
+---
+# DISCOVERY: Chat tab (MaxChatScreen) — empty and with message states
+# Precondition: logged-in paid user
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 18000
+
+# Tap Chat tab
+- tapOn:
+    text: "Chat"
+- waitForAnimationToEnd:
+    timeout: 8000
+
+# --- CHAT INITIAL STATE ---
+- assertWithAI:
+    assertion: "The Coach/Chat tab shows a conversation interface. Either an empty state with 'Ask Max anything' placeholder and some prompt chips, OR an existing conversation thread is shown. The bottom input bar with a text field is visible. No error message or loading spinner stuck."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_chat_initial
+
+# Open chat list / sidebar
+- tapOn:
+    accessibilityLabel: "Open chat list"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_chat_list
+
+# Close it and open a new chat
+- back
+- tapOn:
+    accessibilityLabel: "New chat"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- assertWithAI:
+    assertion: "A new empty chat is active showing the 'Ask Max anything' placeholder in the input bar and prompt suggestion chips."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_chat_new_empty
+
+# Type a short message to see the send state
+- tapOn:
+    text: "Ask Max anything"
+    optional: true
+- inputText: "Hello"
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_chat_typed

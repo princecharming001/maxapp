@@ -1,0 +1,89 @@
+appId: com.cannon.mobile
+---
+# DISCOVERY: Profile → Settings → Achievements → Edit Personal
+# Precondition: logged-in paid user starting from Home tab
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 18000
+
+# --- PROFILE ---
+- tapOn:
+    accessibilityLabel: "Open profile"
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertWithAI:
+    assertion: "The Profile screen is open showing the user's avatar or placeholder, username, at least one stats metric (RATING, APPEAL, POTENTIAL, or SCORE), and an achievements strip. A back button and Settings gear are in the header."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_profile_main
+
+# Scroll to see achievements and PLAN/PURCHASES/ACCOUNT sections
+- swipe:
+    direction: UP
+    duration: 600
+- waitForAnimationToEnd:
+    timeout: 4000
+- assertWithAI:
+    assertion: "After scrolling the profile, section headers ACHIEVEMENTS, PLAN, PURCHASES, or ACCOUNT are visible with their row items. No double-render or phantom section headers."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_profile_scrolled
+
+# Open Settings
+- tapOn:
+    accessibilityLabel: "Settings"
+- waitForAnimationToEnd:
+    timeout: 6000
+- assertWithAI:
+    assertion: "The Settings screen is open with rows for: Manage subscription, My products, Edit personal info, Contact support, Sign out, Delete account. A close button (X or back) is in the header."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_settings
+
+# Close settings
+- tapOn:
+    accessibilityLabel: "Close"
+    optional: true
+- back
+- waitForAnimationToEnd:
+    timeout: 4000
+
+# Open Achievements (scroll up first to get back to top of profile)
+- swipe:
+    direction: DOWN
+    duration: 400
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    text: "ACHIEVEMENTS"
+    optional: true
+- tapOn:
+    text: "See all"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 6000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_achievements
+
+# Back to profile
+- back
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# Edit personal info via the edit pill
+- swipe:
+    direction: DOWN
+    duration: 400
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    accessibilityLabel: "Edit profile"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_edit_profile
+
+# Close
+- tapOn:
+    accessibilityLabel: "Close edit profile"
+    optional: true
+- back

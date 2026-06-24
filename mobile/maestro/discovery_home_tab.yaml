@@ -1,0 +1,30 @@
+appId: com.cannon.mobile
+---
+# DISCOVERY: Home tab — paid user, all states
+# Precondition: logged-in paid user (clearState:false)
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 18000
+
+# --- HOME TAB (default) ---
+- assertWithAI:
+    assertion: "The Home tab is visible showing a day-strip calendar at the top (Mon–Sun chips), a HABITS or TODAY section listing habit tasks, and a PROGRAMS section below. The bottom tab bar shows Home, Planner, Scan, Explore, Chat labels. No error banner is visible."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_home_full
+
+# Tap a date a few days ahead to see empty-state
+- tapOn:
+    id: "Day 5"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 4000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_home_future_day
+
+# Scroll the program list down to see more
+- scroll
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_home_scrolled

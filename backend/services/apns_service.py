@@ -81,6 +81,10 @@ async def send_apns_alert(
     Send alert push. Returns (success, status_code).
     410 / BadDeviceToken → caller should clear stored token.
     """
+    # Global kill switch (review item 10): pause ALL outbound pushes instantly.
+    if bool(getattr(settings, "notif_kill_switch", False)):
+        logger.warning("APNs kill switch ON — suppressing push")
+        return False, None
     if not apns_configured():
         logger.debug("APNs not configured; skip push")
         return False, None

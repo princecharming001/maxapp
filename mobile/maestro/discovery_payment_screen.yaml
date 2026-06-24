@@ -1,0 +1,56 @@
+appId: com.cannon.mobile
+---
+# DISCOVERY: PaymentScreen visual audit
+# Navigate to payment from profile settings for a paid user (manage subscription)
+# Also catch the screen from the unpaid funnel if we can
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 18000
+
+# Paid user: navigate Payment via Settings > Manage subscription
+- tapOn:
+    accessibilityLabel: "Open profile"
+- waitForAnimationToEnd:
+    timeout: 8000
+- tapOn:
+    accessibilityLabel: "Settings"
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Manage subscription"
+- waitForAnimationToEnd:
+    timeout: 10000
+
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_manage_sub
+
+- back
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# Check PaymentThankYou (hard to navigate to organically without a purchase)
+# Instead, go to payment screen via the Explore → unlocked max CTA
+- tapOn:
+    accessibilityLabel: "Close"
+    optional: true
+- back
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# Navigate Explore to find a locked max and tap Unlock
+- tapOn:
+    text: "Explore"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 8000
+- tapOn:
+    text: "Unlock"
+    optional: true
+- tapOn:
+    text: "Get"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_payment_sheet

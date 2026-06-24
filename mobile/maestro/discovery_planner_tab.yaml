@@ -1,0 +1,41 @@
+appId: com.cannon.mobile
+---
+# DISCOVERY: Planner tab (DayPlannerScreen embedded)
+# Precondition: logged-in paid user
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 18000
+
+# Tap the Planner tab
+- tapOn:
+    text: "Planner"
+- waitForAnimationToEnd:
+    timeout: 8000
+
+# --- PLANNER TAB ---
+- assertWithAI:
+    assertion: "The Planner tab shows a day/week timeline with time-blocked habits or routines. There should be a scrollable timeline, time labels on the left, and colored task blocks. No error or loading spinner should be visible after 8 seconds."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_planner_initial
+
+# Scroll the timeline down to afternoon
+- swipe:
+    direction: UP
+    duration: 600
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_planner_scrolled
+
+# Tap a task block to open its detail
+- tapOn:
+    text: "Done"
+    optional: true
+- tapOn:
+    text: "Skip today"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_planner_task_action

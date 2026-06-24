@@ -1,0 +1,15 @@
+appId: com.cannon.mobile
+---
+# UTILITY: Reconnect to Metro if the Expo dev-client launcher is showing.
+# Include this at the start of any test suite to guarantee the app bundle is loaded.
+# Safe no-op if the app is already at Login or Main.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 8000
+- tapOn:
+    text: "http://localhost:8081"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 15000
+- takeScreenshot: metro_reconnect_state

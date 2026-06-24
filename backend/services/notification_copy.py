@@ -313,6 +313,14 @@ def compose(
     }
 
 
+def build_push_custom(category: str, route: str, params: Optional[dict] = None) -> dict:
+    """The APNs custom payload so a tap deep-links correctly (review item 11).
+    Carries category + route + params; mobile/App.tsx reads data.route/data.params."""
+    p = dict(params or {})
+    p.setdefault("category", category)
+    return {"category": category, "route": route, "params": p}
+
+
 def validate_all_templates() -> list[str]:
     """Self-test: every template, filled with rich + empty signals, must pass
     the taste bar and stay within length limits. Returns a list of problems

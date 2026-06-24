@@ -1,0 +1,43 @@
+appId: com.cannon.mobile
+---
+# DISCOVERY: Scan flow from center tab button (paid user)
+# Tests: scan entry gate, camera screen render, back behavior
+# Precondition: logged-in paid user
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 18000
+
+# Tap the center Scan button
+- tapOn:
+    text: "Scan"
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# --- FACE SCAN SCREEN ---
+- assertWithAI:
+    assertion: "The face scan / camera screen is visible showing a camera viewfinder or guide overlay (oval face guide), capture instructions, and a capture button. Either a live camera feed or a camera permission request is shown. No crash or blank screen."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_face_scan_camera
+
+# Back (gesture or button) — for paid users this SHOULD work (not blocked)
+- back
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertWithAI:
+    assertion: "After backing out of the scan camera, we are back on the Home or previous screen with the tab bar visible. We are NOT stuck on the camera screen or a black screen."
+- takeScreenshot: discovery_face_scan_backout
+
+# Re-enter scan to check re-entry
+- tapOn:
+    text: "Scan"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_face_scan_reentry
+
+# Check FaceScanResults if a scan exists (navigate via Home → recent scan)
+- back
+- waitForAnimationToEnd:
+    timeout: 4000

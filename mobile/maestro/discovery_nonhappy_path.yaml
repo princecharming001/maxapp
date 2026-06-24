@@ -1,0 +1,121 @@
+appId: com.cannon.mobile
+---
+# DISCOVERY: Non-happy-path traversal
+# Tests: back-out mid-flow, tab switching during loads, backgrounding, re-entry
+# Precondition: logged-in paid user
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 18000
+
+# ── PATTERN 1: Tab switch mid-load ──
+# Go to Chat tab immediately then switch away before it loads
+- tapOn:
+    text: "Chat"
+- tapOn:
+    text: "Explore"
+- waitForAnimationToEnd:
+    timeout: 10000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_nh_tab_switch_midload
+
+# ── PATTERN 2: Background → foreground ──
+# Background the app for 4s then return
+- tapOn:
+    text: "Home"
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow:
+    commands:
+      - pressKey: "home"
+- wait:
+    timeout: 4000
+- runFlow:
+    commands:
+      - pressKey: "home"
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertWithAI:
+    assertion: "After backgrounding and foregrounding the app, the Home tab is showing its content correctly. No stale loading spinner, no blank white/dark screen flash, no duplicate modal appearing."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_nh_foreground_restore
+
+# ── PATTERN 3: Back out of Explore max detail mid-scroll ──
+- tapOn:
+    text: "Explore"
+- waitForAnimationToEnd:
+    timeout: 8000
+- swipe:
+    direction: UP
+    duration: 500
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    text: "Skinmax"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 6000
+- back
+- waitForAnimationToEnd:
+    timeout: 4000
+- assertWithAI:
+    assertion: "After backing out of a Max detail screen, the Explore list is back and scroll position is either preserved or restored to near-top. No blank content area."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_nh_explore_back_restore
+
+# ── PATTERN 4: Profile open → immediately open Settings → immediately back ──
+- tapOn:
+    text: "Home"
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    accessibilityLabel: "Open profile"
+- tapOn:
+    accessibilityLabel: "Settings"
+- back
+- back
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertWithAI:
+    assertion: "After rapidly opening Profile then Settings then pressing Back twice, we land back on Home tab. Not stuck on an intermediate screen or blank view."
+- takeScreenshot: discovery_nh_rapid_back
+
+# ── PATTERN 5: Chat — start typing, switch tabs, come back ──
+- tapOn:
+    text: "Chat"
+- waitForAnimationToEnd:
+    timeout: 6000
+- tapOn:
+    text: "Ask Max anything"
+    optional: true
+- inputText: "draft message"
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    text: "Home"
+- waitForAnimationToEnd:
+    timeout: 4000
+- tapOn:
+    text: "Chat"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_nh_chat_draft_resume
+
+# ── PATTERN 6: Rapid tab switching (stress test) ──
+- tapOn:
+    text: "Planner"
+- tapOn:
+    text: "Explore"
+- tapOn:
+    text: "Chat"
+- tapOn:
+    text: "Home"
+- tapOn:
+    text: "Planner"
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertNoDefectsWithAI
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Network request failed"
+- takeScreenshot: discovery_nh_rapid_tab_switch

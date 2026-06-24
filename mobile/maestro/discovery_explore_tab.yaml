@@ -1,0 +1,60 @@
+appId: com.cannon.mobile
+---
+# DISCOVERY: Explore tab (MarketplaceScreen)
+# Precondition: logged-in paid user
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 18000
+
+# Tap Explore tab
+- tapOn:
+    text: "Explore"
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# --- EXPLORE MAIN ---
+- assertWithAI:
+    assertion: "The Explore tab shows a marketplace / discovery screen with a list or grid of 'Maxes' (programs or routines). Each card should have a title, color accent, and some metadata. No error banner and no 'Could not load Explore' message visible."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_explore_main
+
+# Scroll to see more items
+- swipe:
+    direction: UP
+    duration: 700
+- waitForAnimationToEnd:
+    timeout: 4000
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_explore_scrolled
+
+# Tap a card to open MaxDetail
+- tapOn:
+    text: "Skinmax"
+    optional: true
+- tapOn:
+    text: "View"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertWithAI:
+    assertion: "A detail screen for a Max/program is open showing a title, description, and at least one CTA button (Unlock, Start, View Course, or similar). A back button is visible."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_max_detail
+
+# Back to Explore
+- back
+- waitForAnimationToEnd:
+    timeout: 4000
+
+# Tap search icon
+- tapOn:
+    accessibilityLabel: "Search"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertNoDefectsWithAI
+- tapOn:
+    accessibilityLabel: "Close search"
+    optional: true
+- takeScreenshot: discovery_explore_search

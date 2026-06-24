@@ -1,0 +1,71 @@
+appId: com.cannon.mobile
+---
+# DISCOVERY: Auth funnel — Landing, Login, Signup, ForgotPassword
+# Precondition: NOT logged in (clearState:true resets app storage)
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 12000
+
+# --- LANDING ---
+- assertWithAI:
+    assertion: "The screen shows a landing / welcome screen with a logo or app name and at least one call-to-action button (Get Started, Sign In, or similar). No spinner or error is visible."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_landing
+
+# Navigate to Login
+- tapOn:
+    text: "Sign in"
+    optional: true
+- tapOn:
+    text: "Log in"
+    optional: true
+- tapOn:
+    text: "Continue"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 6000
+
+# --- LOGIN ---
+- assertWithAI:
+    assertion: "The screen shows a login form with an email or username field, a password or continue button, and the app name 'max'. There is no error banner or crash message."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_login
+
+# Navigate to Signup via the create-account link
+- tapOn:
+    text: "Create account"
+    optional: true
+- tapOn:
+    text: "Sign up"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 6000
+
+# --- SIGNUP ---
+- assertWithAI:
+    assertion: "The screen is a signup / create account form with at minimum an email field and a continue or create button. The 'max' branding or headline is visible."
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_signup
+
+# Back to Login, then to Forgot Password
+- tapOn:
+    text: "Sign in"
+    optional: true
+- tapOn:
+    text: "Log in"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Forgot"
+    optional: true
+- tapOn:
+    text: "Reset password"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# --- FORGOT PASSWORD ---
+- assertNoDefectsWithAI
+- takeScreenshot: discovery_forgot_password
