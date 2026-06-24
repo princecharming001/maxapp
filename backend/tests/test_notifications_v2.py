@@ -22,6 +22,7 @@ from services.notification_copy import (
 from services.notification_planner import (
     Candidate,
     PlannerContext,
+    choose_channel,
     effective_cap,
     in_window,
     next_in_window_min,
@@ -223,6 +224,41 @@ def test_backoff_ramps_lapsed_user_gently():
 def test_backoff_ignores_tiny_sample():
     # too few delivered to judge -> full cap
     assert effective_cap(5, recent_delivered=2, recent_opened=0) == 5
+
+
+# --- cross-channel dedup (criterion 10): one channel per user -----------------
+
+
+def test_choose_channel_prefers_push_never_both():
+    assert choose_channel(want_push=True, want_sms=True) == "push"   # never both
+    assert choose_channel(want_push=True, want_sms=False) == "push"
+    assert choose_channel(want_push=False, want_sms=True) == "sms"
+    assert choose_channel(want_push=False, want_sms=False) is None
+
+
+# --- timezone: morning push lands near the user's LOCAL wake (review item 1) --
+
+
+def test_morning_push_is_in_local_window_regardless_of_server_tz():
+    # User wakes 07:00 *local*. The planner works in local minutes-of-day, so a
+    # morning-preview built at wake+15 is in-window and selected no matter what
+    # timezone the server runs in.
+    from services.notification_candidates import build_candidates
+
+    wake_min = 7 * 60
+    cands = build_candidates(
+        tasks=_TASKS, now_min=wake_min, wake_min=wake_min, sleep_min=23 * 60,
+        weekday=1, name="anish", why=None, streak=0, active_plans={"skinmax"},
+    )
+    morning = next(c for c in cands if c.category == "morning_preview")
+    assert in_window(morning.at_min, wake_min, 23 * 60)
+    assert abs(morning.at_min - wake_min) <= 30  # near their wake, not server's
+
+    ctx = PlannerContext(now_min=wake_min, wake_min=wake_min, sleep_min=23 * 60, cap=5, min_interval_min=90)
+    sel = plan_day(ctx, cands)
+    assert any(c.category == "morning_preview" for c in sel)
+    # A pre-dawn (3am local) candidate would be suppressed by the same window.
+    assert not in_window(3 * 60, wake_min, 23 * 60)
 
 
 # --- candidate builder: empty-state + plan-relevance guards -------------------

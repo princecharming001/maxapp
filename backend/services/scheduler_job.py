@@ -37,6 +37,7 @@ from services.notification_planner import (
     plan_day,
     due_now,
     effective_cap,
+    choose_channel,
 )
 import services.notification_state as ns
 from services.schedule_streak import STREAK_KEY
@@ -230,10 +231,10 @@ async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
         return
     want_sms = bool(user.phone_number) and onboarding_allows_proactive_sms(user.onboarding)
     want_push = user_allows_proactive_push(user.onboarding, user.apns_device_token)
-    if not want_sms and not want_push:
-        return
     # Cross-channel dedup (review item 4): exactly ONE channel per user.
-    channel = "push" if want_push else "sms"
+    channel = choose_channel(want_push=want_push, want_sms=want_sms)
+    if channel is None:
+        return
 
     ob = dict(user.onboarding or {})
     try:

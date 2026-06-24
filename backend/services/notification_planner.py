@@ -110,6 +110,16 @@ class PlannerContext:
     foreground_recent: bool = False                 # app foregrounded / just used
 
 
+def choose_channel(*, want_push: bool, want_sms: bool) -> Optional[str]:
+    """Cross-channel dedup (review item 4): EXACTLY one channel per user, so a
+    task is never delivered over both push and SMS. Push wins when available."""
+    if want_push:
+        return "push"
+    if want_sms:
+        return "sms"
+    return None
+
+
 def in_window(minute: int, wake_min: int, sleep_min: int) -> bool:
     """True if `minute` (minute-of-day) falls in the awake window. Handles a
     sleep time that crosses midnight (e.g. wake 07:00, sleep 01:00)."""
