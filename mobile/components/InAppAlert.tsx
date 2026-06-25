@@ -63,11 +63,21 @@ const DESTRUCTIVE = '#CC3B30';
 // mounts still queue and flush once it does.
 let _seq = 0;
 const _queue: AlertSpec[] = [];
-let _notify: (() => void) | null = null;
+// A STACK of host pull-callbacks. The topmost (most recently mounted) host
+// renders the alert. This matters because a host mounted inside a <Modal> (e.g.
+// the chat drawer) is presented ABOVE that modal, whereas the root host's modal
+// would render BEHIND it — so an Alert fired from inside the drawer modal was
+// invisible. A drawer mounts its own host; while it's open, alerts route there.
+const _hosts: Array<() => void> = [];
+
+function _notifyTop() {
+    const top = _hosts[_hosts.length - 1];
+    top?.();
+}
 
 function _enqueue(spec: Omit<AlertSpec, 'id'>) {
     _queue.push({ ...spec, id: ++_seq });
-    _notify?.();
+    _notifyTop();
 }
 
 type PromptType = 'default' | 'plain-text' | 'secure-text' | 'login-password';
@@ -150,9 +160,11 @@ export function InAppAlertHost() {
         setInputText(next?.isPrompt ? (next.defaultValue ?? '') : '');
     }, []);
 
-    // Subscribe the host to the imperative bridge.
+    // Subscribe the host to the imperative bridge. Hosts form a stack; only the
+    // topmost pulls, so an alert fired while a drawer-hosted host is mounted
+    // shows inside that drawer's modal (on top), not behind it.
     useEffect(() => {
-        _notify = () => {
+        const pull = () => {
             // Only pull when idle; the close handler pulls the rest of the queue.
             setCurrent((c) => {
                 if (c) return c;
@@ -161,10 +173,14 @@ export function InAppAlertHost() {
                 return next;
             });
         };
-        // Flush anything enqueued before mount.
-        if (!current && _queue.length) pullNext();
+        _hosts.push(pull);
+        // Flush anything enqueued before this (now-topmost) host mounted.
+        if (!current && _queue.length) pull();
         return () => {
-            _notify = null;
+            const i = _hosts.lastIndexOf(pull);
+            if (i >= 0) _hosts.splice(i, 1);
+            // Hand any still-queued alert to whatever host is now on top.
+            if (_queue.length) _notifyTop();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);

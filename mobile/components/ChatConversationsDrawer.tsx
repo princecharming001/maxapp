@@ -38,7 +38,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native'
-import { Alert } from './InAppAlert';
+import { Alert, InAppAlertHost } from './InAppAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -239,11 +239,22 @@ export default function ChatConversationsDrawer({
                         text: 'Delete',
                         style: 'destructive',
                         onPress: async () => {
+                            // Optimistically drop the row so it disappears from the
+                            // open drawer IMMEDIATELY (invalidate alone is a network
+                            // round-trip and left the open list stale). Roll back on
+                            // failure.
+                            const prev = (queryClient.getQueryData(queryKeys.chatConversations) as Conversation[] | undefined);
+                            queryClient.setQueryData(
+                                queryKeys.chatConversations,
+                                (old: Conversation[] | undefined) =>
+                                    (old ?? []).filter((c) => c.id !== conv.id),
+                            );
+                            if (conv.id === activeConversationId) onSelect('');
                             try {
                                 await api.deleteChatConversation(conv.id);
                                 invalidate();
-                                if (conv.id === activeConversationId) onSelect('');
                             } catch (e: any) {
+                                if (prev) queryClient.setQueryData(queryKeys.chatConversations, prev);
                                 Alert.alert('Delete failed', e?.message || 'Please try again.');
                             }
                         },
@@ -251,7 +262,7 @@ export default function ChatConversationsDrawer({
                 ]
             );
         },
-        [activeConversationId, invalidate, onSelect]
+        [activeConversationId, invalidate, onSelect, queryClient]
     );
 
     const applyTone = useCallback(
@@ -328,6 +339,8 @@ export default function ChatConversationsDrawer({
                     onPress={handleNewChat}
                     activeOpacity={0.85}
                     disabled={creating}
+                    testID="drawer-new-chat"
+                    accessibilityLabel="Create new chat"
                 >
                     {creating ? (
                         <ActivityIndicator size="small" color={C.ink} />
@@ -388,7 +401,10 @@ export default function ChatConversationsDrawer({
                                     <TouchableOpacity
                                         style={s.rowDel}
                                         onPress={() => confirmDelete(conv)}
-                                        accessibilityLabel="Delete chat"
+                                        // Per-row label so test tooling can target a SPECIFIC
+                                        // row's trash icon (all rows share the generic action).
+                                        accessibilityLabel={`Delete chat: ${conv.title || 'new chat'}`}
+                                        testID={`delete-conv-${conv.id}`}
                                         hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                                     >
                                         <Ionicons name="trash-outline" size={14} color={C.inkDim} />
@@ -458,6 +474,10 @@ export default function ChatConversationsDrawer({
                     </View>
                 </View>
             </Animated.View>
+            {/* Host an alert layer INSIDE the drawer modal so delete-confirm /
+                tone+length error alerts fired from here render ABOVE the drawer
+                (a root-level host's modal would present behind it, invisible). */}
+            <InAppAlertHost />
         </Modal>
     );
 }
