@@ -95,10 +95,14 @@ the specific items (ingredients/products) each step uses. Keep it plain and prac
 RULES:
 - Steps are concrete: what to do, how long, what motion/amount. 1-2 sentences each.
 - Titles short (2-5 words). tip is optional (1 short sentence) or null.
-- Each step has "ingredients": the items that step uses, 0-3 each, {name, note}.
-  Use GENERIC names (e.g. "gentle cleanser", "vitamin C serum", "creatine") — never a
-  brand. note is the quantity / how it's used for that step (e.g. "2 drops", "a pea-size
-  amount"). Empty list [] for steps that need no item (e.g. a stretch, a rinse).
+- Each step has "ingredients": ONLY the specific PURCHASABLE PRODUCTS actually used in
+  THAT step, 0-3 each, {name, note}. 0 is a perfectly valid (and common) count.
+  Use GENERIC product names (e.g. "gentle cleanser", "vitamin C serum", "creatine") —
+  never a brand. note is the quantity / how it's used (e.g. "2 drops", "a pea-size amount").
+  NEVER list: water (warm/cold), ice, a towel/washcloth/cloth, cotton pads, a bowl, cup,
+  spoon, your hands/fingers, a mirror, the sink, sunlight, or anything the user already
+  owns or wouldn't buy. If a step only uses such things (e.g. "rinse with water", "pat
+  dry"), its ingredients MUST be []. Only list an item on the step that actually uses it.
 - overview and why_it_matters: 1-2 sentences each, conversational, like a friend.
 - Return ONLY valid JSON matching the schema. No markdown, no prose around it.
 - duration_minutes = actual time to complete.
@@ -179,11 +183,20 @@ def _clean_ingredients(raw) -> list[dict]:
     out: list[dict] = []
     if not isinstance(raw, list):
         return out
+    try:
+        from services.ingredient_resolver import is_commodity
+    except Exception:
+        is_commodity = lambda _n: False  # type: ignore
     for p in raw:
         if not isinstance(p, dict):
             continue
         name = str(p.get("name", "")).strip()
         if not name:
+            continue
+        # SC4: drop commodities/non-purchasables (water, towel, bowl, hands…) at clean
+        # time so they never even enter the cache. The per-user resolver applies the
+        # second gate (must resolve to a real catalog product) at request time.
+        if is_commodity(name):
             continue
         out.append({"name": name, "note": str(p.get("note", "")).strip()})
     return out
@@ -252,8 +265,10 @@ def _fallback_guide(title: str, description: str, duration_minutes: int) -> dict
 
 
 # Payload schema version. Bump when the cached shape changes so stale entries are
-# regenerated on next read (v2 = per-step `ingredients` + `hero_image`).
-_PAYLOAD_V = 2
+# regenerated on next read.
+#   v2 = per-step `ingredients` + `hero_image`
+#   v3 = commodity-gated ingredients + distinct per-step `image`
+_PAYLOAD_V = 3
 
 
 # ---------------------------------------------------------------------------
@@ -397,13 +412,27 @@ def _stamp(guide: dict, maxx_id: Optional[str]) -> None:
 
 
 async def _resolve_for_user(
-    guide: dict, maxx_id: Optional[str], user_id: str, db: AsyncSession
+    guide: dict, maxx_id: Optional[str], user_id: str, db: AsyncSession,
+    task_key: str = "",
 ) -> dict:
     """Return a per-user copy of the guide with every ingredient resolved to that
-    user's deterministic, facts-filtered product (SC5). The shared cache is never
-    mutated — resolution is layered on a deep copy at request time."""
+    user's deterministic, facts-filtered product (SC5), and each step's distinct
+    image resolved from disk (SC1). The shared cache is never mutated — resolution
+    is layered on a deep copy at request time (no image generation here)."""
     import copy as _copy
     out = _copy.deepcopy(guide)
+
+    # SC1: populate a distinct per-step image (resolved from a stable on-disk path by
+    # (task_key, n)). Empty when no per-step asset exists → mobile falls back to the
+    # per-maxx hero, then generic. Pure os.path lookups; nothing is generated here.
+    try:
+        from services.step_image_service import resolve_step_image
+        for s in (out.get("steps") or []):
+            img = resolve_step_image(task_key, int(s.get("n") or 0))
+            if img:
+                s["image"] = img
+    except Exception as e:
+        logger.debug("[task_guide] step image resolve skipped: %s", e)
 
     try:
         from services.ingredient_resolver import resolve_products_for_user
@@ -412,7 +441,9 @@ async def _resolve_for_user(
         return out
 
     steps = out.get("steps") or []
-    # Resolve each step's ingredients (per-user, consistent across tasks).
+    # Resolve each step's ingredients (per-user, consistent across tasks). The resolver
+    # DROPS commodities + anything that doesn't resolve to a real catalog product (SC4),
+    # so a step with no purchasable product comes back with [] (mobile shows no section).
     for s in steps:
         ings = s.get("ingredients") or []
         if ings:
@@ -496,7 +527,7 @@ async def get_task_guide(
         _stamp(guide, maxx_id)
         await _cache_set(task_key, guide, db)
 
-    resolved = await _resolve_for_user(guide, maxx_id, user_id, db)
+    resolved = await _resolve_for_user(guide, maxx_id, user_id, db, task_key=task_key)
     return {"task_key": task_key, "title": title, **resolved}
 
 

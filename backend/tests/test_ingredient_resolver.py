@@ -60,3 +60,32 @@ def test_budget_tier_order_signal():
     assert ir._budget_tier_order(None)["budget"] == 0  # accessible default
     premium = ir._budget_tier_order({"budget": ["premium, money no object"]})
     assert premium["premium"] == 0
+
+
+# --- SC4 commodity gate -------------------------------------------------------
+
+def test_commodity_gate_drops_household_and_water():
+    for n in ["water", "warm water", "cold water", "ice", "a clean towel", "washcloth",
+              "a bowl", "a cup", "a spoon", "your hands", "fingertips", "the sink", "a mirror"]:
+        assert ir.is_commodity(n), f"{n!r} should be a commodity"
+
+
+def test_commodity_gate_keeps_real_products():
+    for n in ["vitamin C serum", "gentle cleanser", "face wash", "silk pillowcase",
+              "sunscreen SPF 30", "retinoid", "ceramide moisturizer", "creatine"]:
+        assert not ir.is_commodity(n), f"{n!r} should NOT be a commodity"
+
+
+# --- SC1/SC3 step image keying ------------------------------------------------
+
+def test_step_image_keying_is_stable_and_distinct():
+    from services import step_image_service as sis
+    tk = "skinmax|morning skincare"
+    # stable hash
+    assert sis.task_key_hash(tk) == sis.task_key_hash(tk)
+    # distinct paths per step n, all under the same task dir
+    p1, p2 = sis.step_image_path(tk, 1), sis.step_image_path(tk, 2)
+    assert p1 != p2
+    assert sis.task_key_hash(tk) in p1
+    # different task -> different dir
+    assert sis.task_key_hash("skinmax|evening skincare") != sis.task_key_hash(tk)

@@ -78,6 +78,36 @@ def _concerns_for(canonical_key: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Commodity / non-purchasable gate (SC4)
+# ---------------------------------------------------------------------------
+
+# An ingredient is dropped if ANY of its canonical tokens is a commodity — things a
+# user already owns or that aren't a buyable product (water, a towel, a bowl, hands,
+# the sink…). Phrase-level: "warm water" -> {warm, water} -> dropped; "clean towel" ->
+# dropped; but "face wash" / "vitamin c serum" survive (no commodity token). This is
+# belt-and-suspenders alongside the harder gate (must resolve to a real catalog SKU).
+_COMMODITY_TOKENS: frozenset[str] = frozenset({
+    "water", "ice", "steam",
+    "towel", "towels", "washcloth", "washcloths", "cloth", "napkin", "napkins",
+    "tissue", "tissues", "kleenex",
+    "bowl", "bowls", "cup", "cups", "mug", "glass", "spoon", "fork", "knife",
+    "plate", "jar", "bottle", "container",
+    "hand", "hands", "finger", "fingers", "fingertip", "fingertips", "palm", "palms",
+    "mirror", "sink", "faucet", "tap", "shower", "bath", "tub", "drain",
+    "sunlight", "daylight", "air",
+})
+
+
+def is_commodity(name: str) -> bool:
+    """True when the ingredient is a commodity / non-purchasable item that should never
+    surface as a product card (SC4)."""
+    key = canonical_ingredient(name)
+    if not key:
+        return True
+    return any(tok in _COMMODITY_TOKENS for tok in key.split("_"))
+
+
+# ---------------------------------------------------------------------------
 # Facts hashing + budget signal
 # ---------------------------------------------------------------------------
 
@@ -258,9 +288,11 @@ async def resolve_products_for_user(
 ) -> list[dict]:
     """Resolve a list of generic ingredients to user-specific product cards.
 
-    Each item is {"name", "note"}; returns the same order with a specific product
-    attached when one resolves. Unresolved items keep their generic name and empty
-    url/image (the card still renders, just not tappable).
+    SC4 hard gate: an item is RETURNED ONLY IF it is not a commodity AND it resolves
+    to a real catalog product (real Amazon URL). Commodities (water, towel, …) and
+    items with no catalog match are DROPPED — never shown as a card. So a step that
+    needs no purchasable product comes back with an empty list (no Ingredients section).
+    Order is preserved for the survivors.
     """
     if not items:
         return []
@@ -281,6 +313,9 @@ async def resolve_products_for_user(
         generic = str(it.get("name", "")).strip()
         if not generic:
             continue
+        # Gate 1: never surface commodities / non-purchasables.
+        if is_commodity(generic):
+            continue
         note = str(it.get("note", "")).strip()
         product = None
         try:
@@ -290,22 +325,15 @@ async def resolve_products_for_user(
         except Exception as e:
             logger.debug("[ingredient_resolver] resolve failed for %r: %s", generic, e)
 
-        if product is not None:
-            out.append({
-                "name": product.name,
-                "generic_name": generic,
-                "note": note,
-                "brand": product.brand,
-                "url": product.display_url,
-                "image": product.image,
-            })
-        else:
-            out.append({
-                "name": generic,
-                "generic_name": generic,
-                "note": note,
-                "brand": "",
-                "url": "",
-                "image": "",
-            })
+        # Gate 2: must resolve to a real catalog product with a real URL. Drop otherwise.
+        if product is None or not product.display_url:
+            continue
+        out.append({
+            "name": product.name,
+            "generic_name": generic,
+            "note": note,
+            "brand": product.brand,
+            "url": product.display_url,
+            "image": product.image,
+        })
     return out
