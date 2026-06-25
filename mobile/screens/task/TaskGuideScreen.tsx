@@ -81,9 +81,11 @@ function initials(name: string): string {
 }
 
 // ── Ingredient card ──────────────────────────────────────────────────────────
-function IngredientCard({ item }: { item: TaskGuideIngredient }) {
+function IngredientCard({ item, index, stepN }: { item: TaskGuideIngredient; index: number; stepN: number }) {
     const img = api.resolveAttachmentUrl(item.image);
     const tappable = !!item.url;
+    const testID = `ingredient-card-${stepN}-${index}`;
+    const a11y = `Ingredient ${item.name}${item.note ? `, ${item.note}` : ''}`;
     const Inner = (
         <View style={c.card}>
             <View style={c.tile}>
@@ -101,12 +103,22 @@ function IngredientCard({ item }: { item: TaskGuideIngredient }) {
     );
     if (tappable) {
         return (
-            <TouchableOpacity activeOpacity={0.8} onPress={() => Linking.openURL(item.url!).catch(() => {})}>
+            <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => Linking.openURL(item.url!).catch(() => {})}
+                testID={testID}
+                accessibilityLabel={a11y}
+                accessibilityRole="button"
+            >
                 {Inner}
             </TouchableOpacity>
         );
     }
-    return Inner;
+    return (
+        <View testID={testID} accessibilityLabel={a11y}>
+            {Inner}
+        </View>
+    );
 }
 
 const c = StyleSheet.create({
@@ -158,7 +170,10 @@ function StepPage({
     onWatch: (url: string) => void;
 }) {
     const insets = useSafeAreaInsets();
-    const heroHeight = Math.round(height * 0.46);
+    // Responsive hero: smaller on short screens (iPhone SE) so the instruction, tip,
+    // and the Ingredients row all fit on one page without clipping (SC5).
+    const isSmall = height < 740;
+    const heroHeight = Math.round(height * (isSmall ? 0.38 : 0.48));
     const top = index * height;
     const range = [top - height, top, top + height];
 
@@ -193,7 +208,7 @@ function StepPage({
             <LinearGradient
                 pointerEvents="none"
                 colors={['transparent', 'transparent', CREAM]}
-                locations={[0, 0.55, 0.98]}
+                locations={[0, 0.72, 1]}
                 style={[sp.fade, { height: heroHeight + 8 }]}
             />
 
@@ -211,37 +226,53 @@ function StepPage({
                 </TouchableOpacity>
             ) : null}
 
-            {/* Content */}
+            {/* Content. Column layout: kicker + (instruction region that auto-fits) +
+                tip + ingredients PINNED at the bottom so the Ingredients row is always
+                visible/reachable on every device (SC5). The page itself never scrolls,
+                so full-screen swipe-to-page (SC6) is preserved. */}
             <Animated.View
-                style={[sp.content, { paddingTop: heroHeight - 40, paddingBottom: insets.bottom + 24 }, contentStyle]}
+                style={[sp.content, { paddingTop: heroHeight - 40, paddingBottom: insets.bottom + 20 }, contentStyle]}
             >
                 <Text style={sp.kicker}>Step {padN(step.n)}</Text>
 
+                {/* Instruction grows to fill the space above tip+ingredients; long
+                    bodies shrink to fit (adjustsFontSizeToFit) instead of pushing the
+                    Ingredients row off-screen. */}
                 <View style={sp.railRow}>
                     <ProgressRail total={total} current={step.n} />
                     <View style={sp.instructionWrap}>
-                        <Text style={sp.instruction}>{step.body}</Text>
+                        <Text
+                            style={[sp.instruction, isSmall && sp.instructionSmall]}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.55}
+                            numberOfLines={isSmall ? 11 : 16}
+                        >
+                            {step.body}
+                        </Text>
                     </View>
                 </View>
 
                 {step.tip ? (
                     <View style={sp.tipBlock}>
                         <Text style={sp.tipLabel}>Tip</Text>
-                        <Text style={sp.tipText}>{step.tip}</Text>
+                        <Text style={sp.tipText} numberOfLines={3}>{step.tip}</Text>
                     </View>
                 ) : null}
 
                 {ingredients.length > 0 ? (
-                    <View style={sp.ingredients}>
+                    <View
+                        style={sp.ingredients}
+                        testID={`guide-ingredients-${step.n}`}
+                        accessibilityLabel={`Ingredients for step ${step.n}`}
+                    >
                         <Text style={sp.ingredientsLabel}>Ingredients</Text>
                         <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}
                             contentContainerStyle={sp.ingredientsRow}
-                            testID={`guide-ingredients-${step.n}`}
                         >
                             {ingredients.map((it, i) => (
-                                <IngredientCard key={`${it.name}-${i}`} item={it} />
+                                <IngredientCard key={`${it.name}-${i}`} item={it} index={i} stepN={step.n} />
                             ))}
                         </ScrollView>
                     </View>
@@ -265,14 +296,16 @@ const sp = StyleSheet.create({
     },
     watchText: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: INK },
     content: { flex: 1, paddingHorizontal: 24 },
-    kicker: { fontFamily: fonts.sansMedium, fontSize: 13, color: MUTE, letterSpacing: 0.5, marginBottom: 14 },
-    railRow: { flexDirection: 'row', gap: 16 },
-    instructionWrap: { flex: 1 },
+    kicker: { fontFamily: fonts.sansMedium, fontSize: 13, color: MUTE, letterSpacing: 0.5, marginBottom: 12 },
+    // flex:1 — grows to fill the gap above tip+ingredients, keeping the row pinned/visible.
+    railRow: { flexDirection: 'row', gap: 16, flex: 1 },
+    instructionWrap: { flex: 1, justifyContent: 'flex-start' },
     instruction: { fontFamily: fonts.serif, fontSize: 27, lineHeight: 37, color: INK, letterSpacing: -0.4 },
-    tipBlock: { marginTop: 24 },
+    instructionSmall: { fontSize: 22, lineHeight: 30 },
+    tipBlock: { marginTop: 16 },
     tipLabel: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: INK, marginBottom: 4 },
     tipText: { fontFamily: fonts.serifItalic, fontSize: 14.5, lineHeight: 21, color: MUTE },
-    ingredients: { marginTop: 26 },
+    ingredients: { marginTop: 18 },
     ingredientsLabel: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: INK, marginBottom: 12 },
     ingredientsRow: { paddingRight: 24 },
 });

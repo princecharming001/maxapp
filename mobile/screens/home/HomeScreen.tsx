@@ -158,16 +158,16 @@ function textOn(hex: string): string {
 }
 
 function GradientHabit({
-    row, done, busy, onToggle, onOpen,
+    row, done, busy, onToggle, onOpen, testID,
 }: {
-    row: MergedScheduleTask; done: boolean; busy: boolean; onToggle: () => void; onOpen: () => void;
+    row: MergedScheduleTask; done: boolean; busy: boolean; onToggle: () => void; onOpen: () => void; testID?: string;
 }) {
     const c = row.moduleColor && /^#/.test(row.moduleColor) ? row.moduleColor : '#8E8E93';
     // Unchecked: white card with black text. Checked: brand color gradient with white text.
     const txt = done ? (textOn(c) === '#15130F' ? '#15130F' : '#FFFFFF') : '#111113';
     const subColor = done ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.45)';
     return (
-        <TouchableOpacity style={gh.card} activeOpacity={0.92} onPress={onOpen}>
+        <TouchableOpacity style={gh.card} activeOpacity={0.92} onPress={onOpen} testID={testID} accessibilityLabel={row.title}>
             {done ? (
                 <>
                     {/* colored gradient fill — only when completed */}
@@ -600,7 +600,7 @@ export default function HomeScreen() {
                                 </View>
                             ) : null}
 
-                            {selectedRows.map((row) => {
+                            {selectedRows.map((row, rowIdx) => {
                                 const done = row.status === 'completed';
                                 const rowKey = `${row.scheduleId}:${row.task_id}`;
                                 // No spinner: the optimistic flip already shows the
@@ -610,6 +610,7 @@ export default function HomeScreen() {
                                 return (
                                     <GradientHabit
                                         key={rowKey}
+                                        testID={`habit-card-${rowIdx}`}
                                         row={row}
                                         done={done}
                                         busy={busy}

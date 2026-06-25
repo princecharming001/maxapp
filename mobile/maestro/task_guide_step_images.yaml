@@ -1,0 +1,50 @@
+appId: com.cannon.mobile
+# ─────────────────────────────────────────────────────────────────────────────
+# Per-step images + ingredient visibility (RALPH_TASK_IMAGES SC1/SC2/SC5).
+#
+#   SC1 — each step shows its OWN image; no two steps share one; different SkinMax
+#         tasks show different images. (Eyeball the screenshots.)
+#   SC2 — each step image is relevant to that step + on-aesthetic (cream, blends).
+#   SC5 — for steps with ingredients, the Ingredients row is VISIBLE/reachable on
+#         screen (not clipped) — verified on a large AND a small device.
+#
+# PRECONDITION: paid user with an active skinmax schedule (seed via
+#   backend/scripts/seed_demo_schedule.py <user_id> skinmax). Run on the default
+#   booted device; re-run with `--device <SE-udid>` for the small-screen SC5 check.
+#
+# Habit cards expose testID `habit-card-<n>`; ingredient cards `ingredient-card-<step>-<i>`.
+# ─────────────────────────────────────────────────────────────────────────────
+---
+- launchApp: { clearState: false }
+- extendedWaitUntil: { visible: "HABITS", timeout: 90000 }
+- waitForAnimationToEnd: { timeout: 3000 }
+
+# ---- Task A: first habit — capture all steps (distinct images + ingredient row) ----
+- tapOn: { id: "habit-card-0" }
+- extendedWaitUntil: { visible: { id: "guide-step-1" }, timeout: 45000 }
+- waitForAnimationToEnd: { timeout: 2500 }
+- takeScreenshot: stepimg_A_step1
+# SC5: the ingredient row for step 1 is actually visible on screen.
+- assertVisible: { id: "ingredient-card-1-0" }
+- swipe: { start: "50%, 80%", end: "50%, 20%", duration: 450 }
+- waitForAnimationToEnd: { timeout: 2500 }
+- takeScreenshot: stepimg_A_step2
+- swipe: { start: "50%, 80%", end: "50%, 20%", duration: 450 }
+- waitForAnimationToEnd: { timeout: 2500 }
+- takeScreenshot: stepimg_A_step3
+- swipe: { start: "50%, 80%", end: "50%, 20%", duration: 450 }
+- waitForAnimationToEnd: { timeout: 2500 }
+- takeScreenshot: stepimg_A_step4
+- tapOn: { id: "guide-close" }
+- waitForAnimationToEnd: { timeout: 2500 }
+
+# ---- Task B: a different skinmax task — its images should differ from Task A ----
+- tapOn: { id: "habit-card-2" }
+- extendedWaitUntil: { visible: { id: "guide-step-1" }, timeout: 45000 }
+- waitForAnimationToEnd: { timeout: 2500 }
+- takeScreenshot: stepimg_B_step1
+- swipe: { start: "50%, 80%", end: "50%, 20%", duration: 450 }
+- waitForAnimationToEnd: { timeout: 2500 }
+- takeScreenshot: stepimg_B_step2
+- tapOn: { id: "guide-close" }
+- waitForAnimationToEnd: { timeout: 2000 }
