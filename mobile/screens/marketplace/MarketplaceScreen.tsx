@@ -554,8 +554,8 @@ function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: n
             <TouchableOpacity style={[styles.featureNative, { width }]} activeOpacity={0.85} onPress={onPress}>
                 <Image source={thumb} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
                 <LinearGradient
-                    colors={['rgba(239,239,239,0)', 'rgba(239,239,239,0.72)', THUMB_BG]}
-                    locations={[0, 0.52, 1]}
+                    colors={['rgba(239,239,239,0)', 'rgba(239,239,239,0.32)', THUMB_BG]}
+                    locations={[0, 0.7, 1]}
                     style={styles.nativeFade}
                     pointerEvents="none"
                 />
@@ -587,8 +587,8 @@ function GridCard({ item, width, onPress }: { item: MarketplaceItem; width: numb
             <TouchableOpacity style={[styles.gridCardNative, { width }]} activeOpacity={0.85} onPress={onPress}>
                 <Image source={thumb} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
                 <LinearGradient
-                    colors={['rgba(239,239,239,0)', 'rgba(239,239,239,0.74)', THUMB_BG]}
-                    locations={[0, 0.5, 1]}
+                    colors={['rgba(239,239,239,0)', 'rgba(239,239,239,0.36)', THUMB_BG]}
+                    locations={[0, 0.66, 1]}
                     style={styles.gridNativeFade}
                     pointerEvents="none"
                 />
@@ -699,12 +699,12 @@ const styles = StyleSheet.create({
         height: 230, borderRadius: 22, overflow: 'hidden', backgroundColor: THUMB_BG,
         borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
     },
-    nativeFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 140 },
+    nativeFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 104 },
     gridCardNative: {
         height: 176, borderRadius: 18, overflow: 'hidden', backgroundColor: THUMB_BG,
         borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
     },
-    gridNativeFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 104 },
+    gridNativeFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 78 },
     gridNativeBody: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingBottom: 13 },
     gridNativeTitle: { fontFamily: SERIF, fontSize: 19, color: INK, letterSpacing: -0.3 },
     gridNativeSub: { fontFamily: 'Matter-Medium', fontSize: 12, color: SUB, marginTop: 1 },
