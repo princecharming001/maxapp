@@ -548,6 +548,9 @@ export default function MaxChatScreen() {
         if (pendingQ) {
             if (Array.isArray(pendingQ.choices) && pendingQ.choices.length > 0) {
                 setServerChoices(pendingQ.choices);
+                // Restore multi-select mode for `multi` fields so the toggle
+                // chips + submit button come back on reload, not single-tap chips.
+                setMultiChoice(!!pendingQ.multi_choice);
             }
             if (pendingQ.input_widget && pendingQ.input_widget.type === 'slider') {
                 setInputWidget(pendingQ.input_widget as SliderSpec);

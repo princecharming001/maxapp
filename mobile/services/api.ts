@@ -1484,6 +1484,7 @@ class ApiService {
                 field_id: string;
                 text: string;
                 choices: string[];
+                multi_choice?: boolean;
                 input_widget?: {
                     type: 'slider';
                     min: number;
