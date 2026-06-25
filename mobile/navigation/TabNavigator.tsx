@@ -4,7 +4,6 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import ShineOverlay from '../components/ShineOverlay';
 import { colors, spacing, shadows, fonts, borderRadius } from '../theme/dark';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,33 +49,25 @@ function ScanCenterButton() {
             {/* Outer carrier holds the float shadow (un-clipped); inner clips the frost */}
             <View style={scanBtnStyles.shadowWrap}>
                 <View style={scanBtnStyles.circleWrap}>
-                    {/* Frosted glass base */}
+                    {/* Transparent frosted glass — blurs the bar/content behind it */}
                     <BlurView
-                        intensity={Platform.OS === 'ios' ? 26 : 40}
-                        tint="extraLight"
+                        intensity={Platform.OS === 'ios' ? 20 : 34}
+                        tint="light"
                         style={StyleSheet.absoluteFill}
                         experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
                     />
-                    {/* Even frosted body */}
-                    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.26)' }]} pointerEvents="none" />
-                    {/* Gentle top-down sheen — soft and even, not a harsh crescent */}
+                    {/* Whisper of body so it isn't fully clear */}
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.08)' }]} pointerEvents="none" />
+                    {/* Subtle top sheen */}
                     <LinearGradient
-                        colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0)']}
-                        locations={[0, 0.5, 1]}
-                        style={StyleSheet.absoluteFill}
-                        pointerEvents="none"
-                    />
-                    {/* Soft base shadow — hints the glass thickness at the bottom */}
-                    <LinearGradient
-                        colors={['rgba(0,0,0,0)', 'rgba(22,24,32,0.06)']}
-                        locations={[0.62, 1]}
+                        colors={['rgba(255,255,255,0.26)', 'rgba(255,255,255,0)']}
+                        locations={[0, 0.55]}
                         style={StyleSheet.absoluteFill}
                         pointerEvents="none"
                     />
                     {/* Crisp inner highlight rim — the bright glass edge */}
                     <View style={scanBtnStyles.innerRing} pointerEvents="none" />
-                    <Ionicons name="scan" size={22} color="rgba(22,24,32,0.86)" />
-                    <ShineOverlay width={52} intensity={0.26} period={5200} />
+                    <Ionicons name="scan" size={22} color="rgba(22,24,32,0.82)" />
                 </View>
             </View>
         </TouchableOpacity>
@@ -90,12 +81,12 @@ const scanBtnStyles = StyleSheet.create({
         width: 50,
         height: 50,
         borderRadius: 25,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: 'transparent',
         shadowColor: '#0B0D14',
-        shadowOpacity: 0.22,
-        shadowRadius: 18,
-        shadowOffset: { width: 0, height: 6 },
-        elevation: 8,
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 4,
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
     // Inner: clips the frosted layers and carries the crisp bright rim.
@@ -106,9 +97,9 @@ const scanBtnStyles = StyleSheet.create({
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.16)',
+        backgroundColor: 'rgba(255,255,255,0.06)',
         borderWidth: 1.5,
-        borderColor: 'rgba(255,255,255,1)',
+        borderColor: 'rgba(255,255,255,0.9)',
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
     // Second, inset rim — the crisp highlight edge that sells the glass depth.
