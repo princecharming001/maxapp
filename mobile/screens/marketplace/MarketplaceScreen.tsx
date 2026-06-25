@@ -552,7 +552,7 @@ function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: n
     if (thumb) {
         return (
             <TouchableOpacity style={[styles.featureNative, { width }]} activeOpacity={0.85} onPress={onPress}>
-                <Image source={thumb} style={styles.featureNativeImg} contentFit="cover" transition={200} />
+                <Image source={thumb} style={styles.featureNativeImg} contentFit="contain" transition={200} />
                 <View style={styles.featureNativeBody}>
                     <Text style={styles.nativeTitle} numberOfLines={1}>{item.title}</Text>
                     <Text style={styles.nativeSub} numberOfLines={2}>{item.tagline}</Text>
@@ -579,7 +579,7 @@ function GridCard({ item, width, onPress }: { item: MarketplaceItem; width: numb
     if (thumb) {
         return (
             <TouchableOpacity style={[styles.gridCardNative, { width }]} activeOpacity={0.85} onPress={onPress}>
-                <Image source={thumb} style={styles.gridNativeImg} contentFit="cover" transition={200} />
+                <Image source={thumb} style={styles.gridNativeImg} contentFit="contain" transition={200} />
                 <View style={styles.gridNativeBody}>
                     <Text style={styles.gridNativeTitle} numberOfLines={1}>{item.title}</Text>
                     <Text style={styles.gridNativeSub} numberOfLines={1}>{item.price_label}</Text>
