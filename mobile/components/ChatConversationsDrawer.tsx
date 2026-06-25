@@ -327,7 +327,10 @@ export default function ChatConversationsDrawer({
                         onPress={onClose}
                         style={s.closeBtn}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        accessibilityLabel="Close"
+                        // Distinct from the backdrop's "Close" so the X button is
+                        // unambiguously targetable (both dismiss the drawer).
+                        accessibilityLabel="Close chat list"
+                        testID="drawer-close"
                     >
                         <Ionicons name="close" size={18} color={C.inkMuted} />
                     </TouchableOpacity>
