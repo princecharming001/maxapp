@@ -178,6 +178,109 @@ function StatsGrid({ item, isCourse }: { item: MarketplaceItem; isCourse: boolea
     );
 }
 
+function _todayLocal(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function _hms(ms: number): string {
+    if (ms <= 0) return '00:00:00';
+    const s = Math.floor(ms / 1000);
+    return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60]
+        .map((n) => String(n).padStart(2, '0')).join(':');
+}
+
+type SessionNode = { title: string; time?: string; state: 'done' | 'current' | 'locked'; countdownMs?: number };
+
+/** ss3-style vertical session timeline (SC7). With a real schedule it shows today's
+ *  sessions: completed = checkmark, the next = ringed "current", future = lock +
+ *  "Available in HH:MM:SS". With no schedule yet it previews the routine path. */
+function SessionTimeline({ item, base }: { item: MarketplaceItem; base: string }) {
+    const q = useQuery({
+        queryKey: ['maxxSchedule', item.id],
+        queryFn: () => api.getMaxxSchedule(item.id),
+        staleTime: 60_000,
+        // Always probe — the user may have an active schedule for this max even if
+        // the marketplace "entered" entitlement flag isn't set. No schedule → preview.
+        retry: 1,
+    });
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        const t = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(t);
+    }, []);
+
+    const nodes: SessionNode[] = React.useMemo(() => {
+        const sched: any = q.data;
+        const days: any[] = sched?.days || [];
+        const today = _todayLocal();
+        // Flatten sessions from today forward (real datetimes), so the path shows
+        // done (completed) → current (due now) → locked future (with countdown).
+        const flat: { title: string; date: string; time: string; status: string }[] = [];
+        for (const d of days) {
+            if (!d?.date || d.date < today) continue;
+            const ts = (d.tasks || []).slice().sort((a: any, b: any) => String(a.time || '').localeCompare(String(b.time || '')));
+            for (const t of ts) flat.push({ title: t.title || 'Session', date: d.date, time: t.time || '', status: t.status });
+            if (flat.length >= 8) break;
+        }
+        if (flat.length) {
+            let currentSet = false;
+            return flat.slice(0, 7).map((t) => {
+                const target = new Date(`${t.date}T${(t.time || '00:00')}:00`).getTime();
+                const isFuture = target - now > 0;
+                let state: SessionNode['state'];
+                let countdownMs: number | undefined;
+                if (t.status === 'completed') state = 'done';
+                else if (!isFuture && !currentSet) { state = 'current'; currentSet = true; }
+                else { state = 'locked'; if (isFuture) countdownMs = target - now; }
+                return { title: t.title, time: t.time, state, countdownMs };
+            });
+        }
+        // Preview from the curated routine catalog (not started yet).
+        const habits = HABIT_CATALOG[String(item.id || '').toLowerCase()] || [];
+        return habits.slice(0, 6).map((h, i) => ({ title: h.label, state: i === 0 ? 'current' : 'locked' } as SessionNode));
+    }, [q.data, now, item.id]);
+
+    if (!nodes.length) return null;
+    const previewMode = !(q.data as any)?.days?.length;
+
+    return (
+        <View style={styles.block}>
+            <Text style={styles.sectionLabel}>{previewMode ? 'Your routine path' : "Today's sessions"}</Text>
+            <View>
+                {nodes.map((n, i) => {
+                    const last = i === nodes.length - 1;
+                    return (
+                        <View key={i} style={tl.row}>
+                            <View style={tl.rail}>
+                                <View style={[
+                                    tl.node,
+                                    n.state === 'done' && { backgroundColor: base, borderColor: base },
+                                    n.state === 'current' && { borderColor: base, borderWidth: 2.5 },
+                                    n.state === 'locked' && { borderColor: HAIRLINE },
+                                ]}>
+                                    {n.state === 'done' ? <Ionicons name="checkmark" size={14} color="#fff" />
+                                        : n.state === 'locked' ? <Ionicons name="lock-closed" size={11} color={MUTE} />
+                                        : <View style={[tl.dot, { backgroundColor: base }]} />}
+                                </View>
+                                {!last ? <View style={tl.connector} /> : null}
+                            </View>
+                            <View style={tl.card}>
+                                <Text style={[tl.title, n.state === 'locked' && { color: MUTE }]} numberOfLines={1}>{n.title}</Text>
+                                <Text style={tl.meta}>
+                                    {n.state === 'done' ? 'Done'
+                                        : n.state === 'current' ? (n.time ? `Now · ${n.time}` : 'Start here')
+                                        : n.countdownMs && n.countdownMs > 0 ? `Available in ${_hms(n.countdownMs)}`
+                                        : n.time ? `Scheduled ${n.time}` : 'Upcoming'}
+                                </Text>
+                            </View>
+                        </View>
+                    );
+                })}
+            </View>
+        </View>
+    );
+}
+
 export default function MaxDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
@@ -360,6 +463,9 @@ export default function MaxDetailScreen() {
                     <Feasibility id={item.id} color={base} />
                 </View>
 
+                {/* Session/path timeline (SC7) — native maxes. */}
+                {!isCourse ? <SessionTimeline item={item} base={base} /> : null}
+
                 {/* What you'll get. */}
                 {d.outcomes?.length ? (
                     <View style={styles.block}>
@@ -530,6 +636,20 @@ export default function MaxDetailScreen() {
         </View>
     );
 }
+
+const tl = StyleSheet.create({
+    row: { flexDirection: 'row', gap: 14 },
+    rail: { alignItems: 'center', width: 30 },
+    node: {
+        width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+        borderWidth: 1.5, borderColor: HAIRLINE, backgroundColor: CARD,
+    },
+    dot: { width: 9, height: 9, borderRadius: 5 },
+    connector: { flex: 1, width: 2, backgroundColor: HAIRLINE, marginVertical: 3, minHeight: 22 },
+    card: { flex: 1, paddingBottom: 18 },
+    title: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK },
+    meta: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 3 },
+});
 
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: CANVAS },
