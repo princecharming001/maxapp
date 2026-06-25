@@ -60,6 +60,20 @@ const GOLD = '#000000';         // neutral fallback for image-less posters
 const SERIF = 'Fraunces';
 const SERIF_I = 'Fraunces-Italic';
 const GUTTER = 22;
+const THUMB_BG = '#EFEFEF';     // matches the generated thumbnail backdrops
+
+// Glossy 3D gradient thumbnails for the native maxes (warm→cool jelly objects).
+const NATIVE_THUMBS: Record<string, any> = {
+    skinmax: require('../../assets/maxxThumbs/skinmax.png'),
+    heightmax: require('../../assets/maxxThumbs/heightmax.png'),
+    hairmax: require('../../assets/maxxThumbs/hairmax.png'),
+    fitmax: require('../../assets/maxxThumbs/fitmax.png'),
+    bonemax: require('../../assets/maxxThumbs/bonemax.png'),
+};
+function nativeThumb(item: MarketplaceItem): any | null {
+    if (!item.native) return null;
+    return NATIVE_THUMBS[String(item.id || '').toLowerCase()] || null;
+}
 
 type Tab = 'all' | 'native' | 'creator';
 
@@ -372,6 +386,19 @@ function PosterContent({ item }: { item: MarketplaceItem }) {
 
 /** Large carousel poster. */
 function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: number; onPress: () => void }) {
+    const thumb = nativeThumb(item);
+    if (thumb) {
+        return (
+            <TouchableOpacity style={[styles.featureNative, { width }]} activeOpacity={0.85} onPress={onPress}>
+                <Image source={thumb} style={styles.featureNativeImg} contentFit="cover" transition={200} />
+                <View style={styles.nativeBody}>
+                    <Text style={styles.nativeTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.nativeSub} numberOfLines={1}>{item.tagline}</Text>
+                    <View style={styles.nativePricePill}><Text style={styles.nativePricePillText}>{item.price_label}</Text></View>
+                </View>
+            </TouchableOpacity>
+        );
+    }
     return (
         <TouchableOpacity style={[styles.feature, { width }]} activeOpacity={0.85} onPress={onPress}>
             <PosterContent item={item} />
@@ -386,6 +413,18 @@ function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: n
 
 /** Small 2-column poster. */
 function GridCard({ item, width, onPress }: { item: MarketplaceItem; width: number; onPress: () => void }) {
+    const thumb = nativeThumb(item);
+    if (thumb) {
+        return (
+            <TouchableOpacity style={[styles.gridCardNative, { width }]} activeOpacity={0.85} onPress={onPress}>
+                <Image source={thumb} style={styles.gridNativeImg} contentFit="cover" transition={200} />
+                <View style={styles.gridNativeBody}>
+                    <Text style={styles.gridNativeTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.gridNativeSub} numberOfLines={1}>{item.price_label}</Text>
+                </View>
+            </TouchableOpacity>
+        );
+    }
     return (
         <TouchableOpacity style={[styles.gridCard, { width }]} activeOpacity={0.85} onPress={onPress}>
             <PosterContent item={item} />
@@ -459,4 +498,27 @@ const styles = StyleSheet.create({
     gridBody: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 13 },
     gridTitle: { fontFamily: SERIF, fontSize: 18, color: '#FFFFFF', letterSpacing: -0.3, lineHeight: 22 },
     gridSub: { fontFamily: 'Matter-Medium', fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
+
+    // Native max card — glossy thumbnail on a light card, name below (no scrim)
+    featureNative: {
+        height: 220, borderRadius: 20, overflow: 'hidden', backgroundColor: CARD,
+        borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
+    },
+    featureNativeImg: { width: '100%', height: 150, backgroundColor: THUMB_BG },
+    gridCardNative: {
+        height: 168, borderRadius: 16, overflow: 'hidden', backgroundColor: CARD,
+        borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
+    },
+    gridNativeImg: { width: '100%', height: 112, backgroundColor: THUMB_BG },
+    gridNativeBody: { flex: 1, paddingHorizontal: 12, justifyContent: 'center' },
+    gridNativeTitle: { fontFamily: SERIF, fontSize: 17, color: INK, letterSpacing: -0.3 },
+    gridNativeSub: { fontFamily: 'Matter-Medium', fontSize: 12, color: MUTE, marginTop: 2 },
+    nativeBody: { flex: 1, paddingHorizontal: 16, justifyContent: 'center' },
+    nativeTitle: { fontFamily: SERIF, fontSize: 22, color: INK, letterSpacing: -0.4 },
+    nativeSub: { fontFamily: 'Matter-Regular', fontSize: 13, color: SUB, marginTop: 2 },
+    nativePricePill: {
+        alignSelf: 'flex-start', marginTop: 8, backgroundColor: INK,
+        borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5,
+    },
+    nativePricePillText: { fontFamily: 'Matter-SemiBold', fontSize: 12, color: ON_INK, letterSpacing: 0.2 },
 });
