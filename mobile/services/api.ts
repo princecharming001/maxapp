@@ -1966,8 +1966,17 @@ class ApiService {
         task_key: string;
         title: string;
         overview: string;
-        steps: { n: number; title: string; body: string; tip: string | null }[];
-        products?: { name: string; note: string }[];
+        hero_image?: string;
+        steps: {
+            n: number;
+            title: string;
+            body: string;
+            tip: string | null;
+            image?: string;
+            video?: string | null;
+            ingredients?: { name: string; generic_name?: string; note: string; brand?: string; url?: string; image?: string }[];
+        }[];
+        products?: { name: string; note: string; url?: string; image?: string }[];
         duration_minutes: number;
         why_it_matters: string;
     }> {

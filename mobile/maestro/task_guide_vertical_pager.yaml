@@ -1,0 +1,80 @@
+appId: com.cannon.mobile
+# ─────────────────────────────────────────────────────────────────────────────
+# Task-guide vertical pager (RALPH_TASK_STEPS SC1–SC4 visual verification).
+#
+# Verifies the editorial vertical, steps-only task-guide screen:
+#   SC1 — vertical pager, swipe UP = next step, swipe DOWN = previous; no Intro,
+#         no Done / "Mark done" page.
+#   SC2 — per-step layout: "Step NN" kicker, big serif instruction, left progress
+#         rail, "Tip", horizontal "Ingredients" cards.
+#   SC3 — smooth springy vertical paging between steps.
+#   SC4 — hero photo fades into the cream page with no seam (read the screenshots).
+#
+# PRECONDITION (local dev — see RALPH_TASK_STEPS §6):
+#   • Sim backend on :8001, Metro running, mobile/.env.local → 127.0.0.1:8001.
+#   • A paid user with an active skinmax schedule. The faux "Paid" user has no
+#     program, so seed one first:
+#       cd backend && .venv312/bin/python scripts/seed_demo_schedule.py <user_id> skinmax
+#     (DEV drawer → Paid creates the user; grab its id from app_users.)
+#
+# GOTCHA: bottom-sheet / custom buttons don't expose inner text to the iOS a11y
+# tree, so this flow uses COORDINATE taps + takeScreenshot and the screenshots are
+# the verification artifact (compare each to §2).
+# ─────────────────────────────────────────────────────────────────────────────
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "HABITS"
+    timeout: 90000
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: guide_00_home
+
+# Open the first habit's guide (tap the row text, not the checkbox).
+- tapOn:
+    point: "45%, 46%"
+- extendedWaitUntil:
+    visible:
+      id: "guide-step-1"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: guide_01_step1
+
+# SC1 — swipe UP = next step.
+- swipe:
+    start: "50%, 75%"
+    end: "50%, 25%"
+    duration: 450
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: guide_02_step2
+
+- swipe:
+    start: "50%, 75%"
+    end: "50%, 25%"
+    duration: 450
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: guide_03_step3
+
+# SC1 — swipe DOWN = previous step.
+- swipe:
+    start: "50%, 25%"
+    end: "50%, 75%"
+    duration: 450
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: guide_04_back_to_step2
+
+# SC1 — there is NO "Mark done" / Done page anywhere in the pager.
+- assertNotVisible: "Mark done"
+- assertNotVisible: "Mark as done"
+
+# The ✕ closes the guide from any step.
+- tapOn:
+    id: "guide-close"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: guide_05_closed

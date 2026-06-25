@@ -1,16 +1,19 @@
 /**
- * TaskGuideScreen — full-screen horizontal pager for step-by-step task guides.
+ * TaskGuideScreen — full-screen VERTICAL pager of step-only task-guide pages.
+ *
+ * Editorial recipe layout (per RALPH_TASK_STEPS §2): full-bleed hero photo at the top
+ * that fades into the cream page, a "Step NN" kicker, a big Fraunces instruction, a left
+ * vertical progress rail, a "Tip" block, and a horizontally-scrolling ingredient row.
  *
  * Architecture:
- *   • One full-screen page per step (intro + N steps + done page)
- *   • Reanimated ScrollView with pagingEnabled; scrollX drives every interpolation
- *   • No new native deps — pure Reanimated 4.1 / RN 0.81 scrollView approach
- *   • Moti is NOT used (no Reanimated 4 support)
- *
- * Visual language: editorial ink/cream, Fraunces serif titles, parallax color wash,
- * ghost step numerals, segmented progress bar, left tick-rail, spring CTA.
+ *   • One full-screen page per STEP — no Intro page, no Done / "Mark done" page.
+ *   • Swipe UP = next step, swipe DOWN = previous step (vertical pagingEnabled).
+ *   • Reanimated 4.1 Animated.ScrollView; scrollY drives every interpolation on the UI
+ *     thread (parallax hero + fade/scale/translate content) — no setState animation.
+ *   • No new native deps. expo-image (hero + product tiles), expo-linear-gradient (the
+ *     seamless fade), expo-video (the optional "Watch" button).
  */
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -20,7 +23,8 @@ import {
     ActivityIndicator,
     Platform,
     Linking,
-    Image,
+    Modal,
+    useWindowDimensions,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -28,23 +32,30 @@ import Animated, {
     useAnimatedStyle,
     interpolate,
     Extrapolation,
-    withSpring,
     runOnJS,
     type SharedValue,
 } from 'react-native-reanimated';
+import { Image as ExpoImage } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { useTaskGuide } from '../../hooks/useTaskGuide';
-import { colors, fonts } from '../../theme/dark';
+import { useTaskGuide, type TaskGuideStep, type TaskGuideIngredient } from '../../hooks/useTaskGuide';
+import { fonts } from '../../theme/dark';
 import api from '../../services/api';
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// ── Editorial palette (cream/ink — reuse, do not invent) ─────────────────────
+const INK = '#111113';
+const CREAM = '#F7F6F2';
+const MUTE = '#9A9A9A';
+const HAIRLINE = '#E2E0DA';
 
+// ── Types ──────────────────────────────────────────────────────────────────
 type RouteParams = {
     TaskGuide: {
         scheduleId: string;
@@ -55,635 +66,349 @@ type RouteParams = {
     };
 };
 
-type Step = {
-    n: number;
-    title: string;
-    body: string;
-    tip: string | null;
-};
-
-// ── Constants ──────────────────────────────────────────────────────────────
-
-const PAGE_TYPES = { INTRO: 'intro', STEP: 'step', DONE: 'done' } as const;
-const INK = '#111113';
-const CREAM = '#F7F6F2';
-const MUTE = '#9A9A9A';
-const TRACK = '#E5E4E0';
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
+// ── Helpers ──────────────────────────────────────────────────────────────────
 function hapticTick() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 }
-function hapticSuccess() {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-}
-
 function padN(n: number): string {
     return n < 10 ? `0${n}` : `${n}`;
 }
-
-// ── Sub-components ─────────────────────────────────────────────────────────
-
-/** Segmented progress bar — one slot per step, the active one fills left-to-right. */
-function ProgressBar({ total, scrollX, pageWidth }: { total: number; scrollX: SharedValue<number>; pageWidth: number }) {
-    if (total === 0) return null;
-    return (
-        <View style={pb.row}>
-            {Array.from({ length: total }).map((_, i) => {
-                // page i+1 is the step (page 0 = intro, page 1…N = steps, page N+1 = done)
-                const pageIndex = i + 1;
-                // eslint-disable-next-line react-hooks/rules-of-hooks
-                const fillStyle = useAnimatedStyle(() => {
-                    const w = interpolate(
-                        scrollX.value,
-                        [(pageIndex - 1) * pageWidth, pageIndex * pageWidth, (pageIndex + 1) * pageWidth],
-                        [0, 1, 1],
-                        Extrapolation.CLAMP,
-                    );
-                    return { flex: w };
-                });
-                // eslint-disable-next-line react-hooks/rules-of-hooks
-                const emptyStyle = useAnimatedStyle(() => {
-                    const w = interpolate(
-                        scrollX.value,
-                        [(pageIndex - 1) * pageWidth, pageIndex * pageWidth],
-                        [1, 0],
-                        Extrapolation.CLAMP,
-                    );
-                    return { flex: w };
-                });
-                return (
-                    <View key={i} style={pb.seg}>
-                        <Animated.View style={[pb.fill, fillStyle]} />
-                        <Animated.View style={[pb.empty, emptyStyle]} />
-                    </View>
-                );
-            })}
-        </View>
-    );
+function initials(name: string): string {
+    const words = name.replace(/[^a-zA-Z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return '·';
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-const pb = StyleSheet.create({
-    row: { flexDirection: 'row', gap: 4, paddingHorizontal: 24 },
-    seg: { flex: 1, height: 2.5, flexDirection: 'row', borderRadius: 2, overflow: 'hidden', backgroundColor: TRACK },
-    fill: { height: '100%', backgroundColor: INK },
-    empty: { height: '100%', backgroundColor: TRACK },
-});
-
-/** Left tick-rail — active dot is solid, others are outlines. */
-function TickRail({ total, currentPage }: { total: number; currentPage: number }) {
-    return (
-        <View style={tr.col}>
-            {Array.from({ length: total }).map((_, i) => {
-                const active = i === currentPage - 1;
-                return (
-                    <React.Fragment key={i}>
-                        <View style={[tr.dot, active ? tr.dotActive : tr.dotInert]} />
-                        {i < total - 1 && (
-                            <View style={[tr.line, i < currentPage - 1 ? tr.lineActive : tr.lineInert]} />
-                        )}
-                    </React.Fragment>
-                );
-            })}
-        </View>
-    );
-}
-
-const tr = StyleSheet.create({
-    col: { width: 16, alignItems: 'center', paddingTop: 6 },
-    dot: { width: 8, height: 8, borderRadius: 4 },
-    dotActive: { backgroundColor: INK },
-    dotInert: { borderWidth: 1.5, borderColor: TRACK, backgroundColor: 'transparent' },
-    line: { width: 1.5, flex: 1, minHeight: 20, marginVertical: 4 },
-    lineActive: { backgroundColor: INK },
-    lineInert: { backgroundColor: TRACK },
-});
-
-// ── Main screen ────────────────────────────────────────────────────────────
-
-export default function TaskGuideScreen() {
-    const insets = useSafeAreaInsets();
-    const navigation = useNavigation<any>();
-    const route = useRoute<RouteProp<RouteParams, 'TaskGuide'>>();
-    const { scheduleId, taskId, moduleColor, moduleLabel, done: alreadyDone } = route.params;
-
-    const { data: guide, isLoading, isError } = useTaskGuide(scheduleId, taskId);
-
-    const scrollX = useSharedValue(0);
-    const scrollRef = useRef<ScrollView>(null);
-    const [currentPage, setCurrentPage] = useState(0);
-    const [markedDone, setMarkedDone] = useState(alreadyDone ?? false);
-    const [markingDone, setMarkingDone] = useState(false);
-    const doneBtnScale = useSharedValue(0);
-
-    // Screen dimensions — can't use useWindowDimensions inside animatedStyle hooks
-    // so we capture once on mount (layout change listener would be overkill here)
-    const [pageWidth, setPageWidth] = useState(0);
-
-    const accent = moduleColor && /^#/.test(moduleColor) ? moduleColor : '#D4A017';
-
-    // Pages: intro (0) + steps (1…N) + done (N+1)
-    const steps: Step[] = guide?.steps ?? [];
-    const totalPages = steps.length > 0 ? steps.length + 2 : 0; // intro + steps + done
-
-    const onScroll = useAnimatedScrollHandler({
-        onScroll(e) {
-            scrollX.value = e.contentOffset.x;
-        },
-        onMomentumEnd(e) {
-            if (pageWidth > 0) {
-                const page = Math.round(e.contentOffset.x / pageWidth);
-                runOnJS(setCurrentPage)(page);
-                runOnJS(hapticTick)();
-                // Animate the done button in when we land on the last page
-                if (page === totalPages - 1) {
-                    doneBtnScale.value = withSpring(1, { damping: 14, stiffness: 140 });
-                } else {
-                    doneBtnScale.value = withSpring(0, { damping: 18, stiffness: 200 });
-                }
-            }
-        },
-    });
-
-    const goToPage = useCallback(
-        (page: number) => {
-            if (!scrollRef.current || pageWidth === 0) return;
-            (scrollRef.current as any).scrollTo({ x: page * pageWidth, animated: true });
-        },
-        [pageWidth],
-    );
-
-    const handleMarkDone = useCallback(async () => {
-        if (markedDone || markingDone) return;
-        setMarkingDone(true);
-        hapticSuccess();
-        try {
-            await api.completeScheduleTask(scheduleId, taskId);
-            setMarkedDone(true);
-        } catch {
-            // Optimistic — stay marked
-            setMarkedDone(true);
-        } finally {
-            setMarkingDone(false);
-        }
-    }, [markedDone, markingDone, scheduleId, taskId]);
-
-    const doneBtnStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: doneBtnScale.value }],
-        opacity: doneBtnScale.value,
-    }));
-
-    // ── Loading / error states ────────────────────────────────────────────
-    if (isLoading) {
-        return (
-            <View style={[s.screen, { paddingTop: insets.top }]}>
-                <View style={s.header}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={s.closeBtn}>
-                        <Ionicons name="close" size={20} color={INK} />
-                    </TouchableOpacity>
-                </View>
-                <View style={s.loadCenter}>
-                    <ActivityIndicator color={MUTE} />
-                    <Text style={s.loadText}>Preparing your guide…</Text>
-                </View>
-            </View>
-        );
-    }
-
-    if (isError || !guide) {
-        return (
-            <View style={[s.screen, { paddingTop: insets.top }]}>
-                <View style={s.header}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={s.closeBtn}>
-                        <Ionicons name="close" size={20} color={INK} />
-                    </TouchableOpacity>
-                </View>
-                <View style={s.loadCenter}>
-                    <Text style={s.errorText}>Couldn't load guide. Try again.</Text>
-                </View>
-            </View>
-        );
-    }
-
-    // ── Render ────────────────────────────────────────────────────────────
-    return (
-        <View
-            style={[s.screen, { paddingTop: insets.top }]}
-            onLayout={(e) => setPageWidth(e.nativeEvent.layout.width)}
-        >
-            {/* Header: close button + progress bar */}
-            <View style={s.header}>
-                <TouchableOpacity
-                    onPress={() => navigation.goBack()}
-                    style={s.closeBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close guide"
-                >
-                    <Ionicons name="close" size={20} color={INK} />
-                </TouchableOpacity>
-
-                {steps.length > 0 && pageWidth > 0 && (
-                    <View style={s.progressWrap}>
-                        <ProgressBar total={steps.length} scrollX={scrollX} pageWidth={pageWidth} />
-                    </View>
+// ── Ingredient card ──────────────────────────────────────────────────────────
+function IngredientCard({ item }: { item: TaskGuideIngredient }) {
+    const img = api.resolveAttachmentUrl(item.image);
+    const tappable = !!item.url;
+    const Inner = (
+        <View style={c.card}>
+            <View style={c.tile}>
+                {img ? (
+                    <ExpoImage source={{ uri: img }} style={c.tileImg} contentFit="cover" transition={150} />
+                ) : (
+                    <Text style={c.tileInitials}>{initials(item.name)}</Text>
                 )}
             </View>
-
-            {/* Module label chip */}
-            {moduleLabel ? (
-                <View style={[s.chip, { backgroundColor: accent + '22' }]}>
-                    <Text style={[s.chipText, { color: accent }]}>{moduleLabel.toUpperCase()}</Text>
-                </View>
-            ) : null}
-
-            {/* The pager */}
-            {pageWidth > 0 && (
-                <AnimatedScrollView
-                    ref={scrollRef as any}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    onScroll={onScroll}
-                    scrollEventThrottle={16}
-                    decelerationRate="fast"
-                    bounces={false}
-                    style={s.pager}
-                    contentContainerStyle={{ width: pageWidth * totalPages }}
-                >
-                    {/* ── Page 0: Intro ── */}
-                    <IntroPage
-                        width={pageWidth}
-                        title={guide.title}
-                        overview={guide.overview}
-                        duration={guide.duration_minutes}
-                        products={guide.products ?? []}
-                        accent={accent}
-                        scrollX={scrollX}
-                        onNext={() => goToPage(1)}
-                    />
-
-                    {/* ── Pages 1…N: Steps ── */}
-                    {steps.map((step, i) => (
-                        <StepPage
-                            key={step.n}
-                            step={step}
-                            stepIndex={i}
-                            totalSteps={steps.length}
-                            width={pageWidth}
-                            accent={accent}
-                            scrollX={scrollX}
-                            currentPage={currentPage}
-                            onNext={() => goToPage(i + 2)}
-                            isLast={i === steps.length - 1}
-                        />
-                    ))}
-
-                    {/* ── Page N+1: Done ── */}
-                    <DonePage
-                        width={pageWidth}
-                        accent={accent}
-                        whyItMatters={guide.why_it_matters}
-                        markedDone={markedDone}
-                        markingDone={markingDone}
-                        doneBtnStyle={doneBtnStyle}
-                        onMarkDone={handleMarkDone}
-                        onClose={() => navigation.goBack()}
-                    />
-                </AnimatedScrollView>
-            )}
+            <View style={c.cardText}>
+                <Text style={c.cardName} numberOfLines={2}>{item.name}</Text>
+                {item.note ? <Text style={c.cardNote} numberOfLines={1}>{item.note}</Text> : null}
+            </View>
         </View>
     );
-}
-
-// ── IntroPage ──────────────────────────────────────────────────────────────
-
-function IntroPage({
-    width, title, overview, duration, products, accent, scrollX, onNext,
-}: {
-    width: number; title: string; overview: string; duration: number;
-    products: { name: string; note: string; url?: string; image?: string }[];
-    accent: string; scrollX: SharedValue<number>; onNext: () => void;
-}) {
-    const heroStyle = useAnimatedStyle(() => ({
-        opacity: interpolate(scrollX.value, [0, width], [1, 0.4], Extrapolation.CLAMP),
-        transform: [
-            {
-                translateX: interpolate(
-                    scrollX.value,
-                    [0, width],
-                    [0, -width * 0.18],
-                    Extrapolation.CLAMP,
-                ),
-            },
-        ],
-    }));
-
-    return (
-        <Animated.View style={[ip.page, { width }, heroStyle]}>
-            {/* Accent wash */}
-            <View style={[ip.wash, { backgroundColor: accent + '18' }]} />
-
-            <View style={ip.body}>
-                <Text style={ip.kicker}>YOUR GUIDE</Text>
-                <Text style={ip.title}>{title}</Text>
-                <Text style={ip.overview}>{overview}</Text>
-
-                {products.length > 0 && (
-                    <View style={ip.products}>
-                        <Text style={ip.productsLabel}>WHAT YOU'LL NEED</Text>
-                        {products.map((p, i) => {
-                            const tappable = !!p.url;
-                            const inner = (
-                                <>
-                                    {p.image ? (
-                                        <Image source={{ uri: p.image }} style={ip.productImage} resizeMode="contain" />
-                                    ) : (
-                                        <View style={[ip.productDot, { backgroundColor: accent }]} />
-                                    )}
-                                    <Text style={ip.productText}>
-                                        <Text style={ip.productName}>{p.name}</Text>
-                                        {p.note ? <Text style={ip.productNote}>{`  ·  ${p.note}`}</Text> : null}
-                                    </Text>
-                                    {tappable ? <Ionicons name="open-outline" size={15} color={MUTE} /> : null}
-                                </>
-                            );
-                            return tappable ? (
-                                <TouchableOpacity
-                                    key={`${p.name}-${i}`}
-                                    style={ip.productRow}
-                                    activeOpacity={0.7}
-                                    onPress={() => Linking.openURL(p.url!).catch(() => {})}
-                                >
-                                    {inner}
-                                </TouchableOpacity>
-                            ) : (
-                                <View key={`${p.name}-${i}`} style={ip.productRow}>{inner}</View>
-                            );
-                        })}
-                    </View>
-                )}
-
-                <View style={ip.durationRow}>
-                    <Ionicons name="time-outline" size={14} color={MUTE} />
-                    <Text style={ip.durationText}>{duration} min</Text>
-                </View>
-            </View>
-
-            <TouchableOpacity style={[ip.nextBtn, { backgroundColor: accent }]} onPress={onNext} activeOpacity={0.82}>
-                <Text style={ip.nextBtnText}>Start</Text>
-                <Ionicons name="arrow-forward" size={16} color="#fff" />
+    if (tappable) {
+        return (
+            <TouchableOpacity activeOpacity={0.8} onPress={() => Linking.openURL(item.url!).catch(() => {})}>
+                {Inner}
             </TouchableOpacity>
-        </Animated.View>
-    );
+        );
+    }
+    return Inner;
 }
 
-const ip = StyleSheet.create({
-    page: { flex: 1, paddingHorizontal: 28, paddingBottom: 40, position: 'relative', justifyContent: 'space-between' },
-    wash: { ...StyleSheet.absoluteFillObject, borderRadius: 0 },
-    body: { flex: 1, justifyContent: 'center', paddingTop: 24 },
-    kicker: { fontFamily: fonts.sansBold, fontSize: 10, color: MUTE, letterSpacing: 2, marginBottom: 12 },
-    title: { fontFamily: fonts.serif, fontSize: 38, color: INK, lineHeight: 44, letterSpacing: -1, marginBottom: 18 },
-    overview: { fontFamily: fonts.sans, fontSize: 16, color: '#555', lineHeight: 24 },
-    products: { marginTop: 22, gap: 9 },
-    productsLabel: { fontFamily: fonts.sansBold, fontSize: 10, color: MUTE, letterSpacing: 2, marginBottom: 4 },
-    productRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-    productDot: { width: 6, height: 6, borderRadius: 3 },
-    productImage: { width: 34, height: 34, borderRadius: 6, backgroundColor: '#f0ece4' },
-    productText: { flex: 1, fontFamily: fonts.sans, fontSize: 14.5, color: INK, lineHeight: 20 },
-    productName: { fontFamily: fonts.sansMedium, color: INK },
-    productNote: { fontFamily: fonts.sans, color: MUTE },
-    durationRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 16 },
-    durationText: { fontFamily: fonts.sansMedium, fontSize: 13, color: MUTE },
-    nextBtn: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        gap: 8, height: 52, borderRadius: 999, marginTop: 32,
+const c = StyleSheet.create({
+    card: {
+        width: 150, marginRight: 12, borderWidth: StyleSheet.hairlineWidth,
+        borderColor: HAIRLINE, borderRadius: 14, backgroundColor: '#FFFFFF',
+        padding: 10, flexDirection: 'row', gap: 10, alignItems: 'center',
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
-    nextBtnText: { fontFamily: fonts.sansBold, fontSize: 16, color: '#fff', fontWeight: '700' },
+    tile: {
+        width: 44, height: 44, borderRadius: 9, backgroundColor: CREAM,
+        alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+        borderWidth: StyleSheet.hairlineWidth, borderColor: HAIRLINE,
+    },
+    tileImg: { width: '100%', height: '100%' },
+    tileInitials: { fontFamily: fonts.sansBold, fontSize: 14, color: INK, letterSpacing: 0.5 },
+    cardText: { flex: 1 },
+    cardName: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: INK, lineHeight: 16 },
+    cardNote: { fontFamily: fonts.sans, fontSize: 11.5, color: MUTE, marginTop: 2 },
 });
 
-// ── StepPage ───────────────────────────────────────────────────────────────
+// ── Left vertical progress rail ──────────────────────────────────────────────
+function ProgressRail({ total, current }: { total: number; current: number }) {
+    return (
+        <View style={pr.rail} accessibilityLabel={`Step ${current} of ${total}`}>
+            {Array.from({ length: total }).map((_, i) => (
+                <View key={i} style={[pr.dash, i <= current - 1 ? pr.dashOn : pr.dashOff]} />
+            ))}
+        </View>
+    );
+}
+const pr = StyleSheet.create({
+    rail: { width: 4, alignItems: 'center', gap: 6, paddingTop: 8 },
+    dash: { width: 4, height: 16, borderRadius: 2 },
+    dashOn: { backgroundColor: INK },
+    dashOff: { backgroundColor: HAIRLINE },
+});
 
+// ── One step page ────────────────────────────────────────────────────────────
 function StepPage({
-    step, stepIndex, totalSteps, width, accent, scrollX, currentPage, onNext, isLast,
+    step, index, total, height, heroUri, scrollY, onWatch,
 }: {
-    step: Step; stepIndex: number; totalSteps: number; width: number; accent: string;
-    scrollX: SharedValue<number>; currentPage: number;
-    onNext: () => void; isLast: boolean;
+    step: TaskGuideStep;
+    index: number;
+    total: number;
+    height: number;
+    heroUri?: string;
+    scrollY: SharedValue<number>;
+    onWatch: (url: string) => void;
 }) {
-    const pageIndex = stepIndex + 1; // page 0 = intro, page 1 = step 0, …
-    const leftEdge = (pageIndex - 1) * width;
-    const center = pageIndex * width;
-    const rightEdge = (pageIndex + 1) * width;
+    const insets = useSafeAreaInsets();
+    const heroHeight = Math.round(height * 0.46);
+    const top = index * height;
+    const range = [top - height, top, top + height];
 
-    // Content fades + scales in as page centres
+    // Hero parallaxes (translates slower than the page) + slight zoom.
+    const heroStyle = useAnimatedStyle(() => ({
+        transform: [
+            { translateY: interpolate(scrollY.value, range, [70, 0, -70], Extrapolation.CLAMP) },
+            { scale: interpolate(scrollY.value, range, [1.08, 1, 1.08], Extrapolation.CLAMP) },
+        ],
+    }));
+
+    // Content fades + scales + translates in as the page reaches centre.
     const contentStyle = useAnimatedStyle(() => ({
-        opacity: interpolate(scrollX.value, [leftEdge, center, rightEdge], [0.3, 1, 0.3], Extrapolation.CLAMP),
+        opacity: interpolate(scrollY.value, range, [0.15, 1, 0.15], Extrapolation.CLAMP),
         transform: [
-            {
-                scale: interpolate(
-                    scrollX.value,
-                    [leftEdge, center, rightEdge],
-                    [0.94, 1, 0.94],
-                    Extrapolation.CLAMP,
-                ),
-            },
-            {
-                translateY: interpolate(
-                    scrollX.value,
-                    [leftEdge, center, rightEdge],
-                    [10, 0, 10],
-                    Extrapolation.CLAMP,
-                ),
-            },
+            { translateY: interpolate(scrollY.value, range, [26, 0, 26], Extrapolation.CLAMP) },
+            { scale: interpolate(scrollY.value, range, [0.96, 1, 0.96], Extrapolation.CLAMP) },
         ],
     }));
 
-    // Ghost numeral slides in from the right and fades
-    const ghostStyle = useAnimatedStyle(() => ({
-        opacity: interpolate(scrollX.value, [leftEdge, center, rightEdge], [0, 0.06, 0], Extrapolation.CLAMP),
-        transform: [
-            {
-                translateX: interpolate(
-                    scrollX.value,
-                    [leftEdge, center, rightEdge],
-                    [40, 0, -40],
-                    Extrapolation.CLAMP,
-                ),
-            },
-        ],
-    }));
-
-    // Background wash parallax (trails the swipe at 0.5×)
-    const washStyle = useAnimatedStyle(() => ({
-        transform: [
-            {
-                translateX: interpolate(
-                    scrollX.value,
-                    [leftEdge, center, rightEdge],
-                    [-width * 0.12, 0, width * 0.12],
-                    Extrapolation.CLAMP,
-                ),
-            },
-        ],
-    }));
+    const ingredients = step.ingredients ?? [];
 
     return (
-        <View style={[sp.page, { width }]}>
-            {/* Parallax colour wash */}
-            <Animated.View style={[sp.wash, { backgroundColor: accent + '12' }, washStyle]} />
+        <View style={[sp.page, { height }]} testID={`guide-step-${step.n}`} accessibilityLabel={`Step ${step.n}`}>
+            {/* Hero photo — bleeds from the top, behind the top row + first text lines */}
+            {heroUri ? (
+                <Animated.View style={[sp.heroWrap, { height: heroHeight }, heroStyle]} pointerEvents="none">
+                    <ExpoImage source={{ uri: heroUri }} style={sp.hero} contentFit="cover" transition={200} />
+                </Animated.View>
+            ) : null}
+            {/* Seamless fade: hero → cream. No hard rectangular edge. */}
+            <LinearGradient
+                pointerEvents="none"
+                colors={['transparent', 'transparent', CREAM]}
+                locations={[0, 0.55, 0.98]}
+                style={[sp.fade, { height: heroHeight + 8 }]}
+            />
 
-            {/* Ghost numeral */}
-            <Animated.Text style={[sp.ghost, ghostStyle]}>{padN(step.n)}</Animated.Text>
+            {/* Watch ▶ pill — only when the step has a video */}
+            {step.video ? (
+                <TouchableOpacity
+                    style={[sp.watch, { top: insets.top + 8 }]}
+                    activeOpacity={0.85}
+                    onPress={() => onWatch(step.video!)}
+                    testID="guide-watch"
+                    accessibilityLabel="Watch video"
+                >
+                    <Text style={sp.watchText}>Watch</Text>
+                    <Ionicons name="play" size={12} color={INK} />
+                </TouchableOpacity>
+            ) : null}
 
-            <Animated.View style={[sp.contentWrap, contentStyle]}>
-                {/* Step kicker */}
-                <Text style={sp.kicker}>STEP {padN(step.n)} OF {padN(totalSteps)}</Text>
+            {/* Content */}
+            <Animated.View
+                style={[sp.content, { paddingTop: heroHeight - 40, paddingBottom: insets.bottom + 24 }, contentStyle]}
+            >
+                <Text style={sp.kicker}>Step {padN(step.n)}</Text>
 
-                <View style={sp.rail}>
-                    {/* Left tick-rail */}
-                    <TickRail total={totalSteps} currentPage={stepIndex + 1} />
-
-                    {/* Step body */}
-                    <View style={sp.textBlock}>
-                        <Text style={sp.stepTitle}>{step.title}</Text>
-                        <Text style={sp.stepBody}>{step.body}</Text>
-
-                        {step.tip ? (
-                            <View style={sp.tipBox}>
-                                <Text style={sp.tipLabel}>TIP</Text>
-                                <Text style={sp.tipText}>{step.tip}</Text>
-                            </View>
-                        ) : null}
+                <View style={sp.railRow}>
+                    <ProgressRail total={total} current={step.n} />
+                    <View style={sp.instructionWrap}>
+                        <Text style={sp.instruction}>{step.body}</Text>
                     </View>
                 </View>
-            </Animated.View>
 
-            {/* Next / Finish CTA */}
-            <TouchableOpacity
-                style={[sp.nextBtn, { borderColor: accent }]}
-                onPress={onNext}
-                activeOpacity={0.8}
-            >
-                <Text style={[sp.nextBtnText, { color: accent }]}>{isLast ? 'Finish' : 'Next step'}</Text>
-                <Ionicons name={isLast ? 'checkmark' : 'arrow-forward'} size={15} color={accent} />
-            </TouchableOpacity>
+                {step.tip ? (
+                    <View style={sp.tipBlock}>
+                        <Text style={sp.tipLabel}>Tip</Text>
+                        <Text style={sp.tipText}>{step.tip}</Text>
+                    </View>
+                ) : null}
+
+                {ingredients.length > 0 ? (
+                    <View style={sp.ingredients}>
+                        <Text style={sp.ingredientsLabel}>Ingredients</Text>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={sp.ingredientsRow}
+                            testID={`guide-ingredients-${step.n}`}
+                        >
+                            {ingredients.map((it, i) => (
+                                <IngredientCard key={`${it.name}-${i}`} item={it} />
+                            ))}
+                        </ScrollView>
+                    </View>
+                ) : null}
+            </Animated.View>
         </View>
     );
 }
 
 const sp = StyleSheet.create({
-    page: { flex: 1, paddingHorizontal: 28, paddingBottom: 40, position: 'relative', justifyContent: 'space-between', overflow: 'hidden' },
-    wash: { ...StyleSheet.absoluteFillObject },
-    ghost: {
-        position: 'absolute', bottom: 80, right: 20,
-        fontFamily: fonts.serifSemiBold, fontSize: 160, color: '#111113',
-        lineHeight: 160, includeFontPadding: false,
+    page: { width: '100%', backgroundColor: CREAM, overflow: 'hidden' },
+    heroWrap: { position: 'absolute', top: 0, left: 0, right: 0 },
+    hero: { width: '100%', height: '100%' },
+    fade: { position: 'absolute', top: 0, left: 0, right: 0 },
+    watch: {
+        position: 'absolute', right: 16, zIndex: 5,
+        flexDirection: 'row', alignItems: 'center', gap: 5,
+        paddingHorizontal: 13, paddingVertical: 7, borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.92)',
+        borderWidth: StyleSheet.hairlineWidth, borderColor: HAIRLINE,
     },
-    contentWrap: { flex: 1, justifyContent: 'center', paddingTop: 16 },
-    kicker: { fontFamily: fonts.sansBold, fontSize: 10, color: MUTE, letterSpacing: 2, marginBottom: 20 },
-    rail: { flexDirection: 'row', gap: 20, flex: 1 },
-    textBlock: { flex: 1 },
-    stepTitle: { fontFamily: fonts.serif, fontSize: 32, color: INK, lineHeight: 38, letterSpacing: -0.8, marginBottom: 14 },
-    stepBody: { fontFamily: fonts.sans, fontSize: 16, color: '#444', lineHeight: 25 },
-    tipBox: { marginTop: 20, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: TRACK },
-    tipLabel: { fontFamily: fonts.sansBold, fontSize: 10, color: MUTE, letterSpacing: 1.5, marginBottom: 4 },
-    tipText: { fontFamily: fonts.serifItalic, fontSize: 15, color: '#666', lineHeight: 21 },
-    nextBtn: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        gap: 8, height: 50, borderRadius: 999, borderWidth: 1.5, marginTop: 28,
-        ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
-    },
-    nextBtnText: { fontFamily: fonts.sansSemiBold, fontSize: 15, fontWeight: '600' },
+    watchText: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: INK },
+    content: { flex: 1, paddingHorizontal: 24 },
+    kicker: { fontFamily: fonts.sansMedium, fontSize: 13, color: MUTE, letterSpacing: 0.5, marginBottom: 14 },
+    railRow: { flexDirection: 'row', gap: 16 },
+    instructionWrap: { flex: 1 },
+    instruction: { fontFamily: fonts.serif, fontSize: 27, lineHeight: 37, color: INK, letterSpacing: -0.4 },
+    tipBlock: { marginTop: 24 },
+    tipLabel: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: INK, marginBottom: 4 },
+    tipText: { fontFamily: fonts.serifItalic, fontSize: 14.5, lineHeight: 21, color: MUTE },
+    ingredients: { marginTop: 26 },
+    ingredientsLabel: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: INK, marginBottom: 12 },
+    ingredientsRow: { paddingRight: 24 },
 });
 
-// ── DonePage ───────────────────────────────────────────────────────────────
+// ── Screen ───────────────────────────────────────────────────────────────────
+export default function TaskGuideScreen() {
+    const insets = useSafeAreaInsets();
+    const { height: winH } = useWindowDimensions();
+    const navigation = useNavigation<any>();
+    const route = useRoute<RouteProp<RouteParams, 'TaskGuide'>>();
+    const { scheduleId, taskId } = route.params;
 
-function DonePage({
-    width, accent, whyItMatters, markedDone, markingDone,
-    doneBtnStyle, onMarkDone, onClose,
-}: {
-    width: number; accent: string; whyItMatters: string;
-    markedDone: boolean; markingDone: boolean;
-    doneBtnStyle: any; onMarkDone: () => void; onClose: () => void;
-}) {
-    return (
-        <View style={[dp.page, { width }]}>
-            <View style={[dp.wash, { backgroundColor: accent + '14' }]} />
+    const { data: guide, isLoading, isError } = useTaskGuide(scheduleId, taskId);
 
-            <View style={dp.body}>
-                <Text style={dp.checkmark}>{markedDone ? '✓' : '○'}</Text>
-                <Text style={dp.heading}>{markedDone ? 'Done!' : 'You\'re ready'}</Text>
-                <Text style={dp.sub}>{whyItMatters}</Text>
+    const scrollY = useSharedValue(0);
+    const lastPage = useRef(0);
+    const [pageH, setPageH] = useState(0);
+    const [videoUrl, setVideoUrl] = useState<string | null>(null);
+
+    const player = useVideoPlayer(videoUrl ?? '', (p) => { if (videoUrl) { p.loop = false; p.play(); } });
+
+    const onScroll = useAnimatedScrollHandler({
+        onScroll(e) {
+            scrollY.value = e.contentOffset.y;
+        },
+        onMomentumEnd(e) {
+            if (pageH > 0) {
+                const page = Math.round(e.contentOffset.y / pageH);
+                if (page !== lastPage.current) {
+                    lastPage.current = page;
+                    runOnJS(hapticTick)();
+                }
+            }
+        },
+    });
+
+    const steps = guide?.steps ?? [];
+    const heroUri = useMemo(
+        () => api.resolveAttachmentUrl(guide?.hero_image),
+        [guide?.hero_image],
+    );
+
+    const handleWatch = useCallback((url: string) => setVideoUrl(url), []);
+
+    // ── Loading / error ──────────────────────────────────────────────────────
+    if (isLoading || isError || !guide) {
+        return (
+            <View style={[s.screen, { paddingTop: insets.top }]}>
+                <CloseButton onPress={() => navigation.goBack()} top={insets.top} />
+                <View style={s.center}>
+                    {isLoading ? (
+                        <>
+                            <ActivityIndicator color={MUTE} />
+                            <Text style={s.dim}>Preparing your guide…</Text>
+                        </>
+                    ) : (
+                        <Text style={s.dim}>Couldn't load guide. Try again.</Text>
+                    )}
+                </View>
             </View>
+        );
+    }
 
-            <Animated.View style={[dp.btnWrap, doneBtnStyle]}>
-                {!markedDone ? (
-                    <TouchableOpacity
-                        style={[dp.doneBtn, { backgroundColor: accent }]}
-                        onPress={onMarkDone}
-                        activeOpacity={0.82}
-                        disabled={markingDone}
-                    >
-                        {markingDone
-                            ? <ActivityIndicator color="#fff" />
-                            : <>
-                                <Ionicons name="checkmark-circle" size={18} color="#fff" />
-                                <Text style={dp.doneBtnText}>Mark done</Text>
-                            </>
-                        }
-                    </TouchableOpacity>
-                ) : (
-                    <TouchableOpacity
-                        style={[dp.doneBtn, { backgroundColor: INK }]}
-                        onPress={onClose}
-                        activeOpacity={0.82}
-                    >
-                        <Text style={dp.doneBtnText}>Close</Text>
-                    </TouchableOpacity>
-                )}
-            </Animated.View>
+    return (
+        <View style={s.screen} onLayout={(e) => setPageH(e.nativeEvent.layout.height)}>
+            {pageH > 0 && (
+                <AnimatedScrollView
+                    onScroll={onScroll}
+                    scrollEventThrottle={16}
+                    showsVerticalScrollIndicator={false}
+                    pagingEnabled
+                    snapToInterval={pageH}
+                    snapToAlignment="start"
+                    decelerationRate="fast"
+                    bounces={false}
+                >
+                    {steps.map((step, i) => (
+                        <StepPage
+                            key={step.n}
+                            step={step}
+                            index={i}
+                            total={steps.length}
+                            height={pageH}
+                            heroUri={api.resolveAttachmentUrl(step.image) || heroUri}
+                            scrollY={scrollY}
+                            onWatch={handleWatch}
+                        />
+                    ))}
+                </AnimatedScrollView>
+            )}
+
+            {/* Global ✕ — closes from any step */}
+            <CloseButton onPress={() => navigation.goBack()} top={insets.top} />
+
+            {/* Video modal (expo-video) */}
+            <Modal visible={!!videoUrl} animationType="slide" onRequestClose={() => setVideoUrl(null)}>
+                <View style={s.videoModal}>
+                    <CloseButton onPress={() => setVideoUrl(null)} top={insets.top + 4} dark />
+                    {videoUrl ? (
+                        <VideoView style={s.video} player={player} allowsFullscreen contentFit="contain" />
+                    ) : null}
+                </View>
+            </Modal>
         </View>
     );
 }
 
-const dp = StyleSheet.create({
-    page: { flex: 1, paddingHorizontal: 28, paddingBottom: 52, position: 'relative', justifyContent: 'space-between' },
-    wash: { ...StyleSheet.absoluteFillObject },
-    body: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 32 },
-    checkmark: { fontSize: 56, color: '#111113', marginBottom: 24 },
-    heading: { fontFamily: fonts.serif, fontSize: 40, color: INK, textAlign: 'center', marginBottom: 16, letterSpacing: -1 },
-    sub: { fontFamily: fonts.sans, fontSize: 16, color: '#555', lineHeight: 24, textAlign: 'center' },
-    btnWrap: { marginTop: 24 },
-    doneBtn: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        gap: 8, height: 54, borderRadius: 999,
-        ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
-    },
-    doneBtnText: { fontFamily: fonts.sansBold, fontSize: 16, color: '#fff', fontWeight: '700' },
-});
-
-// ── Root styles ────────────────────────────────────────────────────────────
+// ── Close button (rounded square, hairline border) ──────────────────────────
+function CloseButton({ onPress, top, dark }: { onPress: () => void; top: number; dark?: boolean }) {
+    return (
+        <TouchableOpacity
+            onPress={onPress}
+            style={[s.close, { top: top + 8 }, dark && s.closeDark]}
+            accessibilityRole="button"
+            accessibilityLabel="Close guide"
+            testID="guide-close"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+            <Ionicons name="close" size={20} color={dark ? '#fff' : INK} />
+        </TouchableOpacity>
+    );
+}
 
 const s = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: '#FAFAF8' },
-    header: {
-        flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
-        paddingVertical: 12, gap: 16,
-    },
-    closeBtn: {
-        width: 36, height: 36, borderRadius: 18, backgroundColor: CREAM,
+    screen: { flex: 1, backgroundColor: CREAM },
+    close: {
+        position: 'absolute', left: 16, zIndex: 20,
+        width: 38, height: 38, borderRadius: 11,
         alignItems: 'center', justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.92)',
+        borderWidth: StyleSheet.hairlineWidth, borderColor: HAIRLINE,
+        ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
-    progressWrap: { flex: 1 },
-    chip: {
-        alignSelf: 'flex-start', marginHorizontal: 24, marginBottom: 4,
-        paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999,
-    },
-    chipText: { fontFamily: fonts.sansBold, fontSize: 10, letterSpacing: 1.5 },
-    pager: { flex: 1 },
-    loadCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-    loadText: { fontFamily: fonts.sans, fontSize: 14, color: MUTE },
-    errorText: { fontFamily: fonts.sans, fontSize: 14, color: MUTE, textAlign: 'center', paddingHorizontal: 32 },
+    closeDark: { backgroundColor: 'rgba(0,0,0,0.5)', borderColor: 'rgba(255,255,255,0.2)' },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+    dim: { fontFamily: fonts.sans, fontSize: 14, color: MUTE, textAlign: 'center', paddingHorizontal: 32 },
+    videoModal: { flex: 1, backgroundColor: '#000' },
+    video: { flex: 1 },
 });
