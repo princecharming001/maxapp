@@ -26,17 +26,37 @@ export interface HabitPickerSpec {
     label?: string;
 }
 
-type HabitState = 'want';
-
 interface Props {
     spec: HabitPickerSpec;
     onSubmit: (wanted: string[], avoided: string[]) => void;
     onSkip?: () => void;
     disabled?: boolean;
+    /** Edit-later prefill (SC4): the user's current wanted/avoided. When omitted
+     *  (fresh onboarding) ALL offered habits start selected. */
+    initialWanted?: string[];
+    initialAvoided?: string[];
+    /** Submit button label override (e.g. "Save" when editing). */
+    submitLabel?: string;
 }
 
-export default function ChatHabitPicker({ spec, onSubmit, onSkip, disabled }: Props) {
-    const [prefs, setPrefs] = useState<Record<string, HabitState>>({});
+export default function ChatHabitPicker({ spec, onSubmit, onSkip, disabled, initialWanted, initialAvoided, submitLabel }: Props) {
+    // The offered set = the catalog for this max. The picker is a SELECT model:
+    // selected chips are "wanted", and the offered-but-unselected complement is
+    // submitted as "avoided" so deselecting a chip actually drops that task (SC3).
+    const offered = useMemo(() => (HABIT_CATALOG[spec.maxx_id] ?? []).map((h) => h.id), [spec.maxx_id]);
+
+    // Default selection: edit-later prefill if given, else all offered (so
+    // "Looks good" with no changes still yields a real, non-empty plan).
+    const [selected, setSelected] = useState<Set<string>>(() => {
+        if (initialWanted || initialAvoided) {
+            const avoid = new Set(initialAvoided ?? []);
+            // wanted = explicit wanted ∪ (offered not explicitly avoided)
+            const w = new Set<string>(initialWanted ?? []);
+            for (const id of offered) if (!avoid.has(id)) w.add(id);
+            return w;
+        }
+        return new Set(offered);
+    });
 
     // Group the max's habits by focus area, preserving catalog order.
     const groups = useMemo(() => {
@@ -53,38 +73,36 @@ export default function ChatHabitPicker({ spec, onSubmit, onSkip, disabled }: Pr
     const toggle = (id: string) => {
         if (disabled) return;
         if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
-        setPrefs((p) => {
-            const next = { ...p };
-            if (next[id]) {
-                delete next[id];
-            } else {
-                next[id] = 'want';
-            }
+        setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
             return next;
         });
     };
 
     const submit = () => {
         if (disabled) return;
-        const wanted = Object.keys(prefs).filter((k) => prefs[k] === 'want');
-        onSubmit(wanted, []);
+        const wanted = offered.filter((id) => selected.has(id));
+        // Deselecting a chip drops the task: the offered-but-unselected complement.
+        const avoided = offered.filter((id) => !selected.has(id));
+        onSubmit(wanted, avoided);
     };
 
-    const count = Object.keys(prefs).length;
+    const count = selected.size;
 
     if (groups.length === 0) return null;
 
     return (
         <View style={styles.container}>
             {spec.label ? <Text style={styles.label}>{spec.label}</Text> : null}
-            <Text style={styles.subtitle}>Select all that apply</Text>
+            <Text style={styles.subtitle}>Tap to remove any you don't want</Text>
 
             {groups.map((g) => (
                 <View key={g.area} style={styles.group}>
                     <Text style={styles.area}>{g.area}</Text>
                     <View style={styles.wrap}>
                         {g.habits.map((h) => {
-                            const want = prefs[h.id] === 'want';
+                            const want = selected.has(h.id);
                             return (
                                 <Pressable
                                     key={h.id}
@@ -112,7 +130,7 @@ export default function ChatHabitPicker({ spec, onSubmit, onSkip, disabled }: Pr
                 accessibilityRole="button"
                 accessibilityLabel="Apply habits"
             >
-                <Text style={styles.submitText}>{count > 0 ? `Apply ${count}` : 'Looks good'}</Text>
+                <Text style={styles.submitText}>{submitLabel ?? (count > 0 ? `Apply ${count}` : 'Looks good')}</Text>
                 <Ionicons name="arrow-forward" size={13} color={colors.buttonText} />
             </Pressable>
 
