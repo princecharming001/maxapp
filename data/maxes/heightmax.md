@@ -175,15 +175,15 @@ required_fields:
     why: "Chronic / diagnosed → ONLY gentle decompression + doctor consult reminder. Strip dead hangs, inversions, aggressive stretches. None → full protocol."
 
   - id: equipment_access
-    question: "What've you got for decompression work?"
+    question: "Any gear for hanging or decompression?"
     type: enum
     options:
       none: "Nothing, just bodyweight"
-      pullup_bar: "Pull-up bar or doorway bar"
+      pullup_bar: "Pull-up or doorway bar"
       inversion_table: "Inversion table"
-      full_setup: "Bar, inversion table, foam roller, the works"
+      full_setup: "Both a bar and an inversion table"
     required: true
-    why: "Decides which decompression tasks fire. None = lying decompression only. Inversion = full hang + inversion. Full = the works."
+    why: "Decides which decompression tasks fire. None = floor/lying decompression only. Pull-up bar = hangs. Inversion table = inversions. Both = full hang + inversion protocol."
 
 optional_context:
   - id: height_current

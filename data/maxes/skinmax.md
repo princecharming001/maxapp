@@ -89,8 +89,10 @@ schedule_design:
 
 required_fields:
   - id: skin_concern
-    question: "What bugs you most about your skin right now?"
+    question: "What bugs you most about your skin? Pick all that apply."
     type: enum
+    multi: true
+    exclusive: [maintenance]
     options:
       acne: "Breakouts and pimples"
       pigmentation: "Dark spots and uneven tone"
@@ -99,7 +101,7 @@ required_fields:
       aging: "Fine lines and loss of firmness"
       maintenance: "It's solid, I just want to keep it that way"
     required: true
-    why: "Sets the protocol track (acne / pigment / rosacea / texture / aging / maintain) and which actives are safe to run."
+    why: "Sets the protocol track and which actives are safe to run. Most people have more than one concern at once (e.g. acne + texture + pigmentation), so this is multi-select; every picked concern is honoured by the skeleton via membership. 'It's solid, just maintain' is exclusive — picking it clears the others. The personalizer uses the first concern as the primary track for product copy."
 
   - id: barrier_state
     question: "How does your skin handle strong or new products?"
@@ -167,14 +169,14 @@ required_fields:
     why: "Drives moisturizer weight + hydration emphasis. Dry/cold = heavier moisturizer + occlusive layer at PM. Humid = lightweight gel-cream + extra cleanse cadence."
 
   - id: diet_open
-    question: "Down to tweak your diet a bit (less dairy, sugar, seed oils) if it clears your skin faster?"
+    question: "Open to small diet tweaks (a bit less dairy or sugar) if they help your skin?"
     type: enum
     options:
       yes_full: "Yeah, I'll cut whatever helps"
       yes_some: "Maybe, open to a change or two"
       "no": "Nah, leave my food out of it"
     required: true
-    why: "Gates internal-support tasks (anti-inflammatory diet reminders, dairy/sugar cuts). Most acne and rosacea respond significantly to dietary changes."
+    why: "Gates internal-support tasks (anti-inflammatory diet reminders, dairy/sugar cuts). Many acne and rosacea cases respond to dietary changes."
 
 optional_context:
   - id: product_preferences

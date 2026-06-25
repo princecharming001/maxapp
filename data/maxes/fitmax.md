@@ -238,8 +238,11 @@ required_fields:
     why: "Under 7 hr → recovery is the limiter. Lower training volume on under-7 days, add sleep priority cue 60 min before bed. Over 8 hr → can push higher volume / intensity."
 
   - id: dietary_restrictions
-    question: "Anything you don't eat?"
+    question: "Anything you don't eat? Pick all that apply."
     type: enum
+    multi: true
+    allow_custom: true
+    exclusive: [none]
     options:
       none: "I eat everything"
       vegetarian: "Vegetarian"
@@ -249,21 +252,22 @@ required_fields:
       lactose_free: "Lactose-free"
       keto: "Keto or very low carb"
       halal_kosher: "Halal or kosher"
-      other: "Something else or a mix"
     required: true
-    why: "Drives meal-suggestion bias. Vegan/vegetarian/pescatarian shift the protein sources. Keto means low-carb templates. Gluten/lactose-free exclude wheat/dairy. Halal/kosher and other get respectful generic protein picks."
+    why: "Drives meal-suggestion bias, and a user can have several at once (e.g. vegetarian + gluten-free), so this is multi-select with an 'Other' for anything not listed. Vegan/vegetarian/pescatarian shift the protein sources. Keto means low-carb templates. Gluten/lactose-free exclude wheat/dairy. Halal/kosher and custom answers get respectful generic protein picks. 'I eat everything' is exclusive — picking it clears the rest."
 
   - id: injury_history
-    question: "Anything banged up I should train around?"
+    question: "Anything banged up I should train around? Pick all that apply."
     type: enum
+    multi: true
+    allow_custom: true
+    exclusive: [none]
     options:
       none: "Nope, all good"
       knee: "Knees, careful with squats and lunges"
       shoulder: "Shoulder, careful pressing overhead"
       back: "Lower back, careful on deadlifts"
-      multiple: "A few things, I'll explain in chat"
     required: true
-    why: "Substitutes contraindicated lifts. Knee → goblet squat / leg press / split squat. Shoulder → DB landmine press / chest-supported row. Back → trap bar / RDL only / box squat."
+    why: "Substitutes contraindicated lifts, and people are often banged up in more than one place (e.g. knee + shoulder), so this is multi-select with an 'Other' to type anything not listed. Knee → goblet squat / leg press / split squat. Shoulder → DB landmine press / chest-supported row. Back → trap bar / RDL only / box squat. 'Nope, all good' is exclusive."
 
   - id: supplement_openness
     question: "How do you feel about supplements?"
@@ -387,9 +391,11 @@ prompt_modifiers:
   - id: halal_kosher_protein
     if: "dietary_restrictions == halal_kosher"
     then: "Keep protein suggestions halal/kosher-friendly. Default to fish, eggs, dairy, legumes, and certified meat the user sources themselves. Don't assume pork or non-certified cuts. No need to mix meat and dairy in kosher meal copy."
-  - id: dietary_other_generic
-    if: "dietary_restrictions == other"
-    then: "Mixed or custom restriction. Keep protein suggestions broad and swappable (fish, eggs, dairy, legumes, lean meat, whey) and tell the user to sub anything that doesn't fit. Ask in chat for specifics if meal copy needs to be precise."
+  # NOTE: dietary_restrictions is now multi-select + allow_custom. A typed
+  # custom diet is stored verbatim as a list value, and each known restriction
+  # fires its own modifier above via membership (`== vegan` is true when "vegan"
+  # is one of the picks). Custom/unknown values get the general nutrition
+  # principles — no dedicated modifier needed, so the old `== other` rule is gone.
   - id: knee_injury_sub
     if: "injury_history == knee"
     then: "EXCLUDE: barbell back squat, lunges, jump variations. SUBSTITUTE: goblet squat, leg press, Bulgarian split squat (controlled), step-ups (low height). Add quad activation warm-up before any leg session."
@@ -399,9 +405,12 @@ prompt_modifiers:
   - id: back_injury_sub
     if: "injury_history == back"
     then: "EXCLUDE: conventional deadlift, heavy back squat, bent-over barbell row. SUBSTITUTE: trap bar deadlift, box squat, chest-supported row, cable row. Add deadbug + bird-dog core stability warm-up before any compound lift."
-  - id: multiple_injury_caution
-    if: "injury_history == multiple"
-    then: "Multiple injuries flagged. Start conservative: machines, DBs, and controlled tempo over heavy barbell axial loading and ballistic moves until the user confirms specifics. In the first chat, ask them to list each injury so contraindicated lifts get subbed precisely. Default warm-up: full-body mobility before every session."
+  # NOTE: injury_history is now multi-select + allow_custom. When the user
+  # flags several areas (e.g. knee + shoulder), each per-injury modifier above
+  # fires via membership and the subs stack — strictly better than the old
+  # single vague "multiple" bucket, which is why that value/modifier is gone.
+  # A typed custom injury is stored verbatim; the tmj/jaw/neck caveat below
+  # still catches those by membership.
   - id: supplements_basic_timing
     if: "supplement_openness in [basic, full_stack]"
     then: "Add creatine 5g/day reminder (any time, but consistency matters). Whey shake post-workout reminder. Both build into the existing post-workout protein task, no new notification, just copy."
