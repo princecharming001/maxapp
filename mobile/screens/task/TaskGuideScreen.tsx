@@ -198,19 +198,27 @@ function StepPage({
 
     return (
         <View style={[sp.page, { height }]} testID={`guide-step-${step.n}`} accessibilityLabel={`Step ${step.n}`}>
-            {/* Hero photo — bleeds from the top, behind the top row + first text lines */}
+            {/* Hero photo — a real, light-background photo that bleeds from the top
+                (inspiration §2). The photo's own neutral background blends into the cream
+                page; there is NO grey→cream gradient smear. The only blend aid is a subtle
+                feather at the very bottom edge so the photo melts into cream seamlessly. */}
             {heroUri ? (
                 <Animated.View style={[sp.heroWrap, { height: heroHeight }, heroStyle]} pointerEvents="none">
-                    <ExpoImage source={{ uri: heroUri }} style={sp.hero} contentFit="cover" transition={200} />
+                    <ExpoImage
+                        source={{ uri: heroUri }}
+                        style={sp.hero}
+                        contentFit="cover"
+                        contentPosition="center"
+                        transition={220}
+                    />
+                    <LinearGradient
+                        pointerEvents="none"
+                        colors={['transparent', CREAM]}
+                        locations={[0, 1]}
+                        style={[sp.feather, { height: Math.round(heroHeight * 0.18) }]}
+                    />
                 </Animated.View>
             ) : null}
-            {/* Seamless fade: hero → cream. No hard rectangular edge. */}
-            <LinearGradient
-                pointerEvents="none"
-                colors={['transparent', 'transparent', CREAM]}
-                locations={[0, 0.72, 1]}
-                style={[sp.fade, { height: heroHeight + 8 }]}
-            />
 
             {/* Watch ▶ pill — only when the step has a video */}
             {step.video ? (
@@ -286,7 +294,7 @@ const sp = StyleSheet.create({
     page: { width: '100%', backgroundColor: CREAM, overflow: 'hidden' },
     heroWrap: { position: 'absolute', top: 0, left: 0, right: 0 },
     hero: { width: '100%', height: '100%' },
-    fade: { position: 'absolute', top: 0, left: 0, right: 0 },
+    feather: { position: 'absolute', left: 0, right: 0, bottom: 0 },
     watch: {
         position: 'absolute', right: 16, zIndex: 5,
         flexDirection: 'row', alignItems: 'center', gap: 5,
