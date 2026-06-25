@@ -4031,7 +4031,9 @@ async def _run_onboarding_questioner(
             try:
                 from services import chat_conversations_service as _conv
                 from models.sqlalchemy_models import active_conversation_id as _acid
-                _new_conv = await _conv.create_conversation(
+                # Idempotent: reuse the target max's existing plan thread if it
+                # already has one (avoids a duplicate "Xmax plan" row).
+                _new_conv = await _conv.get_or_create_maxx_conversation(
                     db, user_id=user_id, title=_maxx_thread_title(new_max), channel="app",
                 )
                 _acid.set(_new_conv.id)
@@ -4350,7 +4352,9 @@ async def _send_message_locked(
         )
         if _new_maxx:
             from models.sqlalchemy_models import active_conversation_id as _acid
-            _new_conv = await _conv.create_conversation(
+            # Idempotent: re-entering a max's setup (double-tap / remount re-fire)
+            # reuses its existing "Xmax plan" thread instead of duplicating it.
+            _new_conv = await _conv.get_or_create_maxx_conversation(
                 db, user_id=user_id, title=_maxx_thread_title(_new_maxx), channel="app",
             )
             data.conversation_id = str(_new_conv.id)

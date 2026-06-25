@@ -96,6 +96,43 @@ async def create_conversation(
     return row
 
 
+async def get_or_create_maxx_conversation(
+    db: AsyncSession,
+    *,
+    user_id: str,
+    title: str,
+    channel: str = "app",
+) -> ChatConversation:
+    """Idempotently return the dedicated thread for a max's onboarding.
+
+    A max's plan is ONE logical chat ("Fitmax plan"), so re-entering its setup —
+    whether from a double-tap, a screen remount that re-fires the start_schedule
+    intent, or simply re-opening the flow — must land in the EXISTING thread
+    rather than spawn a duplicate row. Reuse the most-recent non-archived
+    conversation with this exact title; only create one when none exists.
+    """
+    user_uuid = UUID(user_id)
+    clean = (title or "").strip()
+    if clean:
+        stmt = (
+            select(ChatConversation)
+            .where(
+                ChatConversation.user_id == user_uuid,
+                ChatConversation.channel == channel,
+                ChatConversation.is_archived == False,  # noqa: E712
+                ChatConversation.title == clean,
+            )
+            .order_by(ChatConversation.created_at.desc())
+            .limit(1)
+        )
+        existing = (await db.execute(stmt)).scalar_one_or_none()
+        if existing is not None:
+            return existing
+    return await create_conversation(
+        db, user_id=user_id, title=clean, channel=channel, commit=True
+    )
+
+
 async def rename_conversation(
     db: AsyncSession, *, conversation_id: str, user_id: str, title: str
 ) -> Optional[ChatConversation]:
