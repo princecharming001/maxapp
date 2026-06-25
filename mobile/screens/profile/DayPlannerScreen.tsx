@@ -42,10 +42,12 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, fonts } from '../../theme/dark';
+import { maxMeta } from '../../utils/scheduleAggregation';
 import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
 import DayTimeline from '../../components/planner/DayTimeline';
 import ScheduleGrid from '../../components/planner/ScheduleGrid';
@@ -86,6 +88,163 @@ const SUGGESTIONS: { chip: string; text: string }[] = [
   { chip: 'Add a workout', text: 'Add gym 6-7pm Mon, Wed, Fri' },
 ];
 
+type TodayTask = { title: string; time: string; status: string; scheduleId: string; taskId: string; color: string; label: string };
+
+function fmt12(hhmm: string): string {
+  if (!hhmm) return '';
+  const [h, m] = hhmm.split(':').map((x) => parseInt(x, 10));
+  if (Number.isNaN(h)) return hhmm;
+  const ap = h >= 12 ? 'p' : 'a';
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh}:${String(m || 0).padStart(2, '0')}${ap}`;
+}
+
+/** The Today Loop view (SC10): streak + next-up + a real time-rail with a now marker. */
+function TodayView({
+  streak, tasks, nextUp, wake, sleep, loading, nowMin, toMin, onOpenTask, onEditWeek,
+}: {
+  streak: number;
+  tasks: TodayTask[];
+  nextUp?: TodayTask;
+  wake?: string;
+  sleep?: string;
+  loading: boolean;
+  nowMin: number;
+  toMin: (s: string) => number;
+  onOpenTask: (t: TodayTask) => void;
+  onEditWeek: () => void;
+}) {
+  // Build the rail: wake/wind-down anchors + real tasks, sorted by time.
+  type Row = { kind: 'struct' | 'task'; time: string; min: number; title: string; task?: TodayTask };
+  const rows: Row[] = [];
+  if (wake) rows.push({ kind: 'struct', time: wake, min: toMin(wake), title: 'Wake' });
+  for (const t of tasks) rows.push({ kind: 'task', time: t.time, min: toMin(t.time), title: t.title, task: t });
+  if (sleep) rows.push({ kind: 'struct', time: sleep, min: toMin(sleep), title: 'Wind down' });
+  rows.sort((a, b) => a.min - b.min);
+  // Index where the "now" line goes (first row whose time is after now).
+  const nowIdx = rows.findIndex((r) => r.min > nowMin);
+
+  return (
+    <View>
+      {/* Streak + day header */}
+      <View style={tv.topRow}>
+        <View style={[tv.ring, streak > 0 && tv.ringOn]}>
+          <Text style={[tv.ringNum, streak > 0 && tv.ringNumOn]}>{streak}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={tv.streakCap}>day streak</Text>
+          <Text style={tv.streakSub}>{tasks.length ? `${tasks.filter((t) => t.status === 'completed').length} of ${tasks.length} done today` : 'No tasks scheduled today'}</Text>
+        </View>
+      </View>
+
+      {/* NEXT UP */}
+      {nextUp ? (
+        <>
+          <Text style={tv.label}>NEXT UP</Text>
+          <View style={tv.heroCard}>
+            <Text style={tv.heroTime}>{fmt12(nextUp.time)}  ·  {nextUp.label}</Text>
+            <Text style={tv.heroTitle}>{nextUp.title}</Text>
+            <TouchableOpacity style={tv.heroBtn} onPress={() => onOpenTask(nextUp)} activeOpacity={0.85} testID="planner-nextup-open">
+              <Text style={tv.heroBtnText}>Open guide</Text>
+              <Ionicons name="arrow-forward" size={15} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : null}
+
+      {/* YOUR DAY time-rail */}
+      <Text style={tv.label}>YOUR DAY</Text>
+      <View style={tv.rail}>
+        {loading && !rows.length ? (
+          <ActivityIndicator color={colors.textMuted} style={{ marginVertical: 20 }} />
+        ) : rows.length ? (
+          rows.map((r, i) => (
+            <React.Fragment key={`${r.kind}-${i}-${r.time}`}>
+              {i === nowIdx ? (
+                <View style={tv.nowRow}>
+                  <View style={tv.nowDot} />
+                  <View style={tv.nowLine} />
+                  <Text style={tv.nowText}>now</Text>
+                </View>
+              ) : null}
+              {r.kind === 'struct' ? (
+                <View style={tv.row}>
+                  <Text style={tv.rowTime}>{fmt12(r.time)}</Text>
+                  <View style={tv.structDot} />
+                  <Text style={tv.structTitle}>{r.title}</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={tv.row}
+                  activeOpacity={0.7}
+                  onPress={() => r.task && onOpenTask(r.task)}
+                  testID={`planner-task-${i}`}
+                  accessibilityLabel={`${r.title} at ${fmt12(r.time)}`}
+                >
+                  <Text style={tv.rowTime}>{fmt12(r.time)}</Text>
+                  <View style={[tv.taskDot, { backgroundColor: r.task?.color || ACCENT }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[tv.taskTitle, r.task?.status === 'completed' && tv.taskDone]} numberOfLines={1}>{r.title}</Text>
+                    <Text style={tv.taskMeta}>{r.task?.label}</Text>
+                  </View>
+                  {r.task?.status === 'completed'
+                    ? <Ionicons name="checkmark-circle" size={18} color={ACCENT} />
+                    : <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />}
+                </TouchableOpacity>
+              )}
+            </React.Fragment>
+          ))
+        ) : (
+          <View style={tv.empty}>
+            <Text style={tv.emptyText}>No tasks scheduled today.</Text>
+            <TouchableOpacity onPress={onEditWeek} style={tv.emptyBtn} activeOpacity={0.85}>
+              <Text style={tv.emptyBtnText}>Shape your week</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const tv = StyleSheet.create({
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 8, marginTop: 4 },
+  ring: { width: 48, height: 48, borderRadius: 24, borderWidth: 2.5, borderColor: 'rgba(0,0,0,0.14)', alignItems: 'center', justifyContent: 'center' },
+  ringOn: { borderColor: ACCENT },
+  ringNum: { fontFamily: fonts.serif, fontSize: 20, color: colors.textMuted },
+  ringNumOn: { color: ACCENT },
+  streakCap: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.foreground },
+  streakSub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
+
+  label: { fontFamily: fonts.sansSemiBold, fontSize: 11, letterSpacing: 1.4, color: colors.textMuted, marginTop: 22, marginBottom: 10 },
+
+  heroCard: { backgroundColor: colors.card, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, padding: 18 },
+  heroTime: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textMuted },
+  heroTitle: { fontFamily: fonts.serif, fontSize: 26, color: colors.foreground, letterSpacing: -0.5, marginTop: 6 },
+  heroBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: colors.foreground, borderRadius: 999, paddingVertical: 13, marginTop: 16 },
+  heroBtnText: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: '#fff' },
+
+  rail: { backgroundColor: colors.card, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingVertical: 6, paddingHorizontal: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  rowTime: { width: 54, fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textMuted },
+  structDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(0,0,0,0.18)' },
+  structTitle: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 14.5, color: colors.textMuted },
+  taskDot: { width: 10, height: 10, borderRadius: 5 },
+  taskTitle: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground },
+  taskDone: { color: colors.textMuted, textDecorationLine: 'line-through' },
+  taskMeta: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.textMuted, marginTop: 1 },
+
+  nowRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 48, paddingVertical: 2 },
+  nowDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#C0452C' },
+  nowLine: { flex: 1, height: 1.5, backgroundColor: '#C0452C', opacity: 0.5 },
+  nowText: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: '#C0452C', letterSpacing: 0.5 },
+
+  empty: { alignItems: 'center', paddingVertical: 30, gap: 14 },
+  emptyText: { fontFamily: fonts.sans, fontSize: 14, color: colors.textMuted },
+  emptyBtn: { backgroundColor: colors.foreground, borderRadius: 999, paddingHorizontal: 22, paddingVertical: 11 },
+  emptyBtnText: { fontFamily: fonts.sansSemiBold, fontSize: 13.5, color: '#fff' },
+});
+
 export default function DayPlannerScreen({ embedded = false }: { embedded?: boolean }) {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
@@ -103,6 +262,41 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   const [scope, setScope] = useState<Scope>('all');
   // Agenda list vs. Timepage-style hour grid.
   const [planView, setPlanView] = useState<'list' | 'grid'>('list');
+
+  // Today Loop vs. Week editor (SC10). Today is the default, intuitive view.
+  const [mode, setMode] = useState<'today' | 'week'>('today');
+
+  // Real today tasks across all active maxes — drives the Today time-rail + next-up.
+  const todayQuery = useQuery({
+    queryKey: queryKeys.schedulesActiveFull,
+    queryFn: () => api.getActiveSchedulesFull(),
+    staleTime: 60_000,
+  });
+  const todayData = todayQuery.data as any;
+  const todayStreak = todayData?.schedule_streak?.current ?? 0;
+  const todayTasks = React.useMemo(() => {
+    const out: { title: string; time: string; status: string; scheduleId: string; taskId: string; color: string; label: string }[] = [];
+    const today = todayData?.today_date;
+    for (const s of (todayData?.schedules || [])) {
+      const mid = String(s?.maxx_id || '');
+      const meta = maxMeta(mid);
+      const days = s?.days || [];
+      const day = today ? days.find((d: any) => d?.date === today) : days[0];
+      for (const t of (day?.tasks || [])) {
+        out.push({
+          title: t.title || 'Task', time: t.time || '', status: t.status || 'pending',
+          scheduleId: String(s.id), taskId: String(t.task_id), color: meta.color, label: meta.label,
+        });
+      }
+    }
+    return out.sort((a, b) => a.time.localeCompare(b.time));
+  }, [todayData]);
+  const nowMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
+  const toMin = (hhmm: string) => { const [h, m] = (hhmm || '0:0').split(':').map((x) => parseInt(x, 10)); return (h || 0) * 60 + (m || 0); };
+  const nextUp = todayTasks.find((t) => t.status !== 'completed' && toMin(t.time) >= nowMin) || todayTasks.find((t) => t.status !== 'completed');
+  const openTaskGuide = (t: { scheduleId: string; taskId: string; color: string; label: string }) => {
+    navigation.navigate('TaskGuide', { scheduleId: t.scheduleId, taskId: t.taskId, moduleColor: t.color, moduleLabel: t.label });
+  };
 
   // Editor sheet: keep the scope set across the close animation to avoid a flash.
   const [editScope, setEditScope] = useState<Scope>('all');
@@ -297,12 +491,51 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         >
           {/* Masthead */}
           <View style={styles.masthead}>
-            <Text style={styles.title}>Your week</Text>
+            <Text style={styles.title}>{mode === 'today' ? 'Today' : 'Your week'}</Text>
             <Text style={styles.subhead}>
-              Tap anything to adjust it. Max fits your routines into the open time around it.
+              {mode === 'today'
+                ? 'Your real day, in order — tap a task to open its guide.'
+                : 'Tap anything to adjust it. Max fits your routines into the open time around it.'}
             </Text>
           </View>
 
+          {/* Today | Week segmented control (SC10). */}
+          <View style={styles.segment}>
+            {(['today', 'week'] as const).map((m) => {
+              const on = mode === m;
+              return (
+                <TouchableOpacity
+                  key={m}
+                  style={[styles.segBtn, on && styles.segBtnOn]}
+                  onPress={() => setMode(m)}
+                  activeOpacity={0.85}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: on }}
+                  testID={`planner-tab-${m}`}
+                >
+                  <Text style={[styles.segText, on && styles.segTextOn]}>{m === 'today' ? 'Today' : 'Week'}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {mode === 'today' ? (
+            <TodayView
+              streak={todayStreak}
+              tasks={todayTasks}
+              nextUp={nextUp}
+              wake={dayForScope.wakeWindow?.[0]}
+              sleep={dayForScope.sleepWindow?.[1]}
+              loading={todayQuery.isLoading}
+              nowMin={nowMin}
+              toMin={toMin}
+              onOpenTask={openTaskGuide}
+              onEditWeek={() => setMode('week')}
+            />
+          ) : null}
+
+          {mode === 'week' ? (
+          <>
           {/* Scope selector — which day you're shaping. Clear labels (no cryptic
               dots); a marked pill means that day differs from your every-day. */}
           <View style={styles.scopeBar}>
@@ -387,6 +620,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           <View style={styles.section}>
             <ObligationsManager ref={obligationsRef} obligations={obligations} onChange={changeObligations} />
           </View>
+          </>
+          ) : null}
 
           <View style={{ height: 96 + insets.bottom }} />
         </ScrollView>
@@ -601,6 +836,13 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     letterSpacing: 0.05,
   },
+
+  // Today | Week segmented control.
+  segment: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 999, padding: 3, marginBottom: spacing.md },
+  segBtn: { flex: 1, paddingVertical: 9, borderRadius: 999, alignItems: 'center' },
+  segBtnOn: { backgroundColor: colors.foreground },
+  segText: { fontFamily: fonts.sansSemiBold, fontSize: 13.5, color: colors.textMuted },
+  segTextOn: { color: colors.background },
 
   // Scope selector.
   scopeBar: { marginHorizontal: -spacing.lg },
