@@ -48,29 +48,33 @@ function ScanCenterButton() {
             accessibilityLabel="Scan"
         >
             <View style={scanBtnStyles.circleWrap}>
-                {/* Minimal blur — keeps it clear, not frosted */}
+                {/* Frosted base */}
                 <BlurView
-                    intensity={Platform.OS === 'ios' ? 14 : 30}
+                    intensity={Platform.OS === 'ios' ? 22 : 36}
                     tint="extraLight"
                     style={StyleSheet.absoluteFill}
                     experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
                 />
-                {/* Top specular — the primary glass cue: bright crescent at the crown */}
+                {/* Body fill — gives the glass weight/definition over the bar */}
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.30)' }]} pointerEvents="none" />
+                {/* Top specular — bright crescent at the crown (primary glass cue) */}
                 <LinearGradient
-                    colors={['rgba(255,255,255,0.96)', 'rgba(255,255,255,0.42)', 'rgba(255,255,255,0)']}
-                    locations={[0, 0.36, 0.72]}
+                    colors={['rgba(255,255,255,0.99)', 'rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']}
+                    locations={[0, 0.32, 0.68]}
                     style={StyleSheet.absoluteFill}
                     pointerEvents="none"
                 />
-                {/* Bottom depth shadow — makes the circle feel like a convex lens */}
+                {/* Bottom depth shadow — convex-lens feel */}
                 <LinearGradient
-                    colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.07)']}
-                    locations={[0.48, 1]}
+                    colors={['rgba(0,0,0,0)', 'rgba(30,30,40,0.04)', 'rgba(30,30,40,0.13)']}
+                    locations={[0.42, 0.72, 1]}
                     style={StyleSheet.absoluteFill}
                     pointerEvents="none"
                 />
-                <Ionicons name="scan" size={20} color="rgba(17,17,19,0.72)" />
-                <ShineOverlay width={44} intensity={0.22} period={4800} />
+                {/* Inner rim highlight — the second, crisper edge that defines glass */}
+                <View style={scanBtnStyles.innerRing} pointerEvents="none" />
+                <Ionicons name="scan" size={22} color="rgba(17,17,19,0.82)" />
+                <ShineOverlay width={52} intensity={0.3} period={4800} />
             </View>
         </TouchableOpacity>
     );
@@ -79,20 +83,29 @@ function ScanCenterButton() {
 const scanBtnStyles = StyleSheet.create({
     touch: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     circleWrap: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 50,
+        height: 50,
+        borderRadius: 25,
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: 'rgba(255,255,255,0.18)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.92)',
+        borderColor: 'rgba(255,255,255,0.95)',
         shadowColor: '#111113',
-        shadowOpacity: 0.1,
-        shadowRadius: 14,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 3,
+        shadowOpacity: 0.18,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 6,
+        ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
+    },
+    // Second, inset rim — the crisp highlight edge that sells the glass depth.
+    innerRing: {
+        position: 'absolute',
+        top: 1.5, left: 1.5, right: 1.5, bottom: 1.5,
+        borderRadius: 23,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.55)',
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
 });
