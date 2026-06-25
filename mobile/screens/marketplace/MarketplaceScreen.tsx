@@ -552,6 +552,12 @@ function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: n
     if (thumb) {
         return (
             <TouchableOpacity style={[styles.featureNative, { width }]} activeOpacity={0.85} onPress={onPress}>
+                <LinearGradient
+                    colors={['#D8D9DB', '#E1E1E3', '#ECECEE']}
+                    locations={[0, 0.5, 1]}
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                />
                 <Image source={thumb} style={styles.featureNativeImg} contentFit="cover" transition={200} />
                 <View style={styles.featureNativeBody}>
                     <Text style={styles.nativeTitle} numberOfLines={1}>{item.title}</Text>
@@ -579,6 +585,12 @@ function GridCard({ item, width, onPress }: { item: MarketplaceItem; width: numb
     if (thumb) {
         return (
             <TouchableOpacity style={[styles.gridCardNative, { width }]} activeOpacity={0.85} onPress={onPress}>
+                <LinearGradient
+                    colors={['#D8D9DB', '#E1E1E3', '#ECECEE']}
+                    locations={[0, 0.5, 1]}
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                />
                 <Image source={thumb} style={styles.gridNativeImg} contentFit="cover" transition={200} />
                 <View style={styles.gridNativeBody}>
                     <Text style={styles.gridNativeTitle} numberOfLines={1}>{item.title}</Text>
