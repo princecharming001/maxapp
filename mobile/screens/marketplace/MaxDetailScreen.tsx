@@ -13,7 +13,7 @@
  * Card data from route params renders instantly; GET /marketplace/item/{id}
  * fills the rest in.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -22,18 +22,19 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Platform,
+    Animated,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import api, { type MarketplaceItem } from '../../services/api';
 import { getCourseForMaxx, isCreatorCourse } from '../../data/courseContent';
-import { hexA } from '../../utils/scheduleAggregation';
+import { hexA, maxMeta } from '../../utils/scheduleAggregation';
+import { HABIT_CATALOG } from '../../data/habitCatalog';
 import { track } from '../../lib/analytics';
 
 const CANVAS = '#FFFFFF';
@@ -116,94 +117,63 @@ function Accordion({ title, badge, children, open, onToggle }: {
 }
 
 /**
- * Full-bleed media hero. Prefers a muted autoplay loop when the item ships a
- * video; the cover image sits underneath and shows through if the video ever
- * fails to load, so the page is never broken. Fades into the cream page.
+ * Full-bleed STATIC image hero (SC9 — no video). The cover image (or a soft
+ * accent wash when missing) parallaxes/scales on scroll (SC8) and fades into the
+ * cream page. No video player, no "Preview" affordance.
  */
-function MediaHero({ cover, video, base }: { cover?: string; video?: string; base: string }) {
-    const [ready, setReady] = useState(false);
-    const [failed, setFailed] = useState(false);
-    const wantVideo = !!video && !failed;
-    const player = useVideoPlayer(wantVideo ? (video as string) : '', (p) => {
-        p.loop = true;
-        p.muted = true;
-    });
-    useEffect(() => {
-        if (!wantVideo) return;
-        const sub = player.addListener('statusChange', (payload: any) => {
-            const st = payload?.status;
-            if (st === 'error') { setFailed(true); setReady(false); }
-            else if (st === 'readyToPlay') { setReady(true); try { player.play(); } catch {} }
-        });
-        try { player.play(); } catch {}
-        return () => { try { sub.remove(); } catch {} };
-    }, [player, wantVideo]);
-    // Only overlay the video once it's actually ready — the cover image shows
-    // through until then (and forever if the video fails), never a black box.
-    const showVideo = wantVideo && ready;
-
+function MediaHero({ cover, base, scrollY }: { cover?: string; base: string; scrollY: Animated.Value }) {
+    const translateY = scrollY.interpolate({ inputRange: [-150, 0, 332], outputRange: [-40, 0, 120], extrapolate: 'clamp' });
+    const scale = scrollY.interpolate({ inputRange: [-150, 0], outputRange: [1.18, 1], extrapolateRight: 'clamp' });
     return (
         <View style={styles.hero}>
-            {cover ? (
-                <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
-            ) : (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: hexA(base, 0.2) }]} />
-            )}
-            {showVideo ? (
-                <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />
-            ) : null}
+            <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateY }, { scale }] }]}>
+                {cover ? (
+                    <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
+                ) : (
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: hexA(base, 0.2) }]} />
+                )}
+            </Animated.View>
             <LinearGradient
-                colors={['rgba(0,0,0,0.26)', 'transparent', 'rgba(255,255,255,0)', CANVAS]}
+                colors={['rgba(0,0,0,0.18)', 'transparent', 'rgba(255,255,255,0)', CANVAS]}
                 locations={[0, 0.3, 0.76, 1]}
                 style={StyleSheet.absoluteFill}
+                pointerEvents="none"
             />
-            {showVideo ? (
-                <View style={styles.previewChip}>
-                    <Ionicons name="play" size={10} color="#fff" />
-                    <Text style={styles.previewChipText}>Preview</Text>
-                </View>
-            ) : null}
         </View>
     );
 }
 
-/**
- * Inline 16:9 creator-filmed clip for "A look inside". Muted autoplay loop; the
- * poster (cover) shows under a play glyph until the video is ready, and stays
- * if it ever fails — the section never breaks.
- */
-function InsideVideo({ poster, video }: { poster?: string; video: string }) {
-    const [ready, setReady] = useState(false);
-    const [failed, setFailed] = useState(false);
-    const wantVideo = !!video && !failed;
-    const player = useVideoPlayer(wantVideo ? video : '', (p) => {
-        p.loop = true;
-        p.muted = true;
-    });
-    useEffect(() => {
-        if (!wantVideo) return;
-        const sub = player.addListener('statusChange', (payload: any) => {
-            const st = payload?.status;
-            if (st === 'error') { setFailed(true); setReady(false); }
-            else if (st === 'readyToPlay') { setReady(true); try { player.play(); } catch {} }
-        });
-        try { player.play(); } catch {}
-        return () => { try { sub.remove(); } catch {} };
-    }, [player, wantVideo]);
-    const showVideo = wantVideo && ready;
+/** Real, catalog-derived program stats (SC6 — ss2 stats grid). No fabrication:
+ *  routines = curated habit count; areas = distinct focus areas; cadence/length
+ *  reflect how the max actually schedules. Courses show weeks/lessons instead. */
+function StatsGrid({ item, isCourse }: { item: MarketplaceItem; isCourse: boolean }) {
+    const habits = HABIT_CATALOG[String(item.id || '').toLowerCase()] || [];
+    const areas = new Set(habits.map((h) => h.area)).size;
+    const d = item.detail || {};
+    let stats: { value: string; label: string }[];
+    if (isCourse) {
+        const weeks = item.weeks || (d.curriculum?.length ?? 0);
+        const lessons = (d.curriculum || []).reduce((n, w) => n + (w.lessons?.length || 0), 0);
+        stats = [
+            { value: weeks ? String(weeks) : '—', label: 'Weeks' },
+            { value: lessons ? String(lessons) : '—', label: 'Lessons' },
+            { value: item.rating ? item.rating.toFixed(1) : '—', label: 'Rating' },
+        ];
+    } else {
+        stats = [
+            { value: habits.length ? String(habits.length) : '—', label: 'Routines' },
+            { value: areas ? String(areas) : '—', label: 'Focus areas' },
+            { value: 'Daily', label: 'Cadence' },
+        ];
+    }
     return (
-        <View style={styles.insideVideo}>
-            {poster ? (
-                <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
-            ) : null}
-            {showVideo ? (
-                <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />
-            ) : null}
-            {!showVideo ? (
-                <View style={[StyleSheet.absoluteFill, styles.playCenter]}>
-                    <View style={styles.playCircle}><Ionicons name="play" size={20} color="#fff" /></View>
+        <View style={styles.statsGrid}>
+            {stats.map((s, i) => (
+                <View key={s.label} style={[styles.statCell, i < stats.length - 1 && styles.statDivider]}>
+                    <Text style={styles.statValue}>{s.value}</Text>
+                    <Text style={styles.statLabel}>{s.label}</Text>
                 </View>
-            ) : null}
+            ))}
         </View>
     );
 }
@@ -219,6 +189,8 @@ export default function MaxDetailScreen() {
     const [busy, setBusy] = useState(false);
     const [openWeek, setOpenWeek] = useState(0);
     const [openFaq, setOpenFaq] = useState<number | null>(null);
+    const scrollY = useRef(new Animated.Value(0)).current;
+    const ctaScale = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
         let alive = true;
@@ -309,11 +281,13 @@ export default function MaxDetailScreen() {
                 </TouchableOpacity>
             </View>
 
-            <ScrollView
+            <Animated.ScrollView
                 contentContainerStyle={{ paddingBottom: 130 + insets.bottom }}
                 showsVerticalScrollIndicator={false}
+                scrollEventThrottle={16}
+                onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
             >
-                <MediaHero cover={item.image_url} video={d.video_url} base={base} />
+                <MediaHero cover={item.image_url} base={base} scrollY={scrollY} />
 
                 {/* Header — type-led, no templated icon chip. */}
                 <View style={styles.header}>
@@ -324,6 +298,11 @@ export default function MaxDetailScreen() {
                     <Text style={styles.heroTitle}>{item.title}</Text>
                     <View style={[styles.heroRule, { backgroundColor: base }]} />
                     <Text style={styles.heroTagline}>{item.tagline}</Text>
+                </View>
+
+                {/* Real program stats (SC6). */}
+                <View style={styles.block}>
+                    <StatsGrid item={item} isCourse={isCourse} />
                 </View>
 
                 {/* Social proof — native maxes (courses carry it in the creator row). */}
@@ -364,16 +343,8 @@ export default function MaxDetailScreen() {
                 {/* The promise. */}
                 {d.long_description ? <Text style={styles.lead}>{d.long_description}</Text> : null}
 
-                {/* A look inside — a clip filmed by the creator. */}
-                {d.inside_video ? (
-                    <View style={styles.galleryBlock}>
-                        <Text style={[styles.sectionLabel, styles.galleryLabel]}>A look inside</Text>
-                        <View style={styles.galleryLabel}>
-                            <InsideVideo poster={item.image_url || d.gallery?.[0]} video={d.inside_video} />
-                            <Text style={styles.insideCaption}>Filmed by {item.creator.name}</Text>
-                        </View>
-                    </View>
-                ) : d.gallery && d.gallery.length > 1 ? (
+                {/* A look inside — static imagery (videos removed, SC9). */}
+                {d.gallery && d.gallery.length > 1 ? (
                     <View style={styles.galleryBlock}>
                         <Text style={[styles.sectionLabel, styles.galleryLabel]}>A look inside</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
@@ -523,7 +494,7 @@ export default function MaxDetailScreen() {
                         <Text style={styles.guaranteeText}>{d.guarantee}</Text>
                     </View>
                 ) : null}
-            </ScrollView>
+            </Animated.ScrollView>
 
             {/* Sticky CTA */}
             <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 14 }]}>
@@ -537,20 +508,24 @@ export default function MaxDetailScreen() {
                                 : item.weeks ? `${item.weeks} weeks · one payment` : 'one payment'}
                     </Text>
                 </View>
-                <TouchableOpacity
-                    style={[styles.ctaBtn, { backgroundColor: item.entered ? ACCENT : INK }]}
-                    activeOpacity={0.88}
-                    onPress={onCta}
-                    disabled={busy}
-                >
-                    {busy ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <Text style={styles.ctaBtnText} numberOfLines={1}>
-                            {item.entered ? 'Open' : readerCourseId ? 'Add to schedule' : isCourse ? 'Enroll' : 'Start my plan'}
-                        </Text>
-                    )}
-                </TouchableOpacity>
+                <Animated.View style={{ transform: [{ scale: ctaScale }] }}>
+                    <TouchableOpacity
+                        style={[styles.ctaBtn, { backgroundColor: item.entered ? ACCENT : INK }]}
+                        activeOpacity={0.9}
+                        onPress={onCta}
+                        disabled={busy}
+                        onPressIn={() => Animated.spring(ctaScale, { toValue: 0.95, useNativeDriver: true, speed: 40, bounciness: 0 }).start()}
+                        onPressOut={() => Animated.spring(ctaScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start()}
+                    >
+                        {busy ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={styles.ctaBtnText} numberOfLines={1}>
+                                {item.entered ? 'Open' : readerCourseId ? 'Add to schedule' : isCourse ? 'Enroll' : 'Start my plan'}
+                            </Text>
+                        )}
+                    </TouchableOpacity>
+                </Animated.View>
             </View>
         </View>
     );
@@ -618,6 +593,17 @@ const styles = StyleSheet.create({
     },
     openCourseText: { fontFamily: 'Matter-SemiBold', fontSize: 14.5, color: INK, letterSpacing: 0.1 },
     sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: INK, marginBottom: 15 },
+
+    // Stats grid (SC6)
+    statsGrid: {
+        flexDirection: 'row', backgroundColor: CARD, borderRadius: 18,
+        borderWidth: StyleSheet.hairlineWidth, borderColor: HAIRLINE,
+        paddingVertical: 18,
+    },
+    statCell: { flex: 1, alignItems: 'center' },
+    statDivider: { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: HAIRLINE },
+    statValue: { fontFamily: SERIF, fontSize: 26, color: INK, letterSpacing: -0.5 },
+    statLabel: { fontFamily: 'Matter-Medium', fontSize: 11, color: MUTE, marginTop: 5, letterSpacing: 0.3, textTransform: 'uppercase' },
 
     // Cards
     card: {
