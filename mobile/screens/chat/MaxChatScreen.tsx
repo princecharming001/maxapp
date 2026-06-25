@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } from 'expo-audio';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
 import { useChatHistoryQuery } from '../../hooks/useAppQueries';
@@ -463,6 +464,10 @@ export default function MaxChatScreen() {
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
+    // MaxChatScreen is a bottom-tab child, so the keyboard avoider must offset by
+    // the tab bar height — otherwise the composer (and its Send button) hides
+    // BEHIND the keyboard when typing a reply, e.g. a custom onboarding answer.
+    const tabBarHeight = useBottomTabBarHeight();
     const queryClient = useQueryClient();
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const chatHistoryQuery = useChatHistoryQuery(activeConversationId);
@@ -1203,12 +1208,13 @@ export default function MaxChatScreen() {
 
     return (
         <View style={styles.container}>
-            {/* keyboardVerticalOffset = 0 because the screen IS the root
-                view (custom header lives INSIDE the KAV, not a navigator
-                header above it). The previous hardcoded 90 was an
-                over-correction that left a weird ~90pt gap above the
-                keyboard on tall iPhones. */}
-            <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
+            {/* keyboardVerticalOffset = the bottom tab bar height. This screen
+                is a tab child, so the OS keyboard rises over the tab bar; without
+                this offset the composer + Send button sit BEHIND the keyboard
+                (you can't reach Send to send a typed/custom answer). A hardcoded
+                0 hid it; a hardcoded 90 over-corrected — the live tab bar height
+                is exactly right on every device. */}
+            <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={tabBarHeight}>
                 <View style={[cg.header, { paddingTop: Math.max(insets.top + 6, 44) }]}>
                     <TouchableOpacity
                         style={cg.headerBtn}
