@@ -19,11 +19,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../theme/dark';
 import { HABIT_CATALOG, type Habit } from '../data/habitCatalog';
 
+/** One offered habit = a real distinct catalog task on the user's schedule. */
+export interface OfferedHabit {
+    id: string;
+    label: string;
+    area: string;
+}
+
 export interface HabitPickerSpec {
     type: 'habit_picker';
     maxx_id: string;
     schedule_id?: string;
     label?: string;
+    /** v2: the offered set built from the user's ACTUAL schedule (distinct
+     *  catalog ids). When present the picker renders THIS (1:1 with the plan);
+     *  the static HABIT_CATALOG is only a legacy fallback. */
+    offered?: OfferedHabit[];
+    version?: number;
 }
 
 interface Props {
@@ -40,10 +52,18 @@ interface Props {
 }
 
 export default function ChatHabitPicker({ spec, onSubmit, onSkip, disabled, initialWanted, initialAvoided, submitLabel }: Props) {
-    // The offered set = the catalog for this max. The picker is a SELECT model:
+    // The offered set is driven by the user's REAL schedule (spec.offered) so the
+    // chips correspond 1:1 to the plan; the static HABIT_CATALOG is a last-resort
+    // fallback for legacy/no-skeleton payloads. The picker is a SELECT model:
     // selected chips are "wanted", and the offered-but-unselected complement is
     // submitted as "avoided" so deselecting a chip actually drops that task (SC3).
-    const offered = useMemo(() => (HABIT_CATALOG[spec.maxx_id] ?? []).map((h) => h.id), [spec.maxx_id]);
+    const offeredHabits: Habit[] = useMemo(() => {
+        if (spec.offered && spec.offered.length > 0) {
+            return spec.offered.map((o) => ({ id: o.id, label: o.label, area: o.area || 'Other' }));
+        }
+        return HABIT_CATALOG[spec.maxx_id] ?? [];
+    }, [spec.offered, spec.maxx_id]);
+    const offered = useMemo(() => offeredHabits.map((h) => h.id), [offeredHabits]);
 
     // Default selection: edit-later prefill if given, else all offered (so
     // "Looks good" with no changes still yields a real, non-empty plan).
@@ -58,17 +78,16 @@ export default function ChatHabitPicker({ spec, onSubmit, onSkip, disabled, init
         return new Set(offered);
     });
 
-    // Group the max's habits by focus area, preserving catalog order.
+    // Group the offered habits by focus area, preserving offered order.
     const groups = useMemo(() => {
-        const list = HABIT_CATALOG[spec.maxx_id] ?? [];
         const order: string[] = [];
         const byArea: Record<string, Habit[]> = {};
-        for (const h of list) {
+        for (const h of offeredHabits) {
             if (!byArea[h.area]) { byArea[h.area] = []; order.push(h.area); }
             byArea[h.area].push(h);
         }
         return order.map((area) => ({ area, habits: byArea[area] }));
-    }, [spec.maxx_id]);
+    }, [offeredHabits]);
 
     const toggle = (id: string) => {
         if (disabled) return;

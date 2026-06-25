@@ -1460,6 +1460,20 @@ class ApiService {
         return response.data;
     }
 
+    /** Offered habit set for the tune-later sheet: the distinct catalog tasks
+     *  actually on this schedule (id/label/area) + current wanted/avoided, so the
+     *  picker is driven by the real plan and prefills accurately. */
+    async getHabitOptions(scheduleId: string): Promise<{
+        schedule_id: string;
+        maxx_id: string;
+        offered: { id: string; label: string; area: string }[];
+        wanted: string[];
+        avoided: string[];
+    }> {
+        const response = await this.client.get(`schedules/${scheduleId}/habit-options`);
+        return response.data;
+    }
+
     async getChatHistory(opts?: {
         limit?: number;
         offset?: number;

@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
-import ChatHabitPicker from '../../components/ChatHabitPicker';
+import ChatHabitPicker, { type OfferedHabit } from '../../components/ChatHabitPicker';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -105,6 +105,9 @@ type MyMax = {
     scheduleId: string;
     wanted: string[];
     avoided: string[];
+    /** v2 offered set, built from THIS schedule's real distinct catalog ids.
+     *  Lazily fetched when the tune sheet opens (see openTune). */
+    offered?: OfferedHabit[];
 };
 
 export default function MarketplaceScreen() {
@@ -124,6 +127,25 @@ export default function MarketplaceScreen() {
     const [tuning, setTuning] = useState<MyMax | null>(null);
     const [savingTune, setSavingTune] = useState(false);
     const queryClient = useQueryClient();
+
+    // Open the tune sheet for a max. We fetch the live offered set (the real
+    // distinct catalog tasks on THIS schedule) so the chips are 1:1 with the
+    // plan — same dynamic source as the onboarding picker (SC3/SC4). The sheet
+    // opens immediately on the cached prefs, then patches in offered + the
+    // server's current wanted/avoided when the fetch resolves.
+    const openTune = useCallback(async (mx: MyMax) => {
+        setTuning(mx);
+        if (!mx.scheduleId) return;
+        try {
+            const opts = await api.getHabitOptions(mx.scheduleId);
+            setTuning((cur) => (cur && cur.scheduleId === mx.scheduleId
+                ? { ...cur, offered: opts.offered, wanted: opts.wanted ?? cur.wanted, avoided: opts.avoided ?? cur.avoided }
+                : cur));
+        } catch {
+            // best-effort: keep the sheet open on the cached prefs (ChatHabitPicker
+            // falls back to the static catalog when offered is absent).
+        }
+    }, []);
 
     // SC4 — re-submit tuned habit prefs for an already-onboarded max, then regenerate.
     const applyTune = useCallback(async (mx: MyMax, wanted: string[], avoided: string[]) => {
@@ -393,7 +415,7 @@ export default function MarketplaceScreen() {
                                     key={m.maxxId}
                                     mx={m}
                                     onPress={() => navigation.navigate('MaxxDetail', { maxxId: m.maxxId })}
-                                    onTune={() => setTuning(m)}
+                                    onTune={() => void openTune(m)}
                                 />
                             ))}
                         </View>
@@ -474,7 +496,8 @@ export default function MarketplaceScreen() {
                         {tuning ? (
                           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                             <ChatHabitPicker
-                                spec={{ type: 'habit_picker', maxx_id: tuning.maxxId, schedule_id: tuning.scheduleId, label: `Tune your ${tuning.label} plan` }}
+                                key={tuning.offered ? 'live' : 'pending'}
+                                spec={{ type: 'habit_picker', version: 2, maxx_id: tuning.maxxId, schedule_id: tuning.scheduleId, label: `Tune your ${tuning.label} plan`, offered: tuning.offered }}
                                 initialWanted={tuning.wanted}
                                 initialAvoided={tuning.avoided}
                                 submitLabel={savingTune ? 'Saving…' : 'Save changes'}
