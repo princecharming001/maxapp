@@ -552,7 +552,13 @@ function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: n
     if (thumb) {
         return (
             <TouchableOpacity style={[styles.featureNative, { width }]} activeOpacity={0.85} onPress={onPress}>
-                <Image source={thumb} style={styles.featureNativeImg} contentFit="cover" transition={200} />
+                <Image source={thumb} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+                <LinearGradient
+                    colors={['rgba(239,239,239,0)', 'rgba(239,239,239,0.72)', THUMB_BG]}
+                    locations={[0, 0.52, 1]}
+                    style={styles.nativeFade}
+                    pointerEvents="none"
+                />
                 <View style={styles.nativeBody}>
                     <Text style={styles.nativeTitle} numberOfLines={1}>{item.title}</Text>
                     <Text style={styles.nativeSub} numberOfLines={1}>{item.tagline}</Text>
@@ -579,7 +585,13 @@ function GridCard({ item, width, onPress }: { item: MarketplaceItem; width: numb
     if (thumb) {
         return (
             <TouchableOpacity style={[styles.gridCardNative, { width }]} activeOpacity={0.85} onPress={onPress}>
-                <Image source={thumb} style={styles.gridNativeImg} contentFit="cover" transition={200} />
+                <Image source={thumb} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+                <LinearGradient
+                    colors={['rgba(239,239,239,0)', 'rgba(239,239,239,0.74)', THUMB_BG]}
+                    locations={[0, 0.5, 1]}
+                    style={styles.gridNativeFade}
+                    pointerEvents="none"
+                />
                 <View style={styles.gridNativeBody}>
                     <Text style={styles.gridNativeTitle} numberOfLines={1}>{item.title}</Text>
                     <Text style={styles.gridNativeSub} numberOfLines={1}>{item.price_label}</Text>
@@ -681,22 +693,23 @@ const styles = StyleSheet.create({
     gridTitle: { fontFamily: SERIF, fontSize: 18, color: '#FFFFFF', letterSpacing: -0.3, lineHeight: 22 },
     gridSub: { fontFamily: 'Matter-Medium', fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
 
-    // Native max card — glossy thumbnail on a light card, name below (no scrim)
+    // Native max card — ONE seamless surface: full-bleed figure, soft fade,
+    // text integrated over it (no separate section, no inner seam).
     featureNative: {
-        height: 220, borderRadius: 20, overflow: 'hidden', backgroundColor: CARD,
+        height: 230, borderRadius: 22, overflow: 'hidden', backgroundColor: THUMB_BG,
         borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
     },
-    featureNativeImg: { width: '100%', height: 150, backgroundColor: THUMB_BG },
+    nativeFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 140 },
     gridCardNative: {
-        height: 168, borderRadius: 16, overflow: 'hidden', backgroundColor: CARD,
+        height: 176, borderRadius: 18, overflow: 'hidden', backgroundColor: THUMB_BG,
         borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
     },
-    gridNativeImg: { width: '100%', height: 112, backgroundColor: THUMB_BG },
-    gridNativeBody: { flex: 1, paddingHorizontal: 12, justifyContent: 'center' },
-    gridNativeTitle: { fontFamily: SERIF, fontSize: 17, color: INK, letterSpacing: -0.3 },
-    gridNativeSub: { fontFamily: 'Matter-Medium', fontSize: 12, color: MUTE, marginTop: 2 },
-    nativeBody: { flex: 1, paddingHorizontal: 16, justifyContent: 'center' },
-    nativeTitle: { fontFamily: SERIF, fontSize: 22, color: INK, letterSpacing: -0.4 },
+    gridNativeFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 104 },
+    gridNativeBody: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingBottom: 13 },
+    gridNativeTitle: { fontFamily: SERIF, fontSize: 19, color: INK, letterSpacing: -0.3 },
+    gridNativeSub: { fontFamily: 'Matter-Medium', fontSize: 12, color: SUB, marginTop: 1 },
+    nativeBody: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 18, paddingBottom: 16 },
+    nativeTitle: { fontFamily: SERIF, fontSize: 24, color: INK, letterSpacing: -0.4 },
     nativeSub: { fontFamily: 'Matter-Regular', fontSize: 13, color: SUB, marginTop: 2 },
     nativePricePill: {
         alignSelf: 'flex-start', marginTop: 8, backgroundColor: INK,
