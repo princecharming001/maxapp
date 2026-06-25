@@ -47,34 +47,37 @@ function ScanCenterButton() {
             accessibilityRole="button"
             accessibilityLabel="Scan"
         >
-            <View style={scanBtnStyles.circleWrap}>
-                {/* Frosted base */}
-                <BlurView
-                    intensity={Platform.OS === 'ios' ? 22 : 36}
-                    tint="extraLight"
-                    style={StyleSheet.absoluteFill}
-                    experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
-                />
-                {/* Body fill — gives the glass weight/definition over the bar */}
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.30)' }]} pointerEvents="none" />
-                {/* Top specular — bright crescent at the crown (primary glass cue) */}
-                <LinearGradient
-                    colors={['rgba(255,255,255,0.99)', 'rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']}
-                    locations={[0, 0.32, 0.68]}
-                    style={StyleSheet.absoluteFill}
-                    pointerEvents="none"
-                />
-                {/* Bottom depth shadow — convex-lens feel */}
-                <LinearGradient
-                    colors={['rgba(0,0,0,0)', 'rgba(30,30,40,0.04)', 'rgba(30,30,40,0.13)']}
-                    locations={[0.42, 0.72, 1]}
-                    style={StyleSheet.absoluteFill}
-                    pointerEvents="none"
-                />
-                {/* Inner rim highlight — the second, crisper edge that defines glass */}
-                <View style={scanBtnStyles.innerRing} pointerEvents="none" />
-                <Ionicons name="scan" size={22} color="rgba(17,17,19,0.82)" />
-                <ShineOverlay width={52} intensity={0.3} period={4800} />
+            {/* Outer carrier holds the float shadow (un-clipped); inner clips the frost */}
+            <View style={scanBtnStyles.shadowWrap}>
+                <View style={scanBtnStyles.circleWrap}>
+                    {/* Frosted glass base */}
+                    <BlurView
+                        intensity={Platform.OS === 'ios' ? 26 : 40}
+                        tint="extraLight"
+                        style={StyleSheet.absoluteFill}
+                        experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+                    />
+                    {/* Even frosted body */}
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.26)' }]} pointerEvents="none" />
+                    {/* Gentle top-down sheen — soft and even, not a harsh crescent */}
+                    <LinearGradient
+                        colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0)']}
+                        locations={[0, 0.5, 1]}
+                        style={StyleSheet.absoluteFill}
+                        pointerEvents="none"
+                    />
+                    {/* Soft base shadow — hints the glass thickness at the bottom */}
+                    <LinearGradient
+                        colors={['rgba(0,0,0,0)', 'rgba(22,24,32,0.06)']}
+                        locations={[0.62, 1]}
+                        style={StyleSheet.absoluteFill}
+                        pointerEvents="none"
+                    />
+                    {/* Crisp inner highlight rim — the bright glass edge */}
+                    <View style={scanBtnStyles.innerRing} pointerEvents="none" />
+                    <Ionicons name="scan" size={22} color="rgba(22,24,32,0.86)" />
+                    <ShineOverlay width={52} intensity={0.26} period={5200} />
+                </View>
             </View>
         </TouchableOpacity>
     );
@@ -82,6 +85,20 @@ function ScanCenterButton() {
 
 const scanBtnStyles = StyleSheet.create({
     touch: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    // Outer carrier: casts the soft float shadow (NOT clipped — overflow stays visible).
+    shadowWrap: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: '#FFFFFF',
+        shadowColor: '#0B0D14',
+        shadowOpacity: 0.22,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 8,
+        ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
+    },
+    // Inner: clips the frosted layers and carries the crisp bright rim.
     circleWrap: {
         width: 50,
         height: 50,
@@ -89,23 +106,18 @@ const scanBtnStyles = StyleSheet.create({
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.18)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.95)',
-        shadowColor: '#111113',
-        shadowOpacity: 0.18,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 6,
+        backgroundColor: 'rgba(255,255,255,0.16)',
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,1)',
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
     // Second, inset rim — the crisp highlight edge that sells the glass depth.
     innerRing: {
         position: 'absolute',
         top: 1.5, left: 1.5, right: 1.5, bottom: 1.5,
-        borderRadius: 23,
+        borderRadius: 22.5,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.55)',
+        borderColor: 'rgba(255,255,255,0.7)',
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
 });
