@@ -42,10 +42,19 @@ def step_image_path(task_key: str, n: int, ext: str = ".jpg") -> str:
 
 def resolve_step_image(task_key: str, n: int) -> str:
     """Return the relative /uploads/... URL for this step's image, or "" if none exists.
-    Mobile absolutizes the path against the API origin (api.resolveAttachmentUrl)."""
+    Mobile absolutizes the path against the API origin (api.resolveAttachmentUrl).
+
+    A content version (`?v=<mtime>`) is appended so that if an image is ever regenerated
+    in place, the URL changes and the client/expo-image cache is busted. The version is
+    stable while the file is unchanged, so it does not defeat caching."""
     d = step_dir(task_key)
     h = task_key_hash(task_key)
     for ext in _EXTS:
-        if os.path.isfile(os.path.join(d, f"{n}{ext}")):
-            return f"/uploads/hero/steps/{h}/{n}{ext}"
+        p = os.path.join(d, f"{n}{ext}")
+        if os.path.isfile(p):
+            try:
+                v = int(os.path.getmtime(p))
+            except OSError:
+                v = 0
+            return f"/uploads/hero/steps/{h}/{n}{ext}?v={v}"
     return ""
