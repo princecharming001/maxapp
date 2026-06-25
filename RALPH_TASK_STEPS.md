@@ -3,7 +3,9 @@
 ## STATUS / READ THIS FIRST
 - **Nothing in this spec is implemented yet.** Do NOT believe you are "done" because the file
   exists or because the screen "kind of works." You are done ONLY when EVERY success criterion
-  (SC1–SC6) below is implemented AND visually verified on the iOS simulator with Maestro.
+  (SC1–SC6) below is implemented and verified. **Verify UI/visual criteria (SC1–SC4) on the iOS
+  simulator with Maestro; verify backend criteria (SC5 product-consistency, image caching) with
+  backend scripts/tests — NOT the simulator.** Don't launch the sim to check backend-only behavior.
 - This **replaces** the current task-guide screen behavior. The current screen is a *horizontal*
   3-page pager (Intro → Steps → "Mark done"). You are turning it into a *vertical* pager of
   **steps only**, styled to match the reference layout described in §2.
@@ -176,25 +178,30 @@ serif (Fraunces) and existing ink/cream tokens — do NOT invent a new palette.
   - **Persist the (user, canonical-ingredient) → product mapping** (a small table or a JSON column on
     the user profile) so it is reused by every task guide and never changes unless the user's facts
     change. Reuse this mapping in `task_guide_service` product resolution.
-- VERIFY: generate guides for two different tasks that share an ingredient for the same DEV user; the
-  ingredient card is byte-for-byte the same product (assert name + url match). Switching to a user with
-  different facts (e.g., vegan) yields a different but still self-consistent product.
+- VERIFY (backend, NOT the simulator): generate guides for two different tasks that share an ingredient
+  for the same user via the guide endpoint / a small backend script / a pytest, and assert the ingredient
+  resolves to the **same product** (name + url match). Switch to a user with different facts (e.g.,
+  vegan) and assert a different but still self-consistent product. This is data correctness — prove it
+  with backend assertions, not by eyeballing the UI.
 
-### SC6 — Verified on the iOS simulator with Maestro
-- The loop must actually drive the app and confirm the UI — not just assume.
+### SC6 — Verify ONLY the UI changes on the simulator with Maestro
+- **Scope: simulator/Maestro is for the VISUAL/UI criteria only — SC1, SC2, SC3, and the visual half
+  of SC4 (the hero image fading with no seam, the ingredient row scrolling).** Do NOT try to prove the
+  backend behavior (SC5 product-consistency, image caching, no-regeneration) through the simulator —
+  verify those with backend scripts/tests as noted in SC5/SC4. Don't spin up the sim for backend-only work.
 - Setup: local backend reachable by the sim, Metro running, app launched, use the **DEV drawer →
   "Paid"** to get an authed paid user, open a task → open its guide. (See §6 for the working local
   setup that already exists.)
 - Maestro flow (write it under `mobile/maestro/`): open a guide, screenshot Step 01, swipe up,
-  screenshot Step 02, swipe up, screenshot Step 03, swipe down, screenshot — and confirm: vertical
-  paging works, layout matches §2, hero image fades (no seam), ingredient row scrolls, and there is no
-  "Mark done" page.
+  screenshot Step 02, swipe up, screenshot Step 03, swipe down, screenshot — and confirm the UI:
+  vertical paging works, layout matches §2, hero image fades (no seam), ingredient row scrolls, and
+  there is no "Mark done" page.
 - GOTCHA: Maestro reads the iOS accessibility tree, so custom buttons/sheets may expose their
   `accessibilityLabel` instead of inner text (e.g., the DEV button matches **"Open dev drawer"**, not
   "DEV"), and bottom-sheet option labels may not match by text at all — use **coordinate taps**
   (`tapOn: { point: "x%, y%" }`) + `takeScreenshot` and read the screenshots to verify. Add
   `accessibilityLabel`s / `testID`s to the new step components so Maestro can target them.
-- Iterate: compare each screenshot to §2; fix; re-run; repeat until it matches.
+- Iterate: compare each UI screenshot to §2; fix; re-run; repeat until the UI matches.
 
 ---
 
