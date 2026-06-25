@@ -195,12 +195,12 @@ type SessionNode = { title: string; time?: string; state: 'done' | 'current' | '
  *  sessions: completed = checkmark, the next = ringed "current", future = lock +
  *  "Available in HH:MM:SS". With no schedule yet it previews the routine path. */
 function SessionTimeline({ item, base }: { item: MarketplaceItem; base: string }) {
+    // Use the same reliable source the Planner/Home use (active schedules full),
+    // filtered to this max — getMaxxSchedule was flaky over the slow pooled DB.
     const q = useQuery({
-        queryKey: ['maxxSchedule', item.id],
-        queryFn: () => api.getMaxxSchedule(item.id),
+        queryKey: ['schedules', 'active', 'full'],
+        queryFn: () => api.getActiveSchedulesFull(),
         staleTime: 60_000,
-        // Always probe — the user may have an active schedule for this max even if
-        // the marketplace "entered" entitlement flag isn't set. No schedule → preview.
         retry: 1,
     });
     const [now, setNow] = useState(() => Date.now());
@@ -210,9 +210,11 @@ function SessionTimeline({ item, base }: { item: MarketplaceItem; base: string }
     }, []);
 
     const nodes: SessionNode[] = React.useMemo(() => {
-        const sched: any = q.data;
+        const full: any = q.data;
+        const mid = String(item.id || '').toLowerCase();
+        const sched: any = (full?.schedules || []).find((s: any) => String(s?.maxx_id || '').toLowerCase() === mid);
         const days: any[] = sched?.days || [];
-        const today = _todayLocal();
+        const today = full?.today_date || _todayLocal();
         // Flatten sessions from today forward (real datetimes), so the path shows
         // done (completed) → current (due now) → locked future (with countdown).
         const flat: { title: string; date: string; time: string; status: string }[] = [];
@@ -241,7 +243,9 @@ function SessionTimeline({ item, base }: { item: MarketplaceItem; base: string }
     }, [q.data, now, item.id]);
 
     if (!nodes.length) return null;
-    const previewMode = !(q.data as any)?.days?.length;
+    const _mid = String(item.id || '').toLowerCase();
+    const _real = ((q.data as any)?.schedules || []).find((s: any) => String(s?.maxx_id || '').toLowerCase() === _mid);
+    const previewMode = !_real?.days?.length;
 
     return (
         <View style={styles.block}>
