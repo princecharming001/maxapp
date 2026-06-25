@@ -17,8 +17,12 @@ import {
     RefreshControl,
     Animated,
     Easing,
+    Modal,
     useWindowDimensions,
 } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../lib/queryClient';
+import ChatHabitPicker from '../../components/ChatHabitPicker';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +30,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import api, { type MarketplaceItem } from '../../services/api';
+import { maxMeta } from '../../utils/scheduleAggregation';
 
 const CACHE_KEY = 'marketplace_cache_v1';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -75,7 +80,18 @@ function nativeThumb(item: MarketplaceItem): any | null {
     return NATIVE_THUMBS[String(item.id || '').toLowerCase()] || null;
 }
 
-type Tab = 'all' | 'native' | 'creator';
+type Tab = 'mine' | 'all' | 'native' | 'creator';
+
+/** A max the user has onboarded (derived from an active UserSchedule). */
+type MyMax = {
+    maxxId: string;
+    label: string;
+    todayCount: number;
+    todayDone: number;
+    scheduleId: string;
+    wanted: string[];
+    avoided: string[];
+};
 
 export default function MarketplaceScreen() {
     const insets = useSafeAreaInsets();
@@ -90,6 +106,27 @@ export default function MarketplaceScreen() {
     const [query, setQuery] = useState('');
     const [searchOpen, setSearchOpen] = useState(false);
     const [tab, setTab] = useState<Tab>('all');
+    const [myMaxxes, setMyMaxxes] = useState<MyMax[]>([]);
+    const [tuning, setTuning] = useState<MyMax | null>(null);
+    const [savingTune, setSavingTune] = useState(false);
+    const queryClient = useQueryClient();
+
+    // SC4 — re-submit tuned habit prefs for an already-onboarded max, then regenerate.
+    const applyTune = useCallback(async (mx: MyMax, wanted: string[], avoided: string[]) => {
+        if (!mx.scheduleId) { setTuning(null); return; }
+        setSavingTune(true);
+        try {
+            await api.updateHabitPrefs(mx.scheduleId, wanted, avoided);
+            await queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
+            await loadMine();
+        } catch {
+            // best-effort
+        } finally {
+            setSavingTune(false);
+            setTuning(null);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [queryClient]);
 
     const searchAnim = useRef(new Animated.Value(0)).current;
     const inputRef = useRef<TextInput>(null);
@@ -148,6 +185,40 @@ export default function MarketplaceScreen() {
 
     useEffect(() => { void load(); }, [load]);
 
+    // SC5 — "My Maxxes": the maxes the user has onboarded (active UserSchedules),
+    // with today's task progress per max. Refetched on focus so a freshly-onboarded
+    // max appears here.
+    const loadMine = useCallback(async () => {
+        try {
+            const full = await api.getActiveSchedulesFull();
+            const today = full?.today_date;
+            const out: MyMax[] = [];
+            for (const s of (full?.schedules || [])) {
+                const mid = String(s?.maxx_id || '').toLowerCase();
+                if (!mid) continue;
+                const days = s?.days || [];
+                const todayDay = today ? days.find((d: any) => d?.date === today) : days[0];
+                const tasks = (todayDay?.tasks || []) as any[];
+                const done = tasks.filter((t) => t?.status === 'completed').length;
+                const ctx = s?.schedule_context || {};
+                out.push({
+                    maxxId: mid,
+                    label: maxMeta(mid).label,
+                    todayCount: tasks.length,
+                    todayDone: done,
+                    scheduleId: String(s?.id || ''),
+                    wanted: Array.isArray(ctx.wanted_catalog_ids) ? ctx.wanted_catalog_ids.map(String) : [],
+                    avoided: Array.isArray(ctx.avoided_catalog_ids) ? ctx.avoided_catalog_ids.map(String) : [],
+                });
+            }
+            setMyMaxxes(out);
+        } catch {
+            // best-effort; leave prior value
+        }
+    }, []);
+
+    useEffect(() => { void loadMine(); }, [loadMine]);
+
     // Deep links / You > Purchases pass itemId — open that page.
     useEffect(() => {
         const itemId = route.params?.itemId;
@@ -162,7 +233,7 @@ export default function MarketplaceScreen() {
 
     // Refetch entitlements on return (a completed purchase shows entered).
     useEffect(() => {
-        const unsub = navigation.addListener?.('focus', () => { if (!loading) void load(); });
+        const unsub = navigation.addListener?.('focus', () => { if (!loading) void load(); void loadMine(); });
         return unsub;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [navigation, loading]);
@@ -195,11 +266,11 @@ export default function MarketplaceScreen() {
     // "coming soon" state and courses are excluded from All — native maxes
     // only. (fCourses is still computed so re-enabling is a one-line change.)
     const combined = useMemo<MarketplaceItem[]>(
-        () => (tab === 'creator' ? [] : fMaxxes),
+        () => (tab === 'creator' || tab === 'mine' ? [] : fMaxxes),
         [tab, fMaxxes],
     );
     const suggested = useMemo(() => combined.slice(0, 5), [combined]);
-    const emptyMsg = tab !== 'creator' && combined.length === 0
+    const emptyMsg = tab !== 'creator' && tab !== 'mine' && combined.length === 0
         ? (q ? `No matches for “${query.trim()}”.` : 'Nothing here yet.')
         : null;
 
@@ -276,7 +347,7 @@ export default function MarketplaceScreen() {
 
                 {/* Pill tabs — All / Native / Creator */}
                 <View style={[styles.gutter, styles.tabs]}>
-                    {([['all', 'All'], ['native', 'Native'], ['creator', 'Creator']] as const).map(([key, label]) => {
+                    {([['mine', 'My maxes'], ['all', 'All'], ['native', 'Native'], ['creator', 'Creator']] as const).map(([key, label]) => {
                         const on = tab === key;
                         return (
                             <TouchableOpacity
@@ -297,6 +368,32 @@ export default function MarketplaceScreen() {
                     <View style={styles.gutter}>
                         <View style={styles.errorCard}><Text style={styles.errorText}>{error}</Text></View>
                     </View>
+                ) : null}
+
+                {/* My Maxxes — the user's onboarded/active maxes (SC5). */}
+                {tab === 'mine' ? (
+                    myMaxxes.length > 0 ? (
+                        <View style={[styles.gutter, { marginTop: 18, gap: 12 }]}>
+                            {myMaxxes.map((m) => (
+                                <MyMaxCard
+                                    key={m.maxxId}
+                                    mx={m}
+                                    onPress={() => navigation.navigate('MaxxDetail', { maxxId: m.maxxId })}
+                                    onTune={() => setTuning(m)}
+                                />
+                            ))}
+                        </View>
+                    ) : (
+                        <View style={[styles.gutter, styles.comingSoon]}>
+                            <View style={styles.comingSoonIcon}>
+                                <Ionicons name="leaf-outline" size={26} color={INK} />
+                            </View>
+                            <Text style={styles.comingSoonTitle}>No maxes yet</Text>
+                            <Text style={styles.comingSoonSub}>
+                                Start a max from All and it&apos;ll show up here with today&apos;s tasks.
+                            </Text>
+                        </View>
+                    )
                 ) : null}
 
                 {/* Creator tab — temporary "coming soon" placeholder while creator
@@ -354,7 +451,72 @@ export default function MarketplaceScreen() {
                     </>
                 ) : null}
             </ScrollView>
+
+            {/* SC4 — Tune habits sheet for an onboarded max, pre-filled with current prefs. */}
+            <Modal visible={!!tuning} transparent animationType="slide" onRequestClose={() => setTuning(null)}>
+                <View style={styles.tuneBackdrop}>
+                    <View style={[styles.tuneSheet, { paddingBottom: insets.bottom + 16 }]}>
+                        <View style={styles.tuneGrabber} />
+                        {tuning ? (
+                          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                            <ChatHabitPicker
+                                spec={{ type: 'habit_picker', maxx_id: tuning.maxxId, schedule_id: tuning.scheduleId, label: `Tune your ${tuning.label} plan` }}
+                                initialWanted={tuning.wanted}
+                                initialAvoided={tuning.avoided}
+                                submitLabel={savingTune ? 'Saving…' : 'Save changes'}
+                                disabled={savingTune}
+                                onSubmit={(w, a) => applyTune(tuning, w, a)}
+                                onSkip={() => setTuning(null)}
+                            />
+                          </ScrollView>
+                        ) : null}
+                    </View>
+                </View>
+            </Modal>
         </View>
+    );
+}
+
+/** My Maxxes row card — onboarded max with today's progress + a Tune entry (SC5/SC4). */
+function MyMaxCard({ mx, onPress, onTune }: { mx: MyMax; onPress: () => void; onTune: () => void }) {
+    const meta = maxMeta(mx.maxxId);
+    const thumb = NATIVE_THUMBS[mx.maxxId] || null;
+    const allDone = mx.todayCount > 0 && mx.todayDone >= mx.todayCount;
+    const progress = mx.todayCount === 0
+        ? 'No tasks today'
+        : allDone ? 'All done today ✓' : `${mx.todayDone} of ${mx.todayCount} today`;
+    return (
+        <TouchableOpacity
+            style={styles.myCard}
+            onPress={onPress}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`${meta.label}, ${progress}`}
+            testID={`mymax-${mx.maxxId}`}
+        >
+            <View style={[styles.myThumb, { backgroundColor: thumb ? THUMB_BG : meta.color + '22' }]}>
+                {thumb ? (
+                    <Image source={thumb} style={styles.myThumbImg} contentFit="cover" />
+                ) : (
+                    <Ionicons name={meta.icon as any} size={24} color={meta.color} />
+                )}
+            </View>
+            <View style={{ flex: 1 }}>
+                <Text style={styles.myTitle} numberOfLines={1}>{meta.label}</Text>
+                <Text style={styles.mySub} numberOfLines={1}>{progress}</Text>
+            </View>
+            <TouchableOpacity
+                onPress={onTune}
+                style={styles.tuneBtn}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Tune ${meta.label} habits`}
+                testID={`mymax-tune-${mx.maxxId}`}
+            >
+                <Ionicons name="options-outline" size={16} color={INK} />
+                <Text style={styles.tuneText}>Tune</Text>
+            </TouchableOpacity>
+        </TouchableOpacity>
     );
 }
 
@@ -473,6 +635,26 @@ const styles = StyleSheet.create({
     },
     comingSoonTitle: { fontFamily: SERIF, fontSize: 26, color: INK, letterSpacing: -0.4 },
     comingSoonSub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE, marginTop: 8, textAlign: 'center', lineHeight: 21, maxWidth: 280 },
+
+    // My Maxxes cards
+    myCard: {
+        flexDirection: 'row', alignItems: 'center', gap: 14,
+        backgroundColor: CARD, borderRadius: 18, padding: 12,
+        borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
+    },
+    myThumb: { width: 56, height: 56, borderRadius: 13, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    myThumbImg: { width: '100%', height: '100%' },
+    myTitle: { fontFamily: SERIF, fontSize: 19, color: INK, letterSpacing: -0.3 },
+    mySub: { fontFamily: 'Matter-Regular', fontSize: 13, color: SUB, marginTop: 3 },
+    tuneBtn: {
+        flexDirection: 'row', alignItems: 'center', gap: 5,
+        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+        borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, backgroundColor: CREAM,
+    },
+    tuneText: { fontFamily: 'Matter-SemiBold', fontSize: 12.5, color: INK },
+    tuneBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
+    tuneSheet: { backgroundColor: CREAM, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, maxHeight: '88%' },
+    tuneGrabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.18)', marginBottom: 8 },
 
     errorCard: { marginTop: 16, padding: 16, borderRadius: 16, backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
     errorText: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: '#B23A3A' },
