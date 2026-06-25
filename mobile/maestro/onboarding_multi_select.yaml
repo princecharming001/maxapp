@@ -1,0 +1,68 @@
+appId: com.cannon.mobile
+---
+# Onboarding multi-select question UI (RALPH_ONBOARDING_QA SC5).
+# Verifies that a `multi: true` field (skinmax skin_concern — the FIRST question)
+# renders multi-select toggle chips + a "submit N picks" button, and that
+# submitting a multi answer advances the flow to the next question.
+#
+# Mints a FRESH paid demo user so skin_concern is unanswered and the multi
+# question actually renders. The dev drawer is a <Modal> (one aggregated iOS
+# a11y node — individual pills aren't separately selectable), so the "Paid" pill
+# is tapped by point (bottom row, rightmost third). Tapping Paid always creates a
+# new account, so no logout is needed.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 90000
+# switchState() is a no-op when the target equals the current state, so Paid→Paid
+# would keep an already-onboarded user. Log out to Guest first, then Paid mints a
+# brand-new account with an empty skinmax intake.
+- tapOn:
+    text: "Open dev drawer"
+- waitForAnimationToEnd:
+    timeout: 4000
+- tapOn:
+    point: "19%,91%"        # "Guest" pill → logout
+- waitForAnimationToEnd:
+    timeout: 10000
+- tapOn:
+    text: "Open dev drawer"
+- waitForAnimationToEnd:
+    timeout: 4000
+- tapOn:
+    point: "78%,91%"        # "Paid" pill → fresh user
+- extendedWaitUntil:
+    visible: "Explore, tab.*"
+    timeout: 30000
+# --- Open Skinmax and start its plan ---
+- tapOn:
+    text: "Explore, tab.*"
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Skinmax, clearer.*"
+- waitForAnimationToEnd:
+    timeout: 6000
+- tapOn:
+    text: "Start my plan"
+# --- The first question (skin_concern) must render as MULTI-select chips ---
+- extendedWaitUntil:
+    visible: ".*Breakouts and pimples"
+    timeout: 20000
+- takeScreenshot: onboarding_multi_question
+# Toggle two concerns; the submit button must reflect the count.
+- tapOn:
+    text: ".*Breakouts and pimples"
+- tapOn:
+    text: ".*Rough texture and big pores"
+- assertVisible: "submit 2 picks"
+- takeScreenshot: onboarding_multi_picked
+# Submit and confirm the joined picks were sent + the flow advanced.
+- tapOn:
+    text: "submit 2 picks"
+- assertVisible: "Breakouts and pimples, Rough texture and big pores"
+- extendedWaitUntil:
+    visible: ".*strong or new products.*"
+    timeout: 15000
+- takeScreenshot: onboarding_multi_advanced
+- assertNotVisible: "Something went wrong"
