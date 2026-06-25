@@ -1,0 +1,26 @@
+{
+  "1": {
+    "query": "facial cleanser bottle",
+    "base_url": "https://images.unsplash.com/photo-1567721913486-6585f069b332",
+    "source": "unsplash",
+    "license": "Unsplash License"
+  },
+  "2": {
+    "query": "skincare treatment tube",
+    "base_url": "https://images.unsplash.com/photo-1739980737820-b6bb1a9b8456",
+    "source": "unsplash",
+    "license": "Unsplash License"
+  },
+  "3": {
+    "query": "moisturizer cream jar",
+    "base_url": "https://images.unsplash.com/photo-1611080541599-8c6dbde6ed28",
+    "source": "unsplash",
+    "license": "Unsplash License"
+  },
+  "4": {
+    "query": "sunscreen lotion bottle",
+    "base_url": "https://images.unsplash.com/photo-1686831451322-8d8e234a51e1",
+    "source": "unsplash",
+    "license": "Unsplash License"
+  }
+}

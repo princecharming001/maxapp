@@ -1,0 +1,26 @@
+{
+  "1": {
+    "query": "facial cleanser bottle",
+    "base_url": "https://images.unsplash.com/photo-1626897844971-aef92643f056",
+    "source": "unsplash",
+    "license": "Unsplash License"
+  },
+  "2": {
+    "query": "serum dropper bottle",
+    "base_url": "https://images.unsplash.com/photo-1665763630810-e6251bdd392d",
+    "source": "unsplash",
+    "license": "Unsplash License"
+  },
+  "3": {
+    "query": "moisturizer cream jar",
+    "base_url": "https://images.unsplash.com/photo-1772191530787-b9546da02fbc",
+    "source": "unsplash",
+    "license": "Unsplash License"
+  },
+  "4": {
+    "query": "sunscreen lotion bottle",
+    "base_url": "https://images.unsplash.com/photo-1616740794225-63e524d43ec7",
+    "source": "unsplash",
+    "license": "Unsplash License"
+  }
+}

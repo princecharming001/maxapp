@@ -1,0 +1,52 @@
+{
+  "_about": "Real, license-clean step photos for task guides (SC1/SC3). Harvested via web image search (Unsplash; Unsplash License = free commercial use, attribution not required) and HAND-CURATED for light/neutral backgrounds so they blend into the cream page with no gradient (SC2). Keyed by the subject phrase from fetch_step_images._SUBJECT_MAP. Values are images.unsplash.com photo base URLs; the fetcher appends sizing params and downloads once to /uploads/... (SC4). Openverse (services/image_search_service.py) is the live-search alternative when its API isn't rate-limited.",
+  "facial cleanser bottle": [
+    "https://images.unsplash.com/photo-1627495395570-d2c94e3319f5",
+    "https://images.unsplash.com/photo-1626897844971-aef92643f056",
+    "https://images.unsplash.com/photo-1567721913486-6585f069b332"
+  ],
+  "serum dropper bottle": [
+    "https://images.unsplash.com/photo-1576426863848-c21f53c60b19",
+    "https://images.unsplash.com/photo-1665763630810-e6251bdd392d"
+  ],
+  "skincare treatment tube": [
+    "https://images.unsplash.com/photo-1638609927252-9982beed7af8",
+    "https://images.unsplash.com/photo-1739980737820-b6bb1a9b8456"
+  ],
+  "skincare toner bottle": [
+    "https://images.unsplash.com/photo-1665763630810-e6251bdd392d",
+    "https://images.unsplash.com/photo-1638609927252-9982beed7af8"
+  ],
+  "moisturizer cream jar": [
+    "https://images.unsplash.com/photo-1611080541716-4de04385fbae",
+    "https://images.unsplash.com/photo-1772191530787-b9546da02fbc",
+    "https://images.unsplash.com/photo-1611080541599-8c6dbde6ed28"
+  ],
+  "sunscreen lotion bottle": [
+    "https://images.unsplash.com/photo-1616740794225-63e524d43ec7",
+    "https://images.unsplash.com/photo-1686831451322-8d8e234a51e1"
+  ],
+  "sheet face mask skincare": [
+    "https://images.unsplash.com/photo-1739980737820-b6bb1a9b8456",
+    "https://images.unsplash.com/photo-1772191530787-b9546da02fbc"
+  ],
+  "glass of water": [
+    "https://images.unsplash.com/photo-1548839140-29a749e1cf4d",
+    "https://images.unsplash.com/photo-1538300342682-cf57afb97285",
+    "https://images.unsplash.com/photo-1624948465027-6f9b51067557"
+  ],
+  "white pillow bedding": [
+    "https://images.unsplash.com/photo-1606259457945-67dc66271ee6",
+    "https://images.unsplash.com/photo-1631737859822-d954fbb08f5f"
+  ],
+  "jade facial roller": [
+    "https://images.unsplash.com/photo-1739980737820-b6bb1a9b8456",
+    "https://images.unsplash.com/photo-1600428877878-1a0fd85beda8"
+  ],
+  "_generic": [
+    "https://images.unsplash.com/photo-1611080541716-4de04385fbae",
+    "https://images.unsplash.com/photo-1576426863848-c21f53c60b19",
+    "https://images.unsplash.com/photo-1638609927252-9982beed7af8",
+    "https://images.unsplash.com/photo-1627495395570-d2c94e3319f5"
+  ]
+}
