@@ -23,7 +23,7 @@ from services.schedule_adapter import adapt_schedule as _adapt
 from services.schedule_generator import generate_schedule as _generate
 from services.task_catalog_service import get_doc, get_task, eligible_tasks, missing_required, warm_catalog, is_loaded
 from services.user_context_service import get_context, merged_user_state
-from services.schedule_validator import _ESSENTIAL_TAGS, _ANTAGONISTIC, HARD_DAILY_TASK_CAP
+from services.schedule_validator import _ANTAGONISTIC, HARD_DAILY_TASK_CAP
 
 logger = logging.getLogger(__name__)
 
@@ -581,15 +581,15 @@ def _drop_excluded_tasks(days: list[dict], excluded: set[str]) -> list[dict]:
         return days
     out: list[dict] = []
     for d in days:
-        # Never strip the daily FLOOR (foundation / cleanse / spf / workout): even
-        # if the user marked a foundation chip "avoid", removing it would drop the
-        # day below daily_task_budget min and gut the hygiene/training base. The
-        # avoid filter runs after the validator, which won't re-pad, so we protect
-        # essential-tagged tasks here.
+        # Honor EXPLICIT removals. A task the user deselected in the habit picker
+        # (avoided_catalog_ids) or pruned as a series (excluded_catalog_ids) is
+        # always dropped — including foundation / SPF / cleanse / workout. The
+        # user's explicit choice wins over the daily-floor guard (the floor is
+        # still protected against the validator's automatic cap-truncation
+        # elsewhere, just not against a deliberate deselect).
         tasks = [
             t for t in (d.get("tasks") or [])
             if t.get("catalog_id") not in excluded
-            or bool(set(t.get("tags") or []) & _ESSENTIAL_TAGS)
         ]
         out.append({**d, "tasks": tasks})
     return out
