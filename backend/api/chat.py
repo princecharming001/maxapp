@@ -3912,23 +3912,28 @@ async def _habit_picker_for_new_schedule(
     the chips from its local catalog keyed by maxx_id."""
     try:
         res = await db.execute(
-            select(UserSchedule.id, UserSchedule.maxx_id)
+            select(UserSchedule.id, UserSchedule.maxx_id, UserSchedule.days)
             .where((UserSchedule.user_id == UUID(user_id)) & (UserSchedule.is_active.is_(True)))
             .order_by(UserSchedule.created_at.desc())
         )
-        for sid, mid in res.all():
+        for sid, mid, days in res.all():
             if str(sid) in before_ids:
                 continue
             if (mid or "") not in _HABIT_PICKER_MAXES:
                 continue
-            from services.task_catalog_service import get_doc
+            from services.task_catalog_service import get_doc, build_offered_habits
             doc = get_doc(mid)
             label = f"Tune your {doc.display_name} plan" if doc else "Tune your plan"
+            # The offered chips ARE the distinct catalog tasks on the real plan,
+            # so selecting/deselecting maps 1:1 to what lands on Home/Schedule.
+            offered = build_offered_habits(mid, days or [])
             return {
                 "type": "habit_picker",
+                "version": 2,
                 "maxx_id": mid,
                 "schedule_id": str(sid),
                 "label": label,
+                "offered": offered,
             }
     except Exception as _e:
         logger.warning("habit-picker post-gen detect failed: %s", _e)

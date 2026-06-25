@@ -338,6 +338,23 @@ class HabitPrefsRequest(BaseModel):
     avoided_catalog_ids: list[str] = []
 
 
+@router.get("/{schedule_id}/habit-options")
+async def get_habit_options(
+    schedule_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """The tune-later picker's offered set for ONE schedule: the distinct catalog
+    tasks actually on it (id/label/area) + the user's current wanted/avoided so
+    the chips prefill to match reality. Drives the My-Maxxes tune sheet."""
+    try:
+        return await schedule_service.get_habit_options(
+            user_id=current_user["id"], schedule_id=schedule_id, db=db,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.post("/{schedule_id}/habit-prefs")
 async def set_habit_prefs(
     schedule_id: str,
@@ -369,7 +386,13 @@ async def set_habit_prefs(
         await regenerate_active_schedules(
             user_id=current_user["id"], db=db, only_max=res["maxx_id"], reason="habit_prefs",
         )
+        # regenerate_active_schedules only flushes; the caller owns the commit
+        # (see every caller in api/users.py). Without this the re-expanded days
+        # (avoided tasks dropped) get rolled back on session close — the prefs
+        # persist but the plan still shows the deselected tasks.
+        await db.commit()
     except Exception as e:
+        await db.rollback()
         logging.getLogger(__name__).warning("habit-prefs regen failed (saved anyway): %s", e)
 
     schedule = await schedule_service.get_maxx_schedule(current_user["id"], res["maxx_id"], db=db)

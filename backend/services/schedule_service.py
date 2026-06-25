@@ -3242,6 +3242,30 @@ class ScheduleService:
             "avoided": avoided,
         }
 
+    async def get_habit_options(self, user_id: str, schedule_id: str, db: AsyncSession) -> dict:
+        """Offered habit set for the tune-later sheet: the DISTINCT catalog tasks
+        currently on this schedule, plus the user's current wanted/avoided picks
+        so the picker prefills accurately. Same offered source as the onboarding
+        payload, so both entry points are driven by the real plan (SC1/SC4)."""
+        schedule = await self._load_schedule(schedule_id, user_id, db)
+        if not schedule:
+            raise ValueError("Schedule not found")
+        from services.task_catalog_service import build_offered_habits, is_loaded, warm_catalog
+        if not is_loaded():
+            await warm_catalog()
+        ctx = schedule.schedule_context or {}
+        avoided = [str(x) for x in (ctx.get("avoided_catalog_ids") or [])]
+        # Offer the live plan PLUS previously-avoided tasks (now dropped) so the
+        # user sees them unselected and can re-add them (SC3/SC4).
+        offered = build_offered_habits(schedule.maxx_id or "", schedule.days or [], extra_ids=avoided)
+        return {
+            "schedule_id": str(schedule.id),
+            "maxx_id": schedule.maxx_id,
+            "offered": offered,
+            "wanted": [str(x) for x in (ctx.get("wanted_catalog_ids") or [])],
+            "avoided": avoided,
+        }
+
     async def get_maxx_schedule(self, user_id: str, maxx_id: str, db: AsyncSession) -> Optional[dict]:
         """Get the user's active schedule for a specific maxx."""
         user_uuid = UUID(user_id)

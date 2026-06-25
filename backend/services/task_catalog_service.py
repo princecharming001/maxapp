@@ -84,6 +84,95 @@ def all_tasks(maxx_id: str) -> list[TaskDef]:
     return list(e.by_id.values()) if e else []
 
 
+# Tag → user-facing focus-area label. Generic across maxes; the first tag that
+# maps wins, else we title-case the task's first tag, else "Other".
+_AREA_BY_TAG: dict[str, str] = {
+    "supplement": "Supplements", "supplements": "Supplements", "creatine": "Supplements",
+    "tracking": "Tracking", "review": "Tracking", "progress": "Tracking",
+    "checkpoint": "Tracking", "medical": "Tracking", "dermatology": "Tracking",
+    "monthly": "Tracking", "biannual": "Tracking", "weighin": "Tracking", "form": "Tracking",
+    "protect": "Protection",
+    "internal": "Lifestyle", "diet": "Lifestyle", "hydration": "Lifestyle",
+    "lifestyle": "Lifestyle", "environment": "Lifestyle", "hygiene": "Lifestyle",
+    "nutrition": "Nutrition", "protein": "Nutrition", "fuel": "Nutrition",
+    "mobility": "Recovery", "recovery": "Recovery", "sleep": "Recovery",
+    "stretch": "Recovery", "prehab": "Recovery", "deload": "Recovery", "warmup": "Recovery",
+    "workout": "Training", "training": "Training", "lift": "Training",
+    "cardio": "Training", "conditioning": "Training", "steps": "Training", "neat": "Training",
+    "routine": "Routine", "foundation": "Routine",
+    "active": "Treatment", "treatment": "Treatment", "collagen": "Treatment",
+    "exfoliation": "Treatment", "mask": "Treatment", "retinoid": "Treatment",
+    "circulation": "Care", "calming": "Care", "barrier": "Care", "repair": "Care",
+    "posture": "Posture", "decompression": "Posture", "hang": "Posture",
+    "mewing": "Jaw", "masseter": "Jaw", "jaw": "Jaw", "chewing": "Jaw",
+    "scalp": "Scalp", "wash": "Scalp", "styling": "Styling",
+}
+
+
+def _area_for_tags(tags: list[str]) -> str:
+    for t in (tags or []):
+        a = _AREA_BY_TAG.get(str(t).strip().lower())
+        if a:
+            return a
+    if tags:
+        return str(tags[0]).strip().replace("_", " ").title()
+    return "Other"
+
+
+def _short_label(title: str, fallback: str) -> str:
+    """Trim a task title into a chip label: drop a trailing parenthetical hint
+    like 'Hydration mask (15 min)' -> 'Hydration mask'."""
+    t = (title or "").strip()
+    if not t:
+        return fallback
+    # strip one trailing "(...)" group
+    cut = t.rfind("(")
+    if cut > 0 and t.rstrip().endswith(")"):
+        t = t[:cut].strip()
+    return t or fallback
+
+
+def build_offered_habits(
+    maxx_id: str, days: list[dict], extra_ids: list[str] | None = None,
+) -> list[dict]:
+    """The picker's offered set = the DISTINCT catalog tasks actually on this
+    schedule, in first-appearance order. Each entry: {id, label, area}.
+
+    Resolves id -> title/tags via the loaded catalog; falls back to the task's
+    own stored title when the catalog lacks it. This is the single source of
+    truth for both the onboarding habit-picker payload and the tune-later sheet,
+    so the chips correspond 1:1 to the real plan (no orphans, no id-mismatched
+    stand-ins).
+
+    `extra_ids` appends catalog tasks NOT currently on the schedule (resolved
+    from the catalog alone) — used by the tune-later sheet to keep previously
+    AVOIDED tasks offered (shown unselected, so the user can re-add them);
+    SC4 "unselected = previously avoided". For a freshly generated schedule
+    callers pass no extra_ids, so offered == the distinct scheduled ids (SC1)."""
+    seen: dict[str, dict] = {}
+
+    def _add(cid: str, task: dict | None):
+        cid = str(cid)
+        if not cid or cid in seen:
+            return
+        td = get_task(maxx_id, cid)
+        title = (td.title if td else None) or (task or {}).get("title") or cid
+        tags = list(td.tags) if (td and td.tags) else [str(x) for x in ((task or {}).get("tags") or [])]
+        seen[cid] = {"id": cid, "label": _short_label(title, cid), "area": _area_for_tags(tags)}
+
+    for d in (days or []):
+        for t in (d.get("tasks") or []):
+            cid = t.get("catalog_id")
+            if cid:
+                _add(cid, t)
+    # Append avoided-but-no-longer-scheduled tasks last (resolved from catalog),
+    # so the picker can still surface and re-enable them.
+    for cid in (extra_ids or []):
+        if cid and get_task(maxx_id, str(cid)):
+            _add(cid, None)
+    return list(seen.values())
+
+
 def is_loaded() -> bool:
     return bool(_CACHE)
 
