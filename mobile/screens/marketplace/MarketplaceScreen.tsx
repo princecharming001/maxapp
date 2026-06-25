@@ -80,6 +80,20 @@ function nativeThumb(item: MarketplaceItem): any | null {
     return NATIVE_THUMBS[String(item.id || '').toLowerCase()] || null;
 }
 
+// Background-removed (transparent) figures — used on the New carousel so the
+// figure floats on one continuous surface with the text (no backdrop seam).
+const NATIVE_THUMBS_CUT: Record<string, any> = {
+    skinmax: require('../../assets/maxxThumbs/cut/skinmax.png'),
+    heightmax: require('../../assets/maxxThumbs/cut/heightmax.png'),
+    hairmax: require('../../assets/maxxThumbs/cut/hairmax.png'),
+    fitmax: require('../../assets/maxxThumbs/cut/fitmax.png'),
+    bonemax: require('../../assets/maxxThumbs/cut/bonemax.png'),
+};
+function nativeThumbCut(item: MarketplaceItem): any | null {
+    if (!item.native) return null;
+    return NATIVE_THUMBS_CUT[String(item.id || '').toLowerCase()] || null;
+}
+
 type Tab = 'mine' | 'all' | 'native' | 'creator';
 
 /** A max the user has onboarded (derived from an active UserSchedule). */
@@ -558,7 +572,7 @@ function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: n
                     style={StyleSheet.absoluteFill}
                     pointerEvents="none"
                 />
-                <Image source={thumb} style={styles.featureNativeImg} contentFit="cover" transition={200} />
+                <Image source={nativeThumbCut(item) || thumb} style={styles.featureNativeImg} contentFit="contain" transition={200} />
                 <View style={styles.featureNativeBody}>
                     <Text style={styles.nativeTitle} numberOfLines={1}>{item.title}</Text>
                     <Text style={styles.nativeSub} numberOfLines={2}>{item.tagline}</Text>
@@ -585,12 +599,6 @@ function GridCard({ item, width, onPress }: { item: MarketplaceItem; width: numb
     if (thumb) {
         return (
             <TouchableOpacity style={[styles.gridCardNative, { width }]} activeOpacity={0.85} onPress={onPress}>
-                <LinearGradient
-                    colors={['#D8D9DB', '#E1E1E3', '#ECECEE']}
-                    locations={[0, 0.5, 1]}
-                    style={StyleSheet.absoluteFill}
-                    pointerEvents="none"
-                />
                 <Image source={thumb} style={styles.gridNativeImg} contentFit="cover" transition={200} />
                 <View style={styles.gridNativeBody}>
                     <Text style={styles.gridNativeTitle} numberOfLines={1}>{item.title}</Text>
@@ -700,7 +708,7 @@ const styles = StyleSheet.create({
         borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
         flexDirection: 'row', alignItems: 'center',
     },
-    featureNativeImg: { width: '47%', height: '100%', backgroundColor: THUMB_BG },
+    featureNativeImg: { width: '50%', height: '100%', backgroundColor: 'transparent', transform: [{ scale: 1.12 }] },
     featureNativeBody: { flex: 1, paddingRight: 20, paddingLeft: 4, justifyContent: 'center' },
     gridCardNative: {
         height: 208, borderRadius: 18, overflow: 'hidden', backgroundColor: THUMB_BG,
