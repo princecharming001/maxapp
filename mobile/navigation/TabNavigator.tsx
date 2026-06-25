@@ -120,7 +120,39 @@ const scanBtnStyles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.7)',
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
+    // Bright top edge of the frosted tab bar.
+    tabTopRim: {
+        position: 'absolute', top: 0, left: 0, right: 0,
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: 'rgba(255,255,255,0.85)',
+    },
 });
+
+// Frosted-glass tab bar background — real blur + milky fill + soft top sheen
+// and a crisp bright top rim, matching the glass scan button.
+function TabBarFrost() {
+    return (
+        <View style={StyleSheet.absoluteFill}>
+            <BlurView
+                intensity={Platform.OS === 'ios' ? 40 : 60}
+                tint="extraLight"
+                style={StyleSheet.absoluteFill}
+                experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+            />
+            {/* Milky frosted fill */}
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.62)' }]} pointerEvents="none" />
+            {/* Soft top-down sheen */}
+            <LinearGradient
+                colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']}
+                locations={[0, 0.4]}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+            />
+            {/* Crisp bright top rim — the glass edge */}
+            <View style={scanBtnStyles.tabTopRim} pointerEvents="none" />
+        </View>
+    );
+}
 
 // Render the week planner as a tab root (no back button — it isn't pushed).
 function PlannerTab() {
@@ -312,6 +344,7 @@ function NewTabNavigator({ insets }: { insets: { bottom: number } }) {
             ])}
             screenOptions={{
                 headerShown: false,
+                tabBarBackground: () => <TabBarFrost />,
                 tabBarStyle: [
                     styles.tabBarGlass,
                     { height: 52 + insets.bottom, paddingBottom: insets.bottom, overflow: 'visible' as any },
@@ -417,6 +450,7 @@ export default function TabNavigator() {
                 ])}
                 screenOptions={{
                     headerShown: false,
+                    tabBarBackground: () => <TabBarFrost />,
                     tabBarStyle: [
                         styles.tabBar,
                         {
@@ -525,17 +559,16 @@ export default function TabNavigator() {
 
 const styles = StyleSheet.create({
     tabBar: {
-        backgroundColor: 'rgba(255, 255, 255, 0.88)',
+        backgroundColor: 'transparent',
         borderTopWidth: 0,
         paddingTop: spacing.xs,
         ...shadows.lg,
         ...(Platform.OS === 'web' ? { backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' } : {}),
     } as any,
-    // Glass tab bar for the 4-tab nav: blur + 90% opaque fill (spec 3.1).
+    // Frosted glass tab bar — fill/blur come from <TabBarFrost/> behind it.
     tabBarGlass: {
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: 'rgba(17,17,19,0.06)',
+        backgroundColor: 'transparent',
+        borderTopWidth: 0,
         paddingTop: spacing.xs,
         overflow: 'visible',
         ...shadows.lg,
