@@ -32,3 +32,4 @@ backend/.env
 # Local content dumps
 docs/
 rag_info/
+backend/_sim_backend.py

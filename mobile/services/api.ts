@@ -168,16 +168,19 @@ function resolveApiBaseUrl(): string {
 
     if (__DEV__ && Platform.OS !== 'web' && envTargetsLoopback(fromEnv)) {
         const devHost = getExpoDevBundlerHost();
-        if (devHost) {
+        // Real device: Metro is reached over the LAN, so devHost is the Mac's LAN
+        // IP. Swap the loopback host to it so the phone can reach the dev backend.
+        if (devHost && isPrivateLanIPv4(devHost)) {
             const next = replaceUrlHostname(fromEnv, devHost);
             console.log(`[Max] API → ${next} (LAN swap; Metro host detected)`);
             return next;
         }
-        // Metro host not available (SDK 54 dev client without --lan on a real device).
-        // Fall back to production so the app actually works instead of silently failing.
-        const prodUrl = 'https://maxapp-api.onrender.com/api/';
-        console.warn(`[Max] API → ${prodUrl} (loopback fallback; set LAN IP in .env.local or run expo start --lan)`);
-        return prodUrl;
+        // Simulator / localhost dev: loopback reaches the Mac directly and never
+        // drifts with the network. Use the env URL verbatim. (Previously this fell
+        // back to prod, which broke the local DEV drawer on the simulator whenever
+        // the Wi-Fi/hotspot IP changed.)
+        console.log(`[Max] API → ${fromEnv} (loopback verbatim; simulator/localhost dev)`);
+        return fromEnv;
     }
 
     if (Platform.OS === 'web' && typeof window !== 'undefined' && __DEV__) {
