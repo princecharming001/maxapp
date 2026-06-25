@@ -78,7 +78,7 @@ function AppNavigator() {
             const params =
                 d.params && typeof d.params === 'object' ? (d.params as Record<string, unknown>) : undefined;
             // Report the tap so the backend's adaptive backoff counts an "open".
-            void api.post('/notifications/opened').catch(() => undefined);
+            void api.notificationOpened();
             if (navRef.isReady()) {
                 navRef.navigate(route as never, params as never);
                 pendingDeepLinkRef.current = null;
@@ -97,7 +97,7 @@ function AppNavigator() {
         // Heartbeat so the server suppresses pushes while the app is in use
         // (foreground suppression). Best-effort; ignored for signed-out users.
         const pingActivity = () => {
-            if (isAuthenticated) void api.post('/notifications/activity').catch(() => undefined);
+            if (isAuthenticated) void api.notificationActivity();
         };
         pingActivity();
         const sub = AppState.addEventListener('change', (next: AppStateStatus) => {

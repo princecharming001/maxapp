@@ -1989,6 +1989,16 @@ class ApiService {
         const response = await this.client.get('schedules/active/full');
         return response.data;
     }
+
+    /** Notification engagement signals (best-effort). `client` is private, so these
+     *  must be methods — calling api.post(...) directly throws "post is not a
+     *  function" and crashes the app at startup. */
+    async notificationOpened(): Promise<void> {
+        try { await this.client.post('notifications/opened'); } catch { /* best-effort */ }
+    }
+    async notificationActivity(): Promise<void> {
+        try { await this.client.post('notifications/activity'); } catch { /* best-effort */ }
+    }
 }
 
 export const api = new ApiService();
