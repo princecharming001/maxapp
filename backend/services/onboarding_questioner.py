@@ -61,6 +61,24 @@ def clear_pending() -> dict:
 #  Question building                                                          #
 # --------------------------------------------------------------------------- #
 
+# Label appended to an `allow_custom` enum's choices. Must be one of the
+# strings in mobile/screens/chat/MaxChatScreen.tsx CUSTOM_CHIP_LABELS so the
+# client renders it as the custom-input chip (focuses the text box) rather than
+# a normal quick-reply. Lowercase-compared client-side, so case here is cosmetic.
+CUSTOM_CHOICE_LABEL = "Something else"
+
+
+def _flag(field_spec: dict, name: str) -> bool:
+    """Read a boolean schema flag (multi / allow_custom) tolerantly: accepts
+    real booleans and the strings 'true'/'yes'/'1' (YAML front-matter quirks)."""
+    v = (field_spec or {}).get(name)
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.strip().lower() in ("true", "yes", "1")
+    return bool(v)
+
+
 def peek_next_question(maxx_id: str, user_state: dict) -> Optional[dict]:
     """Return the next missing required field as a structured spec, or None
     when all required fields are answered."""
@@ -90,7 +108,20 @@ def field_to_question_payload(field_spec: dict) -> dict:
         # `options` is {value: label}. UI shows labels but answers map back.
         # We expose ordered labels as choices; coerce_answer maps label→value.
         labels = [str(v) for v in (opts.values() if isinstance(opts, dict) else opts)]
+        # `allow_custom` → append an "Other" chip the mobile client recognises as
+        # the custom-input path (its label is in MaxChatScreen's CUSTOM_CHIP_LABELS).
+        # Tapping it focuses the text box so the user types their own answer,
+        # which coerce_answer accepts as raw text (see below).
+        if _flag(field_spec, "allow_custom"):
+            labels = labels + [CUSTOM_CHOICE_LABEL]
         payload["choices"] = labels
+        # `multi` → tell the client to render multi-select toggle chips + a
+        # "submit N picks" button. `multi_choice` is exactly the wire flag
+        # MaxChatScreen reads to enter that mode.
+        if _flag(field_spec, "multi"):
+            payload["multi_choice"] = True
+        if _flag(field_spec, "allow_custom"):
+            payload["allow_custom"] = True
         # Stash the value→label map so coerce_answer can do the inverse lookup.
         payload["_value_map"] = (
             {str(k): str(v) for k, v in opts.items()} if isinstance(opts, dict) else None
@@ -143,24 +174,147 @@ def coerce_answer(field_spec: dict, raw: str) -> Optional[Any]:
         opts = field_spec.get("options") or {}
         if not isinstance(opts, dict):
             return None
-        # 1) exact value match
-        for k in opts:
-            if low == str(k).lower():
-                return str(k)
-        # 2) exact label match
-        for k, v in opts.items():
-            if low == str(v).lower():
-                return str(k)
-        # 3) substring on label (user typed a fragment)
-        best = None
-        for k, v in opts.items():
-            if low in str(v).lower() or str(v).lower() in low:
-                best = str(k)
-                break
-        if best:
-            return best
-        # 4) keyword heuristic per common skinmax cases
-        keywords = {
+        multi = _flag(field_spec, "multi")
+        allow_custom = _flag(field_spec, "allow_custom")
+
+        if multi:
+            # Multi-select: the client submits the picked labels comma-joined
+            # (e.g. "Vegetarian, Gluten-free"), or the user typed a free-text
+            # answer. Match each token through the same single-value logic;
+            # unmatched tokens become raw custom values when allow_custom.
+            values: list[str] = []
+            for tok in _split_multi(text):
+                tl = tok.strip().lower()
+                if not tl or _is_custom_label(tl):
+                    continue
+                v = _match_enum_token(opts, tl)
+                if v is not None:
+                    if v not in values:
+                        values.append(v)
+                elif allow_custom:
+                    raw = tok.strip()
+                    if raw and raw not in values:
+                        values.append(raw)
+            values = _apply_exclusive(field_spec, values)
+            return values or None
+
+        # Single-select.
+        if _is_custom_label(low):
+            return None  # tapped the custom chip but sent no real answer yet
+        v = _match_enum_token(opts, low)
+        if v is not None:
+            return v
+        if allow_custom:
+            return text  # accept the raw typed answer instead of re-asking
+        return None
+
+    if ftype == "yes_no":
+        if low in ("yes", "y", "yeah", "yep", "true", "1"):
+            return True
+        if low in ("no", "n", "nope", "nah", "false", "0"):
+            return False
+        return None
+
+    if ftype == "int":
+        # Tolerate "i'm 17" or "17 years old".
+        import re
+        m = re.search(r"\b(\d{1,3})\b", text)
+        if not m:
+            return None
+        v = int(m.group(1))
+        lo = int(field_spec.get("min", 0))
+        hi = int(field_spec.get("max", 200))
+        return max(lo, min(hi, v))
+
+    if ftype in ("clock", "time"):
+        import re
+        m = re.match(r"^\s*(\d{1,2}):(\d{2})\s*(am|pm)?\s*$", text, re.IGNORECASE)
+        if not m:
+            # Try "7am" / "11pm"
+            m2 = re.match(r"^\s*(\d{1,2})\s*(am|pm)\s*$", text, re.IGNORECASE)
+            if not m2:
+                return None
+            h = int(m2.group(1)) % 12
+            if (m2.group(2) or "").lower() == "pm":
+                h += 12
+            return f"{h:02d}:00"
+        h = int(m.group(1))
+        mm = int(m.group(2))
+        suf = (m.group(3) or "").lower()
+        if suf == "pm" and h < 12:
+            h += 12
+        if suf == "am" and h == 12:
+            h = 0
+        return f"{h:02d}:{mm:02d}"
+
+    # str — accept whatever they typed.
+    return text
+
+
+# Labels the mobile client treats as the custom-input chip (kept in sync with
+# MaxChatScreen.tsx CUSTOM_CHIP_LABELS). A bare submission of one of these is
+# the chip tap itself, not an answer.
+_CUSTOM_LABELS = {
+    "something else", "other", "none of these", "type my own", "type your own",
+    "something else…",
+}
+
+
+def _is_custom_label(low: str) -> bool:
+    return (low or "").strip().lower() in _CUSTOM_LABELS
+
+
+def _split_multi(text: str) -> list[str]:
+    """Split a multi-select submission into tokens. The client joins picks with
+    ', '; free-typed answers may use commas, 'and', '&', '/', or '+'."""
+    import re
+    parts = re.split(r"\s*,\s*|\s*;\s*|\s*&\s*|\s*\+\s*|\s*/\s*|\s+and\s+", text or "")
+    return [p for p in (p.strip() for p in parts) if p]
+
+
+def _apply_exclusive(field_spec: dict, values: list[str]) -> list[str]:
+    """If the user picked a value the field marks `exclusive` (e.g. skinmax
+    'maintenance', or a 'none' that contradicts other picks), collapse to just
+    that one value."""
+    ex = field_spec.get("exclusive")
+    if isinstance(ex, str):
+        ex = [ex]
+    ex_set = {str(x).strip().lower() for x in (ex or [])}
+    if not ex_set:
+        return values
+    for v in values:
+        if str(v).strip().lower() in ex_set:
+            return [v]
+    return values
+
+
+def _match_enum_token(opts: dict, low: str) -> Optional[str]:
+    """Resolve a single token to an enum value, or None. Order: exact value,
+    exact label, label substring, keyword heuristic."""
+    # 1) exact value match
+    for k in opts:
+        if low == str(k).lower():
+            return str(k)
+    # 2) exact label match
+    for k, v in opts.items():
+        if low == str(v).lower():
+            return str(k)
+    # 3) substring on label (user typed a fragment)
+    for k, v in opts.items():
+        if low in str(v).lower() or str(v).lower() in low:
+            return str(k)
+    # 4) keyword heuristic
+    keywords = _ENUM_KEYWORDS
+    for value, kws in keywords.items():
+        if value in opts and any(k in low for k in kws):
+            return value
+    return None
+
+
+# Keyword heuristics shared by single- and multi-select coercion. Each enum
+# value maps to phrases that should resolve to it; the `value in opts` guard in
+# _match_enum_token limits a keyword to fields that actually offer that value.
+_ENUM_KEYWORDS = {
             "acne": ["acne", "pimple", "breakout", "zit"],
             "pigmentation": ["pigment", "dark spot", "scar", "uneven", "post-acne"],
             "rosacea": ["rosacea", "redness", "flush", "sensitive"],
@@ -258,53 +412,7 @@ def coerce_answer(field_spec: dict, raw: str) -> Optional[Any]:
             # --- fitmax: estimated_body_fat unknown (guarded; `untested` above
             # covers the same phrases for skinmax barrier_state) ---
             "unknown": ["not sure", "no idea", "no clue", "don't know", "dont know", "dunno"],
-        }
-        for value, kws in keywords.items():
-            if value in opts and any(k in low for k in kws):
-                return value
-        return None
-
-    if ftype == "yes_no":
-        if low in ("yes", "y", "yeah", "yep", "true", "1"):
-            return True
-        if low in ("no", "n", "nope", "nah", "false", "0"):
-            return False
-        return None
-
-    if ftype == "int":
-        # Tolerate "i'm 17" or "17 years old".
-        import re
-        m = re.search(r"\b(\d{1,3})\b", text)
-        if not m:
-            return None
-        v = int(m.group(1))
-        lo = int(field_spec.get("min", 0))
-        hi = int(field_spec.get("max", 200))
-        return max(lo, min(hi, v))
-
-    if ftype in ("clock", "time"):
-        import re
-        m = re.match(r"^\s*(\d{1,2}):(\d{2})\s*(am|pm)?\s*$", text, re.IGNORECASE)
-        if not m:
-            # Try "7am" / "11pm"
-            m2 = re.match(r"^\s*(\d{1,2})\s*(am|pm)\s*$", text, re.IGNORECASE)
-            if not m2:
-                return None
-            h = int(m2.group(1)) % 12
-            if (m2.group(2) or "").lower() == "pm":
-                h += 12
-            return f"{h:02d}:00"
-        h = int(m.group(1))
-        mm = int(m.group(2))
-        suf = (m.group(3) or "").lower()
-        if suf == "pm" and h < 12:
-            h += 12
-        if suf == "am" and h == 12:
-            h = 0
-        return f"{h:02d}:{mm:02d}"
-
-    # str — accept whatever they typed.
-    return text
+}
 
 
 # --------------------------------------------------------------------------- #

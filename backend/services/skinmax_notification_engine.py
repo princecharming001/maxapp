@@ -169,7 +169,8 @@ def summarize_skinmax_onboarding(
         lines.append(f"- Skin type: {st}")
     pc = ob.get("skin_concern") or ob.get("primary_skin_concern")
     if pc:
-        lines.append(f"- Primary concern: {pc}")
+        pc_txt = ", ".join(str(x) for x in pc) if isinstance(pc, (list, tuple)) else pc
+        lines.append(f"- Primary concern: {pc_txt}")
     sc = ob.get("secondary_skin_concern")
     if sc:
         lines.append(f"- Secondary concern: {sc}")

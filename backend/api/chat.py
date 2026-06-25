@@ -3939,11 +3939,11 @@ async def _run_onboarding_questioner(
     user_id: str,
     message_text: str,
     db: AsyncSession,
-) -> Optional[Tuple[str, list[str], Optional[dict]]]:
+) -> Optional[Tuple[str, list[str], Optional[dict], bool]]:
     """If the user is mid-onboarding for a doc-driven max, drive the next
     question deterministically using onboarding_questioner. Returns
-    (text, choices, input_widget) if the driver handled the turn, or None
-    to fall through to the legacy/agent path.
+    (text, choices, input_widget, multi_choice) if the driver handled the
+    turn, or None to fall through to the legacy/agent path.
     """
     try:
         from services.onboarding_questioner import (
@@ -4097,10 +4097,10 @@ async def _run_onboarding_questioner(
         # The habit-picker widget is attached centrally after dispatch (see
         # _habit_picker_for_new_schedule) so it fires for BOTH this questioner
         # path and the agent path that also generates.
-        return text, [], None
+        return text, [], None, False
     except Exception as e:
         logger.exception("onboarding completion → generate failed: %s", e)
-        return f"i collected everything but generation hit a snag: {e}. retry?", [], None
+        return f"i collected everything but generation hit a snag: {e}. retry?", [], None, False
 
 
 async def _mirror_intake_to_facts(user_id: str, update: dict, db: AsyncSession) -> None:
@@ -4126,11 +4126,14 @@ async def _mirror_intake_to_facts(user_id: str, update: dict, db: AsyncSession) 
         logger.warning("intake->user_facts mirror failed (non-fatal): %s", e)
 
 
-def _finish_onboarding_turn(text: str, payload: dict) -> Tuple[str, list[str], Optional[dict]]:
-    """Pack a question payload into the chat-response 3-tuple."""
+def _finish_onboarding_turn(text: str, payload: dict) -> Tuple[str, list[str], Optional[dict], bool]:
+    """Pack a question payload into the chat-response 4-tuple. The 4th element
+    is the multi-select flag the mobile client reads (`multi_choice`) — set for
+    fields the doc marks `multi: true`."""
     choices = list(payload.get("choices") or [])
     iw = payload.get("input_widget")
-    return text, choices, iw
+    multi = bool(payload.get("multi_choice"))
+    return text, choices, iw, multi
 
 
 # --------------------------------------------------------------------------- #
@@ -4428,8 +4431,9 @@ async def _send_message_locked(
         broad_mcq = await _broad_question_mcq(
             user_id=user_id, message_text=data.message, db=db,
         )
+    driver_multi = False
     if driver_out is not None:
-        response_text, choices, iw = driver_out
+        response_text, choices, iw, driver_multi = driver_out
         # Persist the user message + assistant reply to ChatHistory so the
         # transcript matches what the user sees (the agent path does this
         # internally; we have to do it explicitly when bypassing).
@@ -4525,7 +4529,10 @@ async def _send_message_locked(
     # actively drive clarification UX without a custom widget.
     # Skip when an upstream path already supplied choices (e.g. maxx
     # onboarding's structured options) so we don't override those.
-    multi_choice = False
+    # The deterministic onboarding questioner sets multi for `multi: true`
+    # fields; carry that straight through (its choices are already populated,
+    # so the inline-MCQ extraction below is skipped).
+    multi_choice = driver_multi
     if not choices:
         cleaned_text, mcq_choices, multi_flag = _extract_inline_choices(response_text or "")
         if mcq_choices:
@@ -4698,6 +4705,9 @@ async def get_chat_history(
                     "text": payload.get("text"),
                     "choices": payload.get("choices") or [],
                     "input_widget": payload.get("input_widget"),
+                    # Carry the multi-select flag so reloading mid-onboarding
+                    # re-renders toggle chips (not single-tap) for `multi` fields.
+                    "multi_choice": bool(payload.get("multi_choice")),
                 }
     except Exception as _e:
         logger.warning("history pending-question hydrate failed: %s", _e)

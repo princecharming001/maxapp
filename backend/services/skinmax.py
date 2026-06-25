@@ -122,8 +122,17 @@ _PM_TREATMENT: Dict[str, str] = {
 
 def concern_key_for_state(state: dict) -> str:
     """Resolve the user's skin_concern answer to a known concern key, defaulting
-    to a sensible maintenance routine ('aging': antioxidant AM, retinol PM)."""
-    raw = str((state or {}).get("skin_concern") or "").strip().lower()
+    to a sensible maintenance routine ('aging': antioxidant AM, retinol PM).
+
+    skin_concern is now multi-select, so the stored value may be a LIST of
+    concerns. Product copy (cleanser/serum/SPF) needs a single primary track —
+    we take the first picked concern. Every concern is still honoured by the
+    skeleton/task gating via membership (`skin_concern in [...]`); only the
+    product-naming copy collapses to one."""
+    sc = (state or {}).get("skin_concern")
+    if isinstance(sc, (list, tuple)):
+        sc = next((x for x in sc if x), None)
+    raw = str(sc or "").strip().lower()
     if raw in SKINMAX_CONCERNS:
         return raw
     alias = {

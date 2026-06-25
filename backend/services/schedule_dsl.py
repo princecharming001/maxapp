@@ -75,7 +75,17 @@ def evaluate(expr: str, ctx: dict[str, Any]) -> bool:
     if m:
         field, op, list_lit = m.group(1), m.group(2).strip(), m.group(3)
         values = [_normalize(v) for v in _parse_list(list_lit)]
-        actual = _normalize(ctx.get(field))
+        raw = ctx.get(field)
+        # LIST-valued field (multi-select answer): `field in [a, b]` means the
+        # field's selections INTERSECT the literal set (any picked value is one
+        # of a/b). An empty list behaves like the unanswered "none" sentinel so
+        # `field in [none, ...]` still matches. Scalar fields keep their old
+        # single-value membership semantics, so non-multi maxes are unchanged.
+        if isinstance(raw, (list, tuple, set)):
+            actuals = [_normalize(v) for v in raw] or ["none"]
+            intersects = any(a in values for a in actuals)
+            return intersects if op == "in" else not intersects
+        actual = _normalize(raw)
         in_list = actual in values
         return (in_list if op == "in" else not in_list)
 
@@ -99,6 +109,19 @@ def evaluate(expr: str, ctx: dict[str, Any]) -> bool:
         field, op, raw_val = m.group(1), m.group(2), m.group(3).strip()
         actual = ctx.get(field)
         target = _coerce_literal(raw_val)
+        # LIST-valued field: `==`/`!=` become membership tests against the
+        # multi-select answer. `dietary_restrictions == vegan` is true when
+        # "vegan" is one of the picked values; `!= none` is true when at least
+        # one real value is present. An empty list is the "none" sentinel.
+        # Ordered comparisons (< > <= >=) fall through to the numeric path
+        # (lists never reach those in practice).
+        if op in ("==", "!=") and isinstance(actual, (list, tuple, set)):
+            actuals = [_normalize(v) for v in actual]
+            present = (
+                (_normalize(target) == "none") if not actuals
+                else (_normalize(target) in actuals)
+            )
+            return present if op == "==" else not present
         try:
             if op == "==":
                 return _normalize(actual) == _normalize(target)
