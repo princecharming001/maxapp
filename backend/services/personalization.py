@@ -579,22 +579,21 @@ def _line_interests(d: dict) -> Optional[str]:
 
 
 def _line_constraints(d: dict) -> Optional[str]:
-    bits = []
-    for f, label in (("conditions", None), ("injuries", "injured"), ("medications", "on"), ("equipment", "has")):
-        vals = _as_list(d.get(f))
-        if vals:
-            bits.append((label + " " if label else "") + ", ".join(vals))
-    bits += _as_list(d.get("notes"))[:2]
-    s = "; ".join(bits)
-    return f"constraints: {s}" if s else None
+    # GUARDRAIL #3 + RC11: conditions / injuries / medications (and free-form
+    # constraint notes, which are limitation-shaped) may ONLY gate task
+    # eligibility (see profile_to_state_signals) — they must NEVER enter the
+    # chat/brief copy. Only equipment, a neutral capability, is safe to surface.
+    equip = _as_list(d.get("equipment"))
+    if not equip:
+        return None
+    return "equipment: " + ", ".join(equip)
 
 
 def _line_misc(d: dict) -> Optional[str]:
-    notes = _as_list(d.get("notes"))
-    if not notes:
-        # surface any signals absorbed from unmapped onairos categories
-        notes = _as_list(d.get("signals"))
-    notes = notes[:4]
+    # GUARDRAIL #4 + RC11: unmapped Onairos `signals` (unknown-category
+    # inferences) must NOT surface in copy. Only the user's own free-form
+    # anecdotes (notes) are safe to mention here.
+    notes = _as_list(d.get("notes"))[:4]
     return ("also: " + "; ".join(notes)) if notes else None
 
 

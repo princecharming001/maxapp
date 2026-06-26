@@ -266,6 +266,37 @@ def test_profile_to_state_signals_extracts_and_merges():
     assert sig["personalization_brief"] == "(b)"
 
 
+def test_constraints_and_negatives_never_reach_brief_copy():
+    # RC11 + guardrails #3/#4: a profile loaded with conditions, injuries,
+    # medications, an inferred weakness, and an unmapped Onairos signal must
+    # produce a brief that surfaces NONE of them — only the safe equipment.
+    prof = {
+        "goals": {"maxxes": ["fitmax"], "why": "feel strong"},
+        "constraints": {
+            "conditions": ["eczema"],
+            "injuries": ["torn acl"],
+            "medications": ["accutane"],
+            "equipment": ["dumbbells"],
+            "notes": ["bad knees"],
+        },
+        "personality": {"to_improve": {"discipline": 0.6}, "strengths": {"grit": 0.8}},
+        "misc": {"signals": ["mystery_inference"]},
+    }
+    brief = (P.build_personalization_brief(prof) or "").lower()
+    for forbidden in ("eczema", "torn acl", "accutane", "bad knees",
+                      "discipline", "mystery_inference", "injured", "constraints:"):
+        assert forbidden not in brief, f"forbidden term leaked into brief: {forbidden!r}"
+    # The safe, positive bits still come through.
+    assert "dumbbells" in brief
+    assert "feel strong" in brief
+
+    # …but the eligibility path (task exclusion) still sees the real constraints.
+    sig = P.profile_to_state_signals(prof)
+    assert sig["conditions"] == ["eczema"]
+    assert sig["injuries"] == ["torn acl"]
+    assert sig["medications"] == ["accutane"]
+
+
 def test_comms_to_tone_maps_words_to_enums():
     assert P.comms_to_tone({"comms_style": {"tone": "blunt"}}) == ("hardcore", None)
     assert P.comms_to_tone({"comms_style": {"tone": "gentle and supportive", "length": "detailed"}}) == ("gentle", "detailed")
