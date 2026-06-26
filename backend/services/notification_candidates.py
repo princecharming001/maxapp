@@ -41,6 +41,7 @@ def build_candidates(
     active_plans: set,
     rotation: int = 0,
     lapsed: bool = False,
+    coaching_tone: Optional[str] = None,
 ) -> list[Candidate]:
     pending = [t for t in tasks if t.get("pending")]
     pending_count = len(pending)
@@ -50,7 +51,7 @@ def build_candidates(
     # recent opens). Fires once near wake; replaces the daily flow that day so
     # we don't pile reminders on someone who's away (review items 5, 8).
     if lapsed:
-        copy = compose(CAT_REENGAGE, name=name, why=why, rotation=rotation)
+        copy = compose(CAT_REENGAGE, name=name, why=why, rotation=rotation, coaching_tone=coaching_tone)
         return [_broad(CAT_REENGAGE, min(wake_min + 30, sleep_min - 1), copy)]
 
     # 1. Task-due — names the task; one per pending task (plan-relevant by
@@ -67,6 +68,7 @@ def build_candidates(
             streak=streak,
             why=why,
             rotation=rotation,
+            coaching_tone=coaching_tone,
             route_params={"task_uuid": t.get("uuid"), "maxx": t.get("maxx"), "title": title},
         )
         cands.append(
@@ -85,28 +87,30 @@ def build_candidates(
     # 2. Morning preview — once at wake; only if there's a day to preview.
     if tasks:
         copy = compose(
-            CAT_MORNING_PREVIEW, name=name, count=len(tasks), why=why, rotation=rotation
+            CAT_MORNING_PREVIEW, name=name, count=len(tasks), why=why, rotation=rotation,
+            coaching_tone=coaching_tone,
         )
         cands.append(_broad(CAT_MORNING_PREVIEW, min(wake_min + 15, sleep_min - 1), copy))
 
     # 3. Evening recap — before sleep, ONLY if tasks are still pending today.
     if pending_count >= 1:
         copy = compose(
-            CAT_EVENING_RECAP, name=name, count=pending_count, streak=streak, rotation=rotation
+            CAT_EVENING_RECAP, name=name, count=pending_count, streak=streak, rotation=rotation,
+            coaching_tone=coaching_tone,
         )
         cands.append(_broad(CAT_EVENING_RECAP, max(sleep_min - 90, wake_min + 1), copy))
 
     # 4. Streak protection — only a REAL streak (>= 2) that isn't secured yet
     # (pending tasks remain). Never to a streak-0 new user (review item 8).
     if streak >= 2 and pending_count >= 1:
-        copy = compose(CAT_STREAK, name=name, streak=streak, rotation=rotation)
+        copy = compose(CAT_STREAK, name=name, streak=streak, rotation=rotation, coaching_tone=coaching_tone)
         cands.append(_broad(CAT_STREAK, _STREAK_MIN, copy))
 
     # 5. Tip — occasional midday quick win, only for users with an active plan
     # (review item 7). Tips here are general (not plan-specific) so they're safe
     # for any plan mix.
     if active_plans and weekday in _TIP_WEEKDAYS:
-        copy = compose(CAT_TIP, name=name, rotation=rotation)
+        copy = compose(CAT_TIP, name=name, rotation=rotation, coaching_tone=coaching_tone)
         cands.append(_broad(CAT_TIP, _TIP_MIN, copy))
 
     return cands

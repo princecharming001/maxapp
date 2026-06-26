@@ -294,6 +294,7 @@ async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
         tasks=tasks, now_min=now_min, wake_min=wake_min, sleep_min=sleep_min,
         weekday=local_now.weekday(), name=name, why=why, streak=streak,
         active_plans=active_plans, rotation=deliv, lapsed=lapsed,
+        coaching_tone=getattr(user, "coaching_tone", None),
     )
     # SMS users only get task reminders (broad categories are push-only to avoid
     # SMS spam); push users get the full set.

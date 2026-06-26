@@ -266,6 +266,7 @@ def compose(
     broadcast_body: Optional[str] = None,
     rotation: int = 0,
     recent: Iterable[str] = (),
+    coaching_tone: Optional[str] = None,
 ) -> dict:
     """Compose a push for `category`. Returns
     ``{title, body, category, route, params, template_id}``.
@@ -273,6 +274,12 @@ def compose(
     Pulls from a witty template bank, fills personalization slots, and degrades
     gracefully when a signal is missing. The returned ``template_id`` should be
     appended to the caller's per-user ``recent`` list to drive rotation.
+
+    When ``coaching_tone`` maps to a live persona (Goggins/Clavicular/Big Daddy),
+    the line is restyled into that coach's voice (``persona_notifications``) as
+    long as the restyled copy still clears the taste bar; otherwise the base
+    (persona-agnostic) line is kept. Author-supplied broadcasts are never
+    restyled.
     """
     if category not in _BANKS:
         raise ValueError(f"unknown notification category: {category}")
@@ -290,6 +297,18 @@ def compose(
         title = tmpl.title.format(**slots).strip()
         body = tmpl.body.format(**slots).strip()
         tmpl_id = _tmpl_id(tmpl)
+
+        # Persona restyle — speak in the active coach's voice when one is set and
+        # the restyled line still clears the taste bar (else keep the base line).
+        if coaching_tone:
+            try:
+                from services.persona_notifications import persona_push_copy
+
+                pc = persona_push_copy(coaching_tone, category, slots, available, rotation)
+                if pc and passes_taste_bar(pc["title"]) and passes_taste_bar(pc["body"]):
+                    title, body, tmpl_id = pc["title"], pc["body"], pc["template_id"]
+            except Exception as e:  # noqa: BLE001 — persona is best-effort, never break a send
+                logger.debug("persona restyle skipped (%s): %s", category, e)
 
     # Final taste-bar guard — if a filled template somehow trips the bar (e.g. a
     # weird user name/why), fall back to the safest line in the bank.
