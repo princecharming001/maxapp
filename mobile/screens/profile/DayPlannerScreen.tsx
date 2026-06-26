@@ -40,8 +40,7 @@ import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, fonts } from '../../theme/dark';
 import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
-import DayTimeline from '../../components/planner/DayTimeline';
-import ScheduleGrid from '../../components/planner/ScheduleGrid';
+import DayBuckets from '../../components/planner/DayBuckets';
 import ObligationsManager, { ObligationsManagerHandle } from '../../components/planner/ObligationsManager';
 import {
   DayShape,
@@ -75,21 +74,35 @@ const JS_DAY_TO_KEY: Weekday[] = [
   'saturday',
 ];
 
-// A rolling 7-day window starting *today* — today is always leftmost, then the
-// next six days in order. Each cell maps to a weekday scope so selecting it
-// shapes that day. Recomputed at mount so it always shows the current week.
-function buildRollingWeek(): { key: Weekday; short: string; date: number; isToday: boolean }[] {
-  const base = new Date();
-  base.setHours(0, 0, 0, 0);
-  const out: { key: Weekday; short: string; date: number; isToday: boolean }[] = [];
+// A rolling 7-day window. offset 0 starts today (today leftmost); the chevrons
+// step it a week at a time. Each cell maps to a weekday scope so selecting it
+// shapes that weekday.
+type WeekCell = { key: Weekday; short: string; date: number; month: number; year: number; isToday: boolean };
+function buildRollingWeek(offset: number): WeekCell[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayTime = today.getTime();
+  const base = new Date(today);
+  base.setDate(today.getDate() + offset * 7);
+  const out: WeekCell[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
     const key = JS_DAY_TO_KEY[d.getDay()];
     const meta = WEEKDAYS.find((w) => w.key === key)!;
-    out.push({ key, short: meta.short, date: d.getDate(), isToday: i === 0 });
+    out.push({
+      key, short: meta.short, date: d.getDate(), month: d.getMonth(), year: d.getFullYear(),
+      isToday: d.getTime() === todayTime,
+    });
   }
   return out;
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 }
 
 // One restrained accent for the assistant surface only.
@@ -100,6 +113,7 @@ const ACCENT_WASH = 'rgba(47,107,78,0.10)';
 // planner reads as one surface family: a cream canvas with floating white cards
 // rather than a flat pure-white sheet.
 const BG = '#F1F1EF';   // cream canvas
+const PILL = '#EAE9E6'; // warm inset for unselected day circles
 const SOFT = {
   shadowColor: '#000',
   shadowOpacity: 0.05,
@@ -128,9 +142,10 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   );
   const [obligations, setObligations] = useState<Obligation[]>(() => hydrateObligations(ob));
 
-  // Rolling week strip — today leftmost. Drives which day the timeline shapes.
-  const week = useMemo(buildRollingWeek, []);
-  const todayKey = week[0].key;
+  // Rolling week strip — today leftmost; chevrons step a week at a time.
+  const [weekOffset, setWeekOffset] = useState(0);
+  const week = useMemo(() => buildRollingWeek(weekOffset), [weekOffset]);
+  const todayKey = JS_DAY_TO_KEY[new Date().getDay()];
 
   // The day the timeline + editor act on. Defaults to today; selecting another
   // day edits just that day (a minimal override diffed against the base).
@@ -138,8 +153,6 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
   // Commitments + chat live behind the floating button now (merged surface).
   const [commitmentsOpen, setCommitmentsOpen] = useState(false);
-  // Agenda list vs. Timepage-style hour grid.
-  const [planView, setPlanView] = useState<'list' | 'grid'>('list');
 
   // Editor sheet: keep the scope set across the close animation to avoid a flash.
   const [editScope, setEditScope] = useState<Scope>('all');
@@ -290,8 +303,10 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
   const sendDisabled = !chatInput.trim() || chatLoading;
 
-  const scopeLabel =
-    scope === todayKey ? 'Today' : WEEKDAYS.find((w) => w.key === scope)?.long ?? 'Day';
+  // Selected day's display — drives the centered serif day name + date.
+  const selectedCell = week.find((c) => c.key === scope) ?? week[0];
+  const dayName = WEEKDAYS.find((w) => w.key === scope)?.long ?? 'Day';
+  const dateLabel = `${MONTHS[selectedCell.month]} ${ordinal(selectedCell.date)}, ${selectedCell.year}`;
   const scopeOverridden = scope !== 'all' && hasOverride(weekly, scope);
   const dayForScope = effectiveDay(defaults, weekly, scope);
 
@@ -302,21 +317,47 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
   return (
     <View style={styles.container}>
-      {/* Minimal top nav: navigation + transient saving status only. */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      {/* Top bar — Today pill (left) + manage / add (right), mirroring the ref. */}
+      <View style={[styles.header, { paddingTop: insets.top + 22 }]}>
         {!embedded && navigation.canGoBack() ? (
           <TouchableOpacity
             onPress={() => navigation.goBack()}
-            style={styles.backButton}
+            style={styles.iconBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+            <Ionicons name="arrow-back" size={22} color={colors.foreground} />
           </TouchableOpacity>
         ) : (
-          <View style={{ width: 40 }} />
+          <TouchableOpacity
+            style={styles.todayPill}
+            activeOpacity={0.85}
+            onPress={() => { setWeekOffset(0); setScope(todayKey); }}
+            accessibilityRole="button"
+            accessibilityLabel="Jump to today"
+          >
+            <Text style={styles.todayPillText}>Today</Text>
+          </TouchableOpacity>
         )}
-        <View style={styles.savingSlot}>
-          {saving ? <ActivityIndicator size="small" color={colors.textMuted} /> : null}
+        <View style={styles.headerRight}>
+          {saving ? <ActivityIndicator size="small" color={colors.textMuted} style={{ marginRight: 2 }} /> : null}
+          <TouchableOpacity
+            style={styles.iconBtn}
+            activeOpacity={0.85}
+            onPress={() => setCommitmentsOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Manage commitments"
+          >
+            <Ionicons name="ellipsis-horizontal" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            activeOpacity={0.85}
+            onPress={() => obligationsRef.current?.openAdd()}
+            accessibilityRole="button"
+            accessibilityLabel="Add commitment"
+          >
+            <Ionicons name="add" size={22} color={colors.foreground} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -329,84 +370,65 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Masthead — just the title. No kicker, no instructional subhead. */}
+          {/* Masthead — centered serif day name + date. */}
           <View style={styles.masthead}>
-            <Text style={styles.title}>
-              Your <Text style={styles.titleItalic}>week</Text>
-            </Text>
+            <Text style={styles.title}>{dayName}</Text>
+            <Text style={styles.dateLabel}>{dateLabel}</Text>
           </View>
 
-          {/* Day strip — a rolling week starting today (today leftmost). Tap a day
-              to shape it; a dot marks a day that differs from your baseline. */}
-          <View style={styles.weekStrip}>
-            {week.map((d) => (
-              <WeekDayPill
-                key={d.key}
-                short={d.short}
-                date={d.date}
-                selected={scope === d.key}
-                isToday={d.isToday}
-                edited={hasOverride(weekly, d.key)}
-                onPress={() => setScope(d.key)}
-              />
-            ))}
-          </View>
-
-          {/* The day, as a tappable timeline — on its own floating card. */}
-          <View style={styles.card}>
-            <View style={styles.scopeHead}>
-              <Text style={styles.scopeTitle}>{scopeLabel}</Text>
-              <View style={styles.scopeHeadRight}>
-                {scopeOverridden ? (
-                  <TouchableOpacity
-                    onPress={() => resetScope(scope as Weekday)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Text style={styles.resetLink}>Reset</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {/* Agenda ↔ grid — editorial underline tabs, no icons. */}
-                <View style={styles.viewTabs}>
-                  {(['list', 'grid'] as const).map((m) => {
-                    const active = planView === m;
-                    return (
-                      <TouchableOpacity
-                        key={m}
-                        onPress={() => setPlanView(m)}
-                        style={[styles.viewTab, active && styles.viewTabActive]}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityLabel={m === 'list' ? 'Agenda view' : 'Grid view'}
-                        accessibilityState={{ selected: active }}
-                      >
-                        <Text style={[styles.viewTabText, active && styles.viewTabTextActive]}>
-                          {m === 'list' ? 'Agenda' : 'Grid'}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
+          {/* Day strip — rolling week with prev/next chevrons. */}
+          <View style={styles.weekRow}>
+            <TouchableOpacity
+              onPress={() => setWeekOffset((o) => o - 1)}
+              style={styles.weekChev}
+              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+              accessibilityLabel="Previous week"
+            >
+              <Ionicons name="chevron-back" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+            <View style={styles.weekStrip}>
+              {week.map((d) => (
+                <WeekDayPill
+                  key={`${d.year}-${d.month}-${d.date}`}
+                  short={d.short}
+                  date={d.date}
+                  selected={scope === d.key}
+                  isToday={d.isToday}
+                  edited={hasOverride(weekly, d.key)}
+                  onPress={() => setScope(d.key)}
+                />
+              ))}
             </View>
-
-            {planView === 'list' ? (
-              <DayTimeline
-                day={dayForScope}
-                obligations={obligations}
-                scope={scope}
-                onEditShape={(focus) => openEditor(scope, focus)}
-                onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
-              />
-            ) : (
-              <ScheduleGrid
-                day={dayForScope}
-                obligations={obligations}
-                scope={scope}
-                onEditShape={(focus) => openEditor(scope, focus)}
-                onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
-              />
-            )}
+            <TouchableOpacity
+              onPress={() => setWeekOffset((o) => o + 1)}
+              style={styles.weekChev}
+              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+              accessibilityLabel="Next week"
+            >
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
           </View>
+
+          {scopeOverridden ? (
+            <TouchableOpacity
+              onPress={() => resetScope(scope as Weekday)}
+              style={styles.resetRow}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="refresh" size={13} color={ACCENT} />
+              <Text style={styles.resetLink}>Reset this day to your default</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {/* The day as time-of-day sections (Anytime / Morning / Afternoon / Evening). */}
+          <DayBuckets
+            day={dayForScope}
+            obligations={obligations}
+            scope={scope}
+            onEditShape={(focus) => openEditor(scope, focus)}
+            onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
+            onAdd={() => obligationsRef.current?.openAdd()}
+          />
 
           <View style={{ height: 96 + insets.bottom }} />
         </ScrollView>
@@ -641,19 +663,19 @@ function WeekDayPill({
       accessibilityState={{ selected }}
       accessibilityLabel={`${short} ${date}${isToday ? ', today' : ''}${edited ? ', customized' : ''}`}
     >
+      <View
+        style={[
+          styles.dayCircle,
+          !selected && isToday && styles.dayCircleToday,
+          selected && styles.dayCircleSel,
+        ]}
+      >
+        <Text style={[styles.dayNum, selected && styles.dayNumSel]}>{date}</Text>
+        {edited && !selected ? <View style={styles.dayEditedDot} /> : null}
+      </View>
       <Text style={[styles.dayCellLabel, selected && styles.dayCellLabelSel]} numberOfLines={1}>
         {short}
       </Text>
-      <View
-        style={[
-          styles.dayRing,
-          !selected && isToday && styles.dayRingToday,
-          selected && styles.dayRingSel,
-        ]}
-      >
-        <Text style={[styles.dayRingNum, selected && styles.dayRingNumSel]}>{date}</Text>
-        {edited && !selected ? <View style={styles.dayEditedDot} /> : null}
-      </View>
     </TouchableOpacity>
   );
 }
@@ -669,49 +691,67 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     backgroundColor: BG,
   },
-  backButton: { padding: 4, width: 40 },
-  savingSlot: { width: 40, alignItems: 'flex-end', justifyContent: 'center' },
+  // Top-bar controls — white circular buttons + a Today pill, soft-shadowed.
+  iconBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', ...SOFT,
+  },
+  todayPill: {
+    paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999,
+    backgroundColor: '#FFFFFF', ...SOFT,
+  },
+  todayPillText: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.foreground, letterSpacing: -0.1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
 
-  // Masthead — just the serif display title.
-  masthead: { paddingTop: spacing.sm, paddingBottom: spacing.xs },
+  // Masthead — centered serif day name + date (reference layout).
+  masthead: { paddingTop: spacing.md, paddingBottom: spacing.md, alignItems: 'center' },
   title: {
     fontFamily: fonts.serif,
-    fontSize: 34,
+    fontSize: 40,
     color: colors.foreground,
-    letterSpacing: -0.8,
+    letterSpacing: -1,
+    textAlign: 'center',
   },
-  titleItalic: { fontFamily: fonts.serifItalic, fontStyle: 'italic' },
+  dateLabel: {
+    fontFamily: fonts.sans,
+    fontSize: 15,
+    color: colors.textSecondary,
+    marginTop: 4,
+    letterSpacing: 0.2,
+  },
 
-  // Rolling-week day strip — seven calendar-day rings across the width.
+  // Rolling-week day strip — circles with chevrons either side.
+  weekRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2, marginBottom: 4 },
+  weekChev: { width: 18, alignItems: 'center', justifyContent: 'center' },
   weekStrip: {
+    flex: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 6,
-    marginTop: 2,
   },
   dayCell: { flex: 1, alignItems: 'center' },
+  dayCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: PILL,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayCircleToday: { borderWidth: 1.5, borderColor: ACCENT },
+  dayCircleSel: { backgroundColor: colors.foreground },
+  dayNum: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground, fontVariant: ['tabular-nums'] },
+  dayNumSel: { color: '#fff' },
   dayCellLabel: {
     fontFamily: fonts.sansMedium,
     fontSize: 11,
     color: colors.textMuted,
     letterSpacing: 0.3,
-    marginBottom: 8,
+    marginTop: 7,
   },
   dayCellLabelSel: { color: colors.foreground, fontFamily: fonts.sansSemiBold },
-  dayRing: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(17,17,19,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayRingToday: { borderColor: ACCENT },
-  dayRingSel: { backgroundColor: colors.foreground, borderColor: colors.foreground },
-  dayRingNum: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground },
-  dayRingNumSel: { color: '#fff' },
+  resetRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', marginTop: 10, marginBottom: 2 },
   // Corner marker for a day whose shape differs from the baseline.
   dayEditedDot: {
     position: 'absolute',
