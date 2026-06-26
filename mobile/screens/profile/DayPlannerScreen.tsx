@@ -420,6 +420,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             day={dayForScope}
             obligations={obligations}
             scope={scope}
+            isToday={scope === todayKey}
             onEditShape={(focus) => openEditor(scope, focus)}
             onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
           />
@@ -490,7 +491,12 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             <TouchableOpacity
               style={styles.commitAddBtn}
               activeOpacity={0.9}
-              onPress={() => obligationsRef.current?.openAdd()}
+              onPress={() => {
+                // Close this sheet FIRST, then open the editor — two stacked
+                // modals present the editor behind this one (looks broken).
+                setCommitmentsOpen(false);
+                setTimeout(() => obligationsRef.current?.openAdd(), 280);
+              }}
             >
               <Text style={styles.commitAddText}>Add a commitment</Text>
             </TouchableOpacity>
