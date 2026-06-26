@@ -137,21 +137,21 @@ function IngredientCard({ item, index, stepN }: { item: TaskGuideIngredient; ind
 
 const c = StyleSheet.create({
     card: {
-        width: 150, marginRight: 12, borderWidth: StyleSheet.hairlineWidth,
-        borderColor: HAIRLINE, borderRadius: 14, backgroundColor: '#FFFFFF',
-        padding: 10, flexDirection: 'row', gap: 10, alignItems: 'center',
+        width: 212, marginRight: 12, borderWidth: StyleSheet.hairlineWidth,
+        borderColor: HAIRLINE, borderRadius: 16, backgroundColor: '#FFFFFF',
+        padding: 12, flexDirection: 'row', gap: 12, alignItems: 'center',
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
     tile: {
-        width: 44, height: 44, borderRadius: 9, backgroundColor: CREAM,
+        width: 66, height: 66, borderRadius: 13, backgroundColor: CREAM,
         alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
         borderWidth: StyleSheet.hairlineWidth, borderColor: HAIRLINE,
     },
     tileImg: { width: '100%', height: '100%' },
-    tileInitials: { fontFamily: fonts.sansBold, fontSize: 14, color: INK, letterSpacing: 0.5 },
+    tileInitials: { fontFamily: fonts.sansBold, fontSize: 18, color: INK, letterSpacing: 0.5 },
     cardText: { flex: 1 },
-    cardName: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: INK, lineHeight: 16 },
-    cardNote: { fontFamily: fonts.sans, fontSize: 11.5, color: MUTE, marginTop: 2 },
+    cardName: { fontFamily: fonts.sansSemiBold, fontSize: 13.5, color: INK, lineHeight: 18 },
+    cardNote: { fontFamily: fonts.sans, fontSize: 12, color: MUTE, marginTop: 3 },
 });
 
 // ── Left vertical progress rail ──────────────────────────────────────────────
@@ -220,7 +220,7 @@ function StepPage({
                 visible/reachable on every device (SC5). The page itself never scrolls,
                 so full-screen swipe-to-page (SC6) is preserved. */}
             <Animated.View
-                style={[sp.content, { paddingTop: insets.top + 78, paddingBottom: insets.bottom + 20 }, contentStyle]}
+                style={[sp.content, { paddingTop: insets.top + 102, paddingBottom: insets.bottom + 20 }, contentStyle]}
             >
                 <Text style={sp.kicker}>Step {padN(step.n)}</Text>
 
@@ -286,8 +286,11 @@ const sp = StyleSheet.create({
     watchText: { fontFamily: fonts.sansSemiBold, fontSize: 12.5, color: INK },
     content: { flex: 1, paddingHorizontal: 24 },
     kicker: { fontFamily: fonts.sansMedium, fontSize: 13, color: MUTE, letterSpacing: 0.5, marginBottom: 12 },
-    // flex:1 — grows to fill the gap above tip+ingredients, keeping the row pinned/visible.
-    railRow: { flexDirection: 'row', gap: 16, flex: 1 },
+    // Natural height (does NOT grow) so Tip + Ingredients sit right beneath the
+    // instruction instead of being pushed to the bottom. flexShrink lets a long
+    // instruction squeeze (text auto-scales) so the page still fits without a
+    // scroll.
+    railRow: { flexDirection: 'row', gap: 16, flexShrink: 1 },
     instructionWrap: { flex: 1, justifyContent: 'flex-start' },
     instruction: { fontFamily: fonts.serif, fontSize: 27, lineHeight: 37, color: INK, letterSpacing: -0.4 },
     instructionSmall: { fontSize: 22, lineHeight: 30 },
@@ -430,11 +433,11 @@ function MaxBadge({ icon, top }: { icon: any; top: number }) {
 const s = StyleSheet.create({
     screen: { flex: 1, backgroundColor: CREAM },
     maxBadge: {
-        position: 'absolute', right: 14, zIndex: 20,
-        width: 62, height: 62,
+        position: 'absolute', right: 12, zIndex: 20,
+        width: 96, height: 96,
         alignItems: 'center', justifyContent: 'center',
         ...(Platform.OS === 'ios'
-            ? { shadowColor: '#3A352B', shadowOpacity: 0.16, shadowRadius: 9, shadowOffset: { width: 0, height: 4 } }
+            ? { shadowColor: '#3A352B', shadowOpacity: 0.18, shadowRadius: 11, shadowOffset: { width: 0, height: 5 } }
             : {}),
     },
     maxBadgeImg: { width: '100%', height: '100%' },
