@@ -15,8 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useFlag } from '../constants/featureFlags';
 import { usePersonalization } from '../hooks/usePersonalization';
-import { streakMilestone } from '../lib/personalization';
-import { toneCopy } from '../lib/toneCopy';
+import { streakMilestone, streakMilestoneCopy } from '../lib/personalization';
 import { colors, fonts } from '../theme/dark';
 
 const SEEN_KEY = 'streak_milestone_seen_v1';
@@ -40,15 +39,6 @@ async function markSeen(threshold: number): Promise<void> {
     } catch {
         /* non-fatal — worst case the callout shows again next time */
     }
-}
-
-function milestoneCopy(personaId: string, days: number): string {
-    return toneCopy(personaId, {
-        default: `${days} days straight. That's a real streak now — keep it boring.`,
-        gentle: `${days} days in a row. That steadiness is the whole game — keep showing up.`,
-        hardcore: `${days} days locked in. Don't you dare break it tomorrow.`,
-        influencer: `${days} days straight 🔥 momentum's yours now — keep it rolling.`,
-    });
 }
 
 export function StreakMilestoneCallout() {
@@ -82,7 +72,7 @@ export function StreakMilestoneCallout() {
     return (
         <View style={styles.row} accessibilityRole="text">
             <View style={styles.tick} />
-            <Text style={styles.text}>{milestoneCopy(personaId, milestone)}</Text>
+            <Text style={styles.text}>{streakMilestoneCopy(personaId, milestone)}</Text>
         </View>
     );
 }

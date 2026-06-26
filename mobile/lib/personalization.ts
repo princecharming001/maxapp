@@ -14,7 +14,7 @@
  */
 
 import { getMaxxDisplayLabel } from '../utils/maxxDisplay';
-import { normalizePersonaId, type PersonaId } from './toneCopy';
+import { normalizePersonaId, toneCopy, type PersonaId } from './toneCopy';
 
 /** Presentable labels for the canonical maxxes; fall back to the shared helper. */
 const GOAL_LABELS: Record<string, string> = {
@@ -108,6 +108,21 @@ export const STREAK_MILESTONES: readonly number[] = [3, 7, 30, 100] as const;
 export function streakMilestone(days: unknown): number | null {
     const d = typeof days === 'number' && Number.isInteger(days) ? days : NaN;
     return STREAK_MILESTONES.includes(d) ? d : null;
+}
+
+/**
+ * The one-line, persona-flavored micro-celebration for a streak milestone.
+ * Accountability with warmth — names the specific streak, never a hollow
+ * "Great job!". Pure + deterministic. (Kept here, not in the RN component, so
+ * the copy is unit-testable against the banned-phrasing bar.)
+ */
+export function streakMilestoneCopy(personaId: unknown, days: number): string {
+    return toneCopy(personaId, {
+        default: `${days} days straight. That's a real streak now — keep it boring.`,
+        gentle: `${days} days in a row. That steadiness is the whole game — keep showing up.`,
+        hardcore: `${days} days locked in. Don't you dare break it tomorrow.`,
+        influencer: `${days} days straight 🔥 momentum's yours now — keep it rolling.`,
+    });
 }
 
 /**

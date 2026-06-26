@@ -5,8 +5,13 @@ import {
     rankByGoals,
     experienceTier,
     streakMilestone,
+    streakMilestoneCopy,
     archetypeLine,
 } from '../lib/personalization';
+
+// RC12: personalized copy must read like a human accountability partner, never
+// an AI assistant. These robotic / hollow phrasings must never appear.
+const BANNED = ['as an ai', "i've updated your preferences", 'here is your personalized', 'great job', "you're doing amazing"];
 
 const idOf = (x: { id: string }) => x.id;
 
@@ -32,6 +37,21 @@ export const tests = {
     'rankByGoals: no goals → original order (cold start)': () => {
         const items = [{ id: 'b' }, { id: 'a' }];
         assert.deepEqual(rankByGoals(items, [], idOf).map(idOf), ['b', 'a']);
+    },
+
+    'streakMilestoneCopy: persona-flavored, names the streak, no banned phrasing (RC12)': () => {
+        for (const persona of ['default', 'gentle', 'hardcore', 'influencer', 'bogus']) {
+            for (const days of [3, 7, 30, 100]) {
+                const line = streakMilestoneCopy(persona, days);
+                assert.ok(line.includes(String(days)), `should name the streak: ${line}`);
+                const low = line.toLowerCase();
+                for (const phrase of BANNED) {
+                    assert.ok(!low.includes(phrase), `banned phrasing leaked: ${phrase} in "${line}"`);
+                }
+            }
+        }
+        // gentle differs from hardcore (persona actually flavors the copy)
+        assert.notEqual(streakMilestoneCopy('gentle', 7), streakMilestoneCopy('hardcore', 7));
     },
 
     'archetypeLine only when archetype present; factual': () => {
