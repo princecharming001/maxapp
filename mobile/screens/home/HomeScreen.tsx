@@ -426,6 +426,17 @@ export default function HomeScreen() {
         return out;
     }, [schedulesQuery.data, maxes]);
 
+    // scheduleId -> normalized maxxId, so the task guide can pin the right
+    // per-Max icon (skinmax / heightmax / ...). Built from the raw schedules
+    // (not the deduped chip list) so every schedule resolves.
+    const maxxIdBySchedule = useMemo(() => {
+        const m: Record<string, string> = {};
+        for (const s of ((schedulesQuery.data?.schedules || []) as any[])) {
+            m[String(s.id)] = normalizeMaxxId(s.maxx_id);
+        }
+        return m;
+    }, [schedulesQuery.data]);
+
     const completedCount = scheduleRows.filter(r => r.status === 'completed').length;
     const totalCount = scheduleRows.length;
 
@@ -618,6 +629,7 @@ export default function HomeScreen() {
                                         onOpen={() => navigation.navigate('TaskGuide', {
                                             scheduleId: row.scheduleId,
                                             taskId: row.task_id,
+                                            maxxId: maxxIdBySchedule[row.scheduleId],
                                             moduleColor: row.moduleColor,
                                             moduleLabel: row.moduleLabel,
                                             done: done,

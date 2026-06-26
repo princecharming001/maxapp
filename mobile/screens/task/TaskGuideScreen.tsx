@@ -13,7 +13,7 @@
  *   • No new native deps. expo-image (hero + product tiles), expo-linear-gradient (the
  *     seamless fade), expo-video (the optional "Watch" button).
  */
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -36,7 +36,6 @@ import Animated, {
     type SharedValue,
 } from 'react-native-reanimated';
 import { Image as ExpoImage } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -55,11 +54,26 @@ const CREAM = '#F7F6F2';
 const MUTE = '#9A9A9A';
 const HAIRLINE = '#E2E0DA';
 
+// One constant icon per Max (same glossy art as Explore). Pinned top-right of
+// the guide and identical for every step — same icon for all skin maxes, all
+// height maxes, etc.
+const MAXX_ICON: Record<string, any> = {
+    skinmax: require('../../assets/maxxThumbs/cut/skinmax.png'),
+    heightmax: require('../../assets/maxxThumbs/cut/heightmax.png'),
+    hairmax: require('../../assets/maxxThumbs/cut/hairmax.png'),
+    fitmax: require('../../assets/maxxThumbs/cut/fitmax.png'),
+    bonemax: require('../../assets/maxxThumbs/cut/bonemax.png'),
+};
+function maxxIcon(id?: string): any | null {
+    return MAXX_ICON[String(id || '').toLowerCase()] || null;
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 type RouteParams = {
     TaskGuide: {
         scheduleId: string;
         taskId: string;
+        maxxId?: string;
         moduleColor?: string;
         moduleLabel?: string;
         done?: boolean;
@@ -159,31 +173,20 @@ const pr = StyleSheet.create({
 
 // ── One step page ────────────────────────────────────────────────────────────
 function StepPage({
-    step, index, total, height, heroUri, scrollY, onWatch,
+    step, index, total, height, scrollY, onWatch,
 }: {
     step: TaskGuideStep;
     index: number;
     total: number;
     height: number;
-    heroUri?: string;
     scrollY: SharedValue<number>;
     onWatch: (url: string) => void;
 }) {
     const insets = useSafeAreaInsets();
-    // Responsive hero: smaller on short screens (iPhone SE) so the instruction, tip,
-    // and the Ingredients row all fit on one page without clipping (SC5).
+    // Shorter instruction sizing on short screens (iPhone SE).
     const isSmall = height < 740;
-    const heroHeight = Math.round(height * (isSmall ? 0.38 : 0.48));
     const top = index * height;
     const range = [top - height, top, top + height];
-
-    // Hero parallaxes (translates slower than the page) + slight zoom.
-    const heroStyle = useAnimatedStyle(() => ({
-        transform: [
-            { translateY: interpolate(scrollY.value, range, [70, 0, -70], Extrapolation.CLAMP) },
-            { scale: interpolate(scrollY.value, range, [1.08, 1, 1.08], Extrapolation.CLAMP) },
-        ],
-    }));
 
     // Content fades + scales + translates in as the page reaches centre.
     const contentStyle = useAnimatedStyle(() => ({
@@ -198,28 +201,6 @@ function StepPage({
 
     return (
         <View style={[sp.page, { height }]} testID={`guide-step-${step.n}`} accessibilityLabel={`Step ${step.n}`}>
-            {/* Hero photo — a real, light-background photo that bleeds from the top
-                (inspiration §2). The photo's own neutral background blends into the cream
-                page; there is NO grey→cream gradient smear. The only blend aid is a subtle
-                feather at the very bottom edge so the photo melts into cream seamlessly. */}
-            {heroUri ? (
-                <Animated.View style={[sp.heroWrap, { height: heroHeight }, heroStyle]} pointerEvents="none">
-                    <ExpoImage
-                        source={{ uri: heroUri }}
-                        style={sp.hero}
-                        contentFit="cover"
-                        contentPosition="center"
-                        transition={220}
-                    />
-                    <LinearGradient
-                        pointerEvents="none"
-                        colors={['transparent', CREAM]}
-                        locations={[0, 1]}
-                        style={[sp.feather, { height: Math.round(heroHeight * 0.18) }]}
-                    />
-                </Animated.View>
-            ) : null}
-
             {/* Watch ▶ pill — only when the step has a video */}
             {step.video ? (
                 <TouchableOpacity
@@ -239,7 +220,7 @@ function StepPage({
                 visible/reachable on every device (SC5). The page itself never scrolls,
                 so full-screen swipe-to-page (SC6) is preserved. */}
             <Animated.View
-                style={[sp.content, { paddingTop: heroHeight - 40, paddingBottom: insets.bottom + 20 }, contentStyle]}
+                style={[sp.content, { paddingTop: insets.top + 78, paddingBottom: insets.bottom + 20 }, contentStyle]}
             >
                 <Text style={sp.kicker}>Step {padN(step.n)}</Text>
 
@@ -296,7 +277,7 @@ const sp = StyleSheet.create({
     hero: { width: '100%', height: '100%' },
     feather: { position: 'absolute', left: 0, right: 0, bottom: 0 },
     watch: {
-        position: 'absolute', right: 16, zIndex: 5,
+        position: 'absolute', left: 64, zIndex: 5,
         flexDirection: 'row', alignItems: 'center', gap: 5,
         paddingHorizontal: 13, paddingVertical: 7, borderRadius: 999,
         backgroundColor: 'rgba(255,255,255,0.92)',
@@ -324,7 +305,8 @@ export default function TaskGuideScreen() {
     const { height: winH } = useWindowDimensions();
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'TaskGuide'>>();
-    const { scheduleId, taskId } = route.params;
+    const { scheduleId, taskId, maxxId } = route.params;
+    const maxImg = maxxIcon(maxxId);
 
     const { data: guide, isLoading, isError } = useTaskGuide(scheduleId, taskId);
 
@@ -351,10 +333,6 @@ export default function TaskGuideScreen() {
     });
 
     const steps = guide?.steps ?? [];
-    const heroUri = useMemo(
-        () => api.resolveAttachmentUrl(guide?.hero_image),
-        [guide?.hero_image],
-    );
 
     const handleWatch = useCallback((url: string) => setVideoUrl(url), []);
 
@@ -397,7 +375,6 @@ export default function TaskGuideScreen() {
                             index={i}
                             total={steps.length}
                             height={pageH}
-                            heroUri={api.resolveAttachmentUrl(step.image) || heroUri}
                             scrollY={scrollY}
                             onWatch={handleWatch}
                         />
@@ -407,6 +384,10 @@ export default function TaskGuideScreen() {
 
             {/* Global ✕ — closes from any step */}
             <CloseButton onPress={() => navigation.goBack()} top={insets.top} />
+
+            {/* Constant per-Max icon, pinned top-right. Rendered once at the
+                screen level so it never changes or moves between steps. */}
+            {maxImg ? <MaxBadge icon={maxImg} top={insets.top} /> : null}
 
             {/* Video modal (expo-video) */}
             <Modal visible={!!videoUrl} animationType="slide" onRequestClose={() => setVideoUrl(null)}>
@@ -437,8 +418,26 @@ function CloseButton({ onPress, top, dark }: { onPress: () => void; top: number;
     );
 }
 
+// ── Constant per-Max icon (top-right, never changes between steps) ───────────
+function MaxBadge({ icon, top }: { icon: any; top: number }) {
+    return (
+        <View style={[s.maxBadge, { top: top + 4 }]} pointerEvents="none">
+            <ExpoImage source={icon} style={s.maxBadgeImg} contentFit="contain" transition={200} />
+        </View>
+    );
+}
+
 const s = StyleSheet.create({
     screen: { flex: 1, backgroundColor: CREAM },
+    maxBadge: {
+        position: 'absolute', right: 14, zIndex: 20,
+        width: 62, height: 62,
+        alignItems: 'center', justifyContent: 'center',
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#3A352B', shadowOpacity: 0.16, shadowRadius: 9, shadowOffset: { width: 0, height: 4 } }
+            : {}),
+    },
+    maxBadgeImg: { width: '100%', height: '100%' },
     close: {
         position: 'absolute', left: 16, zIndex: 20,
         width: 38, height: 38, borderRadius: 11,
