@@ -612,9 +612,47 @@ _BRIEF_HEADER = (
     "back as a list, and always prefer what they've told you directly over inferred signals.\n"
 )
 
+# Phase 2 (personalized_framing, default OFF): explicit guidance that turns the
+# already-collected positive signals (goal why/timeline, values, motivations,
+# interests) into a warm, human, accountable voice. Purely additive prompt text
+# — it changes HOW Max talks, never WHAT data is gathered. The banned-phrasing
+# line keeps it from sliding into AI-assistant / hollow-affirmation cadence.
+_BRIEF_VOICE_GUIDANCE = (
+    "How to use what you know:\n"
+    "- Speak like a real coach/friend who remembers what they told you and what "
+    "they actually did, and holds them to it — reference the specific thing "
+    "(\"you said summer; that's 7 weeks out\"). Never break character as a "
+    "machine assistant, and never recite their profile back to them.\n"
+    "- Tie motivation to their own stated values, their reason for starting, and "
+    "their deadline — not generic pep talk.\n"
+    "- Let their stated interests color your examples and analogies.\n"
+    "- Never invent facts about them. If a detail isn't above, don't assume it; "
+    "talk generally instead.\n"
+    "- Avoid the canned-product voice: no self-disclosure as software, no "
+    "system-style confirmations that you saved or changed their settings, no "
+    "scripted plan-preamble, and no empty blanket praise. Be specific. "
+    "Accountability with warmth — notice, remember, nudge; never nag or fawn.\n"
+)
 
-def build_personalization_brief(profile: dict) -> Optional[str]:
-    """Render the profile into a compact natural-language brief for the prompt."""
+
+def _framing_enabled() -> bool:
+    """Read the personalized_framing flag without a hard import dependency."""
+    try:
+        from config import settings
+        return bool(getattr(settings, "personalized_framing", False))
+    except Exception:
+        return False
+
+
+def build_personalization_brief(
+    profile: dict, *, voice_guidance: Optional[bool] = None
+) -> Optional[str]:
+    """Render the profile into a compact natural-language brief for the prompt.
+
+    When ``voice_guidance`` is True (or None and the ``personalized_framing``
+    flag is on), the brief header carries explicit human-voice / accountability
+    guidance. When False/off the output is byte-identical to before.
+    """
     lines: list[str] = []
     for dim in DIMENSIONS:
         line = _LINE_BUILDERS[dim](profile.get(dim) or {})
@@ -622,7 +660,9 @@ def build_personalization_brief(profile: dict) -> Optional[str]:
             lines.append("- " + line)
     if not lines:
         return None
-    return _BRIEF_HEADER + "\n".join(lines)
+    use_guidance = _framing_enabled() if voice_guidance is None else bool(voice_guidance)
+    header = _BRIEF_HEADER + _BRIEF_VOICE_GUIDANCE if use_guidance else _BRIEF_HEADER
+    return header + "\n".join(lines)
 
 
 def _completeness(profile: dict) -> dict[str, float]:

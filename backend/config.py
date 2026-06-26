@@ -125,6 +125,14 @@ class Settings(BaseSettings):
     # (intent classifier -> guardrail -> parallel RAG -> trim -> agent -> finalize).
     # When false, chat.py calls run_chat_agent directly (legacy path).
     chat_use_langgraph: bool = Field(default=False)
+
+    # Personalized framing (Phase 2): when true, build_personalization_brief
+    # appends explicit human-voice / accountability guidance to the brief header
+    # (speak like a coach who remembers and holds them to it; tie motivation to
+    # their stated values/why/deadline; let interests color examples; never
+    # invent). Purely additive prompt guidance — collects no new data. Default
+    # OFF so the brief stays byte-identical until the guidance is validated.
+    personalized_framing: bool = Field(default=False)
     chat_max_context_tokens: int = Field(
         default=8000,
         description="Hard ceiling for history + retrieved chunks tokens in the agent prompt.",

@@ -194,6 +194,63 @@ def test_build_brief_renders_dimensions_and_none_when_empty():
     assert "~30min commute" in brief
 
 
+# Robotic / AI-assistant phrasings the personalized copy must never emit (RC12).
+_BANNED_PHRASES = (
+    "as an ai",
+    "i've updated your preferences",
+    "here is your personalized",
+    "great job",
+    "you're doing amazing",
+)
+
+
+def test_brief_voice_guidance_off_by_default_is_byte_identical():
+    # Default (no flag, no arg) → no guidance, identical to the legacy brief.
+    base = P.build_personalization_brief(_rich_profile())
+    explicit_off = P.build_personalization_brief(_rich_profile(), voice_guidance=False)
+    assert base == explicit_off
+    assert "How to use what you know" not in base
+
+
+def test_brief_voice_guidance_on_carries_human_voice_instruction():
+    brief = P.build_personalization_brief(_rich_profile(), voice_guidance=True)
+    assert brief is not None
+    # RC8/RC12: the human-voice / accountability instruction is present…
+    assert "How to use what you know" in brief
+    low = brief.lower()
+    assert "remembers what they told you" in low
+    assert "holds them to it" in low
+    assert "never invent facts" in low
+    # …and the data-derived dimensions still assemble alongside it.
+    assert "WHAT MAX KNOWS" in brief
+    assert "diet: vegetarian" in brief
+    assert "why: feel more confident" in brief  # goal `why` survives
+
+
+def test_brief_with_values_and_why_assembles_with_guidance():
+    # RC8: a brief carrying values/why/motivations must still assemble cleanly.
+    prof = {
+        "personality": {"values": ["discipline", "confidence"],
+                        "motivations": ["look good at the wedding"]},
+        "goals": {"maxxes": ["fitmax"], "why": "feel strong", "timeline": "summer"},
+    }
+    brief = P.build_personalization_brief(prof, voice_guidance=True)
+    assert brief is not None
+    assert "values discipline, confidence" in brief
+    assert "motivated by look good at the wedding" in brief
+    assert "why: feel strong" in brief
+
+
+def test_generated_brief_never_emits_banned_robotic_phrasings():
+    # RC12: neither the data-derived copy NOR the guidance text contains any of
+    # the banned AI-assistant / hollow-affirmation phrasings.
+    for vg in (False, True):
+        brief = P.build_personalization_brief(_rich_profile(), voice_guidance=vg)
+        low = (brief or "").lower()
+        for phrase in _BANNED_PHRASES:
+            assert phrase not in low, f"banned phrasing leaked (voice_guidance={vg}): {phrase!r}"
+
+
 def test_profile_to_state_signals_extracts_and_merges():
     sig = P.profile_to_state_signals(_rich_profile(), brief="(b)")
     assert sig["dietary_pattern"] == "vegetarian"
