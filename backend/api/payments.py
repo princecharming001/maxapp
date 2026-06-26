@@ -63,8 +63,9 @@ async def _activate_user(
     subscription_tier: Optional[str] = None,
     billing_provider: Optional[str] = None,
     subscription_end_date: Optional[datetime] = None,
+    subscription_status: str = "active",
 ):
-    """Shared activation logic for webhook + test-activate.
+    """Shared activation logic for webhook + test-activate (+ referral comp).
 
     Idempotent: Stripe can redeliver the same event, and this function is
     also reachable via multiple webhook handlers. We only touch the
@@ -80,7 +81,7 @@ async def _activate_user(
     user.is_paid = True
     if subscription_id:
         user.subscription_id = subscription_id
-    user.subscription_status = "active"
+    user.subscription_status = subscription_status
     if subscription_tier in ("basic", "premium"):
         user.subscription_tier = subscription_tier
     if billing_provider is not None:

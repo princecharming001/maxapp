@@ -147,6 +147,18 @@ class Settings(BaseSettings):
     # the taste bar at import, and DO NOT change cadence/cap/interval/backoff.
     # Default OFF so the rotation is byte-identical until validated.
     personalized_notif_copy: bool = Field(default=False)
+
+    # Referral / promo code system (RALPH_REFERRAL). All default OFF so the app is
+    # byte-identical to today until enabled.
+    #  - referrals_enabled gates the whole feature (validate/redeem endpoints +
+    #    the client code field). When OFF the endpoints 404 and the field hides.
+    #  - referral_discounts_enabled gates the discount SEAM (Apple Offer Code /
+    #    Stripe promo); OFF or with unset ids, discount codes degrade to
+    #    "recognized, discount coming" and NEVER charge a wrong amount.
+    #  - referral_rewards_enabled gates the referrer-reward hook.
+    referrals_enabled: bool = Field(default=False)
+    referral_discounts_enabled: bool = Field(default=False)
+    referral_rewards_enabled: bool = Field(default=False)
     chat_max_context_tokens: int = Field(
         default=8000,
         description="Hard ceiling for history + retrieved chunks tokens in the agent prompt.",

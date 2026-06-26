@@ -1,0 +1,318 @@
+"""Referral / promo code logic (RALPH_REFERRAL Phases 2-4, 6).
+
+Server-authoritative, atomic, one-per-user, audited. The API layer
+(`api/referral.py`) is a thin wrapper over `validate_code` (pure read) and
+`redeem_code` (the transactional grant). Entitlement is granted ONLY here via
+the shared `_activate_user` path — the client never self-grants.
+
+Compliance (encoded, not optional):
+  * free_comp / 100%-off  -> server grants entitlement, route past the paywall.
+  * discount on iOS       -> Apple Offer Code only (we surface the offer id;
+                             we NEVER charge a cheaper price via the backend).
+  * discount on web       -> Stripe promotion_code / coupon / price_id.
+  * discounts are behind `referral_discounts_enabled` and are INERT (recognized,
+    "discount coming") when the flag is off or the platform ids are unset — they
+    never charge a wrong amount.
+"""
+from __future__ import annotations
+
+import logging
+import re
+from datetime import datetime, timezone
+from typing import Optional
+from uuid import UUID
+
+from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from config import settings
+from models.sqlalchemy_models import ReferralCode, ReferralRedemption, User
+
+logger = logging.getLogger(__name__)
+
+_CODE_RE = re.compile(r"[^A-Z0-9]")
+
+
+class ReferralError(Exception):
+    """A redemption/validation failure with a stable machine `reason`."""
+
+    def __init__(self, reason: str, message: str):
+        super().__init__(message)
+        self.reason = reason
+        self.message = message
+
+
+def normalize_code(code: object) -> str:
+    """Case-insensitive canonical form: uppercased, A-Z0-9 only."""
+    return _CODE_RE.sub("", str(code or "").strip().upper())
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _as_aware(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def window_state(row: ReferralCode, now: Optional[datetime] = None) -> Optional[str]:
+    """Pure check of a code's lifecycle window. Returns a failure `reason` or
+    None if the code is currently live. (Does not check per-user limits.)"""
+    now = now or _utcnow()
+    if not row.is_active:
+        return "inactive"
+    starts = _as_aware(row.starts_at)
+    expires = _as_aware(row.expires_at)
+    if starts and now < starts:
+        return "not_started"
+    if expires and now >= expires:
+        return "expired"
+    if row.max_redemptions is not None and (row.redemption_count or 0) >= row.max_redemptions:
+        return "max_reached"
+    return None
+
+
+_REASON_MESSAGE = {
+    "not_found": "that code isn't valid.",
+    "inactive": "that code is no longer active.",
+    "not_started": "that code isn't active yet.",
+    "expired": "that code has expired.",
+    "max_reached": "that code has been fully claimed.",
+    "already_used": "you've already used this code.",
+    "self_referral": "you can't redeem your own code.",
+    "already_entitled": "you're already subscribed, so there's nothing to redeem.",
+    "disabled": "referral codes aren't available right now.",
+    "discount_unavailable": "code recognized, the discount is coming soon.",
+}
+
+
+def _discount_payload(row: ReferralCode) -> Optional[dict]:
+    """Display-only discount descriptor (never a price the backend invents)."""
+    if row.kind != "discount":
+        return None
+    kind = row.discount_kind
+    val = float(row.discount_value) if row.discount_value is not None else None
+    if kind == "percent" and val is not None:
+        label = f"{int(val) if val == int(val) else val}% off"
+    elif kind == "fixed" and val is not None:
+        label = f"${int(val) if val == int(val) else val} off"
+    else:
+        label = "discount"
+    return {"kind": kind, "value": val, "label": label}
+
+
+async def _load_code(db: AsyncSession, code: str) -> Optional[ReferralCode]:
+    norm = normalize_code(code)
+    if not norm:
+        return None
+    return (
+        await db.execute(select(ReferralCode).where(ReferralCode.code == norm))
+    ).scalar_one_or_none()
+
+
+async def _existing_redemption(db: AsyncSession, code_id: UUID, user_id: UUID) -> Optional[ReferralRedemption]:
+    return (
+        await db.execute(
+            select(ReferralRedemption).where(
+                ReferralRedemption.code_id == code_id,
+                ReferralRedemption.user_id == user_id,
+            )
+        )
+    ).scalar_one_or_none()
+
+
+async def validate_code(db: AsyncSession, code: str, user_id: Optional[str] = None) -> dict:
+    """Pure read: is this code currently redeemable? No side effects.
+    Shape: {valid, kind, free, discount, message, reason}."""
+    row = await _load_code(db, code)
+    if row is None:
+        return {"valid": False, "reason": "not_found", "message": _REASON_MESSAGE["not_found"]}
+
+    reason = window_state(row)
+    if reason:
+        return {"valid": False, "kind": row.kind, "reason": reason, "message": _REASON_MESSAGE.get(reason, "that code can't be used.")}
+
+    if user_id:
+        uid = UUID(str(user_id))
+        if row.owner_user_id and row.owner_user_id == uid:
+            return {"valid": False, "kind": row.kind, "reason": "self_referral", "message": _REASON_MESSAGE["self_referral"]}
+        if await _existing_redemption(db, row.id, uid):
+            return {"valid": False, "kind": row.kind, "reason": "already_used", "message": _REASON_MESSAGE["already_used"]}
+
+    free = row.kind == "free_comp" or (
+        row.kind == "discount" and row.discount_kind == "percent"
+        and row.discount_value is not None and float(row.discount_value) >= 100
+    )
+    discount = None if free else _discount_payload(row)
+    if free:
+        msg = "code applied, premium is on us."
+    elif discount:
+        msg = f"code applied, {discount['label']}."
+    else:
+        msg = "code applied."
+    return {"valid": True, "kind": row.kind, "free": free, "discount": discount, "message": msg, "reason": None}
+
+
+def _is_full_comp(row: ReferralCode) -> bool:
+    if row.kind == "free_comp":
+        return True
+    return (
+        row.kind == "discount" and row.discount_kind == "percent"
+        and row.discount_value is not None and float(row.discount_value) >= 100
+    )
+
+
+async def redeem_code(db: AsyncSession, user: User, code: str, platform: Optional[str]) -> dict:
+    """Atomically redeem `code` for `user`. Raises ReferralError on any rule
+    failure. Returns {result, free, kind, discount, redemption_id, message,
+    apple_offer_code?, stripe_promotion_code?}."""
+    if not getattr(settings, "referrals_enabled", False):
+        raise ReferralError("disabled", _REASON_MESSAGE["disabled"])
+
+    row = await _load_code(db, code)
+    if row is None:
+        raise ReferralError("not_found", _REASON_MESSAGE["not_found"])
+
+    reason = window_state(row)
+    if reason:
+        raise ReferralError(reason, _REASON_MESSAGE.get(reason, "that code can't be used."))
+
+    uid = user.id if isinstance(user.id, UUID) else UUID(str(user.id))
+    if row.owner_user_id and row.owner_user_id == uid:
+        raise ReferralError("self_referral", _REASON_MESSAGE["self_referral"])
+
+    # Idempotency / one-per-user (fast path before any mutation).
+    existing = await _existing_redemption(db, row.id, uid)
+    if existing:
+        return _result_payload(row, existing.result, existing.id, platform, idempotent=True)
+
+    full_comp = _is_full_comp(row)
+    # Don't comp someone who is already a paying/comped subscriber.
+    if full_comp and bool(user.is_paid):
+        raise ReferralError("already_entitled", _REASON_MESSAGE["already_entitled"])
+
+    # Decide the audited result up front.
+    if full_comp:
+        result = "comped"
+    elif row.kind == "discount":
+        result = "discount_applied"
+    else:
+        result = "attributed"
+
+    # 1) Atomic, concurrency-safe count guard (only consume a slot when within max).
+    incr = await db.execute(
+        text(
+            "UPDATE referral_codes SET redemption_count = redemption_count + 1, updated_at = now() "
+            "WHERE id = :id AND is_active = TRUE "
+            "AND (max_redemptions IS NULL OR redemption_count < max_redemptions) "
+            "RETURNING redemption_count"
+        ),
+        {"id": str(row.id)},
+    )
+    if incr.fetchone() is None:
+        await db.rollback()
+        raise ReferralError("max_reached", _REASON_MESSAGE["max_reached"])
+
+    # 2) Insert the audit row — the unique (code_id, user_id) makes this the
+    #    one-per-user gate even under a race that beat the fast-path check.
+    redemption = ReferralRedemption(
+        code_id=row.id, user_id=uid, kind_at_redemption=row.kind,
+        result=result, platform=platform,
+    )
+    db.add(redemption)
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        existing = await _existing_redemption(db, row.id, uid)
+        if existing:
+            return _result_payload(row, existing.result, existing.id, platform, idempotent=True)
+        raise ReferralError("already_used", _REASON_MESSAGE["already_used"])
+
+    # 3) Apply the effect.
+    if full_comp:
+        from api.payments import _activate_user
+        await _activate_user(
+            str(uid), None, db,
+            subscription_tier=(row.granted_tier if row.granted_tier in ("basic", "premium") else "premium"),
+            billing_provider="referral_comp",          # marks a comp (not stripe/apple)
+            subscription_status="comped",
+            subscription_end_date=_as_aware(row.expires_at),  # time-boxed if the code expires
+        )
+
+    # 4) Attribution (always), reward hook (flag-gated).
+    db_user = await db.get(User, uid)
+    if db_user is not None:
+        db_user.referred_by_code_id = row.id
+        db_user.referral_source = row.campaign or ("owner:" + str(row.owner_user_id) if row.owner_user_id else "code")
+    await _maybe_reward_referrer(db, row, uid, result)
+
+    await db.commit()
+    logger.info("referral redeem code=%s user=%s result=%s", row.code, uid, result)
+    return _result_payload(row, result, redemption.id, platform, idempotent=False)
+
+
+async def _maybe_reward_referrer(db: AsyncSession, row: ReferralCode, redeemer_id: UUID, result: str) -> None:
+    """Reward hook (RALPH_REFERRAL Phase 6) — flag-gated OFF. A clean seam:
+    when a referee actually converts/comps and the code has an owner, extend the
+    owner's entitlement. No-op unless `referral_rewards_enabled`."""
+    if not getattr(settings, "referral_rewards_enabled", False):
+        return
+    if result not in ("comped", "discount_applied"):
+        return
+    if not row.owner_user_id or row.owner_user_id == redeemer_id:
+        return
+    try:
+        owner = await db.get(User, row.owner_user_id)
+        if owner is None:
+            return
+        from datetime import timedelta
+        base = _as_aware(owner.subscription_end_date) or _utcnow()
+        owner.subscription_end_date = max(base, _utcnow()) + timedelta(days=30)
+    except Exception as e:  # never let a reward failure break the redemption
+        logger.warning("referral reward hook skipped: %s", e)
+
+
+def _result_payload(row: ReferralCode, result: str, redemption_id, platform: Optional[str], *, idempotent: bool) -> dict:
+    free = result == "comped"
+    payload: dict = {
+        "result": result,
+        "kind": row.kind,
+        "free": free,
+        "discount": None if free else _discount_payload(row),
+        "redemption_id": str(redemption_id),
+        "idempotent": idempotent,
+        "message": ("premium is on us, welcome in." if free else "code applied."),
+    }
+    if result == "discount_applied":
+        payload.update(_discount_redemption_targets(row, platform))
+    return payload
+
+
+def _discount_redemption_targets(row: ReferralCode, platform: Optional[str]) -> dict:
+    """Platform-split discount targets (Phase 4). INERT + safe unless the flag is
+    on AND the relevant platform id is set — otherwise 'discount coming', never a
+    price. iOS = Apple Offer Code; web = Stripe promo/coupon/price."""
+    enabled = getattr(settings, "referral_discounts_enabled", False)
+    plat = (platform or "").lower()
+    if not enabled:
+        return {"discount_status": "coming_soon", "message": _REASON_MESSAGE["discount_unavailable"]}
+    if plat == "ios":
+        offer = row.apple_offer_code or row.apple_offer_id
+        if not offer:
+            return {"discount_status": "coming_soon", "message": _REASON_MESSAGE["discount_unavailable"]}
+        # The client presents StoreKit's code-redemption sheet with this offer.
+        return {"discount_status": "apple_offer", "apple_offer_code": row.apple_offer_code,
+                "apple_offer_id": row.apple_offer_id, "message": "redeem this offer in the App Store sheet."}
+    # web / stripe
+    target = row.stripe_promotion_code or row.stripe_coupon_id or row.stripe_price_id
+    if not target:
+        return {"discount_status": "coming_soon", "message": _REASON_MESSAGE["discount_unavailable"]}
+    return {"discount_status": "stripe",
+            "stripe_promotion_code": row.stripe_promotion_code,
+            "stripe_coupon_id": row.stripe_coupon_id,
+            "stripe_price_id": row.stripe_price_id,
+            "message": "discount will apply at checkout."}
