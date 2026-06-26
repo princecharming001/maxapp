@@ -7,6 +7,13 @@ new ML system. We collect a lot of signal already and barely use the *positive* 
 warm touches are literally dead code. Light it up, carefully.
 
 ## Taste philosophy (the bar every change is held to)
+- **Sound like a human who's got your back — not an AI assistant.** Every personalized line should
+  read like a real coach/friend who *remembers what you told them and what you did, and holds you to
+  it*. Reference the specific thing ("you said summer; that's 7 weeks") the way a person texting you
+  would. BANNED: "As an AI", "I've updated your preferences", "Here is your personalized…", hollow
+  affirmations ("Great job!", "You're doing amazing!"), and any robotic, customer-support cadence.
+  Accountability with warmth: it notices, it remembers, it nudges — it never nags or fawns. When in
+  doubt, write it the way a sharp friend who actually cares would say it out loud.
 - **Known, not watched.** Use only data the user gave us or earned (name, goals, the "why" behind
   them, chosen coach persona, streak, active maxes, scan archetype). Never infer-and-reveal.
 - **Positive framing only.** Strengths / values / motivations / wins — yes. Inferred weaknesses
@@ -78,9 +85,11 @@ flavor without touching the backend persona system. Unit-test both.
 ## Phase 2 — Backend: put the underused POSITIVE signals to work (behind `personalizedFraming`, default OFF)
 The brief already contains goal `why`/`timeline`, `values`, `motivations`, `interests` — the model is
 just never told to *use* them. Strengthen the brief header guidance (`build_personalization_brief`)
-with one explicit line: tie motivation to their stated values / why / deadline, and let their stated
-interests color examples — **and never invent any of it.** This is the single highest-taste backend
-win and it is purely additive guidance. Add a test asserting the guidance string is present and that
+with explicit lines: (a) speak like a human who remembers and holds them accountable — reference what
+they told you and what they actually did, never sound like an AI assistant or recite a profile;
+(b) tie motivation to their stated values / why / deadline; (c) let their stated interests color
+examples — **and never invent any of it.** This is the single highest-taste backend win and it is
+purely additive guidance. Add a test asserting the guidance string is present and that
 a sample brief with values/why still assembles. Do NOT change what data is collected.
 
 ## Phase 3 — Scheduler: fit their real life (behind `commuteAwarePlacement`, default OFF, higher risk)
@@ -109,6 +118,10 @@ with tests; cadence/rules unchanged. This is optional polish — the notif syste
 - **RC10** Every existing test stays green: `test_persona_voices`, `test_notifications_v2`,
   `test_copy_filter`, `test_server_copy_voice`, personalization/scheduler tests. New tests added per surface.
 - **RC11** No constraints/injuries/meds and no inferred-negative signal reaches any user-facing copy (grep-proof + test).
+- **RC12** Personalized copy reads like a human accountability partner, never an AI assistant: a test
+  asserts the banned robotic phrasings ("as an ai", "i've updated your preferences", "here is your
+  personalized", hollow "great job") never appear in generated personalization/brief copy, and the
+  brief guidance carries the human-voice instruction.
 
 ## Out of scope / do NOT
 - No eval/telemetry harness here (separate spec). No new ML, no embeddings, no new data collection.

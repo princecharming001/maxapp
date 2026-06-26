@@ -33,7 +33,6 @@ import {
 import { Alert } from '../../components/InAppAlert';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
@@ -74,35 +73,21 @@ const JS_DAY_TO_KEY: Weekday[] = [
   'saturday',
 ];
 
-// A rolling 7-day window. offset 0 starts today (today leftmost); the chevrons
-// step it a week at a time. Each cell maps to a weekday scope so selecting it
-// shapes that weekday.
-type WeekCell = { key: Weekday; short: string; date: number; month: number; year: number; isToday: boolean };
-function buildRollingWeek(offset: number): WeekCell[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayTime = today.getTime();
-  const base = new Date(today);
-  base.setDate(today.getDate() + offset * 7);
-  const out: WeekCell[] = [];
+// A rolling 7-day window starting *today* — today is always leftmost, then the
+// next six days in order. Each cell maps to a weekday scope so selecting it
+// shapes that day.
+function buildRollingWeek(): { key: Weekday; short: string; date: number; isToday: boolean }[] {
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  const out: { key: Weekday; short: string; date: number; isToday: boolean }[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
     const key = JS_DAY_TO_KEY[d.getDay()];
     const meta = WEEKDAYS.find((w) => w.key === key)!;
-    out.push({
-      key, short: meta.short, date: d.getDate(), month: d.getMonth(), year: d.getFullYear(),
-      isToday: d.getTime() === todayTime,
-    });
+    out.push({ key, short: meta.short, date: d.getDate(), isToday: i === 0 });
   }
   return out;
-}
-
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-function ordinal(n: number): string {
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 }
 
 // One restrained accent for the assistant surface only.
@@ -142,10 +127,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   );
   const [obligations, setObligations] = useState<Obligation[]>(() => hydrateObligations(ob));
 
-  // Rolling week strip — today leftmost; chevrons step a week at a time.
-  const [weekOffset, setWeekOffset] = useState(0);
-  const week = useMemo(() => buildRollingWeek(weekOffset), [weekOffset]);
-  const todayKey = JS_DAY_TO_KEY[new Date().getDay()];
+  // Rolling week strip — today leftmost. Drives which day the buckets shape.
+  const week = useMemo(buildRollingWeek, []);
+  const todayKey = week[0].key;
 
   // The day the timeline + editor act on. Defaults to today; selecting another
   // day edits just that day (a minimal override diffed against the base).
@@ -303,10 +287,6 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
   const sendDisabled = !chatInput.trim() || chatLoading;
 
-  // Selected day's display — drives the centered serif day name + date.
-  const selectedCell = week.find((c) => c.key === scope) ?? week[0];
-  const dayName = WEEKDAYS.find((w) => w.key === scope)?.long ?? 'Day';
-  const dateLabel = `${MONTHS[selectedCell.month]} ${ordinal(selectedCell.date)}, ${selectedCell.year}`;
   const scopeOverridden = scope !== 'all' && hasOverride(weekly, scope);
   const dayForScope = effectiveDay(defaults, weekly, scope);
 
@@ -331,7 +311,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           <TouchableOpacity
             style={styles.todayPill}
             activeOpacity={0.85}
-            onPress={() => { setWeekOffset(0); setScope(todayKey); }}
+            onPress={() => setScope(todayKey)}
             accessibilityRole="button"
             accessibilityLabel="Jump to today"
           >
@@ -340,21 +320,23 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         )}
         <View style={styles.headerRight}>
           {saving ? <ActivityIndicator size="small" color={colors.textMuted} style={{ marginRight: 2 }} /> : null}
+          {/* Chatbot — opens the "tell Max" assistant. */}
+          <TouchableOpacity
+            style={styles.iconBtn}
+            activeOpacity={0.85}
+            onPress={() => setChatOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Ask Max"
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+          {/* Commitments — opens the commitments sheet (list + add). */}
           <TouchableOpacity
             style={styles.iconBtn}
             activeOpacity={0.85}
             onPress={() => setCommitmentsOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Manage commitments"
-          >
-            <Ionicons name="ellipsis-horizontal" size={18} color={colors.foreground} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            activeOpacity={0.85}
-            onPress={() => obligationsRef.current?.openAdd()}
-            accessibilityRole="button"
-            accessibilityLabel="Add commitment"
+            accessibilityLabel="Commitments"
           >
             <Ionicons name="add" size={22} color={colors.foreground} />
           </TouchableOpacity>
@@ -370,43 +352,26 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Masthead — centered serif day name + date. */}
+          {/* Masthead — unchanged title. */}
           <View style={styles.masthead}>
-            <Text style={styles.title}>{dayName}</Text>
-            <Text style={styles.dateLabel}>{dateLabel}</Text>
+            <Text style={styles.title}>
+              Your <Text style={styles.titleItalic}>week</Text>
+            </Text>
           </View>
 
-          {/* Day strip — rolling week with prev/next chevrons. */}
-          <View style={styles.weekRow}>
-            <TouchableOpacity
-              onPress={() => setWeekOffset((o) => o - 1)}
-              style={styles.weekChev}
-              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-              accessibilityLabel="Previous week"
-            >
-              <Ionicons name="chevron-back" size={20} color={colors.textMuted} />
-            </TouchableOpacity>
-            <View style={styles.weekStrip}>
-              {week.map((d) => (
-                <WeekDayPill
-                  key={`${d.year}-${d.month}-${d.date}`}
-                  short={d.short}
-                  date={d.date}
-                  selected={scope === d.key}
-                  isToday={d.isToday}
-                  edited={hasOverride(weekly, d.key)}
-                  onPress={() => setScope(d.key)}
-                />
-              ))}
-            </View>
-            <TouchableOpacity
-              onPress={() => setWeekOffset((o) => o + 1)}
-              style={styles.weekChev}
-              hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-              accessibilityLabel="Next week"
-            >
-              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-            </TouchableOpacity>
+          {/* Day strip — rolling week starting today (today leftmost). */}
+          <View style={styles.weekStrip}>
+            {week.map((d) => (
+              <WeekDayPill
+                key={d.key}
+                short={d.short}
+                date={d.date}
+                selected={scope === d.key}
+                isToday={d.isToday}
+                edited={hasOverride(weekly, d.key)}
+                onPress={() => setScope(d.key)}
+              />
+            ))}
           </View>
 
           {scopeOverridden ? (
@@ -434,29 +399,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Floating button, bottom-right — opens the commitments sheet (with chat
-          tucked at the bottom) on demand. */}
-      {!chatOpen && !commitmentsOpen ? (
-        <View style={[styles.fabShadow, { bottom: insets.bottom + 20 }]} pointerEvents="box-none">
-          <TouchableOpacity
-            style={styles.fab}
-            activeOpacity={0.8}
-            onPress={() => setCommitmentsOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Commitments and chat"
-          >
-            {/* Frosted glass: a blur of the page behind, a soft light tint, and a
-                top highlight for the glassy sheen. */}
-            <BlurView intensity={32} tint="light" style={StyleSheet.absoluteFill} />
-            <View style={styles.fabTint} />
-            <View style={styles.fabSheen} />
-            <Text style={styles.fabLabel}>Commitments</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {/* Commitments sheet — the merged surface. Lists current commitments, an
-          add action, and a quiet "tell Max in words" row at the very bottom. */}
+      {/* Commitments sheet — opened from the top "+" button. Lists current
+          commitments and an add action. */}
       <Modal
         visible={commitmentsOpen}
         transparent
@@ -520,19 +464,6 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               onPress={() => obligationsRef.current?.openAdd()}
             >
               <Text style={styles.commitAddText}>Add a commitment</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.commitChatRow}
-              activeOpacity={0.7}
-              onPress={() => {
-                setCommitmentsOpen(false);
-                setTimeout(() => setChatOpen(true), 240);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Tell Max in words"
-            >
-              <Text style={styles.commitChatText}>Or just tell Max in words</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -663,19 +594,19 @@ function WeekDayPill({
       accessibilityState={{ selected }}
       accessibilityLabel={`${short} ${date}${isToday ? ', today' : ''}${edited ? ', customized' : ''}`}
     >
-      <View
-        style={[
-          styles.dayCircle,
-          !selected && isToday && styles.dayCircleToday,
-          selected && styles.dayCircleSel,
-        ]}
-      >
-        <Text style={[styles.dayNum, selected && styles.dayNumSel]}>{date}</Text>
-        {edited && !selected ? <View style={styles.dayEditedDot} /> : null}
-      </View>
       <Text style={[styles.dayCellLabel, selected && styles.dayCellLabelSel]} numberOfLines={1}>
         {short}
       </Text>
+      <View
+        style={[
+          styles.dayRing,
+          !selected && isToday && styles.dayRingToday,
+          selected && styles.dayRingSel,
+        ]}
+      >
+        <Text style={[styles.dayRingNum, selected && styles.dayRingNumSel]}>{date}</Text>
+        {edited && !selected ? <View style={styles.dayEditedDot} /> : null}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -704,53 +635,45 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
 
-  // Masthead — centered serif day name + date (reference layout).
-  masthead: { paddingTop: spacing.md, paddingBottom: spacing.md, alignItems: 'center' },
+  // Masthead — serif display title (unchanged from the prior version).
+  masthead: { paddingTop: spacing.sm, paddingBottom: spacing.xs },
   title: {
     fontFamily: fonts.serif,
-    fontSize: 40,
+    fontSize: 34,
     color: colors.foreground,
-    letterSpacing: -1,
-    textAlign: 'center',
+    letterSpacing: -0.8,
   },
-  dateLabel: {
-    fontFamily: fonts.sans,
-    fontSize: 15,
-    color: colors.textSecondary,
-    marginTop: 4,
-    letterSpacing: 0.2,
-  },
+  titleItalic: { fontFamily: fonts.serifItalic, fontStyle: 'italic' },
 
-  // Rolling-week day strip — circles with chevrons either side.
-  weekRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2, marginBottom: 4 },
-  weekChev: { width: 18, alignItems: 'center', justifyContent: 'center' },
+  // Rolling-week day strip — seven calendar-day rings across the width.
   weekStrip: {
-    flex: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 6,
+    marginTop: 2,
   },
   dayCell: { flex: 1, alignItems: 'center' },
-  dayCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: PILL,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayCircleToday: { borderWidth: 1.5, borderColor: ACCENT },
-  dayCircleSel: { backgroundColor: colors.foreground },
-  dayNum: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground, fontVariant: ['tabular-nums'] },
-  dayNumSel: { color: '#fff' },
   dayCellLabel: {
     fontFamily: fonts.sansMedium,
     fontSize: 11,
     color: colors.textMuted,
     letterSpacing: 0.3,
-    marginTop: 7,
+    marginBottom: 8,
   },
   dayCellLabelSel: { color: colors.foreground, fontFamily: fonts.sansSemiBold },
+  dayRing: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(17,17,19,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayRingToday: { borderColor: ACCENT },
+  dayRingSel: { backgroundColor: colors.foreground, borderColor: colors.foreground },
+  dayRingNum: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground },
+  dayRingNumSel: { color: '#fff' },
   resetRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', marginTop: 10, marginBottom: 2 },
   // Corner marker for a day whose shape differs from the baseline.
   dayEditedDot: {
