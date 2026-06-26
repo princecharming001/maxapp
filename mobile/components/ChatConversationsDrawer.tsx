@@ -54,20 +54,20 @@ import { fonts, spacing } from '../theme/dark';
 /* ── Refined black palette (drawer-local) ───────────────────────────── */
 const C = {
     bg:          '#0A0A0B',
-    // Translucent surfaces — they sit over the frosted BlurView, so fills are
-    // whites-on-glass rather than opaque greys.
-    bgRaised:    'rgba(255,255,255,0.07)',
-    bgActive:    'rgba(255,255,255,0.10)',
-    border:      'rgba(255,255,255,0.08)',
-    borderStrong:'rgba(255,255,255,0.16)',
-    glassTint:   'rgba(12,12,15,0.46)',
-    glassEdge:   'rgba(255,255,255,0.14)',
-    ink:         '#F5F5F4',         // primary text, near-white
-    inkMuted:    'rgba(245,245,244,0.55)',
-    inkDim:      'rgba(245,245,244,0.32)',
-    accent:      '#F5F5F4',         // active chip bg
-    accentInk:   '#0A0A0B',         // text on active chip
-    danger:      '#E66A55',
+    // LIGHT frosted glass — subtle surfaces over a very translucent light
+    // BlurView, with near-black ink text. Kept airy/see-through ("glassy").
+    bgRaised:    'rgba(255,255,255,0.40)',
+    bgActive:    'rgba(255,255,255,0.58)',
+    border:      'rgba(0,0,0,0.08)',
+    borderStrong:'rgba(0,0,0,0.13)',
+    glassTint:   'rgba(255,255,255,0.22)',  // light wash, low so it stays glassy
+    glassEdge:   'rgba(255,255,255,0.75)',
+    ink:         '#17171A',         // primary text, near-black
+    inkMuted:    'rgba(23,23,26,0.56)',
+    inkDim:      'rgba(23,23,26,0.34)',
+    accent:      '#17171A',         // active dot
+    accentInk:   '#FFFFFF',
+    danger:      '#C0452C',
 };
 
 type Conversation = {
@@ -356,7 +356,7 @@ export default function ChatConversationsDrawer({
                 ]}
             >
               <View style={s.drawerClip}>
-                <BlurView intensity={48} tint="dark" style={StyleSheet.absoluteFill} />
+                <BlurView intensity={42} tint="light" style={StyleSheet.absoluteFill} />
                 <View style={[StyleSheet.absoluteFill, s.glassFill]} pointerEvents="none" />
                 <View style={[StyleSheet.absoluteFill, s.glassSheen]} pointerEvents="none" />
                 <View
@@ -550,8 +550,11 @@ const OFFSCREEN_X = -(DRAWER_WIDTH + 28);
 
 const s = StyleSheet.create({
     backdrop: {
+        // Fully transparent — opening the drawer must NOT dim or blur the rest
+        // of the screen. Only the panel itself is glass. (Tap-to-close is the
+        // separate Pressable layer.)
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.38)',
+        backgroundColor: 'transparent',
     },
     /* Floating frosted-glass panel. Outer view carries the transform + soft
        shadow (un-clipped); the inner clip rounds the corners and hosts the
@@ -561,8 +564,8 @@ const s = StyleSheet.create({
         left: 10,
         width: DRAWER_WIDTH,
         ...(Platform.OS === 'ios'
-            ? { shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 28, shadowOffset: { width: 6, height: 10 } }
-            : { elevation: 16 }),
+            ? { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 26, shadowOffset: { width: 4, height: 10 } }
+            : { elevation: 12 }),
     },
     drawerClip: {
         flex: 1,
@@ -570,7 +573,8 @@ const s = StyleSheet.create({
         overflow: 'hidden',
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: C.glassEdge,
-        backgroundColor: Platform.OS === 'android' ? 'rgba(14,14,17,0.92)' : 'transparent',
+        // Android blur is weak; fall back to a light translucent panel there.
+        backgroundColor: Platform.OS === 'android' ? 'rgba(248,248,250,0.9)' : 'transparent',
     },
     // Dark wash over the blur so text stays legible against bright content.
     glassFill: {
@@ -579,7 +583,7 @@ const s = StyleSheet.create({
     // Faint top-down sheen for the glassy highlight.
     glassSheen: {
         borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.10)',
+        borderTopColor: 'rgba(255,255,255,0.5)',
         backgroundColor: 'transparent',
     },
     drawerContent: {
@@ -736,7 +740,7 @@ const s = StyleSheet.create({
         ...StyleSheet.absoluteFillObject,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(10,10,11,0.4)',
+        backgroundColor: 'rgba(255,255,255,0.45)',
     },
     personaName: {
         fontFamily: fonts.sansMedium,
