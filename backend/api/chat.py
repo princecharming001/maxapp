@@ -483,6 +483,44 @@ def _normalize_list_formatting(text: str) -> str:
     return "\n".join(lines)
 
 
+# Max's voice is lowercase, but a blanket .lower() mangles acronyms (SPF, AM,
+# PSL), units (D3, K2, SPF30), brand/proper nouns (CeraVe, EltaMD), and the
+# pronoun "I" — "use SPF in the AM" became "use spf in the am", which reads
+# sloppy/wrong to a user. _smart_lowercase lowercases ordinary prose but
+# preserves the tokens that carry meaning in their casing.
+_WORD_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9']*")
+_I_FORMS = {"I", "I'm", "I'd", "I'll", "I've"}
+# Title-case multi-word brands the structural rule alone would lowercase.
+_BRAND_PHRASES = (
+    "La Roche-Posay", "The Ordinary", "Paula's Choice", "Hada Labo",
+)
+
+
+def _recase_token(w: str) -> str:
+    """Decide one word's casing: keep acronyms/units/brands/'I', else lowercase."""
+    if w in _I_FORMS:
+        return w
+    if len(w) == 1:
+        return w if w == "I" else w.lower()
+    has_upper = any(c.isupper() for c in w)
+    if not has_upper:
+        return w  # already lowercase — leave it
+    if not any(c.islower() for c in w):
+        return w  # all-caps acronym / unit (SPF, AM, PSL, D3, SPF30)
+    if any(c.isupper() for c in w[1:]):
+        return w  # internal capital — brand / proper noun (CeraVe, EltaMD, iPhone)
+    return w.lower()  # only the first letter is capital — ordinary Title-case word
+
+
+def _smart_lowercase(text: str) -> str:
+    if not text:
+        return text
+    out = _WORD_TOKEN_RE.sub(lambda m: _recase_token(m.group(0)), text)
+    for brand in _BRAND_PHRASES:
+        out = re.sub(re.escape(brand), brand, out, flags=re.IGNORECASE)
+    return out
+
+
 def _keep_bold_drop_stray_asterisks(text: str) -> str:
     """Keep well-formed **bold** spans (the mobile renderer styles them) but
     drop stray single asterisks so the user never sees raw markdown emphasis."""
@@ -501,7 +539,8 @@ def _finalize_assistant_message(text: str, *, keep_links: bool = False) -> str:
        6. Strip inline amazon links (cards carry them) — UNLESS keep_links,
           which the explicit "give me links" fast path sets (its whole answer
           IS the links, and they're amazon SEARCH links with no catalog card).
-       7. Keep **bold**, drop stray asterisks, lowercase to Max voice.
+       7. Keep **bold**, drop stray asterisks, smart-lowercase to Max voice
+          (preserves acronyms/brands/units/"I").
     """
     if not text:
         return text
@@ -512,7 +551,7 @@ def _finalize_assistant_message(text: str, *, keep_links: bool = False) -> str:
     out = _normalize_list_formatting(out)
     if not keep_links:
         out = _strip_amazon_links(out)
-    return _keep_bold_drop_stray_asterisks(out).lower()
+    return _smart_lowercase(_keep_bold_drop_stray_asterisks(out))
 
 
 # Marker the LLM emits when it wants to clarify with MCQ chips. Server
