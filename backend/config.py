@@ -156,7 +156,13 @@ class Settings(BaseSettings):
         description="Hard cap for the serialized coaching_context blob added to prompts.",
     )
     chat_max_system_prompt_tokens: int = Field(
-        default=3200,
+        default=4096,
+        # The fully-assembled agent prompt (base + VOICE + product/MCQ/web rules +
+        # persona + diet ABSOLUTE RULES + length) is ~3.3k-3.6k tokens for a real
+        # user with onboarding facts. The old 3200 cap trimmed EVERY such user,
+        # gutting the persona/voice/product rules. 4096 fits the full prompt so
+        # nothing critical is dropped; the trim is now only a safety net for
+        # pathologically large briefs.
         description="Hard cap for the final system prompt after context injection.",
     )
 

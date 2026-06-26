@@ -775,13 +775,21 @@ async def build_agent_system_prompt(
             "- Answer first, then one concrete specific (product, dose, timing, or timeframe). No background, no throat-clearing."
         )
 
-    system_budget = int(getattr(settings, "chat_max_system_prompt_tokens", 3200) or 3200)
+    system_budget = int(getattr(settings, "chat_max_system_prompt_tokens", 4096) or 4096)
     if count_tokens(chat_prompt) > system_budget:
+        # Safety net only (the budget now fits a fully-loaded real-user prompt).
+        # Size the preserved head/tail to the budget itself — the old fixed
+        # 2200/900 chars slashed any over-budget prompt to ~780 tokens, dropping
+        # the VOICE block + persona from the middle. Head pins the diet ABSOLUTE
+        # RULES (top of prompt); tail pins the persona + length pref (end), so
+        # both safety and voice survive even when the middle is trimmed.
+        preserve_head = system_budget * 3                # ~diet rules + base + voice
+        preserve_tail = max(1500, system_budget)         # ~persona + length pref
         chat_prompt = trim_text_block(
             chat_prompt,
             max_tokens=system_budget,
-            preserve_head_chars=2200,
-            preserve_tail_chars=900,
+            preserve_head_chars=preserve_head,
+            preserve_tail_chars=preserve_tail,
         )
     return chat_prompt
 
