@@ -12,6 +12,7 @@ import SectionLabel from '../../components/SectionLabel';
 import AchievementBadge from '../../components/achievements/AchievementBadge';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { formatFaceRatingLabel } from '../../utils/faceRatingLabel';
+import { useQuery } from '@tanstack/react-query';
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
 import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
@@ -254,6 +255,13 @@ export default function ProfileScreen() {
     // Face-scan kill switch: hides the FACE SCORE card / scan entry points.
     const maxxesQuery = useMaxxesQuery();
     const schedulesFullQuery = useActiveSchedulesFullQuery();
+    // Live weekly completion — same source as the Weekly Review screen — so the
+    // card reflects real closed days this week instead of a stale profile field.
+    const weeklyQuery = useQuery({
+        queryKey: ['weeklyReview'],
+        queryFn: () => api.getWeeklyReview(),
+        staleTime: 60 * 1000,
+    });
     const activeMaxxes = useMemo(() => {
         const allMaxxes = maxxesQuery.data?.maxes ?? [];
         const schedules = schedulesFullQuery.data?.schedules ?? [];
@@ -533,6 +541,24 @@ export default function ProfileScreen() {
     const jsDay = new Date().getDay();          // 0=Sun … 6=Sat
     const todayIdx = (jsDay + 6) % 7;           // Mon=0 … Sun=6
     const streakClamped = Math.max(0, Math.min(streak, todayIdx + 1));
+    // Prefer the live weekly review: real per-day closed state + this-week count.
+    // Falls back to the streak-derived approximation while it's loading.
+    const now = new Date();
+    const localTodayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const weekDays = weeklyQuery.data?.days ?? [];
+    const weekPills =
+        weekDays.length > 0
+            ? weekDays.map((d) => ({
+                  letter: (d.weekday || '').charAt(0).toUpperCase(),
+                  closed: d.closed,
+                  isToday: d.date === localTodayISO,
+              }))
+            : DAYS.map((d, i) => ({
+                  letter: d,
+                  closed: i !== todayIdx && i <= todayIdx && i >= todayIdx - streakClamped + 1,
+                  isToday: i === todayIdx,
+              }));
+    const weekCount = weeklyQuery.data ? weeklyQuery.data.closed_count : streak;
     const achEarnedCount = achievements?.earned_count ?? earnedAch.length;
     const achTotal = achievements?.total ?? achList.length;
 
@@ -621,21 +647,23 @@ export default function ProfileScreen() {
                             <Text style={p.cardTitle}>Weekly Progress</Text>
                         </View>
                         <View style={p.daysRow}>
-                            {DAYS.map((d, i) => {
-                                const today = i === todayIdx;
-                                const done = !today && i <= todayIdx && i >= todayIdx - streakClamped + 1;
-                                return (
-                                    <View key={i} style={[p.dayPill, today && p.dayPillToday]}>
-                                        <View style={[p.dayDot, done && p.dayDotOn, today && p.dayDotToday]} />
-                                        <Text style={[p.dayLetter, today && p.dayLetterToday]}>{d}</Text>
-                                    </View>
-                                );
-                            })}
+                            {weekPills.map((pill, i) => (
+                                <View key={i} style={[p.dayPill, pill.isToday && p.dayPillToday]}>
+                                    <View
+                                        style={[
+                                            p.dayDot,
+                                            pill.closed && !pill.isToday && p.dayDotOn,
+                                            pill.isToday && p.dayDotToday,
+                                        ]}
+                                    />
+                                    <Text style={[p.dayLetter, pill.isToday && p.dayLetterToday]}>{pill.letter}</Text>
+                                </View>
+                            ))}
                         </View>
                         <View style={p.weekStats}>
                             <View>
                                 <Text style={p.eyebrow}>THIS WEEK</Text>
-                                <Text style={p.weekVal}>{streak} day{streak === 1 ? '' : 's'}</Text>
+                                <Text style={p.weekVal}>{weekCount} day{weekCount === 1 ? '' : 's'}</Text>
                             </View>
                             <TouchableOpacity onPress={() => navigation.navigate('Main', { screen: 'MasterScheduleTab' })} activeOpacity={0.7} style={{ alignItems: 'flex-end' }}>
                                 <Text style={p.eyebrow}>SCHEDULE</Text>

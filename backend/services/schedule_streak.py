@@ -25,6 +25,10 @@ FREEZES_KEY = "master_schedule_streak_freezes"
 FREEZE_USED_ON_KEY = "master_schedule_streak_freeze_used_on"
 RESET_ON_KEY = "master_schedule_streak_reset_on"
 MAX_ARMED_FREEZES = 2
+# Stable journey anchor: "Day 1" is the day the user onboarded their first max
+# (proxied by account creation in their tz). Persisted once so the day counter
+# keeps incrementing day-over-day and never resets when schedules regenerate.
+JOURNEY_START_KEY = "master_journey_start_date"
 
 
 def _user_tz(onboarding: dict | None) -> ZoneInfo:
@@ -37,6 +41,28 @@ def _user_tz(onboarding: dict | None) -> ZoneInfo:
 
 def local_today_date(onboarding: dict | None) -> date:
     return datetime.now(_user_tz(onboarding)).date()
+
+
+def _journey_start(user: User, profile: dict[str, Any], onboarding: dict | None, today: date) -> date:
+    """The fixed Day-1 anchor. Once persisted it never moves; otherwise it's the
+    account-creation date in the user's tz (≈ first-max onboarding day)."""
+    raw = profile.get(JOURNEY_START_KEY)
+    if raw:
+        try:
+            return date.fromisoformat(str(raw))
+        except (TypeError, ValueError):
+            pass
+    created = getattr(user, "created_at", None)
+    if created:
+        try:
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=ZoneInfo("UTC"))
+            d = created.astimezone(_user_tz(onboarding)).date()
+            if d <= today:
+                return d
+        except Exception:
+            pass
+    return today
 
 
 def _reconcile_missed(profile: dict[str, Any], today: date) -> bool:
@@ -136,7 +162,14 @@ async def sync_master_schedule_streak(
     Returns streak payload for API clients.
     """
     if not user:
-        return {"current": 0, "last_perfect_date": None, "today_date": date.today().isoformat()}
+        t = date.today()
+        return {
+            "current": 0,
+            "last_perfect_date": None,
+            "today_date": t.isoformat(),
+            "journey_start_date": t.isoformat(),
+            "day_number": 1,
+        }
 
     onboarding = dict(user.onboarding or {})
     today = local_today_date(onboarding)
@@ -145,10 +178,19 @@ async def sync_master_schedule_streak(
     changed = _reconcile_missed(profile, today)
     changed = _credit_if_perfect_day(profile, schedules, today) or changed
 
+    # Anchor (and persist once) the Day-1 date so the day counter is stable.
+    start = _journey_start(user, profile, onboarding, today)
+    if profile.get(JOURNEY_START_KEY) != start.isoformat():
+        profile[JOURNEY_START_KEY] = start.isoformat()
+        changed = True
+
     if changed:
         user.profile = profile
         flag_modified(user, "profile")
         user.updated_at = datetime.utcnow()
         await db.commit()
 
-    return streak_payload_from_profile(profile, today)
+    payload = streak_payload_from_profile(profile, today)
+    payload["journey_start_date"] = start.isoformat()
+    payload["day_number"] = max(1, (today - start).days + 1)
+    return payload

@@ -83,6 +83,14 @@ const ring = StyleSheet.create({
 
 type DayCell = { date: string; index: number; total: number; done: number; isToday: boolean };
 
+// Whole calendar days between two 'YYYY-MM-DD' dates (UTC-anchored so DST never
+// shifts the count). Used to turn the journey-start anchor into a day number.
+function diffDaysISO(fromISO: string, toISO: string): number {
+    return Math.round(
+        (Date.parse(`${toISO}T00:00:00Z`) - Date.parse(`${fromISO}T00:00:00Z`)) / 86400000,
+    );
+}
+
 // Onboarding "Stoic" black-and-white palette (matches OnboardingV2Screen).
 const BW = {
     bg: '#F1F1EF',
@@ -316,6 +324,17 @@ export default function HomeScreen() {
             const merged = mergeSchedules(full.schedules || [], labels, colorMap);
             const today =
                 full.today_date || full.schedule_streak?.today_date || fallbackToday;
+            // Stable Day-1 anchor from the backend (account/first-max date). When
+            // present, day numbers are real calendar days since onboarding —
+            // incrementing daily and immune to schedule regeneration. Falls back
+            // to positional indexing if an older backend isn't sending it yet.
+            const f = full as any;
+            const journeyStart: string | null =
+                f.journey_start_date || f.schedule_streak?.journey_start_date || null;
+            const backendDayNumber: number | null =
+                f.day_number ?? f.schedule_streak?.day_number ?? null;
+            const dayNumberFor = (d: string) =>
+                journeyStart ? diffDaysISO(journeyStart, d) + 1 : null;
             const dates = Object.keys(merged.byDate)
                 .filter((d) => (merged.byDate[d] || []).length > 0)
                 .sort();
@@ -323,9 +342,12 @@ export default function HomeScreen() {
                 const rows = merged.byDate[d] || [];
                 const total = rows.length;
                 const done = rows.filter((r) => r.status === 'completed').length;
-                return { date: d, index: i + 1, total, done, isToday: d === today };
+                return { date: d, index: dayNumberFor(d) ?? i + 1, total, done, isToday: d === today };
             });
-            const tIndex = dates.filter((d) => d <= today).length || 1;
+            const tIndex =
+                backendDayNumber ??
+                dayNumberFor(today) ??
+                (dates.filter((d) => d <= today).length || 1);
             return { days: cells, todayIndex: tIndex, dayCount: dates.length, byDate: merged.byDate, today };
         } catch {
             return { days: [] as DayCell[], todayIndex: 1, dayCount: 0, byDate: {} as Record<string, MergedScheduleTask[]>, today: fallbackToday };

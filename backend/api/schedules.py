@@ -165,6 +165,8 @@ async def get_all_active_schedules_full(
         "schedules": schedules,
         "schedule_streak": streak,
         "today_date": streak.get("today_date"),
+        "day_number": streak.get("day_number"),
+        "journey_start_date": streak.get("journey_start_date"),
         "newly_earned_achievements": newly_earned,
     }
 
