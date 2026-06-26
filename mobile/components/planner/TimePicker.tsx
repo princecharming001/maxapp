@@ -21,10 +21,14 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { colors, fonts, spacing } from '../../theme/dark';
 
 const ITEM_W = 112; // width of one time slot (fits "12:45 AM" on one line)
-const RAIL_H = 56;
+const RAIL_H = 64;
+const SHEET_BG = '#FFFFFF';   // the editor sheet surface (rail fades into it)
+const CAP_W = ITEM_W - 8;     // centered selection capsule width
 
 type Fmt = (m: number) => string;
 
@@ -86,15 +90,18 @@ function Rail({
     const i = Math.max(0, Math.min(items.length - 1, Math.round(x / ITEM_W)));
     const v = items[i];
     settled.current = v;
-    if (v !== value) onChange(v);
+    if (v !== value) {
+      Haptics.selectionAsync().catch(() => {});
+      onChange(v);
+    }
   };
 
   return (
     <View style={styles.railBlock}>
       {label ? <Text style={styles.railLabel}>{label}</Text> : null}
       <View style={[styles.rail, { width: railW }]}>
-        {/* Centre marker — a quiet baseline tick, not a filled band. */}
-        <View pointerEvents="none" style={[styles.tick, { backgroundColor: accent }]} />
+        {/* Centred selection capsule — a soft focus pane the chosen time sits in. */}
+        <View pointerEvents="none" style={styles.capsule} />
         <Animated.ScrollView
           ref={ref as any}
           horizontal
@@ -119,7 +126,7 @@ function Rail({
             ];
             const opacity = scrollX.interpolate({
               inputRange,
-              outputRange: [0.25, 0.5, 1, 0.5, 0.25],
+              outputRange: [0.12, 0.45, 1, 0.45, 0.12],
               extrapolate: 'clamp',
             });
             const scale = scrollX.interpolate({
@@ -150,6 +157,21 @@ function Rail({
             );
           })}
         </Animated.ScrollView>
+        {/* Edge fades — the side times dissolve into the sheet (editorial mask). */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={[SHEET_BG, 'rgba(255,255,255,0)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.fade, { left: 0, width: PAD }]}
+        />
+        <LinearGradient
+          pointerEvents="none"
+          colors={['rgba(255,255,255,0)', SHEET_BG]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.fade, { right: 0, width: PAD }]}
+        />
       </View>
     </View>
   );
@@ -242,21 +264,29 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     marginBottom: 2,
   },
-  rail: { height: RAIL_H, justifyContent: 'center' },
-  tick: {
+  rail: { height: RAIL_H, justifyContent: 'center', overflow: 'hidden' },
+  // Soft centered focus pane the selected time sits in — warm cream wash + hairline.
+  capsule: {
     position: 'absolute',
-    bottom: 6,
     alignSelf: 'center',
-    width: 22,
-    height: 2,
-    borderRadius: 1,
-    opacity: 0.9,
+    width: CAP_W,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#F4F2ED',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,0,0,0.06)',
+  },
+  // Left/right dissolve so the rail melts into the sheet at the edges.
+  fade: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
   },
   item: { height: RAIL_H, alignItems: 'center', justifyContent: 'center' },
   itemText: {
     fontFamily: fonts.serif,
-    fontSize: 25,
-    color: colors.textMuted,
+    fontSize: 26,
+    color: colors.foreground,
     letterSpacing: -0.4,
   },
 });
