@@ -70,6 +70,79 @@ export interface Personalization {
     experienceLevel?: string;
 }
 
+/**
+ * Stable goal-ranked reorder: items whose id matches one of `goalIds` come
+ * first, in goal-priority order; everything else keeps its original relative
+ * order. NEVER drops, hides, or duplicates an item — pure reorder. Returns a
+ * new array; with no goals the order is unchanged. Deterministic.
+ */
+export function rankByGoals<T>(
+    items: T[],
+    goalIds: string[],
+    idOf: (item: T) => string,
+): T[] {
+    if (!Array.isArray(items) || items.length === 0) return [];
+    if (!goalIds || goalIds.length === 0) return items.slice();
+    const rankOf = new Map<string, number>();
+    goalIds.forEach((g, i) => {
+        const k = String(g || '').toLowerCase();
+        if (k && !rankOf.has(k)) rankOf.set(k, i);
+    });
+    const FAR = Number.MAX_SAFE_INTEGER;
+    return items
+        .map((it, i) => {
+            const key = String(idOf(it) || '').toLowerCase();
+            return { it, i, r: rankOf.has(key) ? (rankOf.get(key) as number) : FAR };
+        })
+        .sort((a, b) => a.r - b.r || a.i - b.i)
+        .map((x) => x.it);
+}
+
+/** Streak day-counts that earn a one-time micro-celebration. */
+export const STREAK_MILESTONES: readonly number[] = [3, 7, 30, 100] as const;
+
+/**
+ * Return the milestone threshold if `days` is exactly one of them, else null.
+ * Only fires ON the milestone day — never on the days around it. Pure.
+ */
+export function streakMilestone(days: unknown): number | null {
+    const d = typeof days === 'number' && Number.isInteger(days) ? days : NaN;
+    return STREAK_MILESTONES.includes(d) ? d : null;
+}
+
+/**
+ * A short, factual one-liner tying a face-scan score to the user's archetype.
+ * Returns undefined when no archetype is present (caller renders nothing).
+ * Makes NO new claims — "read closest to" mirrors the existing archetype
+ * definition. Pure.
+ */
+export function archetypeLine(
+    archetype: string | null | undefined,
+    rating?: number | null,
+): string | undefined {
+    const a = typeof archetype === 'string' ? archetype.trim() : '';
+    if (!a) return undefined;
+    if (typeof rating === 'number' && Number.isFinite(rating)) {
+        return `Your features read closest to ${a} — that's the look your ${rating.toFixed(1)}/10 is built on.`;
+    }
+    return `Your features read closest to ${a}.`;
+}
+
+export type ExperienceTier = 'beginner' | 'intermediate' | 'advanced' | 'unknown';
+
+/**
+ * Normalize a free-ish experience level to a coarse tier. Anything we don't
+ * recognize → 'unknown' so callers fall back to today's generic content. Pure.
+ */
+export function experienceTier(level: unknown): ExperienceTier {
+    const s = String(level ?? '').trim().toLowerCase();
+    if (!s) return 'unknown';
+    if (/(advanced|expert|veteran|pro\b|experienced)/.test(s)) return 'advanced';
+    if (/(intermediate|some|moderate)/.test(s)) return 'intermediate';
+    if (/(beginner|begin|novice|new\b|none|starter|just)/.test(s)) return 'beginner';
+    return 'unknown';
+}
+
 /** Time-of-day greeting from a 0–23 hour. Pure. */
 export function greetingForHour(hour: number): string {
     const h = Number.isFinite(hour) ? hour : 0;

@@ -19,6 +19,7 @@ import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, moduleColorForSchedule,
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
 import { useFlag } from '../../constants/featureFlags';
+import { usePersonalization } from '../../hooks/usePersonalization';
 import { CachedImage } from '../../components/CachedImage';
 import { StreakFireBadge } from '../../components/StreakFireBadge';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
@@ -133,13 +134,6 @@ function formatScheduleDayLabel(isoDate: string | undefined | null) {
     if (diffDays === 1) return 'Tomorrow';
     if (diffDays === -1) return 'Yesterday';
     return dt.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-}
-
-function greetingForHour(): string {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good morning,';
-    if (h < 17) return 'Good afternoon,';
-    return 'Good evening,';
 }
 
 /* ─── Gradient habit card (per-max colour, grainy gradient fill) ─── */
@@ -425,7 +419,8 @@ export default function HomeScreen() {
         ]).start();
     }, [fadeAnim, slideAnim]);
 
-    const userName = user?.first_name || user?.email?.split('@')[0] || 'there';
+    const personalizedUI = useFlag('personalizedUI');
+    const pers = usePersonalization();
     // The programs the user has actively STARTED and that are running right now
     // — one chip per LIVE schedule (a native maxx OR a creator course). Built
     // from the active schedules, not the onboarding goals (which surfaced
@@ -509,7 +504,10 @@ export default function HomeScreen() {
         }
     };
 
-    const greeting = greetingForHour();
+    // Quiet, name-aware greeting atop the day counter. Only shown when we
+    // actually know the name — a nameless cold-start Home stays byte-identical
+    // to today (no orphan "Good morning" line, never "undefined").
+    const greetingLine = pers.firstName ? `${pers.greeting}, ${pers.firstName}` : null;
 
     /* ───── JSX ───── */
 
@@ -558,8 +556,13 @@ export default function HomeScreen() {
                         </View>
                     </View>
 
-                    {/* ── HEADER: kicker + DAY X / N ── */}
+                    {/* ── HEADER: greeting + kicker + DAY X / N ── */}
                     <View style={s.header}>
+                        {personalizedUI && greetingLine ? (
+                            <Text style={s.greeting} numberOfLines={1}>
+                                {greetingLine}
+                            </Text>
+                        ) : null}
                         <Text style={s.kicker} numberOfLines={1}>
                             {(activeDisplayLabel || 'TODAY').toUpperCase()}
                         </Text>
@@ -670,7 +673,11 @@ export default function HomeScreen() {
                             activeOpacity={0.72}
                         >
                             <Ionicons name="compass-outline" size={20} color={BW.mute} />
-                            <Text style={s.emptyProgramText}>Browse maxes in Explore</Text>
+                            <Text style={s.emptyProgramText}>
+                                {personalizedUI && pers.primaryGoalLabel
+                                    ? `Ready to start on ${pers.primaryGoalLabel}? Explore has a plan.`
+                                    : 'Browse maxes in Explore'}
+                            </Text>
                         </TouchableOpacity>
                     )}
 
@@ -705,8 +712,12 @@ const s = StyleSheet.create({
     avatarImg: { width: 38, height: 38, borderRadius: 19 },
     avatarInitial: { fontSize: 15, fontFamily: fonts.sansSemiBold, fontWeight: '600', color: BW.onInk },
 
-    /* Header — kicker + DAY X / N */
+    /* Header — greeting + kicker + DAY X / N */
     header: { paddingHorizontal: PAD, paddingTop: 10, paddingBottom: 18 },
+    greeting: {
+        fontSize: 16, fontFamily: fonts.serif, color: BW.mute,
+        letterSpacing: -0.2, marginBottom: 8,
+    },
     kicker: {
         fontSize: 12, fontFamily: fonts.sansSemiBold, fontWeight: '600',
         color: BW.mute, letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 6,

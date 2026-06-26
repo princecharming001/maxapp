@@ -30,6 +30,8 @@ import api from '../../services/api';
 import { clearFaceScanDraft, clearPendingFaceScanSubmit } from '../../lib/faceScanDraft';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
+import { useFlag } from '../../constants/featureFlags';
+import { archetypeLine } from '../../lib/personalization';
 import { CachedImage } from '../../components/CachedImage';
 import { userHasSignupPhone } from '../../utils/userPhone';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
@@ -834,6 +836,7 @@ export default function FaceScanResultsScreen() {
     const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
     const insets = useSafeAreaInsets();
     const { isPaid, isScanUser, refreshUser, user } = useAuth() as any;
+    const personalizedUI = useFlag('personalizedUI');
     const postPayParam = !!(route.params as RouteParams)?.postPay;
     const scanIdParam = (route.params as any)?.scanId as string | undefined;
     const viewingHistory = !!scanIdParam;
@@ -1305,6 +1308,12 @@ export default function FaceScanResultsScreen() {
 
                     <Text style={s.statsSectionTitle}>Your Analysis</Text>
 
+                    {/* Archetype one-liner — factual, only when a scan produced an
+                        archetype. Ties the score to *their* type; no new claims. */}
+                    {personalizedUI && !isProcessing && archetypeLine(archetype, ratingDisplay) ? (
+                        <Text style={s.archetypeLine}>{archetypeLine(archetype, ratingDisplay)}</Text>
+                    ) : null}
+
                     {/* Comprehensive looksmax breakdown — grouped mosaic sections.
                         Tap any tile to expand it in place; the rest reflow with no
                         gaps. Locked tiles blur the score behind an unlock prompt. */}
@@ -1599,6 +1608,14 @@ const s = StyleSheet.create({
         color: colors.foreground,
         letterSpacing: -0.8,
         marginBottom: 20,
+    },
+    archetypeLine: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 14,
+        lineHeight: 20,
+        color: colors.textMuted,
+        marginTop: -10,
+        marginBottom: 22,
     },
     breakdownHint: {
         fontFamily: 'Matter-Regular',

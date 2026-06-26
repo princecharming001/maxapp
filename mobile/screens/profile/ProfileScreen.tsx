@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { CachedImage } from '../../components/CachedImage';
 import SectionLabel from '../../components/SectionLabel';
 import AchievementBadge from '../../components/achievements/AchievementBadge';
+import { StreakMilestoneCallout } from '../../components/StreakMilestoneCallout';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { formatFaceRatingLabel } from '../../utils/faceRatingLabel';
 import { useQuery } from '@tanstack/react-query';
@@ -670,6 +671,7 @@ export default function ProfileScreen() {
                                 <Text style={p.weekVal}>Open →</Text>
                             </TouchableOpacity>
                         </View>
+                        <StreakMilestoneCallout />
                     </View>
 
                     {/* ── Progress Calendar ──────────────────────────── */}

@@ -31,6 +31,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import api, { type MarketplaceItem } from '../../services/api';
 import { maxMeta } from '../../utils/scheduleAggregation';
+import { useFlag } from '../../constants/featureFlags';
+import { usePersonalization } from '../../hooks/usePersonalization';
+import { rankByGoals } from '../../lib/personalization';
 
 const CACHE_KEY = 'marketplace_cache_v1';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -301,9 +304,20 @@ export default function MarketplaceScreen() {
     // Creator courses are temporarily disabled. The Creator tab shows a
     // "coming soon" state and courses are excluded from All — native maxes
     // only. (fCourses is still computed so re-enabling is a one-line change.)
-    const combined = useMemo<MarketplaceItem[]>(
+    const baseCombined = useMemo<MarketplaceItem[]>(
         () => (tab === 'creator' || tab === 'mine' ? [] : fMaxxes),
         [tab, fMaxxes],
+    );
+    // Quietly float the maxes that match the user's goals to the top — reorder
+    // only, never hide. Off / no-goals → original order (cold-start identical).
+    const personalizedUI = useFlag('personalizedUI');
+    const { goalIds } = usePersonalization();
+    const combined = useMemo<MarketplaceItem[]>(
+        () =>
+            personalizedUI && goalIds.length
+                ? rankByGoals(baseCombined, goalIds, (it) => it.id)
+                : baseCombined,
+        [personalizedUI, goalIds, baseCombined],
     );
     const suggested = useMemo(() => combined.slice(0, 5), [combined]);
     const emptyMsg = tab !== 'creator' && tab !== 'mine' && combined.length === 0
