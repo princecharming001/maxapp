@@ -464,7 +464,12 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                       key={`${o.label}-${idx}`}
                       style={styles.commitRow}
                       activeOpacity={0.6}
-                      onPress={() => obligationsRef.current?.openEdit(idx)}
+                      onPress={() => {
+                        // Close the sheet first so the editor modal isn't
+                        // presented behind it.
+                        setCommitmentsOpen(false);
+                        setTimeout(() => obligationsRef.current?.openEdit(idx), 280);
+                      }}
                     >
                       <View style={[styles.commitBar, { backgroundColor: accent }]} />
                       <View style={{ flex: 1 }}>
