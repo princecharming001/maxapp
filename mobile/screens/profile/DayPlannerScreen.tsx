@@ -331,7 +331,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         >
           {/* Masthead — just the title. No kicker, no instructional subhead. */}
           <View style={styles.masthead}>
-            <Text style={styles.title}>Your week</Text>
+            <Text style={styles.title}>
+              Your <Text style={styles.titleItalic}>week</Text>
+            </Text>
           </View>
 
           {/* Day strip — a rolling week starting today (today leftmost). Tap a day
@@ -679,6 +681,7 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     letterSpacing: -0.8,
   },
+  titleItalic: { fontFamily: fonts.serifItalic, fontStyle: 'italic' },
 
   // Rolling-week day strip — seven calendar-day rings across the width.
   weekStrip: {

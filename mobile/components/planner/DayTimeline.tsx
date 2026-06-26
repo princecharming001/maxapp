@@ -1,18 +1,16 @@
 /**
  * DayTimeline — a single day read as a vertical agenda, the primary way to SEE
- * and adjust your day. Every part of the day's shape is a block on a time-ordered
- * spine: wake, get-ready, your commitments, the workout window, wind-down. Tap a
+ * and adjust your day. Every part of the day's shape is a block on a ruled time
+ * axis: wake, get-ready, your commitments, the workout window, wind-down. Tap a
  * shape block (wake / get-ready / workout / wind-down) to adjust the times; tap a
- * commitment to edit it. Big touch targets, no tiny grid cells — the mobile-first
- * "vertical agenda" pattern rather than a cramped week grid.
+ * commitment to edit it.
  *
- * Pure presentation: it takes the already-resolved day for the chosen scope and
- * the obligations that apply, and reports taps back up. Persistence lives in the
- * planner screen.
+ * Editorial calendar styling: a left time gutter (tabular figures), a faint
+ * hairline rule per entry, and the entry itself as a clean floating card — no
+ * icons, no chevrons. Pure presentation; persistence lives in the planner screen.
  */
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '../../theme/dark';
 import type { ShapeFocus } from './DayEditorSheet';
 import {
@@ -28,16 +26,12 @@ import {
   daysLabel,
 } from './plannerModel';
 
-const WORKOUT_ACCENT = '#2F6B4E';
-const OB_INK = '#34343B';
-
 type Kind = 'wake' | 'ready' | 'workout' | 'sleep' | 'ob';
 
 type Row = {
   key: string;
   sortMin: number;
   time: string;
-  icon: string;
   label: string;
   sub?: string;
   kind: Kind;
@@ -66,7 +60,6 @@ export default function DayTimeline({
     key: 'wake',
     sortMin: eveMin(day.wakeWindow[0]),
     time: fmt12Compact(wakeMid),
-    icon: 'sunny-outline',
     label: 'Wake',
     sub: isExact(day.wakeWindow)
       ? undefined
@@ -82,7 +75,6 @@ export default function DayTimeline({
       key: 'ready',
       sortMin: eveMin(gr[0]),
       time: fmt12Compact(gr[0]),
-      icon: 'water-outline',
       label: 'Get ready',
       sub: `${fmt12Compact(gr[0])} – ${fmt12Compact(gr[1])} · AM routine`,
       kind: 'ready',
@@ -101,7 +93,6 @@ export default function DayTimeline({
       key: `ob-${i}-${o.start}`,
       sortMin: eveMin(o.start),
       time: fmt12Compact(o.start),
-      icon: o.label.toLowerCase().includes('commute') ? 'car-outline' : 'briefcase-outline',
       label: o.label,
       sub:
         scope === 'all'
@@ -119,7 +110,6 @@ export default function DayTimeline({
       key: 'workout',
       sortMin: eveMin(day.workoutWindow[0]),
       time: fmt12Compact(day.workoutWindow[0]),
-      icon: 'barbell-outline',
       label: 'Workout',
       sub: `Max fits it ${fmt12Compact(day.workoutWindow[0])} – ${fmt12Compact(day.workoutWindow[1])}`,
       kind: 'workout',
@@ -133,7 +123,6 @@ export default function DayTimeline({
     key: 'sleep',
     sortMin: eveMin(day.sleepWindow[0]),
     time: fmt12Compact(day.sleepWindow[0]),
-    icon: 'moon-outline',
     label: 'Wind down',
     sub: isExact(day.sleepWindow)
       ? `Bed by ${fmt12Compact(day.sleepWindow[0])}`
@@ -144,108 +133,76 @@ export default function DayTimeline({
 
   rows.sort((a, b) => a.sortMin - b.sortMin);
 
-  const accentFor = (k: Kind) =>
-    k === 'workout' ? WORKOUT_ACCENT : k === 'ob' ? OB_INK : colors.foreground;
-
   return (
     <View style={styles.wrap}>
-      {rows.map((r, idx) => {
+      {rows.map((r) => {
         const onPress =
           r.kind === 'ob'
             ? r.editable && r.obIndex != null
               ? () => onEditObligation?.(r.obIndex as number)
               : undefined
             : () => onEditShape(r.kind as ShapeFocus);
-        const last = idx === rows.length - 1;
         return (
-          <TouchableOpacity
-            key={r.key}
-            activeOpacity={onPress ? 0.6 : 1}
-            onPress={onPress}
-            disabled={!onPress}
-            style={styles.row}
-            accessibilityRole={onPress ? 'button' : undefined}
-            accessibilityLabel={`${r.label}, ${r.time}${onPress ? ', edit' : ''}`}
-          >
-            {/* Time gutter */}
-            <Text style={styles.time}>{r.time}</Text>
-
-            {/* Spine: dot + connecting line */}
-            <View style={styles.spine}>
-              <View style={[styles.dot, { backgroundColor: accentFor(r.kind) }]} />
-              {!last ? <View style={styles.line} /> : null}
-            </View>
-
-            {/* Block */}
-            <View
-              style={[
-                styles.block,
-                r.kind === 'workout' && styles.blockWorkout,
-                r.kind === 'ob' && styles.blockOb,
-              ]}
-            >
-              <View style={styles.iconTile}>
-                <Ionicons name={r.icon as any} size={19} color={accentFor(r.kind)} />
-              </View>
-              <View style={{ flex: 1 }}>
+          <View key={r.key} style={styles.entry}>
+            {/* Faint ruled line per entry — the time axis. */}
+            <View style={styles.rule} />
+            <View style={styles.entryRow}>
+              <Text style={styles.time}>{r.time}</Text>
+              <TouchableOpacity
+                activeOpacity={onPress ? 0.7 : 1}
+                onPress={onPress}
+                disabled={!onPress}
+                style={[styles.cardItem, r.kind === 'workout' && styles.cardItemWorkout]}
+                accessibilityRole={onPress ? 'button' : undefined}
+                accessibilityLabel={`${r.label}, ${r.time}${onPress ? ', edit' : ''}`}
+              >
                 <Text style={styles.label}>{r.label}</Text>
                 {r.sub ? <Text style={styles.sub}>{r.sub}</Text> : null}
-              </View>
-              {onPress ? (
-                <View style={styles.chev}>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-                </View>
-              ) : null}
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          </View>
         );
       })}
     </View>
   );
 }
 
+const WORKOUT_ACCENT = '#2F6B4E';
+
 const styles = StyleSheet.create({
-  wrap: { marginTop: 4 },
-  row: { flexDirection: 'row', alignItems: 'stretch', minHeight: 60 },
+  wrap: { marginTop: 6 },
+  entry: {},
+  // Full-width hairline that reads as a ruled time line behind each entry.
+  rule: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
+  entryRow: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 12, paddingBottom: 18 },
+  // Left time gutter — tabular figures so the column stays optically aligned.
   time: {
-    width: 58,
-    paddingTop: 18,
-    textAlign: 'right',
+    width: 64,
+    paddingTop: 15,
     fontFamily: fonts.sansMedium,
-    fontSize: 12.5,
-    color: colors.textMuted,
-    letterSpacing: 0.1,
+    fontSize: 13,
+    color: colors.foreground,
+    letterSpacing: 0.2,
+    fontVariant: ['tabular-nums'],
   },
-  spine: { width: 26, alignItems: 'center' },
-  dot: { width: 9, height: 9, borderRadius: 5, marginTop: 22 },
-  line: { flex: 1, width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginTop: 2 },
-  // Flat timeline rows — no card boxes; the spine + a hairline carry structure.
-  // Top-aligned so the time, dot, icon and label's first line all sit on one
-  // baseline even when a row has a second (sub) line.
-  block: {
+  // The entry as a clean floating card — white with a hairline edge and a very
+  // soft shadow so it lifts off the surface without an icon to carry it.
+  cardItem: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
   },
-  blockWorkout: {},
-  blockOb: {},
-  iconTile: {
-    width: 24,
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Same 22px height as the leading icon so the chevron centers on the label's
-  // first line instead of top-aligning above it.
-  chev: {
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: { fontFamily: fonts.sansSemiBold, fontSize: 15.5, color: colors.foreground, letterSpacing: -0.1 },
-  sub: { fontFamily: fonts.sans, fontSize: 12, color: colors.textMuted, marginTop: 2, letterSpacing: 0.05 },
+  // The one restrained accent: the workout card gets a thin green left edge.
+  cardItemWorkout: { borderLeftWidth: 2.5, borderLeftColor: WORKOUT_ACCENT },
+  label: { fontFamily: fonts.sansSemiBold, fontSize: 16, color: colors.foreground, letterSpacing: -0.1 },
+  sub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, marginTop: 3, letterSpacing: 0.05 },
 });
