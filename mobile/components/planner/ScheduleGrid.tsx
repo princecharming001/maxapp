@@ -12,7 +12,8 @@
  *   • On today only: a live "now" line + dot, and past events are dimmed.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { colors, fonts } from '../../theme/dark';
 import type { ShapeFocus } from './DayEditorSheet';
 import {
@@ -334,6 +335,16 @@ export default function ScheduleGrid({
                   accessibilityRole={e.onPress ? 'button' : undefined}
                   accessibilityLabel={`${e.label}, ${fmt12Compact(min2hhmm(e.start))}`}
                 >
+                  {/* Frosted glass: real blur of the timeline behind, a cool
+                      slate wash to pull the temperature down, and a bright top
+                      sheen for the glass edge. */}
+                  <BlurView
+                    intensity={Platform.OS === 'android' ? 24 : 30}
+                    tint="light"
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View pointerEvents="none" style={styles.cardGlass} />
+                  <View pointerEvents="none" style={styles.cardSheen} />
                   <View style={[styles.tick, { backgroundColor: e.accent }]} />
                   <View style={[styles.cardBody, tiny && styles.cardBodyTiny]}>
                     <Text
@@ -388,21 +399,28 @@ const styles = StyleSheet.create({
   },
 
   lane: { position: 'absolute', left: GUTTER, right: 0, top: 0, bottom: 0 },
-  // Minimal white card — hairline accent tick on the left, title top-aligned.
+  // Frosted-glass card — crisp, less-rounded corners, a cool slate tint, and a
+  // bright glass edge. A real BlurView fills it (added in the JSX); these layers
+  // sit on top to set the temperature and the rim light.
   card: {
     flex: 1, height: '100%', flexDirection: 'row', overflow: 'hidden',
-    backgroundColor: '#FFFFFF', borderRadius: 14,
+    backgroundColor: 'rgba(232,236,242,0.45)', // cool glass base (shows if blur is unsupported)
+    borderRadius: 9, borderCurve: 'continuous',
     marginRight: 6, marginBottom: 5,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.55)',
+    shadowColor: '#1B2436', shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 2,
   },
   cardPast: { opacity: 0.42 },
+  // Cool slate wash over the blur — pulls the warm cream behind toward glass.
+  cardGlass: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(222,228,237,0.40)' },
+  // Bright sheen across the top half — the lit edge of a glass pane.
+  cardSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '52%', backgroundColor: 'rgba(255,255,255,0.34)' },
   tick: { width: 3, height: '100%' },
   cardBody: { flex: 1, paddingHorizontal: 11, paddingVertical: 7, justifyContent: 'flex-start' },
   cardBodyTiny: { justifyContent: 'center', paddingVertical: 4 },
-  cardTitle: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.foreground, letterSpacing: -0.1 },
+  cardTitle: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: '#1C2430', letterSpacing: -0.1 },
   cardTitleNarrow: { fontSize: 13 },
-  cardTime: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.textMuted, marginTop: 3, fontVariant: ['tabular-nums'] },
+  cardTime: { fontFamily: fonts.sans, fontSize: 11.5, color: '#5B6472', marginTop: 3, fontVariant: ['tabular-nums'] },
 
   nowRow: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center' },
   nowDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: NOW_ACCENT, marginLeft: GUTTER - 7 },

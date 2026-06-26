@@ -415,6 +415,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             </TouchableOpacity>
           ) : null}
 
+          {/* Breathing room between the weekday strip and where the day begins. */}
+          <View style={styles.scheduleGap} />
+
           {/* The day as a calendar — hour gutter + events on the time axis. */}
           <ScheduleGrid
             day={dayForScope}
@@ -715,6 +718,8 @@ const styles = StyleSheet.create({
   dayRingNum: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground },
   dayRingNumSel: { color: '#fff' },
   resetRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', marginTop: 10, marginBottom: 2 },
+  // Pushes the day's timeline down so it doesn't crowd the weekday strip.
+  scheduleGap: { height: 18 },
   // Corner marker for a day whose shape differs from the baseline.
   dayEditedDot: {
     position: 'absolute',
