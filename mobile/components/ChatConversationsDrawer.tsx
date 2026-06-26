@@ -39,6 +39,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native'
+import { BlurView } from 'expo-blur';
 import { Alert, InAppAlertHost } from './InAppAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,10 +54,14 @@ import { fonts, spacing } from '../theme/dark';
 /* ── Refined black palette (drawer-local) ───────────────────────────── */
 const C = {
     bg:          '#0A0A0B',
-    bgRaised:    '#141416',
-    bgActive:    '#1E1E22',
-    border:      'rgba(255,255,255,0.06)',
-    borderStrong:'rgba(255,255,255,0.12)',
+    // Translucent surfaces — they sit over the frosted BlurView, so fills are
+    // whites-on-glass rather than opaque greys.
+    bgRaised:    'rgba(255,255,255,0.07)',
+    bgActive:    'rgba(255,255,255,0.10)',
+    border:      'rgba(255,255,255,0.08)',
+    borderStrong:'rgba(255,255,255,0.16)',
+    glassTint:   'rgba(12,12,15,0.46)',
+    glassEdge:   'rgba(255,255,255,0.14)',
     ink:         '#F5F5F4',         // primary text, near-white
     inkMuted:    'rgba(245,245,244,0.55)',
     inkDim:      'rgba(245,245,244,0.32)',
@@ -167,7 +172,7 @@ export default function ChatConversationsDrawer({
     /* Slide in from the LEFT (the menu button lives top-left, so the panel
        enters from the same edge). Keep the Modal mounted through the exit
        animation, then unmount. */
-    const tx = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+    const tx = useRef(new Animated.Value(OFFSCREEN_X)).current;
     const fade = useRef(new Animated.Value(0)).current;
     const [mounted, setMounted] = useState(visible);
 
@@ -180,7 +185,7 @@ export default function ChatConversationsDrawer({
             ]).start();
         } else {
             Animated.parallel([
-                Animated.timing(tx, { toValue: -DRAWER_WIDTH, duration: 200, useNativeDriver: true }),
+                Animated.timing(tx, { toValue: OFFSCREEN_X, duration: 200, useNativeDriver: true }),
                 Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: true }),
             ]).start(({ finished }) => {
                 if (finished) setMounted(false);
@@ -342,14 +347,27 @@ export default function ChatConversationsDrawer({
             <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
             <Animated.View
                 style={[
-                    s.drawer,
+                    s.drawerShadow,
                     {
-                        paddingTop: Math.max(insets.top + spacing.md, 44),
-                        paddingBottom: Math.max(insets.bottom + spacing.sm, spacing.md),
+                        top: insets.top + 10,
+                        bottom: insets.bottom + 10,
                         transform: [{ translateX: tx }],
                     },
                 ]}
             >
+              <View style={s.drawerClip}>
+                <BlurView intensity={48} tint="dark" style={StyleSheet.absoluteFill} />
+                <View style={[StyleSheet.absoluteFill, s.glassFill]} pointerEvents="none" />
+                <View style={[StyleSheet.absoluteFill, s.glassSheen]} pointerEvents="none" />
+                <View
+                    style={[
+                        s.drawerContent,
+                        {
+                            paddingTop: spacing.lg,
+                            paddingBottom: Math.max(insets.bottom + spacing.xs, spacing.md),
+                        },
+                    ]}
+                >
                 {/* ── Header ─────────────────────────────────────────── */}
                 <View style={s.header}>
                     <Text style={s.title}>Max</Text>
@@ -514,6 +532,8 @@ export default function ChatConversationsDrawer({
                         })}
                     </View>
                 </View>
+                </View>
+              </View>
             </Animated.View>
             {/* Host an alert layer INSIDE the drawer modal so delete-confirm /
                 tone+length error alerts fired from here render ABOVE the drawer
@@ -524,23 +544,46 @@ export default function ChatConversationsDrawer({
 }
 
 /* ── Styles ─────────────────────────────────────────────────────────── */
-const DRAWER_WIDTH = Platform.select({ default: 320, web: 360 }) ?? 320;
+const DRAWER_WIDTH = Platform.select({ default: 312, web: 360 }) ?? 312;
+// Slide fully clear of the screen (panel width + its left margin + shadow).
+const OFFSCREEN_X = -(DRAWER_WIDTH + 28);
 
 const s = StyleSheet.create({
     backdrop: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.55)',
+        backgroundColor: 'rgba(0,0,0,0.38)',
     },
-    drawer: {
-        // Anchored to the LEFT and slides in from the left edge — same side
-        // as the chat header's menu (hamburger) button, so the open gesture
-        // and the panel's entrance read as one motion.
+    /* Floating frosted-glass panel. Outer view carries the transform + soft
+       shadow (un-clipped); the inner clip rounds the corners and hosts the
+       BlurView. Slides in from the LEFT, same side as the menu button. */
+    drawerShadow: {
         position: 'absolute',
-        top: 0,
-        bottom: 0,
-        left: 0,
+        left: 10,
         width: DRAWER_WIDTH,
-        backgroundColor: C.bg,
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 28, shadowOffset: { width: 6, height: 10 } }
+            : { elevation: 16 }),
+    },
+    drawerClip: {
+        flex: 1,
+        borderRadius: 30,
+        overflow: 'hidden',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: C.glassEdge,
+        backgroundColor: Platform.OS === 'android' ? 'rgba(14,14,17,0.92)' : 'transparent',
+    },
+    // Dark wash over the blur so text stays legible against bright content.
+    glassFill: {
+        backgroundColor: C.glassTint,
+    },
+    // Faint top-down sheen for the glassy highlight.
+    glassSheen: {
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.10)',
+        backgroundColor: 'transparent',
+    },
+    drawerContent: {
+        flex: 1,
         paddingHorizontal: spacing.md,
     },
     /* header */
