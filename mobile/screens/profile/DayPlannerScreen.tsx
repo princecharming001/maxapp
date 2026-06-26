@@ -16,7 +16,7 @@
  * surface family used across the rest of the app. One restrained green accent marks
  * the workout, today's ring, and the assistant; everything else is monochrome ink.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -109,13 +109,6 @@ const SOFT = {
   elevation: 2,
 } as const;
 
-const CHAT_EXAMPLES = [
-  'Wake between 6:30 and 7:30 on weekdays',
-  'Sleep in until 10 on weekends',
-  'Add gym 6-7pm Mon, Wed, Fri',
-  'Work 9-5 on weekdays',
-];
-
 // Quick-tap prompts for the change sheet — chip label + the text it prefills.
 const SUGGESTIONS: { chip: string; text: string }[] = [
   { chip: 'Wake earlier', text: 'Wake between 6:30 and 7:30 on weekdays' },
@@ -159,14 +152,6 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   // Assistant (demoted): hidden behind a floating button, opened only on demand.
   const [chatInput, setChatInput] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
-  // Rotate the examples through the input's own placeholder (no chips, no
-  // dropdown — the bar IS the affordance).
-  const [phIdx, setPhIdx] = useState(0);
-  useEffect(() => {
-    if (chatInput) return;
-    const id = setInterval(() => setPhIdx((i) => (i + 1) % CHAT_EXAMPLES.length), 3500);
-    return () => clearInterval(id);
-  }, [chatInput]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatReply, setChatReply] = useState<string | null>(null);
   // Reply tone drives ONLY the bubble styling: 'success' shows the green check,
@@ -345,14 +330,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Masthead — editorial hero, matching the serif display headings used
-              across the rest of the app. */}
+          {/* Masthead — just the title. No kicker, no instructional subhead. */}
           <View style={styles.masthead}>
-            <Text style={styles.kicker}>PLANNER</Text>
             <Text style={styles.title}>Your week</Text>
-            <Text style={styles.subhead}>
-              Tap anything to adjust it. Max fits your routines into the open time around it.
-            </Text>
           </View>
 
           {/* Day strip — a rolling week starting today (today leftmost). Tap a day
@@ -703,28 +683,13 @@ const styles = StyleSheet.create({
   savingSlot: { width: 40, alignItems: 'flex-end', justifyContent: 'center' },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
 
-  // Masthead — the page's hero. Serif display title to match the rest of the app.
-  masthead: { paddingTop: spacing.xs, paddingBottom: spacing.sm },
-  kicker: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 11,
-    color: colors.textMuted,
-    letterSpacing: 1.8,
-    marginBottom: 8,
-  },
+  // Masthead — just the serif display title.
+  masthead: { paddingTop: spacing.sm, paddingBottom: spacing.xs },
   title: {
     fontFamily: fonts.serif,
     fontSize: 34,
     color: colors.foreground,
     letterSpacing: -0.8,
-    marginBottom: 8,
-  },
-  subhead: {
-    fontFamily: fonts.sans,
-    fontSize: 13.5,
-    color: colors.textSecondary,
-    lineHeight: 19,
-    letterSpacing: 0.05,
   },
 
   // Rolling-week day strip — seven calendar-day rings across the width.
@@ -796,22 +761,6 @@ const styles = StyleSheet.create({
     width: 34, height: 28, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
   },
   viewToggleBtnActive: { backgroundColor: colors.foreground },
-
-  sectionKicker: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 11,
-    color: colors.textMuted,
-    letterSpacing: 1.6,
-    marginBottom: 4,
-  },
-  sectionNote: {
-    fontFamily: fonts.sans,
-    fontSize: 12.5,
-    color: colors.textMuted,
-    lineHeight: 17,
-    marginBottom: spacing.md,
-    letterSpacing: 0.05,
-  },
 
   // Assistant — one plain input bar.
   chatReply: {
