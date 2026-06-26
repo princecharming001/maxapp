@@ -100,7 +100,6 @@ const ACCENT_WASH = 'rgba(47,107,78,0.10)';
 // planner reads as one surface family: a cream canvas with floating white cards
 // rather than a flat pure-white sheet.
 const BG = '#F1F1EF';   // cream canvas
-const PILL = '#EAE9E6'; // warm inset for unselected pills / toggles
 const SOFT = {
   shadowColor: '#000',
   shadowOpacity: 0.05,
@@ -364,25 +363,23 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                     <Text style={styles.resetLink}>Reset</Text>
                   </TouchableOpacity>
                 ) : null}
-                {/* List ↔ grid view toggle */}
-                <View style={styles.viewToggle}>
+                {/* Agenda ↔ grid — editorial underline tabs, no icons. */}
+                <View style={styles.viewTabs}>
                   {(['list', 'grid'] as const).map((m) => {
                     const active = planView === m;
                     return (
                       <TouchableOpacity
                         key={m}
                         onPress={() => setPlanView(m)}
-                        style={[styles.viewToggleBtn, active && styles.viewToggleBtnActive]}
-                        activeOpacity={0.8}
+                        style={[styles.viewTab, active && styles.viewTabActive]}
+                        activeOpacity={0.7}
                         accessibilityRole="button"
                         accessibilityLabel={m === 'list' ? 'Agenda view' : 'Grid view'}
                         accessibilityState={{ selected: active }}
                       >
-                        <Ionicons
-                          name={m === 'list' ? 'list-outline' : 'grid-outline'}
-                          size={16}
-                          color={active ? colors.background : colors.textMuted}
-                        />
+                        <Text style={[styles.viewTabText, active && styles.viewTabTextActive]}>
+                          {m === 'list' ? 'Agenda' : 'Grid'}
+                        </Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -429,7 +426,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             <BlurView intensity={32} tint="light" style={StyleSheet.absoluteFill} />
             <View style={styles.fabTint} />
             <View style={styles.fabSheen} />
-            <Ionicons name="add" size={26} color={colors.foreground} />
+            <Text style={styles.fabLabel}>Commitments</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -487,7 +484,6 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                           </View>
                         </View>
                       </View>
-                      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
                     </TouchableOpacity>
                   );
                 })
@@ -499,8 +495,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               activeOpacity={0.9}
               onPress={() => obligationsRef.current?.openAdd()}
             >
-              <Ionicons name="add" size={18} color={colors.background} />
-              <Text style={styles.commitAddText}>Add commitment</Text>
+              <Text style={styles.commitAddText}>Add a commitment</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -513,14 +508,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               accessibilityRole="button"
               accessibilityLabel="Tell Max in words"
             >
-              <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.commitChatText}>Or just tell Max in words</Text>
-              <Ionicons
-                name="arrow-forward"
-                size={15}
-                color={colors.textMuted}
-                style={{ marginLeft: 'auto' }}
-              />
             </TouchableOpacity>
           </View>
         </View>
@@ -557,9 +545,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
               {chatReply ? (
                 <View style={[styles.chatReply, chatReplyTone === 'warn' && styles.chatReplyWarn]}>
-                  <View style={[styles.chatReplyIcon, chatReplyTone === 'warn' && styles.chatReplyIconWarn]}>
-                    <Ionicons name={chatReplyTone === 'warn' ? 'alert' : 'checkmark'} size={13} color="#fff" />
-                  </View>
+                  <View style={[styles.chatReplyDot, chatReplyTone === 'warn' && styles.chatReplyDotWarn]} />
                   <Text style={styles.chatReplyText}>{chatReply}</Text>
                 </View>
               ) : (
@@ -600,7 +586,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                   {chatLoading ? (
                     <ActivityIndicator size="small" color={colors.background} />
                   ) : (
-                    <Ionicons name="arrow-up" size={18} color={sendDisabled ? colors.textMuted : colors.background} />
+                    <Text style={[styles.composerSendText, sendDisabled && styles.composerSendTextOff]}>
+                      Send
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -754,13 +742,11 @@ const styles = StyleSheet.create({
   scopeTitle: { fontFamily: fonts.sansSemiBold, fontSize: 17, color: colors.foreground, letterSpacing: -0.2 },
   scopeHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   resetLink: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: ACCENT, letterSpacing: 0.05 },
-  viewToggle: {
-    flexDirection: 'row', backgroundColor: PILL, borderRadius: 999, padding: 2,
-  },
-  viewToggleBtn: {
-    width: 34, height: 28, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
-  },
-  viewToggleBtnActive: { backgroundColor: colors.foreground },
+  viewTabs: { flexDirection: 'row', gap: 18 },
+  viewTab: { paddingBottom: 4, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  viewTabActive: { borderBottomColor: colors.foreground },
+  viewTabText: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.textMuted, letterSpacing: 0.2 },
+  viewTabTextActive: { color: colors.foreground, fontFamily: fonts.sansSemiBold },
 
   // Assistant — one plain input bar.
   chatReply: {
@@ -772,17 +758,15 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  chatReplyIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
+  chatReplyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: ACCENT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 1,
+    marginTop: 6,
   },
   chatReplyWarn: { backgroundColor: 'rgba(180,120,20,0.10)' },
-  chatReplyIconWarn: { backgroundColor: '#B47814' },
+  chatReplyDotWarn: { backgroundColor: '#B47814' },
   chatReplyText: { flex: 1, fontFamily: fonts.sans, fontSize: 13.5, color: colors.foreground, lineHeight: 19, letterSpacing: 0.05 },
   chatInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   chatInput: {
@@ -818,25 +802,31 @@ const styles = StyleSheet.create({
   fabShadow: {
     position: 'absolute',
     right: 16,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    borderRadius: 24,
     shadowColor: '#3A352B',
     shadowOpacity: 0.14,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 7 },
     elevation: 6,
   },
-  // The frosted glass disc: blur fills it, a hairline gives it an edge.
+  // The frosted glass capsule: blur fills it, a hairline gives it an edge, and a
+  // single typographic label names it — no icon.
   fab: {
-    flex: 1,
-    borderRadius: 28,
+    height: 48,
+    paddingHorizontal: 22,
+    borderRadius: 24,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.30)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.55)',
+  },
+  fabLabel: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 14,
+    color: colors.foreground,
+    letterSpacing: 0.2,
   },
   fabTint: {
     ...StyleSheet.absoluteFillObject,
@@ -904,14 +894,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.05,
   },
   composerSend: {
-    width: 42,
     height: 42,
+    paddingHorizontal: 20,
     borderRadius: 21,
     backgroundColor: colors.foreground,
     alignItems: 'center',
     justifyContent: 'center',
   },
   composerSendOff: { backgroundColor: colors.surface },
+  composerSendText: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.background, letterSpacing: 0.3 },
+  composerSendTextOff: { color: colors.textMuted },
 
   // Commitments sheet — the merged surface opened from the floating button.
   commitSheet: {
@@ -964,13 +956,16 @@ const styles = StyleSheet.create({
   },
   commitAddText: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.background, letterSpacing: 0.1 },
   commitChatRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    marginTop: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+    paddingVertical: 16,
+    marginTop: 8,
   },
-  commitChatText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.textSecondary, letterSpacing: 0.05 },
+  commitChatText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 13.5,
+    color: colors.textSecondary,
+    letterSpacing: 0.05,
+    textDecorationLine: 'underline',
+    textDecorationColor: colors.border,
+  },
 });
