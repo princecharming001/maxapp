@@ -350,7 +350,6 @@ export default function ChatConversationsDrawer({
                     s.drawerShadow,
                     {
                         top: insets.top + 10,
-                        bottom: insets.bottom + 10,
                         transform: [{ translateX: tx }],
                     },
                 ]}
@@ -568,7 +567,6 @@ const s = StyleSheet.create({
             : { elevation: 12 }),
     },
     drawerClip: {
-        flex: 1,
         borderRadius: 30,
         overflow: 'hidden',
         borderWidth: StyleSheet.hairlineWidth,
@@ -587,7 +585,6 @@ const s = StyleSheet.create({
         backgroundColor: 'transparent',
     },
     drawerContent: {
-        flex: 1,
         paddingHorizontal: spacing.md,
     },
     /* header */
@@ -648,8 +645,9 @@ const s = StyleSheet.create({
     },
     /* chats area */
     chatsWrap: {
-        flex: 1,
-        minHeight: 0,
+        // Panel now hugs its content (short popup); cap the recent list so a
+        // long history scrolls inside instead of stretching the panel.
+        maxHeight: 240,
     },
     row: {
         flexDirection: 'row',
