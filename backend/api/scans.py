@@ -362,6 +362,17 @@ async def upload_scan_triple(
                 "potential_score": analysis.get("potential_score"),
                 "archetype": pi.get("archetype"),
                 "suggested_modules": pi.get("suggested_modules") or [],
+                # New viral metrics.
+                "halo_feature": pr.get("halo_feature") or pi.get("halo_feature"),
+                "bottleneck": pr.get("bottleneck") or pi.get("bottleneck"),
+                "bottleneck_max": pr.get("bottleneck_max") or pi.get("bottleneck_max"),
+                "sex_appeal": pr.get("sex_appeal"),
+                "trust_appeal": pr.get("trust_appeal"),
+                "appeal_quadrant": pr.get("appeal_quadrant"),
+                "dimorphism": pr.get("dimorphism"),
+                "dimorphism_note": pr.get("dimorphism_note"),
+                "glow_up_label": pr.get("glow_up_label"),
+                "first_move": pr.get("first_move") or pi.get("first_move") or [],
                 "scan_completed_at": datetime.utcnow().isoformat() + "Z",
             }
             user.onboarding = ob

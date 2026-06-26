@@ -203,18 +203,18 @@ Set "psl_tier" to EXACTLY one of these strings, mapped from psl_score: <3.0 → 
 
 Rate based on BONE STRUCTURE and FEATURES — ignore grooming, lighting, photo quality, expression.
 
-ARCHETYPES — assign ONE primary archetype for field "archetype" from this list (use the label verbatim or the closest single label):
-- Pretty Boy: soft jaw, full lips, striking eyes, youthful/neotenous
-- Masculine: strong brow, wide jaw, angular, thick neck
-- Classic: balanced, harmonious, conventionally handsome
-- Exotic: distinctive ethnic features, unique striking structure
-- Rugged: mature, weathered, strong features with character
-- Vampire: pale, angular, hollow cheeks, intense gaze, ethereal
-- Superman: square jaw, strong chin, broad brow, all-American
-- Model: high cheekbones, hollow cheeks, editorial proportions
-- Dark: high contrast, intense eyes, angular, dark triad energy
-- Mogger: overwhelmingly good structure across all features, commands attention
-- Ogre: large/robust features, intimidating, low harmony but high impact
+ARCHETYPES — assign ONE primary archetype for field "archetype". Use EXACTLY one of these labels verbatim (pick the single closest one):
+- Classic Pretty Boy: soft-handsome, full lips, striking eyes, youthful
+- Softmaxxer: soft features, neotenous, reads approachable over angular
+- Rugged Masculine: mature, strong angular features with character
+- Model Face: high cheekbones, hollow cheeks, editorial proportions
+- Golden Retriever Face: warm, friendly, open, high-trust and approachable
+- Villain Face: sharp, intense, high-contrast, edgy dark-triad energy
+- K-Drama Face: clean, refined, soft-sharp balance, idol-like
+- Gym Bro Face: robust, full, masculine, high-impact thick features
+- Finance Bro Face: clean-cut, conventional, polished all-American
+- Mysterious Face: cool, distant, hard-to-read, intriguing
+- Low Trust / Intimidating Face: angular and severe, reads intense or unapproachable
 
 APPEAL is different from PSL. Appeal = overall real-world attractiveness including harmony, vibe, and halo effect. Normal 1-10 scale where 5 = average, 7 = clearly attractive. Set field "appeal".
 
@@ -239,6 +239,18 @@ MASCULINITY INDEX — 1.0 very feminine to 10.0 hyper masculine.
 MOG PERCENTILE — 1-99 vs same-age men.
 
 GLOW_UP_POTENTIAL — 1-100 room for non-surgical improvement.
+
+HALO FEATURE — set "halo_feature" to the user's single BEST / most attractive feature, framed as a halo. Use EXACTLY one: "Jawline Halo", "Eye Area Halo", "Hair Halo", "Skin Halo", "Smile Halo", "Cheekbone Halo", "Facial Harmony Halo". Pick their genuinely strongest one.
+
+BOTTLENECK (the one thing holding them back) — set "bottleneck" to EXACTLY one of: "Skin", "Hair", "Eye area", "Facial leanness", "Style / grooming", "Photo quality". Then set "bottleneck_max" to the SINGLE max id that best fixes it (one of skinmax, hairmax, fitmax, bonemax, heightmax).
+
+SEX APPEAL vs TRUST APPEAL — two INDEPENDENT 0-10 axes. "sex_appeal" = how attractive / exciting / desirable the face reads. "trust_appeal" = how safe / warm / trustworthy it reads. Some faces are hot but intimidating; some safe but unexciting. Then set "appeal_quadrant" to EXACTLY one (high/low split at 5.5): "Universally attractive" (high sex + high trust), "Mysterious & edgy" (high sex + low trust), "Approachable, needs edge" (low sex + high trust), "Needs a reset" (low sex + low trust).
+
+DIMORPHISM — set "dimorphism" 0-10 for how masculine (high) vs soft (low) the face presents overall. Set "dimorphism_note" to ONE short sentence explaining the balance (e.g. "leans masculine, but a soft eye area and skin balance it").
+
+GLOW_UP_LABEL — set "glow_up_label" to EXACTLY "High", "Medium", or "Low", based on how much is CONTROLLABLE without surgery (skin, hair, leanness, grooming, brows, facial hair, posture, photo presence). Good bone structure bottlenecked only by skin/hair/leanness = High. Already optimized or limited mostly by bone = Low.
+
+FIRST MOVE — set "first_move" to ONE, or at most TWO, max ids (from skinmax, hairmax, fitmax, bonemax, heightmax) that are the single most important place to START, highest priority first. This is the ONE action that matters most right now, not a full list.
 
 ADDITIONAL REQUIRED APP FIELDS (same JSON):
 - metrics: EXACTLY 6 objects in this order, each with id, label, score, summary:
@@ -698,6 +710,19 @@ def _normalize_triple_full_result(parsed: TripleFullScanResult) -> Dict[str, Any
     problems_out.extend(problems_raw)
     problems_out = problems_out[:6]
 
+    # New viral metrics → exposed on psl_rating + profile_insights.
+    pr["halo_feature"] = (parsed.halo_feature or "").strip()[:80]
+    pr["bottleneck"] = (parsed.bottleneck or "").strip()[:120]
+    pr["bottleneck_max"] = (parsed.bottleneck_max or "").strip().lower()[:40]
+    pr["sex_appeal"] = max(0.0, min(10.0, float(parsed.sex_appeal)))
+    pr["trust_appeal"] = max(0.0, min(10.0, float(parsed.trust_appeal)))
+    pr["appeal_quadrant"] = (parsed.appeal_quadrant or "").strip()[:60]
+    pr["dimorphism"] = max(0.0, min(10.0, float(parsed.dimorphism)))
+    pr["dimorphism_note"] = (parsed.dimorphism_note or "").strip()[:200]
+    pr["glow_up_label"] = (parsed.glow_up_label or "").strip()[:20]
+    first_move = [m.strip().lower()[:40] for m in (parsed.first_move or [])[:2] if m and str(m).strip()]
+    pr["first_move"] = first_move
+
     out["psl_rating"] = pr
     mods_norm = [
         m.strip()[:80] for m in (parsed.suggested_modules or [])[:8] if m and str(m).strip()
@@ -706,6 +731,10 @@ def _normalize_triple_full_result(parsed: TripleFullScanResult) -> Dict[str, Any
         mods_norm = _suggested_modules_from_umax_metrics(parsed.metrics)
     out["profile_insights"] = {
         "archetype": pr["archetype"],
+        "halo_feature": pr["halo_feature"],
+        "bottleneck": pr["bottleneck"],
+        "bottleneck_max": pr["bottleneck_max"],
+        "first_move": first_move,
         "problems": problems_out,
         "suggested_modules": mods_norm,
     }

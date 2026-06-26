@@ -2,7 +2,7 @@
 Face Scan Models - Structured outputs for AI analysis
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List, Any, Dict
 from datetime import datetime
 from enum import Enum
@@ -467,12 +467,41 @@ class TripleFullScanResult(BaseModel):
     preview_blurb: str
     problems: List[str]
     suggested_modules: List[str]
+    # New viral metrics (halo, failo, sex/trust, dimorphism, glow-up label, first move).
+    halo_feature: str
+    bottleneck: str
+    bottleneck_max: str
+    sex_appeal: float
+    trust_appeal: float
+    appeal_quadrant: str
+    dimorphism: float
+    dimorphism_note: str
+    glow_up_label: str
+    first_move: List[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_new_metrics(cls, data: Any) -> Any:
+        # Back-compat: a provider/old response that omits the new keys must still
+        # parse. Inject safe defaults before field validation.
+        if isinstance(data, dict):
+            for k, default in (
+                ("halo_feature", ""), ("bottleneck", ""), ("bottleneck_max", ""),
+                ("sex_appeal", 0.0), ("trust_appeal", 0.0), ("appeal_quadrant", ""),
+                ("dimorphism", 0.0), ("dimorphism_note", ""), ("glow_up_label", ""),
+                ("first_move", []),
+            ):
+                data.setdefault(k, default)
+        return data
 
     @field_validator(
         "psl_score",
         "potential",
         "appeal",
         "masculinity_index",
+        "sex_appeal",
+        "trust_appeal",
+        "dimorphism",
         mode="before",
     )
     @classmethod
@@ -508,7 +537,7 @@ class TripleFullScanResult(BaseModel):
         except Exception:
             return 0
 
-    @field_validator("aura_tags", "problems", "suggested_modules", mode="before")
+    @field_validator("aura_tags", "problems", "suggested_modules", "first_move", mode="before")
     @classmethod
     def _coerce_list_of_strings(cls, v: Any) -> List[str]:
         if v is None:
@@ -538,6 +567,12 @@ class TripleFullScanResult(BaseModel):
         "archetype",
         "psl_tier",
         "preview_blurb",
+        "halo_feature",
+        "bottleneck",
+        "bottleneck_max",
+        "appeal_quadrant",
+        "dimorphism_note",
+        "glow_up_label",
         mode="before",
     )
     @classmethod
