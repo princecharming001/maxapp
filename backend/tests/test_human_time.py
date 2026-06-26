@@ -6,6 +6,7 @@ from services.human_time import (
     humanize_days,
     life_windows,
     nudge_out_of_protected,
+    protected_spans,
     resolve_workout_window,
     why_line,
 )
@@ -44,6 +45,45 @@ def test_no_optional_lands_in_crunch_or_dinner():
     assert nudge_out_of_protected(8 * 60 + 30, w) >= 9 * 60
     # 7:00p is mid-dinner -> pushed past dinner's end
     assert nudge_out_of_protected(19 * 60, w) >= w.dinner[1]
+
+
+# --- commute-aware placement (Phase 3, flag-gated, additive) -------------------
+
+COMMUTE = {**NINE_TO_FIVE, "commute_minutes": 60}
+
+
+def test_commute_windows_derived_from_commute_minutes():
+    w = life_windows(COMMUTE)
+    # 60-min commute → 08:00-09:00 before work, 17:00-18:00 after.
+    assert w.commute_pre == (8 * 60, 9 * 60)
+    assert w.commute_post == (17 * 60, 18 * 60)
+    # Additive: the other windows are unchanged vs. the no-commute day.
+    base = life_windows(NINE_TO_FIVE)
+    assert base.commute_pre is None and base.commute_post is None
+    assert w.crunch == base.crunch and w.settle_in == base.settle_in
+
+
+def test_commute_is_protected_only_when_opted_in():
+    w = life_windows(COMMUTE)
+    # Default (flag off / not opted in) → commute NOT protected (byte-identical).
+    assert w.commute_pre not in protected_spans(w, include_commute=False)
+    # Opted in → both transit spans become protected.
+    spans = protected_spans(w, include_commute=True)
+    assert w.commute_pre in spans and w.commute_post in spans
+
+
+def test_hands_on_task_avoids_commute_when_enabled():
+    w = life_windows(COMMUTE)
+    # 08:05 sits in the commute (08:00-09:00) but outside the 08:15 crunch.
+    slot = 8 * 60 + 5
+    # Not opted in → left where it is (no behavior change).
+    assert nudge_out_of_protected(slot, w, include_commute=False) == slot
+    # Opted in → pushed past the morning commute.
+    assert nudge_out_of_protected(slot, w, include_commute=True) >= 9 * 60
+    # Evening transit (17:50) likewise clears the after-work commute.
+    pm = 17 * 60 + 50
+    assert nudge_out_of_protected(pm, w, include_commute=False) == pm
+    assert nudge_out_of_protected(pm, w, include_commute=True) >= 18 * 60
 
 
 # --- routine windows: get-ready (AM) and wind-down (PM) are user-set ranges ----

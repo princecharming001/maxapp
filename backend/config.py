@@ -133,6 +133,13 @@ class Settings(BaseSettings):
     # invent). Purely additive prompt guidance — collects no new data. Default
     # OFF so the brief stays byte-identical until the guidance is validated.
     personalized_framing: bool = Field(default=False)
+
+    # Commute-aware placement (Phase 3): when true, the human-time placement
+    # engine treats the user's stated commute (work_start - commute .. work_start
+    # and work_end .. work_end + commute) as a PROTECTED span, so hands-on tasks
+    # (skincare, workouts) don't land mid-transit. Bounded + additive. Default
+    # OFF so existing schedules are byte-identical until validated.
+    commute_aware_placement: bool = Field(default=False)
     chat_max_context_tokens: int = Field(
         default=8000,
         description="Hard ceiling for history + retrieved chunks tokens in the agent prompt.",

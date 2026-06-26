@@ -43,6 +43,23 @@ def hm(minutes: int) -> str:
     return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
+def to_min_int(value: Any, default: int = 0) -> int:
+    """Coerce a plain integer-ish value (e.g. commute_minutes) to int minutes."""
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _commute_placement_enabled() -> bool:
+    """Read the commute_aware_placement flag without a hard import dependency."""
+    try:
+        from config import settings
+        return bool(getattr(settings, "commute_aware_placement", False))
+    except Exception:
+        return False
+
+
 def _window(value: Any, *, night: bool = False) -> tuple[int, int] | None:
     """Parse a stored [start, end] 'HH:MM' window to (lo, hi) clock minutes.
     Returns None unless it's a well-formed, positive-width range. With night=True
@@ -89,6 +106,8 @@ class LifeWindows:
     dinner: tuple[int, int] | None      # PROTECTED for optionals (None if skipped)
     evening: tuple[int, int]            # free evening time
     wind_down: tuple[int, int]          # sleep-75 .. sleep-15 (PM routine)
+    commute_pre: tuple[int, int] | None = None   # transit before work (Phase 3)
+    commute_post: tuple[int, int] | None = None  # transit after work (Phase 3)
 
 
 def _first_work_block(ob_like: dict) -> tuple[int, int] | None:
@@ -210,6 +229,22 @@ def life_windows(state: dict) -> LifeWindows:
     if evening[1] <= evening[0]:
         evening = (max(wake + 60, wind_down[0] - 90), wind_down[0])
 
+    # Commute (transit) spans derived from the stated commute_minutes, bounded to
+    # a 2h sanity cap. Pure data — only PROTECTED when the caller opts in (the
+    # commute_aware_placement flag), so this never changes default placement.
+    commute_min = to_min_int(state.get("commute_minutes"))
+    commute_pre = commute_post = None
+    if commute_min > 0:
+        cm = min(commute_min, 120)
+        if work_start is not None:
+            lo = max(wake, work_start - cm)
+            if work_start > lo:
+                commute_pre = (lo, work_start)
+        if work_end is not None:
+            hi = min(work_end + cm, sleep_for_calc - 60)
+            if hi > work_end:
+                commute_post = (work_end, hi)
+
     return LifeWindows(
         wake=wake,
         sleep=sleep,
@@ -223,13 +258,22 @@ def life_windows(state: dict) -> LifeWindows:
         dinner=dinner,
         evening=evening,
         wind_down=wind_down,
+        commute_pre=commute_pre,
+        commute_post=commute_post,
     )
 
 
-def protected_spans(w: LifeWindows) -> list[tuple[int, int]]:
+def protected_spans(
+    w: LifeWindows, *, include_commute: bool | None = None
+) -> list[tuple[int, int]]:
     """Times where OPTIONAL tasks must never land: breakfast, the get-ready
     crunch, the settle-in right after work, and dinner (each only when it
-    actually exists for this user)."""
+    actually exists for this user).
+
+    When ``include_commute`` is True (or None and the commute_aware_placement
+    flag is on), the user's transit spans are also protected so hands-on tasks
+    don't land mid-commute. Default off → byte-identical to before.
+    """
     out: list[tuple[int, int]] = []
     if w.breakfast:
         out.append(w.breakfast)
@@ -239,13 +283,21 @@ def protected_spans(w: LifeWindows) -> list[tuple[int, int]]:
         out.append(w.settle_in)
     if w.dinner:
         out.append(w.dinner)
+    use_commute = _commute_placement_enabled() if include_commute is None else include_commute
+    if use_commute:
+        if w.commute_pre:
+            out.append(w.commute_pre)
+        if w.commute_post:
+            out.append(w.commute_post)
     return out
 
 
-def nudge_out_of_protected(minutes: int, w: LifeWindows, duration: int = 10) -> int:
+def nudge_out_of_protected(
+    minutes: int, w: LifeWindows, duration: int = 10, *, include_commute: bool | None = None
+) -> int:
     """Shift a slot forward past any protected span it falls into (or that
     it would overrun into within `duration`)."""
-    spans = sorted(protected_spans(w))
+    spans = sorted(protected_spans(w, include_commute=include_commute))
     m = minutes if minutes >= w.wake else minutes + 24 * 60
     for s, e in spans:
         if s < m + duration and m < e:
