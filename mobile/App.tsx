@@ -8,7 +8,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
+import * as Linking from 'expo-linking';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { getFlag } from './constants/featureFlags';
+import { parseReferralCode } from './lib/referralLink';
 import { RootNavigator } from './navigation/RootNavigator';
 import { queryClient } from './lib/queryClient';
 import { hydrateQueryClient, startQueryPersistence } from './lib/queryPersist';
@@ -88,6 +91,26 @@ function AppNavigator() {
         },
         [navRef],
     );
+
+    // Referral deep links (maxapp://referral/<CODE>): pre-fill the code on the
+    // paywall. No-op when the `referrals` flag is OFF, so it's inert today.
+    useEffect(() => {
+        if (!getFlag('referrals')) return;
+        let mounted = true;
+        const handle = (url: string | null) => {
+            const code = parseReferralCode(url);
+            if (!code) return;
+            const params = { referralCode: code };
+            if (navRef.isReady()) (navRef as any).navigate('Payment', params);
+            else pendingDeepLinkRef.current = { route: 'Payment', params };
+        };
+        const sub = Linking.addEventListener('url', (e) => mounted && handle(e.url));
+        void Linking.getInitialURL().then((u) => mounted && handle(u)).catch(() => undefined);
+        return () => {
+            mounted = false;
+            sub.remove();
+        };
+    }, [navRef]);
 
     // Clear badge count when the app enters the foreground and wire up
     // notification-tap deep-linking.

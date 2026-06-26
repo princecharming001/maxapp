@@ -96,6 +96,29 @@ export interface MarketplaceItemDetail {
     inside_video?: string;
 }
 
+export interface ReferralValidateResult {
+    valid: boolean;
+    kind?: 'free_comp' | 'discount' | 'referral';
+    free?: boolean;
+    discount?: { kind?: string; value?: number | null; label?: string } | null;
+    message: string;
+    reason?: string | null;
+}
+
+export interface ReferralRedeemResult {
+    result: 'comped' | 'discount_applied' | 'attributed';
+    kind: string;
+    free: boolean;
+    discount?: { kind?: string; value?: number | null; label?: string } | null;
+    redemption_id: string;
+    idempotent: boolean;
+    message: string;
+    discount_status?: 'coming_soon' | 'apple_offer' | 'stripe';
+    apple_offer_code?: string | null;
+    apple_offer_id?: string | null;
+    stripe_promotion_code?: string | null;
+}
+
 function envTargetsLoopback(url: string): boolean {
     return /localhost|127\.0\.0\.1|\[::1\]/i.test(url);
 }
@@ -1155,6 +1178,20 @@ class ApiService {
     // Marketplace
     async getMarketplace(): Promise<{ maxxes: MarketplaceItem[]; courses: MarketplaceItem[] }> {
         const response = await this.client.get('marketplace');
+        return response.data;
+    }
+
+    // --- Referral / promo codes (RALPH_REFERRAL) -------------------------------
+    /** Pure check, no side effects — used to show "code applied" before redeem. */
+    async validateReferral(code: string): Promise<ReferralValidateResult> {
+        const response = await this.client.post('referral/validate', { code });
+        return response.data;
+    }
+
+    /** Server-authoritative redeem. Free comps grant entitlement (caller should
+     *  refreshUser() and route past the paywall); discounts return platform targets. */
+    async redeemReferral(code: string, platform: 'ios' | 'web'): Promise<ReferralRedeemResult> {
+        const response = await this.client.post('referral/redeem', { code, platform });
         return response.data;
     }
 
