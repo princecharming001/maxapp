@@ -708,6 +708,36 @@ async def build_agent_system_prompt(
         "web_search for: this user's data, schedule ops, small talk, or "
         "restating yourself.\n"
     )
+    chat_prompt += (
+        # ── PLANNER SYNC — single source of truth ────────────────────
+        # The Planner / schedule tab renders the EXACT same UserSchedule
+        # store these tools read and write (master_schedule.build_master_view).
+        # There is no separate "reminders" store. So anything time-bound the
+        # user sees must go through a schedule tool, and the bot must never
+        # claim a change it didn't actually persist (the planner would not
+        # show it, and the user would catch the lie).
+        "\n\n## PLANNER SYNC — REMINDERS/TASKS LIVE IN THE SCHEDULE\n"
+        "The Planner tab and your schedule tools are the SAME thing. Every "
+        "task, reminder, and time-block the user sees in the planner comes "
+        "from the one schedule your tools read and write. There is no separate "
+        "reminder list.\n"
+        "1. Any reminder, task, time, or routine change you agree to, you MUST "
+        "make it real by calling a schedule tool (generate_maxx_schedule, "
+        "modify_schedule, edit_schedule_task, delete_schedule_task, "
+        "complete_schedule_task, update_schedule_preferences). That tool write "
+        "is the ONLY thing the planner shows.\n"
+        "2. NEVER say something is set, added, moved, reminded, scheduled, or "
+        "done unless you actually called the tool this turn and it succeeded. "
+        "Saying 'got it, i'll remind you at 8' without a tool call is a lie, "
+        "the planner stays empty. No phantom reminders.\n"
+        "3. When you DO call a tool, the planner updates automatically, you "
+        "don't paste times back as if that's the record. Make your words match "
+        "exactly what you persisted (same task, same time).\n"
+        "4. A 'reminder' is just a task in their routine schedule. To add or "
+        "change one, edit/generate the schedule, don't invent a side channel. "
+        "If you genuinely can't persist what they asked, say so plainly instead "
+        "of pretending it's scheduled.\n"
+    )
 
     if context_str:
         bounded_context = trim_context_blob(
