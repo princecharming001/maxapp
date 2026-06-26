@@ -506,30 +506,32 @@ export default function ChatConversationsDrawer({
                     </View>
 
                     <Text style={[s.label, { marginTop: 14 }]}>Length</Text>
-                    <View style={{ gap: 4 }}>
+                    <View style={s.lenRow}>
                         {LENGTH_OPTIONS.map((opt) => {
                             const active = opt.id === length;
                             const busy = savingLength === opt.id;
                             return (
                                 <TouchableOpacity
                                     key={opt.id}
-                                    style={s.lenRow}
+                                    style={[s.lenChip, active && s.lenChipActive]}
                                     onPress={() => applyLength(opt.id)}
-                                    activeOpacity={0.7}
+                                    activeOpacity={0.8}
                                     disabled={!!savingLength}
                                 >
-                                    <View style={[s.lenDot, active && s.lenDotActive]} />
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={[s.lenLabel, active && s.lenLabelActive]}>
+                                    {busy ? (
+                                        <ActivityIndicator size="small" color={active ? C.accentInk : C.ink} />
+                                    ) : (
+                                        <Text style={[s.lenChipText, active && s.lenChipTextActive]}>
                                             {opt.label}
                                         </Text>
-                                        <Text style={s.lenHint}>{opt.hint}</Text>
-                                    </View>
-                                    {busy && <ActivityIndicator size="small" color={C.inkMuted} />}
+                                    )}
                                 </TouchableOpacity>
                             );
                         })}
                     </View>
+                    <Text style={s.lenHint}>
+                        {LENGTH_OPTIONS.find((o) => o.id === length)?.hint}
+                    </Text>
                 </View>
                 </View>
               </View>
@@ -751,41 +753,41 @@ const s = StyleSheet.create({
         color: C.ink,
         fontFamily: fonts.sansSemiBold,
     },
-    /* length rows */
+    /* length — single-row segmented chips */
     lenRow: {
         flexDirection: 'row',
+        gap: 6,
+    },
+    lenChip: {
+        flex: 1,
+        paddingVertical: 9,
+        borderRadius: 10,
         alignItems: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 10,
-        borderRadius: 8,
-        backgroundColor: 'transparent',
-    },
-    lenDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
+        justifyContent: 'center',
         borderWidth: 1,
-        borderColor: C.borderStrong,
-        marginRight: 12,
+        borderColor: C.border,
+        backgroundColor: C.bgRaised,
     },
-    lenDotActive: {
+    lenChipActive: {
         backgroundColor: C.accent,
         borderColor: C.accent,
     },
-    lenLabel: {
+    lenChipText: {
         fontFamily: fonts.sansMedium,
-        fontSize: 13,
-        color: C.inkMuted,
+        fontSize: 12.5,
+        color: C.ink,
         letterSpacing: 0.1,
     },
-    lenLabelActive: {
-        color: C.ink,
+    lenChipTextActive: {
+        color: C.accentInk,
+        fontFamily: fonts.sansSemiBold,
     },
     lenHint: {
         fontFamily: fonts.sans,
-        fontSize: 10.5,
+        fontSize: 11,
         color: C.inkDim,
-        marginTop: 1,
+        marginTop: 8,
         letterSpacing: 0.1,
+        textAlign: 'center',
     },
 });
