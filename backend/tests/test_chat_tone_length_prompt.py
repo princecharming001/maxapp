@@ -42,8 +42,9 @@ def test_unknown_tone_falls_back_to_default_voice():
 
 
 @pytest.mark.parametrize("tone,signature", [
-    ("gentle", "warm, empathetic"),
-    ("hardcore", "ruthless, no-bullshit"),
+    # Personas rewritten (RALPH_PERSONAS): gentle -> Big Daddy, hardcore -> Goggins.
+    ("gentle", "BIG DADDY"),
+    ("hardcore", "GOGGINS"),
 ])
 def test_tone_preamble_reaches_assembled_prompt(tone, signature):
     # chat.py appends tone_preamble() to coaching_context, which the prompt
