@@ -119,6 +119,19 @@ prompt; production uses the fine-tuned Max model).
   harness gates only on the deterministic assertions; judge flags are printed for
   human review, never treated as confirmed defects.
 
+## Test status (RC8)
+The RC8-named suites are green: `test_persona_voices.py`,
+`test_chat_tone_length_prompt.py`, `test_copy_filter.py`,
+`test_server_copy_voice.py`, plus the new `test_prompt_audit.py` and
+`test_finalize_casing.py`. This work added ~45 passing tests (544 → 589) and
+introduced **zero** new failures. The 6 failures in the full suite
+(`test_chat_routing`, `test_entitlement_regression`,
+`test_fast_rag_and_retriever::…clean_citations`, `test_max_doc_pipeline`,
+`test_p0_security` ×2) are **pre-existing** — identical at baseline `954447e8`
+before any of this work — and are environmental (test-ordering/event-loop, a
+`_FakeResult` mock gap, and live-LLM non-determinism), not prompt-audit
+regressions.
+
 ## How to re-run
 ```
 cd backend
