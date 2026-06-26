@@ -775,9 +775,10 @@ async def build_agent_system_prompt(
             "- Every expansion must add real info: mechanisms, exact protocols, numbers, evidence. If you catch yourself restating, stop.\n"
             "- Structure: direct answer → specifics (ingredient + %, time, reps, macros) → one sentence on why. No intros, no end-summaries.\n"
             "- Precedence: length sets how MUCH you say; your coach voice sets HOW. "
-            "If your active voice is terse (e.g. the hardcore coach), keep its clipped, "
-            "percussive cadence even here. Depth comes from more concrete specifics and "
-            "more short hits, NOT from longer flowing sentences."
+            "Even a terse persona (e.g. the hardcore coach) STILL delivers the full "
+            "detail the user asked for here, do NOT go short on them. Give all the "
+            "specifics, just in your own cadence: more concrete steps and short "
+            "percussive hits rather than long flowing sentences."
         )
     else:
         chat_prompt += (
