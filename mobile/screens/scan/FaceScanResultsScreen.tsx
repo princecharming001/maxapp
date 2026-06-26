@@ -994,6 +994,28 @@ export default function FaceScanResultsScreen() {
     if (!suggestedMods.length && a) suggestedMods = suggestedModulesFromUmax(a);
     suggestedMods = suggestedMods.slice(0, 3);
 
+    // ── New viral metrics (halo / failo / sex+trust / dimorphism / glow-up / first move) ──
+    const _num10 = (v: any): number | null => {
+        const n = parseFloat(String(v ?? ''));
+        return Number.isNaN(n) ? null : Math.max(0, Math.min(10, n));
+    };
+    const haloFeature = String(pr?.halo_feature || pi?.halo_feature || facialSummary?.halo_feature || '').trim();
+    const bottleneck = String(pr?.bottleneck || pi?.bottleneck || facialSummary?.bottleneck || '').trim();
+    const bottleneckMax = String(pr?.bottleneck_max || pi?.bottleneck_max || facialSummary?.bottleneck_max || '').trim();
+    const sexAppeal = _num10(pr?.sex_appeal ?? facialSummary?.sex_appeal);
+    const trustAppeal = _num10(pr?.trust_appeal ?? facialSummary?.trust_appeal);
+    const appealQuadrant = String(pr?.appeal_quadrant || facialSummary?.appeal_quadrant || '').trim();
+    const dimorphism = _num10(pr?.dimorphism ?? facialSummary?.dimorphism);
+    const dimorphismNote = String(pr?.dimorphism_note || facialSummary?.dimorphism_note || '').trim();
+    const glowUpLabel = String(pr?.glow_up_label || facialSummary?.glow_up_label || '').trim();
+    const firstMove: string[] = (
+        Array.isArray(pr?.first_move) ? pr.first_move
+        : Array.isArray(pi?.first_move) ? pi.first_move
+        : Array.isArray(facialSummary?.first_move) ? facialSummary.first_move
+        : []
+    ).map(String).filter(Boolean).slice(0, 2);
+    const glowUpGain = ratingDisplay != null ? Math.max(0, Math.round((potentialDisplay - ratingDisplay) * 10) / 10) : null;
+
     const goPayment = () => navigation.navigate('Payment');
 
     const onPrimaryCta = async () => {
@@ -1314,6 +1336,91 @@ export default function FaceScanResultsScreen() {
                         <Text style={s.archetypeLine}>{archetypeLine(archetype, ratingDisplay)}</Text>
                     ) : null}
 
+                    {/* ── Verdict: the viral read + the one First Move ─────── */}
+                    {!isProcessing ? (
+                        <View style={s.verdict}>
+                            {firstMove.length > 0 ? (
+                                <View style={s.firstMoveCard}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.firstMoveKicker}>YOUR FIRST MOVE</Text>
+                                        {locked ? (
+                                            <View style={s.firstMoveLockRow}>
+                                                <Ionicons name="lock-closed" size={19} color="#FFFFFF" />
+                                                <Text style={s.firstMoveValue}>Locked</Text>
+                                            </View>
+                                        ) : (
+                                            <Text style={s.firstMoveValue}>{firstMove.map(formatSuggestedModuleTitle).join(' + ')}</Text>
+                                        )}
+                                        <Text style={s.firstMoveSub}>
+                                            {locked ? 'Unlock to see exactly where to start.' : 'Start here. The one move that moves the needle most.'}
+                                        </Text>
+                                    </View>
+                                    <Ionicons name="arrow-forward-circle" size={30} color="rgba(255,255,255,0.9)" />
+                                </View>
+                            ) : null}
+
+                            {(haloFeature || bottleneck) ? (
+                                <View style={s.verdictRow}>
+                                    {haloFeature ? (
+                                        <View style={[s.verdictCard, { borderColor: '#2F6B4E55' }]}>
+                                            <View style={[s.verdictDot, { backgroundColor: '#2F6B4E' }]} />
+                                            <Text style={s.verdictLabel}>YOUR HALO</Text>
+                                            <Text style={s.verdictValue} numberOfLines={2} adjustsFontSizeToFit>{locked ? '—' : haloFeature}</Text>
+                                            <Text style={s.verdictSub}>Your biggest natural edge.</Text>
+                                        </View>
+                                    ) : null}
+                                    {bottleneck ? (
+                                        <View style={[s.verdictCard, { borderColor: '#C0452C55' }]}>
+                                            <View style={[s.verdictDot, { backgroundColor: '#C0452C' }]} />
+                                            <Text style={s.verdictLabel}>BOTTLENECK</Text>
+                                            <Text style={s.verdictValue} numberOfLines={2} adjustsFontSizeToFit>{locked ? '—' : bottleneck}</Text>
+                                            <Text style={s.verdictSub}>{!locked && bottleneckMax ? `Fix it with ${formatSuggestedModuleTitle(bottleneckMax)}.` : 'What is holding you back.'}</Text>
+                                        </View>
+                                    ) : null}
+                                </View>
+                            ) : null}
+
+                            {!locked && (sexAppeal != null || trustAppeal != null) ? (
+                                <View style={s.appealCard}>
+                                    <Text style={s.verdictLabel}>SEX APPEAL vs TRUST APPEAL</Text>
+                                    <View style={s.appealRow}>
+                                        <View style={s.appealCol}>
+                                            <Text style={s.appealNum}>{(sexAppeal ?? 0).toFixed(1)}</Text>
+                                            <Text style={s.appealColLabel}>Sex appeal</Text>
+                                        </View>
+                                        <View style={s.appealDivider} />
+                                        <View style={s.appealCol}>
+                                            <Text style={s.appealNum}>{(trustAppeal ?? 0).toFixed(1)}</Text>
+                                            <Text style={s.appealColLabel}>Trust appeal</Text>
+                                        </View>
+                                    </View>
+                                    {appealQuadrant ? <Text style={s.appealQuadrant}>{appealQuadrant}</Text> : null}
+                                </View>
+                            ) : null}
+
+                            {(dimorphism != null || glowUpLabel) ? (
+                                <View style={s.verdictRow}>
+                                    {dimorphism != null ? (
+                                        <View style={[s.verdictCard, { borderColor: '#4A4A7055' }]}>
+                                            <View style={[s.verdictDot, { backgroundColor: '#4A4A70' }]} />
+                                            <Text style={s.verdictLabel}>DIMORPHISM</Text>
+                                            <Text style={s.verdictValue}>{locked ? '—' : `${dimorphism.toFixed(1)}/10`}</Text>
+                                            <Text style={s.verdictSub} numberOfLines={2}>{locked || !dimorphismNote ? 'Masculine vs soft balance.' : dimorphismNote}</Text>
+                                        </View>
+                                    ) : null}
+                                    {glowUpLabel ? (
+                                        <View style={[s.verdictCard, { borderColor: '#BC8B5755' }]}>
+                                            <View style={[s.verdictDot, { backgroundColor: '#BC8B57' }]} />
+                                            <Text style={s.verdictLabel}>GLOW-UP POTENTIAL</Text>
+                                            <Text style={s.verdictValue}>{locked ? '—' : glowUpLabel}</Text>
+                                            <Text style={s.verdictSub}>{!locked && glowUpGain ? `Est. +${glowUpGain.toFixed(1)} points` : 'How much is in your control.'}</Text>
+                                        </View>
+                                    ) : null}
+                                </View>
+                            ) : null}
+                        </View>
+                    ) : null}
+
                     {/* Comprehensive looksmax breakdown — grouped mosaic sections.
                         Tap any tile to expand it in place; the rest reflow with no
                         gaps. Locked tiles blur the score behind an unlock prompt. */}
@@ -1504,6 +1611,30 @@ export default function FaceScanResultsScreen() {
 
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: '#111111' },
+
+    /* ── Verdict block (viral metrics + first move) ── */
+    verdict: { marginTop: 6, marginBottom: 6 },
+    firstMoveCard: {
+        flexDirection: 'row', alignItems: 'center', gap: 12,
+        backgroundColor: '#15130F', borderRadius: 22, paddingHorizontal: 20, paddingVertical: 20, marginBottom: 12,
+    },
+    firstMoveKicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,0.55)', marginBottom: 6 },
+    firstMoveLockRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    firstMoveValue: { fontFamily: fonts.serif, fontSize: 28, color: '#FFFFFF', letterSpacing: -0.5 },
+    firstMoveSub: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: 'rgba(255,255,255,0.5)', marginTop: 6 },
+    verdictRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+    verdictCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, padding: 16, minHeight: 118, ...GLASS_SHADOW },
+    verdictDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 10 },
+    verdictLabel: { fontFamily: 'Matter-Medium', fontSize: 10.5, letterSpacing: 0.8, color: BENTO_SUB, textTransform: 'uppercase' },
+    verdictValue: { fontFamily: fonts.serif, fontSize: 20, color: BENTO_INK, letterSpacing: -0.3, marginTop: 5 },
+    verdictSub: { fontFamily: 'Matter-Regular', fontSize: 11.5, color: BENTO_SUB, marginTop: 6, lineHeight: 15 },
+    appealCard: { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#CC6F7355', padding: 18, marginBottom: 12, ...GLASS_SHADOW },
+    appealRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+    appealCol: { flex: 1, alignItems: 'center' },
+    appealDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: 'rgba(0,0,0,0.1)' },
+    appealNum: { fontFamily: fonts.serif, fontSize: 30, color: BENTO_INK, letterSpacing: -0.5 },
+    appealColLabel: { fontFamily: 'Matter-Medium', fontSize: 11.5, color: BENTO_SUB, marginTop: 2 },
+    appealQuadrant: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: '#B0556F', textAlign: 'center', marginTop: 14 },
 
     /* ── Loading / fetching ── */
     loadingRoot: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg },
