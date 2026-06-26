@@ -674,17 +674,6 @@ export default function HomeScreen() {
                         </TouchableOpacity>
                     )}
 
-                    {/* ── CTA ── */}
-                    {days.length > 0 && (
-                        <TouchableOpacity
-                            style={s.cta}
-                            onPress={() => navigation.navigate('MasterScheduleTab')}
-                            activeOpacity={0.88}
-                        >
-                            <Text style={s.ctaText}>SEE MY PROGRESS</Text>
-                        </TouchableOpacity>
-                    )}
-
                 </Animated.View>
             </ScrollView>
         </View>
