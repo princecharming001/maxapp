@@ -11,8 +11,8 @@
  *   │ chat 2               │
  *   │ ...                  │
  *   ├──────────────────────┤
- *   │ Tone                 │   ← stacked at bottom, fixed
- *   │ [softcore][med][hard]│
+ *   │ Coach                │   ← stacked at bottom, fixed
+ *   │ (Goggins)(Clav)(Dad) │   ← floating 3D persona avatars
  *   │ Length               │
  *   │ • Concise            │
  *   │ • Medium             │
@@ -28,6 +28,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     Animated,
+    Easing,
     Modal,
     Platform,
     Pressable,
@@ -82,21 +83,50 @@ export type ChatConversationsDrawerProps = {
     onCreated: (conversationId: string) => void;
 };
 
-/* ── Preference vocabularies ────────────────────────────────────────── */
-type ToneId = 'softcore' | 'mediumcore' | 'hardcore';
-type ToneBackend = 'gentle' | 'default' | 'hardcore';
+/* ── Coach personas ─────────────────────────────────────────────────────
+   The three named coaches replace the old softcore/mediumcore/hardcore tone
+   pills. Each rides on an existing backend `coaching_tone` slug so no schema
+   change is needed; the persona voices themselves are filled in backend-side.
+     Goggins    → hardcore   (hard motivation)
+     Clavicular → influencer (looksmaxxing-coded)
+     Big Daddy  → gentle     (supportive) */
+type PersonaId = 'goggins' | 'clavicular' | 'bigdaddy';
+type ToneBackend = 'gentle' | 'default' | 'hardcore' | 'influencer';
 
-const TONE_OPTIONS: { id: ToneId; backend: ToneBackend; label: string }[] = [
-    { id: 'softcore',   backend: 'gentle',   label: 'Softcore'   },
-    { id: 'mediumcore', backend: 'default',  label: 'Mediumcore' },
-    { id: 'hardcore',   backend: 'hardcore', label: 'Hardcore'   },
+const PERSONA_OPTIONS: { id: PersonaId; backend: ToneBackend; label: string; img: any; glow: string }[] = [
+    { id: 'goggins',    backend: 'hardcore',   label: 'Goggins',    img: require('../assets/personas/goggins.png'),    glow: '#EC7E5C' },
+    { id: 'clavicular', backend: 'influencer', label: 'Clavicular', img: require('../assets/personas/clavicular.png'), glow: '#5B8DEF' },
+    { id: 'bigdaddy',   backend: 'gentle',     label: 'Big Daddy',  img: require('../assets/personas/bigdaddy.png'),   glow: '#E0A15B' },
 ];
-const TONE_BY_BACKEND: Record<string, ToneId> = {
-    gentle: 'softcore',
-    default: 'mediumcore',
-    hardcore: 'hardcore',
-    influencer: 'mediumcore',
+const PERSONA_BY_BACKEND: Record<string, PersonaId> = {
+    hardcore: 'goggins',
+    influencer: 'clavicular',
+    gentle: 'bigdaddy',
+    default: 'clavicular',   // legacy 'default' users land on the on-brand middle coach
 };
+
+/* A persona avatar that gently floats in place (Explore-style motion). The
+   selected coach renders full-strength; the others sit dimmed. */
+function FloatingAvatar({ img, active, delay }: { img: any; active: boolean; delay: number }) {
+    const y = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        const loop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(y, { toValue: -5, duration: 1500, delay, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+                Animated.timing(y, { toValue: 0,  duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+            ]),
+        );
+        loop.start();
+        return () => loop.stop();
+    }, [y, delay]);
+    return (
+        <Animated.Image
+            source={img}
+            resizeMode="contain"
+            style={[s.personaImg, { transform: [{ translateY: y }] }, !active && s.personaImgDim]}
+        />
+    );
+}
 
 type LengthId = 'concise' | 'medium' | 'detailed';
 const LENGTH_OPTIONS: { id: LengthId; label: string; hint: string }[] = [
@@ -163,19 +193,19 @@ export default function ChatConversationsDrawer({
     const [renameValue, setRenameValue] = useState('');
 
     /* Preferences */
-    const initialTone: ToneId =
-        TONE_BY_BACKEND[user?.coaching_tone || 'default'] || 'mediumcore';
+    const initialPersona: PersonaId =
+        PERSONA_BY_BACKEND[user?.coaching_tone || 'default'] || 'clavicular';
     const initialLength: LengthId =
         (user?.onboarding?.response_length as LengthId) || 'medium';
 
-    const [tone, setTone] = useState<ToneId>(initialTone);
+    const [persona, setPersona] = useState<PersonaId>(initialPersona);
     const [length, setLength] = useState<LengthId>(initialLength);
-    const [savingTone, setSavingTone] = useState<ToneId | null>(null);
+    const [savingPersona, setSavingPersona] = useState<PersonaId | null>(null);
     const [savingLength, setSavingLength] = useState<LengthId | null>(null);
 
     React.useEffect(() => {
         if (!user) return;
-        setTone(TONE_BY_BACKEND[user.coaching_tone || 'default'] || 'mediumcore');
+        setPersona(PERSONA_BY_BACKEND[user.coaching_tone || 'default'] || 'clavicular');
         setLength((user?.onboarding?.response_length as LengthId) || 'medium');
     }, [user]);
 
@@ -265,25 +295,25 @@ export default function ChatConversationsDrawer({
         [activeConversationId, invalidate, onSelect, queryClient]
     );
 
-    const applyTone = useCallback(
-        async (next: ToneId) => {
-            if (next === tone || savingTone) return;
-            const target = TONE_OPTIONS.find((t) => t.id === next);
+    const applyPersona = useCallback(
+        async (next: PersonaId) => {
+            if (next === persona || savingPersona) return;
+            const target = PERSONA_OPTIONS.find((p) => p.id === next);
             if (!target) return;
-            const previous = tone;
-            setTone(next);
-            setSavingTone(next);
+            const previous = persona;
+            setPersona(next);
+            setSavingPersona(next);
             try {
                 await api.patchCoachingTone(target.backend);
                 await refreshUser().catch(() => undefined);
             } catch (e: any) {
-                setTone(previous);
-                Alert.alert('Could not update tone', e?.message || 'Please try again.');
+                setPersona(previous);
+                Alert.alert('Could not update coach', e?.message || 'Please try again.');
             } finally {
-                setSavingTone(null);
+                setSavingPersona(null);
             }
         },
-        [refreshUser, savingTone, tone]
+        [persona, refreshUser, savingPersona]
     );
 
     const applyLength = useCallback(
@@ -422,29 +452,37 @@ export default function ChatConversationsDrawer({
                 <View style={s.settings}>
                     <View style={s.divider} />
 
-                    <Text style={s.label}>Tone</Text>
-                    <View style={s.toneRow}>
-                        {TONE_OPTIONS.map((opt) => {
-                            const active = opt.id === tone;
-                            const busy = savingTone === opt.id;
+                    <Text style={s.label}>Coach</Text>
+                    <View style={s.personaRow}>
+                        {PERSONA_OPTIONS.map((opt, i) => {
+                            const active = opt.id === persona;
+                            const busy = savingPersona === opt.id;
                             return (
                                 <TouchableOpacity
                                     key={opt.id}
-                                    style={[s.toneChip, active && s.toneChipActive]}
-                                    onPress={() => applyTone(opt.id)}
-                                    activeOpacity={0.85}
-                                    disabled={!!savingTone}
+                                    style={s.personaCol}
+                                    onPress={() => applyPersona(opt.id)}
+                                    activeOpacity={0.8}
+                                    disabled={!!savingPersona}
+                                    accessibilityLabel={`Coach: ${opt.label}`}
                                 >
-                                    {busy ? (
-                                        <ActivityIndicator
-                                            size="small"
-                                            color={active ? C.accentInk : C.ink}
-                                        />
-                                    ) : (
-                                        <Text style={[s.toneChipText, active && s.toneChipTextActive]}>
-                                            {opt.label}
-                                        </Text>
-                                    )}
+                                    <View
+                                        style={[
+                                            s.personaAvatar,
+                                            active && { borderColor: opt.glow, backgroundColor: 'rgba(255,255,255,0.04)' },
+                                        ]}
+                                    >
+                                        {active ? <View style={[s.personaGlow, { backgroundColor: opt.glow }]} /> : null}
+                                        <FloatingAvatar img={opt.img} active={active} delay={i * 240} />
+                                        {busy ? (
+                                            <View style={s.personaBusy}>
+                                                <ActivityIndicator size="small" color={opt.glow} />
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                    <Text style={[s.personaName, active && s.personaNameActive]} numberOfLines={1}>
+                                        {opt.label}
+                                    </Text>
                                 </TouchableOpacity>
                             );
                         })}
@@ -615,34 +653,57 @@ const s = StyleSheet.create({
         backgroundColor: C.border,
         marginBottom: 14,
     },
-    /* tone chips */
-    toneRow: {
+    /* persona (coach) picker */
+    personaRow: {
         flexDirection: 'row',
-        gap: 4,
+        gap: 8,
     },
-    toneChip: {
-        flexGrow: 1,
-        flexBasis: 0,
-        paddingVertical: 8,
-        borderRadius: 8,
+    personaCol: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    personaAvatar: {
+        width: '100%',
+        aspectRatio: 1,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
         borderColor: C.border,
-        backgroundColor: 'transparent',
+        backgroundColor: C.bgRaised,
+        overflow: 'hidden',
     },
-    toneChipActive: {
-        backgroundColor: C.accent,
-        borderColor: C.accent,
+    // Soft signature-color halo behind the selected coach.
+    personaGlow: {
+        position: 'absolute',
+        bottom: -28,
+        width: '150%',
+        height: '110%',
+        borderRadius: 999,
+        opacity: 0.22,
     },
-    toneChipText: {
+    personaImg: {
+        width: '94%',
+        height: '94%',
+    },
+    personaImgDim: {
+        opacity: 0.38,
+    },
+    personaBusy: {
+        ...StyleSheet.absoluteFillObject,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(10,10,11,0.4)',
+    },
+    personaName: {
         fontFamily: fonts.sansMedium,
-        fontSize: 12,
-        color: C.ink,
+        fontSize: 11.5,
+        color: C.inkMuted,
         letterSpacing: 0.1,
+        marginTop: 7,
     },
-    toneChipTextActive: {
-        color: C.accentInk,
+    personaNameActive: {
+        color: C.ink,
         fontFamily: fonts.sansSemiBold,
     },
     /* length rows */
