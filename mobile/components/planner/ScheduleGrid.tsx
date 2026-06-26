@@ -335,16 +335,20 @@ export default function ScheduleGrid({
                   accessibilityRole={e.onPress ? 'button' : undefined}
                   accessibilityLabel={`${e.label}, ${fmt12Compact(min2hhmm(e.start))}`}
                 >
-                  {/* Frosted glass: real blur of the timeline behind, a cool
-                      slate wash to pull the temperature down, and a bright top
-                      sheen for the glass edge. */}
+                  {/* Frosted glass: a real blur of the timeline behind, a bright
+                      airy white pane, a faint cool tint, and a top rim of light
+                      for the glass edge. Colored events tint the pane to match. */}
                   <BlurView
-                    intensity={Platform.OS === 'android' ? 24 : 30}
+                    intensity={Platform.OS === 'android' ? 32 : 44}
                     tint="light"
                     style={StyleSheet.absoluteFill}
                   />
                   <View pointerEvents="none" style={styles.cardGlass} />
+                  {e.accent === WORKOUT_ACCENT ? (
+                    <View pointerEvents="none" style={styles.cardAccentWash} />
+                  ) : null}
                   <View pointerEvents="none" style={styles.cardSheen} />
+                  <View pointerEvents="none" style={styles.cardRim} />
                   <View style={[styles.tick, { backgroundColor: e.accent }]} />
                   <View style={[styles.cardBody, tiny && styles.cardBodyTiny]}>
                     <Text
@@ -399,28 +403,31 @@ const styles = StyleSheet.create({
   },
 
   lane: { position: 'absolute', left: GUTTER, right: 0, top: 0, bottom: 0 },
-  // Frosted-glass card — crisp, less-rounded corners, a cool slate tint, and a
-  // bright glass edge. A real BlurView fills it (added in the JSX); these layers
-  // sit on top to set the temperature and the rim light.
+  // Frosted-glass card — a bright, airy translucent pane with crisp, less-rounded
+  // corners and a rim of light. A real BlurView fills it (added in the JSX); the
+  // layers below set the brightness, a faint cool tint, and the top edge.
   card: {
     flex: 1, height: '100%', flexDirection: 'row', overflow: 'hidden',
-    backgroundColor: 'rgba(232,236,242,0.45)', // cool glass base (shows if blur is unsupported)
-    borderRadius: 9, borderCurve: 'continuous',
+    backgroundColor: 'rgba(255,255,255,0.52)', // bright glass base (shows if blur is unsupported)
+    borderRadius: 11, borderCurve: 'continuous',
     marginRight: 6, marginBottom: 5,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.55)',
-    shadowColor: '#1B2436', shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 2,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.6)',
+    shadowColor: '#1E2840', shadowOpacity: 0.13, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 3,
   },
   cardPast: { opacity: 0.42 },
-  // Cool slate wash over the blur — pulls the warm cream behind toward glass.
-  cardGlass: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(222,228,237,0.40)' },
-  // Bright sheen across the top half — the lit edge of a glass pane.
-  cardSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '52%', backgroundColor: 'rgba(255,255,255,0.34)' },
-  tick: { width: 3, height: '100%' },
+  // Whisper-cool wash — drops the warm cream temperature a touch without dimming.
+  cardGlass: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(236,240,247,0.20)' },
+  // Workout (and other colored events) tint the pane in their accent.
+  cardAccentWash: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(47,107,78,0.14)' },
+  // Soft sheen over the top half + a brighter 1px rim — the lit edge of glass.
+  cardSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '50%', backgroundColor: 'rgba(255,255,255,0.30)' },
+  cardRim: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.7)' },
+  tick: { width: 3, marginVertical: 7, borderRadius: 2 },
   cardBody: { flex: 1, paddingHorizontal: 11, paddingVertical: 7, justifyContent: 'flex-start' },
   cardBodyTiny: { justifyContent: 'center', paddingVertical: 4 },
-  cardTitle: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: '#1C2430', letterSpacing: -0.1 },
+  cardTitle: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: '#1B2430', letterSpacing: -0.1 },
   cardTitleNarrow: { fontSize: 13 },
-  cardTime: { fontFamily: fonts.sans, fontSize: 11.5, color: '#5B6472', marginTop: 3, fontVariant: ['tabular-nums'] },
+  cardTime: { fontFamily: fonts.sans, fontSize: 11.5, color: '#6B7480', marginTop: 3, fontVariant: ['tabular-nums'] },
 
   nowRow: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center' },
   nowDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: NOW_ACCENT, marginLeft: GUTTER - 7 },
