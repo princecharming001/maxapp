@@ -551,8 +551,13 @@ export default function HomeScreen() {
                         </View>
                     </View>
 
-                    {/* ── HEADER: kicker + DAY X / N ── */}
+                    {/* ── HEADER: greeting + kicker + DAY X / N ── */}
                     <View style={s.header}>
+                        {personalizedUI && pers.firstName ? (
+                            <Text style={s.greeting} numberOfLines={1}>
+                                {`${pers.greeting}, ${pers.firstName}`}
+                            </Text>
+                        ) : null}
                         <Text style={s.kicker} numberOfLines={1}>
                             {(activeDisplayLabel || 'TODAY').toUpperCase()}
                         </Text>
