@@ -1,0 +1,40 @@
+# Planner-scoped smoke flow for the day-view calendar (ScheduleGrid).
+# Verifies: the Planner tab opens, the calendar renders, it scrolls, tapping an
+# event opens its editor sheet, and the sheet dismisses. Intentionally NARROW —
+# it does not exercise the rest of the app. Run against a booted sim with a
+# signed-in user:
+#   ~/.maestro/bin/maestro test mobile/.maestro/planner_calendar.yaml
+appId: com.cannon.mobile
+---
+- launchApp
+
+# Open the Planner tab (no-op if already there).
+- tapOn:
+    text: "Planner.*"
+    optional: true
+
+# Masthead + calendar are present (masthead is locked; we only read it).
+- assertVisible:
+    text: "Your week"
+- assertVisible:
+    text: "Wake,.*"
+- takeScreenshot: planner_calendar_1
+
+# The calendar scrolls.
+- scroll
+- takeScreenshot: planner_calendar_2
+
+# Bring the Wake event back into view and tap it → its editor sheet opens.
+- scrollUntilVisible:
+    element:
+      text: "Wake,.*"
+    direction: UP
+- tapOn:
+    text: "Wake,.*"
+- assertVisible:
+    text: "Wake up"
+- takeScreenshot: planner_calendar_editor
+
+# Dismiss the editor (tap Done) — leaves the planner as we found it.
+- tapOn:
+    text: "Done"
