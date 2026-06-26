@@ -1,9 +1,11 @@
 /**
- * PaymentScreen — Grok-style full-bleed paywall.
+ * PaymentScreen — Grok-style full-bleed paywall, light edition.
  *
- * Layout: looksmaxxer photo fills the screen, dark gradient overlay,
- * feature card floats in the middle, Chad/Chad Lite plan picker at the
- * bottom, single white pill CTA.
+ * Layout: a classical bust dissolving into blue particle-smoke (Higgsfield,
+ * cream + ink + brand-blue — same palette as the maxx clay icons) fills the
+ * screen, a soft cream gradient keeps text legible, a light frosted feature
+ * card floats in the middle, Chad/Chad Lite plan picker at the bottom, single
+ * ink pill CTA.
  *
  * Tiers (unchanged):
  *   Chad Lite (basic):  chatbot · 2 active programs · weekly face scan
@@ -34,14 +36,15 @@ import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
 import { useFlag } from '../../constants/featureFlags';
 
-/* ── Palette ──────────────────────────────────────────────────────────── */
+/* ── Palette ── light cream paywall (ink + blue, matches maxx clay icons) ─ */
 const WHITE   = '#FFFFFF';
-const INK     = '#000000';
-const CARD_BG  = 'rgba(0,0,0,0.36)';         // translucent frosted — matches Grok
-const HAIR     = 'rgba(255,255,255,0.08)';
-const MUTED    = 'rgba(255,255,255,0.52)';
-const PLAN_BG  = 'rgba(18,16,13,0.60)';      // plan container
-const PLAN_SEL = 'rgba(255,255,255,0.12)';   // selected option inner highlight
+const INK     = '#111113';
+const CREAM   = '#F4EEE3';                    // base canvas under the hero
+const CARD_BG  = 'rgba(255,255,255,0.55)';   // light frosted — bust shows through
+const HAIR     = 'rgba(17,17,19,0.07)';
+const MUTED    = 'rgba(17,17,19,0.50)';
+const PLAN_BG  = 'rgba(17,17,19,0.05)';       // plan container
+const PLAN_SEL = '#FFFFFF';                   // selected option — white pill
 
 const HERO = require('../../assets/paywall-hero.webp');
 
@@ -178,8 +181,8 @@ export default function PaymentScreen() {
             <Image source={HERO} style={StyleSheet.absoluteFill} resizeMode="cover" />
             <LinearGradient
                 pointerEvents="none"
-                colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.10)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.90)']}
-                locations={[0, 0.30, 0.62, 1]}
+                colors={['rgba(244,238,227,0.55)', 'rgba(244,238,227,0.00)', 'rgba(244,238,227,0.45)', 'rgba(244,238,227,0.94)']}
+                locations={[0, 0.32, 0.66, 1]}
                 style={StyleSheet.absoluteFill}
             />
 
@@ -207,7 +210,7 @@ export default function PaymentScreen() {
                     {(selected === 'premium' ? chadFeatures : chadLiteFeatures).map((f) => (
                         <View key={f.title} style={s.featureRow}>
                             <View style={s.featureIconWrap}>
-                                <Ionicons name={f.icon} size={22} color={WHITE} />
+                                <Ionicons name={f.icon} size={22} color={INK} />
                             </View>
                             <View style={s.featureText}>
                                 <Text style={s.featureTitle}>{f.title}</Text>
@@ -247,7 +250,7 @@ export default function PaymentScreen() {
                     activeOpacity={0.9}
                 >
                     {ctaBusy
-                        ? <ActivityIndicator color={INK} />
+                        ? <ActivityIndicator color={WHITE} />
                         : <Text style={s.ctaText}>{ctaLabel}</Text>
                     }
                 </TouchableOpacity>
@@ -277,13 +280,13 @@ export default function PaymentScreen() {
 
 /* ── Styles ──────────────────────────────────────────────────────────── */
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#0D0C0A' },
+    root: { flex: 1, backgroundColor: CREAM },
 
     skip: {
         position: 'absolute',
         right: 22,
         zIndex: 10,
-        backgroundColor: 'rgba(255,255,255,0.18)',
+        backgroundColor: 'rgba(17,17,19,0.07)',
         borderRadius: 999,
         paddingHorizontal: 14,
         paddingVertical: 6,
@@ -291,7 +294,7 @@ const s = StyleSheet.create({
     skipText: {
         fontFamily: 'Matter-Medium',
         fontSize: 14,
-        color: WHITE,
+        color: INK,
         letterSpacing: 0.2,
     },
 
@@ -305,7 +308,7 @@ const s = StyleSheet.create({
         fontFamily: 'Matter-SemiBold',
         fontSize: 38,
         fontWeight: '700',
-        color: WHITE,
+        color: INK,
         letterSpacing: -1,
         textAlign: 'center',
     },
@@ -337,7 +340,7 @@ const s = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.10)',
+        backgroundColor: 'rgba(17,17,19,0.06)',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -345,7 +348,7 @@ const s = StyleSheet.create({
     featureTitle: {
         fontFamily: 'Matter-SemiBold',
         fontSize: 15,
-        color: WHITE,
+        color: INK,
         letterSpacing: -0.1,
     },
     featureSub: {
@@ -374,18 +377,23 @@ const s = StyleSheet.create({
     },
     planOptionSel: {
         backgroundColor: PLAN_SEL,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(17,17,19,0.08)',
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }
+            : { elevation: 3 }),
     },
     planName: {
         fontFamily: 'Matter-Medium',
         fontSize: 12,
-        color: 'rgba(255,255,255,0.45)',
+        color: 'rgba(17,17,19,0.45)',
         letterSpacing: 0.2,
         marginBottom: 5,
     },
     planPrice: {
         fontFamily: 'Matter-SemiBold',
         fontSize: 26,
-        color: WHITE,
+        color: INK,
         letterSpacing: -0.8,
     },
     planPer: {
@@ -396,26 +404,26 @@ const s = StyleSheet.create({
     planNote: {
         fontFamily: 'Matter-Regular',
         fontSize: 11,
-        color: 'rgba(255,255,255,0.42)',
+        color: 'rgba(17,17,19,0.42)',
         marginTop: 3,
     },
 
-    /* CTA */
+    /* CTA — dark ink pill pops on the light cream canvas */
     cta: {
-        backgroundColor: WHITE,
+        backgroundColor: INK,
         borderRadius: 999,
         height: 56,
         alignItems: 'center',
         justifyContent: 'center',
         ...(Platform.OS === 'ios'
-            ? { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } }
+            ? { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } }
             : { elevation: 6 }),
     },
     ctaDisabled: { opacity: 0.5 },
     ctaText: {
         fontFamily: 'Matter-SemiBold',
         fontSize: 16,
-        color: INK,
+        color: WHITE,
         letterSpacing: 0.1,
     },
 
