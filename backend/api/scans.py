@@ -344,6 +344,13 @@ async def upload_scan_triple(
 
         if user and not user.first_scan_completed:
             user.first_scan_completed = True
+            # Auto-set the profile picture to the front photo from this first
+            # scan (the onboarding scan, or whenever the first scan happens) —
+            # but never clobber an avatar they've already chosen themselves.
+            prof = dict(user.profile or {})
+            if not prof.get("avatar_url") and front_url:
+                prof["avatar_url"] = front_url
+                user.profile = prof
             ob = dict(user.onboarding or {})
             pi = analysis.get("profile_insights") or {}
             pr = analysis.get("psl_rating") if isinstance(analysis.get("psl_rating"), dict) else {}
