@@ -87,6 +87,13 @@ class User(Base):
     # Persona / tone selected by the user: "default" | "hardcore" | "gentle" | "influencer"
     coaching_tone = Column(String, default="default")
 
+    # Referral attribution (RALPH_REFERRAL Phase 1/6). Additive + nullable so
+    # existing rows are unaffected. referred_by_code_id points at the
+    # referral_codes row the user redeemed; referral_source is a free string
+    # (campaign / 'deeplink' / influencer handle) for analytics.
+    referred_by_code_id = Column(UUID(as_uuid=True), nullable=True)
+    referral_source = Column(String, nullable=True)
+
     __table_args__ = (
         Index("idx_app_users_email", email),
         Index("idx_app_users_username", username),
@@ -849,4 +856,81 @@ class UserAchievement(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "code", name="uq_user_achievement_user_code"),
         Index("idx_user_achievements_user_id", user_id),
+    )
+
+
+class ReferralCode(Base):
+    """A redeemable referral / promo code (RALPH_REFERRAL Phase 1).
+
+    `kind` drives behavior:
+      * free_comp — server grants entitlement (granted_tier), bypasses paywall.
+      * discount  — a platform-specific discount (Apple Offer Code on iOS,
+                    Stripe promo/coupon/price on web). Prices are NOT invented
+                    here; the platform ids are placeholders until wired in.
+      * referral  — attribution-only (or two-sided once rewards are enabled).
+    All limits/dates are server-authoritative; redemption_count is mutated
+    atomically (UPDATE ... WHERE redemption_count < max_redemptions).
+    """
+    __tablename__ = "referral_codes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Stored uppercased; matched case-insensitively (unique on the normalized form).
+    code = Column(String, nullable=False, unique=True)
+    kind = Column(String, nullable=False)  # 'free_comp' | 'discount' | 'referral'
+
+    # Free-comp grant target.
+    granted_tier = Column(String, nullable=True)  # 'basic' | 'premium'
+
+    # Discount shape (the price itself is platform-configured, never invented here).
+    discount_kind = Column(String, nullable=True)   # 'percent' | 'fixed' | 'price_id'
+    discount_value = Column(Numeric, nullable=True)  # e.g. 20 for 20% (display only)
+    # Stripe (web rail) targets.
+    stripe_promotion_code = Column(String, nullable=True)
+    stripe_coupon_id = Column(String, nullable=True)
+    stripe_price_id = Column(String, nullable=True)
+    # Apple (iOS rail) targets — Offer Code only, never a backend price.
+    apple_offer_code = Column(String, nullable=True)
+    apple_offer_id = Column(String, nullable=True)
+
+    # Anti-abuse / lifecycle.
+    max_redemptions = Column(Integer, nullable=True)  # null = unlimited
+    per_user_limit = Column(Integer, nullable=False, default=1)
+    redemption_count = Column(Integer, nullable=False, default=0)
+    starts_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    owner_user_id = Column(UUID(as_uuid=True), nullable=True)  # influencer / referrer
+    campaign = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_referral_codes_code", code),
+        Index("idx_referral_codes_campaign", campaign),
+    )
+
+
+class ReferralRedemption(Base):
+    """One audited redemption of a referral code by a user (RALPH_REFERRAL Phase 1).
+
+    The unique (code_id, user_id) constraint enforces one-redemption-per-user at
+    the DB layer (idempotency + anti-abuse), independent of app logic.
+    """
+    __tablename__ = "referral_redemptions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code_id = Column(UUID(as_uuid=True), nullable=False)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+    kind_at_redemption = Column(String, nullable=False)   # snapshot of code.kind
+    result = Column(String, nullable=False)               # 'comped' | 'discount_applied' | 'attributed'
+    platform = Column(String, nullable=True)              # 'ios' | 'web'
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("code_id", "user_id", name="uq_referral_redemption_code_user"),
+        Index("idx_referral_redemptions_user_id", user_id),
+        Index("idx_referral_redemptions_code_id", code_id),
     )
