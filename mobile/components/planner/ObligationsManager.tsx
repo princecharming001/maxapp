@@ -65,12 +65,22 @@ function daysToSet(days: DayRecurrence): Set<Weekday> {
 
 type Quick = 'all' | 'weekdays' | 'weekends';
 
-export type ObligationsManagerHandle = { openEdit: (index: number) => void };
+export type ObligationsManagerHandle = { openEdit: (index: number) => void; openAdd: () => void };
 
 const ObligationsManager = forwardRef<
   ObligationsManagerHandle,
-  { obligations: Obligation[]; onChange: (next: Obligation[]) => void }
->(function ObligationsManager({ obligations, onChange }, ref) {
+  {
+    obligations: Obligation[];
+    onChange: (next: Obligation[]) => void;
+    /**
+     * Headless: render ONLY the add/edit sheet (no inline list/header/add button).
+     * Lets the planner keep a single always-mounted instance whose editor is driven
+     * by `ref` (from the day timeline or the commitments sheet) while the visible
+     * list lives elsewhere.
+     */
+    headless?: boolean;
+  }
+>(function ObligationsManager({ obligations, onChange, headless = false }, ref) {
   const insets = useSafeAreaInsets();
   const { height: winH } = useWindowDimensions();
   const sheetMaxH = Math.round(winH * 0.9);
@@ -105,8 +115,8 @@ const ObligationsManager = forwardRef<
     setEditorOpen(true);
   };
 
-  // Let the timeline open this same editor for one commitment (tap its arrow).
-  useImperativeHandle(ref, () => ({ openEdit }));
+  // Let the timeline / commitments sheet drive this same editor by ref.
+  useImperativeHandle(ref, () => ({ openEdit, openAdd }));
 
   const remove = (idx: number) => onChange(obligations.filter((_, i) => i !== idx));
 
@@ -181,6 +191,8 @@ const ObligationsManager = forwardRef<
 
   return (
     <View>
+      {!headless ? (
+        <>
       <View style={styles.head}>
         <Text style={styles.title}>Commitments</Text>
         <Text style={styles.sub}>
@@ -244,6 +256,8 @@ const ObligationsManager = forwardRef<
         <Ionicons name="add" size={18} color={colors.foreground} />
         <Text style={styles.addBtnText}>Add commitment</Text>
       </TouchableOpacity>
+        </>
+      ) : null}
 
       {/* Add / edit sheet */}
       <Modal

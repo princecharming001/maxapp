@@ -1,24 +1,22 @@
 /**
  * DayPlannerScreen — the planner.
  *
- * Direct manipulation first: pick a scope (Every day, or one weekday) with clear
- * labelled pills, then SEE that day as a vertical timeline and tap any block to
- * adjust it. Wake / get-ready / workout / wind-down open the visual range editor;
- * commitments live in their own list right below. Edits auto-save and regenerate
- * the live schedule.
+ * Direct manipulation first: pick a day from a rolling week strip (today leftmost,
+ * the next six after it — calendar-day rings mirroring the Weekly Progress screen),
+ * then SEE that day as a vertical timeline and tap any block to adjust it. Wake /
+ * get-ready / workout / wind-down open the visual range editor. Edits auto-save and
+ * regenerate the live schedule.
  *
- * A natural-language assistant is still here — demoted to an "or just tell Max in
- * words" panel you can open — so power users can reshape the week by describing
- * it, but it is no longer the thing you meet first.
+ * Commitments and the natural-language assistant are merged behind one floating
+ * button: it opens a sheet that lists your commitments, lets you add one, and tucks
+ * an "or just tell Max in words" chat row at the very bottom.
  *
  * Layout: a warm cream canvas with floating white cards — a serif display title,
- * the scope pills, then the day and the commitments each on their own soft-shadow
- * card — matching the "Craft" surface family used across the rest of the app. One
- * restrained green accent marks the workout and the assistant; everything else is
- * monochrome ink. (The old Today / Week toggle is gone — this is purely the week
- * shaper now.)
+ * the day strip, then the day on its own soft-shadow card — matching the "Craft"
+ * surface family used across the rest of the app. One restrained green accent marks
+ * the workout, today's ring, and the assistant; everything else is monochrome ink.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -31,16 +29,8 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
-  Animated,
-  LayoutAnimation,
-  UIManager,
 } from 'react-native'
 import { Alert } from '../../components/InAppAlert';
-
-// Smooth the pill width change (short → full day name) on Android.
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -68,7 +58,39 @@ import {
   diffDayShape,
   effectiveDay,
   hasOverride,
+  obligationColor,
+  fmt12Compact,
+  daysLabel,
+  toMin,
 } from '../../components/planner/plannerModel';
+
+// JS Date.getDay() (0=Sun…6=Sat) → our Monday-indexed Weekday keys.
+const JS_DAY_TO_KEY: Weekday[] = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+];
+
+// A rolling 7-day window starting *today* — today is always leftmost, then the
+// next six days in order. Each cell maps to a weekday scope so selecting it
+// shapes that day. Recomputed at mount so it always shows the current week.
+function buildRollingWeek(): { key: Weekday; short: string; date: number; isToday: boolean }[] {
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  const out: { key: Weekday; short: string; date: number; isToday: boolean }[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    const key = JS_DAY_TO_KEY[d.getDay()];
+    const meta = WEEKDAYS.find((w) => w.key === key)!;
+    out.push({ key, short: meta.short, date: d.getDate(), isToday: i === 0 });
+  }
+  return out;
+}
 
 // One restrained accent for the assistant surface only.
 const ACCENT = '#2F6B4E';
@@ -114,9 +136,16 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   );
   const [obligations, setObligations] = useState<Obligation[]>(() => hydrateObligations(ob));
 
-  // The day the timeline + editor act on. "Every day" edits the base; a weekday
-  // edits just that day (a minimal override diffed against the base).
-  const [scope, setScope] = useState<Scope>('all');
+  // Rolling week strip — today leftmost. Drives which day the timeline shapes.
+  const week = useMemo(buildRollingWeek, []);
+  const todayKey = week[0].key;
+
+  // The day the timeline + editor act on. Defaults to today; selecting another
+  // day edits just that day (a minimal override diffed against the base).
+  const [scope, setScope] = useState<Scope>(todayKey);
+
+  // Commitments + chat live behind the floating button now (merged surface).
+  const [commitmentsOpen, setCommitmentsOpen] = useState(false);
   // Agenda list vs. Timepage-style hour grid.
   const [planView, setPlanView] = useState<'list' | 'grid'>('list');
 
@@ -278,9 +307,14 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   const sendDisabled = !chatInput.trim() || chatLoading;
 
   const scopeLabel =
-    scope === 'all' ? 'Every day' : WEEKDAYS.find((w) => w.key === scope)?.long ?? 'Day';
+    scope === todayKey ? 'Today' : WEEKDAYS.find((w) => w.key === scope)?.long ?? 'Day';
   const scopeOverridden = scope !== 'all' && hasOverride(weekly, scope);
   const dayForScope = effectiveDay(defaults, weekly, scope);
+
+  // Commitments shown in the sheet, chronological (by start time).
+  const orderedObligations = obligations
+    .map((o, idx) => ({ o, idx }))
+    .sort((a, b) => toMin(a.o.start) - toMin(b.o.start) || a.idx - b.idx);
 
   return (
     <View style={styles.container}>
@@ -321,26 +355,20 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             </Text>
           </View>
 
-          {/* Scope selector — which day you're shaping. Clear labels (no cryptic
-              dots); a marked pill means that day differs from your every-day. */}
-          <View style={styles.scopeBar}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.scopeScroll}
-            >
-              <ScopePill label="Every day" active={scope === 'all'} onPress={() => setScope('all')} />
-              {WEEKDAYS.map((w) => (
-                <ScopePill
-                  key={w.key}
-                  label={w.short}
-                  expandedLabel={w.long}
-                  active={scope === w.key}
-                  edited={hasOverride(weekly, w.key)}
-                  onPress={() => setScope(w.key)}
-                />
-              ))}
-            </ScrollView>
+          {/* Day strip — a rolling week starting today (today leftmost). Tap a day
+              to shape it; a dot marks a day that differs from your baseline. */}
+          <View style={styles.weekStrip}>
+            {week.map((d) => (
+              <WeekDayPill
+                key={d.key}
+                short={d.short}
+                date={d.date}
+                selected={scope === d.key}
+                isToday={d.isToday}
+                edited={hasOverride(weekly, d.key)}
+                onPress={() => setScope(d.key)}
+              />
+            ))}
           </View>
 
           {/* The day, as a tappable timeline — on its own floating card. */}
@@ -401,34 +429,132 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             )}
           </View>
 
-          {/* Commitments — the global, day-scoped obligations list. */}
-          <View style={styles.card}>
-            <ObligationsManager ref={obligationsRef} obligations={obligations} onChange={changeObligations} />
-          </View>
-
           <View style={{ height: 96 + insets.bottom }} />
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Floating button, bottom-right — opens the change sheet on demand. */}
-      {!chatOpen ? (
+      {/* Floating button, bottom-right — opens the commitments sheet (with chat
+          tucked at the bottom) on demand. */}
+      {!chatOpen && !commitmentsOpen ? (
         <View style={[styles.fabShadow, { bottom: insets.bottom + 20 }]} pointerEvents="box-none">
           <TouchableOpacity
             style={styles.fab}
             activeOpacity={0.8}
-            onPress={() => setChatOpen(true)}
+            onPress={() => setCommitmentsOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Change your week — tell Max"
+            accessibilityLabel="Commitments and chat"
           >
             {/* Frosted glass: a blur of the page behind, a soft light tint, and a
                 top highlight for the glassy sheen. */}
             <BlurView intensity={32} tint="light" style={StyleSheet.absoluteFill} />
             <View style={styles.fabTint} />
             <View style={styles.fabSheen} />
-            <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.foreground} />
+            <Ionicons name="add" size={26} color={colors.foreground} />
           </TouchableOpacity>
         </View>
       ) : null}
+
+      {/* Commitments sheet — the merged surface. Lists current commitments, an
+          add action, and a quiet "tell Max in words" row at the very bottom. */}
+      <Modal
+        visible={commitmentsOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCommitmentsOpen(false)}
+      >
+        <View style={styles.chatRoot}>
+          <Pressable style={styles.chatBackdrop} onPress={() => setCommitmentsOpen(false)} />
+          <View style={[styles.commitSheet, { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
+            <View style={styles.grabber} />
+            <Text style={styles.chatHeadline}>Commitments</Text>
+            <Text style={styles.commitSub}>
+              Work, classes, a commute — anything that recurs. Max plans your routines around them.
+            </Text>
+
+            <ScrollView
+              style={styles.commitScroll}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {orderedObligations.length === 0 ? (
+                <Text style={styles.commitEmpty}>
+                  No commitments yet. Add work, a class or a commute so Max keeps your routines clear
+                  of them.
+                </Text>
+              ) : (
+                orderedObligations.map(({ o, idx }) => {
+                  const accent = obligationColor(o.label);
+                  return (
+                    <TouchableOpacity
+                      key={`${o.label}-${idx}`}
+                      style={styles.commitRow}
+                      activeOpacity={0.6}
+                      onPress={() => obligationsRef.current?.openEdit(idx)}
+                    >
+                      <View style={[styles.commitBar, { backgroundColor: accent }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.commitLabel} numberOfLines={1}>
+                          {o.label}
+                        </Text>
+                        <View style={styles.commitMeta}>
+                          <Text style={styles.commitTime}>
+                            {fmt12Compact(o.start)} - {fmt12Compact(o.end)}
+                          </Text>
+                          <View style={styles.commitDaysChip}>
+                            <Text style={[styles.commitDaysText, { color: accent }]}>
+                              {daysLabel(o.days)}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.commitAddBtn}
+              activeOpacity={0.9}
+              onPress={() => obligationsRef.current?.openAdd()}
+            >
+              <Ionicons name="add" size={18} color={colors.background} />
+              <Text style={styles.commitAddText}>Add commitment</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.commitChatRow}
+              activeOpacity={0.7}
+              onPress={() => {
+                setCommitmentsOpen(false);
+                setTimeout(() => setChatOpen(true), 240);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Tell Max in words"
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.textSecondary} />
+              <Text style={styles.commitChatText}>Or just tell Max in words</Text>
+              <Ionicons
+                name="arrow-forward"
+                size={15}
+                color={colors.textMuted}
+                style={{ marginLeft: 'auto' }}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Always-mounted, headless commitments editor — driven by ref from the day
+          timeline and the commitments sheet so its add/edit flow works whether or
+          not the sheet is open. */}
+      <ObligationsManager
+        ref={obligationsRef}
+        headless
+        obligations={obligations}
+        onChange={changeObligations}
+      />
 
       {/* Minimal "tell Max" change sheet — serif prompt + quick chips + a clean
           borderless composer. Opened only from the floating button. */}
@@ -517,66 +643,47 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   );
 }
 
-function ScopePill({
-  label,
-  expandedLabel,
-  active,
+// One day in the rolling week strip — a calendar-day ring mirroring the Weekly
+// Progress design: weekday label above a circle holding the date. Selected fills
+// with ink; today (when not selected) is ringed in the accent; a corner dot marks
+// a day whose shape differs from the baseline.
+function WeekDayPill({
+  short,
+  date,
+  selected,
+  isToday,
   edited,
   onPress,
 }: {
-  label: string;
-  expandedLabel?: string;
-  active: boolean;
+  short: string;
+  date: number;
+  selected: boolean;
+  isToday: boolean;
   edited?: boolean;
   onPress: () => void;
 }) {
-  // Drive every visual off one spring so the selected pill lifts, scales and
-  // fills with ink in a single gesture — the "tap to expand" feel.
-  const p = useRef(new Animated.Value(active ? 1 : 0)).current;
-  useEffect(() => {
-    Animated.spring(p, {
-      toValue: active ? 1 : 0,
-      useNativeDriver: false,
-      friction: 7,
-      tension: 120,
-    }).start();
-  }, [active, p]);
-
-  const backgroundColor = p.interpolate({ inputRange: [0, 1], outputRange: [PILL, colors.foreground] });
-  const borderColor = p.interpolate({ inputRange: [0, 1], outputRange: [colors.border, colors.foreground] });
-  const color = p.interpolate({ inputRange: [0, 1], outputRange: [colors.textSecondary, '#fff'] });
-  const scale = p.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
-  const translateY = p.interpolate({ inputRange: [0, 1], outputRange: [0, -2] });
-
-  // The active weekday opens up to its full name; "Every day" has no expansion.
-  const shownLabel = active && expandedLabel ? expandedLabel : label;
-
   return (
     <TouchableOpacity
-      onPress={() => {
-        LayoutAnimation.configureNext(LayoutAnimation.create(180, 'easeInEaseOut', 'opacity'));
-        onPress();
-      }}
+      onPress={onPress}
       activeOpacity={0.85}
+      style={styles.dayCell}
       accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      accessibilityLabel={`${active && expandedLabel ? expandedLabel : label}${edited ? ', customized' : ''}`}
+      accessibilityState={{ selected }}
+      accessibilityLabel={`${short} ${date}${isToday ? ', today' : ''}${edited ? ', customized' : ''}`}
     >
-      <Animated.View
+      <Text style={[styles.dayCellLabel, selected && styles.dayCellLabelSel]} numberOfLines={1}>
+        {short}
+      </Text>
+      <View
         style={[
-          styles.scopePill,
-          active && styles.scopePillActiveElev,
-          { backgroundColor, borderColor, transform: [{ scale }, { translateY }] },
+          styles.dayRing,
+          !selected && isToday && styles.dayRingToday,
+          selected && styles.dayRingSel,
         ]}
       >
-        <Animated.Text
-          style={[styles.scopePillText, active && styles.scopePillTextActiveWeight, { color }]}
-          numberOfLines={1}
-        >
-          {shownLabel}
-        </Animated.Text>
-      </Animated.View>
-      {edited && !active ? <View style={styles.editedDot} /> : null}
+        <Text style={[styles.dayRingNum, selected && styles.dayRingNumSel]}>{date}</Text>
+        {edited && !selected ? <View style={styles.dayEditedDot} /> : null}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -620,38 +727,42 @@ const styles = StyleSheet.create({
     letterSpacing: 0.05,
   },
 
-  // Scope selector.
-  scopeBar: { marginHorizontal: -spacing.lg },
-  // Extra vertical room so the active pill can scale + lift without clipping.
-  scopeScroll: { paddingHorizontal: spacing.lg, gap: 8, paddingVertical: 8 },
-  scopePill: {
+  // Rolling-week day strip — seven calendar-day rings across the width.
+  weekStrip: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    marginTop: 2,
+  },
+  dayCell: { flex: 1, alignItems: 'center' },
+  dayCellLabel: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 11,
+    color: colors.textMuted,
+    letterSpacing: 0.3,
+    marginBottom: 8,
+  },
+  dayCellLabelSel: { color: colors.foreground, fontFamily: fonts.sansSemiBold },
+  dayRing: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(17,17,19,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 14,
-    backgroundColor: PILL,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    minHeight: 38,
   },
-  // Soft drop shadow that reads as the selected pill floating above the rest.
-  scopePillActiveElev: {
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  scopePillText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.textSecondary, letterSpacing: 0.1 },
-  scopePillTextActiveWeight: { fontFamily: fonts.sansSemiBold },
-  // A small corner marker (top-right) for a weekday that differs from every-day.
-  editedDot: {
+  dayRingToday: { borderColor: ACCENT },
+  dayRingSel: { backgroundColor: colors.foreground, borderColor: colors.foreground },
+  dayRingNum: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground },
+  dayRingNumSel: { color: '#fff' },
+  // Corner marker for a day whose shape differs from the baseline.
+  dayEditedDot: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 7,
-    height: 7,
+    top: -1,
+    right: -1,
+    width: 8,
+    height: 8,
     borderRadius: 4,
     backgroundColor: ACCENT,
     borderWidth: 1.5,
@@ -852,4 +963,65 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   composerSendOff: { backgroundColor: colors.surface },
+
+  // Commitments sheet — the merged surface opened from the floating button.
+  commitSheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 12,
+    maxHeight: '85%',
+  },
+  commitSub: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 18,
+    marginTop: 6,
+    letterSpacing: 0.05,
+  },
+  commitScroll: { flexShrink: 1, marginTop: 12 },
+  commitEmpty: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 19,
+    paddingVertical: 18,
+    letterSpacing: 0.05,
+  },
+  commitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderLight,
+  },
+  commitBar: { width: 4, height: 34, borderRadius: 2, marginRight: 12 },
+  commitLabel: { fontSize: 15, color: colors.foreground, fontFamily: fonts.sansSemiBold, letterSpacing: 0.05 },
+  commitMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' },
+  commitTime: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1 },
+  commitDaysChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: colors.surface },
+  commitDaysText: { fontSize: 11, fontFamily: fonts.sansSemiBold, letterSpacing: 0.2 },
+  commitAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.foreground,
+    borderRadius: 14,
+    paddingVertical: 15,
+    marginTop: 16,
+  },
+  commitAddText: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.background, letterSpacing: 0.1 },
+  commitChatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    marginTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  commitChatText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.textSecondary, letterSpacing: 0.05 },
 });
