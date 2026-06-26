@@ -140,6 +140,13 @@ class Settings(BaseSettings):
     # (skincare, workouts) don't land mid-transit. Bounded + additive. Default
     # OFF so existing schedules are byte-identical until validated.
     commute_aware_placement: bool = Field(default=False)
+
+    # Warmer notification copy (Phase 4): when true, a few NEW template variants
+    # that reference the user's stated why / active plan warmly join the rotation
+    # (the {why}/{plan} slots already exist). They each require their signal, pass
+    # the taste bar at import, and DO NOT change cadence/cap/interval/backoff.
+    # Default OFF so the rotation is byte-identical until validated.
+    personalized_notif_copy: bool = Field(default=False)
     chat_max_context_tokens: int = Field(
         default=8000,
         description="Hard ceiling for history + retrieved chunks tokens in the agent prompt.",

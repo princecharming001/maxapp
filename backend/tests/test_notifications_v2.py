@@ -12,6 +12,8 @@ import pytest
 from services.notification_copy import (
     ALL_CATEGORIES,
     CAT_TASK_DUE,
+    CAT_MORNING_PREVIEW,
+    CAT_REENGAGE,
     CAT_STREAK,
     CAT_MILESTONE,
     CAT_TIP,
@@ -44,6 +46,44 @@ BANNED_SNIPPETS = [
 
 def test_templates_self_validate():
     assert validate_all_templates() == []
+
+
+# --- Phase 4: warmer personalized variants (flag-gated, default OFF) ----------
+
+def _bodies(category, **kw):
+    """All distinct bodies the rotation can produce for a category + signals."""
+    return {compose(category, rotation=i, **kw)["body"] for i in range(12)}
+
+
+def test_personalized_notif_copy_off_by_default_is_unchanged():
+    # Default (no flag, no arg) must equal explicitly-off, for every category.
+    for cat in (CAT_TASK_DUE, CAT_MORNING_PREVIEW, CAT_STREAK, CAT_REENGAGE):
+        for i in range(12):
+            default = compose(cat, rotation=i, **SAMPLE)
+            off = compose(cat, rotation=i, personalized_copy=False, **SAMPLE)
+            assert default == off
+
+
+def test_personalized_reengage_variant_appears_only_when_enabled():
+    phrase = "you started this for"
+    off = _bodies(CAT_REENGAGE, personalized_copy=False, **SAMPLE)
+    on = _bodies(CAT_REENGAGE, personalized_copy=True, **SAMPLE)
+    # The warm why-variant is absent when off, reachable when on…
+    assert not any(phrase in b for b in off)
+    assert any(phrase in b and "a sharper jaw" in b for b in on)
+    # …and all base lines are still reachable (additive, never removed).
+    assert off <= on
+
+
+def test_personalized_variants_require_their_signal_and_pass_taste_bar():
+    # No {why}/{plan} signal → the warm variants never fire even when enabled.
+    no_signal = _bodies(CAT_REENGAGE, personalized_copy=True)
+    assert not any("you started this for" in b for b in no_signal)
+    # Everything the rotation can emit (enabled, rich signals) clears the bar.
+    for cat in (CAT_TASK_DUE, CAT_MORNING_PREVIEW, CAT_STREAK, CAT_REENGAGE):
+        for i in range(12):
+            out = compose(cat, rotation=i, personalized_copy=True, **SAMPLE)
+            assert passes_taste_bar(out["title"]) and passes_taste_bar(out["body"])
 
 
 @pytest.mark.parametrize("category", ALL_CATEGORIES)

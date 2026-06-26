@@ -191,6 +191,52 @@ _BANKS: dict[str, list[_Tmpl]] = {
 }
 
 
+# Phase 4 (personalized_notif_copy, default OFF): NEW warm variants that lean on
+# the user's stated {why} / active {plan}. Each REQUIRES its signal, so it only
+# fires when we actually have it (degrades to the base bank otherwise). They join
+# the rotation only when the flag is on — cadence/cap/interval/backoff unchanged.
+_PERSONALIZED_EXTRA: dict[str, list[_Tmpl]] = {
+    CAT_TASK_DUE: [
+        _Tmpl("{task}", "you said {why}{name_c}. {task} is the next step toward it.", frozenset({"why"})),
+        _Tmpl("{task} time", "{task}{name_c}. your {plan} only pays off when you show up.", frozenset({"plan"})),
+    ],
+    CAT_MORNING_PREVIEW: [
+        _Tmpl("morning{name_c}", "a few small moves toward {why} today. they're queued."),
+        _Tmpl("today's {plan}", "your {plan} list is short today{name_c}. run it while it's easy.", frozenset({"plan"})),
+    ],
+    CAT_EVENING_RECAP: [
+        _Tmpl("before you wind down", "{count} between you and {why}{name_c}. easy to close.", frozenset({"count", "why"})),
+    ],
+    CAT_STREAK: [
+        _Tmpl("day {streak}", "you wanted {why}{name_c}. one rep keeps day {streak} alive.", frozenset({"streak", "why"})),
+    ],
+    CAT_REENGAGE: [
+        _Tmpl("your plan's still here", "you started this for {why}{name_c}. one small thing today?", frozenset({"why"})),
+    ],
+}
+
+
+def _personalized_notif_enabled() -> bool:
+    """Read the personalized_notif_copy flag without a hard import dependency."""
+    try:
+        from config import settings
+        return bool(getattr(settings, "personalized_notif_copy", False))
+    except Exception:
+        return False
+
+
+def _active_bank(category: str, *, personalized: bool) -> list[_Tmpl]:
+    """The rotation bank for a category. With ``personalized`` on, the Phase-4
+    warm variants are appended (kept LAST so existing rotation indices are
+    stable for the base lines); off → exactly the base bank."""
+    base = _BANKS[category]
+    if personalized:
+        extra = _PERSONALIZED_EXTRA.get(category)
+        if extra:
+            return base + extra
+    return base
+
+
 def _slots(
     *,
     name: Optional[str],
@@ -267,6 +313,7 @@ def compose(
     rotation: int = 0,
     recent: Iterable[str] = (),
     coaching_tone: Optional[str] = None,
+    personalized_copy: Optional[bool] = None,
 ) -> dict:
     """Compose a push for `category`. Returns
     ``{title, body, category, route, params, template_id}``.
@@ -293,7 +340,9 @@ def compose(
         body = (broadcast_body or "").strip()
         tmpl_id = "broadcast:custom"
     else:
-        tmpl = _pick(_BANKS[category], available, rotation, recent)
+        use_personalized = _personalized_notif_enabled() if personalized_copy is None else personalized_copy
+        bank = _active_bank(category, personalized=use_personalized)
+        tmpl = _pick(bank, available, rotation, recent)
         title = tmpl.title.format(**slots).strip()
         body = tmpl.body.format(**slots).strip()
         tmpl_id = _tmpl_id(tmpl)
@@ -347,7 +396,12 @@ def validate_all_templates() -> list[str]:
     problems: list[str] = []
     rich = dict(name="anish", task="morning skincare", streak=6, count=3, why="a sharper jaw", plan="skinmax")
     bare: dict = {}
-    for cat, bank in _BANKS.items():
+    # Validate the base banks AND the Phase-4 extras (regardless of flag) so a
+    # bad new variant can never ship — the import-time guard always covers them.
+    all_banks: dict[str, list[_Tmpl]] = {
+        cat: _BANKS[cat] + _PERSONALIZED_EXTRA.get(cat, []) for cat in _BANKS
+    }
+    for cat, bank in all_banks.items():
         for t in bank:
             for signals in (rich, bare):
                 slots, _ = _slots(
