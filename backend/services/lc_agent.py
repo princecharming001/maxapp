@@ -422,9 +422,13 @@ async def build_agent_system_prompt(
     if not context_str and user_context:
         if user_context.get("latest_scan"):
             scan = user_context["latest_scan"]
-            context_str += f"\nLATEST SCAN: score={scan.get('overall_score', '?')}/10"
-            if scan.get("focus_areas"):
-                context_str += f", focus={scan['focus_areas']}"
+            # Only surface the scan line when there's a real score — a truthy-but
+            # -empty scan dict otherwise leaks "LATEST SCAN: score=?/10".
+            scan_score = scan.get("overall_score")
+            if scan_score not in (None, "", "?"):
+                context_str += f"\nLATEST SCAN: score={scan_score}/10"
+                if scan.get("focus_areas"):
+                    context_str += f", focus={scan['focus_areas']}"
         if user_context.get("onboarding"):
             ob = user_context["onboarding"]
             bits = [
@@ -506,8 +510,11 @@ async def build_agent_system_prompt(
                     context_str += "\nWEEKLY OVERRIDES (per day): " + " | ".join(wk_lines)
         if user_context.get("active_schedule"):
             schedule = user_context["active_schedule"]
-            label = schedule.get("course_title") or schedule.get("maxx_id") or "?"
-            context_str += f"\nSCHEDULE: {label}"
+            # Skip the line entirely when there's no real label, rather than
+            # leaking a dangling "SCHEDULE: ?".
+            label = schedule.get("course_title") or schedule.get("maxx_id")
+            if label:
+                context_str += f"\nSCHEDULE: {label}"
         if user_context.get("active_maxx_schedule"):
             ms = user_context["active_maxx_schedule"]
             context_str += f"\nActive {ms.get('maxx_id')} schedule exists."

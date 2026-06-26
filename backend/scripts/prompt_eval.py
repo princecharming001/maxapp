@@ -180,6 +180,14 @@ def check_persona_length_coherence(prompt: str, persona: str, length: Optional[s
     return None
 
 
+def check_emotional_humane_override(prompt: str, persona: str) -> Optional[str]:
+    """The hardcore (Goggins) persona must carry a humane override so a user in
+    real distress isn't met with the drill act (RC5/flaw 7)."""
+    if persona == "hardcore" and "humane override" not in prompt.lower():
+        return "hardcore persona missing humane-override for emotional/distress turns"
+    return None
+
+
 def check_allergy_rules(prompt: str, facts: dict) -> Optional[str]:
     if not facts:
         return None
@@ -204,6 +212,7 @@ def assert_cell(prompt: str, cell: Cell) -> list[str]:
         (check_persona_signature, (prompt, cell.persona)),
         (check_length_pref, (prompt, cell.length)),
         (check_persona_length_coherence, (prompt, cell.persona, cell.length)),
+        (check_emotional_humane_override, (prompt, cell.persona)),
         (check_allergy_rules, (prompt, cell.user_facts)),
     ):
         r = fn(*args)
