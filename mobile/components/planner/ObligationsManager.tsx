@@ -12,7 +12,7 @@
  * recurrence chips (Every day / Weekdays / Weekends) and a 7-day toggle for an
  * exact set. Changes bubble up via onChange; the planner screen persists them.
  */
-import React, { forwardRef, useImperativeHandle, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -30,7 +30,6 @@ import { Alert } from '../InAppAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../../theme/dark';
-import TimePicker from './TimePicker';
 import {
   Obligation,
   DayRecurrence,
@@ -45,12 +44,173 @@ import {
   toMin,
 } from './plannerModel';
 
-const OB_MIN = 0; // 12 AM
-const OB_MAX = 1425; // 11:45 PM (last 15-min step before midnight)
 const fmtAbs = (m: number) => fmt12Compact(minToHHMM(m));
 
 const MF: Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 const SS: Weekday[] = ['saturday', 'sunday'];
+
+// ── Onboarding-matched palette (Cal AI × Stoic) ────────────────────────────
+// The editor sheet mirrors the onboarding day-shape screen one-to-one: a soft
+// canvas, white soft-shadow cards, ink-fill selection, and the same wheel time
+// picker — so a commitment never reads as a different app than the flow that
+// first set the user's schedule.
+const INK = '#111113';
+const ON_INK = '#FFFFFF';
+const SHEET_BG = '#F1F1EF'; // Stoic soft off-white canvas
+const CARD = '#FFFFFF';
+const SUB = '#6B6B6B';
+const MUTE = '#9A9A9A';
+const HAIR = 'rgba(0,0,0,0.06)';
+const WASH = 'rgba(0,0,0,0.05)';
+const SOFT = {
+  shadowColor: '#000',
+  shadowOpacity: 0.06,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 2,
+} as const;
+
+// ── Stoic wheel time picker (lifted from onboarding so they match exactly) ──
+const ITEM_H = 44;
+const VISIBLE = 5;
+const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1));
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+const PERIODS = ['AM', 'PM'];
+
+function decompose(min: number) {
+  const h24 = Math.floor(min / 60) % 24;
+  const m = min % 60;
+  const p = h24 >= 12 ? 1 : 0;
+  const h12 = h24 % 12 || 12;
+  return { h: h12 - 1, m, p };
+}
+function compose(hIdx: number, m: number, p: number) {
+  const h12 = hIdx + 1;
+  const base = h12 % 12;
+  const h24 = p === 1 ? base + 12 : base;
+  return ((h24 * 60) + m) % 1440;
+}
+
+// A single snapping column — uncontrolled after its initial scroll; reports the
+// centred index up via onChange (fires on scroll, so it works on web too).
+function Wheel({
+  values,
+  initialIndex,
+  onChange,
+  width = 62,
+}: {
+  values: string[];
+  initialIndex: number;
+  onChange: (i: number) => void;
+  width?: number;
+}) {
+  const ref = useRef<ScrollView>(null);
+  const inited = useRef(false);
+  const [active, setActive] = useState(initialIndex);
+
+  const settle = (y: number) => {
+    const i = Math.max(0, Math.min(values.length - 1, Math.round(y / ITEM_H)));
+    if (i !== active) {
+      setActive(i);
+      onChange(i);
+    }
+  };
+
+  return (
+    <View style={{ width, height: ITEM_H * VISIBLE }}>
+      <ScrollView
+        ref={ref}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ITEM_H}
+        decelerationRate="fast"
+        scrollEventThrottle={16}
+        onLayout={() => {
+          if (!inited.current) {
+            inited.current = true;
+            ref.current?.scrollTo({ y: initialIndex * ITEM_H, animated: false });
+          }
+        }}
+        onScroll={(e) => settle(e.nativeEvent.contentOffset.y)}
+        onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.y)}
+        contentContainerStyle={{ paddingVertical: ITEM_H * 2 }}
+      >
+        {values.map((v, i) => (
+          <View key={i} style={styles.wheelItem}>
+            <Text style={[styles.wheelText, i === active && styles.wheelTextActive]}>{v}</Text>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function WheelTimeSheet({
+  title,
+  value,
+  onClose,
+  onConfirm,
+}: {
+  title: string;
+  value: number;
+  onClose: () => void;
+  onConfirm: (v: number) => void;
+}) {
+  const init = decompose(value);
+  const [h, setH] = useState(init.h);
+  const [m, setM] = useState(init.m);
+  const [p, setP] = useState(init.p);
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.wheelBackdrop} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity style={styles.wheelSheet} activeOpacity={1} onPress={() => {}}>
+          <Text style={styles.wheelSheetTitle}>{title}</Text>
+          <View style={styles.wheelRow}>
+            <View style={styles.wheelBand} pointerEvents="none" />
+            <Wheel values={HOURS} initialIndex={init.h} onChange={setH} />
+            <Wheel values={MINUTES} initialIndex={init.m} onChange={setM} />
+            <Wheel values={PERIODS} initialIndex={init.p} onChange={setP} width={56} />
+          </View>
+          <TouchableOpacity
+            style={styles.wheelDone}
+            activeOpacity={0.9}
+            onPress={() => onConfirm(compose(h, m, p))}
+            accessibilityRole="button"
+            accessibilityLabel="Done"
+          >
+            <Text style={styles.wheelDoneText}>Done</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+// A Stoic notification-style row: small label left, big time + chevron right.
+function TimeRow({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value: number;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={styles.timeRow}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${fmtAbs(value)}`}
+    >
+      <Text style={styles.timeRowLabel}>{label}</Text>
+      <View style={{ flex: 1 }} />
+      <Text style={styles.timeRowValue}>{fmtAbs(value)}</Text>
+      <Ionicons name="chevron-forward" size={18} color={MUTE} style={{ marginLeft: 6 }} />
+    </TouchableOpacity>
+  );
+}
 
 function setEq(a: Set<Weekday>, b: Weekday[]): boolean {
   return a.size === b.length && b.every((d) => a.has(d));
@@ -88,8 +248,10 @@ const ObligationsManager = forwardRef<
   const [editorOpen, setEditorOpen] = useState(false);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [label, setLabel] = useState('');
-  const [range, setRange] = useState<[number, number]>([540, 600]);
+  const [range, setRange] = useState<[number, number]>([540, 1020]); // 9 AM–5 PM
   const [dayset, setDayset] = useState<Set<Weekday>>(() => new Set(MF));
+  // Which time field the wheel sheet is editing (null = closed).
+  const [picker, setPicker] = useState<null | 'from' | 'to'>(null);
 
   // Show the list chronologically (by start time), but remember each item's real
   // index in the source array so edit / delete target the right one.
@@ -100,8 +262,9 @@ const ObligationsManager = forwardRef<
   const openAdd = () => {
     setEditIndex(null);
     setLabel('');
-    setRange([540, 600]);
+    setRange([540, 1020]); // 9 AM–5 PM
     setDayset(new Set(MF));
+    setPicker(null);
     setEditorOpen(true);
   };
 
@@ -112,6 +275,7 @@ const ObligationsManager = forwardRef<
     setLabel(o.label);
     setRange([toMin(o.start), toMin(o.end)]);
     setDayset(daysToSet(o.days));
+    setPicker(null);
     setEditorOpen(true);
   };
 
@@ -274,18 +438,9 @@ const ObligationsManager = forwardRef<
           >
             <View style={[styles.sheet, { maxHeight: sheetMaxH }]}>
               <View style={styles.grabber} />
-              <View style={styles.sheetHeader}>
-                <TouchableOpacity
-                  onPress={() => setEditorOpen(false)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name="close" size={22} color={colors.textMuted} />
-                </TouchableOpacity>
-                <Text style={styles.sheetTitle}>
-                  {editIndex === null ? 'New commitment' : 'Edit commitment'}
-                </Text>
-                <View style={{ width: 22 }} />
-              </View>
+              <Text style={styles.sheetTitle}>
+                {editIndex === null ? 'New commitment' : 'Edit commitment'}
+              </Text>
 
               <ScrollView
                 style={{ flexShrink: 1 }}
@@ -293,29 +448,26 @@ const ObligationsManager = forwardRef<
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.fieldLabel}>What is it?</Text>
-                <TextInput
-                  style={styles.input}
-                  value={label}
-                  onChangeText={setLabel}
-                  placeholder="e.g. Work, Biology class, Commute"
-                  placeholderTextColor={colors.textMuted}
-                  returnKeyType="done"
-                  maxLength={40}
-                />
+                {/* What + when, grouped into one white soft-shadow card */}
+                <View style={styles.card}>
+                  <TextInput
+                    style={styles.labelInput}
+                    value={label}
+                    onChangeText={setLabel}
+                    placeholder="What is it? Work, class, commute…"
+                    placeholderTextColor={MUTE}
+                    returnKeyType="done"
+                    maxLength={40}
+                  />
+                  <View style={styles.hair} />
+                  <TimeRow label="Starts" value={range[0]} onPress={() => setPicker('from')} />
+                  <View style={styles.hair} />
+                  <TimeRow label="Ends" value={range[1]} onPress={() => setPicker('to')} />
+                </View>
 
-                <Text style={[styles.fieldLabel, { marginTop: spacing.lg }]}>When?</Text>
-                <TimePicker
-                  min={OB_MIN}
-                  max={OB_MAX}
-                  value={range}
-                  onChange={setRange}
-                  format={fmtAbs}
-                  accent={obligationColor(label)}
-                />
-
-                <Text style={[styles.fieldLabel, { marginTop: spacing.lg }]}>Which days?</Text>
-                <View style={styles.quickRow}>
+                {/* Which days — segmented quick-pick over an exact 7-day set */}
+                <Text style={styles.groupLabel}>WHICH DAYS</Text>
+                <View style={styles.seg}>
                   {(
                     [
                       { k: 'all', label: 'Every day' },
@@ -327,11 +479,11 @@ const ObligationsManager = forwardRef<
                     return (
                       <TouchableOpacity
                         key={q.k}
-                        style={[styles.quickChip, on && styles.quickChipOn]}
-                        activeOpacity={0.8}
+                        style={[styles.segItem, on && styles.segItemActive]}
+                        activeOpacity={0.85}
                         onPress={() => applyQuick(q.k)}
                       >
-                        <Text style={[styles.quickText, on && styles.quickTextOn]}>{q.label}</Text>
+                        <Text style={[styles.segText, on && styles.segTextActive]}>{q.label}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -344,7 +496,7 @@ const ObligationsManager = forwardRef<
                       <TouchableOpacity
                         key={w.key}
                         style={[styles.dayDot, on && styles.dayDotOn]}
-                        activeOpacity={0.8}
+                        activeOpacity={0.85}
                         onPress={() => toggleDay(w.key)}
                       >
                         <Text style={[styles.dayDotText, on && styles.dayDotTextOn]}>{w.letter}</Text>
@@ -352,6 +504,7 @@ const ObligationsManager = forwardRef<
                     );
                   })}
                 </View>
+
                 {editIndex !== null ? (
                   <TouchableOpacity
                     style={styles.removeBtn}
@@ -359,7 +512,7 @@ const ObligationsManager = forwardRef<
                     activeOpacity={0.6}
                   >
                     <Ionicons name="trash-outline" size={14} color={colors.error} />
-                    <Text style={styles.removeText}>Remove</Text>
+                    <Text style={styles.removeText}>Remove commitment</Text>
                   </TouchableOpacity>
                 ) : null}
 
@@ -370,8 +523,8 @@ const ObligationsManager = forwardRef<
                 <View style={styles.footerSummary}>
                   <Text style={styles.summaryText} numberOfLines={1}>
                     {canSave
-                      ? `${fmtAbs(range[0])}–${fmtAbs(range[1])}`
-                      : 'Set a valid time and at least one day'}
+                      ? `${fmtAbs(range[0])} – ${fmtAbs(range[1])}`
+                      : 'Pick a start, end and at least one day'}
                   </Text>
                   {canSave ? (
                     <Text style={styles.summaryDays} numberOfLines={1}>
@@ -385,9 +538,22 @@ const ObligationsManager = forwardRef<
                   disabled={!canSave}
                   activeOpacity={0.9}
                 >
-                  <Text style={styles.saveText}>{editIndex === null ? 'Add commitment' : 'Save changes'}</Text>
+                  <Text style={styles.saveText}>{editIndex === null ? 'Add' : 'Save'}</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Wheel time picker slides up over the editor sheet */}
+              {picker ? (
+                <WheelTimeSheet
+                  title={picker === 'from' ? 'Starts' : 'Ends'}
+                  value={picker === 'from' ? range[0] : range[1]}
+                  onClose={() => setPicker(null)}
+                  onConfirm={(v) => {
+                    setRange((r) => (picker === 'from' ? [v, r[1]] : [r[0], v]));
+                    setPicker(null);
+                  }}
+                />
+              ) : null}
             </View>
           </KeyboardAvoidingView>
         </View>
@@ -446,105 +612,163 @@ const styles = StyleSheet.create({
   },
   addBtnText: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.foreground, letterSpacing: 0.1 },
 
-  // Sheet
+  // ── Editor sheet — onboarding-matched (soft canvas, white cards, ink) ──
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
   sheetWrap: { justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    backgroundColor: SHEET_BG,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderCurve: 'continuous',
     paddingHorizontal: spacing.lg,
-    paddingTop: 10,
+    paddingTop: 12,
   },
   grabber: {
     alignSelf: 'center',
     width: 38,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-    marginBottom: 8,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.12)',
+    marginBottom: 14,
   },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: spacing.md,
+  sheetTitle: {
+    fontFamily: fonts.serif,
+    fontSize: 24,
+    color: INK,
+    letterSpacing: -0.4,
+    textAlign: 'center',
+    marginBottom: 18,
   },
-  sheetTitle: { fontFamily: fonts.serif, fontSize: 21, color: colors.foreground, letterSpacing: -0.3 },
-  fieldLabel: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 13,
-    color: colors.textMuted,
-    letterSpacing: 0.1,
-    marginBottom: 10,
+
+  // White soft-shadow card holding the label + the two time rows
+  card: {
+    backgroundColor: CARD,
+    borderRadius: 22,
+    borderCurve: 'continuous',
+    paddingHorizontal: 18,
+    ...SOFT,
   },
-  input: {
-    backgroundColor: 'transparent',
-    paddingVertical: 10,
+  hair: { height: StyleSheet.hairlineWidth, backgroundColor: HAIR },
+  labelInput: {
+    paddingVertical: 17,
     paddingHorizontal: 0,
-    color: colors.foreground,
-    fontSize: 18,
-    fontFamily: fonts.sansMedium,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    color: INK,
+    fontSize: 17,
+    fontFamily: fonts.sansSemiBold,
   },
-  quickRow: { flexDirection: 'row', gap: spacing.lg, marginBottom: spacing.md },
-  quickChip: {
-    alignItems: 'center',
-    paddingBottom: 7,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+  timeRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
+  timeRowLabel: { fontFamily: fonts.sansMedium, fontSize: 15.5, color: SUB },
+  timeRowValue: { fontFamily: fonts.sansSemiBold, fontSize: 19, color: INK, letterSpacing: -0.3 },
+
+  // Group label above the day controls
+  groupLabel: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    color: MUTE,
+    textTransform: 'uppercase',
+    marginTop: 26,
+    marginBottom: 12,
+    marginLeft: 4,
   },
-  quickChipOn: { borderBottomColor: colors.foreground },
-  quickText: { fontSize: 14, fontFamily: fonts.sansMedium, color: colors.textMuted, letterSpacing: 0.1 },
-  quickTextOn: { color: colors.foreground, fontFamily: fonts.sansSemiBold },
-  dayDotsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
+
+  // Segmented quick-pick — ink thumb on a white soft-shadow track
+  seg: {
+    flexDirection: 'row',
+    padding: 5,
+    gap: 5,
+    backgroundColor: CARD,
+    borderRadius: 18,
+    borderCurve: 'continuous',
+    ...SOFT,
+  },
+  segItem: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 13, borderCurve: 'continuous' },
+  segItemActive: { backgroundColor: INK },
+  segText: { fontFamily: fonts.sansMedium, fontSize: 14, color: SUB },
+  segTextActive: { color: ON_INK, fontFamily: fonts.sansSemiBold },
+
+  // Exact 7-day toggle dots
+  dayDotsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, paddingHorizontal: 2 },
   dayDot: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    shadowColor: '#1C1A17',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    backgroundColor: CARD,
+    ...SOFT,
   },
-  dayDotOn: { backgroundColor: colors.foreground, borderColor: colors.foreground, shadowOpacity: 0 },
-  dayDotText: { fontSize: 13.5, fontFamily: fonts.sansMedium, color: colors.textSecondary },
-  dayDotTextOn: { color: colors.background, fontFamily: fonts.sansSemiBold },
+  dayDotOn: { backgroundColor: INK, shadowOpacity: 0 },
+  dayDotText: { fontSize: 14, fontFamily: fonts.sansMedium, color: SUB },
+  dayDotTextOn: { color: ON_INK, fontFamily: fonts.sansSemiBold },
+
   removeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     marginTop: spacing.xl,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
-  removeText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.error, letterSpacing: 0.1 },
+  removeText: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.error, letterSpacing: 0.1 },
+
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderLight,
+    borderTopColor: HAIR,
   },
   footerSummary: { flex: 1, minWidth: 0 },
-  summaryText: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.foreground, letterSpacing: 0.1 },
-  summaryDays: { fontFamily: fonts.sans, fontSize: 12, color: colors.textMuted, marginTop: 2, letterSpacing: 0.1 },
+  summaryText: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: INK, letterSpacing: 0.1 },
+  summaryDays: { fontFamily: fonts.sans, fontSize: 12.5, color: MUTE, marginTop: 2, letterSpacing: 0.1 },
   saveBtn: {
-    backgroundColor: colors.foreground,
-    borderRadius: 13,
-    paddingVertical: 14,
-    paddingHorizontal: 22,
+    backgroundColor: INK,
+    borderRadius: 999,
+    borderCurve: 'continuous',
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    minWidth: 104,
     alignItems: 'center',
+    ...SOFT,
   },
-  saveBtnOff: { opacity: 0.35 },
-  saveText: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.background, letterSpacing: 0.1 },
+  saveBtnOff: { backgroundColor: '#DAD9D6', shadowOpacity: 0 },
+  saveText: { fontFamily: fonts.sansSemiBold, fontSize: 15.5, color: ON_INK, letterSpacing: 0.2 },
+
+  // ── Wheel time picker (matches onboarding exactly) ──
+  wheelItem: { height: ITEM_H, alignItems: 'center', justifyContent: 'center' },
+  wheelText: { fontFamily: fonts.sansMedium, fontSize: 21, color: MUTE },
+  wheelTextActive: { fontFamily: fonts.sansSemiBold, color: INK },
+  wheelBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
+  wheelSheet: {
+    backgroundColor: SHEET_BG,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderCurve: 'continuous',
+    paddingTop: 22,
+    paddingBottom: 34,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 460,
+    alignSelf: 'center',
+  },
+  wheelSheetTitle: { fontFamily: fonts.sansSemiBold, fontSize: 17, color: INK, marginBottom: 8 },
+  wheelRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: ITEM_H * VISIBLE, position: 'relative' },
+  wheelBand: { position: 'absolute', left: 12, right: 12, top: ITEM_H * 2, height: ITEM_H, borderRadius: 12, backgroundColor: WASH },
+  wheelDone: {
+    marginTop: 18,
+    height: 52,
+    minWidth: 200,
+    paddingHorizontal: 48,
+    borderRadius: 999,
+    borderCurve: 'continuous',
+    backgroundColor: INK,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SOFT,
+  },
+  wheelDoneText: { fontFamily: fonts.sansSemiBold, fontSize: 16, color: ON_INK, letterSpacing: 0.2 },
 });
