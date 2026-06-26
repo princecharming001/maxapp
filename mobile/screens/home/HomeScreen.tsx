@@ -504,11 +504,6 @@ export default function HomeScreen() {
         }
     };
 
-    // Quiet, name-aware greeting atop the day counter. Only shown when we
-    // actually know the name — a nameless cold-start Home stays byte-identical
-    // to today (no orphan "Good morning" line, never "undefined").
-    const greetingLine = pers.firstName ? `${pers.greeting}, ${pers.firstName}` : null;
-
     /* ───── JSX ───── */
 
     return (
@@ -556,13 +551,8 @@ export default function HomeScreen() {
                         </View>
                     </View>
 
-                    {/* ── HEADER: greeting + kicker + DAY X / N ── */}
+                    {/* ── HEADER: kicker + DAY X / N ── */}
                     <View style={s.header}>
-                        {personalizedUI && greetingLine ? (
-                            <Text style={s.greeting} numberOfLines={1}>
-                                {greetingLine}
-                            </Text>
-                        ) : null}
                         <Text style={s.kicker} numberOfLines={1}>
                             {(activeDisplayLabel || 'TODAY').toUpperCase()}
                         </Text>
