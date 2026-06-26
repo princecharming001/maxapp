@@ -5,9 +5,8 @@
  * SEE the same day the DayTimeline shows as an agenda; tapping a card opens the
  * same editor. Pure presentation — it takes the resolved day + obligations.
  */
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '../../theme/dark';
 import type { ShapeFocus } from './DayEditorSheet';
 import {
@@ -24,8 +23,8 @@ const WORKOUT_ACCENT = '#2F6B4E';
 const OB_INK = '#34343B';
 
 const HOUR_H = 62;     // pixels per hour
-const GUTTER = 54;     // time-label column width
-const MIN_CARD_H = 24; // floor; real blocks are ≥25 min so height ≈ duration (no overlap)
+const GUTTER = 78;     // time-label column width ("04:00 PM")
+const MIN_CARD_H = 30; // floor; real blocks are ≥25 min so height ≈ duration (no overlap)
 
 type Ev = {
   key: string;
@@ -42,7 +41,7 @@ function hourLabel(h: number): string {
   const hh = ((h % 24) + 24) % 24;
   const suffix = hh < 12 ? 'AM' : 'PM';
   const hr = hh % 12 || 12;
-  return `${hr} ${suffix}`;
+  return `${String(hr).padStart(2, '0')}:00 ${suffix}`;
 }
 
 function buildEvents(
@@ -131,8 +130,6 @@ export default function ScheduleGrid({
   onEditShape: (focus: ShapeFocus) => void;
   onEditObligation?: (index: number) => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
-
   const evs = buildEvents(day, obligations, scope, onEditShape, onEditObligation);
   const minStart = Math.min(...evs.map((e) => e.start));
   const maxEnd = Math.max(...evs.map((e) => e.end));
@@ -170,74 +167,53 @@ export default function ScheduleGrid({
 
   return (
     <View style={styles.wrap}>
-      {/* Timepage-style "SCHEDULE" eyebrow with a collapse chevron */}
-      <TouchableOpacity
-        style={styles.head}
-        activeOpacity={0.7}
-        onPress={() => setCollapsed((v) => !v)}
-        accessibilityRole="button"
-        accessibilityLabel={collapsed ? 'Expand schedule' : 'Collapse schedule'}
-      >
-        <Text style={styles.eyebrow}>SCHEDULE</Text>
-        <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={18} color={colors.textMuted} />
-      </TouchableOpacity>
+      <View style={[styles.grid, { height: gridHeight }]}>
+        {/* Faint hour lines + labels, on even clock hours (12, 2, 4 …). */}
+        {Array.from({ length: endHour - startHour + 1 }).map((_, i) => {
+          const h = startHour + i;
+          if ((((h % 24) + 24) % 24) % 2 !== 0) return null;
+          const top = i * HOUR_H;
+          return (
+            <View key={`h-${h}`} pointerEvents="none" style={[styles.hourRow, { top }]}>
+              <Text style={styles.hourLabel}>{hourLabel(h)}</Text>
+              <View style={styles.hourLine} />
+            </View>
+          );
+        })}
 
-      {!collapsed ? (
-        <View style={[styles.grid, { height: gridHeight }]}>
-          {/* Hour lines + labels */}
-          {Array.from({ length: endHour - startHour + 1 }).map((_, i) => {
-            const h = startHour + i;
-            const top = i * HOUR_H;
+        {/* Event cards — positioned on the time axis, minimal white cards. */}
+        <View pointerEvents="box-none" style={styles.lane}>
+          {evs.map((e, idx) => {
+            const { col, cols } = lay[idx];
+            const top = ((e.start - gridStart) / 60) * HOUR_H;
+            const height = Math.max(((e.end - e.start) / 60) * HOUR_H, MIN_CARD_H);
+            const tiny = height < 46;
             return (
-              <View key={`h-${h}`} pointerEvents="none" style={[styles.hourRow, { top }]}>
-                <Text style={styles.hourLabel}>{hourLabel(h)}</Text>
-                <View style={styles.hourLine} />
+              <View
+                key={e.key}
+                pointerEvents="box-none"
+                style={{ position: 'absolute', top, height, left: `${(col / cols) * 100}%` as any, width: `${(1 / cols) * 100}%` as any }}
+              >
+                <TouchableOpacity
+                  activeOpacity={e.onPress ? 0.85 : 1}
+                  onPress={e.onPress}
+                  disabled={!e.onPress}
+                  style={styles.card}
+                  accessibilityRole={e.onPress ? 'button' : undefined}
+                  accessibilityLabel={`${e.label}, ${fmt12Compact(min2hhmm(e.start))}`}
+                >
+                  <Text style={styles.cardTitle} numberOfLines={tiny ? 1 : 2}>{e.label}</Text>
+                  {!tiny ? (
+                    <Text style={styles.cardTime} numberOfLines={1}>
+                      {fmt12Compact(min2hhmm(e.start))} – {fmt12Compact(min2hhmm(e.end))}
+                    </Text>
+                  ) : null}
+                </TouchableOpacity>
               </View>
             );
           })}
-
-          {/* Event cards — positioned within a lane area to the right of the gutter */}
-          <View pointerEvents="box-none" style={styles.lane}>
-            {evs.map((e, idx) => {
-              const { col, cols } = lay[idx];
-              const top = ((e.start - gridStart) / 60) * HOUR_H;
-              const height = Math.max(((e.end - e.start) / 60) * HOUR_H, MIN_CARD_H);
-              const compact = height < 54;
-              const tiny = height < 38;
-              return (
-                <View
-                  key={e.key}
-                  pointerEvents="box-none"
-                  style={{ position: 'absolute', top, height, left: `${(col / cols) * 100}%` as any, width: `${(1 / cols) * 100}%` as any }}
-                >
-                  <TouchableOpacity
-                    activeOpacity={e.onPress ? 0.85 : 1}
-                    onPress={e.onPress}
-                    disabled={!e.onPress}
-                    style={styles.card}
-                    accessibilityRole={e.onPress ? 'button' : undefined}
-                    accessibilityLabel={`${e.label}, ${fmt12Compact(min2hhmm(e.start))}`}
-                  >
-                    <View style={[styles.accentBar, { backgroundColor: e.accent }]} />
-                    <View style={[styles.cardBody, tiny && styles.cardBodyTiny]}>
-                      <View style={styles.cardTopRow}>
-                        <Ionicons name={e.icon as any} size={15} color={e.accent} style={{ marginRight: 6 }} />
-                        <Text style={styles.cardTitle} numberOfLines={1}>{e.label}</Text>
-                      </View>
-                      {!tiny ? (
-                        <Text style={styles.cardTime} numberOfLines={1}>
-                          {fmt12Compact(min2hhmm(e.start))} – {fmt12Compact(min2hhmm(e.end))}
-                        </Text>
-                      ) : null}
-                      {!compact && e.sub ? <Text style={styles.cardSub} numberOfLines={1}>{e.sub}</Text> : null}
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-          </View>
         </View>
-      ) : null}
+      </View>
     </View>
   );
 }
@@ -251,32 +227,26 @@ function min2hhmm(m: number): string {
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginTop: 4 },
-  head: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 8, marginBottom: 6,
-  },
-  eyebrow: { fontFamily: fonts.sansSemiBold, fontSize: 12, letterSpacing: 1.4, color: colors.textMuted },
-
+  wrap: { marginTop: 10 },
   grid: { position: 'relative', width: '100%' },
   hourRow: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center' },
   hourLabel: {
-    width: GUTTER - 12, textAlign: 'left', fontFamily: fonts.sansMedium, fontSize: 11.5,
-    color: colors.textMuted, marginTop: -7,
+    width: GUTTER - 12, textAlign: 'left', fontFamily: fonts.sansMedium, fontSize: 12,
+    color: colors.textMuted, marginTop: -7, letterSpacing: 0.4, fontVariant: ['tabular-nums'],
   },
-  hourLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
+  hourLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border, opacity: 0.7 },
 
   lane: { position: 'absolute', left: GUTTER, right: 0, top: 0, bottom: 0 },
+  // Minimal white card — title centered, soft shadow, no accent/icon.
   card: {
-    flex: 1, height: '100%', flexDirection: 'row', backgroundColor: colors.card, borderRadius: 14, overflow: 'hidden',
-    marginRight: 5, marginBottom: 4,
-    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    flex: 1, height: '100%',
+    backgroundColor: '#FFFFFF', borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 12, paddingVertical: 8,
+    marginRight: 6, marginBottom: 5,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
-  accentBar: { width: 5 },
-  cardBody: { flex: 1, paddingHorizontal: 12, paddingVertical: 9, justifyContent: 'flex-start' },
-  cardBodyTiny: { paddingVertical: 4, justifyContent: 'center' },
-  cardTopRow: { flexDirection: 'row', alignItems: 'center' },
-  cardTitle: { flex: 1, fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.foreground, letterSpacing: -0.1 },
-  cardTime: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.textMuted, marginTop: 2 },
-  cardSub: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.textMuted, marginTop: 1 },
+  cardTitle: { fontFamily: fonts.sansSemiBold, fontSize: 15, color: colors.foreground, letterSpacing: -0.1, textAlign: 'center' },
+  cardTime: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.textMuted, marginTop: 3, textAlign: 'center', fontVariant: ['tabular-nums'] },
 });

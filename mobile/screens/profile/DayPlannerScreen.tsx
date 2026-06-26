@@ -37,9 +37,11 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
+import { useFlag } from '../../constants/featureFlags';
+import { experienceTier } from '../../lib/personalization';
 import { colors, spacing, fonts } from '../../theme/dark';
 import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
-import DayBuckets from '../../components/planner/DayBuckets';
+import ScheduleGrid from '../../components/planner/ScheduleGrid';
 import ObligationsManager, { ObligationsManagerHandle } from '../../components/planner/ObligationsManager';
 import {
   DayShape,
@@ -108,18 +110,46 @@ const SOFT = {
 } as const;
 
 // Quick-tap prompts for the change sheet — chip label + the text it prefills.
-const SUGGESTIONS: { chip: string; text: string }[] = [
+type Suggestion = { chip: string; text: string };
+const SUGGESTIONS: Suggestion[] = [
   { chip: 'Wake earlier', text: 'Wake between 6:30 and 7:30 on weekdays' },
   { chip: 'Sleep in weekends', text: 'Sleep in until 10 on weekends' },
   { chip: 'Set work hours', text: 'Work 9-5 on weekdays' },
   { chip: 'Add a workout', text: 'Add gym 6-7pm Mon, Wed, Fri' },
 ];
+// Experience-tuned chip sets. Beginners get foundational structure prompts;
+// advanced users get prompts that assume the basics are in place. Any other /
+// unknown level falls back to SUGGESTIONS (today's four) — cold-start identical.
+const SUGGESTIONS_BEGINNER: Suggestion[] = [
+  { chip: 'Set a wake time', text: 'Wake between 6:30 and 7:30 on weekdays' },
+  { chip: 'Set work hours', text: 'Work 9-5 on weekdays' },
+  { chip: 'Wind down nightly', text: 'Wind down from 10pm and sleep by 11' },
+  { chip: 'Block a daily slot', text: 'Reserve 30 minutes each evening for my routine' },
+];
+const SUGGESTIONS_ADVANCED: Suggestion[] = [
+  { chip: 'Add a workout', text: 'Add gym 6-7pm Mon, Wed, Fri' },
+  { chip: 'Add a second session', text: 'Add a mobility session 7-7:30am on weekdays' },
+  { chip: 'Protect deep work', text: 'Block 9-11am on weekdays for focused work' },
+  { chip: 'Sleep in weekends', text: 'Sleep in until 10 on weekends' },
+];
+function suggestionsForTier(tier: 'beginner' | 'intermediate' | 'advanced' | 'unknown'): Suggestion[] {
+  if (tier === 'beginner') return SUGGESTIONS_BEGINNER;
+  if (tier === 'advanced') return SUGGESTIONS_ADVANCED;
+  return SUGGESTIONS;
+}
 
 export default function DayPlannerScreen({ embedded = false }: { embedded?: boolean }) {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { user, refreshUser } = useAuth();
   const ob = (user?.onboarding || {}) as Record<string, any>;
+
+  // Experience-tuned quick-tap chips. Off / unknown level → today's four.
+  const personalizedUI = useFlag('personalizedUI');
+  const suggestions = useMemo(
+    () => (personalizedUI ? suggestionsForTier(experienceTier(ob.experience_level)) : SUGGESTIONS),
+    [personalizedUI, ob.experience_level],
+  );
 
   const [defaults, setDefaults] = useState<DayShape>(() => hydrateDayShape(ob));
   const [weekly, setWeekly] = useState<Partial<Record<Weekday, Partial<DayShape>>>>(
@@ -385,14 +415,13 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             </TouchableOpacity>
           ) : null}
 
-          {/* The day as time-of-day sections (Anytime / Morning / Afternoon / Evening). */}
-          <DayBuckets
+          {/* The day as a calendar — hour gutter + events on the time axis. */}
+          <ScheduleGrid
             day={dayForScope}
             obligations={obligations}
             scope={scope}
             onEditShape={(focus) => openEditor(scope, focus)}
             onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
-            onAdd={() => obligationsRef.current?.openAdd()}
           />
 
           <View style={{ height: 96 + insets.bottom }} />
@@ -505,7 +534,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                 </View>
               ) : (
                 <View style={styles.suggRow}>
-                  {SUGGESTIONS.map((s) => (
+                  {suggestions.map((s) => (
                     <TouchableOpacity
                       key={s.chip}
                       style={styles.suggChip}
