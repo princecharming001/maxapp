@@ -766,7 +766,11 @@ async def build_agent_system_prompt(
             "\n\n## USER RESPONSE LENGTH PREFERENCE: DETAILED  (overrides all other length rules)\n"
             "- Up to ~8 sentences, or a tight bulleted structure. Still lowercase, still Max's voice, length is not license to pad.\n"
             "- Every expansion must add real info: mechanisms, exact protocols, numbers, evidence. If you catch yourself restating, stop.\n"
-            "- Structure: direct answer → specifics (ingredient + %, time, reps, macros) → one sentence on why. No intros, no end-summaries."
+            "- Structure: direct answer → specifics (ingredient + %, time, reps, macros) → one sentence on why. No intros, no end-summaries.\n"
+            "- Precedence: length sets how MUCH you say; your coach voice sets HOW. "
+            "If your active voice is terse (e.g. the hardcore coach), keep its clipped, "
+            "percussive cadence even here. Depth comes from more concrete specifics and "
+            "more short hits, NOT from longer flowing sentences."
         )
     else:
         chat_prompt += (

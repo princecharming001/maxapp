@@ -171,9 +171,12 @@ def check_length_pref(prompt: str, length: Optional[str]) -> Optional[str]:
 def check_persona_length_coherence(prompt: str, persona: str, length: Optional[str]) -> Optional[str]:
     """A terse persona told 'detailed' must carry an explicit reconciliation so
     the model isn't handed a flat contradiction (RC2)."""
-    if length == "detailed" and persona in TERSE_PERSONAS:
-        if "clipped" not in prompt.lower() and "terse" not in prompt.lower():
-            return "persona<->length conflict unresolved (hardcore + detailed, no reconciliation clause)"
+    if length == "detailed":
+        # The detailed block must explicitly state precedence (length = how much,
+        # persona = how) so a terse persona isn't handed a flat "8 sentences"
+        # contradiction. Marker lives in the detailed length block.
+        if "length sets how much" not in prompt.lower():
+            return "persona<->length precedence not stated coherently in the detailed block"
     return None
 
 
