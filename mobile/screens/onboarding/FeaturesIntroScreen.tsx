@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { LiquidGlassFill } from '../../components/glass/LiquidGlass';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fonts } from '../../theme/dark';
 import { useAuth } from '../../context/AuthContext';
@@ -146,9 +146,10 @@ export default function FeaturesIntroScreen() {
                     accessibilityLabel="Back"
                     accessibilityRole="button"
                 >
-                    <BlurView intensity={24} tint="light" style={s.backBtn}>
+                    <View style={s.backBtn}>
+                        <LiquidGlassFill idSuffix="introback" />
                         <Ionicons name="arrow-back" size={20} color={INK} />
-                    </BlurView>
+                    </View>
                 </TouchableOpacity>
                 ) : null}
 
@@ -168,10 +169,16 @@ export default function FeaturesIntroScreen() {
                         accessibilityRole="button"
                         accessibilityLabel={showResults ? 'View my results' : 'Start face scan'}
                     >
-                        <BlurView intensity={40} tint="light" style={s.cta}>
+                        <View style={s.cta}>
+                            {/* Canonical liquid glass over the dark hero — clear
+                                see-through pane, corner specular, luminous rim.
+                                Keep it translucent (low intensity) so the dark
+                                hero shows through and the WHITE label stays legible
+                                — over-lightening it would wash the text out. */}
+                            <LiquidGlassFill idSuffix="introcta" intensity={45} />
                             <Text style={s.ctaText}>{showResults ? 'View my results' : 'Start scan'}</Text>
                             <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                        </BlurView>
+                        </View>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -199,7 +206,6 @@ const s = StyleSheet.create({
         alignItems: 'center', justifyContent: 'center',
         overflow: 'hidden',
         borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)',
-        backgroundColor: 'rgba(255,255,255,0.3)',
     },
     brandPill: {
         flexDirection: 'row', alignItems: 'center',
@@ -280,7 +286,6 @@ const s = StyleSheet.create({
         gap: 9,
         width: '100%',
         height: 58,
-        backgroundColor: 'rgba(255,255,255,0.12)',
     },
     ctaText: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: '#FFFFFF', letterSpacing: 0.2 },
 });
