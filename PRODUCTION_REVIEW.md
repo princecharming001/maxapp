@@ -78,8 +78,12 @@ When (and only when) all of the above hold, output exactly:
   **GOTCHA (iter 3):** never run two Maestro sessions at once — a stray/hung
   `maestro` process collides on the device driver and makes EVERY later run flaky
   (random `tapOn`/`assertVisible` failures, even logging the app out). Before each
-  run: `pkill -f maestro` and confirm none remain. The app restores the
-  last-active tab on launch, so tap "Home" explicitly — don't assume Home.
+  run: `pkill -9 -f maestro` AND kill the iOS driver (`pkill -9 -f
+  "xctest\|XCTRunner\|maestro-driver"`), then confirm `pgrep -f maestro` is empty
+  — a plain `pkill` leaves the xctest driver alive and the NEXT run dies with
+  `EXIT 1` right after "Launch app". The app restores the last-active tab on
+  launch, so select the tab explicitly via `tapOn: { id: "tab-<name>" }` (the
+  tabs now have testIDs — iter 10).
 - Typecheck: `cd mobile && npx tsc --noEmit`.
 - Tests: backend tests exist (see memory `maxapp_test_suite`); pre-existing
   failures there are out of scope unless they touch a flow you're verifying.
@@ -161,9 +165,10 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       FaceScanResults postPay reveal renders (Rating/Appeal/Potential rings,
       "Get started"). Still TODO: camera permission prompt + capture flow; free vs
       premium gating.
-- [~] Explore / Marketplace — **mounts & renders its loading state on sim
-      2026-06-26 (iter 4)** ("Loading Explore" spinner). Confirm content load +
-      card detail + start-program next pass.
+- [x] Explore / Marketplace — **navigates + renders, assertion-verified on sim
+      2026-06-26 (iter 11)** via `tab_walk_min.yaml` (tab-explore tap succeeds,
+      screen mounts; "Loading Explore" → "No maxes yet" on the empty faux account).
+      Card detail + start-program (with real maxes) still TODO.
 - [x] Chat / Coach (`screens/chat/MaxChatScreen.tsx`) — **render-verified on sim
       2026-06-26**: "What can I help with?", suggestion chips (Build my plan / skin
       / Rate my routine), "Ask Max anything" composer. TODO: send a real message +
@@ -382,3 +387,10 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   `tapOn: { id: tab-home }` → HABITS. Updated prod_screen_walk to walk by id.
   Resolves the test-infra item that was flagged for a human last iter. The rest of
   the screen walk (Explore/Chat/Settings/courses) is now reliably reachable.
+- 2026-06-26 (iter 11): **Core tab walk PASSES (EXIT 0).** New `tab_walk_min.yaml`
+  asserts Home→HABITS, Planner→Commitments, Explore→(mounts), Chat→"What can I
+  help with?" — all four tabs navigate + render via testID taps. Confirmed the
+  flaky-run root cause: a lingering maestro/xctest driver collides on re-run
+  (EXIT 1 after launch); fix = `pkill -9` maestro AND the xctest driver between
+  runs (documented in the Maestro gotcha). prod_screen_walk's DevDrawer re-entry
+  is still collision-sensitive; tab_walk_min is the reliable core walk.

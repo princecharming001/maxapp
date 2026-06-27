@@ -1,0 +1,20 @@
+# Minimal tab walk by testID — verifies each bottom tab renders. Precondition:
+# logged-in paid user. Kill stray maestro processes before running.
+appId: com.cannon.mobile
+---
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 8000
+- tapOn:
+    id: "tab-home"
+- assertVisible: "HABITS"
+- tapOn:
+    id: "tab-planner"
+- assertVisible: "Commitments"
+- tapOn:
+    id: "tab-explore"
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    id: "tab-chat"
+- assertVisible: "What can I help with?"
