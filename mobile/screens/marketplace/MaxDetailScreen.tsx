@@ -26,8 +26,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Alert } from '../../components/InAppAlert';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { LiquidGlassFill } from '../../components/glass/LiquidGlass';
 import Svg, { Defs, RadialGradient, Stop, Rect, Ellipse } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -703,40 +702,10 @@ export default function MaxDetailScreen() {
                         onPressIn={() => Animated.spring(ctaScale, { toValue: 0.97, useNativeDriver: true, speed: 40, bounciness: 0 }).start()}
                         onPressOut={() => Animated.spring(ctaScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start()}
                     >
-                        {/* Liquid glass: a strong backdrop blur of the content
-                            scrolling behind it (refraction), a top specular
-                            highlight, a diagonal light-catch, an inner bottom
-                            shadow for thickness, and luminous edge-lensing rims. */}
-                        <BlurView
-                            intensity={Platform.OS === 'ios' ? 60 : 44} tint="light"
-                            style={StyleSheet.absoluteFill} pointerEvents="none"
-                            experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
-                        />
-                        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.20)' }]} />
-                        <LinearGradient
-                            pointerEvents="none"
-                            colors={['rgba(255,255,255,0.72)', 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0)']}
-                            locations={[0, 0.5, 1]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 0, y: 1 }}
-                            style={styles.ctaSheen}
-                        />
-                        <LinearGradient
-                            pointerEvents="none"
-                            colors={['rgba(255,255,255,0.34)', 'rgba(255,255,255,0)']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 0.85, y: 0.9 }}
-                            style={StyleSheet.absoluteFill}
-                        />
-                        <LinearGradient
-                            pointerEvents="none"
-                            colors={['rgba(22,26,46,0)', 'rgba(22,26,46,0.07)']}
-                            start={{ x: 0, y: 0.55 }}
-                            end={{ x: 0, y: 1 }}
-                            style={StyleSheet.absoluteFill}
-                        />
-                        <View pointerEvents="none" style={styles.ctaGlassRim} />
-                        <View pointerEvents="none" style={styles.ctaGlassRimLeft} />
+                        {/* The canonical liquid-glass optics — same blur material,
+                            corner speculars, sheen and luminous rim as every other
+                            glass surface (the pill owns its own clip + float). */}
+                        <LiquidGlassFill idSuffix="cta" />
                         {busy ? (
                             <ActivityIndicator color={INK} />
                         ) : (
@@ -890,8 +859,5 @@ const styles = StyleSheet.create({
         borderWidth: 1, borderColor: 'rgba(255,255,255,0.55)',
         backgroundColor: 'rgba(255,255,255,0.10)',
     },
-    ctaGlassRim: { position: 'absolute', top: 0, left: 0, right: 0, height: 1.2, backgroundColor: 'rgba(255,255,255,0.92)' },
-    ctaGlassRimLeft: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 1, backgroundColor: 'rgba(255,255,255,0.5)' },
-    ctaSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '56%' },
     ctaGlassText: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: INK, letterSpacing: 0.2 },
 });
