@@ -316,6 +316,11 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
         (no a11y support is claimed), but worth a focused sweep.
       - testID coverage: tabs now have ids (iter 10); habit cards, login fields,
         marketplace cards already had them.
+      - iter 24 update: the auth flow is actually in good shape — LoginScreen &
+        SignupScreen already label Back / password-eye / Continue / Apple / links.
+        Fixed the one real auth gap (ForgotPassword country-modal Close button →
+        added accessibilityLabel). Remaining gaps are non-auth icon buttons
+        (chat/settings headers, gated forums) — still the P3 sweep below.
 - [x] Feature flags: confirm the **production** flag values and that gated paths
       render without dead tabs. **2026-06-26 (iter 14): shipping config coherent.**
       Static flags (mobile/constants/featureFlags.ts, no runtime toggle):
@@ -364,10 +369,10 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 - [ ] Consistent theming (the flat ink/cream "Craft" aesthetic) — no leftover
       dark-on-dark or stray glass-redo remnants.
 - [ ] Loading skeletons vs spinners consistency.
-- [ ] Accessibility sweep: add `accessibilityLabel` to icon-only buttons
-      (back/close/header/add/share) across shipping screens — ForgotPassword,
-      chat/settings headers, SendblueConnect, etc. (found iter 12; VoiceOver
-      polish, not launch-blocking).
+- [ ] Accessibility sweep (remaining): add `accessibilityLabel` to icon-only
+      buttons (close/header/add/share) on chat/settings headers, SendblueConnect,
+      and the gated forums screens. (Auth flow done iter 24; VoiceOver polish, not
+      launch-blocking.)
 - [x] Add `testID` to Explore/Marketplace cards — **DONE iter 17**:
       `explore-card-${item.id}` on all 4 card variants (Feature/Grid × native/
       poster); verified `tapOn id:explore-card-.*` opens MaxDetail.
@@ -556,3 +561,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   `!__DEV__` — the bypass calls can never run in a prod build even if invoked
   (triple-layer defense with the UI gate + backend 404). tsc clean (5/5 deferred
   glass errors, no new); dev flows unaffected.
+- 2026-06-26 (iter 24): **Auth-flow a11y closed.** Found Login/Signup already
+  fully labeled (Back/eye/Continue/Apple/links — iter-12 audit overstated the
+  gap); fixed the one real auth gap (ForgotPassword country-modal Close button →
+  added accessibilityLabel + role). Remaining a11y sweep is non-auth headers
+  (P3, non-blocking).

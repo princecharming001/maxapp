@@ -211,6 +211,8 @@ export default function ForgotPasswordScreen() {
                                     <TouchableOpacity
                                         onPress={() => setCountryModalVisible(false)}
                                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Close"
                                     >
                                         <Ionicons name="close" size={24} color={colors.foreground} />
                                     </TouchableOpacity>
