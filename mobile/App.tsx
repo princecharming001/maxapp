@@ -83,7 +83,7 @@ function AppNavigator() {
             // Report the tap so the backend's adaptive backoff counts an "open".
             void api.notificationOpened();
             if (navRef.isReady()) {
-                navRef.navigate(route as never, params as never);
+                navRef.dispatch(CommonActions.navigate({ name: route, params }));
                 pendingDeepLinkRef.current = null;
             } else {
                 pendingDeepLinkRef.current = { route, params };
@@ -160,7 +160,7 @@ function AppNavigator() {
     useEffect(() => {
         const pending = pendingDeepLinkRef.current;
         if (pending && navRef.isReady()) {
-            navRef.navigate(pending.route as never, pending.params as never);
+            navRef.dispatch(CommonActions.navigate({ name: pending.route, params: pending.params }));
             pendingDeepLinkRef.current = null;
         }
     }, [isAuthenticated, isPaid, user?.id, navRef]);
@@ -178,7 +178,7 @@ function AppNavigator() {
         let tries = 0;
         const go = () => {
             if (navRef.isReady()) {
-                navRef.navigate('FaceScanResults' as never, { postPay: true } as never);
+                navRef.dispatch(CommonActions.navigate({ name: 'FaceScanResults', params: { postPay: true } }));
             } else if (tries++ < 20) {
                 setTimeout(go, 150);
             }

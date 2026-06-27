@@ -18,7 +18,9 @@ export const config = createTamagui({
     tokens: {
         ...defaultConfig.tokens,
         color: {
-            ...defaultConfig.tokens.color,
+            // NOTE: @tamagui/config/v4 keeps colors in `themes`, not
+            // `tokens.color` (which is radius/space/size/zIndex only), so there's
+            // nothing to spread here — we define the brand color tokens outright.
             // Brand — Craft-inspired: warm paper, ink, one calm blue accent.
             // (token names kept for back-compat; `gold` now carries the accent
             // and `glass*` now carry flat-paper surfaces, no blur.)

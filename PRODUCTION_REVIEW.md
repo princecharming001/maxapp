@@ -191,12 +191,16 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 
 ## P2 — CROSS-CUTTING PRODUCTION CHECKS
 
-- [~] `npx tsc --noEmit` clean (or deferred list). **2026-06-26: 3 pre-existing
-  errors found (NOT from this review), to fix or delete:**
-  - `components/glass/GlassCard.tsx:38` — Tamagui `backgroundColor` prop invalid
-    (glass-redo remnant; the app moved to the flat "Craft" aesthetic — check if
-    GlassCard/Tamagui are still used anywhere; if dead, remove).
-  - `tamagui.config.ts:21` — `tokens.color` missing (same glass-redo remnant).
+- [~] `npx tsc --noEmit` — **9 pre-existing errors → 4 fixed, 5 deferred (iter 5).**
+  Fixed (in actively-shipping code):
+  - `App.tsx:86/163/181` — dynamic `navRef.navigate(x as never, y as never)`
+    (the `[never,never]` 2-arg form broke the overload) → switched to
+    `navRef.dispatch(CommonActions.navigate({ name, params }))`, the codebase's
+    own idiom (matches the `CommonActions.reset(...)` calls right below);
+    runtime-equivalent, tsc-clean.
+  - `tamagui.config.ts:21` — spread of non-existent `defaultConfig.tokens.color`
+    (v4 keeps colors in `themes`, not `tokens`) → removed the no-op spread.
+  Deferred (see Accepted/Deferred): 5 in `components/glass/*` — non-shipping path.
   - `screens/profile/ProfileScreen.tsx:696` — ✅ FIXED 2026-06-26 (iter 4): the
     Chad-Lite note read `p.chadliteNote` but the style lives in the `styles`
     sheet → it was rendering UNSTYLED on the live Profile screen. Repointed to
@@ -239,9 +243,24 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   show a tooltip over the right element, Skip/Next/Done all work, and the app is
   fully tappable afterward. (Backend exposes only `/main-app-tour/complete`, no
   reset, so a fresh account or a DB flag flip is needed to retest.)
+- **Dead `todayV2` / Tamagui / glass path — fix-or-delete?** `newNav` and
+  `todayV2` both ship OFF, so `TodayScreen` (the only real consumer of the glass
+  components + Tamagui tokens) never renders in prod, yet `TamaguiProvider` is
+  still mounted at the App root and the Tamagui + glass code ships in the bundle.
+  If todayV2 is abandoned (Craft aesthetic won), deleting TodayScreen + the glass
+  components + the Tamagui dependency would clear the last 5 tsc errors and shrink
+  the bundle. If todayV2 is still planned, the Tamagui token typing needs a real
+  fix instead. Needs a product decision before acting (don't delete autonomously).
 
 ## ACCEPTED / DEFERRED (with reason)
-- (none yet)
+- **5 tsc errors in `components/glass/GlassCard.tsx` (29,38) +
+  `GlassButton.tsx` (55,81,116)** — Tamagui `$glass`/`$glassBorder` token props
+  not recognized by the type system. DEFERRED because this is a **non-shipping
+  path**: GlassCard/GlassButton are only rendered by `TodayScreen` (gated behind
+  `todayV2`, which is OFF in prod) and `PlannerMockups` (`__DEV__`-only). Zero
+  runtime impact in production (no glass component mounts; the comment in
+  GlassCard even notes "there is no glass" — the app uses the flat Craft
+  aesthetic now). Proper resolution is a product call — see Needs Human Decision.
 
 ## ITERATION LOG (newest last — one line each)
 - 2026-06-26: Seeded review. Applied `pointerEvents="none"` to TabBarFrost
@@ -273,3 +292,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   com.cannon.mobile (Metro still up on :8081); app back in the paid account,
   Explore tab mounts ("Loading Explore"). Screen-walk env is fragile under
   repeated relaunches — drive deliberately, one Maestro session at a time.
+- 2026-06-26 (iter 5): **tsc 9 → 5.** Fixed the 4 errors in shipping code:
+  App.tsx ×3 dynamic navigates → `CommonActions.navigate` dispatch; tamagui.config
+  bad token spread removed. Remaining 5 are all in the non-shipping glass/Tamagui
+  path (todayV2 OFF) → deferred with justification + flagged the fix-or-delete
+  product call. Verified by re-running tsc (count dropped 9→5, no new errors).
