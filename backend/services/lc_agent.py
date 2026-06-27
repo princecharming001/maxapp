@@ -124,6 +124,14 @@ from services.token_budget import count_tokens, trim_context_blob, trim_text_blo
 
 logger = logging.getLogger(__name__)
 
+# Per-request surface for a schedule-change proposal created during this turn.
+# The `propose_schedule_change` tool sets it; api/chat.py reads it after the
+# agent runs to attach a Yes/No confirm affordance to the response WITHOUT a
+# second LLM call. Cleared per request in process_chat_message (finally block).
+proposed_schedule_change: contextvars.ContextVar = contextvars.ContextVar(
+    "proposed_schedule_change", default=None
+)
+
 
 def _detect_image_mime(image_data: bytes) -> str:
     """Infer data: URL MIME type from image magic bytes (defaults to image/jpeg)."""
@@ -2215,7 +2223,124 @@ def make_chat_tools(
             logger.exception("remember_about_user tool failed: %s", e)
             return f"could not remember that: {e}"
 
+    @tool
+    async def propose_schedule_change(
+        kind: str,
+        summary: str,
+        apply_tool: str,
+        maxx_id: Optional[str] = None,
+        task_hint: Optional[str] = None,
+        time: Optional[str] = None,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        duration_minutes: Optional[int] = None,
+        context_key: Optional[str] = None,
+        context_value: Optional[str] = None,
+        source: str = "docs",
+    ) -> str:
+        """
+        PROPOSE a concrete schedule change and ask the user Yes/No — DO NOT mutate
+        the schedule yourself. Call this whenever the user wants to CHANGE their
+        plan ("I don't like this workout plan", "change my diet", "swap the
+        Heightmax tasks", "make it easier", "move it later", "fewer days", etc.)
+        instead of calling modify_schedule / edit_schedule_task / generate_maxx_schedule
+        directly. The change is only applied after the user taps Yes.
+
+        Ground the suggestion in the docs first (use search_knowledge) and the web
+        as fallback (web_search); honor the user's ABSOLUTE RULES (allergies / diet)
+        — never propose a food they avoid. Never invent a protocol.
+
+        Args:
+          kind: one of switch_workout | switch_diet | edit_maxx_tasks | adjust | other
+          summary: ONE short sentence describing exactly what will change, shown in
+            the bubble (e.g. "Swap your Friday workout to a push/pull/legs split").
+          apply_tool: the deterministic action to run on Yes — one of:
+            - "edit_task"   : change a task's time/title/description/duration
+                              (provide task_hint + the fields to change)
+            - "delete_task" : remove a task (provide task_hint)
+            - "update_preferences": change wake/sleep/notification prefs
+                              (pass via context_key/context_value as JSON is NOT
+                              needed — use set_context for plan switches instead)
+            - "set_context" : switch a workout/diet plan or any durable preference
+                              that regenerates tasks (provide context_key +
+                              context_value, e.g. key="diet_pattern",
+                              value="high-protein mediterranean")
+          maxx_id: the affected maxx (fitmax, skinmax, hairmax, heightmax, bonemax) if any.
+          task_hint/time/title/description/duration_minutes: for edit_task/delete_task.
+          context_key/context_value: for set_context (and update_preferences pref keys).
+          source: "docs" if grounded in the coaching docs, else "web".
+        """
+        try:
+            from services.schedule_change_service import create_proposal
+            from models.sqlalchemy_models import active_conversation_id as _conv_cv
+
+            apply_tool = (apply_tool or "").strip()
+            action: dict
+            if apply_tool in ("edit_task", "delete_task"):
+                sid, tid, err = await _resolve_today_task_target(
+                    action=("edit" if apply_tool == "edit_task" else "delete"),
+                    schedule_id=None,
+                    task_id=None,
+                    task_hint=task_hint,
+                )
+                if not sid or not tid:
+                    return err or "could not find that task to change — ask the user which one."
+                if apply_tool == "edit_task":
+                    updates: dict = {}
+                    if time is not None:
+                        updates["time"] = time
+                    if title is not None:
+                        updates["title"] = title
+                    if description is not None:
+                        updates["description"] = description
+                    if duration_minutes is not None:
+                        updates["duration_minutes"] = duration_minutes
+                    if not updates:
+                        return "no changes specified for that task."
+                    action = {"tool": "edit_task", "args": {"schedule_id": sid, "task_id": tid, "updates": updates}}
+                else:
+                    action = {"tool": "delete_task", "args": {"schedule_id": sid, "task_id": tid}}
+            elif apply_tool == "set_context":
+                if not context_key:
+                    return "set_context needs a context_key (e.g. diet_pattern)."
+                action = {"tool": "set_context", "args": {
+                    "key": context_key, "value": context_value,
+                    "only_max": maxx_id, "regenerate": True,
+                }}
+            elif apply_tool == "update_preferences":
+                if not context_key:
+                    return "update_preferences needs a preference key."
+                action = {"tool": "update_preferences", "args": {"preferences": {context_key: context_value}}}
+            else:
+                return ("apply_tool must be one of edit_task, delete_task, set_context, "
+                        "update_preferences.")
+
+            conv_id = _conv_cv.get()
+            async with db_mutation_lock:
+                proposal = await create_proposal(
+                    db,
+                    user_id=user_id,
+                    conversation_id=str(conv_id) if conv_id else None,
+                    kind=kind,
+                    maxx_id=maxx_id,
+                    summary=summary,
+                    action=action,
+                    source=source,
+                )
+                await db.commit()
+            # Surface to api/chat.py so it renders Yes/No (no second LLM call).
+            proposed_schedule_change.set({"proposal_id": str(proposal.id), "summary": proposal.summary})
+            return (
+                f"PROPOSED (awaiting the user's Yes/No — not yet applied): {proposal.summary}. "
+                "Briefly tell the user what you'll change and that they can tap Yes to apply or No to tweak it."
+            )
+        except Exception as e:
+            await _safe_rollback()
+            logger.exception("propose_schedule_change tool failed: %s", e)
+            return f"could not prepare that change: {e}"
+
     return [
+        propose_schedule_change,
         modify_schedule,
         generate_maxx_schedule,
         stop_schedule,

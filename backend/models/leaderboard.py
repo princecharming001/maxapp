@@ -104,6 +104,12 @@ class ChatResponse(BaseModel):
     # Echo back the conversation the message landed in — lets the mobile client
     # discover the server-assigned id on first message without a separate call.
     conversation_id: Optional[str] = None
+    # When the coach proposed a concrete schedule change this turn (the
+    # propose_schedule_change tool), this carries {proposal_id, summary} so the
+    # mobile client renders Yes/No confirm buttons. Yes → POST chat/confirm-change
+    # applies the EXACT stored proposal; No → focus composer for a re-prompt.
+    # None on normal turns (RALPH_CHAT_RESCHEDULE).
+    confirm: Optional[dict] = None
 
 
 class ChatHistoryInDB(BaseModel):

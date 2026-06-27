@@ -934,3 +934,46 @@ class ReferralRedemption(Base):
         Index("idx_referral_redemptions_user_id", user_id),
         Index("idx_referral_redemptions_code_id", code_id),
     )
+
+
+class ScheduleChangeProposal(Base):
+    """A pending chat-proposed schedule change (RALPH_CHAT_RESCHEDULE).
+
+    The coach proposes a concrete change via the `propose_schedule_change` tool;
+    this row stores the EXACT deterministic action ({tool, args}) to replay if the
+    user taps Yes — so acceptance applies precisely what was shown, never a fresh
+    LLM re-derivation. Auto-created by Base.metadata.create_all in init_db.
+
+    status lifecycle: 'pending' → 'applied' | 'rejected' | 'expired'. The unique
+    partial behaviour is enforced in service code: at most one 'pending' proposal
+    per conversation is surfaced; applying is idempotent (a second Yes on an
+    already-'applied' row is a no-op that returns the stored result).
+    """
+    __tablename__ = "schedule_change_proposals"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("app_users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    conversation_id = Column(UUID(as_uuid=True), nullable=True)
+    kind = Column(String, nullable=False)        # switch_workout|switch_diet|edit_maxx_tasks|adjust|other
+    maxx_id = Column(String, nullable=True)
+    summary = Column(Text, nullable=False)        # human-facing one-liner shown in the bubble
+    action = Column(JSON, nullable=False, default=dict)   # {"tool": <name>, "args": {...}} replayed on Yes
+    source = Column(String, nullable=False, default="docs")  # 'docs' | 'web'
+    status = Column(String, nullable=False, default="pending")  # pending|applied|rejected|expired
+    result_message = Column(Text, nullable=True)   # cached apply result (idempotent re-confirm)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index("idx_sched_change_proposals_conv", conversation_id, status),
+        Index("idx_sched_change_proposals_user", user_id, status, created_at.desc()),
+    )
