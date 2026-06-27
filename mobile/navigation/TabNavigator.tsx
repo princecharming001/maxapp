@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Platform, View, Text, TouchableOpacity, Modal } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +11,10 @@ import { useNavigation } from '@react-navigation/native';
 import { queryClient } from '../lib/queryClient';
 import { prefetchMainTabData } from '../lib/prefetchMainTabData';
 import { useAuth } from '../context/AuthContext';
-import { SpotlightTourProvider, AttachStep } from 'react-native-spotlight-tour';
+import { SpotlightTourProvider, AttachStep, useSpotlightTour } from 'react-native-spotlight-tour';
+// Deep import (pinned v4.0.0): the public API doesn't surface the live `spot`,
+// which the safety watchdog needs to detect a zero-spot trap.
+import { SpotlightTourContext } from 'react-native-spotlight-tour/dist/lib/SpotlightTour.context';
 import { TOUR_STEPS, TOUR_STEP } from '../features/mainTour/mainTourSteps';
 import api from '../services/api';
 
@@ -300,6 +303,35 @@ const modal = StyleSheet.create({
 // regardless of focus/measure and caused the "frozen screen" bug; it has been
 // removed. The SpotlightTourProvider + AttachStep anchors below stay as-is.
 
+// Safety watchdog: even though the start is gated, this is the last line of
+// defence against an unescapable backdrop. If the active step's measured spot
+// stays zero past a short grace window (its anchor never mounted/measured),
+// abort the tour gracefully — stop() fires onStop, which restores tappability
+// AND persists completion so it can't re-fire. Without this, a zero spot leaves
+// a full-screen backdrop whose tooltip (and Skip button) never fades in.
+const TOUR_ZERO_SPOT_GRACE_MS = 1200;
+
+function TourSafetyGuard() {
+    const { current, spot } = useContext(SpotlightTourContext);
+    const { stop } = useSpotlightTour();
+    const spotRef = useRef(spot);
+    spotRef.current = spot;
+
+    useEffect(() => {
+        if (current === undefined) return; // tour not running
+        const id = setTimeout(() => {
+            const s = spotRef.current;
+            if (!s || s.width <= 0 || s.height <= 0) {
+                // Zero spot after the grace window → unescapable backdrop. Bail.
+                stop();
+            }
+        }, TOUR_ZERO_SPOT_GRACE_MS);
+        return () => clearTimeout(id);
+    }, [current, stop]);
+
+    return null;
+}
+
 // The 4-tab pivot nav (spec 3.1): Today / Explore / Coach / You. No Forums
 // registration, no ScanTab remnant, no duplicate Planner tab - the week
 // editor lives under You (ONE source of truth). Route names that other code
@@ -520,6 +552,7 @@ export default function TabNavigator() {
                     }}
                 />
             </Tab.Navigator>
+            <TourSafetyGuard />
             </SpotlightTourProvider>
 
             <PremiumGateModal
