@@ -409,7 +409,7 @@ function isAbortError(e: any): boolean {
 // The black circular action button — morphs mic → up-arrow → stop, with a pop.
 // States: loading (generating, disabled stop) · send (has text) · listening
 // (voice capture active, tap to stop) · mic (idle, tap to dictate).
-function MorphSend({ loading, hasText, listening, onPress }: { loading: boolean; hasText: boolean; listening: boolean; onPress: () => void }) {
+function MorphSend({ loading, hasText, listening, onPress, testID }: { loading: boolean; hasText: boolean; listening: boolean; onPress: () => void; testID?: string }) {
   const scale = useRef(new Animated.Value(1)).current;
   const state = loading ? 'stop' : hasText ? 'send' : listening ? 'listening' : 'mic';
   useEffect(() => {
@@ -430,7 +430,7 @@ function MorphSend({ loading, hasText, listening, onPress }: { loading: boolean;
     return () => loop.stop();
   }, [listening, pulse]);
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={loading ? 'Stop' : hasText ? 'Send' : listening ? 'Stop voice' : 'Voice'}>
+    <TouchableOpacity testID={testID} onPress={onPress} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={loading ? 'Stop' : hasText ? 'Send' : listening ? 'Stop voice' : 'Voice'}>
       <Animated.View style={[cg.sendCircle, listening && cg.sendCircleLive, { transform: [{ scale }], opacity: listening ? pulse : 1 }]}>
         {loading ? <View style={cg.stopSquare} />
           : hasText ? <Ionicons name="arrow-up" size={20} color="#fff" />
@@ -495,6 +495,11 @@ export default function MaxChatScreen() {
     // render <ChatSliderInput /> in place of the quick-reply chip row.
     const [inputWidget, setInputWidget] = useState<SliderSpec | HabitPickerSpec | null>(null);
     const [applyingHabits, setApplyingHabits] = useState(false);
+    // A pending coach-proposed schedule change → renders Yes/No buttons. Yes
+    // applies the EXACT stored proposal server-side; No focuses the composer for
+    // a typed re-prompt. (RALPH_CHAT_RESCHEDULE Phase 5)
+    const [pendingConfirm, setPendingConfirm] = useState<{ proposal_id: string; summary: string } | null>(null);
+    const [confirmInFlight, setConfirmInFlight] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
     /** When the user swipes right on a bubble, we show a quote bar above
      *  the input and send the next message with reply_to_message_id set. */
@@ -789,6 +794,7 @@ export default function MaxChatScreen() {
         setLoading(true);
         setServerChoices([]);
         setInputWidget(null);
+        setPendingConfirm(null);
         if (!fromPreset) setInput('');
         setMessages(prev => [
             ...prev,
@@ -799,7 +805,7 @@ export default function MaxChatScreen() {
         if (replyTarget) setReplyTarget(null);
         try {
             abortRef.current = new AbortController();
-            const { response, choices, multi_choice, input_widget, products, conversation_id } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, products, conversation_id, confirm } = await api.sendChatMessage(
                 userContent,
                 undefined,
                 undefined,
@@ -820,10 +826,13 @@ export default function MaxChatScreen() {
                 ...prev.filter((m) => !m.isTyping),
                 { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] },
             ]);
-            setServerChoices(Array.isArray(choices) ? choices : []);
-            setMultiChoice(!!multi_choice);
+            // A schedule-change proposal owns the turn: render Yes/No, suppress chips/widget.
+            const confirmObj = confirm && (confirm as any).proposal_id ? (confirm as { proposal_id: string; summary: string }) : null;
+            setPendingConfirm(confirmObj);
+            setServerChoices(confirmObj ? [] : (Array.isArray(choices) ? choices : []));
+            setMultiChoice(!confirmObj && !!multi_choice);
             setMultiPicked(new Set());
-            setInputWidget(isRenderableWidget(input_widget) ? (input_widget as SliderSpec | HabitPickerSpec) : null);
+            setInputWidget(!confirmObj && isRenderableWidget(input_widget) ? (input_widget as SliderSpec | HabitPickerSpec) : null);
             // Update the cache for the ACTIVE conversation, not the legacy
             // single-thread key. Without this, tapping a chip wrote to
             // queryKeys.chatHistory while the screen was reading from
@@ -867,6 +876,42 @@ export default function MaxChatScreen() {
             ]);
         }
         finally { setLoading(false); }
+    };
+
+    // Yes → apply the EXACT stored proposal server-side (deterministic/idempotent),
+    // show the applied bubble, and refresh the schedule caches so Planner/Home
+    // update immediately. (RALPH_CHAT_RESCHEDULE Phase 5)
+    const confirmChange = async (decision: 'yes' | 'no') => {
+        const proposal = pendingConfirm;
+        if (!proposal || confirmInFlight) return;
+        setConfirmInFlight(true);
+        setPendingConfirm(null);
+        if (decision === 'no') {
+            // Seamless re-prompt: focus the composer so the user types what they'd
+            // rather have; their reply re-enters propose→confirm.
+            inputRef.current?.focus();
+        }
+        try {
+            const { message } = await api.confirmScheduleChange(proposal.proposal_id, decision);
+            if (message) {
+                setMessages(prev => [...prev, { role: 'assistant', content: message, justArrived: true }]);
+            }
+            if (decision === 'yes') {
+                // The schedule changed — refetch everything the Planner/Home/Today read.
+                queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull, refetchType: 'all' });
+                queryClient.invalidateQueries({ queryKey: queryKeys.activeSchedulesSummary, refetchType: 'all' });
+                queryClient.invalidateQueries({ queryKey: queryKeys.maxes, refetchType: 'all' });
+            } else {
+                // Keep focus on the composer after the re-prompt bubble lands.
+                setTimeout(() => inputRef.current?.focus(), 50);
+            }
+        } catch (e: any) {
+            if (!isAbortError(e)) {
+                setMessages(prev => [...prev, { role: 'assistant', content: 'That didn’t go through — tell me what you’d prefer and I’ll line it up.' }]);
+            }
+        } finally {
+            setConfirmInFlight(false);
+        }
     };
 
     const quickReplies = serverChoices
@@ -1307,7 +1352,36 @@ export default function MaxChatScreen() {
                             />
                         </View>
                     )}
-                    {!loading && !inputWidget && quickReplies.length > 0 && !multiChoice && (
+                    {/* Schedule-change confirm: Yes applies the proposal, No re-prompts. */}
+                    {!loading && pendingConfirm && (
+                        <View style={styles.confirmRow}>
+                            <TouchableOpacity
+                                testID="chat-confirm-yes"
+                                accessibilityRole="button"
+                                accessibilityLabel="Apply this change"
+                                style={[styles.confirmBtn, styles.confirmYes, confirmInFlight && styles.confirmDisabled]}
+                                disabled={confirmInFlight}
+                                onPress={() => confirmChange('yes')}
+                                activeOpacity={0.8}
+                            >
+                                {confirmInFlight
+                                    ? <ActivityIndicator size="small" color={colors.background} />
+                                    : <Text style={styles.confirmYesText}>Yes, do it</Text>}
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                testID="chat-confirm-no"
+                                accessibilityRole="button"
+                                accessibilityLabel="No, suggest something else"
+                                style={[styles.confirmBtn, styles.confirmNo, confirmInFlight && styles.confirmDisabled]}
+                                disabled={confirmInFlight}
+                                onPress={() => confirmChange('no')}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={styles.confirmNoText}>No</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                    {!loading && !pendingConfirm && !inputWidget && quickReplies.length > 0 && !multiChoice && (
                         <View style={styles.quickReplyStack}>
                             {quickReplies.map((choice) => {
                                 const custom = isCustomChip(choice);
@@ -1449,6 +1523,7 @@ export default function MaxChatScreen() {
                         </TouchableOpacity>
                         <TextInput
                             ref={inputRef}
+                            testID="chat-composer"
                             style={cg.input}
                             placeholder={replyTarget ? 'Reply…' : 'Ask Max anything'}
                             placeholderTextColor={CG_MUTE}
@@ -1462,7 +1537,7 @@ export default function MaxChatScreen() {
                             editable
                             onSubmitEditing={() => void sendMessage()}
                         />
-                        <MorphSend loading={loading} hasText={!!input.trim()} listening={listening} onPress={onActionPress} />
+                        <MorphSend testID="chat-send" loading={loading} hasText={!!input.trim()} listening={listening} onPress={onActionPress} />
                     </View>
                 </View>
             </KeyboardAvoidingView>
@@ -1614,6 +1689,45 @@ const styles = StyleSheet.create({
         gap: 8,
         marginBottom: 10,
         paddingHorizontal: 2,
+    },
+    /* Schedule-change Yes/No confirm row (RALPH_CHAT_RESCHEDULE). */
+    confirmRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: 10,
+        paddingHorizontal: 2,
+    },
+    confirmBtn: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: borderRadius.lg,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        minHeight: 44,
+    },
+    confirmYes: {
+        flex: 1,
+        backgroundColor: colors.textPrimary,
+    },
+    confirmYesText: {
+        color: colors.background,
+        fontSize: 15,
+        fontWeight: '700',
+        letterSpacing: 0.1,
+    },
+    confirmNo: {
+        backgroundColor: colors.card,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
+        paddingHorizontal: 22,
+    },
+    confirmNoText: {
+        color: colors.textPrimary,
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    confirmDisabled: {
+        opacity: 0.5,
     },
     quickReplyButton: {
         flexDirection: 'row',

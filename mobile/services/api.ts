@@ -1450,6 +1450,9 @@ class ApiService {
         // the reply. Populated from the catalog (authoritative name/brand/url).
         products?: Array<{ name: string; brand?: string; url: string; description?: string; image?: string }>;
         conversation_id?: string | null;
+        // When the coach proposed a schedule change this turn, the client renders
+        // Yes/No buttons; Yes → confirmScheduleChange(proposal_id). (RALPH_CHAT_RESCHEDULE)
+        confirm?: { proposal_id: string; summary: string } | null;
     }> {
         const body: any = {
             message,
@@ -1468,6 +1471,24 @@ class ApiService {
             // @ts-expect-error custom flag consumed by response interceptor
             _skipNetRetry: true,
         });
+        return response.data;
+    }
+
+    /**
+     * Apply (Yes) or reject (No) a chat-proposed schedule change. Yes replays the
+     * EXACT stored proposal server-side (deterministic, idempotent) so the schedule
+     * + Planner update immediately. (RALPH_CHAT_RESCHEDULE)
+     */
+    async confirmScheduleChange(
+        proposalId: string,
+        decision: 'yes' | 'no',
+        signal?: AbortSignal,
+    ): Promise<{ ok: boolean; applied: boolean; message: string }> {
+        const response = await this.client.post(
+            'chat/confirm-change',
+            { proposal_id: proposalId, decision },
+            { timeout: 60_000, signal },
+        );
         return response.data;
     }
 
