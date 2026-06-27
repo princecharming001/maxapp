@@ -16,6 +16,9 @@ const DRAFT_VERSION = 1;
 export type OnboardingAnswers = {
     goals: string[];
     motivation: string | null;
+    // Free-text "other reason" the user types when motivation === 'other'.
+    // Persisted in the draft and sent to the backend as `motivation_other`.
+    motivationOther: string;
     wakeMin: number;
     grStart: number;
     grEnd: number;

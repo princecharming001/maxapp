@@ -95,6 +95,12 @@ class OnboardingData(BaseModel):
     weight_kg: Optional[float] = None
     activity_level: Optional[str] = None
     skin_type: Optional[str] = None
+    # Why the user is here. `motivation` is the chosen reason ('confidence',
+    # 'other', …); `motivation_other` is the free text typed when they pick
+    # "other". Explicit (not just extra="allow") so the "other reason" is always
+    # accepted + persisted on user.onboarding rather than silently dropped.
+    motivation: Optional[str] = None
+    motivation_other: Optional[str] = None
     # Routine intensity preference — gates the week-1 ramp and per-day task cap
     # across every maxx. "chill" eases in slowly (smallest week-1 load),
     # "standard" is a moderate ramp, "sweatmode" starts at full load on day one.
