@@ -123,11 +123,14 @@ const scanBtnStyles = StyleSheet.create({
 // and a crisp bright top rim, matching the glass scan button.
 function TabBarFrost() {
     return (
-        <View style={StyleSheet.absoluteFill}>
+        // Purely decorative — must never intercept touches meant for the bar
+        // buttons or the screen content above it.
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
             <BlurView
                 intensity={Platform.OS === 'ios' ? 40 : 60}
                 tint="extraLight"
                 style={StyleSheet.absoluteFill}
+                pointerEvents="none"
                 experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
             />
             {/* Milky frosted fill */}
