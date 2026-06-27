@@ -639,3 +639,7 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   high-traffic shipping screens (auth/chat/home/profile) are accessible; the
   remaining a11y P3 is just the gated forums + a couple low-traffic screens. No
   code change.
+- 2026-06-26 (iter 28): Persisted a cross-session memory (auto-memory, outside the
+  repo) pointing at this deliverable + the two non-obvious gotchas (the tour
+  orphan-step touch-trap bug class; the local Maestro/xctest driver instability +
+  `pkill -9 java` workaround + the new tab/card testIDs). No repo code change.
