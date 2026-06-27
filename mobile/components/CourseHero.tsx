@@ -1,23 +1,24 @@
 /**
- * CourseHero — Pliability-style course opener.
+ * CourseHero — modern course opener.
  *
- * Full-bleed accent hero card (rounded, inset) with a large watermark icon,
- * a floating frosted back button, then below it: big serif title, optional
- * creator byline, gray description, and a row of big editorial stats.
- *
- * No per-course photo asset exists, so the hero is a rich accent gradient
- * tinted with the course's own color (the craft.do color-pocket feel).
- * Scrolls with the page (rendered inside the screen's ScrollView).
+ * A soft brand-bloom hero plate (PaywallDust-style radial wisps fading into a
+ * warm near-white) with the course's glossy jelly mascot floating in light
+ * (native), or a refined frosted-glass monogram token (creator courses) — then
+ * below it: serif title, optional creator byline, gray description, big editorial
+ * stats. No flat accent slab, no giant watermark letter; the jelly is the focal
+ * point and the depth comes from soft light, not a saturated gradient.
  */
 import React from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, fonts, spacing } from '../theme/dark';
 import { courseJellyIcon } from '../data/courseIcons';
+import { hexA } from '../utils/scheduleAggregation';
 
 export type CourseHeroStat = { number: string | number; label: string };
 
@@ -35,14 +36,39 @@ export type CourseHeroProps = {
     onBack: () => void;
 };
 
-/** Darken a #rrggbb hex by `amt` (0–1) for the gradient's deep stop. */
-function darken(hex: string, amt: number): string {
+/** Lighten a #rrggbb hex toward white by `amt` (0–1). */
+function lighten(hex: string, amt: number): string {
     const h = hex.replace('#', '');
     const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-    const r = Math.max(0, Math.round(parseInt(full.slice(0, 2), 16) * (1 - amt)));
-    const g = Math.max(0, Math.round(parseInt(full.slice(2, 4), 16) * (1 - amt)));
-    const b = Math.max(0, Math.round(parseInt(full.slice(4, 6), 16) * (1 - amt)));
-    return `rgb(${r}, ${g}, ${b})`;
+    const ch = (i: number) => {
+        const v = parseInt(full.slice(i, i + 2), 16);
+        return Math.round(v + (255 - v) * amt);
+    };
+    return `rgb(${ch(0)}, ${ch(2)}, ${ch(4)})`;
+}
+
+/** Soft brand-bloom backdrop — radial wisps of the accent fading into warm
+ *  near-white (PaywallDust language). Purely decorative. */
+function HeroBloom({ accent }: { accent: string }) {
+    const light = lighten(accent, 0.55);
+    return (
+        <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Defs>
+                <RadialGradient id="ch-main" cx="74%" cy="42%" r="62%">
+                    <Stop offset="0%" stopColor={accent} stopOpacity={0.30} />
+                    <Stop offset="52%" stopColor={accent} stopOpacity={0.12} />
+                    <Stop offset="100%" stopColor={accent} stopOpacity={0} />
+                </RadialGradient>
+                <RadialGradient id="ch-light" cx="18%" cy="8%" r="58%">
+                    <Stop offset="0%" stopColor={light} stopOpacity={0.55} />
+                    <Stop offset="100%" stopColor={light} stopOpacity={0} />
+                </RadialGradient>
+            </Defs>
+            <Rect x="0" y="0" width="100%" height="100%" fill="#FBF9F6" />
+            <Rect x="0" y="0" width="100%" height="100%" fill="url(#ch-light)" />
+            <Rect x="0" y="0" width="100%" height="100%" fill="url(#ch-main)" />
+        </Svg>
+    );
 }
 
 export default function CourseHero({
@@ -60,17 +86,10 @@ export default function CourseHero({
 
     return (
         <View style={styles.wrap}>
-            {/* ── Hero card ───────────────────────────────────────── */}
+            {/* ── Hero plate — soft brand bloom, the jelly floats in light ─── */}
             <View style={[styles.heroCard, { marginTop: Math.max(insets.top, 12) + 4 }]}>
-                <LinearGradient
-                    colors={[accent, darken(accent, 0.34)]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                />
-                {/* Glossy jelly mascot bleeding off the bottom-right corner — the
-                    brand visual language, NOT a flat Ionicons watermark. Creator
-                    courses with no native jelly fall back to a faint serif initial. */}
+                <HeroBloom accent={accent} />
+
                 {jelly ? (
                     <Image
                         source={jelly}
@@ -79,14 +98,16 @@ export default function CourseHero({
                         transition={220}
                     />
                 ) : (
-                    <Text style={styles.heroMonogram}>{(title || 'M').trim().charAt(0).toUpperCase()}</Text>
+                    // Refined frosted-glass monogram token (no giant watermark letter)
+                    <View style={[styles.token, { borderColor: hexA(accent, 0.28) }]}>
+                        <BlurView intensity={24} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: hexA(accent, 0.12) }]} />
+                        <View pointerEvents="none" style={styles.tokenRim} />
+                        <Text style={[styles.tokenInitial, { color: accent }]}>
+                            {(title || 'M').trim().charAt(0).toUpperCase()}
+                        </Text>
+                    </View>
                 )}
-                {/* Soft floor shadow so the title below has contrast room */}
-                <LinearGradient
-                    pointerEvents="none"
-                    colors={['transparent', 'rgba(0,0,0,0.22)']}
-                    style={styles.heroFloor}
-                />
 
                 <TouchableOpacity
                     onPress={onBack}
@@ -95,10 +116,11 @@ export default function CourseHero({
                     accessibilityLabel="Back"
                     activeOpacity={0.8}
                 >
-                    <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+                    <Ionicons name="chevron-back" size={22} color={colors.foreground} />
                 </TouchableOpacity>
 
                 <View style={styles.heroEyebrowWrap}>
+                    <View style={[styles.eyebrowDot, { backgroundColor: accent }]} />
                     <Text style={styles.heroEyebrow}>{creator ? 'CREATOR COURSE' : 'COURSE'}</Text>
                 </View>
             </View>
@@ -143,33 +165,43 @@ const styles = StyleSheet.create({
         borderRadius: 26,
         overflow: 'hidden',
         justifyContent: 'flex-start',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(0,0,0,0.06)',
         ...(Platform.OS === 'ios'
-            ? { shadowColor: '#3A352B', shadowOpacity: 0.16, shadowRadius: 22, shadowOffset: { width: 0, height: 12 } }
+            ? { shadowColor: '#3A352B', shadowOpacity: 0.12, shadowRadius: 22, shadowOffset: { width: 0, height: 12 } }
             : { elevation: 6 }),
     },
     heroJelly: {
         position: 'absolute',
-        right: -18,
-        bottom: -22,
-        width: 176,
-        height: 176,
-        opacity: 0.95,
+        right: 8,
+        bottom: -10,
+        width: 168,
+        height: 168,
     },
-    heroMonogram: {
+    token: {
         position: 'absolute',
-        right: 6,
-        bottom: -30,
-        fontFamily: fonts.serif,
-        fontSize: 196,
-        lineHeight: 210,
-        color: 'rgba(255,255,255,0.16)',
+        right: 22,
+        bottom: 26,
+        width: 88,
+        height: 88,
+        borderRadius: 24,
+        overflow: 'hidden',
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    heroFloor: {
+    tokenRim: {
         position: 'absolute',
+        top: 0,
         left: 0,
         right: 0,
-        bottom: 0,
-        height: 80,
+        height: 1,
+        backgroundColor: 'rgba(255,255,255,0.7)',
+    },
+    tokenInitial: {
+        fontFamily: fonts.serif,
+        fontSize: 44,
+        marginTop: -2,
     },
     backBtn: {
         position: 'absolute',
@@ -178,20 +210,31 @@ const styles = StyleSheet.create({
         width: 38,
         height: 38,
         borderRadius: 19,
-        backgroundColor: 'rgba(255,255,255,0.22)',
+        backgroundColor: 'rgba(255,255,255,0.78)',
         alignItems: 'center',
         justifyContent: 'center',
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } }
+            : { elevation: 2 }),
     },
     heroEyebrowWrap: {
         position: 'absolute',
         left: 18,
-        bottom: 16,
+        bottom: 18,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 7,
+    },
+    eyebrowDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
     },
     heroEyebrow: {
         fontFamily: fonts.sansSemiBold,
         fontSize: 11,
         letterSpacing: 2,
-        color: 'rgba(255,255,255,0.92)',
+        color: colors.textSecondary,
     },
 
     titleBlock: {
