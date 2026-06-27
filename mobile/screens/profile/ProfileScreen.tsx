@@ -218,7 +218,7 @@ const p = StyleSheet.create({
 
     card: { backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, marginBottom: 10, ...SOFT },
     cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    cardTitle: { fontFamily: fonts.serif, fontSize: 19, color: INK, letterSpacing: -0.4, textTransform: 'lowercase' },
+    cardTitle: { fontFamily: fonts.serif, fontSize: 17, color: INK, letterSpacing: -0.4, textTransform: 'lowercase' },
     seeAll: { fontFamily: 'Matter-Medium', fontSize: 13, color: MUTE },
     cheer: { fontFamily: 'Matter-Medium', fontSize: 12, color: SUB },
     eyebrow: { fontFamily: 'Matter-Medium', fontSize: 10, color: MUTE, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 4 },
