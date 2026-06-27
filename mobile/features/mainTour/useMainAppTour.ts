@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { View, InteractionManager } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { useSpotlightTour } from 'react-native-spotlight-tour';
 import { useAuth } from '../../context/AuthContext';
+import api from '../../services/api';
+
+// Local "seen" flag, written the moment the tour STARTS (not only on a clean
+// onStop). A frozen / force-quit tour never reaches onStop, so without this the
+// server `main_app_tour_completed` stays false and the tour re-fires on every
+// launch ("causes problems later"). The local flag short-circuits that loop
+// even before the server flag converges.
+export const MAIN_TOUR_SEEN_KEY = 'main_app_tour_seen_v1';
 
 /**
  * Synchronized starter for the post-onboarding main-app tour.
@@ -39,6 +48,19 @@ export function useMainAppTour(
     const startedRef = useRef(false);
     const { redirectPending } = opts;
 
+    // Cross-launch guard: if we've already shown (or begun showing) the tour on
+    // a previous launch, never start it again — even if the server flag didn't
+    // persist because that run froze before onStop.
+    useEffect(() => {
+        let cancelled = false;
+        AsyncStorage.getItem(MAIN_TOUR_SEEN_KEY)
+            .then((v) => {
+                if (!cancelled && v === '1') startedRef.current = true;
+            })
+            .catch(() => { /* default to allowed */ });
+        return () => { cancelled = true; };
+    }, []);
+
     const tryStart = useCallback(() => {
         if (startedRef.current) return;
         if (!isPaid) return;
@@ -59,6 +81,11 @@ export function useMainAppTour(
                 if (startedRef.current) return;
                 if (!(width > 0 && height > 0)) return; // zero spot — unsafe, wait
                 startedRef.current = true;
+                // Persist "seen" the instant we start — survives a freeze/crash
+                // before onStop. Local flag first (authoritative for re-fire),
+                // then converge the server flag best-effort.
+                AsyncStorage.setItem(MAIN_TOUR_SEEN_KEY, '1').catch(() => {});
+                api.completeMainAppTour().catch(() => {});
                 start();
             });
         });
