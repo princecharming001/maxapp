@@ -9,7 +9,7 @@
  * Built on TouchableOpacity so async handlers, disabled, and loading
  * (ActivityIndicator) behave exactly like the rest of the app.
  */
-import React from 'react';
+import React, { useId } from 'react';
 import {
     TouchableOpacity,
     ActivityIndicator,
@@ -19,6 +19,7 @@ import {
     type ViewStyle,
 } from 'react-native';
 import { View } from 'tamagui';
+import { LiquidGlassFill } from './LiquidGlass';
 
 type Variant = 'primary' | 'glass' | 'ghost';
 
@@ -38,6 +39,7 @@ export function GlassButton({
     style?: StyleProp<ViewStyle>;
 }) {
     const radius = 16;
+    const glassId = useId().replace(/:/g, '');
     const isGhost = variant === 'ghost';
     const textColor = variant === 'primary' ? '#FFFFFF' : isGhost ? '#8C887E' : '#1C1A17';
     // A disabled button must LOOK disabled - otherwise taps silently no-op
@@ -78,13 +80,15 @@ export function GlassButton({
                 {...a11yProps}
             >
                 <View
-                    backgroundColor="$glassStrong"
                     borderRadius={radius}
                     overflow="hidden"
                     borderWidth={1}
                     borderColor="$glassBorder"
                     style={{ borderCurve: 'continuous' }}
                 >
+                    {/* Canonical liquid-glass optics behind the label — same
+                        material, speculars and rim as every other glass surface. */}
+                    <LiquidGlassFill idSuffix={`btn${glassId}`} />
                     {content}
                 </View>
             </TouchableOpacity>
