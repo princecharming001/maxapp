@@ -1,19 +1,23 @@
 /**
- * CourseHero — modern course opener.
+ * CourseHero — a living, dimensional course opener.
  *
- * A soft brand-bloom hero plate (PaywallDust-style radial wisps fading into a
- * warm near-white) with the course's glossy jelly mascot floating in light
- * (native), or a refined frosted-glass monogram token (creator courses) — then
- * below it: serif title, optional creator byline, gray description, big editorial
- * stats. No flat accent slab, no giant watermark letter; the jelly is the focal
- * point and the depth comes from soft light, not a saturated gradient.
+ * The jelly mascot floats in a slow-drifting aurora of brand light with a soft
+ * blurred contact shadow beneath it — an "object in light," not an icon in a
+ * container. Creator courses (no jelly) get a crafted frosted-glass icon token
+ * (real blur + sheen + rim + shadow), never a giant flat letter. Editorial
+ * Fraunces title, byline, stats sit below on cream.
+ *
+ * Motion: a multi-second vertical float on the icon (shadow breathes inversely)
+ * + a slow aurora drift. Cheap, native-driver transforms; all decoration is
+ * pointerEvents="none" so taps reach the back button.
  */
-import React from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Defs, RadialGradient, Stop, Rect, Ellipse } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, fonts, spacing } from '../theme/dark';
@@ -47,26 +51,52 @@ function lighten(hex: string, amt: number): string {
     return `rgb(${ch(0)}, ${ch(2)}, ${ch(4)})`;
 }
 
-/** Soft brand-bloom backdrop — radial wisps of the accent fading into warm
- *  near-white (PaywallDust language). Purely decorative. */
-function HeroBloom({ accent }: { accent: string }) {
-    const light = lighten(accent, 0.55);
+/** Slow-drifting aurora of brand light — layered radial blooms with real falloff
+ *  over warm near-white. Purely decorative. */
+function HeroAurora({ accent }: { accent: string }) {
+    const light = lighten(accent, 0.6);
+    const deep = accent;
     return (
         <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
             <Defs>
-                <RadialGradient id="ch-main" cx="74%" cy="42%" r="62%">
-                    <Stop offset="0%" stopColor={accent} stopOpacity={0.30} />
-                    <Stop offset="52%" stopColor={accent} stopOpacity={0.12} />
-                    <Stop offset="100%" stopColor={accent} stopOpacity={0} />
+                <RadialGradient id="ah-main" cx="50%" cy="46%" r="58%">
+                    <Stop offset="0%" stopColor={deep} stopOpacity={0.40} />
+                    <Stop offset="46%" stopColor={deep} stopOpacity={0.15} />
+                    <Stop offset="100%" stopColor={deep} stopOpacity={0} />
                 </RadialGradient>
-                <RadialGradient id="ch-light" cx="18%" cy="8%" r="58%">
-                    <Stop offset="0%" stopColor={light} stopOpacity={0.55} />
+                <RadialGradient id="ah-light" cx="14%" cy="2%" r="62%">
+                    <Stop offset="0%" stopColor={light} stopOpacity={0.7} />
                     <Stop offset="100%" stopColor={light} stopOpacity={0} />
                 </RadialGradient>
+                <RadialGradient id="ah-cool" cx="96%" cy="100%" r="62%">
+                    <Stop offset="0%" stopColor={light} stopOpacity={0.5} />
+                    <Stop offset="100%" stopColor={light} stopOpacity={0} />
+                </RadialGradient>
+                <RadialGradient id="ah-deep" cx="6%" cy="98%" r="52%">
+                    <Stop offset="0%" stopColor={deep} stopOpacity={0.22} />
+                    <Stop offset="100%" stopColor={deep} stopOpacity={0} />
+                </RadialGradient>
             </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill="#FBF9F6" />
-            <Rect x="0" y="0" width="100%" height="100%" fill="url(#ch-light)" />
-            <Rect x="0" y="0" width="100%" height="100%" fill="url(#ch-main)" />
+            <Rect x="-20%" y="-20%" width="140%" height="140%" fill="url(#ah-light)" />
+            <Rect x="-20%" y="-20%" width="140%" height="140%" fill="url(#ah-cool)" />
+            <Rect x="-20%" y="-20%" width="140%" height="140%" fill="url(#ah-deep)" />
+            <Rect x="-20%" y="-20%" width="140%" height="140%" fill="url(#ah-main)" />
+        </Svg>
+    );
+}
+
+/** Soft blurred contact shadow ellipse — grounds the floating icon. */
+function ContactShadow() {
+    return (
+        <Svg width="160" height="46" pointerEvents="none">
+            <Defs>
+                <RadialGradient id="ch-shadow" cx="50%" cy="50%" r="50%">
+                    <Stop offset="0%" stopColor="#2A2118" stopOpacity={0.30} />
+                    <Stop offset="60%" stopColor="#2A2118" stopOpacity={0.12} />
+                    <Stop offset="100%" stopColor="#2A2118" stopOpacity={0} />
+                </RadialGradient>
+            </Defs>
+            <Ellipse cx="80" cy="23" rx="78" ry="20" fill="url(#ch-shadow)" />
         </Svg>
     );
 }
@@ -84,30 +114,68 @@ export default function CourseHero({
     const insets = useSafeAreaInsets();
     const jelly = courseJellyIcon(maxxId);
 
+    // Motion: a gentle vertical float on the icon + a slow aurora drift.
+    const float = useRef(new Animated.Value(0)).current;
+    const drift = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        const mk = (v: Animated.Value, dur: number, easing: (n: number) => number) =>
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(v, { toValue: 1, duration: dur, easing, useNativeDriver: true }),
+                    Animated.timing(v, { toValue: 0, duration: dur, easing, useNativeDriver: true }),
+                ]),
+            );
+        const a = mk(float, 3200, Easing.inOut(Easing.sin));
+        const b = mk(drift, 13000, Easing.inOut(Easing.quad));
+        a.start();
+        b.start();
+        return () => { a.stop(); b.stop(); };
+    }, [float, drift]);
+
+    const iconY = float.interpolate({ inputRange: [0, 1], outputRange: [5, -9] });
+    const shadowScale = float.interpolate({ inputRange: [0, 1], outputRange: [1, 0.82] });
+    const shadowOpacity = float.interpolate({ inputRange: [0, 1], outputRange: [1, 0.7] });
+    const driftX = drift.interpolate({ inputRange: [0, 1], outputRange: [-12, 10] });
+    const driftY = drift.interpolate({ inputRange: [0, 1], outputRange: [7, -7] });
+    const driftScale = drift.interpolate({ inputRange: [0, 1], outputRange: [1.05, 1.13] });
+
     return (
         <View style={styles.wrap}>
-            {/* ── Hero plate — soft brand bloom, the jelly floats in light ─── */}
+            {/* ── Hero plate — drifting aurora, the icon floats in light ───── */}
             <View style={[styles.heroCard, { marginTop: Math.max(insets.top, 12) + 4 }]}>
-                <HeroBloom accent={accent} />
+                <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FBF9F6' }]} />
+                    <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX: driftX }, { translateY: driftY }, { scale: driftScale }] }]}>
+                        <HeroAurora accent={accent} />
+                    </Animated.View>
+                </View>
 
-                {jelly ? (
-                    <Image
-                        source={jelly}
-                        style={styles.heroJelly}
-                        contentFit="contain"
-                        transition={220}
-                    />
-                ) : (
-                    // Refined frosted-glass monogram token (no giant watermark letter)
-                    <View style={[styles.token, { borderColor: hexA(accent, 0.28) }]}>
-                        <BlurView intensity={24} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
-                        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: hexA(accent, 0.12) }]} />
-                        <View pointerEvents="none" style={styles.tokenRim} />
-                        <Text style={[styles.tokenInitial, { color: accent }]}>
-                            {(title || 'M').trim().charAt(0).toUpperCase()}
-                        </Text>
-                    </View>
-                )}
+                {/* Floating icon cluster (contact shadow + jelly / glass token) */}
+                <View pointerEvents="none" style={styles.iconStage}>
+                    <Animated.View style={[styles.shadowWrap, { opacity: shadowOpacity, transform: [{ scaleX: shadowScale }, { scaleY: shadowScale }] }]}>
+                        <ContactShadow />
+                    </Animated.View>
+                    <Animated.View style={{ transform: [{ translateY: iconY }] }}>
+                        {jelly ? (
+                            <Image source={jelly} style={styles.heroJelly} contentFit="contain" transition={220} />
+                        ) : (
+                            <View style={[styles.token, { borderColor: hexA(accent, 0.3) }]}>
+                                <BlurView intensity={26} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: hexA(accent, 0.14) }]} />
+                                <LinearGradient
+                                    pointerEvents="none"
+                                    colors={['rgba(255,255,255,0.7)', 'rgba(255,255,255,0)']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 0, y: 1 }}
+                                    style={styles.tokenSheen}
+                                />
+                                <Text style={[styles.tokenInitial, { color: accent }]}>
+                                    {(title || 'M').trim().charAt(0).toUpperCase()}
+                                </Text>
+                            </View>
+                        )}
+                    </Animated.View>
+                </View>
 
                 <TouchableOpacity
                     onPress={onBack}
@@ -160,47 +228,55 @@ const styles = StyleSheet.create({
         backgroundColor: colors.background,
     },
     heroCard: {
-        height: 188,
+        height: 196,
         marginHorizontal: spacing.lg,
-        borderRadius: 26,
+        borderRadius: 28,
         overflow: 'hidden',
         justifyContent: 'flex-start',
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: 'rgba(0,0,0,0.06)',
         ...(Platform.OS === 'ios'
-            ? { shadowColor: '#3A352B', shadowOpacity: 0.12, shadowRadius: 22, shadowOffset: { width: 0, height: 12 } }
+            ? { shadowColor: '#3A352B', shadowOpacity: 0.13, shadowRadius: 24, shadowOffset: { width: 0, height: 14 } }
             : { elevation: 6 }),
     },
-    heroJelly: {
+    iconStage: {
         position: 'absolute',
-        right: 8,
-        bottom: -10,
-        width: 168,
-        height: 168,
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 6,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    shadowWrap: {
+        position: 'absolute',
+        bottom: 34,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    heroJelly: {
+        width: 176,
+        height: 176,
     },
     token: {
-        position: 'absolute',
-        right: 22,
-        bottom: 26,
-        width: 88,
-        height: 88,
-        borderRadius: 24,
+        width: 92,
+        height: 92,
+        borderRadius: 26,
         overflow: 'hidden',
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    tokenRim: {
+    tokenSheen: {
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
-        height: 1,
-        backgroundColor: 'rgba(255,255,255,0.7)',
+        height: '56%',
     },
     tokenInitial: {
         fontFamily: fonts.serif,
-        fontSize: 44,
+        fontSize: 46,
         marginTop: -2,
     },
     backBtn: {
@@ -210,7 +286,7 @@ const styles = StyleSheet.create({
         width: 38,
         height: 38,
         borderRadius: 19,
-        backgroundColor: 'rgba(255,255,255,0.78)',
+        backgroundColor: 'rgba(255,255,255,0.8)',
         alignItems: 'center',
         justifyContent: 'center',
         ...(Platform.OS === 'ios'
