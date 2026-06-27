@@ -364,11 +364,14 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
         (no a11y support is claimed), but worth a focused sweep.
       - testID coverage: tabs now have ids (iter 10); habit cards, login fields,
         marketplace cards already had them.
-      - iter 24 update: the auth flow is actually in good shape — LoginScreen &
-        SignupScreen already label Back / password-eye / Continue / Apple / links.
-        Fixed the one real auth gap (ForgotPassword country-modal Close button →
-        added accessibilityLabel). Remaining gaps are non-auth icon buttons
-        (chat/settings headers, gated forums) — still the P3 sweep below.
+      - iter 24/27 update: the high-traffic shipping screens are actually in good
+        shape (iter-12 audit was pessimistic). Auth (Login/Signup) fully labeled;
+        ForgotPassword close fixed (iter 24); **Chat fully labeled** (menu "Open
+        chat list", "New chat", Send/Voice, Copy/Good/Bad response, "Attach photo"
+        — verified iter 27, no change needed); Home/Profile key actions labeled.
+        Remaining gaps are narrower than first thought: the **gated forums**
+        screens + a couple of low-traffic ones (SendblueConnect) — still the P3
+        sweep below, but no high-traffic screen is unlabeled.
 - [x] Feature flags: confirm the **production** flag values and that gated paths
       render without dead tabs. **2026-06-26 (iter 14): shipping config coherent.**
       Static flags (mobile/constants/featureFlags.ts, no runtime toggle):
@@ -631,3 +634,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   launch verdict (no known blockers), the critical fix, what shipped, what's
   verified green, and your pre-submit action list — so the deliverable reads as a
   clean handoff instead of requiring a reverse-read of the log. No code change.
+- 2026-06-26 (iter 27): **Chat a11y verified — already fully labeled** (header
+  menu/new-chat, Send/Voice, message Copy/Good/Bad, Attach photo). Confirms the
+  high-traffic shipping screens (auth/chat/home/profile) are accessible; the
+  remaining a11y P3 is just the gated forums + a couple low-traffic screens. No
+  code change.
