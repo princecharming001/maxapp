@@ -1,0 +1,89 @@
+# Planner Editing Redesign — build spec (Ralph loop reads this each iteration)
+
+Single source of truth. Each iteration: read this top-to-bottom, do the **first
+unchecked unit**, verify, check it off with a one-line dated note, commit+push
+(prefix `planner:`), then continue. Don't restart from scratch — prior work
+persists here + in git.
+
+## GOAL (user's vision)
+Make recurring edits easy. A top-level **"Your default day"** button opens your
+*repeating routine* (wake / workout / bedtime / get-ready). Editing there lets you
+**choose which days each thing applies to** (Every day / Weekdays / Weekends /
+pick days) — repeats by default, with per-day variance when you want it. The day
+strip stays for one-off, this-week tweaks. Today the only way to set a recurring
+default is the chat or editing 7 days by hand — fix that.
+
+## HARD GUARDRAILS (do not violate)
+- **No huge UI changes / no redesign.** Reuse `DayEditorSheet`, the day strip, the
+  `defaults + weekly + obligations` model, `commitScope`, and the backend
+  `weekly_timings`. Add small, additive controls — not new screens or a timeline
+  rework. Small UI additions (a button, a compact repeat chip, a scope row) are fine.
+- **Don't break existing per-day editing**, the edited-dot, or "reset to default".
+- The recurrence plumbing already exists: `commitScope('all', …)` writes the
+  baseline; per-weekday overrides write `weekly_timings.<weekday>`; saving triggers
+  `regenerate_active_schedules`. You're mostly exposing/extending, not rebuilding.
+- **`tsc` must stay clean** (run `cd mobile && npx tsc --noEmit`; only the known
+  pre-existing `components/glass/*` errors are allowed). One logical change per commit.
+- **Sim is unstable here** (Maestro/xctest driver hangs; app cold-starts into the
+  scan). Verify via `tsc` + careful code reading + best-effort screenshot; do NOT
+  block a unit on the flaky sim — note "sim-unverified" and move on.
+- Flag anything genuinely needing a product call instead of guessing.
+
+## BUILD UNITS (ordered — P0 first; ship value even if later units defer)
+- [ ] **U1 — "Your default day" entry button.** Add a small button/card ABOVE the
+  day strip (full-width, not a pill in the strip) → opens `DayEditorSheet` with
+  `scope='all'` (edits `defaults`). This alone makes the currently-unreachable
+  all-days editor reachable. Reuse the existing sheet + `commitScope('all', …)`.
+- [ ] **U2 — "Apply to" scope on commit.** When committing an edit, offer:
+  `Every day · Weekdays · Weekends · This day`. Map: Every day → `defaults`;
+  Weekdays → write Mon–Fri overrides; Weekends → Sat/Sun; This day → single
+  weekday override (current behaviour). Extend `commitScope` to accept a multi-day
+  scope and write the relevant `weekly` entries (keep the diff-against-default
+  semantics so unchanged days stay clean). Default selection: from the default-day
+  button = "Every day"; from a strip day = "This day".
+- [ ] **U3 — Per-block repeat (the routine builder).** In the default-day editor,
+  a COMPACT "Repeat: Every day ▾" control per block (Wake/Sleep/Get-ready/Workout)
+  so e.g. workout = Mon/Wed/Fri while wake = every day. Implement by writing that
+  block's values into the chosen weekdays' overrides (clearing elsewhere). Keep it
+  compact (chip + small menu) — NOT a sheet redesign. If it can't be done without a
+  big rework, ship U1+U2 and move this to "Deferred" with the reason.
+- [ ] **U4 — Scope caption.** Under each block show "applies to: every day" /
+  "Mon, Wed, Fri" so scope is always visible. Small.
+- [ ] **U5 — Single-time default + optional ± range.** Wake/sleep default to a
+  single time ("Wake 7:00") with an optional range toggle, to cut the up-front
+  window decision. Keep the window model underneath. Smaller/optional.
+- [ ] **U6 — Integrity pass.** Edited-dot shows on every overridden day;
+  "reset to default" works after multi-day writes; `serializeWeekly` /
+  `dayPartialToServer` payload still correct; no orphan overrides left behind.
+
+## OUT OF SCOPE (defer — do NOT build here)
+Timeline visual redesign; new screens; commitments/obligations rework (already has
+recurrence); meal/dinner anchors; one-time non-recurring blocks; undo/history.
+
+## KEY CODE MAP
+- `mobile/screens/profile/DayPlannerScreen.tsx` — strip, scope state, `openEditor`,
+  `commitScope` (~289), `resetScope`, `effectiveDay`, persist.
+- `mobile/components/planner/DayEditorSheet.tsx` — the visual editor (Wake/Sleep/
+  Get-ready/Workout sections, `scope`, `onCommit`).
+- `mobile/components/planner/plannerModel.ts` — `DayShape`, `Obligation`, `Scope`,
+  `diffDayShape`, `effectiveDay`, `serializeWeekly`, `dayPartialToServer`,
+  `DayRecurrence`.
+- `mobile/components/planner/ObligationsManager.tsx` — existing recurrence picker
+  (`all/weekdays/weekends/pick`) to mirror for the new scope control.
+- `backend/api/users.py` — `/users/onboarding` (defaults + `weekly_timings` +
+  `regenerate_active_schedules`).
+
+## COMPLETION CRITERIA (all true before the promise)
+1. U1 + U2 shipped and verified (default-day button opens the all-days editor;
+   an edit can be applied to Every day / Weekdays / Weekends / This day and lands
+   correctly in `defaults`/`weekly`). Existing per-day editing + reset still work.
+2. `tsc` clean (only the known glass errors).
+3. U3–U6 each either done or moved to "Deferred" with a one-line reason. No silent skips.
+
+When all hold, output exactly: `<promise>PLANNER REDESIGN COMPLETE</promise>`
+
+## DEFERRED (with reason)
+- (none yet)
+
+## ITERATION LOG
+- (start)
