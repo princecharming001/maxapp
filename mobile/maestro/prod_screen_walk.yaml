@@ -41,7 +41,18 @@ appId: com.cannon.mobile
       - tapOn: "Skip"
       - waitForAnimationToEnd:
           timeout: 2500
-- tapOn: "Home"
+# Walk the tabs by their stable testIDs (the frosted tab bar doesn't expose
+# labels to Maestro's text matcher). Assert a screen-specific element on each.
+- tapOn:
+    id: "tab-home"
 - assertVisible: "HABITS"
-- tapOn: "Planner"
+- tapOn:
+    id: "tab-planner"
 - assertVisible: "Commitments"
+- tapOn:
+    id: "tab-explore"
+- waitForAnimationToEnd:
+    timeout: 4000
+- tapOn:
+    id: "tab-chat"
+- assertVisible: "What can I help with?"

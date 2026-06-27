@@ -45,6 +45,7 @@ function ScanCenterButton() {
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Scan"
+            testID="tab-scan"
         >
             {/* Outer carrier holds the float shadow (un-clipped); inner clips the frost */}
             <View style={scanBtnStyles.shadowWrap}>
@@ -464,6 +465,7 @@ export default function TabNavigator() {
                     options={{
                         title: 'Home',
                         tabBarLabel: 'Home',
+                        tabBarButtonTestID: 'tab-home',
                         tabBarIcon: ({ color }) => (
                             <Ionicons name="home-outline" size={22} color={color} />
                         ),
@@ -479,6 +481,7 @@ export default function TabNavigator() {
                     options={{
                         title: 'Planner',
                         tabBarLabel: 'Planner',
+                        tabBarButtonTestID: 'tab-planner',
                         tabBarIcon: ({ color }) => (
                             <AttachStep index={TOUR_STEP.SCHEDULE_TAB}>
                                 <View style={styles.tourIconWrap}>
@@ -502,6 +505,7 @@ export default function TabNavigator() {
                     options={{
                         title: 'Explore',
                         tabBarLabel: 'Explore',
+                        tabBarButtonTestID: 'tab-explore',
                         tabBarIcon: ({ color }) => (
                             <AttachStep index={TOUR_STEP.EXPLORE_TAB}>
                                 <View style={styles.tourIconWrap}>
@@ -515,6 +519,7 @@ export default function TabNavigator() {
                     name="Chat"
                     component={MaxChatScreen}
                     options={{
+                        tabBarButtonTestID: 'tab-chat',
                         tabBarIcon: ({ color }) => (
                             <AttachStep index={TOUR_STEP.CHAT_TAB}>
                                 <View style={styles.tourIconWrap}>
