@@ -98,10 +98,10 @@ export type ChatConversationsDrawerProps = {
 type PersonaId = 'goggins' | 'clavicular' | 'bigdaddy';
 type ToneBackend = 'gentle' | 'default' | 'hardcore' | 'influencer';
 
-const PERSONA_OPTIONS: { id: PersonaId; backend: ToneBackend; label: string; img: any; glow: string }[] = [
-    { id: 'goggins',    backend: 'hardcore',   label: 'Goggins',    img: require('../assets/personas/goggins.png'),    glow: '#EC7E5C' },
-    { id: 'clavicular', backend: 'influencer', label: 'Clavicular', img: require('../assets/personas/clavicular.png'), glow: '#5B8DEF' },
-    { id: 'bigdaddy',   backend: 'gentle',     label: 'Big Daddy',  img: require('../assets/personas/bigdaddy.png'),   glow: '#E0A15B' },
+const PERSONA_OPTIONS: { id: PersonaId; backend: ToneBackend; label: string; img: any; glow: string; desc: string }[] = [
+    { id: 'goggins',    backend: 'hardcore',   label: 'Goggins',    img: require('../assets/personas/goggins.png'),    glow: '#EC7E5C', desc: 'no excuses, pure accountability' },
+    { id: 'clavicular', backend: 'influencer', label: 'Clavicular', img: require('../assets/personas/clavicular.png'), glow: '#5B8DEF', desc: 'sharp, looksmaxxing-obsessed' },
+    { id: 'bigdaddy',   backend: 'gentle',     label: 'Big Daddy',  img: require('../assets/personas/bigdaddy.png'),   glow: '#E0A15B', desc: 'warm, always in your corner' },
 ];
 const PERSONA_BY_BACKEND: Record<string, PersonaId> = {
     hardcore: 'goggins',
@@ -517,6 +517,9 @@ export default function ChatConversationsDrawer({
                             );
                         })}
                     </View>
+                    <Text style={s.personaHint}>
+                        {PERSONA_OPTIONS.find((p) => p.id === persona)?.desc}
+                    </Text>
 
                     <Text style={[s.label, { marginTop: 14 }]}>Length</Text>
                     <View style={s.lenRow}>
@@ -765,6 +768,14 @@ const s = StyleSheet.create({
     personaNameActive: {
         color: C.ink,
         fontFamily: fonts.sansSemiBold,
+    },
+    personaHint: {
+        fontFamily: fonts.sans,
+        fontSize: 11.5,
+        color: C.inkDim,
+        letterSpacing: 0.1,
+        textAlign: 'center',
+        marginTop: 10,
     },
     /* length — single-row segmented chips */
     lenRow: {
