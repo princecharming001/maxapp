@@ -125,14 +125,13 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
 
                             {/* lesson preview list */}
                             <View style={styles.lessonList}>
-                                {preview.map((s) => (
+                                {preview.map((s, idx) => (
                                     <TouchableOpacity
                                         key={s.id}
-                                        style={styles.lessonRow}
+                                        style={[styles.lessonRow, idx > 0 && styles.lessonRowDivider]}
                                         activeOpacity={0.6}
                                         onPress={() => onOpenSection(s.id)}
                                     >
-                                        <View style={[styles.lessonTick, { backgroundColor: hexA(accent, 0.55) }]} />
                                         <Text style={[styles.lessonNum, { color: accent }]}>{s.number}</Text>
                                         <Text style={styles.lessonTitle} numberOfLines={1}>
                                             {s.title}
@@ -147,8 +146,8 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
                                 ) : null}
                             </View>
 
-                            <View style={[styles.seePill, { borderColor: hexA(accent, 0.4) }]}>
-                                <Text style={[styles.seePillText, { color: accent }]}>See lessons</Text>
+                            <View style={styles.seeLink}>
+                                <Text style={[styles.seeLinkText, { color: accent }]}>See all lessons</Text>
                                 <Ionicons name="arrow-forward" size={13} color={accent} />
                             </View>
                         </TouchableOpacity>
@@ -278,62 +277,54 @@ const styles = StyleSheet.create({
     },
 
     lessonList: {
-        marginTop: 14,
-        gap: 2,
+        marginTop: 16,
     },
     lessonRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 7,
+        paddingVertical: 11,
     },
-    lessonTick: {
-        width: 3,
-        height: 13,
-        borderRadius: 2,
-        marginRight: 13,
-        marginLeft: 2,
+    lessonRowDivider: {
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: 'rgba(0,0,0,0.06)',
     },
     lessonNum: {
         fontFamily: fonts.sansMedium,
-        fontSize: 11.5,
-        letterSpacing: 0.4,
-        width: 30,
+        fontSize: 12.5,
+        letterSpacing: 0.2,
+        width: 34,
     },
     lessonTitle: {
         flex: 1,
         fontFamily: fonts.sans,
-        fontSize: 14,
+        fontSize: 14.5,
         color: colors.textPrimary,
         letterSpacing: -0.05,
     },
     lessonEta: {
         fontFamily: fonts.sans,
-        fontSize: 11,
+        fontSize: 11.5,
         color: colors.textMuted,
         marginLeft: 8,
     },
     moreText: {
         fontFamily: fonts.sansMedium,
-        fontSize: 12,
+        fontSize: 12.5,
         color: colors.textMuted,
-        paddingVertical: 6,
-        paddingLeft: 48,
+        paddingTop: 12,
+        paddingLeft: 34,
     },
 
-    seePill: {
+    seeLink: {
         flexDirection: 'row',
         alignItems: 'center',
         alignSelf: 'flex-start',
         gap: 6,
-        marginTop: 14,
-        paddingHorizontal: 16,
-        paddingVertical: 9,
-        borderRadius: 999,
-        borderWidth: 1,
+        marginTop: 16,
     },
-    seePillText: {
+    seeLinkText: {
         fontFamily: fonts.sansSemiBold,
-        fontSize: 13,
+        fontSize: 13.5,
         letterSpacing: 0.2,
     },
 });
