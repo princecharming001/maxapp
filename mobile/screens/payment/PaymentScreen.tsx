@@ -202,7 +202,7 @@ export default function PaymentScreen() {
             )}
 
             {/* ── Content column ───────────────────────────────────── */}
-            <View style={[s.content, { paddingTop: Math.max(insets.top + 16, 60), paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
+            <View style={[s.content, { paddingTop: Math.max(insets.top + 30, 74), paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
 
                 {/* Title — sits just below skip, no dead space */}
                 <Text style={s.title}>Unlock your <Text style={s.titleI}>potential</Text></Text>
@@ -325,6 +325,8 @@ const s = StyleSheet.create({
         letterSpacing: -0.8,
         lineHeight: 36,
         textAlign: 'center',
+        marginTop: 8,
+        marginBottom: 24,
     },
     titleI: {
         fontFamily: 'Fraunces-Italic',
