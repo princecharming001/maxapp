@@ -1,0 +1,26 @@
+# Settings reachability + render. Home -> avatar (Open profile) -> gear (Settings)
+# -> assert key App-Store-critical rows. Precondition: logged-in paid user.
+# Kill stray maestro + xctest before running.
+appId: com.cannon.mobile
+---
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 8000
+- tapOn:
+    id: "tab-home"
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn: "Open profile"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "Settings"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible: "Sign out"
+# Delete account (Apple's required in-app account deletion) is at the bottom.
+- scrollUntilVisible:
+    element:
+      text: "Delete account"
+    direction: DOWN
+    timeout: 8000
+- takeScreenshot: /tmp/settings_screen

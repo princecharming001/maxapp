@@ -176,8 +176,16 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 - [~] You / Profile (`screens/profile/*`) — **Profile render-verified on sim
       2026-06-26** (Your Maxes, Weekly Progress, Progress calendar, Trophy Case).
       Edit/Personalization sub-screens still TODO.
-- [ ] Settings (`screens/.../Settings*`) — every row; LegalDocument; delete-account
-      modal; manage subscription. (iter 3: pending.)
+- [x] Settings — **render-verified on sim 2026-06-26 (iter 13)** via
+      `settings_walk.yaml` (Home → Open profile → Settings → "Sign out" asserted).
+      All App-Store-critical paths confirmed (wiring + on-screen): Manage
+      subscription, Edit lifestyle / My products / Edit personal info, Contact
+      support, **legal links** (Privacy / Terms / Community / Cookie → `LegalDocument`,
+      rendered from 619-line bundled content — no broken-URL risk), Sign out, and
+      **Delete account** (password-confirm modal — Apple's mandatory in-app account
+      deletion ✓). CONFIG NOTE (→ Needs Human Decision): Contact support shows the
+      dev placeholder `support@local.test` — set `EXPO_PUBLIC_SUPPORT_EMAIL` to the
+      real address in the prod EAS build.
 - [ ] Achievements / Progress / Archives screens.
 - [ ] Course / curriculum: CourseList, CourseDetail, ChapterView, TaskGuide
       (modal vertical pager), Fitmax suite.
@@ -314,6 +322,12 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   show a tooltip over the right element, Skip/Next/Done all work, and the app is
   fully tappable afterward. (Backend exposes only `/main-app-tour/complete`, no
   reset, so a fresh account or a DB flag flip is needed to retest.)
+- **Prod env values for the EAS build.** Settings showed `support@local.test`
+  (dev `EXPO_PUBLIC_SUPPORT_EMAIL`). Before submitting, confirm all
+  `EXPO_PUBLIC_*` are set to prod values in EAS Secrets: SUPPORT_EMAIL,
+  API_BASE_URL, the legal URLs (external copies), Stripe publishable key + return
+  URL, IAP product ids. (In-app legal docs are bundled so they're safe regardless,
+  but the support mailto and API base must be real.)
 - **Dead `todayV2` / Tamagui / glass path — fix-or-delete?** `newNav` and
   `todayV2` both ship OFF, so `TodayScreen` (the only real consumer of the glass
   components + Tamagui tokens) never renders in prod, yet `TamaguiProvider` is
@@ -413,3 +427,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   actions labeled (tabs/avatar/scan/habits); gap is secondary icon-only buttons
   (back/close/header) missing `accessibilityLabel` on several shipping screens →
   logged a P3 sweep. Not an App Store blocker. No code change this iter.
+- 2026-06-26 (iter 13): **Settings verified — production-ready.** Reached via
+  Open profile → Settings (settings_walk.yaml, "Sign out" asserted). All
+  App-Store-critical paths confirmed: account deletion (Apple requirement, w/
+  password modal), legal links (bundled 619-line content), manage subscription,
+  support. Flagged: set real prod EXPO_PUBLIC_* (support email is dev placeholder).
