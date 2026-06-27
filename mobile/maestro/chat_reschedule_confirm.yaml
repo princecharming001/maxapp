@@ -1,0 +1,76 @@
+appId: com.cannon.mobile
+---
+# RALPH_CHAT_RESCHEDULE Phase 6 E2E: propose → Yes/No → apply.
+#
+# Drives the chat with the Phase-5 testIDs (Maestro can't match the serif/custom
+# bubble text reliably, so we key off testIDs only):
+#   chat-composer     — the message TextInput
+#   chat-send         — the send button
+#   chat-confirm-yes  — apply the proposed change
+#   chat-confirm-no   — reject + re-prompt
+#
+# Precondition: a PAID user on the Chat tab, against a backend whose agent is
+# LLM-backed (so "I don't like this workout plan" actually triggers
+# propose_schedule_change → a `confirm` payload → the Yes/No buttons). The DEV
+# sim backend (127.0.0.1:8001) is a stub and does NOT run the agent, so this flow
+# only goes green against the real/staging backend. See the Progress Log note.
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 20000
+
+# Reach Chat (testID added in prod-review: tab-chat).
+- tapOn:
+    id: "tab-chat"
+- waitForAnimationToEnd:
+    timeout: 6000
+
+# Ask for a workout-plan change → the coach should PROPOSE with Yes/No.
+- tapOn:
+    id: "chat-composer"
+- inputText: "I don't like this workout plan, change it"
+- tapOn:
+    id: "chat-send"
+- extendedWaitUntil:
+    visible:
+      id: "chat-confirm-yes"
+    timeout: 45000
+- assertVisible:
+    id: "chat-confirm-no"
+- takeScreenshot: reschedule_proposal
+
+# Tap Yes → the change applies; the buttons disappear (proposal consumed).
+- tapOn:
+    id: "chat-confirm-yes"
+- extendedWaitUntil:
+    notVisible:
+      id: "chat-confirm-yes"
+    timeout: 30000
+- takeScreenshot: reschedule_applied
+
+# The app stays responsive and the schedule changed — open the Planner.
+- tapOn:
+    id: "tab-planner"
+- waitForAnimationToEnd:
+    timeout: 6000
+- assertNotVisible: "Something went wrong"
+- takeScreenshot: reschedule_planner_after
+
+# No path: ask again, decline, confirm the composer is focused for a re-prompt.
+- tapOn:
+    id: "tab-chat"
+- tapOn:
+    id: "chat-composer"
+- inputText: "actually change my diet plan instead"
+- tapOn:
+    id: "chat-send"
+- extendedWaitUntil:
+    visible:
+      id: "chat-confirm-no"
+    timeout: 45000
+- tapOn:
+    id: "chat-confirm-no"
+- waitForAnimationToEnd:
+    timeout: 4000
+- assertNotVisible: "Invariant Violation"
+- takeScreenshot: reschedule_no_reprompt
