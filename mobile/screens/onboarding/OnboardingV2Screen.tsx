@@ -576,6 +576,11 @@ export default function OnboardingV2Screen() {
     const [picker, setPicker] = useState<{ title: string; value: number; onSave: (v: number) => void } | null>(null);
     const [pickerKey, setPickerKey] = useState(0);
     const openTime = (title: string, value: number, onSave: (v: number) => void) => {
+        // Never re-present while a sheet is already up: bumping `pickerKey` would
+        // remount the native <Modal>, overlapping the old sheet's dismiss with the
+        // new sheet's present — the classic iOS two-modal deadlock that freezes the
+        // whole JS thread (every tap, incl. the DEV launcher, stops registering).
+        if (picker) return;
         setPicker({ title, value, onSave });
         setPickerKey((k) => k + 1);
         if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
@@ -1035,6 +1040,9 @@ export default function OnboardingV2Screen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         }
         if (isLast) { finish(); return; }
+        // Dismiss any open wheel sheet before the step transition so a picker
+        // <Modal> can never leak across steps and block taps on the next screen.
+        if (picker) setPicker(null);
         setDir(1);
         setStep(safeStep + 1);
     };
@@ -1042,6 +1050,7 @@ export default function OnboardingV2Screen() {
         if (Platform.OS !== 'web') {
             Haptics.selectionAsync().catch(() => {});
         }
+        if (picker) setPicker(null);
         setDir(-1);
         setStep(safeStep - 1);
     };
