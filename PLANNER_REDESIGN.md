@@ -30,10 +30,12 @@ default is the chat or editing 7 days by hand — fix that.
 - Flag anything genuinely needing a product call instead of guessing.
 
 ## BUILD UNITS (ordered — P0 first; ship value even if later units defer)
-- [ ] **U1 — "Your default day" entry button.** Add a small button/card ABOVE the
-  day strip (full-width, not a pill in the strip) → opens `DayEditorSheet` with
-  `scope='all'` (edits `defaults`). This alone makes the currently-unreachable
-  all-days editor reachable. Reuse the existing sheet + `commitScope('all', …)`.
+- [x] **U1 — "Your default day" entry button.** DONE 2026-06-27: added a "Your
+  usual day" card button between the title and the day strip → `openEditor('all')`,
+  which opens DayEditorSheet at `scope='all'` (edits `defaults` via the existing
+  `commitScope('all',…)`). The previously-unreachable all-days editor is now
+  reachable. tsc clean (only the 5 known glass errors). sim-unverified (driver
+  unstable) — change is additive (a button reusing existing wiring).
 - [ ] **U2 — "Apply to" scope on commit.** When committing an edit, offer:
   `Every day · Weekdays · Weekends · This day`. Map: Every day → `defaults`;
   Weekdays → write Mon–Fri overrides; Weekends → Sat/Sun; This day → single
@@ -87,3 +89,5 @@ When all hold, output exactly: `<promise>PLANNER REDESIGN COMPLETE</promise>`
 
 ## ITERATION LOG
 - (start)
+- 2026-06-27 (iter 1): U1 shipped — "Your usual day" button (top of Planner) opens
+  the all-days/default editor. Additive, tsc clean. Next: U2 (apply-to scope).

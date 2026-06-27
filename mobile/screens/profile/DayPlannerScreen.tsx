@@ -449,6 +449,26 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             </Text>
           </View>
 
+          {/* "Your usual day" — edits the repeating baseline (scope='all') that
+              every day inherits. A top-level shortcut, distinct from the per-day
+              strip below. */}
+          <TouchableOpacity
+            style={styles.defaultDayBtn}
+            activeOpacity={0.85}
+            onPress={() => openEditor('all')}
+            accessibilityRole="button"
+            accessibilityLabel="Edit your usual day"
+          >
+            <View style={styles.defaultDayIcon}>
+              <Ionicons name="repeat" size={16} color={colors.foreground} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.defaultDayTitle}>Your usual day</Text>
+              <Text style={styles.defaultDaySub}>Wake, workout &amp; bedtime that repeat</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+
           {/* Day strip — starts today (leftmost) and scrolls infinitely into the
               future; more days append as you reach the end. No past dates. */}
           <FlatList
@@ -777,6 +797,31 @@ const styles = StyleSheet.create({
     letterSpacing: -0.8,
   },
   titleItalic: { fontFamily: fonts.serifItalic, fontStyle: 'italic' },
+
+  // "Your usual day" shortcut — a floating card button that opens the all-days
+  // (default) routine editor.
+  defaultDayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: spacing.sm,
+    marginBottom: 2,
+    ...SOFT,
+  },
+  defaultDayIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: PILL,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  defaultDayTitle: { fontFamily: fonts.sansSemiBold, fontSize: 14, color: colors.foreground },
+  defaultDaySub: { fontFamily: fonts.sans, fontSize: 12, color: colors.textMuted, marginTop: 1 },
 
   // Day strip — horizontal, ~7 rings visible, scrolls infinitely into the future.
   weekStrip: {
