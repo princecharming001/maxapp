@@ -105,14 +105,20 @@ function perDayLabel(weekly: string): string | null {
 function LiquidGlass() {
     return (
         <>
+            {/* The REAL iOS frosted-glass material (UIBlurEffect) — content-
+                adaptive and cool-toned, so it actually reads as glass on the
+                light dust background instead of a flat white wash. */}
             <BlurView
-                intensity={IS_IOS ? 74 : 48}
-                tint="light"
+                intensity={IS_IOS ? 100 : 55}
+                tint={IS_IOS ? 'systemThickMaterialLight' : 'light'}
                 style={StyleSheet.absoluteFill}
                 pointerEvents="none"
                 experimentalBlurMethod={IS_IOS ? undefined : 'dimezisBlurView'}
             />
-            <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.16)' }]} />
+            {/* Android has no native material — a cool frost so it still reads */}
+            {!IS_IOS ? (
+                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(244,246,251,0.5)' }]} />
+            ) : null}
             {/* top specular highlight — the main light-catch */}
             <LinearGradient
                 pointerEvents="none"
