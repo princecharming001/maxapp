@@ -100,7 +100,11 @@ class ClaudeService:
                     "\n\nReturn ONLY valid JSON matching the TripleFullScanResult schema "
                     "(psl_score, psl_tier, potential, archetype, appeal, ascension_time_months, age_score, "
                     "weakest_link, aura_tags, feature_scores, proportions, side_profile, masculinity_index, "
-                    "mog_percentile, glow_up_potential, metrics, preview_blurb, problems, suggested_modules). "
+                    "mog_percentile, glow_up_potential, "
+                    # Viral coach metrics — required, same as the system instructions.
+                    "halo_feature, bottleneck, bottleneck_max, sex_appeal, trust_appeal, appeal_quadrant, "
+                    "dimorphism, dimorphism_note, glow_up_label, first_move, "
+                    "metrics, preview_blurb, problems, suggested_modules). "
                     "No markdown fences, no commentary."
                 ),
             },
