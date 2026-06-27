@@ -22,10 +22,12 @@ import {
     ActivityIndicator,
     Platform,
     Animated,
+    Easing,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Defs, RadialGradient, Stop, Rect, Ellipse } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -157,37 +159,108 @@ function Accordion({ title, badge, children, open, onToggle }: {
     );
 }
 
+/** Lighten a #rrggbb hex toward white by `amt` (0–1). */
+function lightenHex(hex: string, amt: number): string {
+    const h = (hex || '#000000').replace('#', '');
+    const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+    const ch = (i: number) => {
+        const v = parseInt(full.slice(i, i + 2), 16);
+        return Math.round(v + (255 - v) * amt);
+    };
+    return `rgb(${ch(0)}, ${ch(2)}, ${ch(4)})`;
+}
+
+/** Soft brand aurora mesh — layered radial blooms (warm→cool) over warm white. */
+function HeroAuroraMD({ base }: { base: string }) {
+    const light = lightenHex(base, 0.58);
+    return (
+        <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Defs>
+                {/* main pool of brand light, centered on the icon, fades out all ways */}
+                <RadialGradient id="md-main" cx="50%" cy="38%" r="46%">
+                    <Stop offset="0%" stopColor={base} stopOpacity={0.36} />
+                    <Stop offset="42%" stopColor={base} stopOpacity={0.13} />
+                    <Stop offset="100%" stopColor={base} stopOpacity={0} />
+                </RadialGradient>
+                <RadialGradient id="md-warm" cx="14%" cy="2%" r="52%">
+                    <Stop offset="0%" stopColor={light} stopOpacity={0.55} />
+                    <Stop offset="100%" stopColor={light} stopOpacity={0} />
+                </RadialGradient>
+                <RadialGradient id="md-cool" cx="92%" cy="14%" r="50%">
+                    <Stop offset="0%" stopColor={light} stopOpacity={0.4} />
+                    <Stop offset="100%" stopColor={light} stopOpacity={0} />
+                </RadialGradient>
+            </Defs>
+            <Rect x="-20%" y="-20%" width="140%" height="120%" fill="url(#md-warm)" />
+            <Rect x="-20%" y="-20%" width="140%" height="120%" fill="url(#md-cool)" />
+            <Rect x="-20%" y="-20%" width="140%" height="120%" fill="url(#md-main)" />
+        </Svg>
+    );
+}
+
+/** Soft blurred contact shadow under the floating icon — a tight pool, not a band. */
+function HeroShadowMD() {
+    return (
+        <Svg width="132" height="40" pointerEvents="none">
+            <Defs>
+                <RadialGradient id="md-shadow" cx="50%" cy="50%" r="50%">
+                    <Stop offset="0%" stopColor="#2A2118" stopOpacity={0.22} />
+                    <Stop offset="58%" stopColor="#2A2118" stopOpacity={0.07} />
+                    <Stop offset="100%" stopColor="#2A2118" stopOpacity={0} />
+                </RadialGradient>
+            </Defs>
+            <Ellipse cx="66" cy="20" rx="62" ry="15" fill="url(#md-shadow)" />
+        </Svg>
+    );
+}
+
 /**
- * Photo-free editorial hero. The max's glossy 3D "jelly" icon floats on a soft
- * brand-tinted cream field (a centred glow disc gives the radial-light feel),
- * fading into the cream page. NO photographs, NO flat color washes posing as art.
- * For creator courses with no jelly icon, a brand-tinted serif monogram stands in.
- * The icon gently parallaxes/scales on scroll, then the serif title sits beneath.
+ * Photo-free, object-in-light hero. The max's glossy 3D "jelly" icon floats in a
+ * soft brand aurora with a blurred contact shadow (a gentle idle float + scroll
+ * parallax) — no flat color wash, no flat solid glow disc. Creator courses with
+ * no jelly icon fall back to a brand-tinted serif monogram. Serif title beneath.
  */
 function JellyHero({ item, base, scrollY }: { item: MarketplaceItem; base: string; scrollY: Animated.Value }) {
     const thumb = jellyThumb(item.id);
     const translateY = scrollY.interpolate({ inputRange: [-150, 0, 300], outputRange: [-26, 0, 80], extrapolate: 'clamp' });
     const scale = scrollY.interpolate({ inputRange: [-150, 0], outputRange: [1.12, 1], extrapolateRight: 'clamp' });
     const opacity = scrollY.interpolate({ inputRange: [0, 220, 300], outputRange: [1, 0.55, 0.2], extrapolate: 'clamp' });
+
+    // Gentle idle float (shadow breathes inversely) — the icon lives in the light.
+    const float = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        const loop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(float, { toValue: 1, duration: 3400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+                Animated.timing(float, { toValue: 0, duration: 3400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            ]),
+        );
+        loop.start();
+        return () => loop.stop();
+    }, [float]);
+    const floatY = float.interpolate({ inputRange: [0, 1], outputRange: [5, -9] });
+    const shScale = float.interpolate({ inputRange: [0, 1], outputRange: [1, 0.82] });
+    const shOpacity = float.interpolate({ inputRange: [0, 1], outputRange: [1, 0.7] });
+
     return (
         <View style={styles.hero}>
-            {/* Brand-tinted cream field — accent only as a soft vertical wash. */}
-            <LinearGradient
-                colors={[hexA(base, 0.16), hexA(base, 0.05), CANVAS]}
-                locations={[0, 0.62, 1]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-            />
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                <HeroAuroraMD base={base} />
+            </View>
             <Animated.View style={[styles.heroIconWrap, { opacity, transform: [{ translateY }, { scale }] }]}>
-                {/* Soft radial glow disc behind the icon */}
-                <View style={[styles.heroGlow, { backgroundColor: hexA(base, 0.18) }]} />
-                {thumb ? (
-                    <Image source={thumb} style={styles.heroThumb} contentFit="contain" transition={260} />
-                ) : (
-                    <Monogram name={item.title} color={base} size={132} />
-                )}
+                <Animated.View
+                    pointerEvents="none"
+                    style={[styles.heroShadowWrap, { opacity: shOpacity, transform: [{ scaleX: shScale }, { scaleY: shScale }] }]}
+                >
+                    <HeroShadowMD />
+                </Animated.View>
+                <Animated.View style={{ transform: [{ translateY: floatY }] }}>
+                    {thumb ? (
+                        <Image source={thumb} style={styles.heroThumb} contentFit="contain" transition={260} />
+                    ) : (
+                        <Monogram name={item.title} color={base} size={132} />
+                    )}
+                </Animated.View>
             </Animated.View>
         </View>
     );
@@ -691,8 +764,8 @@ const styles = StyleSheet.create({
 
     // Jelly-icon hero (photo-free)
     hero: { width: '100%', height: 312, backgroundColor: CANVAS, alignItems: 'center', justifyContent: 'center' },
-    heroIconWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 18 },
-    heroGlow: { position: 'absolute', width: 232, height: 232, borderRadius: 116 },
+    heroIconWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+    heroShadowWrap: { position: 'absolute', bottom: 30, alignItems: 'center', justifyContent: 'center' },
     heroThumb: { width: 188, height: 188 },
 
     header: { paddingHorizontal: 22, paddingTop: 4 },
