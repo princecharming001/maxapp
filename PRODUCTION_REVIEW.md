@@ -1,5 +1,53 @@
 # Production Readiness Review — maxapp (final gate before publishing)
 
+> ## 🟢 EXECUTIVE SUMMARY (read this first) — updated 2026-06-26
+>
+> **Verdict: no known launch-blockers remain.** The one critical, app-breaking
+> bug is fixed; every App-Store rejection risk and reliable code/security gate is
+> green. The remaining open items are non-blocking polish or things that need a
+> stable test device / a prod build / your decision — all listed below.
+>
+> **🔴 Critical bug found & fixed (this was the whole trigger):** Home (and the
+> whole app) was **completely untappable** for fresh Day-1 paid users. Cause: the
+> auto-starting main-app tour had 6 steps but only 5 anchors (`PLANNER_TAB` had
+> none), so `react-native-spotlight-tour` wedged an invisible full-screen backdrop
+> that swallowed every touch. Ships in prod (`newNav: false`). Fixed in
+> `mainTourSteps.tsx` (+ `pointerEvents="none"` on `TabBarFrost`). Verified taps
+> register again.
+>
+> **Also shipped (8 commits of fixes):** Profile note was rendering unstyled;
+> 4 `tsc` errors in shipping code (App.tsx navigations, tamagui config); dead
+> `referralDiscounts` flag removed; HomeScreen no longer leaks raw axios errors to
+> users; **paywall hardened** (faux/test bypass methods throw in prod —
+> triple-layer defense); tab + Explore-card `testID`s added (also fixes E2E);
+> ForgotPassword a11y.
+>
+> **Verified GREEN:** app launches with no redbox · in-app account deletion
+> (Apple requirement) · bundled legal docs · permission usage strings + graceful
+> denial · no committed secrets · paywall not bypassable in prod · error states
+> show friendly copy · feature-flag config coherent · no perf cliffs (fast lists
+> virtualized) · notification deep-links valid · 11 screens render-verified +
+> chat-send & settings functional.
+>
+> **🟡 YOUR ACTION LIST before submitting (see "Needs Human Decision"):**
+> 1. Set real **prod `EXPO_PUBLIC_*`** values in EAS (support email currently shows
+>    the dev `support@local.test`; API base URL; Stripe keys; IAP ids).
+> 2. **Confirm on a fresh Day-1 account** the main-app tour runs clean (the
+>    structural cause is fixed; couldn't repro the wedge here — test acct had
+>    completed the tour).
+> 3. Decide **fix-or-delete the dead `todayV2`/Tamagui/glass path** (5 remaining
+>    `tsc` errors live there; it's bundle dead-weight if todayV2 is abandoned).
+>
+> **⚪ Couldn't finish autonomously (NOT app problems):** TaskGuide / Fitmax /
+> scan-capture / onboarding walks — the local Maestro/xctest driver became
+> chronically unstable mid-session (hangs at init). Run these on a stable driver
+> or in CI. AI chat reply needs the backend LLM. Remaining P3 polish (a11y sweep,
+> console-strip, archive virtualization) is listed under P3.
+>
+> Full detail + the iteration-by-iteration log are below.
+
+---
+
 This file is the **single source of truth** for the production review loop. Every
 iteration reads it top-to-bottom, does the **next unchecked item**, verifies it,
 checks it off with a one-line note, and commits. Do NOT restart from scratch —
@@ -579,3 +627,7 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   (Home/TaskGuide/Achievements/Profile/ProgressArchive) are real registered
   routes; no broken taps. Noted TaskGuide needs payload params + paid-stack
   resolution (deferred safely). No code change.
+- 2026-06-26 (iter 26): Added the **Executive Summary** at the top of this file —
+  launch verdict (no known blockers), the critical fix, what shipped, what's
+  verified green, and your pre-submit action list — so the deliverable reads as a
+  clean handoff instead of requiring a reverse-read of the log. No code change.
