@@ -439,8 +439,10 @@ async def apple_verify(
         # would let anyone POST {transaction_id, product_id:"premium"} and unlock
         # paid features for free. The client-trust path exists ONLY as a dev
         # convenience before the App Store Server API keys are wired up.
-        _is_prod = str(getattr(settings, "app_env", "") or "").strip().lower() == "production"
-        if _is_prod:
+        # Use settings.is_production (also true on Render / PRODUCTION env), not a
+        # bare app_env check — else a deploy missing APP_ENV=production would let a
+        # client POST {transaction_id, product_id:"premium"} and self-grant premium.
+        if settings.is_production:
             logger.error(
                 "Apple IAP could not be server-verified in production "
                 "(configured=%s) — refusing client-trust activation: user=%s tid=%s",
@@ -806,8 +808,10 @@ async def test_activate_subscription(
     db: AsyncSession = Depends(get_db),
 ):
     from config import settings as _s
-    env = (_s.app_env or "").lower()
-    if env not in ("development", "dev") and not getattr(_s, "debug", False):
+    # Block in production via the authoritative is_production (matches
+    # auth.py's _block_in_production). No `debug` escape hatch — a stray
+    # DEBUG=true in prod must not reopen this premium-minting endpoint.
+    if _s.is_production:
         raise HTTPException(status_code=403, detail="Only available in development mode")
 
     try:
