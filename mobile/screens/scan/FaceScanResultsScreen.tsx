@@ -614,19 +614,49 @@ const GLASS_SHADOW = {
     shadowColor: '#3A2E55', shadowOpacity: 0.1, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 3,
 } as const;
 
-// Frosted-glass fill for the analysis cards: a real blur of what's behind, a
-// translucent wash, a soft top sheen, and a 1px rim of light. `dark` variant
-// for the ink "first move" card. Decorative — sits behind the card content.
+// Liquid-glass fill for the analysis cards. The "liquid glass" look is faked
+// with the recognised recipe: a real backdrop blur (refraction), a strong top
+// SPECULAR highlight + a diagonal light-catch (light sliding across the
+// surface), luminous EDGE-LENSING rims that are brightest at the top/left edge,
+// and a faint inner shadow at the bottom for glass thickness/depth. `dark`
+// variant for the ink "first move" card. Decorative — sits behind the content.
 function GlassFill({ dark = false }: { dark?: boolean }) {
+    if (dark) {
+        return (
+            <>
+                <BlurView intensity={24} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(20,18,14,0.40)' }]} />
+                <LinearGradient pointerEvents="none"
+                    colors={['rgba(255,255,255,0.18)', 'rgba(255,255,255,0)']}
+                    start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={s.glassSpecular} />
+                <LinearGradient pointerEvents="none"
+                    colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0)']}
+                    start={{ x: 0, y: 0 }} end={{ x: 0.85, y: 0.7 }} style={StyleSheet.absoluteFill} />
+                <View pointerEvents="none" style={[s.glassRimTop, { backgroundColor: 'rgba(255,255,255,0.26)' }]} />
+                <View pointerEvents="none" style={[s.glassRimLeft, { backgroundColor: 'rgba(255,255,255,0.12)' }]} />
+            </>
+        );
+    }
     return (
         <>
-            <BlurView intensity={dark ? 18 : 36} tint={dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} pointerEvents="none" />
-            <View
-                pointerEvents="none"
-                style={[StyleSheet.absoluteFillObject, { backgroundColor: dark ? 'rgba(21,19,15,0.46)' : 'rgba(255,255,255,0.40)' }]}
-            />
-            <View pointerEvents="none" style={[s.glassSheen, dark ? { backgroundColor: 'rgba(255,255,255,0.05)' } : null]} />
-            <View pointerEvents="none" style={[s.glassRim, dark ? { backgroundColor: 'rgba(255,255,255,0.12)' } : null]} />
+            <BlurView intensity={Platform.OS === 'ios' ? 52 : 40} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none"
+                experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined} />
+            <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(255,255,255,0.28)' }]} />
+            {/* top specular highlight — the main light-catch */}
+            <LinearGradient pointerEvents="none"
+                colors={['rgba(255,255,255,0.62)', 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0)']}
+                locations={[0, 0.45, 1]} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={s.glassSpecular} />
+            {/* diagonal light sliding across the surface (the "liquid" sheen) */}
+            <LinearGradient pointerEvents="none"
+                colors={['rgba(255,255,255,0.34)', 'rgba(255,255,255,0)']}
+                start={{ x: 0, y: 0 }} end={{ x: 0.8, y: 0.62 }} style={StyleSheet.absoluteFill} />
+            {/* inner bottom shadow — glass thickness / depth */}
+            <LinearGradient pointerEvents="none"
+                colors={['rgba(22,26,46,0)', 'rgba(22,26,46,0.06)']}
+                start={{ x: 0, y: 0.62 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />
+            {/* luminous edge lensing — brightest at the top, softer down the left */}
+            <View pointerEvents="none" style={s.glassRimTop} />
+            <View pointerEvents="none" style={s.glassRimLeft} />
         </>
     );
 }
@@ -1646,8 +1676,9 @@ const s = StyleSheet.create({
         backgroundColor: 'rgba(21,19,15,0.55)', borderRadius: 22, paddingHorizontal: 20, paddingVertical: 20, marginBottom: 12,
         ...GLASS_SHADOW,
     },
-    glassSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '46%', backgroundColor: 'rgba(255,255,255,0.26)' },
-    glassRim: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.6)' },
+    glassSpecular: { position: 'absolute', top: 0, left: 0, right: 0, height: '58%' },
+    glassRimTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 1.2, backgroundColor: 'rgba(255,255,255,0.92)' },
+    glassRimLeft: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 1, backgroundColor: 'rgba(255,255,255,0.5)' },
     firstMoveKicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,0.55)', marginBottom: 6 },
     firstMoveLockRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     firstMoveValue: { fontFamily: fonts.serif, fontSize: 28, color: '#FFFFFF', letterSpacing: -0.5 },
