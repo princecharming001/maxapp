@@ -347,7 +347,6 @@ export default function ScheduleGrid({
                   {e.accent === WORKOUT_ACCENT ? (
                     <View pointerEvents="none" style={styles.cardAccentWash} />
                   ) : null}
-                  <View pointerEvents="none" style={styles.cardSheen} />
                   <View pointerEvents="none" style={styles.cardRim} />
                   <View style={[styles.tick, { backgroundColor: e.accent }]} />
                   <View style={[styles.cardBody, tiny && styles.cardBodyTiny]}>
@@ -419,8 +418,8 @@ const styles = StyleSheet.create({
   cardGlass: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(236,240,247,0.20)' },
   // Workout (and other colored events) tint the pane in their accent.
   cardAccentWash: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(47,107,78,0.14)' },
-  // Soft sheen over the top half + a brighter 1px rim — the lit edge of glass.
-  cardSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '50%', backgroundColor: 'rgba(255,255,255,0.30)' },
+  // A brighter 1px top rim — the lit edge of glass. (No half-height sheen: it
+  // made the card read two-tone; the pane is now one uniform fill.)
   cardRim: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.7)' },
   tick: { width: 3, marginVertical: 7, borderRadius: 2 },
   cardBody: { flex: 1, paddingHorizontal: 11, paddingVertical: 7, justifyContent: 'flex-start' },
