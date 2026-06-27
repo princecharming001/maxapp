@@ -75,6 +75,11 @@ When (and only when) all of the above hold, output exactly:
   bundle is needed; the installed build is a dev client.
 - Maestro: `~/.maestro/bin/maestro` (v2.6.1). Flows live in `mobile/maestro/*.yaml`.
   Run one: `maestro test mobile/maestro/<flow>.yaml`. Add new repro flows there.
+  **GOTCHA (iter 3):** never run two Maestro sessions at once — a stray/hung
+  `maestro` process collides on the device driver and makes EVERY later run flaky
+  (random `tapOn`/`assertVisible` failures, even logging the app out). Before each
+  run: `pkill -f maestro` and confirm none remain. The app restores the
+  last-active tab on launch, so tap "Home" explicitly — don't assume Home.
 - Typecheck: `cd mobile && npx tsc --noEmit`.
 - Tests: backend tests exist (see memory `maxapp_test_suite`); pre-existing
   failures there are out of scope unless they touch a flow you're verifying.
@@ -144,21 +149,28 @@ item below to confirm the tour itself runs clean on a fresh account.
 Bottom tabs (newNav flag ON → Today/Explore/Scan/Coach/You; OFF → Home/Planner/
 Scan/Explore/Chat). Verify whichever set the production flag config ships.
 
-- [ ] Home / Today (`screens/home/HomeScreen.tsx`, `screens/today/TodayScreen.tsx`,
-      `screens/courses/MasterScheduleScreen.tsx`) — day strip, habits list,
-      empty state, start-a-program CTA.
+- [x] Home (`screens/home/HomeScreen.tsx`) — **render-verified on sim 2026-06-26
+      (iter 3)**: day strip, HABITS list, empty state ("No habits… Start a
+      program"), personalized "Ready to start on Fitmax? Explore has a plan" CTA.
+      Launches clean with NO tour wedge (P0 fix holds on the normal path).
 - [ ] Planner (`screens/profile/DayPlannerScreen.tsx`) — timeline,
-      direct-manipulation edits, add/move blocks.
-- [ ] Scan center button → FaceScan (`screens/.../FaceScan*`) — camera permission
-      prompt, capture, results, archive. Respect free vs premium gating.
-- [ ] Explore / Marketplace (`screens/marketplace/MarketplaceScreen.tsx`,
-      `MaxDetailScreen.tsx`, `MaxxDetailScreen.tsx`) — cards, detail, start program.
-- [ ] Chat / Coach (`screens/chat/MaxChatScreen.tsx`) — entry, send a message,
-      receive a reply, error/offline state.
-- [ ] You / Profile (`screens/you/YouScreen.tsx`, `screens/profile/*`) — stats,
-      face score, achievements strip, edit personal, personalization.
-- [ ] Settings (`screens/.../Settings*`) — every row; LegalDocument (terms,
-      privacy) opens; delete-account modal; manage subscription.
+      direct-manipulation edits, add/move blocks. (iter 3: navigation blocked by a
+      stray-maestro collision; resume next pass — harness now fixed.)
+- [x] Scan center button → FaceScan results — **render-verified on sim 2026-06-26**:
+      FaceScanResults postPay reveal renders (Rating/Appeal/Potential rings,
+      "Get started"). Still TODO: camera permission prompt + capture flow; free vs
+      premium gating.
+- [ ] Explore / Marketplace — cards/detail/start program. (iter 3: pending, see
+      Planner note.)
+- [x] Chat / Coach (`screens/chat/MaxChatScreen.tsx`) — **render-verified on sim
+      2026-06-26**: "What can I help with?", suggestion chips (Build my plan / skin
+      / Rate my routine), "Ask Max anything" composer. TODO: send a real message +
+      reply + error/offline state.
+- [~] You / Profile (`screens/profile/*`) — **Profile render-verified on sim
+      2026-06-26** (Your Maxes, Weekly Progress, Progress calendar, Trophy Case).
+      Edit/Personalization sub-screens still TODO.
+- [ ] Settings (`screens/.../Settings*`) — every row; LegalDocument; delete-account
+      modal; manage subscription. (iter 3: pending.)
 - [ ] Achievements / Progress / Archives screens.
 - [ ] Course / curriculum: CourseList, CourseDetail, ChapterView, TaskGuide
       (modal vertical pager), Fitmax suite.
@@ -166,7 +178,10 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 
 ## P1 — CORE FLOWS (end-to-end on sim)
 
-- [ ] Auth: signup validation, login success, forgot-password.
+- [~] Auth: signup validation, login success, forgot-password. **Login screen
+      render-verified on sim 2026-06-26** (email/username, password w/ reveal,
+      Forgot password, Continue, Google + Apple, "create account"). Functional
+      login/signup submit still TODO.
 - [ ] Onboarding (v2) → RoutineReveal → FeaturesIntro → FaceScan → Paywall.
 - [ ] Paywall / Payment (`screens/payment/PaymentScreen.tsx`): plan toggle,
       referral field, CTA, Restore. **Prod paywall guards must stay intact**
@@ -238,3 +253,11 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   mounted overlays (celebration host, in-app alert host, dev drawer) all render
   `null` when idle / are self-dismissing Modals; none traps touches. P0 section
   now fully resolved. Next: P1 screen walk.
+- 2026-06-26 (iter 3): **P1 screen walk — first pass.** Added
+  prod_screen_walk.yaml. Render-verified on the sim: Home, Chat, Profile, Scan
+  results, Login — all render cleanly; tab-restore works; Home launch shows NO
+  tour wedge (P0 fix holds). Diagnosed & killed a hung iteration-1 maestro
+  process that had been colliding with every run (root of the flaky failures) —
+  documented the gotcha. Remaining: Planner, Explore, Settings + functional
+  (not just render) checks — resume next pass (harness now clean; app on Login,
+  re-enter via DevDrawer→paid or real login).

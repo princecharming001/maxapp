@@ -1,0 +1,39 @@
+# Production screen walk — navigate deterministically (the app restores the
+# last-active tab on launch, so we tap Home first) and assert a screen-specific
+# element on each tab as the render gate. Ends on Explore for a simctl capture.
+appId: com.cannon.mobile
+---
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 8000
+# If parked on the post-pay scan reveal, finish it to reach Home.
+- runFlow:
+    when:
+      visible: "Potential"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Get started"
+          direction: DOWN
+          timeout: 12000
+      - tapOn: "Get started"
+      - waitForAnimationToEnd:
+          timeout: 6000
+# Dismiss the main-app tour if it auto-started.
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+      - waitForAnimationToEnd:
+          timeout: 2500
+# ── Home ──
+- tapOn: "Home"
+- assertVisible: "HABITS"
+# ── Planner ──
+- tapOn: "Planner"
+- assertVisible: "Commitments"
+# ── Explore (end here for simctl capture) ──
+- tapOn: "Explore"
+- waitForAnimationToEnd:
+    timeout: 5000
