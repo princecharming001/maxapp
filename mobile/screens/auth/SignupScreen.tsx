@@ -93,6 +93,7 @@ export default function SignupScreen() {
     const [firstName, setFirstName] = useState('');
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -103,6 +104,7 @@ export default function SignupScreen() {
 
     const usernameRef = useRef<TextInput>(null);
     const emailRef = useRef<TextInput>(null);
+    const phoneRef = useRef<TextInput>(null);
     const passwordRef = useRef<TextInput>(null);
 
     const fade = useRef(new Animated.Value(0)).current;
@@ -143,7 +145,7 @@ export default function SignupScreen() {
             const nameParts = firstName.trim().split(/\s+/);
             const fn = nameParts[0] || firstName.trim();
             const ln = nameParts.slice(1).join(' ') || fn;
-            await signup(email, password, fn, ln, username, undefined);
+            await signup(email, password, fn, ln, username, phone.trim() || undefined);
         } catch (error: any) {
             setFieldErrorMessages({});
             const detail = error?.response?.data?.detail;
@@ -264,11 +266,30 @@ export default function SignupScreen() {
                                     textContentType="emailAddress"
                                     autoComplete="email"
                                     returnKeyType="next"
-                                    onSubmitEditing={() => passwordRef.current?.focus()}
+                                    onSubmitEditing={() => phoneRef.current?.focus()}
                                     onFocus={() => setFocusedField('email')}
                                     onBlur={() => setFocusedField(null)}
                                 />
                                 {fieldErrorMessages.email ? <Text style={s.fieldErr}>{fieldErrorMessages.email}</Text> : null}
+                            </View>
+
+                            {/* Phone — optional (used for SMS coaching; can be added later) */}
+                            <View style={s.fieldWrap}>
+                                <TextInput
+                                    ref={phoneRef}
+                                    style={inputStyle('phone')}
+                                    placeholder="Phone number (optional)"
+                                    placeholderTextColor={PH}
+                                    value={phone}
+                                    onChangeText={(t) => { setPhone(t); clearErr('phone'); }}
+                                    keyboardType="phone-pad"
+                                    autoComplete="tel"
+                                    textContentType="telephoneNumber"
+                                    returnKeyType="next"
+                                    onSubmitEditing={() => passwordRef.current?.focus()}
+                                    onFocus={() => setFocusedField('phone')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
                             </View>
 
                             {/* Password */}
