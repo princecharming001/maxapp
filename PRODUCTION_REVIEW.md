@@ -326,7 +326,18 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       No flag combination leaves a reachable-but-broken tab (Forums is
       intentionally hidden ComingSoon). NOTE (→ P3): `referralDiscounts` is defined
       but has 0 call sites — a dead flag, trivial to remove.
-- [ ] No obvious perf cliffs (giant un-virtualized lists, heavy work on mount).
+- [x] No obvious perf cliffs (giant un-virtualized lists, heavy work on mount).
+      **2026-06-26 (iter 21): audited — no major cliff.**
+      - Fast-growing lists ARE virtualized: chat (MaxChatScreen), forum
+        threads/notifications all use `FlatList`. ✓
+      - `ScrollView + .map` screens are either BOUNDED (MarketplaceScreen = a
+        curated max catalog, small N) or `newNav`-only (MasterScheduleScreen, not
+        in the shipping OLD nav).
+      - Minor (→ P3): `FaceScanArchiveScreen` + `ProgressArchiveScreen` render
+        history via un-virtualized `ScrollView + .map`. Fine now (grows ~1/day) but
+        convert to `FlatList` before a long-tenured user accumulates hundreds of
+        rows. No heavy synchronous work on mount spotted (schedule aggregation is
+        memoized; tab prefetch is async).
 
 ## P3 — POLISH
 
@@ -343,6 +354,9 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       poster); verified `tapOn id:explore-card-.*` opens MaxDetail.
 - [x] Remove dead `referralDiscounts` flag — **DONE iter 19** (removed from
       FlagName + FLAGS; 0 call sites; tsc clean).
+- [ ] Virtualize the archive lists: `FaceScanArchiveScreen` + `ProgressArchiveScreen`
+      use `ScrollView + .map` (un-virtualized) — convert to `FlatList` before they
+      grow to hundreds of rows. (found iter 21; slow-growing, non-blocking)
 - [ ] Strip `console.*` in production bundle (48 calls / 11 files) via
       babel-plugin-transform-remove-console (perf + avoids leaking debug to device
       logs). Non-blocking. (found iter 6)
@@ -502,3 +516,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   not reliably completable this session. Holding the remaining sim-heavy walks
   (core loop / TaskGuide / Fitmax / scan / achievements) for a stable driver/CI.
   No app issue found; no code change.
+- 2026-06-26 (iter 21): **Perf audit — no major cliff.** Fast-growing lists
+  (chat/forums) are FlatList-virtualized; ScrollView+.map screens are bounded
+  (marketplace catalog) or newNav-only. Minor P3: FaceScanArchive/ProgressArchive
+  use un-virtualized ScrollView+.map (slow-growing). No heavy on-mount work. This
+  exhausts the reliable non-sim production gates.
