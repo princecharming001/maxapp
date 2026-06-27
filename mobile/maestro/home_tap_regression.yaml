@@ -1,0 +1,17 @@
+# Regression: Home screen content must be tappable.
+# Repro for the "can't press anything on Home" P0. Taps the profile avatar
+# (top-right) which should navigate to the Profile screen. If a full-screen
+# overlay (e.g. a wedged SpotlightTour backdrop) is swallowing touches, the
+# tap is dead and we stay on "DAY 1 / 365".
+appId: com.cannon.mobile
+---
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 8000
+- assertVisible: "HABITS"
+# Tap the profile avatar (top-right corner).
+- tapOn:
+    point: "89%,11%"
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: /tmp/home_tap_after_avatar

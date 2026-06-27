@@ -5,13 +5,18 @@ import { colors, fonts, borderRadius } from '../../theme/dark';
 
 /* ─── Step indices (shared between AttachStep wrappers and the steps array) ─── */
 
+// IMPORTANT: every index here MUST have a matching <AttachStep index=…> mounted
+// somewhere in the tree that is on-screen when the tour reaches it, and the
+// TOUR_STEPS array below must have exactly one entry per index (contiguous from
+// 0). A step with no anchor wedges react-native-spotlight-tour into a full-screen
+// backdrop that silently swallows every touch — the "can't press anything" bug.
+// Anchors today: PROGRESS+PROGRAMS in HomeScreen, the three *_TAB on the tab icons.
 export const TOUR_STEP = {
     PROGRESS: 0,
     PROGRAMS: 1,
     SCHEDULE_TAB: 2,
-    PLANNER_TAB: 3,
-    EXPLORE_TAB: 4,
-    CHAT_TAB: 5,
+    EXPLORE_TAB: 3,
+    CHAT_TAB: 4,
 } as const;
 
 const TOTAL_STEPS = Object.keys(TOUR_STEP).length;
@@ -131,11 +136,7 @@ const STEP_CONTENT: { title: string; body: string }[] = [
     },
     {
         title: 'Schedule',
-        body: 'Your full day — tasks, reminders, and streaks.',
-    },
-    {
-        title: 'Planner',
-        body: 'Adjust when things land so they fit your real day.',
+        body: 'Your full day — tasks, reminders, and streaks. Plan when things land.',
     },
     {
         title: 'Explore',

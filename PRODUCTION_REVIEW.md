@@ -83,7 +83,29 @@ When (and only when) all of the above hold, output exactly:
 
 ## P0 — BLOCKERS (must fix first)
 
-- [~] **Home screen: nothing tappable.** Reproduce on sim: launch → reach Home
+### ✅ ROOT CAUSE FOUND & FIXED (2026-06-26)
+The dead-touch bug is the **auto-firing main-app tour**, and it **ships in
+production**: `newNav: false` (mobile/constants/featureFlags.ts:18) → the OLD nav
+path runs, which is the ONLY path that mounts `SpotlightTourProvider` + `TourTrigger`
+(TabNavigator.tsx:426-548). `TourTrigger` calls `start()` ~600ms after mount for
+every paid user without `main_app_tour_completed` — i.e. every fresh Day-1 user.
+The tour defined **6 steps but only 5 anchors**: `TOUR_STEP.PLANNER_TAB` (index 3)
+had NO `<AttachStep index={3}>` anywhere (verified by grep — only 0,1,2,4,5 exist).
+When react-native-spotlight-tour advances to a step whose anchor isn't mounted it
+wedges into a full-screen backdrop that swallows every touch with no visible
+dimming — exactly the report.
+**FIX (mobile/features/mainTour/mainTourSteps.tsx):** removed the orphan
+PLANNER_TAB step and reindexed EXPLORE_TAB→3, CHAT_TAB→4 (tab anchors reference
+the constants by name, so they stay correct & contiguous); folded the Planner
+copy into the Schedule step. Now steps(5) == anchors(0-4), no wedge possible.
+Added a header comment documenting the anchor↔step invariant.
+**Verified:** Maestro `home_tap_regression.yaml` — launch → assert HABITS → tap
+avatar → navigates to Profile (tap registers). Note: the live wedge could NOT be
+reproduced on the test device because its account ("Demo User") already has
+`main_app_tour_completed=true`; structural cause is removed by code. See residual
+item below to confirm the tour itself runs clean on a fresh account.
+
+- [x] **Home screen: nothing tappable.** Reproduce on sim: launch → reach Home
   (paid, Day 1) → tap a day pill / the top-right avatar / "Explore has a plan".
   Confirm taps are dead, then root-cause between the two strongest suspects and
   fix the real one:
@@ -149,7 +171,15 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 
 ## P2 — CROSS-CUTTING PRODUCTION CHECKS
 
-- [ ] `npx tsc --noEmit` clean (or deferred list).
+- [~] `npx tsc --noEmit` clean (or deferred list). **2026-06-26: 3 pre-existing
+  errors found (NOT from this review), to fix or delete:**
+  - `components/glass/GlassCard.tsx:38` — Tamagui `backgroundColor` prop invalid
+    (glass-redo remnant; the app moved to the flat "Craft" aesthetic — check if
+    GlassCard/Tamagui are still used anywhere; if dead, remove).
+  - `tamagui.config.ts:21` — `tokens.color` missing (same glass-redo remnant).
+  - `screens/profile/ProfileScreen.tsx:696` — references undefined style
+    `s.chadliteNote` (real bug — that row renders with no style; add the style
+    or drop the reference).
 - [ ] App launches with no redbox (`smoke_no_redbox.yaml`); no console errors on
       each tab's first render.
 - [ ] Every screen has sane empty / loading / error states (no infinite spinners,
@@ -177,7 +207,13 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 ---
 
 ## NEEDS HUMAN DECISION (flag here; do NOT act)
-- (none yet)
+- **Confirm the main-app tour runs clean on a fresh Day-1 account.** The orphan-
+  step wedge (P0) is fixed structurally, but the exact dead-touch state couldn't
+  be reproduced here because the test account already completed the tour. On a
+  fresh paid account (tour-eligible), confirm: tour auto-starts, steps 1→5 each
+  show a tooltip over the right element, Skip/Next/Done all work, and the app is
+  fully tappable afterward. (Backend exposes only `/main-app-tour/complete`, no
+  reset, so a fresh account or a DB flag flip is needed to retest.)
 
 ## ACCEPTED / DEFERRED (with reason)
 - (none yet)
@@ -186,3 +222,11 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 - 2026-06-26: Seeded review. Applied `pointerEvents="none"` to TabBarFrost
   (TabNavigator.tsx) as partial P0 fix; SpotlightTour auto-start flagged as prime
   suspect for the whole-page dead-touch bug — needs sim repro next.
+- 2026-06-26 (iter 1): **P0 root-caused & fixed.** Confirmed newNav=false ships →
+  tour runs in prod; tour had 6 steps but only 5 anchors (PLANNER_TAB idx 3
+  orphan) → wedges the full-screen backdrop = dead touches. Removed the orphan
+  step + reindexed (mainTourSteps.tsx); tour now 5 steps all anchored. Added
+  home_tap_regression.yaml; verified launch→assert HABITS→tap avatar→Profile
+  (taps register). tsc clean for the change (3 unrelated pre-existing errors
+  logged under P2). Live tour-wedge repro deferred to a tour-eligible account
+  (logged under Needs Human Decision).
