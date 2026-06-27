@@ -1302,7 +1302,7 @@ export default function FaceScanResultsScreen() {
                                     onPress={() => setExpandedIdx(i)}
                                     activeOpacity={0.85}
                                 >
-                                    <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFill} />
+                                    <LiquidGlassFill dark idSuffix={`metric${i}`} />
                                     <View style={s.ringWrap}>
                                         <MetricRing
                                             score={locked ? 0 : m.score}
