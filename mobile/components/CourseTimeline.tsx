@@ -52,13 +52,7 @@ function TimelineNode({ jelly, number, accent, active }: { jelly: any | null; nu
 
     return (
         <View style={styles.nodeWrap}>
-            {active ? (
-                <Animated.View
-                    pointerEvents="none"
-                    style={[styles.nodePulse, { borderColor: accent, opacity: pOpacity, transform: [{ scale: pScale }] }]}
-                />
-            ) : null}
-            <View style={[styles.nodeTile, active && { borderColor: accent, borderWidth: 1.5 }]}>
+            <View style={styles.nodeTile}>
                 {jelly ? (
                     <Image source={jelly} style={styles.nodeJelly} contentFit="contain" />
                 ) : (
@@ -224,21 +218,12 @@ const styles = StyleSheet.create({
     nodeTile: {
         width: NODE,
         height: NODE,
-        borderRadius: 15,
-        backgroundColor: colors.card,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(0,0,0,0.07)',
         alignItems: 'center',
         justifyContent: 'center',
-        overflow: 'hidden',
-        ...(Platform.OS === 'ios'
-            ? { shadowColor: '#3A352B', shadowOpacity: 0.14, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }
-            : { elevation: 3 }),
     },
     nodeNum: {
-        fontFamily: fonts.serif,
-        fontSize: 17,
-        fontWeight: '400',
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 16,
     },
     nodeJelly: {
         width: 30,

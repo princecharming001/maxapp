@@ -425,9 +425,8 @@ const styles = StyleSheet.create({
         paddingBottom: spacing.lg,
     },
     chapterTitleSmall: {
-        fontFamily: fonts.serif,
-        fontSize: 16,
-        fontWeight: '400',
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 15,
         letterSpacing: -0.2,
         color: colors.foreground,
         marginBottom: 10,
@@ -553,9 +552,9 @@ const slide = StyleSheet.create({
     },
     body: {
         marginTop: spacing.lg,
-        fontFamily: fonts.serifItalic,
-        fontSize: 14.5,
-        lineHeight: 22,
+        fontFamily: fonts.sans,
+        fontSize: 15,
+        lineHeight: 23,
         color: colors.textSecondary,
     },
 });

@@ -355,11 +355,10 @@ const styles = StyleSheet.create({
         marginLeft: 40,
     },
     statNumber: {
-        fontFamily: fonts.serif,
-        fontSize: 34,
-        fontWeight: '400',
+        fontFamily: fonts.sansSemiBold,
+        fontSize: 30,
         letterSpacing: -0.6,
-        lineHeight: 38,
+        lineHeight: 34,
         color: colors.foreground,
     },
     statLabel: {
