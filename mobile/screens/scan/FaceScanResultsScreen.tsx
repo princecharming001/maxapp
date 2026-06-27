@@ -227,6 +227,7 @@ function ResultsRatingShareCard({
                     <CachedImage uri={frontUri} style={sc.photo} onLoad={onShareImageEvent} onError={onShareImageEvent} />
                 </View>
             ) : <View style={[sc.photoRing, sc.photoPlaceholder]} collapsable={false} />}
+            {/* The three headline metrics — same as the top of the scan. */}
             <View style={sc.scoreRow}>
                 <View style={sc.scoreOrb} collapsable={false}>
                     <Text style={sc.orbLabel}>RATING</Text>
@@ -238,26 +239,19 @@ function ResultsRatingShareCard({
                     </View>
                 </View>
                 <View style={sc.scoreOrb} collapsable={false}>
+                    <Text style={sc.orbLabel}>APPEAL</Text>
+                    <View style={sc.orbNums}>
+                        <Text style={[sc.orbNum, { color: getScoreColor(appealScore) }]}>{appealScore.toFixed(1)}</Text>
+                        <Text style={sc.orbOut}>/10</Text>
+                    </View>
+                </View>
+                <View style={sc.scoreOrb} collapsable={false}>
                     <Text style={sc.orbLabel}>POTENTIAL</Text>
                     <View style={sc.orbNums}>
                         <Text style={[sc.orbNum, { color: getScoreColor(potentialDisplay) }]}>{potentialDisplay.toFixed(1)}</Text>
                         <Text style={sc.orbOut}>/10</Text>
                     </View>
                 </View>
-            </View>
-            <View style={sc.statGrid}>
-                {[
-                    { label: 'Tier', value: pslTier || '—', color: colors.foreground },
-                    { label: 'Appeal', value: `${appealScore.toFixed(1)}/10`, color: getScoreColor(appealScore) },
-                    { label: 'Archetype', value: archetype || '—', color: colors.foreground },
-                    { label: 'Ascension time', value: ascensionLabelText, color: colors.foreground },
-                    { label: 'Facial age', value: ageScore > 0 ? `${ageScore}` : '—', color: colors.foreground, wide: true },
-                ].map((it, i) => (
-                    <View key={i} style={[sc.statCell, it.wide && sc.statCellWide]} collapsable={false}>
-                        <Text style={sc.statLabel}>{it.label}</Text>
-                        <Text style={[sc.statValue, { color: it.color }]}>{it.value}</Text>
-                    </View>
-                ))}
             </View>
             <Text style={sc.brand}>MAX</Text>
         </View>
@@ -270,12 +264,12 @@ const sc = StyleSheet.create({
     photoRing: { width: 200, height: 200, borderRadius: 100, overflow: 'hidden', borderWidth: 3, borderColor: colors.border, marginBottom: 20, backgroundColor: colors.surface },
     photoPlaceholder: { backgroundColor: colors.surface },
     photo: { width: '100%', height: '100%' },
-    scoreRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 18, width: '100%' },
-    scoreOrb: { width: 130, height: 130, borderRadius: 65, backgroundColor: colors.card, borderWidth: 2, borderColor: colors.borderLight, alignItems: 'center', justifyContent: 'center' },
-    orbLabel: { fontSize: 9, fontWeight: '700', color: colors.textMuted, marginBottom: 4, letterSpacing: 0.6 },
+    scoreRow: { flexDirection: 'row', justifyContent: 'center', gap: 13, marginBottom: 4, width: '100%' },
+    scoreOrb: { width: 106, height: 106, borderRadius: 53, backgroundColor: colors.card, borderWidth: 2, borderColor: colors.borderLight, alignItems: 'center', justifyContent: 'center' },
+    orbLabel: { fontSize: 8.5, fontWeight: '700', color: colors.textMuted, marginBottom: 4, letterSpacing: 0.5 },
     orbNums: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 2 },
-    orbNum: { fontSize: 36, fontWeight: '800', color: colors.foreground },
-    orbOut: { fontSize: 14, fontWeight: '600', color: colors.textMuted, paddingBottom: 4 },
+    orbNum: { fontSize: 30, fontWeight: '800', color: colors.foreground },
+    orbOut: { fontSize: 12, fontWeight: '600', color: colors.textMuted, paddingBottom: 3 },
     statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: '100%', justifyContent: 'space-between' },
     statCell: { width: '48%', backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: 12, borderWidth: 1, borderColor: colors.border },
     statCellWide: { width: '100%' },
