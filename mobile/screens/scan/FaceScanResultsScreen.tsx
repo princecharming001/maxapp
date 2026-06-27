@@ -1339,15 +1339,34 @@ export default function FaceScanResultsScreen() {
 
                     <Text style={s.statsSectionTitle}>Your Analysis</Text>
 
-                    {/* Face archetype — paid-only reveal (not a teaser). */}
-                    {!locked && !isProcessing && archetype ? (
+                    {/* Face archetype — same unified gate as the verdict cards
+                        below: the "Archetype" label is part of the locked paywall
+                        promise (so the user knows it was measured); the value is
+                        masked when locked and revealed when paid. Renders for any
+                        non-processing scan so the locked teaser and the paid reveal
+                        always carry the same card (parity), only the value differs. */}
+                    {!isProcessing ? (
                         <View style={s.archetypeCard}>
                             <GlassFill />
                             <Text style={s.archetypeKicker}>YOUR ARCHETYPE</Text>
-                            <Text style={s.archetypeName} numberOfLines={2} adjustsFontSizeToFit>{archetype}</Text>
-                            {archetypeLine(archetype, ratingDisplay) ? (
-                                <Text style={s.archetypeDesc}>{archetypeLine(archetype, ratingDisplay)}</Text>
-                            ) : null}
+                            {locked ? (
+                                <>
+                                    <Text style={s.archetypeName}>—</Text>
+                                    <Text style={s.archetypeDesc}>Unlock to reveal which archetype your face reads as.</Text>
+                                </>
+                            ) : archetype ? (
+                                <>
+                                    <Text style={s.archetypeName} numberOfLines={2} adjustsFontSizeToFit>{archetype}</Text>
+                                    {archetypeLine(archetype, ratingDisplay) ? (
+                                        <Text style={s.archetypeDesc}>{archetypeLine(archetype, ratingDisplay)}</Text>
+                                    ) : null}
+                                </>
+                            ) : (
+                                <>
+                                    <Text style={s.archetypeName}>Not measured</Text>
+                                    <Text style={s.archetypeDesc}>This scan didn't return an archetype.</Text>
+                                </>
+                            )}
                         </View>
                     ) : null}
 
