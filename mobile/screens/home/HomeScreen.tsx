@@ -299,9 +299,11 @@ export default function HomeScreen() {
                 schedulesError: null,
             };
         } catch (e: unknown) {
+            // Show the backend's user-safe `detail` if present; otherwise a
+            // friendly fallback. Never surface the raw axios message
+            // ("Request failed with status code 500") to the user.
             const msg =
-                (e as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail ||
-                (e as Error)?.message ||
+                (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
                 'Could not load today\u2019s tasks.';
             return {
                 scheduleRows: [] as MergedScheduleTask[],
@@ -366,7 +368,8 @@ export default function HomeScreen() {
 
     const querySchedulesError =
         schedulesQuery.isError && schedulesQuery.error
-            ? String((schedulesQuery.error as Error)?.message || 'Could not load today\u2019s tasks.')
+            ? (schedulesQuery.error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+              'Could not load today\u2019s tasks.'
             : null;
     const displaySchedulesError = schedulesError || querySchedulesError;
 

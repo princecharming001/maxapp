@@ -264,10 +264,10 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
         never rendered.
       - Empty/loading spot-checked sound: Home ("No habits… Start a program"),
         Explore ("Loading Explore" → "No maxes yet").
-      - Minor (P3, non-blocking): HomeScreen schedule-load error can surface a raw
-        axios `e.message` (e.g. "Request failed with status code 500") when the
-        backend sends no `detail`; has a friendly fallback otherwise. Optional to
-        sanitize. Full per-screen empty/loading sweep still TODO.
+      - ~~Minor (P3): HomeScreen can surface a raw axios `e.message`.~~ **FIXED
+        iter 19** — both HomeScreen schedule-error spots now show the backend's
+        user-safe `detail` or a friendly fallback, never the raw axios message
+        (tsc clean). Full per-screen empty/loading sweep still TODO.
 - [ ] Offline / flaky-network behavior is graceful (resilience layer is in place —
       verify it actually catches failures on the walked screens).
 - [x] No secrets / API keys committed in `mobile/`; no `console.log` of PII; dev
@@ -341,8 +341,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 - [x] Add `testID` to Explore/Marketplace cards — **DONE iter 17**:
       `explore-card-${item.id}` on all 4 card variants (Feature/Grid × native/
       poster); verified `tapOn id:explore-card-.*` opens MaxDetail.
-- [ ] Remove dead `referralDiscounts` flag (defined in featureFlags.ts, 0 call
-      sites). Trivial. (found iter 14)
+- [x] Remove dead `referralDiscounts` flag — **DONE iter 19** (removed from
+      FlagName + FLAGS; 0 call sites; tsc clean).
 - [ ] Strip `console.*` in production bundle (48 calls / 11 files) via
       babel-plugin-transform-remove-console (perf + avoids leaking debug to device
       logs). Non-blocking. (found iter 6)
@@ -491,3 +491,7 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   (iter 17); the start + TaskGuide walk needs a stable driver/CI. Updated the
   Maestro gotcha. This marks the practical limit of sim-driven verification this
   session; the remaining sim-heavy items are infra-limited, not app-blocked.
+- 2026-06-26 (iter 19): **Two safe non-sim P3 fixes shipped** (tsc-verified, still
+  5/5 deferred glass errors, no new): removed the dead `referralDiscounts` flag;
+  sanitized both HomeScreen schedule-error spots so a raw axios message can never
+  reach the user (backend `detail` or friendly fallback only).

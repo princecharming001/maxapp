@@ -11,8 +11,7 @@ export type FlagName =
     | 'streakV2'
     | 'faceScan'
     | 'personalizedUI'
-    | 'referrals'
-    | 'referralDiscounts';
+    | 'referrals';
 
 const FLAGS: Record<FlagName, boolean> = {
     newNav: false,
@@ -23,10 +22,8 @@ const FLAGS: Record<FlagName, boolean> = {
     faceScan: true,
     // Referral / promo codes (RALPH_REFERRAL). Default OFF → the code field is
     // hidden and the app is byte-identical to today. Must match the backend
-    // `referrals_enabled` flag before flipping on. `referralDiscounts` gates the
-    // discount UX (Apple Offer Code / Stripe) and stays OFF until real ids exist.
+    // `referrals_enabled` flag before flipping on.
     referrals: false,
-    referralDiscounts: false,
     // Tasteful, additive on-screen personalization (greeting, goal-ranked
     // Explore, experience-aware planner chips, streak callouts, scan archetype
     // line, goal-aware empty states). Each surface degrades to today's copy when
