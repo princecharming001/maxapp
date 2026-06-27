@@ -246,17 +246,25 @@ export default function PaymentScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* CTA */}
+                {/* CTA — dark liquid glass (real iOS dark UIBlurEffect material) */}
                 <TouchableOpacity
-                    style={[s.cta, ctaBusy && s.ctaDisabled]}
                     onPress={handleSubscribe}
                     disabled={ctaBusy}
                     activeOpacity={0.9}
+                    style={ctaBusy ? s.ctaDisabled : undefined}
                 >
-                    {ctaBusy
-                        ? <ActivityIndicator color={WHITE} />
-                        : <Text style={s.ctaText}>{ctaLabel}</Text>
-                    }
+                    <LiquidGlass
+                        dark
+                        radius={999}
+                        tint={IS_IOS ? 'systemThickMaterialDark' : undefined}
+                        style={s.cta}
+                        contentStyle={s.ctaContent}
+                    >
+                        {ctaBusy
+                            ? <ActivityIndicator color={WHITE} />
+                            : <Text style={s.ctaText}>{ctaLabel}</Text>
+                        }
+                    </LiquidGlass>
                 </TouchableOpacity>
 
                 {/* Referral / promo code (hidden + no-op when the `referrals` flag is OFF).
@@ -434,14 +442,13 @@ const s = StyleSheet.create({
 
     /* CTA — dark ink pill pops on the light cream canvas */
     cta: {
-        backgroundColor: INK,
-        borderRadius: 999,
         height: 56,
+    },
+    ctaContent: {
+        flex: 1,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        ...(Platform.OS === 'ios'
-            ? { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } }
-            : { elevation: 6 }),
     },
     ctaDisabled: { opacity: 0.5 },
     ctaText: {
