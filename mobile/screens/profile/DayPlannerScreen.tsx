@@ -16,7 +16,7 @@
  * surface family used across the rest of the app. One restrained green accent marks
  * the workout, today's ring, and the assistant; everything else is monochrome ink.
  */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useId, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -35,8 +35,7 @@ import {
 import { Alert } from '../../components/InAppAlert';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LiquidGlassFill } from '../../components/glass/LiquidGlass';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
@@ -177,6 +176,7 @@ function GlassButton({
   accessibilityLabel?: string;
   hitSlop?: { top: number; bottom: number; left: number; right: number };
 }) {
+  const glassId = useId().replace(/:/g, '');
   return (
     <View style={[styles.glassShadow, pill ? styles.glassShadowPill : styles.glassShadowCircle]}>
       <TouchableOpacity
@@ -187,15 +187,9 @@ function GlassButton({
         hitSlop={hitSlop}
         style={[styles.glassClip, pill ? styles.glassClipPill : styles.glassClipCircle]}
       >
-        <BlurView intensity={26} tint="light" style={StyleSheet.absoluteFill} />
-        <View style={[StyleSheet.absoluteFill, styles.glassTint]} pointerEvents="none" />
-        <LinearGradient
-          pointerEvents="none"
-          colors={['rgba(255,255,255,0.65)', 'rgba(255,255,255,0)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.glassSheen}
-        />
+        {/* Canonical liquid-glass optics — the clip + glassShadow own the
+            rounded shape and the float. */}
+        <LiquidGlassFill idSuffix={`dayplanner${glassId}`} />
         {children}
       </TouchableOpacity>
     </View>
@@ -795,8 +789,6 @@ const styles = StyleSheet.create({
   },
   glassClipCircle: { width: 40, height: 40, borderRadius: 20 },
   glassClipPill: { flexDirection: 'row', height: 40, paddingHorizontal: 18, borderRadius: 999 },
-  glassTint: { backgroundColor: 'rgba(255,255,255,0.32)' },
-  glassSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '55%' },
   todayPillText: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.foreground, letterSpacing: -0.1 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
