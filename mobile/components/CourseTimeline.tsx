@@ -72,8 +72,7 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
                 const isFirst = i === 0;
                 const isLast = i === course.chapters.length - 1;
                 const numLabel = ch.number.toString().padStart(2, '0');
-                const preview = ch.sections.slice(0, PREVIEW_LESSONS);
-                const moreCount = ch.sections.length - preview.length;
+                const lessons = ch.sections;
                 const chJelly = sectionJellyIcon(course.maxxId, ch.icon);
 
                 return (
@@ -103,11 +102,6 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
                         >
                             <View style={styles.cardHead}>
                                 <Text style={[styles.chapterEyebrow, { color: accent }]}>CHAPTER {numLabel}</Text>
-                                {isFirst ? (
-                                    <View style={[styles.startPill, { backgroundColor: hexA(accent, 0.14) }]}>
-                                        <Text style={[styles.startPillText, { color: accent }]}>START HERE</Text>
-                                    </View>
-                                ) : null}
                             </View>
 
                             <Text style={styles.chapterTitle} numberOfLines={2}>
@@ -117,9 +111,9 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
                                 {ch.subtitle}
                             </Text>
 
-                            {/* lesson preview list */}
+                            {/* all lessons */}
                             <View style={styles.lessonList}>
-                                {preview.map((s, idx) => (
+                                {lessons.map((s, idx) => (
                                     <TouchableOpacity
                                         key={s.id}
                                         style={[styles.lessonRow, idx > 0 && styles.lessonRowDivider]}
@@ -133,16 +127,6 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
                                         {s.eta ? <Text style={styles.lessonEta}>{s.eta}</Text> : null}
                                     </TouchableOpacity>
                                 ))}
-                                {moreCount > 0 ? (
-                                    <Text style={styles.moreText}>
-                                        +{moreCount} more lesson{moreCount === 1 ? '' : 's'}
-                                    </Text>
-                                ) : null}
-                            </View>
-
-                            <View style={styles.seeLink}>
-                                <Text style={[styles.seeLinkText, { color: accent }]}>See all lessons</Text>
-                                <Ionicons name="arrow-forward" size={13} color={accent} />
                             </View>
                         </TouchableOpacity>
                     </View>
@@ -168,7 +152,7 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         color: colors.textMuted,
         marginLeft: spacing.lg,
-        marginBottom: spacing.sm,
+        marginBottom: spacing.xl,
     },
 
     row: {
