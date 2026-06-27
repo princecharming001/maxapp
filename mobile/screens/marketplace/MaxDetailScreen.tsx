@@ -704,7 +704,7 @@ export default function MaxDetailScreen() {
                         onPressOut={() => Animated.spring(ctaScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start()}
                     >
                         <BlurView intensity={Platform.OS === 'ios' ? 46 : 30} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
-                        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: hexA(base, 0.24) }]} />
+                        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.26)' }]} />
                         <LinearGradient
                             pointerEvents="none"
                             colors={['rgba(255,255,255,0.65)', 'rgba(255,255,255,0.04)']}
