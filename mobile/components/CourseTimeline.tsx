@@ -19,6 +19,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { CourseModule } from '../data/courseContent';
@@ -90,6 +91,14 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
                         />
                         {/* ── Left rail: the floating node ─────────────── */}
                         <View style={styles.rail}>
+                            {/* Fade the spine to nothing as it approaches the node —
+                                a white strip over the line, under the icon. */}
+                            <LinearGradient
+                                pointerEvents="none"
+                                colors={['rgba(255,255,255,0)', '#FFFFFF', '#FFFFFF', 'rgba(255,255,255,0)']}
+                                locations={[0, 0.4, 0.6, 1]}
+                                style={styles.nodeFade}
+                            />
                             <View style={{ height: NODE_TOP }} />
                             <TimelineNode jelly={chJelly} number={ch.number} accent={accent} active={isFirst} />
                         </View>
@@ -164,6 +173,13 @@ const styles = StyleSheet.create({
     rail: {
         width: RAIL_W,
         alignItems: 'center',
+    },
+    nodeFade: {
+        position: 'absolute',
+        width: 12,
+        left: (RAIL_W - 12) / 2,
+        top: NODE_CENTER - 42,
+        height: 84,
     },
     spine: {
         position: 'absolute',
