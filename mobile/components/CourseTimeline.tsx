@@ -78,27 +78,21 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
 
                 return (
                     <View key={ch.id} style={styles.row}>
-                        {/* ── Left rail: connector + node ─────────────── */}
+                        {/* ── Continuous spine — anchored to the ROW so it spans the
+                            full card height; chapters chain into one unbroken line.
+                            Starts at the first node, ends at the last. ─────────── */}
+                        <View
+                            pointerEvents="none"
+                            style={[
+                                styles.spine,
+                                { backgroundColor: hexA(accent, 0.32), top: isFirst ? NODE_CENTER : 0 },
+                                isLast ? { height: isFirst ? 0 : NODE_CENTER } : { bottom: 0 },
+                            ]}
+                        />
+                        {/* ── Left rail: the floating node ─────────────── */}
                         <View style={styles.rail}>
-                            {/* top connector segment (hidden on first) */}
-                            <View
-                                style={[
-                                    styles.connector,
-                                    styles.connectorTop,
-                                    { backgroundColor: hexA(accent, 0.32) },
-                                    isFirst && styles.connectorHidden,
-                                ]}
-                            />
+                            <View style={{ height: NODE_TOP }} />
                             <TimelineNode jelly={chJelly} number={ch.number} accent={accent} active={isFirst} />
-                            {/* bottom connector segment (hidden on last) */}
-                            <View
-                                style={[
-                                    styles.connector,
-                                    styles.connectorBottom,
-                                    { backgroundColor: hexA(accent, 0.32) },
-                                    isLast && styles.connectorHidden,
-                                ]}
-                            />
                         </View>
 
                         {/* ── Right: chapter content ──────────────────── */}
@@ -160,6 +154,8 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
 
 const NODE = 44;
 const RAIL_W = 52;
+const NODE_TOP = 14;                      // node's top offset within the rail
+const NODE_CENTER = NODE_TOP + NODE / 2;  // y of the node centre (spine anchor)
 
 const styles = StyleSheet.create({
     wrap: {
@@ -185,20 +181,11 @@ const styles = StyleSheet.create({
         width: RAIL_W,
         alignItems: 'center',
     },
-    connector: {
-        width: 3,
-        borderRadius: 2,
-        flexGrow: 0,
-    },
-    connectorTop: {
-        height: 14,
-    },
-    connectorBottom: {
-        flex: 1,
-        marginTop: 0,
-    },
-    connectorHidden: {
-        backgroundColor: 'transparent',
+    spine: {
+        position: 'absolute',
+        width: 2,
+        borderRadius: 1,
+        left: (RAIL_W - 2) / 2,
     },
     /* floating jelly tile node (crafted journey step) */
     nodeWrap: {
