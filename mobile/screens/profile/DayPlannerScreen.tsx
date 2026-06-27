@@ -23,12 +23,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  FlatList,
   TextInput,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Modal,
   Pressable,
+  useWindowDimensions,
 } from 'react-native'
 import { Alert } from '../../components/InAppAlert';
 import { useNavigation } from '@react-navigation/native';
@@ -80,19 +82,34 @@ const JS_DAY_TO_KEY: Weekday[] = [
 // A rolling 7-day window starting *today* — today is always leftmost, then the
 // next six days in order. Each cell maps to a weekday scope so selecting it
 // shapes that day.
-function buildRollingWeek(): { key: Weekday; short: string; date: number; isToday: boolean }[] {
+type StripDay = { iso: string; key: Weekday; short: string; date: number; isToday: boolean };
+
+// Local-date YYYY-MM-DD (a stable per-date identity for the strip selection).
+function isoOf(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+// Forward-only day list: today + the next (count-1) days. The strip scrolls
+// infinitely into the future (more days are appended as you reach the end);
+// there is no way to scroll into the past.
+function buildDays(count: number): StripDay[] {
   const base = new Date();
   base.setHours(0, 0, 0, 0);
-  const out: { key: Weekday; short: string; date: number; isToday: boolean }[] = [];
-  for (let i = 0; i < 7; i++) {
+  const out: StripDay[] = [];
+  for (let i = 0; i < count; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
     const key = JS_DAY_TO_KEY[d.getDay()];
     const meta = WEEKDAYS.find((w) => w.key === key)!;
-    out.push({ key, short: meta.short, date: d.getDate(), isToday: i === 0 });
+    out.push({ iso: isoOf(d), key, short: meta.short, date: d.getDate(), isToday: i === 0 });
   }
   return out;
 }
+
+const STRIP_INITIAL_DAYS = 90;   // ~3 months pre-rendered
+const STRIP_PAGE_DAYS = 60;      // append this many each time the end is reached
 
 // One restrained accent for the assistant surface only.
 const ACCENT = '#2F6B4E';
@@ -200,12 +217,26 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   );
   const [obligations, setObligations] = useState<Obligation[]>(() => hydrateObligations(ob));
 
-  // Rolling week strip — today leftmost. Drives which day the buckets shape.
-  const week = useMemo(buildRollingWeek, []);
-  const todayKey = week[0].key;
+  // Day strip — today leftmost, scrolls infinitely into the FUTURE (never the
+  // past). We grow the list as the user reaches the end.
+  const [stripCount, setStripCount] = useState(STRIP_INITIAL_DAYS);
+  const days = useMemo(() => buildDays(stripCount), [stripCount]);
+  const todayKey = days[0].key;
+  const todayIso = days[0].iso;
+  const stripRef = useRef<FlatList<StripDay>>(null);
+  const { width: winW } = useWindowDimensions();
+  // Size cells so ~7 fit per screen (matching the old fixed-week density), the
+  // rest scroll in. Content has spacing.lg padding on each side.
+  const stripItemW = Math.max(40, Math.floor((winW - spacing.lg * 2) / 7));
 
-  // The day the timeline + editor act on. Defaults to today; selecting another
-  // day edits just that day (a minimal override diffed against the base).
+  // The specific calendar date the strip highlights. Editing is still
+  // weekday-scoped (`scope` below), but the highlight follows the tapped date so
+  // that repeated future weekdays don't all light up at once.
+  const [selectedIso, setSelectedIso] = useState(todayIso);
+
+  // The day the timeline + editor act on (a weekday). Defaults to today;
+  // selecting another day edits that weekday (a minimal override diffed against
+  // the base) — which recurs for every instance of that weekday.
   const [scope, setScope] = useState<Scope>(todayKey);
 
   // Commitments + chat live behind the floating button now (merged surface).
@@ -377,7 +408,15 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             <Ionicons name="arrow-back" size={22} color={colors.foreground} />
           </GlassButton>
         ) : (
-          <GlassButton pill onPress={() => setScope(todayKey)} accessibilityLabel="Jump to today">
+          <GlassButton
+            pill
+            onPress={() => {
+              setScope(todayKey);
+              setSelectedIso(todayIso);
+              stripRef.current?.scrollToOffset({ offset: 0, animated: true });
+            }}
+            accessibilityLabel="Jump to today"
+          >
             <Text style={styles.todayPillText}>Today</Text>
           </GlassButton>
         )}
@@ -410,20 +449,34 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             </Text>
           </View>
 
-          {/* Day strip — rolling week starting today (today leftmost). */}
-          <View style={styles.weekStrip}>
-            {week.map((d) => (
+          {/* Day strip — starts today (leftmost) and scrolls infinitely into the
+              future; more days append as you reach the end. No past dates. */}
+          <FlatList
+            ref={stripRef}
+            data={days}
+            keyExtractor={(d) => d.iso}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.weekStrip}
+            contentContainerStyle={styles.weekStripContent}
+            getItemLayout={(_, i) => ({ length: stripItemW, offset: stripItemW * i, index: i })}
+            onEndReachedThreshold={0.6}
+            onEndReached={() => setStripCount((c) => c + STRIP_PAGE_DAYS)}
+            renderItem={({ item: d }) => (
               <WeekDayPill
-                key={d.key}
+                width={stripItemW}
                 short={d.short}
                 date={d.date}
-                selected={scope === d.key}
+                selected={d.iso === selectedIso}
                 isToday={d.isToday}
                 edited={hasOverride(weekly, d.key)}
-                onPress={() => setScope(d.key)}
+                onPress={() => {
+                  setSelectedIso(d.iso);
+                  setScope(d.key);
+                }}
               />
-            ))}
-          </View>
+            )}
+          />
 
           {scopeOverridden ? (
             <TouchableOpacity
@@ -444,7 +497,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             day={dayForScope}
             obligations={obligations}
             scope={scope}
-            isToday={scope === todayKey}
+            isToday={selectedIso === todayIso}
             onEditShape={(focus) => openEditor(scope, focus)}
             onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
           />
@@ -640,6 +693,7 @@ function WeekDayPill({
   selected,
   isToday,
   edited,
+  width,
   onPress,
 }: {
   short: string;
@@ -647,13 +701,14 @@ function WeekDayPill({
   selected: boolean;
   isToday: boolean;
   edited?: boolean;
+  width?: number;
   onPress: () => void;
 }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.85}
-      style={styles.dayCell}
+      style={[styles.dayCell, width != null ? { width, flexGrow: 0, flexShrink: 0, flexBasis: 'auto' as const } : null]}
       accessibilityRole="button"
       accessibilityState={{ selected }}
       accessibilityLabel={`${short} ${date}${isToday ? ', today' : ''}${edited ? ', customized' : ''}`}
@@ -723,12 +778,15 @@ const styles = StyleSheet.create({
   },
   titleItalic: { fontFamily: fonts.serifItalic, fontStyle: 'italic' },
 
-  // Rolling-week day strip — seven calendar-day rings across the width.
+  // Day strip — horizontal, ~7 rings visible, scrolls infinitely into the future.
   weekStrip: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
     marginTop: 2,
+    // Let today's accent ring / edited dot breathe without horizontal clipping
+    // of the row's vertical extent.
+    flexGrow: 0,
+  },
+  weekStripContent: {
+    paddingVertical: 6,
   },
   dayCell: { flex: 1, alignItems: 'center' },
   dayCellLabel: {
