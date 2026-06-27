@@ -65,20 +65,9 @@ export function LiquidGlass({
     noShadow = false,
     spec = 1,
 }: LiquidGlassProps) {
-    const material: BlurTint = tint ?? (IS_IOS
-        ? (dark ? 'systemThinMaterialDark' : 'systemThinMaterialLight')
-        : (dark ? 'dark' : 'light'));
-    const blurIntensity = intensity ?? (IS_IOS ? 88 : 24);
-
-    // Rim / specular colors flip for dark glass (light glints stay white, but
-    // the bottom shade deepens and the frost fallback darkens).
-    const rimTop = dark ? 'rgba(255,255,255,0.70)' : 'rgba(255,255,255,0.98)';
-    const rimLeft = dark ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.58)';
-    const rimBottom = dark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.42)';
+    // The light border doubles as all-around edge lensing; the rest of the
+    // optics live in <LiquidGlassFill> so the wrapper and the fill stay in sync.
     const border = dark ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.62)';
-    const frostFallback = dark ? 'rgba(20,22,30,0.42)' : 'rgba(244,246,251,0.30)';
-
-    const sheen = Math.min(1, Math.max(0, spec));
 
     const floatShadow = noShadow
         ? null
@@ -106,68 +95,104 @@ export function LiquidGlass({
                 ]}
                 pointerEvents="none"
             >
-                {/* 1. Real iOS frosted-glass material (or frost fallback). */}
-                <BlurView
-                    intensity={blurIntensity}
-                    tint={material}
-                    style={StyleSheet.absoluteFill}
-                    experimentalBlurMethod={IS_IOS ? undefined : 'dimezisBlurView'}
-                    pointerEvents="none"
-                />
-                {!IS_IOS ? (
-                    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: frostFallback }]} />
-                ) : null}
-
-                {/* 2. Corner speculars — a bright concentrated glint at the top-
-                    left edge + a smaller hotspot near the bottom-right (the light
-                    direction). Tight + bright so they read as glints, not a wash. */}
-                {sheen > 0 ? (
-                    <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
-                        <Defs>
-                            <RadialGradient id="lgTL" cx="2%" cy="0%" r="72%">
-                                <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.98 * sheen} />
-                                <Stop offset="16%" stopColor="#FFFFFF" stopOpacity={0.55 * sheen} />
-                                <Stop offset="42%" stopColor="#FFFFFF" stopOpacity={0.12 * sheen} />
-                                <Stop offset="100%" stopColor="#FFFFFF" stopOpacity={0} />
-                            </RadialGradient>
-                            <RadialGradient id="lgBR" cx="100%" cy="100%" r="50%">
-                                <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.72 * sheen} />
-                                <Stop offset="30%" stopColor="#FFFFFF" stopOpacity={0.20 * sheen} />
-                                <Stop offset="100%" stopColor="#FFFFFF" stopOpacity={0} />
-                            </RadialGradient>
-                        </Defs>
-                        <Rect x="0" y="0" width="100%" height="100%" fill="url(#lgTL)" />
-                        <Rect x="0" y="0" width="100%" height="100%" fill="url(#lgBR)" />
-                    </Svg>
-                ) : null}
-
-                {/* 3. Top specular sheen — the main horizontal light-catch. */}
-                <LinearGradient
-                    pointerEvents="none"
-                    colors={[`rgba(255,255,255,${0.55 * sheen})`, `rgba(255,255,255,${0.08 * sheen})`, 'rgba(255,255,255,0)']}
-                    locations={[0, 0.34, 0.72]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 0, y: 1 }}
-                    style={styles.topSheen}
-                />
-
-                {/* 5. Inner bottom shadow — glass thickness / depth. */}
-                <LinearGradient
-                    pointerEvents="none"
-                    colors={['rgba(30,28,46,0)', `rgba(30,28,46,${dark ? 0.18 : 0.07})`]}
-                    start={{ x: 0, y: 0.7 }}
-                    end={{ x: 0, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                />
-
-                {/* 4. Luminous rims — edge lensing. */}
-                <View pointerEvents="none" style={[styles.rimTop, { backgroundColor: rimTop }]} />
-                <View pointerEvents="none" style={[styles.rimLeft, { backgroundColor: rimLeft }]} />
-                <View pointerEvents="none" style={[styles.rimBottom, { backgroundColor: rimBottom }]} />
+                <LiquidGlassFill dark={dark} tint={tint} intensity={intensity} spec={spec} />
             </View>
 
             {/* Content sits above all the glass layers. */}
             <View style={[styles.content, contentStyle]}>{children}</View>
+        </View>
+    );
+}
+
+/**
+ * LiquidGlassFill — the decorative glass OPTICS as an absolute-fill layer, with
+ * no clip / border / float of its own. Drop this behind content inside a card
+ * that already owns its rounded clip + shadow (it inherits the parent's corner
+ * via overflow:hidden). The wrapper <LiquidGlass> composes this same fill, so
+ * every glass surface — wrapper or fill — shares one set of optics.
+ */
+export function LiquidGlassFill({
+    dark = false,
+    tint,
+    intensity,
+    spec = 1,
+    idSuffix = '',
+}: Pick<LiquidGlassProps, 'dark' | 'tint' | 'intensity' | 'spec'> & {
+    /** Unique-ify the svg gradient ids when several fills mount in one screen. */
+    idSuffix?: string;
+}) {
+    const material: BlurTint = tint ?? (IS_IOS
+        ? (dark ? 'systemThinMaterialDark' : 'systemThinMaterialLight')
+        : (dark ? 'dark' : 'light'));
+    const blurIntensity = intensity ?? (IS_IOS ? 88 : 24);
+    const frostFallback = dark ? 'rgba(20,22,30,0.42)' : 'rgba(244,246,251,0.30)';
+    const rimTop = dark ? 'rgba(255,255,255,0.70)' : 'rgba(255,255,255,0.98)';
+    const rimLeft = dark ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.58)';
+    const rimBottom = dark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.42)';
+    const sheen = Math.min(1, Math.max(0, spec));
+    const tlId = `lgTL${idSuffix}`;
+    const brId = `lgBR${idSuffix}`;
+
+    return (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            {/* 1. Real iOS frosted-glass material (or frost fallback). */}
+            <BlurView
+                intensity={blurIntensity}
+                tint={material}
+                style={StyleSheet.absoluteFill}
+                experimentalBlurMethod={IS_IOS ? undefined : 'dimezisBlurView'}
+                pointerEvents="none"
+            />
+            {!IS_IOS ? (
+                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: frostFallback }]} />
+            ) : null}
+
+            {/* 2. Corner speculars — a bright concentrated glint at the top-left
+                edge + a smaller hotspot near the bottom-right (the light
+                direction). Tight + bright so they read as glints, not a wash. */}
+            {sheen > 0 ? (
+                <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+                    <Defs>
+                        <RadialGradient id={tlId} cx="2%" cy="0%" r="72%">
+                            <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.98 * sheen} />
+                            <Stop offset="16%" stopColor="#FFFFFF" stopOpacity={0.55 * sheen} />
+                            <Stop offset="42%" stopColor="#FFFFFF" stopOpacity={0.12 * sheen} />
+                            <Stop offset="100%" stopColor="#FFFFFF" stopOpacity={0} />
+                        </RadialGradient>
+                        <RadialGradient id={brId} cx="100%" cy="100%" r="50%">
+                            <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.72 * sheen} />
+                            <Stop offset="30%" stopColor="#FFFFFF" stopOpacity={0.20 * sheen} />
+                            <Stop offset="100%" stopColor="#FFFFFF" stopOpacity={0} />
+                        </RadialGradient>
+                    </Defs>
+                    <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${tlId})`} />
+                    <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${brId})`} />
+                </Svg>
+            ) : null}
+
+            {/* 3. Top specular sheen — the main horizontal light-catch. */}
+            <LinearGradient
+                pointerEvents="none"
+                colors={[`rgba(255,255,255,${0.55 * sheen})`, `rgba(255,255,255,${0.08 * sheen})`, 'rgba(255,255,255,0)']}
+                locations={[0, 0.34, 0.72]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={styles.topSheen}
+            />
+
+            {/* 5. Inner bottom shadow — glass thickness / depth. */}
+            <LinearGradient
+                pointerEvents="none"
+                colors={['rgba(30,28,46,0)', `rgba(30,28,46,${dark ? 0.18 : 0.07})`]}
+                start={{ x: 0, y: 0.7 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+            />
+
+            {/* 4. Luminous rims — edge lensing. */}
+            <View pointerEvents="none" style={[styles.rimTop, { backgroundColor: rimTop }]} />
+            <View pointerEvents="none" style={[styles.rimLeft, { backgroundColor: rimLeft }]} />
+            <View pointerEvents="none" style={[styles.rimBottom, { backgroundColor: rimBottom }]} />
         </View>
     );
 }
