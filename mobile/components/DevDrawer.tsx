@@ -18,12 +18,32 @@ function DevDrawerInner() {
 
     const switchState = useCallback(async (target: AppState) => {
         setOpen(false);
-        try {
-            if (target === currentState) return;
+        if (target === currentState) return;
+        const run = async () => {
             if (target === 'guest') await logout?.();
             else if (target === 'paid') await fauxSkipSignup?.();
             else await fauxFreshSignup?.();
+        };
+        const isNetworkErr = (e: any) =>
+            !e?.response?.status &&
+            /network|timeout|aborted|ECONN|Failed to fetch/i.test(String(e?.message || ''));
+        try {
+            await run();
         } catch (e: any) {
+            // A bare "Network Error" usually means the local sim backend is
+            // briefly unreachable (restarting). Retry once before giving up so a
+            // transient hiccup doesn't dead-end the switch.
+            if (isNetworkErr(e)) {
+                await new Promise((r) => setTimeout(r, 900));
+                try {
+                    await run();
+                    return;
+                } catch (e2: any) {
+                    console.warn(`[DevDrawer] switch to "${target}" failed after retry: ${e2?.message}`);
+                    Alert.alert('Dev switch failed', 'Could not reach the backend. Is the local sim backend running on :8001?');
+                    return;
+                }
+            }
             // Don't fail silently — a 404 here means the app is pointed at the
             // prod backend (faux-signup is gated off there). Surface it so the
             // button isn't a mystery dead-end. Fix: run a local backend +
