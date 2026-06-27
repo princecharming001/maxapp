@@ -606,6 +606,7 @@ async def get_scan_history(
         pr = a.get("psl_rating") if isinstance(a.get("psl_rating"), dict) else {}
         appeal_raw = pr.get("appeal")
         potential_raw = pr.get("potential") if pr.get("potential") not in (None, "") else a.get("potential_score")
+        imgs = s.images if isinstance(s.images, dict) else {}
         scans.append(
             {
                 "id": str(s.id),
@@ -613,6 +614,9 @@ async def get_scan_history(
                 "overall_score": _overall_from_analysis(a),
                 "appeal": float(appeal_raw) if appeal_raw not in (None, "") else None,
                 "potential": float(potential_raw) if potential_raw not in (None, "") else None,
+                # Front photo for a thumbnail preview in the archive list.
+                "front_image": imgs.get("front"),
+                "images": {"front": imgs.get("front")},
             }
         )
     return {"scans": scans}

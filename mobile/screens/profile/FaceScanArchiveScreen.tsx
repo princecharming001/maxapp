@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { CachedImage } from '../../components/CachedImage';
 import { colors, spacing, borderRadius, fonts } from '../../theme/dark';
 
 function formatDate(dateStr: string): string {
@@ -128,20 +129,30 @@ export default function FaceScanArchiveScreen() {
                             ? 'Premium: 1 three-photo scan per day.'
                             : 'Basic: one face scan, included at signup. No more scans on this plan.'}
                     </Text>
-                    {scans.map((s) => (
-                        <TouchableOpacity
-                            key={s.id}
-                            style={styles.card}
-                            onPress={() => navigation.navigate('FaceScanResults', { scanId: s.id })}
-                            activeOpacity={0.85}
-                        >
-                            <View style={styles.cardTop}>
-                                <Text style={styles.cardTitle}>{formatDate(s.created_at)}</Text>
+                    {scans.map((s) => {
+                        const frontUri = api.resolveAttachmentUrl(s.front_image || s.images?.front);
+                        return (
+                            <TouchableOpacity
+                                key={s.id}
+                                style={styles.card}
+                                onPress={() => navigation.navigate('FaceScanResults', { scanId: s.id })}
+                                activeOpacity={0.85}
+                            >
+                                {frontUri ? (
+                                    <CachedImage uri={frontUri} style={styles.thumb} resizeMode="cover" />
+                                ) : (
+                                    <View style={[styles.thumb, styles.thumbEmpty]}>
+                                        <Ionicons name="person-outline" size={22} color={colors.textMuted} />
+                                    </View>
+                                )}
+                                <View style={styles.cardBody}>
+                                    <Text style={styles.cardTitle}>{formatDate(s.created_at)}</Text>
+                                    <Text style={styles.cardSub}>overall {typeof s.overall_score === 'number' ? s.overall_score.toFixed(1) : '—'}</Text>
+                                </View>
                                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                            </View>
-                            <Text style={styles.cardSub}>overall {typeof s.overall_score === 'number' ? s.overall_score.toFixed(1) : '—'}</Text>
-                        </TouchableOpacity>
-                    ))}
+                            </TouchableOpacity>
+                        );
+                    })}
                 </ScrollView>
             )}
         </View>
@@ -187,15 +198,25 @@ const styles = StyleSheet.create({
     list: { padding: spacing.lg, paddingBottom: spacing.xxl },
     hint: { color: colors.textMuted, fontSize: 12, marginBottom: spacing.md, textAlign: 'center' },
     card: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
         backgroundColor: colors.card,
         borderWidth: 1,
         borderColor: colors.border,
         borderRadius: borderRadius.lg,
-        padding: spacing.lg,
+        padding: spacing.md,
         marginBottom: spacing.md,
     },
-    cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    cardTitle: { color: colors.foreground, fontSize: 14, fontWeight: '900' },
-    cardSub: { marginTop: 8, color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+    thumb: {
+        width: 56,
+        height: 56,
+        borderRadius: borderRadius.md,
+        backgroundColor: colors.surface,
+    },
+    thumbEmpty: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
+    cardBody: { flex: 1 },
+    cardTitle: { color: colors.foreground, fontSize: 15, fontWeight: '900' },
+    cardSub: { marginTop: 4, color: colors.textMuted, fontSize: 12, fontWeight: '700' },
 });
 
