@@ -460,6 +460,10 @@ class ApiService {
     }
 
     async fauxSignup() {
+        // Defense-in-depth: dev-only. The calling UI (DevDrawer) is already
+        // __DEV__-gated and the backend 404s these in prod, but guard here too so
+        // the bypass can never run in a production build even if invoked.
+        if (!__DEV__) throw new Error('faux-signup is unavailable in production builds.');
         const response = await this.client.post(
             'auth/faux-signup',
             {},
@@ -470,6 +474,7 @@ class ApiService {
     }
 
     async fauxSkipSignup() {
+        if (!__DEV__) throw new Error('faux-signup-skip is unavailable in production builds.');
         const response = await this.client.post(
             'auth/faux-signup-skip',
             {},
@@ -485,6 +490,7 @@ class ApiService {
      * replay the full onboarding flow without retyping signup form.
      */
     async fauxFreshSignup() {
+        if (!__DEV__) throw new Error('faux-signup-fresh is unavailable in production builds.');
         const response = await this.client.post(
             'auth/faux-signup-fresh',
             {},
@@ -1160,6 +1166,10 @@ class ApiService {
     }
 
     async testActivateSubscription(tier: 'basic' | 'premium' = 'premium') {
+        // Defense-in-depth: this mints a paid subscription with no payment. The
+        // calling UI (PaymentScreen devBypass) is __DEV__-gated and the backend
+        // 404s this in prod, but guard here too so it can never run in a prod build.
+        if (!__DEV__) throw new Error('test-activate is unavailable in production builds.');
         const response = await this.client.post('payments/test-activate', { tier });
         return response.data;
     }
