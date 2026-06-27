@@ -49,12 +49,15 @@ export default function ComingSoonOverlay({
 }: Props) {
     return (
         <View style={[styles.root, style]} pointerEvents="box-none">
-            {/* Layer 1 — diagonal gradient backdrop */}
+            {/* Layer 1 — diagonal gradient backdrop. pointerEvents none so this
+                full-bleed layer never captures taps when the overlay is dropped
+                over a live screen (root is box-none). */}
             <LinearGradient
                 colors={['#f6f5fb', '#eceaf5', '#e6e4ee']}
                 start={{ x: 0.05, y: 0.05 }}
                 end={{ x: 0.95, y: 0.95 }}
                 style={StyleSheet.absoluteFill}
+                pointerEvents="none"
             />
 
             {/* Layer 2 — three soft blurred orbs for depth */}

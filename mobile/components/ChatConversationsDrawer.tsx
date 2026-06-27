@@ -190,6 +190,14 @@ export default function ChatConversationsDrawer({
             ]).start(({ finished }) => {
                 if (finished) setMounted(false);
             });
+            // Failsafe unmount: an interrupted close animation (tab switch,
+            // re-render, parent losing focus mid-animation) may never deliver
+            // finished:true — which would leave this full-screen Modal mounted
+            // as an INVISIBLE tap-blocker over the entire app ("can't press
+            // buttons on different pages"). Drive the teardown off a timer too so
+            // it always unmounts regardless of the animation callback.
+            const t = setTimeout(() => setMounted(false), 280);
+            return () => clearTimeout(t);
         }
     }, [visible, tx, fade]);
 
@@ -344,7 +352,12 @@ export default function ChatConversationsDrawer({
     return (
         <Modal animationType="none" transparent visible={mounted} onRequestClose={onClose}>
             <Animated.View style={[s.backdrop, { opacity: fade }]} pointerEvents="none" />
-            <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
+            <Pressable
+                style={StyleSheet.absoluteFill}
+                pointerEvents={visible ? 'auto' : 'none'}
+                onPress={onClose}
+                accessibilityLabel="Close"
+            />
             <Animated.View
                 style={[
                     s.drawerShadow,

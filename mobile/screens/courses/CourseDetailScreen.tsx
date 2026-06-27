@@ -12,7 +12,9 @@ import { canAccessCourseDocs } from '../../utils/maxxLimits';
 export default function CourseDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
-    const { courseId } = route.params;
+    // Guard against a missing-params entry (deep link / restored nav stack /
+    // push tap) — destructuring undefined here white-screens the app.
+    const { courseId } = (route.params ?? {}) as { courseId: string };
     const { user } = useAuth();
     // Defensive entry guard — list-level intercept routes locked taps
     // to Payment directly. If a deep link / stale stack lands non-paid
@@ -31,6 +33,7 @@ export default function CourseDetailScreen() {
     useEffect(() => { loadData(); }, []);
 
     const loadData = async () => {
+        if (!courseId) { setLoading(false); return; }
         try {
             const [courseData, progressData] = await Promise.all([api.getCourse(courseId), api.getCourseProgress()]);
             setCourse(courseData);
