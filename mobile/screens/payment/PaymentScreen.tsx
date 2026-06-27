@@ -24,8 +24,8 @@ import {
 } from 'react-native'
 import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import PaywallDust from '../../components/PaywallDust';
+import { LiquidGlass } from '../../components/glass/LiquidGlass';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -94,62 +94,6 @@ function perDayLabel(weekly: string): string | null {
     const a = parseAmount(weekly);
     if (!a || a.n <= 0 || !a.sym) return null;
     return `${a.sym}${(a.n / 7).toFixed(2)}/day`;
-}
-
-/* ── Liquid-glass layers ───────────────────────────────────────────────────
-   Faked Apple-style liquid glass: a real backdrop blur of the dust gradient
-   behind it (refraction), a very thin white body (so it stays transparent), a
-   bright top specular highlight + a diagonal light-catch, an inner bottom
-   shadow for glass thickness, and luminous edge-lensing rims (brightest at the
-   top, softer down the left and along the bottom). All decorative. */
-function LiquidGlass() {
-    return (
-        <>
-            {/* The REAL iOS frosted-glass material (UIBlurEffect) — content-
-                adaptive and cool-toned, so it actually reads as glass on the
-                light dust background instead of a flat white wash. */}
-            <BlurView
-                intensity={IS_IOS ? 100 : 55}
-                tint={IS_IOS ? 'systemThickMaterialLight' : 'light'}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
-                experimentalBlurMethod={IS_IOS ? undefined : 'dimezisBlurView'}
-            />
-            {/* Android has no native material — a cool frost so it still reads */}
-            {!IS_IOS ? (
-                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(244,246,251,0.5)' }]} />
-            ) : null}
-            {/* top specular highlight — the main light-catch */}
-            <LinearGradient
-                pointerEvents="none"
-                colors={['rgba(255,255,255,0.75)', 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0)']}
-                locations={[0, 0.32, 0.7]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={s.glassSpecular}
-            />
-            {/* diagonal light sliding across the glass */}
-            <LinearGradient
-                pointerEvents="none"
-                colors={['rgba(255,255,255,0.4)', 'rgba(255,255,255,0)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0.7, y: 0.55 }}
-                style={StyleSheet.absoluteFill}
-            />
-            {/* inner bottom shadow — glass thickness / depth */}
-            <LinearGradient
-                pointerEvents="none"
-                colors={['rgba(38,38,58,0)', 'rgba(38,38,58,0.07)']}
-                start={{ x: 0, y: 0.68 }}
-                end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFill}
-            />
-            {/* edge lensing — luminous rims */}
-            <View pointerEvents="none" style={s.glassRimTop} />
-            <View pointerEvents="none" style={s.glassRimLeft} />
-            <View pointerEvents="none" style={s.glassRimBottom} />
-        </>
-    );
 }
 
 /* ── Component ─────────────────────────────────────────────────────────── */
@@ -263,25 +207,22 @@ export default function PaymentScreen() {
                 {/* Title — sits just below skip, no dead space */}
                 <Text style={s.title}>Unlock your <Text style={s.titleI}>potential</Text></Text>
 
-                {/* Feature card — real liquid glass over the dust gradient.
-                    Outer view carries the soft float shadow (overflow can't clip
-                    it); inner view clips the glass layers. */}
-                <View style={s.featureCardShadow}>
-                    <View style={s.featureCard}>
-                        <LiquidGlass />
-                        {(selected === 'premium' ? chadFeatures : chadLiteFeatures).map((f) => (
-                            <View key={f.title} style={s.featureRow}>
-                                <View style={s.featureIconWrap}>
-                                    <Ionicons name={f.icon} size={22} color={INK} />
-                                </View>
-                                <View style={s.featureText}>
-                                    <Text style={s.featureTitle}>{f.title}</Text>
-                                    <Text style={s.featureSub}>{f.sub}</Text>
-                                </View>
+                {/* Feature card — the canonical liquid-glass surface, floating
+                    over the dust gradient (its contrast is what makes the glass
+                    read). LiquidGlass owns the blur, speculars, rim and float. */}
+                <LiquidGlass radius={30} style={s.featureCard} contentStyle={s.featureCardContent}>
+                    {(selected === 'premium' ? chadFeatures : chadLiteFeatures).map((f) => (
+                        <View key={f.title} style={s.featureRow}>
+                            <View style={s.featureIconWrap}>
+                                <Ionicons name={f.icon} size={22} color={INK} />
                             </View>
-                        ))}
-                    </View>
-                </View>
+                            <View style={s.featureText}>
+                                <Text style={s.featureTitle}>{f.title}</Text>
+                                <Text style={s.featureSub}>{f.sub}</Text>
+                            </View>
+                        </View>
+                    ))}
+                </LiquidGlass>
 
                 {/* Plan picker — single container, Grok-style */}
                 <View style={s.planContainer}>
@@ -397,30 +338,16 @@ const s = StyleSheet.create({
         letterSpacing: 0.1,
     },
 
-    /* soft float shadow under the glass (overflow:hidden can't clip a sibling) */
-    featureCardShadow: {
-        flex: 1,
-        borderRadius: 30,
-        ...(IS_IOS
-            ? { shadowColor: '#4A3F70', shadowOpacity: 0.16, shadowRadius: 22, shadowOffset: { width: 0, height: 12 } }
-            : { elevation: 6 }),
-    },
-    /* feature card — liquid glass (the LiquidGlass layers provide the body) */
+    /* feature card — the LiquidGlass primitive owns the body/blur/rim/float.
+       This outer style just sizes it; the content padding lives below. */
     featureCard: {
         flex: 1,
-        backgroundColor: 'transparent',
-        borderRadius: 30,
-        borderCurve: 'continuous',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.5)',
-        overflow: 'hidden',
+    },
+    featureCardContent: {
+        flex: 1,
         paddingHorizontal: 18,
         paddingVertical: 6,
     },
-    glassSpecular: { position: 'absolute', top: 0, left: 0, right: 0, height: '46%' },
-    glassRimTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 1.5, backgroundColor: 'rgba(255,255,255,0.95)' },
-    glassRimLeft: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 1, backgroundColor: 'rgba(255,255,255,0.45)' },
-    glassRimBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.35)' },
     featureRow: {
         flex: 1,                    // each row claims equal share of the card height
         flexDirection: 'row',
