@@ -6,8 +6,8 @@
  *   • Range  → a dual-thumb slider; the day's plan floats between the two times.
  *   • Exact  → a single thumb; one precise time.
  * Get-ready is an optional single time (Auto lets the coach decide). The Workout
- * is an optional [start, end] WINDOW the scheduler slots training into — it's a
- * default-level preference, so it only appears when editing "All days".
+ * is an optional [start, end] WINDOW the scheduler slots training into. Every
+ * field is edited per day (the planner is per-day now — there is no "All days" view).
  *
  * Obligations (work, classes, commutes…) are NOT edited here — they're a global,
  * day-scoped list managed on the planner screen.
@@ -400,8 +400,8 @@ export default function DayEditorSheet({
                 </View>
               ) : null}
 
-              {/* Workout window — default-level, so only on "All days". */}
-              {show('workout') ? (scope === 'all' ? (
+              {/* Workout window — editable per day, like wake / wind-down / get-ready. */}
+              {show('workout') ? (
                 <View style={styles.section}>
                   <View style={[styles.sectionHead, focus && styles.sectionHeadFocused]}>
                     {!focus ? (
@@ -442,24 +442,7 @@ export default function DayEditorSheet({
                     </Text>
                   )}
                 </View>
-              ) : (
-                // Workout is a default-level (all-days) setting. Show a quiet
-                // placeholder on a single-day edit so the control doesn't feel
-                // like it vanished, and point to where it lives.
-                <View style={styles.section}>
-                  {!focus ? (
-                    <View style={styles.sectionHead}>
-                      <View style={styles.sectionTitleWrap}>
-                        <Ionicons name="barbell-outline" size={16} color={colors.textMuted} />
-                        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Workout window</Text>
-                      </View>
-                    </View>
-                  ) : null}
-                  <Text style={styles.autoHint}>
-                    Set once for all days. Open the All days view to change it.
-                  </Text>
-                </View>
-              )) : null}
+              ) : null}
 
               {!focus && scope !== 'all' && overridden ? (
                 <TouchableOpacity style={styles.resetBtn} onPress={reset} activeOpacity={0.7}>
