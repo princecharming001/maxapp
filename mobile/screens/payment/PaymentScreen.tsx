@@ -320,10 +320,10 @@ const s = StyleSheet.create({
 
     title: {
         fontFamily: 'Fraunces',
-        fontSize: 42,
+        fontSize: 32,
         color: INK,
-        letterSpacing: -1,
-        lineHeight: 46,
+        letterSpacing: -0.8,
+        lineHeight: 36,
         textAlign: 'center',
     },
     titleI: {
