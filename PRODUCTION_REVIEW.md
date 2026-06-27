@@ -339,6 +339,25 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
         rows. No heavy synchronous work on mount spotted (schedule aggregation is
         memoized; tab prefetch is async).
 
+## P1 — SECURITY: PAYWALL / PREMIUM-BYPASS GUARDS
+
+- [x] No production path unlocks premium without paying. **2026-06-26 (iter 22):
+      verified intact.**
+      - **Paywall CTA**: PaymentScreen.tsx:164 — `if (SHOW_DEV_BYPASS) { devBypass;
+        return; } await sub.subscribeBasic/Premium()`. `SHOW_DEV_BYPASS = __DEV__`,
+        so a prod build skips the bypass and runs the real Stripe/Apple IAP flow.
+        The "Skip" button is `{SHOW_DEV_BYPASS && …}` (dev-only).
+      - **DevDrawer** (guest/Onboarding/**Paid** switch → `fauxSkipSignup`): the
+        whole component is `if (!__DEV__) return null` — not in the prod bundle.
+      - Only callers of `fauxSkipSignup`/`fauxFreshSignup`/`testActivateSubscription`
+        are those `__DEV__`-gated UIs (grep-confirmed no ungated caller).
+      - Defense-in-depth: backend faux/test endpoints 404 in prod
+        (`settings.is_production`, per maxapp_paywall_security). `api.ts:184` also
+        throws if `EXPO_PUBLIC_API_BASE_URL` is unset in a prod build.
+      - Optional hardening (P3, not required): make the `api.faux*` / `testActivate`
+        client methods no-op when `!__DEV__` too, so they aren't even shipped as
+        callable — belt-and-suspenders over the UI gating + backend 404.
+
 ## P3 — POLISH
 
 - [ ] Copy/typo sweep on user-facing strings of walked screens.
@@ -357,6 +376,9 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 - [ ] Virtualize the archive lists: `FaceScanArchiveScreen` + `ProgressArchiveScreen`
       use `ScrollView + .map` (un-virtualized) — convert to `FlatList` before they
       grow to hundreds of rows. (found iter 21; slow-growing, non-blocking)
+- [ ] (Optional hardening) No-op the `api.faux*` / `testActivateSubscription`
+      client methods when `!__DEV__` so the bypass calls aren't even shippable
+      (belt-and-suspenders; UI is already gated + backend 404s). (found iter 22)
 - [ ] Strip `console.*` in production bundle (48 calls / 11 files) via
       babel-plugin-transform-remove-console (perf + avoids leaking debug to device
       logs). Non-blocking. (found iter 6)
@@ -519,5 +541,11 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 - 2026-06-26 (iter 21): **Perf audit — no major cliff.** Fast-growing lists
   (chat/forums) are FlatList-virtualized; ScrollView+.map screens are bounded
   (marketplace catalog) or newNav-only. Minor P3: FaceScanArchive/ProgressArchive
-  use un-virtualized ScrollView+.map (slow-growing). No heavy on-mount work. This
-  exhausts the reliable non-sim production gates.
+  use un-virtualized ScrollView+.map (slow-growing). No heavy on-mount work.
+- 2026-06-26 (iter 22): **Paywall/bypass security — verified intact.** Every
+  premium-unlock bypass (PaymentScreen devBypass+Skip, DevDrawer faux-paid) is
+  `__DEV__`-gated; the prod paywall CTA runs the real Stripe/Apple purchase; the
+  only callers of the faux/test methods are those gated UIs; backend 404s in prod.
+  A production user cannot unlock premium for free. Logged an optional P3 hardening
+  (no-op the faux/test api methods in prod too). This exhausts the reliable
+  non-sim production gates.
