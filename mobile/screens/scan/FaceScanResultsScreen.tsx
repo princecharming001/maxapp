@@ -620,6 +620,23 @@ const GLASS_SHADOW = {
     shadowColor: '#3A2E55', shadowOpacity: 0.1, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 3,
 } as const;
 
+// Frosted-glass fill for the analysis cards: a real blur of what's behind, a
+// translucent wash, a soft top sheen, and a 1px rim of light. `dark` variant
+// for the ink "first move" card. Decorative — sits behind the card content.
+function GlassFill({ dark = false }: { dark?: boolean }) {
+    return (
+        <>
+            <BlurView intensity={dark ? 18 : 36} tint={dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            <View
+                pointerEvents="none"
+                style={[StyleSheet.absoluteFillObject, { backgroundColor: dark ? 'rgba(21,19,15,0.46)' : 'rgba(255,255,255,0.40)' }]}
+            />
+            <View pointerEvents="none" style={[s.glassSheen, dark ? { backgroundColor: 'rgba(255,255,255,0.05)' } : null]} />
+            <View pointerEvents="none" style={[s.glassRim, dark ? { backgroundColor: 'rgba(255,255,255,0.12)' } : null]} />
+        </>
+    );
+}
+
 const bento = StyleSheet.create({
     section: { fontFamily: 'Matter-Medium', fontSize: 13, color: '#A2A0A8', letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 24, marginBottom: 12 },
     rowCenter: { flexDirection: 'row', alignItems: 'center' },
@@ -1325,6 +1342,7 @@ export default function FaceScanResultsScreen() {
                         (it's the teaser that hooks the rest of the read). */}
                     {!isProcessing && archetype ? (
                         <View style={s.archetypeCard}>
+                            <GlassFill />
                             <Text style={s.archetypeKicker}>YOUR ARCHETYPE</Text>
                             <Text style={s.archetypeName} numberOfLines={2} adjustsFontSizeToFit>{archetype}</Text>
                             {archetypeLine(archetype, ratingDisplay) ? (
@@ -1338,6 +1356,7 @@ export default function FaceScanResultsScreen() {
                         <View style={s.verdict}>
                             {(locked || firstMove.length > 0) ? (
                                 <View style={s.firstMoveCard}>
+                                    <GlassFill dark />
                                     <View style={{ flex: 1 }}>
                                         <Text style={s.firstMoveKicker}>YOUR FIRST MOVE</Text>
                                         {locked ? (
@@ -1360,6 +1379,7 @@ export default function FaceScanResultsScreen() {
                                 <View style={s.verdictRow}>
                                     {(locked || haloFeature) ? (
                                         <View style={[s.verdictCard, { borderColor: '#2F6B4E55' }]}>
+                                            <GlassFill />
                                             <View style={[s.verdictDot, { backgroundColor: '#2F6B4E' }]} />
                                             <Text style={s.verdictLabel}>YOUR HALO</Text>
                                             <Text style={s.verdictValue} numberOfLines={2} adjustsFontSizeToFit>{locked ? '—' : haloFeature}</Text>
@@ -1368,6 +1388,7 @@ export default function FaceScanResultsScreen() {
                                     ) : null}
                                     {(locked || bottleneck) ? (
                                         <View style={[s.verdictCard, { borderColor: '#C0452C55' }]}>
+                                            <GlassFill />
                                             <View style={[s.verdictDot, { backgroundColor: '#C0452C' }]} />
                                             <Text style={s.verdictLabel}>BOTTLENECK</Text>
                                             <Text style={s.verdictValue} numberOfLines={2} adjustsFontSizeToFit>{locked ? '—' : bottleneck}</Text>
@@ -1379,6 +1400,7 @@ export default function FaceScanResultsScreen() {
 
                             {(locked || sexAppeal != null || trustAppeal != null) ? (
                                 <View style={s.appealCard}>
+                                    <GlassFill />
                                     <Text style={s.verdictLabel}>SEX APPEAL vs TRUST APPEAL</Text>
                                     {locked ? (
                                         <View style={s.appealRow}>
@@ -1415,6 +1437,7 @@ export default function FaceScanResultsScreen() {
                                 <View style={s.verdictRow}>
                                     {(locked || dimorphism != null) ? (
                                         <View style={[s.verdictCard, { borderColor: '#4A4A7055' }]}>
+                                            <GlassFill />
                                             <View style={[s.verdictDot, { backgroundColor: '#4A4A70' }]} />
                                             <Text style={s.verdictLabel}>DIMORPHISM</Text>
                                             <Text style={s.verdictValue}>{locked || dimorphism == null ? '—' : `${dimorphism.toFixed(1)}/10`}</Text>
@@ -1423,6 +1446,7 @@ export default function FaceScanResultsScreen() {
                                     ) : null}
                                     {(locked || glowUpLabel) ? (
                                         <View style={[s.verdictCard, { borderColor: '#BC8B5755' }]}>
+                                            <GlassFill />
                                             <View style={[s.verdictDot, { backgroundColor: '#BC8B57' }]} />
                                             <Text style={s.verdictLabel}>GLOW-UP POTENTIAL</Text>
                                             <Text style={s.verdictValue}>{locked ? '—' : glowUpLabel}</Text>
@@ -1600,20 +1624,23 @@ const s = StyleSheet.create({
     /* ── Verdict block (viral metrics + first move) ── */
     verdict: { marginTop: 6, marginBottom: 6 },
     firstMoveCard: {
-        flexDirection: 'row', alignItems: 'center', gap: 12,
-        backgroundColor: '#15130F', borderRadius: 22, paddingHorizontal: 20, paddingVertical: 20, marginBottom: 12,
+        flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden',
+        backgroundColor: 'rgba(21,19,15,0.55)', borderRadius: 22, paddingHorizontal: 20, paddingVertical: 20, marginBottom: 12,
+        ...GLASS_SHADOW,
     },
+    glassSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '46%', backgroundColor: 'rgba(255,255,255,0.26)' },
+    glassRim: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.6)' },
     firstMoveKicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,0.55)', marginBottom: 6 },
     firstMoveLockRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     firstMoveValue: { fontFamily: fonts.serif, fontSize: 28, color: '#FFFFFF', letterSpacing: -0.5 },
     firstMoveSub: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: 'rgba(255,255,255,0.5)', marginTop: 6 },
     verdictRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-    verdictCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, padding: 16, minHeight: 118, ...GLASS_SHADOW },
+    verdictCard: { flex: 1, backgroundColor: 'rgba(255,255,255,0.42)', borderRadius: 18, borderWidth: 1, padding: 16, minHeight: 118, overflow: 'hidden', ...GLASS_SHADOW },
     verdictDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 10 },
     verdictLabel: { fontFamily: 'Matter-Medium', fontSize: 10.5, letterSpacing: 0.8, color: BENTO_SUB, textTransform: 'uppercase' },
     verdictValue: { fontFamily: fonts.serif, fontSize: 20, color: BENTO_INK, letterSpacing: -0.3, marginTop: 5 },
     verdictSub: { fontFamily: 'Matter-Regular', fontSize: 11.5, color: BENTO_SUB, marginTop: 6, lineHeight: 15 },
-    appealCard: { backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#CC6F7355', padding: 18, marginBottom: 12, ...GLASS_SHADOW },
+    appealCard: { backgroundColor: 'rgba(255,255,255,0.42)', borderRadius: 18, borderWidth: 1, borderColor: '#CC6F7355', padding: 18, marginBottom: 12, overflow: 'hidden', ...GLASS_SHADOW },
     appealRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
     appealCol: { flex: 1, alignItems: 'center' },
     appealDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: 'rgba(0,0,0,0.1)' },
@@ -1735,12 +1762,13 @@ const s = StyleSheet.create({
     },
     /* Face archetype — the identity headline card above the read. */
     archetypeCard: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: 'rgba(255,255,255,0.42)',
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.06)',
+        borderColor: 'rgba(255,255,255,0.6)',
         padding: 18,
         marginBottom: 12,
+        overflow: 'hidden',
         ...GLASS_SHADOW,
     },
     archetypeKicker: { fontFamily: 'Matter-Medium', fontSize: 10.5, letterSpacing: 0.8, color: BENTO_SUB, textTransform: 'uppercase' },
