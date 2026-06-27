@@ -220,8 +220,9 @@ const p = StyleSheet.create({
     maxChipDot: { width: 6, height: 6, borderRadius: 3 },
     maxChipText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: INK, letterSpacing: -0.1 },
     segRow: { flexDirection: 'row', gap: 5 },
-    seg: { flex: 1, height: 5, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.08)' },
-    segOn: { backgroundColor: INK },
+    seg: { flex: 1, height: 5, borderRadius: 3 },
+    segOn: { backgroundColor: 'rgba(0,0,0,0.6)' },
+    segOff: { backgroundColor: 'rgba(0,0,0,0.08)' },
 
     daysRow: { flexDirection: 'row', gap: 7, marginBottom: 16 },
     dayPill: { flex: 1, height: 52, borderRadius: 16, backgroundColor: '#F2F1EF', alignItems: 'center', justifyContent: 'center', gap: 6 },
@@ -637,13 +638,13 @@ export default function ProfileScreen() {
                             </View>
                         </View>
                         <LinearGradient
-                            colors={['#E879A9', '#8B5CF6', '#3B82F6', '#10B981']}
+                            colors={['#F59E0B', '#3B82F6']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                             style={p.segRow}
                         >
                             {Array.from({ length: totalMaxes }).map((_, i) => (
-                                <View key={i} style={[p.seg, i < maxesActive && p.segOn]} />
+                                <View key={i} style={[p.seg, i < maxesActive ? p.segOn : p.segOff]} />
                             ))}
                         </LinearGradient>
                     </View>
