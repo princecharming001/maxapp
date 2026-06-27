@@ -39,7 +39,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native'
-import { BlurView } from 'expo-blur';
+import { LiquidGlassFill } from './glass/LiquidGlass';
 import { Alert, InAppAlertHost } from './InAppAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -368,9 +368,10 @@ export default function ChatConversationsDrawer({
                 ]}
             >
               <View style={s.drawerClip}>
-                <BlurView intensity={42} tint="light" style={StyleSheet.absoluteFill} />
-                <View style={[StyleSheet.absoluteFill, s.glassFill]} pointerEvents="none" />
-                <View style={[StyleSheet.absoluteFill, s.glassSheen]} pointerEvents="none" />
+                {/* Canonical liquid-glass optics — native frosted material +
+                    corner speculars + luminous rim (the clip + drawerShadow own
+                    the rounded shape and the float). */}
+                <LiquidGlassFill idSuffix="chatdrawer" />
                 <View
                     style={[
                         s.drawerContent,
@@ -591,16 +592,6 @@ const s = StyleSheet.create({
         borderColor: C.glassEdge,
         // Android blur is weak; fall back to a light translucent panel there.
         backgroundColor: Platform.OS === 'android' ? 'rgba(248,248,250,0.9)' : 'transparent',
-    },
-    // Dark wash over the blur so text stays legible against bright content.
-    glassFill: {
-        backgroundColor: C.glassTint,
-    },
-    // Faint top-down sheen for the glassy highlight.
-    glassSheen: {
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.5)',
-        backgroundColor: 'transparent',
     },
     drawerContent: {
         paddingHorizontal: spacing.md,
