@@ -27,8 +27,10 @@ import {
   Platform,
   KeyboardAvoidingView,
   useWindowDimensions,
+  Animated,
 } from 'react-native'
 import { Alert } from '../InAppAlert';
+import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../../theme/dark';
@@ -286,6 +288,10 @@ export default function DayEditorSheet({
   };
 
 
+  // Swipe the sheet down (from the grabber/header) to dismiss — routes through
+  // requestClose so a dirty sheet still confirms before discarding.
+  const { translateY, panHandlers } = useSwipeDownDismiss(requestClose);
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={requestClose}>
       <View style={styles.overlay}>
@@ -294,17 +300,19 @@ export default function DayEditorSheet({
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.sheetWrap}
         >
-          <View style={[styles.sheet, { maxHeight: sheetMaxH }]}>
-            <View style={styles.grabber} />
-            <View style={styles.header}>
-              <TouchableOpacity onPress={requestClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close" size={22} color={colors.textMuted} />
-              </TouchableOpacity>
-              <View style={styles.headerCenter}>
-                <Text style={styles.headerTitle}>{focus ? FOCUS_TITLE[focus] : scopeLong}</Text>
-                {focus ? <Text style={styles.headerSub}>{scopeLong}</Text> : null}
+          <Animated.View style={[styles.sheet, { maxHeight: sheetMaxH, transform: [{ translateY }] }]}>
+            <View {...panHandlers}>
+              <View style={styles.grabber} />
+              <View style={styles.header}>
+                <TouchableOpacity onPress={requestClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close" size={22} color={colors.textMuted} />
+                </TouchableOpacity>
+                <View style={styles.headerCenter}>
+                  <Text style={styles.headerTitle}>{focus ? FOCUS_TITLE[focus] : scopeLong}</Text>
+                  {focus ? <Text style={styles.headerSub}>{scopeLong}</Text> : null}
+                </View>
+                <View style={{ width: 22 }} />
               </View>
-              <View style={{ width: 22 }} />
             </View>
 
             <ScrollView
@@ -509,7 +517,7 @@ export default function DayEditorSheet({
                 <Text style={styles.doneText}>Done</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       </View>
     </Modal>
