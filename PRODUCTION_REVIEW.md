@@ -272,8 +272,19 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
         return a bool so callers silently skip scheduling
         (localScheduleNotifications.ts:19); calendar returns `permission_denied`
         (DaySetupScreen.tsx:249). No crash paths on denial.
-- [ ] Accessibility labels on icon-only buttons; key interactive elements have
-      `testID`s (extend coverage where Maestro can't target).
+- [~] Accessibility labels on icon-only buttons; key interactive elements have
+      `testID`s. **2026-06-26 (iter 12): audited — partial, non-blocking.**
+      - Key/high-traffic actions ARE labeled: tab bar (testIDs + labels), avatar
+        ("Open profile"), scan ("Scan"), habit checkbox (`accessibilityRole`),
+        plenty of text-bearing buttons self-label.
+      - GAP (→ P3): many secondary ICON-ONLY buttons (back / close / header
+        chevrons / add / share) lack `accessibilityLabel` — e.g.
+        ForgotPasswordScreen, ChannelChatScreen, SendblueConnect, several chat/
+        settings headers (and the gated forums screens). A VoiceOver user hears
+        "button" instead of "Back"/"Close". Not an App Store rejection blocker
+        (no a11y support is claimed), but worth a focused sweep.
+      - testID coverage: tabs now have ids (iter 10); habit cards, login fields,
+        marketplace cards already had them.
 - [ ] Feature flags: confirm the **production** flag values (newNav, todayV2,
       faceScan, onboardingV2, …) match what should ship, and the OFF/ON paths
       both render without dead tabs.
@@ -285,6 +296,10 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 - [ ] Consistent theming (the flat ink/cream "Craft" aesthetic) — no leftover
       dark-on-dark or stray glass-redo remnants.
 - [ ] Loading skeletons vs spinners consistency.
+- [ ] Accessibility sweep: add `accessibilityLabel` to icon-only buttons
+      (back/close/header/add/share) across shipping screens — ForgotPassword,
+      chat/settings headers, SendblueConnect, etc. (found iter 12; VoiceOver
+      polish, not launch-blocking).
 - [ ] Strip `console.*` in production bundle (48 calls / 11 files) via
       babel-plugin-transform-remove-console (perf + avoids leaking debug to device
       logs). Non-blocking. (found iter 6)
@@ -394,3 +409,7 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   (EXIT 1 after launch); fix = `pkill -9` maestro AND the xctest driver between
   runs (documented in the Maestro gotcha). prod_screen_walk's DevDrawer re-entry
   is still collision-sensitive; tab_walk_min is the reliable core walk.
+- 2026-06-26 (iter 12): **Accessibility audit — partial, non-blocking.** Key
+  actions labeled (tabs/avatar/scan/habits); gap is secondary icon-only buttons
+  (back/close/header) missing `accessibilityLabel` on several shipping screens →
+  logged a P3 sweep. Not an App Store blocker. No code change this iter.
