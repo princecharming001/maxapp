@@ -165,10 +165,14 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       FaceScanResults postPay reveal renders (Rating/Appeal/Potential rings,
       "Get started"). Still TODO: camera permission prompt + capture flow; free vs
       premium gating.
-- [x] Explore / Marketplace — **navigates + renders, assertion-verified on sim
-      2026-06-26 (iter 11)** via `tab_walk_min.yaml` (tab-explore tap succeeds,
-      screen mounts; "Loading Explore" → "No maxes yet" on the empty faux account).
-      Card detail + start-program (with real maxes) still TODO.
+- [x] Explore / Marketplace — **content-verified on sim 2026-06-26 (iter 16)**:
+      "Find your max" header, category tabs (My maxes / All / Native / Creator),
+      featured "New" card (Hairmax · Included), and a grid of real maxes (Hairmax,
+      Skinmax …) with the maxx color icons. CORRECTION to iter-4 note: maxes DO
+      exist in the backend, so courses/start-program are NOT env-blocked — just
+      need reliable card targeting. MaxDetail / start-program still TODO (the
+      Explore cards lack testIDs, so text-tap is scroll-position-dependent — see
+      P3 to add `testID` to Explore cards, mirroring the tab fix).
 - [x] Chat / Coach (`screens/chat/MaxChatScreen.tsx`) — **render + SEND verified
       on sim 2026-06-26 (iter 15)** via `chat_send.yaml`: tapped the "Build my plan
       for today" suggestion → message posts as a sent bubble, greeting clears,
@@ -319,6 +323,9 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       (back/close/header/add/share) across shipping screens — ForgotPassword,
       chat/settings headers, SendblueConnect, etc. (found iter 12; VoiceOver
       polish, not launch-blocking).
+- [ ] Add `testID` to Explore/Marketplace cards (e.g. `explore-max-${id}`) so the
+      start-program → MaxDetail → courses flow is reliably E2E-testable (mirrors
+      the tab-testID fix). (found iter 16)
 - [ ] Remove dead `referralDiscounts` flag (defined in featureFlags.ts, 0 call
       sites). Trivial. (found iter 14)
 - [ ] Strip `console.*` in production bundle (48 calls / 11 files) via
@@ -453,3 +460,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   0). Suggestion-chip tap posts the message, greeting clears, "Thinking" +
   Stop-button states render correctly. AI reply still generating at 9s (backend
   LLM round-trip — flagged as a backend, not mobile, concern).
+- 2026-06-26 (iter 16): **Explore content-verified** — real maxes present
+  (Hairmax/Skinmax grid, category tabs, featured card). Corrects the earlier
+  "no maxes / env-blocked" assumption: courses/start-program ARE reachable.
+  MaxDetail tap-in is scroll/tab-restore-finicky (Explore cards lack testIDs) →
+  logged a P3 to add card testIDs; MaxDetail/start-program walk still TODO.
