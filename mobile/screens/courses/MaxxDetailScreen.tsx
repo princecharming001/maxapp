@@ -376,6 +376,7 @@ export default function MaxxDetailScreen() {
                         description={isCreatorCourse ? courseDef.subtitle : (getMaxxDisplayDescription(maxx) ?? maxx.description)}
                         accent={accent}
                         iconName={maxx.icon || courseDef.icon || 'sparkles-outline'}
+                        maxxId={courseDef.maxxId}
                         creator={
                             courseDef.creator
                                 ? { name: courseDef.creator.name, verified: courseDef.creator.verified, tagline: courseDef.creator.tagline }

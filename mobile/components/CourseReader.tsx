@@ -43,6 +43,7 @@ import {
     type NativeSyntheticEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -52,6 +53,7 @@ import {
     type CourseModule,
     type CourseSection,
 } from '../data/courseContent';
+import { sectionJellyIcon } from '../data/courseIcons';
 import { colors, fonts, spacing, typography } from '../theme/dark';
 
 /** Convert `#rrggbb` → `rgba(r,g,b,a)` for use in LinearGradient stops. */
@@ -272,6 +274,7 @@ type SlideProps = {
 
 function Slide({ section, course, width }: SlideProps) {
     const { accent, accentSoft, accentMid } = course;
+    const jelly = sectionJellyIcon(course.maxxId, section.icon);
 
     return (
         <View style={[slide.outer, { width }]}>
@@ -281,9 +284,9 @@ function Slide({ section, course, width }: SlideProps) {
             >
                 {/* ── Hero visual block ───────────────────────────────
                     Soft accent gradient backdrop, two concentric accent
-                    rings (decorative depth), filled accent-tinted disc
-                    at center, icon at 40pt in accent color. The whole
-                    block is purely decorative — no interactivity. */}
+                    rings (decorative depth), and the glossy jelly icon at
+                    center — the brand visual language, not a flat Ionicons
+                    disc. Purely decorative; no interactivity. */}
                 <View style={slide.visualBlock}>
                     <LinearGradient
                         pointerEvents="none"
@@ -298,11 +301,11 @@ function Slide({ section, course, width }: SlideProps) {
                     <View style={[slide.ringOuter, { borderColor: accentSoft }]}>
                         <View style={[slide.ringInner, { borderColor: accentMid }]}>
                             <View style={[slide.disc, { backgroundColor: accentSoft }]}>
-                                <Ionicons
-                                    name={section.icon as any}
-                                    size={40}
-                                    color={accent}
-                                />
+                                {jelly ? (
+                                    <Image source={jelly} style={slide.discJelly} contentFit="contain" transition={200} />
+                                ) : (
+                                    <Ionicons name={section.icon as any} size={40} color={accent} />
+                                )}
                             </View>
                         </View>
                     </View>
@@ -458,6 +461,11 @@ const slide = StyleSheet.create({
         borderRadius: 40,
         alignItems: 'center',
         justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    discJelly: {
+        width: 60,
+        height: 60,
     },
     eyebrow: {
         fontFamily: fonts.sansSemiBold,

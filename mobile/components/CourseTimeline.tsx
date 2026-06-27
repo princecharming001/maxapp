@@ -18,9 +18,11 @@
  */
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { CourseModule } from '../data/courseContent';
+import { sectionJellyIcon } from '../data/courseIcons';
 import { colors, fonts, spacing } from '../theme/dark';
 import { hexA } from '../utils/scheduleAggregation';
 
@@ -43,6 +45,7 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
                 const numLabel = ch.number.toString().padStart(2, '0');
                 const preview = ch.sections.slice(0, PREVIEW_LESSONS);
                 const moreCount = ch.sections.length - preview.length;
+                const chJelly = sectionJellyIcon(course.maxxId, ch.icon);
 
                 return (
                     <View key={ch.id} style={styles.row}>
@@ -60,14 +63,14 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
                             <View
                                 style={[
                                     styles.node,
-                                    isFirst
-                                        ? { backgroundColor: accent, borderColor: accent }
-                                        : { backgroundColor: colors.card, borderColor: hexA(accent, 0.45) },
+                                    { backgroundColor: colors.card, borderColor: hexA(accent, isFirst ? 0.7 : 0.4) },
                                 ]}
                             >
-                                <Text style={[styles.nodeNum, { color: isFirst ? '#FFFFFF' : accent }]}>
-                                    {ch.number}
-                                </Text>
+                                {chJelly ? (
+                                    <Image source={chJelly} style={styles.nodeJelly} contentFit="contain" />
+                                ) : (
+                                    <Text style={[styles.nodeNum, { color: accent }]}>{ch.number}</Text>
+                                )}
                             </View>
                             {/* bottom connector segment (hidden on last) */}
                             <View
@@ -104,20 +107,28 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
 
                             {/* lesson preview list */}
                             <View style={styles.lessonList}>
-                                {preview.map((s) => (
-                                    <TouchableOpacity
-                                        key={s.id}
-                                        style={styles.lessonRow}
-                                        activeOpacity={0.6}
-                                        onPress={() => onOpenSection(s.id)}
-                                    >
-                                        <Text style={[styles.lessonNum, { color: accent }]}>{s.number}</Text>
-                                        <Text style={styles.lessonTitle} numberOfLines={1}>
-                                            {s.title}
-                                        </Text>
-                                        {s.eta ? <Text style={styles.lessonEta}>{s.eta}</Text> : null}
-                                    </TouchableOpacity>
-                                ))}
+                                {preview.map((s) => {
+                                    const sJelly = sectionJellyIcon(course.maxxId, s.icon);
+                                    return (
+                                        <TouchableOpacity
+                                            key={s.id}
+                                            style={styles.lessonRow}
+                                            activeOpacity={0.6}
+                                            onPress={() => onOpenSection(s.id)}
+                                        >
+                                            {sJelly ? (
+                                                <Image source={sJelly} style={styles.lessonGlyph} contentFit="contain" />
+                                            ) : (
+                                                <View style={[styles.lessonDot, { backgroundColor: hexA(accent, 0.5) }]} />
+                                            )}
+                                            <Text style={[styles.lessonNum, { color: accent }]}>{s.number}</Text>
+                                            <Text style={styles.lessonTitle} numberOfLines={1}>
+                                                {s.title}
+                                            </Text>
+                                            {s.eta ? <Text style={styles.lessonEta}>{s.eta}</Text> : null}
+                                        </TouchableOpacity>
+                                    );
+                                })}
                                 {moreCount > 0 ? (
                                     <Text style={styles.moreText}>
                                         +{moreCount} more lesson{moreCount === 1 ? '' : 's'}
@@ -185,11 +196,16 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         alignItems: 'center',
         justifyContent: 'center',
+        overflow: 'hidden',
     },
     nodeNum: {
         fontFamily: fonts.serif,
         fontSize: 17,
         fontWeight: '400',
+    },
+    nodeJelly: {
+        width: 26,
+        height: 26,
     },
 
     /* right card */
@@ -248,6 +264,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 7,
     },
+    lessonGlyph: {
+        width: 18,
+        height: 18,
+        marginRight: 8,
+    },
+    lessonDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        marginRight: 14,
+        marginLeft: 6,
+    },
     lessonNum: {
         fontFamily: fonts.sansMedium,
         fontSize: 11.5,
@@ -272,7 +300,7 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: colors.textMuted,
         paddingVertical: 6,
-        paddingLeft: 30,
+        paddingLeft: 56,
     },
 
     seePill: {

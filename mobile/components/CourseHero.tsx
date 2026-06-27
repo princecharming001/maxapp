@@ -11,11 +11,13 @@
  */
 import React from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, fonts, spacing } from '../theme/dark';
+import { courseJellyIcon } from '../data/courseIcons';
 
 export type CourseHeroStat = { number: string | number; label: string };
 
@@ -26,6 +28,8 @@ export type CourseHeroProps = {
     description?: string;
     accent: string;
     iconName?: string;
+    /** Native maxx id — resolves the glossy jelly mascot for the hero. */
+    maxxId?: string;
     creator?: CourseCreatorMini | null;
     stats?: CourseHeroStat[];
     onBack: () => void;
@@ -46,15 +50,17 @@ export default function CourseHero({
     description,
     accent,
     iconName = 'sparkles-outline',
+    maxxId,
     creator,
     stats,
     onBack,
 }: CourseHeroProps) {
     const insets = useSafeAreaInsets();
+    const jelly = courseJellyIcon(maxxId);
 
     return (
         <View style={styles.wrap}>
-            {/* ── Hero image card ─────────────────────────────────── */}
+            {/* ── Hero card ───────────────────────────────────────── */}
             <View style={[styles.heroCard, { marginTop: Math.max(insets.top, 12) + 4 }]}>
                 <LinearGradient
                     colors={[accent, darken(accent, 0.34)]}
@@ -62,13 +68,19 @@ export default function CourseHero({
                     end={{ x: 1, y: 1 }}
                     style={StyleSheet.absoluteFill}
                 />
-                {/* Watermark icon bleeding off the bottom-right corner */}
-                <Ionicons
-                    name={iconName as any}
-                    size={190}
-                    color="rgba(255,255,255,0.16)"
-                    style={styles.watermark}
-                />
+                {/* Glossy jelly mascot bleeding off the bottom-right corner — the
+                    brand visual language, NOT a flat Ionicons watermark. Creator
+                    courses with no native jelly fall back to a faint serif initial. */}
+                {jelly ? (
+                    <Image
+                        source={jelly}
+                        style={styles.heroJelly}
+                        contentFit="contain"
+                        transition={220}
+                    />
+                ) : (
+                    <Text style={styles.heroMonogram}>{(title || 'M').trim().charAt(0).toUpperCase()}</Text>
+                )}
                 {/* Soft floor shadow so the title below has contrast room */}
                 <LinearGradient
                     pointerEvents="none"
@@ -135,10 +147,22 @@ const styles = StyleSheet.create({
             ? { shadowColor: '#3A352B', shadowOpacity: 0.16, shadowRadius: 22, shadowOffset: { width: 0, height: 12 } }
             : { elevation: 6 }),
     },
-    watermark: {
+    heroJelly: {
         position: 'absolute',
-        right: -24,
-        bottom: -34,
+        right: -18,
+        bottom: -22,
+        width: 176,
+        height: 176,
+        opacity: 0.95,
+    },
+    heroMonogram: {
+        position: 'absolute',
+        right: 6,
+        bottom: -30,
+        fontFamily: fonts.serif,
+        fontSize: 196,
+        lineHeight: 210,
+        color: 'rgba(255,255,255,0.16)',
     },
     heroFloor: {
         position: 'absolute',
