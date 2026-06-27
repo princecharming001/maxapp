@@ -19,12 +19,12 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    Image,
     Platform,
     ActivityIndicator,
 } from 'react-native'
 import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
+import PaywallDust from '../../components/PaywallDust';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,8 +46,6 @@ const HAIR     = 'rgba(17,17,19,0.07)';
 const MUTED    = 'rgba(17,17,19,0.50)';
 const PLAN_BG  = 'rgba(17,17,19,0.05)';       // plan container
 const PLAN_SEL = '#FFFFFF';                   // selected option — white pill
-
-const HERO = require('../../assets/paywall-hero.webp');
 
 const IS_IOS = Platform.OS === 'ios';
 const SHOW_DEV_BYPASS = __DEV__;
@@ -179,12 +177,14 @@ export default function PaymentScreen() {
 
     return (
         <View style={s.root}>
-            {/* ── Full-bleed background ─────────────────────────────── */}
-            <Image source={HERO} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            {/* ── Full-bleed background ── wisps of brand-colored dust over the
+                cream canvas (same hues as the Explore max icons). A soft cream
+                wash on top/bottom keeps the title and plans legible. ───────── */}
+            <PaywallDust />
             <LinearGradient
                 pointerEvents="none"
-                colors={['rgba(244,238,227,0.55)', 'rgba(244,238,227,0.00)', 'rgba(244,238,227,0.45)', 'rgba(244,238,227,0.94)']}
-                locations={[0, 0.32, 0.66, 1]}
+                colors={['rgba(244,238,227,0.78)', 'rgba(244,238,227,0.10)', 'rgba(244,238,227,0.28)', 'rgba(244,238,227,0.95)']}
+                locations={[0, 0.30, 0.62, 1]}
                 style={StyleSheet.absoluteFill}
             />
 
@@ -204,8 +204,8 @@ export default function PaymentScreen() {
             <View style={[s.content, { paddingTop: Math.max(insets.top + 16, 60), paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
 
                 {/* Title — sits just below skip, no dead space */}
-                <Text style={s.title}>Max Pro</Text>
-                <Text style={s.subtitle}>Unlock your full potential</Text>
+                <Text style={s.title}>Max <Text style={s.titleI}>Pro</Text></Text>
+                <Text style={s.subtitle}>Unlock your potential</Text>
 
                 {/* Feature card — flex:1 fills all space between subtitle and plan picker */}
                 <View style={s.featureCard}>
@@ -317,12 +317,16 @@ const s = StyleSheet.create({
     },
 
     title: {
-        fontFamily: 'Matter-SemiBold',
-        fontSize: 38,
-        fontWeight: '700',
+        fontFamily: 'Fraunces',
+        fontSize: 42,
         color: INK,
         letterSpacing: -1,
+        lineHeight: 46,
         textAlign: 'center',
+    },
+    titleI: {
+        fontFamily: 'Fraunces-Italic',
+        fontStyle: 'italic',
     },
     subtitle: {
         fontFamily: 'Matter-Regular',
