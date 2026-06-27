@@ -1010,18 +1010,19 @@ export default function FaceScanResultsScreen() {
         const n = parseFloat(String(v ?? ''));
         return Number.isNaN(n) ? null : Math.max(0, Math.min(10, n));
     };
-    const haloFeature = String(pr?.halo_feature || pi?.halo_feature || facialSummary?.halo_feature || '').trim();
-    const bottleneck = String(pr?.bottleneck || pi?.bottleneck || facialSummary?.bottleneck || '').trim();
-    const bottleneckMax = String(pr?.bottleneck_max || pi?.bottleneck_max || facialSummary?.bottleneck_max || '').trim();
-    const sexAppeal = _num10(pr?.sex_appeal ?? facialSummary?.sex_appeal);
-    const trustAppeal = _num10(pr?.trust_appeal ?? facialSummary?.trust_appeal);
-    const appealQuadrant = String(pr?.appeal_quadrant || facialSummary?.appeal_quadrant || '').trim();
-    const dimorphism = _num10(pr?.dimorphism ?? facialSummary?.dimorphism);
-    const dimorphismNote = String(pr?.dimorphism_note || facialSummary?.dimorphism_note || '').trim();
-    const glowUpLabel = String(pr?.glow_up_label || facialSummary?.glow_up_label || '').trim();
+    const haloFeature = String(pr?.halo_feature || pi?.halo_feature || a?.halo_feature || facialSummary?.halo_feature || '').trim();
+    const bottleneck = String(pr?.bottleneck || pi?.bottleneck || a?.bottleneck || facialSummary?.bottleneck || '').trim();
+    const bottleneckMax = String(pr?.bottleneck_max || pi?.bottleneck_max || a?.bottleneck_max || facialSummary?.bottleneck_max || '').trim();
+    const sexAppeal = _num10(pr?.sex_appeal ?? pi?.sex_appeal ?? a?.sex_appeal ?? facialSummary?.sex_appeal);
+    const trustAppeal = _num10(pr?.trust_appeal ?? pi?.trust_appeal ?? a?.trust_appeal ?? facialSummary?.trust_appeal);
+    const appealQuadrant = String(pr?.appeal_quadrant || pi?.appeal_quadrant || a?.appeal_quadrant || facialSummary?.appeal_quadrant || '').trim();
+    const dimorphism = _num10(pr?.dimorphism ?? pi?.dimorphism ?? a?.dimorphism ?? facialSummary?.dimorphism);
+    const dimorphismNote = String(pr?.dimorphism_note || pi?.dimorphism_note || a?.dimorphism_note || facialSummary?.dimorphism_note || '').trim();
+    const glowUpLabel = String(pr?.glow_up_label || pi?.glow_up_label || a?.glow_up_label || facialSummary?.glow_up_label || '').trim();
     const firstMove: string[] = (
         Array.isArray(pr?.first_move) ? pr.first_move
         : Array.isArray(pi?.first_move) ? pi.first_move
+        : Array.isArray(a?.first_move) ? a.first_move
         : Array.isArray(facialSummary?.first_move) ? facialSummary.first_move
         : []
     ).map(String).filter(Boolean).slice(0, 2);
@@ -1338,9 +1339,8 @@ export default function FaceScanResultsScreen() {
 
                     <Text style={s.statsSectionTitle}>Your Analysis</Text>
 
-                    {/* Face archetype — the identity headline. Shown even when locked
-                        (it's the teaser that hooks the rest of the read). */}
-                    {!isProcessing && archetype ? (
+                    {/* Face archetype — paid-only reveal (not a teaser). */}
+                    {!locked && !isProcessing && archetype ? (
                         <View style={s.archetypeCard}>
                             <GlassFill />
                             <Text style={s.archetypeKicker}>YOUR ARCHETYPE</Text>
