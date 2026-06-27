@@ -27,6 +27,7 @@ import {
 import { Image } from 'expo-image';
 import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import Svg, { Defs, RadialGradient, Stop, Rect, Ellipse } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -446,6 +447,17 @@ export default function MaxDetailScreen() {
     const d = item.detail || {};
     const isCourse = !item.native;
     const base = item.color || GOLD;
+    // Brief, looksmax-native description of what this max actually is. Honest —
+    // describes the real target areas in the community's own vocabulary. Falls
+    // back to the item's own copy for courses / unknown maxes.
+    const LOOKSMAX_BLURB: Record<string, string> = {
+        skinmax: 'Skin is your #1 halo — clear, even, glassy skin lifts how your whole face reads. Skinmax repairs your barrier, kills texture, redness and marks, and dials in that lit-from-within glow.',
+        hairmax: 'Hair frames the entire face — one of the highest-impact halos there is. Hairmax works your density, hairline and scalp health so you keep, and grow, a thick, frame-defining mane.',
+        fitmax: 'Body fat hides your bone structure; leanness reveals it. Fitmax leans you out and builds the right muscle so your jaw, cheekbones and frame come forward and mog.',
+        bonemax: 'Bone structure sets your ceiling. Bonemax trains your jaw, masseter, neck and posture — mewing and tension work — to sharpen your profile and harden your frame.',
+        heightmax: 'Height and posture carry presence. Heightmax is decompression, posture and frame work to decompress your spine, stand taller and own more space.',
+    };
+    const maxBlurb = LOOKSMAX_BLURB[String(item.id || '').toLowerCase()] || d.long_description || item.tagline || '';
     // Price anchor — a weekly sub framed per day reads far smaller than "/wk".
     const perDay = item.price_cents ? `$${((item.price_cents / 100) / 7).toFixed(2)}` : null;
 
@@ -534,10 +546,8 @@ export default function MaxDetailScreen() {
                     <Text style={styles.heroTagline}>{item.tagline}</Text>
                 </View>
 
-                {/* Real program stats (SC6). */}
-                <View style={styles.block}>
-                    <StatsGrid item={item} isCourse={isCourse} />
-                </View>
+                {/* Brief, looksmax-native description of what this max is. */}
+                {maxBlurb ? <Text style={styles.lead}>{maxBlurb}</Text> : null}
 
                 {/* Creator — courses only. */}
                 {isCourse ? (
@@ -555,17 +565,6 @@ export default function MaxDetailScreen() {
                         ) : null}
                     </View>
                 ) : null}
-
-                {/* The promise. */}
-                {d.long_description ? <Text style={styles.lead}>{d.long_description}</Text> : null}
-
-                {/* Fits your week. */}
-                <View style={styles.block}>
-                    <Feasibility id={item.id} color={base} />
-                </View>
-
-                {/* Session/path timeline (SC7) — native maxes. */}
-                {!isCourse ? <SessionTimeline item={item} base={base} /> : null}
 
                 {/* What you'll get. */}
                 {d.outcomes?.length ? (
@@ -693,39 +692,31 @@ export default function MaxDetailScreen() {
                 ) : null}
             </Animated.ScrollView>
 
-            {/* Sticky CTA */}
+            {/* Sticky CTA — one liquid-glass button. */}
             <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 14 }]}>
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.ctaPrice}>{item.price_label}</Text>
-                    <Text style={styles.ctaSub}>
-                        {readerCourseId
-                            ? 'Free · adds to your schedule'
-                            : item.price_model === 'weekly'
-                                ? `${perDay} a day · cancel anytime`
-                                : item.weeks ? `${item.weeks} weeks · one payment` : 'one payment'}
-                    </Text>
-                </View>
-                <Animated.View style={[styles.ctaBtnShadow, { shadowColor: item.entered ? ACCENT : '#000', transform: [{ scale: ctaScale }] }]}>
+                <Animated.View style={[styles.ctaGlassShadow, { transform: [{ scale: ctaScale }] }]}>
                     <TouchableOpacity
-                        style={[styles.ctaBtn, { backgroundColor: item.entered ? ACCENT : INK }]}
-                        activeOpacity={0.9}
+                        style={styles.ctaGlass}
+                        activeOpacity={0.85}
                         onPress={onCta}
                         disabled={busy}
-                        onPressIn={() => Animated.spring(ctaScale, { toValue: 0.95, useNativeDriver: true, speed: 40, bounciness: 0 }).start()}
+                        onPressIn={() => Animated.spring(ctaScale, { toValue: 0.97, useNativeDriver: true, speed: 40, bounciness: 0 }).start()}
                         onPressOut={() => Animated.spring(ctaScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start()}
                     >
-                        {/* glossy top sheen — light-aware depth */}
+                        <BlurView intensity={Platform.OS === 'ios' ? 46 : 30} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: hexA(base, 0.24) }]} />
                         <LinearGradient
                             pointerEvents="none"
-                            colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']}
+                            colors={['rgba(255,255,255,0.65)', 'rgba(255,255,255,0.04)']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 0, y: 1 }}
                             style={styles.ctaSheen}
                         />
+                        <View pointerEvents="none" style={styles.ctaGlassRim} />
                         {busy ? (
-                            <ActivityIndicator color="#fff" />
+                            <ActivityIndicator color={INK} />
                         ) : (
-                            <Text style={styles.ctaBtnText} numberOfLines={1}>
+                            <Text style={styles.ctaGlassText} numberOfLines={1}>
                                 {item.entered ? 'Open' : readerCourseId ? 'Add to schedule' : isCourse ? 'Enroll' : 'Start my plan'}
                             </Text>
                         )}
@@ -857,21 +848,26 @@ const styles = StyleSheet.create({
     // Sticky CTA
     ctaBar: {
         position: 'absolute', left: 0, right: 0, bottom: 0,
-        flexDirection: 'row', alignItems: 'center', gap: 14,
+        alignItems: 'stretch',
         paddingHorizontal: 22, paddingTop: 14,
         backgroundColor: 'rgba(247,240,234,0.97)',
         borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: HAIRLINE,
     },
-    ctaPrice: { fontFamily: 'Matter-Bold', fontSize: 18, color: INK },
-    ctaSub: { fontFamily: 'Matter-Regular', fontSize: 12, color: SUB, marginTop: 1 },
-    ctaBtnShadow: {
+    ctaGlassShadow: {
         borderRadius: 999,
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 8 },
-        elevation: 7,
+        shadowColor: '#3A2E55',
+        shadowOpacity: 0.16,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 6,
     },
-    ctaBtn: { borderRadius: 999, overflow: 'hidden', paddingHorizontal: 32, paddingVertical: 15, minWidth: 124, alignItems: 'center', justifyContent: 'center' },
+    ctaGlass: {
+        height: 58, borderRadius: 999, overflow: 'hidden',
+        alignItems: 'center', justifyContent: 'center',
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)',
+        backgroundColor: 'rgba(255,255,255,0.12)',
+    },
+    ctaGlassRim: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.85)' },
     ctaSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '52%' },
-    ctaBtnText: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: '#fff' },
+    ctaGlassText: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: INK, letterSpacing: 0.2 },
 });
