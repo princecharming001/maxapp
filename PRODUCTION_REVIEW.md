@@ -363,6 +363,15 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
         methods now `throw` when `!__DEV__` — triple-layer defense (UI gate + this
         api guard + backend 404). tsc clean; dev flows unaffected.
 
+- [x] Notification deep-links resolve to real routes. **2026-06-26 (iter 25):
+      verified.** `NOTIFICATION_DEEP_LINK_ROUTES` (App.tsx:57) = Home, TaskGuide,
+      Achievements, Profile, ProgressArchive — all 5 are registered navigator
+      routes (Home = tab; the rest = RootNavigator Stack.Screens). No broken/typo'd
+      route. Notes: TaskGuide needs `scheduleId`/`taskId` in the notification
+      payload to render content (backend payload concern); routes resolve only in
+      the matching (paid) stack — deferred safely via `pendingDeepLinkRef` until
+      the nav is ready.
+
 ## P3 — POLISH
 
 - [ ] Copy/typo sweep on user-facing strings of walked screens.
@@ -566,3 +575,7 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   gap); fixed the one real auth gap (ForgotPassword country-modal Close button →
   added accessibilityLabel + role). Remaining a11y sweep is non-auth headers
   (P3, non-blocking).
+- 2026-06-26 (iter 25): **Notification deep-link routes verified** — all 5
+  (Home/TaskGuide/Achievements/Profile/ProgressArchive) are real registered
+  routes; no broken taps. Noted TaskGuide needs payload params + paid-stack
+  resolution (deferred safely). No code change.
