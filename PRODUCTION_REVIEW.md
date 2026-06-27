@@ -160,8 +160,9 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       FaceScanResults postPay reveal renders (Rating/Appeal/Potential rings,
       "Get started"). Still TODO: camera permission prompt + capture flow; free vs
       premium gating.
-- [ ] Explore / Marketplace — cards/detail/start program. (iter 3: pending, see
-      Planner note.)
+- [~] Explore / Marketplace — **mounts & renders its loading state on sim
+      2026-06-26 (iter 4)** ("Loading Explore" spinner). Confirm content load +
+      card detail + start-program next pass.
 - [x] Chat / Coach (`screens/chat/MaxChatScreen.tsx`) — **render-verified on sim
       2026-06-26**: "What can I help with?", suggestion chips (Build my plan / skin
       / Rate my routine), "Ask Max anything" composer. TODO: send a real message +
@@ -196,9 +197,14 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
     (glass-redo remnant; the app moved to the flat "Craft" aesthetic — check if
     GlassCard/Tamagui are still used anywhere; if dead, remove).
   - `tamagui.config.ts:21` — `tokens.color` missing (same glass-redo remnant).
-  - `screens/profile/ProfileScreen.tsx:696` — references undefined style
-    `s.chadliteNote` (real bug — that row renders with no style; add the style
-    or drop the reference).
+  - `screens/profile/ProfileScreen.tsx:696` — ✅ FIXED 2026-06-26 (iter 4): the
+    Chad-Lite note read `p.chadliteNote` but the style lives in the `styles`
+    sheet → it was rendering UNSTYLED on the live Profile screen. Repointed to
+    `styles.chadliteNote`; tsc confirms the error is gone.
+  - **NOTE: `tsc` total is 9 errors (all pre-existing, none from this review).**
+    Beyond GlassCard/tamagui above, ~6 more remain (mostly the glass/Tamagui
+    `todayV2`-gated path). Enumerate + clear (or delete the dead glass path) in a
+    focused pass; a non-compiling tsc shouldn't ship.
 - [ ] App launches with no redbox (`smoke_no_redbox.yaml`); no console errors on
       each tab's first render.
 - [ ] Every screen has sane empty / loading / error states (no infinite spinners,
@@ -259,5 +265,11 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   tour wedge (P0 fix holds). Diagnosed & killed a hung iteration-1 maestro
   process that had been colliding with every run (root of the flaky failures) —
   documented the gotcha. Remaining: Planner, Explore, Settings + functional
-  (not just render) checks — resume next pass (harness now clean; app on Login,
-  re-enter via DevDrawer→paid or real login).
+  (not just render) checks — resume next pass.
+- 2026-06-26 (iter 4): Fixed ProfileScreen Chad-Lite note (was rendering
+  unstyled — `p.` vs `styles.` sheet mixup); tsc confirms resolved. Found tsc
+  total is 9 pre-existing errors (logged under P2). Env note: the Expo dev client
+  dropped to its launcher mid-walk (lost bundle) — recovered by terminate+launch
+  com.cannon.mobile (Metro still up on :8081); app back in the paid account,
+  Explore tab mounts ("Loading Explore"). Screen-walk env is fragile under
+  repeated relaunches — drive deliberately, one Maestro session at a time.

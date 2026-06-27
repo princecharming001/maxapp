@@ -693,7 +693,7 @@ export default function ProfileScreen() {
                             onScanDay={() => navigation.navigate('FaceScan')}
                         />
                         {isPaid && !isPremium && (
-                            <Text style={p.chadliteNote}>
+                            <Text style={styles.chadliteNote}>
                                 Snap photos any day, they track here. A daily face rating is a Chad feature.
                             </Text>
                         )}

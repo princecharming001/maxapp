@@ -1,12 +1,24 @@
-# Production screen walk — navigate deterministically (the app restores the
-# last-active tab on launch, so we tap Home first) and assert a screen-specific
-# element on each tab as the render gate. Ends on Explore for a simctl capture.
+# Production screen walk — self-contained. Re-enters the paid app via the
+# DevDrawer if logged out (faux paid account → also exercises post-pay + the
+# main-app tour, verifying the orphan-step fix end-to-end), then walks the tabs
+# asserting a screen-specific element on each as the render gate.
+# NOTE: kill any stray `maestro` process before running (concurrent sessions
+# collide on the device driver).
 appId: com.cannon.mobile
 ---
 - launchApp
 - waitForAnimationToEnd:
     timeout: 8000
-# If parked on the post-pay scan reveal, finish it to reach Home.
+# Re-enter the paid app if we're on the Login screen.
+- runFlow:
+    when:
+      visible: "Continue with Apple"
+    commands:
+      - tapOn: "DEV"
+      - tapOn: "Paid"
+      - waitForAnimationToEnd:
+          timeout: 9000
+# Post-pay scan reveal (fresh paid account) — finish it to reach Home.
 - runFlow:
     when:
       visible: "Potential"
@@ -19,7 +31,9 @@ appId: com.cannon.mobile
       - tapOn: "Get started"
       - waitForAnimationToEnd:
           timeout: 6000
-# Dismiss the main-app tour if it auto-started.
+# Main-app tour auto-starts for the fresh account. Its presence ("Skip" button)
+# proves it RENDERS instead of wedging (the P0 fix); dismissing it and then
+# tapping through the tabs proves the app is interactive afterwards.
 - runFlow:
     when:
       visible: "Skip"
@@ -27,13 +41,7 @@ appId: com.cannon.mobile
       - tapOn: "Skip"
       - waitForAnimationToEnd:
           timeout: 2500
-# ── Home ──
 - tapOn: "Home"
 - assertVisible: "HABITS"
-# ── Planner ──
 - tapOn: "Planner"
 - assertVisible: "Commitments"
-# ── Explore (end here for simctl capture) ──
-- tapOn: "Explore"
-- waitForAnimationToEnd:
-    timeout: 5000
