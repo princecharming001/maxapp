@@ -1,0 +1,52 @@
+appId: com.cannon.mobile
+---
+# Part A regression: onboarding decision taps register and advance the flow
+# (guards the "buttons not tappable / screen freezes" regression fixed by the
+# picker-Modal-deadlock fix in OnboardingV2Screen). Each step asserts the tap
+# took effect by asserting the NEXT screen/state appears — a frozen JS thread or
+# a leaked full-screen Modal would make these taps no-ops and fail the assert.
+#
+# Precondition: a logged-in, NOT-yet-onboarded user on the OnboardingV2 goal
+# screen (same precondition the existing onboarding_v2_flow.yaml relies on; reach
+# it via the DEV drawer → "Onboarding", which faux-fresh-signs-up an empty user).
+- launchApp:
+    clearState: false
+- waitForAnimationToEnd:
+    timeout: 20000
+
+# ── Step 1: goals — tap two tiles, Continue must become reachable ──
+- assertVisible: "What are we"
+- tapOn:
+    text: "Skinmax"
+- tapOn:
+    text: "Fitmax"
+- takeScreenshot: onb_tap_goals
+# Continue is enabled once a goal is picked; tapping it must ADVANCE (proves the
+# tile taps registered AND the Continue button is live, not frozen).
+- tapOn:
+    text: "Continue"
+- extendedWaitUntil:
+    visible: "What's pulling"
+    timeout: 10000
+
+# ── Step 2: motivation — pick "Something else", the text box must appear ──
+- tapOn:
+    text: "Something else"
+- assertVisible:
+    id: "Your reason"
+- tapOn:
+    id: "Your reason"
+- inputText: "want to feel sharper for my wedding"
+- takeScreenshot: onb_tap_motivation_other
+# With a typed reason, Continue is enabled; tapping it must advance off the
+# motivation step (proves the option tap, the text input, and Continue all work).
+- tapOn:
+    text: "Continue"
+- waitForAnimationToEnd:
+    timeout: 6000
+- assertNotVisible: "What's pulling"
+
+# The app did not freeze or redbox while we drove these decisions.
+- assertNotVisible: "Something went wrong"
+- assertNotVisible: "Invariant Violation"
+- takeScreenshot: onb_tap_regression_pass
