@@ -6,6 +6,11 @@ appId: com.cannon.mobile
     clearState: false
 - waitForAnimationToEnd:
     timeout: 15000
+# PRECONDITION: app left on the Home tab. The app restores the last-active tab
+# on launch, and Maestro can't reliably switch tabs in this app — the frosted
+# tab bar + new architecture don't expose the tab labels to Maestro's text
+# matcher (tapOn:"Home" → "element not found") and coordinate taps are unreliable.
+# See PRODUCTION_REVIEW "Needs Human Decision": add tabBarButtonTestID to tabs.
 - assertVisible: "HABITS"
 - assertNotVisible: "Something went wrong"
 - assertNotVisible: "Error"

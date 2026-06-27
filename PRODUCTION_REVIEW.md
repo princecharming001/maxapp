@@ -153,9 +153,10 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       (iter 3)**: day strip, HABITS list, empty state ("No habits… Start a
       program"), personalized "Ready to start on Fitmax? Explore has a plan" CTA.
       Launches clean with NO tour wedge (P0 fix holds on the normal path).
-- [ ] Planner (`screens/profile/DayPlannerScreen.tsx`) — timeline,
-      direct-manipulation edits, add/move blocks. (iter 3: navigation blocked by a
-      stray-maestro collision; resume next pass — harness now fixed.)
+- [x] Planner (`screens/profile/DayPlannerScreen.tsx`) — **render-verified on sim
+      2026-06-26 (iter 8)**: "Your week" timeline with day strip + scheduled blocks
+      (Wake / Get ready / Commute / Work / Workout / Wind down), Today + add/chat
+      header actions. Direct-manipulation edit testing still TODO.
 - [x] Scan center button → FaceScan results — **render-verified on sim 2026-06-26**:
       FaceScanResults postPay reveal renders (Rating/Appeal/Potential rings,
       "Get started"). Still TODO: camera permission prompt + capture flow; free vs
@@ -209,8 +210,10 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
     Beyond GlassCard/tamagui above, ~6 more remain (mostly the glass/Tamagui
     `todayV2`-gated path). Enumerate + clear (or delete the dead glass path) in a
     focused pass; a non-compiling tsc shouldn't ship.
-- [ ] App launches with no redbox (`smoke_no_redbox.yaml`); no console errors on
-      each tab's first render.
+- [x] App launches with no redbox (`smoke_no_redbox.yaml`). **2026-06-26 (iter 8):
+      `maestro test smoke_no_redbox` PASSES** — cold launch, no "Something went
+      wrong"/"Error"/"Invariant Violation"/"TypeError" overlay (EXIT 0). Per-tab
+      first-render console-error check still TODO.
 - [ ] Every screen has sane empty / loading / error states (no infinite spinners,
       no raw error objects shown to users).
 - [ ] Offline / flaky-network behavior is graceful (resilience layer is in place —
@@ -283,6 +286,15 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   components + the Tamagui dependency would clear the last 5 tsc errors and shrink
   the bundle. If todayV2 is still planned, the Tamagui token typing needs a real
   fix instead. Needs a product decision before acting (don't delete autonomously).
+- **E2E test-infra: Maestro can't reliably navigate the bottom tabs.** The
+  frosted tab bar (`TabBarFrost` BlurView) + `newArchEnabled: true` mean the tab
+  labels aren't exposed to Maestro's text matcher — `tapOn: "Home"/"Planner"/…`
+  intermittently fails "element not found", and coordinate taps are brittle. This
+  makes the whole `discovery_*` / tab-walk suite flaky in CI. FIX: give each tab a
+  stable id — `options={{ tabBarButtonTestID: 'tab-home' }}` (or a custom
+  `tabBarButton` with `testID`) in TabNavigator.tsx — then flows use
+  `tapOn: { id: 'tab-home' }`. Low-risk but touches nav; flagging rather than
+  doing mid-review. (Screens themselves render fine — verified via screenshots.)
 
 ## ACCEPTED / DEFERRED (with reason)
 - **5 tsc errors in `components/glass/GlassCard.tsx` (29,38) +
@@ -339,3 +351,9 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   notifications plugin + aps-environment + UIBackgroundModes); Android declared;
   export-compliance flag set. Graceful denial everywhere (camera→Settings
   redirect, photos/notifications/calendar all degrade, no crash). No change needed.
+- 2026-06-26 (iter 8): **smoke_no_redbox PASSES** (cold launch, no error overlay,
+  EXIT 0). Planner tab render-verified (screenshot). Discovered Maestro can't
+  reliably tap this app's frosted tab bar (labels not exposed to the text matcher
+  under new arch; coordinate taps brittle) → flagged as test-infra Needs-Human-
+  Decision (add tabBarButtonTestID). Reverted the home_dashboard_render tap
+  experiment; documented its on-Home precondition. Screens render fine.
