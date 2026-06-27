@@ -38,6 +38,17 @@ import {
     View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
+
+// Per-Max glossy icons (the same art used on Explore). Shown in the focus picker
+// in place of flat glyphs.
+const MAXX_THUMBS: Record<string, any> = {
+    skinmax: require('../../assets/maxxThumbs/cut/skinmax.png'),
+    fitmax: require('../../assets/maxxThumbs/cut/fitmax.png'),
+    hairmax: require('../../assets/maxxThumbs/cut/hairmax.png'),
+    heightmax: require('../../assets/maxxThumbs/cut/heightmax.png'),
+    bonemax: require('../../assets/maxxThumbs/cut/bonemax.png'),
+};
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -726,7 +737,11 @@ export default function OnboardingV2Screen() {
                                 accessibilityLabel={t.label}
                             >
                                 <View style={styles.tileIcon}>
-                                    <Ionicons name={t.icon as any} size={19} color={INK} />
+                                    {MAXX_THUMBS[t.id] ? (
+                                        <ExpoImage source={MAXX_THUMBS[t.id]} style={styles.tileThumb} contentFit="contain" />
+                                    ) : (
+                                        <Ionicons name={t.icon as any} size={19} color={INK} />
+                                    )}
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={[styles.tileLabel, active && styles.tileLabelActive]}>{t.label}</Text>
@@ -1180,7 +1195,9 @@ const styles = StyleSheet.create({
         backgroundColor: ICON_BG,
         alignItems: 'center', justifyContent: 'center',
         marginRight: 14,
+        overflow: 'hidden',
     },
+    tileThumb: { width: 34, height: 34 },
     tileLabel: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: INK },
     tileLabelCenter: { flex: 1, textAlign: 'center' },
     tileLabelActive: { color: ON_INK },
