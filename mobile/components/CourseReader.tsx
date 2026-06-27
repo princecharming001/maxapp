@@ -207,9 +207,6 @@ export default function CourseReader({
             <View style={[styles.root, { paddingTop: insets.top }]} onLayout={onLayout}>
                 {/* ── Top bar ─────────────────────────────────────────── */}
                 <View style={styles.topBar}>
-                    <Text style={styles.topMeta}>
-                        {`CH ${current?.chapter.number.toString().padStart(2, '0')}  ·  § ${current?.section.number}`}
-                    </Text>
                     <TouchableOpacity
                         onPress={onClose}
                         style={styles.closeBtn}
@@ -350,9 +347,6 @@ function Slide({ section, course, width }: SlideProps) {
                     core glow + soft warm/cool mesh) with a blurred contact
                     shadow — no rings, no flat disc. Purely decorative. */}
                 <View style={slide.visualBlock}>
-                    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-                        <SlideField accent={accent} />
-                    </View>
                     <Animated.View
                         pointerEvents="none"
                         style={[slide.shadowWrap, { opacity: shOpacity, transform: [{ scaleX: shScale }, { scaleY: shScale }] }]}
@@ -403,7 +397,7 @@ const styles = StyleSheet.create({
     topBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         paddingHorizontal: spacing.lg,
         paddingTop: spacing.md,
         paddingBottom: 6,
