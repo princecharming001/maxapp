@@ -192,10 +192,14 @@ def validate_claims_for_user(claims: Dict[str, Any], expected_user_id: str) -> N
 
     token = claims.get("appAccountToken")
     if token and str(token).lower() != str(expected_user_id).lower():
+        # A present appAccountToken that doesn't match the authenticated caller
+        # means this transaction was bound to a DIFFERENT account (e.g. a replayed
+        # transaction_id from another user). Reject so we never activate the wrong
+        # account. Legacy purchases with no appAccountToken are still tolerated.
         logger.warning(
-            "appAccountToken mismatch (token=%s, user=%s) — accepting anyway since client does not set it",
-            token, expected_user_id,
+            "appAccountToken mismatch (token=%s, user=%s) — rejecting", token, expected_user_id,
         )
+        raise ValueError("account_token_mismatch")
 
 
 def decode_notification_payload(signed_payload: str) -> Dict[str, Any]:
