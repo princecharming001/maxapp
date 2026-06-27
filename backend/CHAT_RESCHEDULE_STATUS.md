@@ -27,9 +27,14 @@ deterministic. Commits are per phase.
 - **RC7** Yes/No render as buttons with testIDs `chat-confirm-yes` / `chat-confirm-no`;
   composer `chat-composer`, send `chat-send`. No focuses the composer; `confirmInFlight`
   disables both buttons (no double-submit). tsc clean (baseline), smoke green.
-- **RC8** `test_chat_reschedule.py` — 8/8 pass. Existing chat/agent/persona tests stay
-  green: 120 passed across test_chat_*, test_prompt_audit, test_finalize_casing,
-  test_fitmax_diet, test_onboarding_multi_custom; the single
+- **RC8** `test_chat_reschedule.py` — 11/11 pass (incl. a tool-level integration test
+  that drives `propose_schedule_change.ainvoke` and asserts the proposal surfaces to
+  the response sink while NOTHING is mutated, and all four dispatch primitives). Note:
+  the proposal is surfaced via a MUTABLE per-turn sink that the tool mutates — NOT a
+  contextvar.set — because langchain runs the tool coroutine in a copied context where
+  a re-set would not propagate (mirrors the recommended-products sink). Existing
+  chat/agent/persona tests stay green: 100+ passed across test_chat_*, test_prompt_audit,
+  test_finalize_casing, test_fitmax_diet, test_onboarding_multi_custom; the single
   `test_chat_routing::...routes_knowledge_away...` failure is a PRE-EXISTING FakeDB
   harness limitation (chat.py:2296, byte-identical to baseline commit 2ef939c6),
   unrelated to this change. Maestro: see below.
