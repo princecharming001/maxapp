@@ -232,7 +232,7 @@ const p = StyleSheet.create({
     maxChipText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: INK, letterSpacing: -0.1 },
     segRow: { flexDirection: 'row', gap: 5 },
     seg: { flex: 1, height: 5, borderRadius: 3 },
-    segOff: { opacity: 0.16 },
+    segOff: { backgroundColor: 'rgba(0,0,0,0.08)' },
 
     daysRow: { flexDirection: 'row', gap: 7, marginBottom: 16 },
     dayPill: { flex: 1, height: 52, borderRadius: 16, backgroundColor: '#F2F1EF', alignItems: 'center', justifyContent: 'center', gap: 6 },
@@ -648,15 +648,19 @@ export default function ProfileScreen() {
                             </View>
                         </View>
                         <View style={p.segRow}>
-                            {Array.from({ length: totalMaxes }).map((_, i) => (
-                                <LinearGradient
-                                    key={i}
-                                    colors={[segGradColor(i / totalMaxes), segGradColor((i + 1) / totalMaxes)]}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={[p.seg, i >= maxesActive && p.segOff]}
-                                />
-                            ))}
+                            {Array.from({ length: totalMaxes }).map((_, i) =>
+                                i < maxesActive ? (
+                                    <LinearGradient
+                                        key={i}
+                                        colors={[segGradColor(i / totalMaxes), segGradColor((i + 1) / totalMaxes)]}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={p.seg}
+                                    />
+                                ) : (
+                                    <View key={i} style={[p.seg, p.segOff]} />
+                                )
+                            )}
                         </View>
                     </View>
 
