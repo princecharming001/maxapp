@@ -47,20 +47,22 @@ default is the chat or editing 7 days by hand — fix that.
   default-day button, `[weekday]` from a strip day → preserves existing per-day
   behaviour exactly. tsc clean (5 known glass errors only). sim-unverified (driver
   unstable); logic is straightforward + type-checked.
-- [ ] **U3 — Per-block repeat (the routine builder).** In the default-day editor,
-  a COMPACT "Repeat: Every day ▾" control per block (Wake/Sleep/Get-ready/Workout)
-  so e.g. workout = Mon/Wed/Fri while wake = every day. Implement by writing that
-  block's values into the chosen weekdays' overrides (clearing elsewhere). Keep it
-  compact (chip + small menu) — NOT a sheet redesign. If it can't be done without a
-  big rework, ship U1+U2 and move this to "Deferred" with the reason.
-- [ ] **U4 — Scope caption.** Under each block show "applies to: every day" /
-  "Mon, Wed, Fri" so scope is always visible. Small.
-- [ ] **U5 — Single-time default + optional ± range.** Wake/sleep default to a
-  single time ("Wake 7:00") with an optional range toggle, to cut the up-front
-  window decision. Keep the window model underneath. Smaller/optional.
-- [ ] **U6 — Integrity pass.** Edited-dot shows on every overridden day;
-  "reset to default" works after multi-day writes; `serializeWeekly` /
-  `dayPartialToServer` payload still correct; no orphan overrides left behind.
+- [→] **U3 — Per-block repeat (the routine builder). DEFERRED** (see Deferred).
+- [→] **U4 — Scope caption. DEFERRED** (see Deferred).
+- [→] **U5 — Single-time default + optional ± range. DEFERRED** (see Deferred).
+- [x] **U6 — Integrity pass.** DONE 2026-06-27 (verified by construction + tsc):
+  - Edited-dot: the strip uses `edited={hasOverride(weekly, d.key)}`, so after a
+    Weekdays/Weekends write every targeted weekday lights its dot. ✓
+  - Reset: `commitRecurrence` writes minimal partials diffed vs defaults, and
+    deletes a weekday's override when the partial is empty — so editing a day back
+    to base self-clears, and the per-day "Reset this day to your default" still
+    works. (Multi-day bulk-reset is a per-day tap; acceptable, noted below.) ✓
+  - Payload: `serializeWeekly` iterates WEEKDAYS and emits any non-empty
+    `weekly[key]`; the new multi-day writes use the same partial shape, so the
+    `/users/onboarding` payload + `regenerate_active_schedules` are unchanged. ✓
+  - No orphan overrides: empty partials are deleted, not stored. ✓
+  - Minor follow-up (logged, non-blocking): a one-tap "reset all weekdays/weekends"
+    would be nicer than resetting each day; not required for correctness.
 
 ## OUT OF SCOPE (defer — do NOT build here)
 Timeline visual redesign; new screens; commitments/obligations rework (already has
@@ -89,7 +91,23 @@ recurrence); meal/dinner anchors; one-time non-recurring blocks; undo/history.
 When all hold, output exactly: `<promise>PLANNER REDESIGN COMPLETE</promise>`
 
 ## DEFERRED (with reason)
-- (none yet)
+- **U3 — per-block repeat (workout = Mon/Wed/Fri while wake = every day in ONE
+  save).** Needs a data-model + backend change: `workoutWindow` is **default-level
+  only** in `DayShape` (no per-day workout), and per-field day-sets would require
+  the commit + sheet to emit a target *per block* instead of per edit. That exceeds
+  the "small additive control / no huge UI changes" guardrail. **Outcome is already
+  reachable today** with U1+U2: edit workout → Apply to "Weekdays" (or pick), then
+  edit wake → Apply to "Every day" (two quick saves instead of one). Recommend as a
+  focused follow-up (add per-day workout to the model/backend first) if you want it
+  one-shot — your call.
+- **U4 — per-block "applies to" caption.** Depends on U3 (no per-block day-set
+  exists without it), and you said the labeling/mental-model work is "kind of
+  unnecessary." The Apply-to chips already make the edit scope explicit.
+- **U5 — single-time default + optional ± range.** The range/exact toggle already
+  exists in the sheet, and the mode is seeded from the stored value (`isExact`), so
+  there's no clean *small* change here — forcing a single-time default risks
+  altering existing window semantics. Low value vs risk; revisit only if users find
+  the window picker confusing.
 
 ## ITERATION LOG
 - (start)
@@ -99,3 +117,9 @@ When all hold, output exactly: `<promise>PLANNER REDESIGN COMPLETE</promise>`
   day/Weekdays/Weekends/This day). P0 (U1+U2) now functionally complete: you can
   set a wake/bedtime once and apply it to every day or weekdays/weekends. tsc
   clean. Next: U3 (per-block repeat) or U4 (scope caption).
+- 2026-06-27 (iter 3): U6 verified (edited-dot / reset / payload all correct after
+  multi-day writes). U3/U4/U5 DEFERRED with reasons (U3 needs per-day-workout
+  model+backend = beyond the no-huge-changes guardrail, and its outcome is already
+  reachable via U2; U4 depends on U3 + is the deprioritized labeling; U5's toggle
+  already exists). Best-effort sim was unavailable (sim showed an unrelated app).
+  All completion criteria met → done.
