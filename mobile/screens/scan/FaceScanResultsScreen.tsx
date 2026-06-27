@@ -1336,7 +1336,7 @@ export default function FaceScanResultsScreen() {
                     {/* ── Verdict: the viral read + the one First Move ─────── */}
                     {!isProcessing ? (
                         <View style={s.verdict}>
-                            {firstMove.length > 0 ? (
+                            {(locked || firstMove.length > 0) ? (
                                 <View style={s.firstMoveCard}>
                                     <View style={{ flex: 1 }}>
                                         <Text style={s.firstMoveKicker}>YOUR FIRST MOVE</Text>
@@ -1356,9 +1356,9 @@ export default function FaceScanResultsScreen() {
                                 </View>
                             ) : null}
 
-                            {(haloFeature || bottleneck) ? (
+                            {(locked || haloFeature || bottleneck) ? (
                                 <View style={s.verdictRow}>
-                                    {haloFeature ? (
+                                    {(locked || haloFeature) ? (
                                         <View style={[s.verdictCard, { borderColor: '#2F6B4E55' }]}>
                                             <View style={[s.verdictDot, { backgroundColor: '#2F6B4E' }]} />
                                             <Text style={s.verdictLabel}>YOUR HALO</Text>
@@ -1366,7 +1366,7 @@ export default function FaceScanResultsScreen() {
                                             <Text style={s.verdictSub}>Your biggest natural edge.</Text>
                                         </View>
                                     ) : null}
-                                    {bottleneck ? (
+                                    {(locked || bottleneck) ? (
                                         <View style={[s.verdictCard, { borderColor: '#C0452C55' }]}>
                                             <View style={[s.verdictDot, { backgroundColor: '#C0452C' }]} />
                                             <Text style={s.verdictLabel}>BOTTLENECK</Text>
@@ -1377,35 +1377,51 @@ export default function FaceScanResultsScreen() {
                                 </View>
                             ) : null}
 
-                            {!locked && (sexAppeal != null || trustAppeal != null) ? (
+                            {(locked || sexAppeal != null || trustAppeal != null) ? (
                                 <View style={s.appealCard}>
                                     <Text style={s.verdictLabel}>SEX APPEAL vs TRUST APPEAL</Text>
-                                    <View style={s.appealRow}>
-                                        <View style={s.appealCol}>
-                                            <Text style={s.appealNum}>{(sexAppeal ?? 0).toFixed(1)}</Text>
-                                            <Text style={s.appealColLabel}>Sex appeal</Text>
+                                    {locked ? (
+                                        <View style={s.appealRow}>
+                                            <View style={s.appealCol}>
+                                                <Text style={s.appealNum}>—</Text>
+                                                <Text style={s.appealColLabel}>Sex appeal</Text>
+                                            </View>
+                                            <View style={s.appealDivider} />
+                                            <View style={s.appealCol}>
+                                                <Text style={s.appealNum}>—</Text>
+                                                <Text style={s.appealColLabel}>Trust appeal</Text>
+                                            </View>
                                         </View>
-                                        <View style={s.appealDivider} />
-                                        <View style={s.appealCol}>
-                                            <Text style={s.appealNum}>{(trustAppeal ?? 0).toFixed(1)}</Text>
-                                            <Text style={s.appealColLabel}>Trust appeal</Text>
-                                        </View>
-                                    </View>
-                                    {appealQuadrant ? <Text style={s.appealQuadrant}>{appealQuadrant}</Text> : null}
+                                    ) : (
+                                        <>
+                                            <View style={s.appealRow}>
+                                                <View style={s.appealCol}>
+                                                    <Text style={s.appealNum}>{(sexAppeal ?? 0).toFixed(1)}</Text>
+                                                    <Text style={s.appealColLabel}>Sex appeal</Text>
+                                                </View>
+                                                <View style={s.appealDivider} />
+                                                <View style={s.appealCol}>
+                                                    <Text style={s.appealNum}>{(trustAppeal ?? 0).toFixed(1)}</Text>
+                                                    <Text style={s.appealColLabel}>Trust appeal</Text>
+                                                </View>
+                                            </View>
+                                            {appealQuadrant ? <Text style={s.appealQuadrant}>{appealQuadrant}</Text> : null}
+                                        </>
+                                    )}
                                 </View>
                             ) : null}
 
-                            {(dimorphism != null || glowUpLabel) ? (
+                            {(locked || dimorphism != null || glowUpLabel) ? (
                                 <View style={s.verdictRow}>
-                                    {dimorphism != null ? (
+                                    {(locked || dimorphism != null) ? (
                                         <View style={[s.verdictCard, { borderColor: '#4A4A7055' }]}>
                                             <View style={[s.verdictDot, { backgroundColor: '#4A4A70' }]} />
                                             <Text style={s.verdictLabel}>DIMORPHISM</Text>
-                                            <Text style={s.verdictValue}>{locked ? '—' : `${dimorphism.toFixed(1)}/10`}</Text>
+                                            <Text style={s.verdictValue}>{locked || dimorphism == null ? '—' : `${dimorphism.toFixed(1)}/10`}</Text>
                                             <Text style={s.verdictSub} numberOfLines={2}>{locked || !dimorphismNote ? 'Masculine vs soft balance.' : dimorphismNote}</Text>
                                         </View>
                                     ) : null}
-                                    {glowUpLabel ? (
+                                    {(locked || glowUpLabel) ? (
                                         <View style={[s.verdictCard, { borderColor: '#BC8B5755' }]}>
                                             <View style={[s.verdictDot, { backgroundColor: '#BC8B57' }]} />
                                             <Text style={s.verdictLabel}>GLOW-UP POTENTIAL</Text>
