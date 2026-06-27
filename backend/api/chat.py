@@ -4623,6 +4623,66 @@ async def _send_message_locked(
     )
 
 
+class ConfirmChangeRequest(BaseModel):
+    proposal_id: str
+    # "yes" applies the EXACT stored proposal; "no" rejects + re-prompts.
+    decision: str = "yes"
+
+
+@router.post(
+    "/confirm-change",
+    dependencies=[Depends(rate_limit(limit=30, window_s=60, scope="chat"))],
+)
+async def confirm_schedule_change(
+    data: ConfirmChangeRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Apply (Yes) or reject (No) a chat-proposed schedule change.
+
+    Yes executes the proposal's stored deterministic action — NOT a fresh LLM
+    call — so the user gets exactly what was shown. Atomic + idempotent (a double
+    Yes does not double-apply). On success the schedule + Planner reflect it
+    immediately (the client invalidates the schedule caches). RALPH_CHAT_RESCHEDULE
+    Phase 2/3.
+    """
+    from services.schedule_change_service import apply_proposal, reject_proposal
+
+    user_id = current_user["id"]
+    decision = (data.decision or "yes").strip().lower()
+    pid = (data.proposal_id or "").strip()
+    if not pid:
+        raise HTTPException(status_code=400, detail="proposal_id required")
+    try:
+        UUID(pid)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="invalid proposal_id")
+
+    # Serialize with the user's chat lock so a Yes can't race an in-flight turn.
+    user_lock = await _get_user_chat_lock(user_id)
+    async with user_lock:
+        if decision in ("no", "reject", "false"):
+            ok, message = await reject_proposal(db, user_id, pid)
+            applied = False
+        else:
+            ok, message = await apply_proposal(db, user_id, pid)
+            applied = ok
+
+    # Persist the assistant's confirmation/re-prompt into the thread so it shows
+    # on reload, mirroring the normal turn's assistant row.
+    if message:
+        try:
+            db.add(ChatHistory(user_id=UUID(user_id), role="assistant", content=message, channel="app"))
+            await db.commit()
+        except Exception:
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+
+    return {"ok": ok, "applied": applied, "message": message}
+
+
 @router.post("/transcribe")
 async def transcribe_audio(
     file: UploadFile = File(...),
