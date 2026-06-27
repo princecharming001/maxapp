@@ -204,8 +204,7 @@ export default function PaymentScreen() {
             <View style={[s.content, { paddingTop: Math.max(insets.top + 16, 60), paddingBottom: Math.max(insets.bottom + 20, 36) }]}>
 
                 {/* Title — sits just below skip, no dead space */}
-                <Text style={s.title}>Max <Text style={s.titleI}>Pro</Text></Text>
-                <Text style={s.subtitle}>Unlock your potential</Text>
+                <Text style={s.title}>Unlock your <Text style={s.titleI}>potential</Text></Text>
 
                 {/* Feature card — flex:1 fills all space between subtitle and plan picker */}
                 <View style={s.featureCard}>
