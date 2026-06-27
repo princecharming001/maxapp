@@ -125,9 +125,28 @@ export default function ChannelChatScreen() {
             }
         };
 
+        const scheduleReconnect = () => {
+            if (cancelled) return;
+            const delay = Math.min(30000, 1000 * Math.pow(2, attempt));
+            attempt += 1;
+            reconnectTimer = setTimeout(connect, delay);
+        };
+
         const connect = () => {
             void (async () => {
-                const url = await api.getForumChannelWebSocketUrl(channelId);
+                let url: string | null = null;
+                try {
+                    url = await api.getForumChannelWebSocketUrl(channelId);
+                } catch (e) {
+                    // Network/5xx while fetching the WS url: don't silently
+                    // dead-end real-time chat (messages still load over REST).
+                    // Retry with the same backoff the close handler uses.
+                    if (!cancelled) {
+                        console.warn('[forum-ws] could not get socket url, retrying', e);
+                        scheduleReconnect();
+                    }
+                    return;
+                }
                 if (!url || cancelled) return;
                 const ws = new WebSocket(url);
                 forumWsRef.current = ws;
@@ -144,9 +163,7 @@ export default function ChannelChatScreen() {
                     wsConnectedRef.current = false;
                     if (forumWsRef.current === ws) forumWsRef.current = null;
                     if (cancelled) return;
-                    const delay = Math.min(30000, 1000 * Math.pow(2, attempt));
-                    attempt += 1;
-                    reconnectTimer = setTimeout(connect, delay);
+                    scheduleReconnect();
                 };
             })();
         };
