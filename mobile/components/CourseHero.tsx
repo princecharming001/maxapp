@@ -141,13 +141,21 @@ export default function CourseHero({
 
     return (
         <View style={styles.wrap}>
-            {/* ── Hero plate — drifting aurora, the icon floats in light ───── */}
-            <View style={[styles.heroCard, { marginTop: Math.max(insets.top, 12) + 4 }]}>
+            {/* ── Edgeless brand bloom — the jelly floats in light and dissolves
+                into the cream page. No boxed plate, no border (airy, editorial,
+                like Explore). ──────────────────────────────────────────────── */}
+            <View style={styles.heroBloom}>
                 <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-                    <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FBF9F6' }]} />
                     <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX: driftX }, { translateY: driftY }, { scale: driftScale }] }]}>
                         <HeroAurora accent={accent} />
                     </Animated.View>
+                    {/* dissolve the bloom into the cream page (bottom + a touch at top) */}
+                    <LinearGradient
+                        pointerEvents="none"
+                        colors={[colors.background, 'rgba(241,241,239,0)', 'rgba(241,241,239,0)', colors.background]}
+                        locations={[0, 0.18, 0.62, 1]}
+                        style={StyleSheet.absoluteFill}
+                    />
                 </View>
 
                 {/* Floating icon cluster (contact shadow + jelly / glass token) */}
@@ -179,22 +187,22 @@ export default function CourseHero({
 
                 <TouchableOpacity
                     onPress={onBack}
-                    style={styles.backBtn}
+                    style={[styles.backBtn, { top: Math.max(insets.top, 12) + 2 }]}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     accessibilityLabel="Back"
                     activeOpacity={0.8}
                 >
                     <Ionicons name="chevron-back" size={22} color={colors.foreground} />
                 </TouchableOpacity>
+            </View>
 
+            {/* ── Title block (below the bloom, ink on cream) ──────── */}
+            <View style={styles.titleBlock}>
                 <View style={styles.heroEyebrowWrap}>
                     <View style={[styles.eyebrowDot, { backgroundColor: accent }]} />
                     <Text style={styles.heroEyebrow}>{creator ? 'CREATOR COURSE' : 'COURSE'}</Text>
                 </View>
-            </View>
 
-            {/* ── Title block (below the card, ink on cream) ──────── */}
-            <View style={styles.titleBlock}>
                 {creator ? (
                     <View style={styles.bylineRow}>
                         <Text style={styles.bylineLabel}>BY {creator.name.toUpperCase()}</Text>
@@ -227,17 +235,10 @@ const styles = StyleSheet.create({
     wrap: {
         backgroundColor: colors.background,
     },
-    heroCard: {
-        height: 196,
-        marginHorizontal: spacing.lg,
-        borderRadius: 28,
+    heroBloom: {
+        height: 312,
         overflow: 'hidden',
-        justifyContent: 'flex-start',
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(0,0,0,0.06)',
-        ...(Platform.OS === 'ios'
-            ? { shadowColor: '#3A352B', shadowOpacity: 0.13, shadowRadius: 24, shadowOffset: { width: 0, height: 14 } }
-            : { elevation: 6 }),
+        backgroundColor: colors.background,
     },
     iconStage: {
         position: 'absolute',
@@ -294,12 +295,10 @@ const styles = StyleSheet.create({
             : { elevation: 2 }),
     },
     heroEyebrowWrap: {
-        position: 'absolute',
-        left: 18,
-        bottom: 18,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 7,
+        marginBottom: 14,
     },
     eyebrowDot: {
         width: 6,
@@ -315,7 +314,7 @@ const styles = StyleSheet.create({
 
     titleBlock: {
         paddingHorizontal: spacing.lg,
-        paddingTop: spacing.lg,
+        paddingTop: spacing.sm,
     },
     bylineRow: {
         flexDirection: 'row',
