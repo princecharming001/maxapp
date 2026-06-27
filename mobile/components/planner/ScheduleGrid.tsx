@@ -424,8 +424,8 @@ const styles = StyleSheet.create({
   tick: { width: 3, marginVertical: 7, borderRadius: 2 },
   cardBody: { flex: 1, paddingHorizontal: 11, paddingVertical: 7, justifyContent: 'flex-start' },
   cardBodyTiny: { justifyContent: 'center', paddingVertical: 4 },
-  cardTitle: { fontFamily: fonts.serif, fontSize: 17, color: '#1B2430', letterSpacing: -0.3 },
-  cardTitleNarrow: { fontSize: 14.5 },
+  cardTitle: { fontFamily: fonts.serif, fontSize: 15, color: '#1B2430', letterSpacing: -0.2 },
+  cardTitleNarrow: { fontSize: 13.5 },
   cardTime: { fontFamily: fonts.sans, fontSize: 11.5, color: '#6B7480', marginTop: 3, fontVariant: ['tabular-nums'] },
 
   nowRow: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center' },
