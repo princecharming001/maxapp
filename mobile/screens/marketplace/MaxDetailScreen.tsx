@@ -18,7 +18,6 @@ import {
     View,
     Text,
     StyleSheet,
-    ScrollView,
     TouchableOpacity,
     ActivityIndicator,
     Platform,
@@ -46,11 +45,39 @@ const GOLD = '#2C6BED';
 const ACCENT = '#2F6B4E';
 const HAIRLINE = 'rgba(0,0,0,0.08)';
 const SERIF = 'Fraunces';
-const SERIF_I = 'Fraunces-Italic';
 
 function fmtK(n?: number): string {
     if (!n) return '';
     return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${n}`;
+}
+
+// Glossy 3D "jelly" icons (background-removed) for the native maxes — the brand
+// visual language. 1:1 by lowercased id. Creator courses have no jelly icon and
+// fall back to a brand-tinted serif monogram (NO photos anywhere).
+const NATIVE_THUMBS_CUT: Record<string, any> = {
+    skinmax: require('../../assets/maxxThumbs/cut/skinmax.png'),
+    heightmax: require('../../assets/maxxThumbs/cut/heightmax.png'),
+    hairmax: require('../../assets/maxxThumbs/cut/hairmax.png'),
+    fitmax: require('../../assets/maxxThumbs/cut/fitmax.png'),
+    bonemax: require('../../assets/maxxThumbs/cut/bonemax.png'),
+};
+function jellyThumb(id?: string): any | null {
+    return NATIVE_THUMBS_CUT[String(id || '').toLowerCase()] || null;
+}
+
+/** Brand-tinted serif initial — replaces every avatar/photo on this page. */
+function Monogram({ name, color, size = 42 }: { name?: string; color: string; size?: number }) {
+    const ch = (name || '?').trim().charAt(0).toUpperCase() || '?';
+    return (
+        <View style={{
+            width: size, height: size, borderRadius: size / 2,
+            alignItems: 'center', justifyContent: 'center',
+            backgroundColor: hexA(color, 0.14),
+            borderWidth: StyleSheet.hairlineWidth, borderColor: hexA(color, 0.42),
+        }}>
+            <Text style={{ fontFamily: SERIF, fontSize: Math.round(size * 0.44), color, marginTop: -1 }}>{ch}</Text>
+        </View>
+    );
 }
 
 const VERDICT = {
@@ -117,28 +144,37 @@ function Accordion({ title, badge, children, open, onToggle }: {
 }
 
 /**
- * Full-bleed STATIC image hero (SC9 — no video). The cover image (or a soft
- * accent wash when missing) parallaxes/scales on scroll (SC8) and fades into the
- * cream page. No video player, no "Preview" affordance.
+ * Photo-free editorial hero. The max's glossy 3D "jelly" icon floats on a soft
+ * brand-tinted cream field (a centred glow disc gives the radial-light feel),
+ * fading into the cream page. NO photographs, NO flat color washes posing as art.
+ * For creator courses with no jelly icon, a brand-tinted serif monogram stands in.
+ * The icon gently parallaxes/scales on scroll, then the serif title sits beneath.
  */
-function MediaHero({ cover, base, scrollY }: { cover?: string; base: string; scrollY: Animated.Value }) {
-    const translateY = scrollY.interpolate({ inputRange: [-150, 0, 332], outputRange: [-40, 0, 120], extrapolate: 'clamp' });
-    const scale = scrollY.interpolate({ inputRange: [-150, 0], outputRange: [1.18, 1], extrapolateRight: 'clamp' });
+function JellyHero({ item, base, scrollY }: { item: MarketplaceItem; base: string; scrollY: Animated.Value }) {
+    const thumb = jellyThumb(item.id);
+    const translateY = scrollY.interpolate({ inputRange: [-150, 0, 300], outputRange: [-26, 0, 80], extrapolate: 'clamp' });
+    const scale = scrollY.interpolate({ inputRange: [-150, 0], outputRange: [1.12, 1], extrapolateRight: 'clamp' });
+    const opacity = scrollY.interpolate({ inputRange: [0, 220, 300], outputRange: [1, 0.55, 0.2], extrapolate: 'clamp' });
     return (
         <View style={styles.hero}>
-            <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateY }, { scale }] }]}>
-                {cover ? (
-                    <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
-                ) : (
-                    <View style={[StyleSheet.absoluteFill, { backgroundColor: hexA(base, 0.2) }]} />
-                )}
-            </Animated.View>
+            {/* Brand-tinted cream field — accent only as a soft vertical wash. */}
             <LinearGradient
-                colors={['rgba(0,0,0,0.18)', 'transparent', 'rgba(255,255,255,0)', CANVAS]}
-                locations={[0, 0.3, 0.76, 1]}
+                colors={[hexA(base, 0.16), hexA(base, 0.05), CANVAS]}
+                locations={[0, 0.62, 1]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
                 style={StyleSheet.absoluteFill}
                 pointerEvents="none"
             />
+            <Animated.View style={[styles.heroIconWrap, { opacity, transform: [{ translateY }, { scale }] }]}>
+                {/* Soft radial glow disc behind the icon */}
+                <View style={[styles.heroGlow, { backgroundColor: hexA(base, 0.18) }]} />
+                {thumb ? (
+                    <Image source={thumb} style={styles.heroThumb} contentFit="contain" transition={260} />
+                ) : (
+                    <Monogram name={item.title} color={base} size={132} />
+                )}
+            </Animated.View>
         </View>
     );
 }
@@ -318,7 +354,6 @@ export default function MaxDetailScreen() {
     const d = item.detail || {};
     const isCourse = !item.native;
     const base = item.color || GOLD;
-    const quote = d.reviews?.[0];
     // Price anchor — a weekly sub framed per day reads far smaller than "/wk".
     const perDay = item.price_cents ? `$${((item.price_cents / 100) / 7).toFixed(2)}` : null;
 
@@ -394,7 +429,7 @@ export default function MaxDetailScreen() {
                 scrollEventThrottle={16}
                 onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
             >
-                <MediaHero cover={item.image_url} base={base} scrollY={scrollY} />
+                <JellyHero item={item} base={base} scrollY={scrollY} />
 
                 {/* Header — type-led, no templated icon chip. */}
                 <View style={styles.header}>
@@ -412,28 +447,10 @@ export default function MaxDetailScreen() {
                     <StatsGrid item={item} isCourse={isCourse} />
                 </View>
 
-                {/* Social proof — native maxes (courses carry it in the creator row). */}
-                {!isCourse && (item.rating || item.participants) ? (
-                    <View style={styles.socialRow}>
-                        {item.rating ? <Stars n={item.rating} /> : null}
-                        <Text style={styles.socialText}>
-                            {item.rating ? item.rating.toFixed(1) : ''}
-                            {item.rating && item.participants ? '   ·   ' : ''}
-                            {item.participants ? `${fmtK(item.participants)} on this plan` : ''}
-                        </Text>
-                    </View>
-                ) : null}
-
                 {/* Creator — courses only. */}
                 {isCourse ? (
                     <View style={styles.creatorRow}>
-                        {item.creator.avatar ? (
-                            <Image source={{ uri: item.creator.avatar }} style={styles.avatar} contentFit="cover" transition={150} />
-                        ) : (
-                            <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: hexA(base, 0.18) }]}>
-                                <Ionicons name="person" size={16} color={base} />
-                            </View>
-                        )}
+                        <Monogram name={item.creator.name} color={base} size={42} />
                         <View style={{ flex: 1 }}>
                             <Text style={styles.creatorName}>{item.creator.name}{item.creator.verified ? '  ✓' : ''}</Text>
                             <Text style={styles.creatorHandle}>@{item.creator.handle}</Text>
@@ -449,18 +466,6 @@ export default function MaxDetailScreen() {
 
                 {/* The promise. */}
                 {d.long_description ? <Text style={styles.lead}>{d.long_description}</Text> : null}
-
-                {/* A look inside — static imagery (videos removed, SC9). */}
-                {d.gallery && d.gallery.length > 1 ? (
-                    <View style={styles.galleryBlock}>
-                        <Text style={[styles.sectionLabel, styles.galleryLabel]}>A look inside</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
-                            {d.gallery.map((g, i) => (
-                                <Image key={i} source={{ uri: g }} style={styles.galleryImg} contentFit="cover" transition={200} />
-                            ))}
-                        </ScrollView>
-                    </View>
-                ) : null}
 
                 {/* Fits your week. */}
                 <View style={styles.block}>
@@ -482,14 +487,6 @@ export default function MaxDetailScreen() {
                                 </View>
                             ))}
                         </View>
-                    </View>
-                ) : null}
-
-                {/* One honest line of proof — native maxes keep it to one quote. */}
-                {!isCourse && quote ? (
-                    <View style={styles.block}>
-                        <Text style={styles.pullQuote}>“{quote.text}”</Text>
-                        <Text style={styles.pullAttr}>— {quote.name}</Text>
                     </View>
                 ) : null}
 
@@ -547,9 +544,7 @@ export default function MaxDetailScreen() {
                     <View style={styles.block}>
                         <Text style={styles.sectionLabel}>Your instructor</Text>
                         <View style={styles.creatorRowInline}>
-                            {item.creator.avatar ? (
-                                <Image source={{ uri: item.creator.avatar }} style={styles.avatarLg} contentFit="cover" transition={150} />
-                            ) : null}
+                            <Monogram name={item.creator.name} color={base} size={50} />
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.creatorName}>{item.creator.name}{item.creator.verified ? '  ✓' : ''}</Text>
                                 <Text style={styles.creatorHandle}>@{item.creator.handle}</Text>
@@ -573,7 +568,7 @@ export default function MaxDetailScreen() {
                             {d.reviews.map((r, i) => (
                                 <View key={i}>
                                     <View style={styles.rowCenter}>
-                                        {r.avatar ? <Image source={{ uri: r.avatar }} style={styles.revAvatar} contentFit="cover" /> : null}
+                                        <Monogram name={r.name} color={base} size={28} />
                                         <Text style={styles.revName}>{r.name}</Text>
                                         <View style={{ flex: 1 }} />
                                         <Stars n={r.rating} />
@@ -665,27 +660,11 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.86)',
     },
 
-    // Media hero
-    hero: { width: '100%', height: 332, backgroundColor: '#F0F0F0' },
-    previewChip: {
-        position: 'absolute', left: 20, bottom: 78,
-        flexDirection: 'row', alignItems: 'center', gap: 5,
-        backgroundColor: 'rgba(20,17,14,0.55)', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999,
-    },
-    previewChipText: { fontFamily: 'Matter-SemiBold', fontSize: 11, color: '#fff', letterSpacing: 0.3 },
-
-    // Gallery filmstrip / look-inside video
-    galleryBlock: { marginTop: 30 },
-    galleryLabel: { paddingHorizontal: 22 },
-    galleryRow: { paddingHorizontal: 22, gap: 12 },
-    galleryImg: { width: 200, height: 264, borderRadius: 18, backgroundColor: '#F0F0F0' },
-    insideVideo: { width: '100%', aspectRatio: 16 / 9, borderRadius: 18, overflow: 'hidden', backgroundColor: '#F0F0F0' },
-    playCenter: { alignItems: 'center', justifyContent: 'center' },
-    playCircle: {
-        width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: 'rgba(20,17,14,0.46)', paddingLeft: 3,
-    },
-    insideCaption: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 10 },
+    // Jelly-icon hero (photo-free)
+    hero: { width: '100%', height: 312, backgroundColor: CANVAS, alignItems: 'center', justifyContent: 'center' },
+    heroIconWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 18 },
+    heroGlow: { position: 'absolute', width: 232, height: 232, borderRadius: 116 },
+    heroThumb: { width: 188, height: 188 },
 
     header: { paddingHorizontal: 22, paddingTop: 4 },
     kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
@@ -694,9 +673,6 @@ const styles = StyleSheet.create({
     heroTitle: { fontFamily: SERIF, fontSize: 44, color: INK, letterSpacing: -1, lineHeight: 47 },
     heroRule: { width: 38, height: 3, borderRadius: 2, marginTop: 18 },
     heroTagline: { fontFamily: 'Matter-Regular', fontSize: 16.5, color: SUB, marginTop: 16, lineHeight: 24 },
-
-    socialRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 22, marginTop: 16 },
-    socialText: { fontFamily: 'Matter-Medium', fontSize: 13, color: SUB },
 
     creatorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 22, marginTop: 22 },
     creatorRowInline: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -749,10 +725,6 @@ const styles = StyleSheet.create({
     // Outcomes
     outRow: { flexDirection: 'row', gap: 11, alignItems: 'flex-start' },
     outText: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 15, color: INK, lineHeight: 22 },
-
-    // Pull quote
-    pullQuote: { fontFamily: SERIF_I, fontSize: 21, color: INK, lineHeight: 30, letterSpacing: -0.2 },
-    pullAttr: { fontFamily: 'Matter-Medium', fontSize: 13, color: MUTE, marginTop: 10 },
 
     bulletRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
     bulletText: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, lineHeight: 22 },
