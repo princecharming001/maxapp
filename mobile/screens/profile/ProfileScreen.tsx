@@ -175,7 +175,7 @@ function ProgressCalendar({
 const cal = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
     navBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
-    monthLabel: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK, letterSpacing: -0.2 },
+    monthLabel: { fontFamily: fonts.serif, fontSize: 16, color: INK, letterSpacing: -0.2 },
     dayRow: { flexDirection: 'row', marginBottom: 4 },
     dayHead: { flex: 1, textAlign: 'center', fontFamily: 'Matter-Medium', fontSize: 10.5, color: MUTE, letterSpacing: 0.2 },
     grid: { flexDirection: 'row', flexWrap: 'wrap' },
@@ -198,7 +198,7 @@ const p = StyleSheet.create({
 
     identity: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginBottom: 18 },
     idLeft: { flex: 1, paddingRight: 16 },
-    name: { fontFamily: 'Matter-SemiBold', fontSize: 25, color: INK, letterSpacing: -0.5, lineHeight: 29 },
+    name: { fontFamily: fonts.serif, fontSize: 27, color: INK, letterSpacing: -0.5, lineHeight: 31 },
     editPill: { alignSelf: 'flex-start', marginTop: 12, backgroundColor: INK, borderRadius: 999, paddingHorizontal: 15, paddingVertical: 7 },
     editPillText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: ON_INK, letterSpacing: 0.1 },
     avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#E4E3E0' },
@@ -206,7 +206,7 @@ const p = StyleSheet.create({
 
     card: { backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, marginBottom: 10, ...SOFT },
     cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    cardTitle: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: INK, letterSpacing: -0.2 },
+    cardTitle: { fontFamily: fonts.serif, fontSize: 19, color: INK, letterSpacing: -0.4 },
     seeAll: { fontFamily: 'Matter-Medium', fontSize: 13, color: MUTE },
     cheer: { fontFamily: 'Matter-Medium', fontSize: 12, color: SUB },
     eyebrow: { fontFamily: 'Matter-Medium', fontSize: 10, color: MUTE, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 4 },
