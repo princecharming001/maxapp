@@ -395,6 +395,22 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
         rows. No heavy synchronous work on mount spotted (schedule aggregation is
         memoized; tab prefetch is async).
 
+## P1 — APP-STORE SUBMISSION METADATA
+
+- [x] iOS Privacy Manifest present + valid. **2026-06-26 (iter 29): verified.**
+      `mobile/ios/Max/PrivacyInfo.xcprivacy` declares the standard required-reason
+      APIs (FileTimestamp C617.1/0A2A.1/3B52.1, UserDefaults CA92.1/C56D.1, DiskSpace
+      E174.1/85F4.1, SystemBootTime 35F9.1) with valid Apple reason codes, and
+      `NSPrivacyTracking=false` (no IDFA/tracking). All Pods ship their own
+      manifests too. `ITSAppUsesNonExemptEncryption=false` (export compliance).
+      Version 3.0.8 / build 317, bundle `com.cannon.mobile`, Expo SDK 54 (prebuilt
+      `ios/`).
+      - **→ Needs Human Decision:** the manifest's `NSPrivacyCollectedDataTypes` is
+        empty (fine for the manifest itself), BUT the app collects email, profile,
+        and face-scan/health-adjacent data — so the separate **App Store Connect
+        "App Privacy" nutrition label MUST be completed accurately** at submission
+        (a common compliance/rejection point, independent of this file).
+
 ## P1 — SECURITY: PAYWALL / PREMIUM-BYPASS GUARDS
 
 - [x] No production path unlocks premium without paying. **2026-06-26 (iter 22):
@@ -460,6 +476,11 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   show a tooltip over the right element, Skip/Next/Done all work, and the app is
   fully tappable afterward. (Backend exposes only `/main-app-tour/complete`, no
   reset, so a fresh account or a DB flag flip is needed to retest.)
+- **Complete the App Store Connect "App Privacy" nutrition label.** The
+  `PrivacyInfo.xcprivacy` manifest is valid (required-reason APIs declared, no
+  tracking), but App Privacy data-collection disclosure is a SEPARATE App Store
+  Connect questionnaire — declare email, profile, and face-scan/health-adjacent
+  data accurately. (found iter 29)
 - **Prod env values for the EAS build.** Settings showed `support@local.test`
   (dev `EXPO_PUBLIC_SUPPORT_EMAIL`). Before submitting, confirm all
   `EXPO_PUBLIC_*` are set to prod values in EAS Secrets: SUPPORT_EMAIL,
@@ -643,3 +664,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   repo) pointing at this deliverable + the two non-obvious gotchas (the tour
   orphan-step touch-trap bug class; the local Maestro/xctest driver instability +
   `pkill -9 java` workaround + the new tab/card testIDs). No repo code change.
+- 2026-06-26 (iter 29): **iOS Privacy Manifest verified valid** —
+  `mobile/ios/Max/PrivacyInfo.xcprivacy` declares the required-reason APIs with
+  proper codes + `NSPrivacyTracking=false`; encryption flag set; v3.0.8/build 317.
+  Flagged the separate App Store Connect "App Privacy" data-label as a human
+  submission step. No code change.
