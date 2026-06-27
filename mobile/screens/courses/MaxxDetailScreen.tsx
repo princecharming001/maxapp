@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native'
 import { Alert } from '../../components/InAppAlert';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -407,6 +408,13 @@ export default function MaxxDetailScreen() {
                                     }
                                 }}
                             >
+                                <LinearGradient
+                                    pointerEvents="none"
+                                    colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 0, y: 1 }}
+                                    style={styles.primaryCtaSheen}
+                                />
                                 <Text style={styles.primaryCtaText}>
                                     {canSchedule ? (activeSchedule ? 'Update schedule' : 'Start schedule') : 'Start course'}
                                 </Text>
@@ -817,6 +825,15 @@ const styles = StyleSheet.create({
         ...(Platform.OS === 'ios'
             ? { shadowColor: '#3A352B', shadowOpacity: 0.14, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } }
             : { elevation: 4 }),
+    },
+    primaryCtaSheen: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '52%',
+        borderTopLeftRadius: borderRadius.full,
+        borderTopRightRadius: borderRadius.full,
     },
     primaryCtaText: {
         fontFamily: fonts.sansSemiBold,
