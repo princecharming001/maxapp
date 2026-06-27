@@ -16,8 +16,8 @@
  * reader at the chapter's first lesson; tapping a listed lesson opens that
  * lesson directly.
  */
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -33,6 +33,41 @@ export type CourseTimelineProps = {
     accent: string;
     onOpenSection: (sectionId: string) => void;
 };
+
+/** A floating jelly tile node. The active (start) node gets an accent rim + a
+ *  slow "you are here" radar pulse. Cream tile + soft shadow — a crafted journey
+ *  step, not a number-in-a-ring. */
+function TimelineNode({ jelly, number, accent, active }: { jelly: any | null; number: number; accent: string; active: boolean }) {
+    const pulse = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        if (!active) return;
+        const loop = Animated.loop(
+            Animated.timing(pulse, { toValue: 1, duration: 2400, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        );
+        loop.start();
+        return () => loop.stop();
+    }, [active, pulse]);
+    const pScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.4] });
+    const pOpacity = pulse.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.45, 0] });
+
+    return (
+        <View style={styles.nodeWrap}>
+            {active ? (
+                <Animated.View
+                    pointerEvents="none"
+                    style={[styles.nodePulse, { borderColor: accent, opacity: pOpacity, transform: [{ scale: pScale }] }]}
+                />
+            ) : null}
+            <View style={[styles.nodeTile, active && { borderColor: accent, borderWidth: 1.5 }]}>
+                {jelly ? (
+                    <Image source={jelly} style={styles.nodeJelly} contentFit="contain" />
+                ) : (
+                    <Text style={[styles.nodeNum, { color: accent }]}>{number}</Text>
+                )}
+            </View>
+        </View>
+    );
+}
 
 export default function CourseTimeline({ course, accent, onOpenSection }: CourseTimelineProps) {
     return (
@@ -56,28 +91,17 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
                                 style={[
                                     styles.connector,
                                     styles.connectorTop,
-                                    { backgroundColor: hexA(accent, 0.22) },
+                                    { backgroundColor: hexA(accent, 0.32) },
                                     isFirst && styles.connectorHidden,
                                 ]}
                             />
-                            <View
-                                style={[
-                                    styles.node,
-                                    { backgroundColor: colors.card, borderColor: hexA(accent, isFirst ? 0.7 : 0.4) },
-                                ]}
-                            >
-                                {chJelly ? (
-                                    <Image source={chJelly} style={styles.nodeJelly} contentFit="contain" />
-                                ) : (
-                                    <Text style={[styles.nodeNum, { color: accent }]}>{ch.number}</Text>
-                                )}
-                            </View>
+                            <TimelineNode jelly={chJelly} number={ch.number} accent={accent} active={isFirst} />
                             {/* bottom connector segment (hidden on last) */}
                             <View
                                 style={[
                                     styles.connector,
                                     styles.connectorBottom,
-                                    { backgroundColor: hexA(accent, 0.22) },
+                                    { backgroundColor: hexA(accent, 0.32) },
                                     isLast && styles.connectorHidden,
                                 ]}
                             />
@@ -107,28 +131,21 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
 
                             {/* lesson preview list */}
                             <View style={styles.lessonList}>
-                                {preview.map((s) => {
-                                    const sJelly = sectionJellyIcon(course.maxxId, s.icon);
-                                    return (
-                                        <TouchableOpacity
-                                            key={s.id}
-                                            style={styles.lessonRow}
-                                            activeOpacity={0.6}
-                                            onPress={() => onOpenSection(s.id)}
-                                        >
-                                            {sJelly ? (
-                                                <Image source={sJelly} style={styles.lessonGlyph} contentFit="contain" />
-                                            ) : (
-                                                <View style={[styles.lessonDot, { backgroundColor: hexA(accent, 0.5) }]} />
-                                            )}
-                                            <Text style={[styles.lessonNum, { color: accent }]}>{s.number}</Text>
-                                            <Text style={styles.lessonTitle} numberOfLines={1}>
-                                                {s.title}
-                                            </Text>
-                                            {s.eta ? <Text style={styles.lessonEta}>{s.eta}</Text> : null}
-                                        </TouchableOpacity>
-                                    );
-                                })}
+                                {preview.map((s) => (
+                                    <TouchableOpacity
+                                        key={s.id}
+                                        style={styles.lessonRow}
+                                        activeOpacity={0.6}
+                                        onPress={() => onOpenSection(s.id)}
+                                    >
+                                        <View style={[styles.lessonTick, { backgroundColor: hexA(accent, 0.55) }]} />
+                                        <Text style={[styles.lessonNum, { color: accent }]}>{s.number}</Text>
+                                        <Text style={styles.lessonTitle} numberOfLines={1}>
+                                            {s.title}
+                                        </Text>
+                                        {s.eta ? <Text style={styles.lessonEta}>{s.eta}</Text> : null}
+                                    </TouchableOpacity>
+                                ))}
                                 {moreCount > 0 ? (
                                     <Text style={styles.moreText}>
                                         +{moreCount} more lesson{moreCount === 1 ? '' : 's'}
@@ -148,8 +165,8 @@ export default function CourseTimeline({ course, accent, onOpenSection }: Course
     );
 }
 
-const NODE = 40;
-const RAIL_W = 48;
+const NODE = 44;
+const RAIL_W = 52;
 
 const styles = StyleSheet.create({
     wrap: {
@@ -176,11 +193,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     connector: {
-        width: 2,
+        width: 3,
+        borderRadius: 2,
         flexGrow: 0,
     },
     connectorTop: {
-        height: 18,
+        height: 14,
     },
     connectorBottom: {
         flex: 1,
@@ -189,14 +207,33 @@ const styles = StyleSheet.create({
     connectorHidden: {
         backgroundColor: 'transparent',
     },
-    node: {
+    /* floating jelly tile node (crafted journey step) */
+    nodeWrap: {
         width: NODE,
         height: NODE,
-        borderRadius: NODE / 2,
-        borderWidth: 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    nodePulse: {
+        position: 'absolute',
+        width: NODE + 6,
+        height: NODE + 6,
+        borderRadius: 17,
+        borderWidth: 1.5,
+    },
+    nodeTile: {
+        width: NODE,
+        height: NODE,
+        borderRadius: 15,
+        backgroundColor: colors.card,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(0,0,0,0.07)',
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#3A352B', shadowOpacity: 0.14, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }
+            : { elevation: 3 }),
     },
     nodeNum: {
         fontFamily: fonts.serif,
@@ -204,8 +241,8 @@ const styles = StyleSheet.create({
         fontWeight: '400',
     },
     nodeJelly: {
-        width: 26,
-        height: 26,
+        width: 30,
+        height: 30,
     },
 
     /* right card */
@@ -264,17 +301,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 7,
     },
-    lessonGlyph: {
-        width: 18,
-        height: 18,
-        marginRight: 8,
-    },
-    lessonDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        marginRight: 14,
-        marginLeft: 6,
+    lessonTick: {
+        width: 3,
+        height: 13,
+        borderRadius: 2,
+        marginRight: 13,
+        marginLeft: 2,
     },
     lessonNum: {
         fontFamily: fonts.sansMedium,
@@ -300,7 +332,7 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: colors.textMuted,
         paddingVertical: 6,
-        paddingLeft: 56,
+        paddingLeft: 48,
     },
 
     seePill: {
