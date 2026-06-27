@@ -20,7 +20,9 @@ import {
   Modal,
   ScrollView,
   Pressable,
+  Animated,
 } from 'react-native';
+import { useSwipeDownDismiss } from '../hooks/useSwipeDownDismiss';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../theme/dark';
@@ -118,19 +120,26 @@ export default function RoutineReviewSheet({
     onRemovePart(part);
   };
 
+  const { translateY, panHandlers } = useSwipeDownDismiss(onDone);
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onDone}>
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onDone} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-          <View style={styles.grabber} />
+        <Animated.View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12), transform: [{ translateY }] }]}>
+          <View {...panHandlers}>
+            <TouchableOpacity style={styles.closeX} onPress={onDone} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+            <View style={styles.grabber} />
 
-          <View style={styles.headerBlock}>
-            <Text style={styles.title}>Your routine</Text>
-            <Text style={styles.subhead}>
-              Here's what I built around your days. Skim it. Anything that doesn't fit your
-              life, cut it now and I'll work around it.
-            </Text>
+            <View style={styles.headerBlock}>
+              <Text style={styles.title}>Your routine</Text>
+              <Text style={styles.subhead}>
+                Here's what I built around your days. Skim it. Anything that doesn't fit your
+                life, cut it now and I'll work around it.
+              </Text>
+            </View>
           </View>
 
           <ScrollView
@@ -236,7 +245,7 @@ export default function RoutineReviewSheet({
           <TouchableOpacity style={styles.doneBtn} onPress={onDone} activeOpacity={0.9}>
             <Text style={styles.doneText}>This works</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -260,6 +269,13 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: colors.border,
     marginBottom: spacing.md,
+  },
+  closeX: {
+    position: 'absolute',
+    top: 6,
+    left: 4,
+    zIndex: 3,
+    padding: 6,
   },
   headerBlock: { marginBottom: spacing.sm },
   title: {
