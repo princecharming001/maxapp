@@ -215,8 +215,23 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       no raw error objects shown to users).
 - [ ] Offline / flaky-network behavior is graceful (resilience layer is in place —
       verify it actually catches failures on the walked screens).
-- [ ] No secrets / API keys committed in `mobile/`; no `console.log` of PII; dev
-      bypasses are `__DEV__`-gated.
+- [x] No secrets / API keys committed in `mobile/`; no `console.log` of PII; dev
+      bypasses are `__DEV__`-gated. **2026-06-26 (iter 6): scan clean.**
+      - No real `.env` tracked (only `expo-public.env.example`, placeholders only);
+        `.gitignore` covers `.env*` with `!.env.example`.
+      - No live secret patterns in source (no `sk_`/`rk_` Stripe, AWS, Google API,
+        JWT, GitHub/Slack tokens, private keys); no hardcoded
+        `apiKey/secret/password=` assignments.
+      - All embedded vars are public-by-design `EXPO_PUBLIC_*` (API base URL, IAP
+        product IDs, legal URLs, Stripe **publishable** key + payment link). No
+        secret/`sk_` key client-side.
+      - Onairos SDK key is **server-side** now (fetched via `GET /onairos/config`,
+        OnairosConnectModal.tsx:13) — resolves the old audit follow-up.
+      - Only PII-ish log is `useAppleSubscription.ts:39` (`user.id`) inside the
+        SIMULATED IAP path (`useAppleSim` = `!iOS && __DEV__ && web`) → dev-only,
+        never prod. Acceptable.
+      - Minor polish (non-blocking): 48 `console.*` calls across 11 files; consider
+        a prod log-strip (babel-plugin-transform-remove-console) — added to P3.
 - [ ] Permissions (camera, notifications) have proper usage strings + graceful
       denial handling.
 - [ ] Accessibility labels on icon-only buttons; key interactive elements have
@@ -232,6 +247,9 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
 - [ ] Consistent theming (the flat ink/cream "Craft" aesthetic) — no leftover
       dark-on-dark or stray glass-redo remnants.
 - [ ] Loading skeletons vs spinners consistency.
+- [ ] Strip `console.*` in production bundle (48 calls / 11 files) via
+      babel-plugin-transform-remove-console (perf + avoids leaking debug to device
+      logs). Non-blocking. (found iter 6)
 
 ---
 
@@ -297,3 +315,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   bad token spread removed. Remaining 5 are all in the non-shipping glass/Tamagui
   path (todayV2 OFF) → deferred with justification + flagged the fix-or-delete
   product call. Verified by re-running tsc (count dropped 9→5, no new errors).
+- 2026-06-26 (iter 6): **Secrets / PII scan — clean.** No tracked real `.env`,
+  no live key/token patterns, no hardcoded secret assignments; `.env*` gitignored.
+  Only public `EXPO_PUBLIC_*` config embedded (Stripe publishable key safe).
+  Onairos key confirmed server-side (resolves old audit item). One dev-only
+  `user.id` log (simulated IAP). Logged a P3 to strip console.* in prod.
