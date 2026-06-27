@@ -13,6 +13,7 @@ import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { AttachStep } from 'react-native-spotlight-tour';
 import { TOUR_STEP } from '../../features/mainTour/mainTourSteps';
+import { useMainAppTour } from '../../features/mainTour/useMainAppTour';
 import { colors, spacing, typography, fonts, borderRadius } from '../../theme/dark';
 import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
 import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, moduleColorForSchedule, type MergedScheduleTask } from '../../utils/scheduleAggregation';
@@ -248,6 +249,9 @@ export default function HomeScreen() {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(18)).current;
     const postPayRedirected = useRef(false);
+    // Measured host around step 0's tour anchor — drives a SAFE tour start
+    // (focus + non-zero measure), replacing the old blind 600ms timer.
+    const tourAnchorRef = useRef<View | null>(null);
 
     const maxes = maxesQuery.data?.maxes ?? [];
     const loading = maxesQuery.isPending && !maxesQuery.data;
@@ -412,6 +416,16 @@ export default function HomeScreen() {
         }, [user?.onboarding, navigation, faceScan]),
     );
 
+    // Post-onboarding guided tour: starts only when Home is focused AND step 0's
+    // anchor has measured a non-zero spot AND no post-pay redirect is pending.
+    const tourRedirectPending =
+        faceScan &&
+        !!(user?.onboarding as { post_subscription_onboarding?: boolean } | undefined)?.post_subscription_onboarding &&
+        !postPayRedirected.current;
+    const { onAnchorLayout: onTourAnchorLayout } = useMainAppTour(tourAnchorRef, {
+        redirectPending: tourRedirectPending,
+    });
+
     useEffect(() => {
         Animated.parallel([
             Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
@@ -563,6 +577,10 @@ export default function HomeScreen() {
                     </View>
 
                     {/* ── DAY STRIP — always shown; tap a day to see its tasks ── */}
+                    {/* tourAnchorRef wraps step 0's anchor so the tour starter can
+                        measure a real non-zero rect BEFORE starting (never a zero
+                        spot). collapsable=false keeps the View measurable on iOS. */}
+                    <View ref={tourAnchorRef} collapsable={false} onLayout={onTourAnchorLayout}>
                     <AttachStep index={TOUR_STEP.PROGRESS} fill>
                         <ScrollView
                             horizontal
@@ -602,6 +620,7 @@ export default function HomeScreen() {
                             })}
                         </ScrollView>
                     </AttachStep>
+                    </View>
 
                     {/* ── HABITS ── */}
                     <AttachStep index={TOUR_STEP.PROGRAMS} fill>

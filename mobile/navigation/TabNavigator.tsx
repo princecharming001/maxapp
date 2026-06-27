@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Platform, View, Text, TouchableOpacity, Modal } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +11,7 @@ import { useNavigation } from '@react-navigation/native';
 import { queryClient } from '../lib/queryClient';
 import { prefetchMainTabData } from '../lib/prefetchMainTabData';
 import { useAuth } from '../context/AuthContext';
-import { SpotlightTourProvider, AttachStep, useSpotlightTour } from 'react-native-spotlight-tour';
+import { SpotlightTourProvider, AttachStep } from 'react-native-spotlight-tour';
 import { TOUR_STEPS, TOUR_STEP } from '../features/mainTour/mainTourSteps';
 import api from '../services/api';
 
@@ -293,33 +293,12 @@ const modal = StyleSheet.create({
     },
 });
 
-function TourTrigger() {
-    const { user, isPaid } = useAuth();
-    const { start } = useSpotlightTour();
-    const fired = useRef(false);
-
-    useEffect(() => {
-        if (fired.current) return;
-        if (!isPaid) return;
-        const ob = user?.onboarding as Record<string, unknown> | undefined;
-        if (ob?.post_subscription_onboarding) return;
-        if (ob?.main_app_tour_completed) return;
-
-        // Mark fired INSIDE the timeout, not before it. If a dependency changes
-        // within the 600ms window (e.g. the user object refreshing right after
-        // payment), the cleanup clears this timer — and if we'd already set
-        // fired=true the tour would be lost until the tab remounts (the "X out
-        // and re-enter" workaround). Setting it in the callback lets the effect
-        // re-run and reschedule until it actually fires.
-        const id = setTimeout(() => {
-            fired.current = true;
-            start();
-        }, 600);
-        return () => clearTimeout(id);
-    }, [isPaid, user?.onboarding, start]);
-
-    return null;
-}
+// The main-app tour is now started from HomeScreen via `useMainAppTour`, which
+// gates `start()` on Home actually being focused AND step 0's anchor having
+// measured a non-zero spot (so the library can never land on a zero-spot
+// full-screen touch-trap). The old blind 600ms `setTimeout` here fired
+// regardless of focus/measure and caused the "frozen screen" bug; it has been
+// removed. The SpotlightTourProvider + AttachStep anchors below stay as-is.
 
 // The 4-tab pivot nav (spec 3.1): Today / Explore / Coach / You. No Forums
 // registration, no ScanTab remnant, no duplicate Planner tab - the week
@@ -541,7 +520,6 @@ export default function TabNavigator() {
                     }}
                 />
             </Tab.Navigator>
-            <TourTrigger />
             </SpotlightTourProvider>
 
             <PremiumGateModal
