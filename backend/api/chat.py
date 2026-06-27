@@ -4372,15 +4372,15 @@ async def _send_message_locked(
 ) -> "ChatResponse":
     from services import chat_conversations_service as _conv
     from services.lc_agent import reset_recommended_products, get_recommended_products
-    from services.lc_agent import proposed_schedule_change as _proposed_change_cv
+    from services.lc_agent import reset_proposed_change, get_proposed_change
 
     user_id = current_user["id"]
     # Start a fresh per-turn product sink so recommend_product can hand us
     # structured catalog cards to return (instead of parsing prose links).
     reset_recommended_products()
-    # Clear any schedule-change proposal surfaced from a prior turn so this turn
-    # only reports a proposal the agent actually made now (RALPH_CHAT_RESCHEDULE).
-    _proposed_change_cv.set(None)
+    # Start a fresh per-turn schedule-change proposal sink so this turn only
+    # reports a proposal the agent actually made now (RALPH_CHAT_RESCHEDULE).
+    reset_proposed_change()
 
     # ── New-max onboarding → its own chat thread ─────────────────────────
     # When the client kicks off a new max's setup it sends chat_intent=
@@ -4605,7 +4605,7 @@ async def _send_message_locked(
     # If the agent proposed a schedule change this turn, surface Yes/No confirm
     # buttons (no second LLM call). Suppress any MCQ chips/widget so the confirm
     # affordance owns the turn (RALPH_CHAT_RESCHEDULE Phase 1/5).
-    confirm_out = _proposed_change_cv.get()
+    confirm_out = get_proposed_change()
     if confirm_out:
         choices = []
         multi_choice = False

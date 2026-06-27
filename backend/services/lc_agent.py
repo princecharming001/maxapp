@@ -125,12 +125,29 @@ from services.token_budget import count_tokens, trim_context_blob, trim_text_blo
 logger = logging.getLogger(__name__)
 
 # Per-request surface for a schedule-change proposal created during this turn.
-# The `propose_schedule_change` tool sets it; api/chat.py reads it after the
-# agent runs to attach a Yes/No confirm affordance to the response WITHOUT a
-# second LLM call. Cleared per request in process_chat_message (finally block).
-proposed_schedule_change: contextvars.ContextVar = contextvars.ContextVar(
+# api/chat.py calls reset_proposed_change() at turn start, then the
+# propose_schedule_change tool MUTATES the shared dict (NOT a .set() — langchain
+# runs the tool coroutine in a copied context, so a re-set would not propagate;
+# mutating the same dict object does, exactly like the recommended-products sink).
+# api/chat.py reads get_proposed_change() after the agent to attach Yes/No.
+_proposed_change_ctx: contextvars.ContextVar[Optional[dict]] = contextvars.ContextVar(
     "proposed_schedule_change", default=None
 )
+
+
+def reset_proposed_change() -> dict:
+    """Start a fresh per-turn proposal sink (a mutable dict) and return it."""
+    sink: dict = {}
+    _proposed_change_ctx.set(sink)
+    return sink
+
+
+def get_proposed_change() -> Optional[dict]:
+    """Return {proposal_id, summary} if a proposal was made this turn, else None."""
+    sink = _proposed_change_ctx.get()
+    if sink and sink.get("proposal_id"):
+        return {"proposal_id": sink["proposal_id"], "summary": sink.get("summary", "")}
+    return None
 
 
 def _detect_image_mime(image_data: bytes) -> str:
@@ -2348,7 +2365,13 @@ def make_chat_tools(
                 )
                 await db.commit()
             # Surface to api/chat.py so it renders Yes/No (no second LLM call).
-            proposed_schedule_change.set({"proposal_id": str(proposal.id), "summary": proposal.summary})
+            # MUTATE the per-turn sink (set by reset_proposed_change in chat.py) —
+            # langchain runs this coroutine in a copied context, so a .set() here
+            # would not propagate, but mutating the shared dict does.
+            sink = _proposed_change_ctx.get()
+            if sink is not None:
+                sink["proposal_id"] = str(proposal.id)
+                sink["summary"] = proposal.summary
             return (
                 f"PROPOSED (awaiting the user's Yes/No — not yet applied): {proposal.summary}. "
                 "Briefly tell the user what you'll change and that they can tap Yes to apply or No to tweak it."

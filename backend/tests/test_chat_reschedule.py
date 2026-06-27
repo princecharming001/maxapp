@@ -119,6 +119,36 @@ async def test_yes_set_context_calls_merge_and_regenerate():
     assert prop.status == "applied"
 
 
+# ── RC6: all four intent dispatch primitives apply the stored action ──────
+@pytest.mark.asyncio
+async def test_yes_delete_task_dispatch_heightmax():
+    # "change the heightmax tasks" → drop a specific task.
+    action = {"tool": "delete_task", "args": {"schedule_id": "hm-1", "task_id": "mewing-3"}}
+    prop = _proposal(action, summary="Drop the midday mewing block")
+    db = _fake_db(scalar_result=prop)
+    with patch("services.schedule_service.schedule_service") as svc:
+        svc.delete_task = AsyncMock(return_value={})
+        ok, _ = await scs.apply_proposal(db, str(prop.user_id), str(prop.id))
+    assert ok
+    kw = svc.delete_task.await_args.kwargs
+    assert kw["schedule_id"] == "hm-1" and kw["task_id"] == "mewing-3"
+    assert prop.status == "applied"
+
+
+@pytest.mark.asyncio
+async def test_yes_update_preferences_dispatch_general():
+    # general edit ("move my reminders earlier") → preference change.
+    action = {"tool": "update_preferences", "args": {"preferences": {"notification_minutes_before": 30}}}
+    prop = _proposal(action, summary="Send reminders 30 min earlier")
+    db = _fake_db(scalar_result=prop)
+    with patch("services.schedule_service.schedule_service") as svc:
+        svc.update_preferences = AsyncMock(return_value={})
+        ok, _ = await scs.apply_proposal(db, str(prop.user_id), str(prop.id))
+    assert ok
+    assert svc.update_preferences.await_args.kwargs["preferences"] == {"notification_minutes_before": 30}
+    assert prop.status == "applied"
+
+
 # ── RC4: idempotent — a double Yes does not double-apply ──────────────────
 @pytest.mark.asyncio
 async def test_double_yes_is_idempotent():
@@ -161,6 +191,46 @@ async def test_rejected_proposal_cannot_be_applied():
         ok, msg = await scs.apply_proposal(db, str(prop.user_id), str(prop.id))
     assert ok is False
     svc.edit_task.assert_not_called()
+
+
+# ── RC2 / RC7 / RC9: the agent tool persists + surfaces confirm, mutates nothing
+@pytest.mark.asyncio
+async def test_propose_tool_persists_and_surfaces_confirm_without_mutating():
+    import services.lc_agent as lc
+    from models.sqlalchemy_models import active_conversation_id
+
+    db = _fake_db()
+    user = MagicMock()
+    user.id = uuid.uuid4()
+    uid = str(user.id)
+
+    tools = lc.make_chat_tools(db, None, uid, user, {}, None, "app", {})
+    propose = next(t for t in tools if t.name == "propose_schedule_change")
+
+    active_conversation_id.set(uuid.uuid4())
+    lc.reset_proposed_change()  # chat.py sets up the mutable sink before the agent runs
+    with patch("services.schedule_service.schedule_service") as svc:
+        svc.edit_task = AsyncMock()
+        svc.delete_task = AsyncMock()
+        svc.update_preferences = AsyncMock()
+        # set_context path needs no task resolution.
+        out = await propose.ainvoke({
+            "kind": "switch_diet",
+            "summary": "Switch to a high-protein mediterranean approach",
+            "apply_tool": "set_context",
+            "maxx_id": "fitmax",
+            "context_key": "diet_pattern",
+            "context_value": "high-protein mediterranean",
+            "source": "docs",
+        })
+    # A proposal was persisted and surfaced for Yes/No — but NOTHING was applied.
+    assert db.add.called
+    surfaced = lc.get_proposed_change()
+    assert surfaced and "proposal_id" in surfaced and surfaced["summary"]
+    assert "PROPOSED" in out
+    svc.edit_task.assert_not_called()
+    svc.delete_task.assert_not_called()
+    svc.update_preferences.assert_not_called()
 
 
 # ── RC3 / RC9 (source-level guards): prompt routes change-intents to propose
