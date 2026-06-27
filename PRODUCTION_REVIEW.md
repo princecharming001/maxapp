@@ -293,9 +293,16 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
         (no a11y support is claimed), but worth a focused sweep.
       - testID coverage: tabs now have ids (iter 10); habit cards, login fields,
         marketplace cards already had them.
-- [ ] Feature flags: confirm the **production** flag values (newNav, todayV2,
-      faceScan, onboardingV2, …) match what should ship, and the OFF/ON paths
-      both render without dead tabs.
+- [x] Feature flags: confirm the **production** flag values and that gated paths
+      render without dead tabs. **2026-06-26 (iter 14): shipping config coherent.**
+      Static flags (mobile/constants/featureFlags.ts, no runtime toggle):
+      ON → `faceScan` (8 sites, scan verified), `personalizedUI` (5 sites, degrades
+      to default copy — verified on Home), `onboardingV2`/`revealV2`/`streakV2`
+      (intended V2 versions). OFF → `newNav` (old nav, all tabs verified),
+      `todayV2` (TodayScreen unused — the dead glass path), `referrals` (UI hidden).
+      No flag combination leaves a reachable-but-broken tab (Forums is
+      intentionally hidden ComingSoon). NOTE (→ P3): `referralDiscounts` is defined
+      but has 0 call sites — a dead flag, trivial to remove.
 - [ ] No obvious perf cliffs (giant un-virtualized lists, heavy work on mount).
 
 ## P3 — POLISH
@@ -308,6 +315,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       (back/close/header/add/share) across shipping screens — ForgotPassword,
       chat/settings headers, SendblueConnect, etc. (found iter 12; VoiceOver
       polish, not launch-blocking).
+- [ ] Remove dead `referralDiscounts` flag (defined in featureFlags.ts, 0 call
+      sites). Trivial. (found iter 14)
 - [ ] Strip `console.*` in production bundle (48 calls / 11 files) via
       babel-plugin-transform-remove-console (perf + avoids leaking debug to device
       logs). Non-blocking. (found iter 6)
@@ -432,3 +441,7 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   App-Store-critical paths confirmed: account deletion (Apple requirement, w/
   password modal), legal links (bundled 619-line content), manage subscription,
   support. Flagged: set real prod EXPO_PUBLIC_* (support email is dev placeholder).
+- 2026-06-26 (iter 14): **Feature-flag config confirmed coherent.** Mapped all
+  call sites; shipping ON/OFF values produce no dead/broken gated tabs (faceScan/
+  personalizedUI/onboardingV2/revealV2/streakV2 ON; newNav/todayV2/referrals OFF).
+  Found `referralDiscounts` is a dead flag (0 uses) → P3 cleanup. No code change.
