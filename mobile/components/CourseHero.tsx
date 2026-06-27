@@ -15,8 +15,8 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { LiquidGlassFill } from './glass/LiquidGlass';
 import Svg, { Defs, RadialGradient, Stop, Rect, Ellipse } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -168,15 +168,11 @@ export default function CourseHero({
                             <Image source={jelly} style={styles.heroJelly} contentFit="contain" transition={220} />
                         ) : (
                             <View style={[styles.token, { borderColor: hexA(accent, 0.3) }]}>
-                                <BlurView intensity={26} tint="light" style={StyleSheet.absoluteFill} pointerEvents="none" />
+                                {/* Canonical liquid-glass optics (material +
+                                    speculars + rim), with the course accent as a
+                                    sheer tint on top so the chip keeps its hue. */}
+                                <LiquidGlassFill idSuffix="coursetoken" />
                                 <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: hexA(accent, 0.14) }]} />
-                                <LinearGradient
-                                    pointerEvents="none"
-                                    colors={['rgba(255,255,255,0.7)', 'rgba(255,255,255,0)']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 0, y: 1 }}
-                                    style={styles.tokenSheen}
-                                />
                                 <Text style={[styles.tokenInitial, { color: accent }]}>
                                     {(title || 'M').trim().charAt(0).toUpperCase()}
                                 </Text>
@@ -267,13 +263,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    tokenSheen: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: '56%',
     },
     tokenInitial: {
         fontFamily: fonts.serif,
