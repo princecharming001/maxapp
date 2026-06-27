@@ -84,6 +84,13 @@ When (and only when) all of the above hold, output exactly:
   `EXIT 1` right after "Launch app". The app restores the last-active tab on
   launch, so select the tab explicitly via `tapOn: { id: "tab-<name>" }` (the
   tabs now have testIDs — iter 10).
+  **iter 18:** the maestro/xctest driver also intermittently HANGS at init (the
+  `java maestro.cli` process runs but no flow steps execute, 5-line log). Clear it
+  with `pkill -9 java` (a plain `pkill -f maestro` doesn't reap the JVM) — but it
+  can re-hang on the next run. Sim-driven E2E was unreliable by late session;
+  run the remaining walks (TaskGuide/Fitmax/scan-capture/achievements) on a fresh
+  Maestro driver or in CI for definitive results. App renders are fine — every
+  screen reached has verified clean.
 - Typecheck: `cd mobile && npx tsc --noEmit`.
 - Tests: backend tests exist (see memory `maxapp_test_suite`); pre-existing
   failures there are out of scope unless they touch a flow you're verifying.
@@ -201,8 +208,10 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       **"Start my plan"** CTA asserted). Next: tap "Start my plan" → habits appear
       on Home → tap habit → TaskGuide.
 - [ ] Course / curriculum: CourseList, CourseDetail, ChapterView, TaskGuide
-      (modal vertical pager), Fitmax suite. (Reachable via "Start my plan" then a
-      Home habit card; not yet walked.)
+      (modal vertical pager), Fitmax suite. Reachable via "Start my plan" → Home
+      habit card → TaskGuide. **iter 18: attempted but BLOCKED by maestro driver
+      instability** (the xctest driver hangs at init repeatedly — see Maestro
+      gotcha); not an app issue. Needs a stable driver / CI run to walk.
 - [ ] Notifications / SMS coaching setup screens.
 
 ## P1 — CORE FLOWS (end-to-end on sim)
@@ -476,3 +485,9 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   `maxdetail_walk.yaml` taps a card by id → MaxDetail renders (Hairmax: stats,
   description, "Start my plan" CTA asserted). Unblocks the start-program → courses
   flow (next: tap "Start my plan" → Home habits → TaskGuide).
+- 2026-06-26 (iter 18): Attempted the core loop (Start my plan → habits →
+  TaskGuide) but the maestro/xctest driver HUNG at init twice (needs `pkill -9
+  java`, then re-hangs) — infra, not app. "Start my plan" CTA confirmed present
+  (iter 17); the start + TaskGuide walk needs a stable driver/CI. Updated the
+  Maestro gotcha. This marks the practical limit of sim-driven verification this
+  session; the remaining sim-heavy items are infra-limited, not app-blocked.
