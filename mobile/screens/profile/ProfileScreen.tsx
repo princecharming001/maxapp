@@ -222,8 +222,8 @@ const p = StyleSheet.create({
     seg: { flex: 1, height: 5, borderRadius: 3, backgroundColor: TRACK },
     segOn: { backgroundColor: INK },
 
-    daysRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-    dayPill: { width: 33, height: 52, borderRadius: 16, backgroundColor: '#F2F1EF', alignItems: 'center', justifyContent: 'center', gap: 6 },
+    daysRow: { flexDirection: 'row', gap: 7, marginBottom: 16 },
+    dayPill: { flex: 1, height: 52, borderRadius: 16, backgroundColor: '#F2F1EF', alignItems: 'center', justifyContent: 'center', gap: 6 },
     dayPillToday: { backgroundColor: INK },
     dayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'transparent' },
     dayDotOn: { backgroundColor: INK },
