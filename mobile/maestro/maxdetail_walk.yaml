@@ -1,0 +1,18 @@
+# Explore card -> MaxDetail. Taps the first Explore card by its testID (added in
+# iter 17) and asserts the detail screen + "Start my plan" CTA render.
+# Precondition: logged-in paid user, maxes seeded. Kill stray maestro+xctest first.
+appId: com.cannon.mobile
+---
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 8000
+- tapOn:
+    id: "tab-explore"
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    id: "explore-card-.*"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible: "Start my plan"
+- takeScreenshot: /tmp/maxdetail

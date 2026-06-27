@@ -602,7 +602,7 @@ function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: n
     const thumb = nativeThumb(item);
     if (thumb) {
         return (
-            <TouchableOpacity style={[styles.featureNative, { width }]} activeOpacity={0.85} onPress={onPress}>
+            <TouchableOpacity style={[styles.featureNative, { width }]} activeOpacity={0.85} onPress={onPress} testID={`explore-card-${item.id}`}>
                 <LinearGradient
                     colors={['#D8D9DB', '#E1E1E3', '#ECECEE']}
                     locations={[0, 0.5, 1]}
@@ -619,7 +619,7 @@ function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: n
         );
     }
     return (
-        <TouchableOpacity style={[styles.feature, { width }]} activeOpacity={0.85} onPress={onPress}>
+        <TouchableOpacity style={[styles.feature, { width }]} activeOpacity={0.85} onPress={onPress} testID={`explore-card-${item.id}`}>
             <PosterContent item={item} />
             <View style={styles.featureBody}>
                 <Text style={styles.featureTitle} numberOfLines={1}>{item.title}</Text>
@@ -635,7 +635,7 @@ function GridCard({ item, width, onPress }: { item: MarketplaceItem; width: numb
     const thumb = nativeThumb(item);
     if (thumb) {
         return (
-            <TouchableOpacity style={[styles.gridCardNative, { width }]} activeOpacity={0.85} onPress={onPress}>
+            <TouchableOpacity style={[styles.gridCardNative, { width }]} activeOpacity={0.85} onPress={onPress} testID={`explore-card-${item.id}`}>
                 <Image source={thumb} style={styles.gridNativeImg} contentFit="cover" transition={200} />
                 <View style={styles.gridNativeBody}>
                     <Text style={styles.gridNativeTitle} numberOfLines={1}>{item.title}</Text>
@@ -645,7 +645,7 @@ function GridCard({ item, width, onPress }: { item: MarketplaceItem; width: numb
         );
     }
     return (
-        <TouchableOpacity style={[styles.gridCard, { width }]} activeOpacity={0.85} onPress={onPress}>
+        <TouchableOpacity style={[styles.gridCard, { width }]} activeOpacity={0.85} onPress={onPress} testID={`explore-card-${item.id}`}>
             <PosterContent item={item} />
             <View style={styles.gridBody}>
                 <Text style={styles.gridTitle} numberOfLines={2}>{item.title}</Text>

@@ -195,8 +195,14 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       dev placeholder `support@local.test` — set `EXPO_PUBLIC_SUPPORT_EMAIL` to the
       real address in the prod EAS build.
 - [ ] Achievements / Progress / Archives screens.
+- [~] MaxDetail — **render-verified on sim 2026-06-26 (iter 17)** via
+      `maxdetail_walk.yaml`: Explore card (new testID) → detail (hero, stats
+      12 routines/7 focus areas/Daily, description, "Fits your real week",
+      **"Start my plan"** CTA asserted). Next: tap "Start my plan" → habits appear
+      on Home → tap habit → TaskGuide.
 - [ ] Course / curriculum: CourseList, CourseDetail, ChapterView, TaskGuide
-      (modal vertical pager), Fitmax suite.
+      (modal vertical pager), Fitmax suite. (Reachable via "Start my plan" then a
+      Home habit card; not yet walked.)
 - [ ] Notifications / SMS coaching setup screens.
 
 ## P1 — CORE FLOWS (end-to-end on sim)
@@ -323,9 +329,9 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       (back/close/header/add/share) across shipping screens — ForgotPassword,
       chat/settings headers, SendblueConnect, etc. (found iter 12; VoiceOver
       polish, not launch-blocking).
-- [ ] Add `testID` to Explore/Marketplace cards (e.g. `explore-max-${id}`) so the
-      start-program → MaxDetail → courses flow is reliably E2E-testable (mirrors
-      the tab-testID fix). (found iter 16)
+- [x] Add `testID` to Explore/Marketplace cards — **DONE iter 17**:
+      `explore-card-${item.id}` on all 4 card variants (Feature/Grid × native/
+      poster); verified `tapOn id:explore-card-.*` opens MaxDetail.
 - [ ] Remove dead `referralDiscounts` flag (defined in featureFlags.ts, 0 call
       sites). Trivial. (found iter 14)
 - [ ] Strip `console.*` in production bundle (48 calls / 11 files) via
@@ -465,3 +471,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   "no maxes / env-blocked" assumption: courses/start-program ARE reachable.
   MaxDetail tap-in is scroll/tab-restore-finicky (Explore cards lack testIDs) →
   logged a P3 to add card testIDs; MaxDetail/start-program walk still TODO.
+- 2026-06-26 (iter 17): **Added `explore-card-*` testIDs + verified MaxDetail.**
+  All 4 Explore card variants now carry `testID={explore-card-${item.id}}`;
+  `maxdetail_walk.yaml` taps a card by id → MaxDetail renders (Hairmax: stats,
+  description, "Start my plan" CTA asserted). Unblocks the start-program → courses
+  flow (next: tap "Start my plan" → Home habits → TaskGuide).
