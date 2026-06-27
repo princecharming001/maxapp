@@ -28,14 +28,16 @@ import {
 
 const WORKOUT_ACCENT = '#2F6B4E';
 const OB_INK = '#34343B';
-const NOW_ACCENT = '#2F6B4E';
+const NOW_ACCENT = '#111113';      // the "now" line — black
 
 const HOUR_H = 56;                 // pixels per hour (full scale)
 const PX_PER_MIN = HOUR_H / 60;
 const GUTTER = 58;                 // time-label column width ("12 PM")
 const MIN_CARD_H = 30;             // floor card height
-const GAP_THRESHOLD = 75;          // empty gaps longer than this get compressed
-const COMPRESSED_GAP_H = 38;       // height a compressed gap collapses to
+// No compression: show EVERY hour from wake to sleep at full scale, even when a
+// stretch is blank. (Infinity threshold = no gap ever collapses.)
+const GAP_THRESHOLD = Number.POSITIVE_INFINITY;
+const COMPRESSED_GAP_H = 38;       // (retained; unused while compression is off)
 const TOP_PAD = 6;
 const BOTTOM_PAD = 12;
 
