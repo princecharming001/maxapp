@@ -230,6 +230,12 @@ async def sendblue_receive_webhook(request: Request, background_tasks: Backgroun
         )
         if secret != settings.sendblue_webhook_secret:
             raise HTTPException(status_code=401, detail="Invalid webhook secret")
+    elif settings.is_production:
+        # Fail closed: an unset secret in production would leave this inbound
+        # webhook unauthenticated (anyone could POST it). Reject rather than run
+        # it open. Dev (non-production) still works with no secret configured.
+        logger.error("sendblue_webhook_secret is unset in production — rejecting webhook")
+        raise HTTPException(status_code=403, detail="Webhook not configured")
 
     try:
         payload = await request.json()
