@@ -444,6 +444,14 @@ export default function TabNavigator() {
                 steps={TOUR_STEPS}
                 overlayColor="black"
                 overlayOpacity={0.65}
+                // MUST stay false. The spotlight cutout (CircleShape/RectShape)
+                // animates SVG geometry props — cx/cy/r and Rect x/y/width/height
+                // via react-native-svg's AnimatedCircle/AnimatedRect — which the
+                // native animated driver does not support. Setting nativeDriver
+                // true makes those Animated.Values throw ("not supported by the
+                // native animated module") and breaks the cutout. The tooltip
+                // fade is opacity-only so it would be native-safe, but the prop is
+                // global to the provider, so the geometry animation wins: leave it.
                 nativeDriver={false}
                 onBackdropPress="continue"
                 onStop={handleTourStop}
