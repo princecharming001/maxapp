@@ -232,8 +232,22 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
         never prod. Acceptable.
       - Minor polish (non-blocking): 48 `console.*` calls across 11 files; consider
         a prod log-strip (babel-plugin-transform-remove-console) — added to P3.
-- [ ] Permissions (camera, notifications) have proper usage strings + graceful
-      denial handling.
+- [x] Permissions (camera, notifications) have proper usage strings + graceful
+      denial handling. **2026-06-26 (iter 7): verified — solid.**
+      - Usage strings all present: camera + mic via the `expo-camera` config
+        plugin (auto-injects `NSCameraUsageDescription`/`NSMicrophoneUsageDescription`);
+        `NSPhotoLibraryUsageDescription` + `NSPhotoLibraryAddUsageDescription` in
+        infoPlist + `expo-media-library` plugin; notifications via `expo-notifications`
+        plugin + `aps-environment: production` + `UIBackgroundModes:
+        remote-notification`. Android permissions declared. `ITSAppUsesNonExempt-
+        Encryption: false` (export-compliance handled).
+      - Graceful denial everywhere: camera uses `useCameraPermissions`, and on
+        `canAskAgain === false` shows an Alert → "Open Settings"
+        (FaceScanScreen.tsx:387) + a denied-state UI; photo save Alerts "Allow
+        Photos access" and returns (FaceScanResultsScreen.tsx:1051); notifications
+        return a bool so callers silently skip scheduling
+        (localScheduleNotifications.ts:19); calendar returns `permission_denied`
+        (DaySetupScreen.tsx:249). No crash paths on denial.
 - [ ] Accessibility labels on icon-only buttons; key interactive elements have
       `testID`s (extend coverage where Maestro can't target).
 - [ ] Feature flags: confirm the **production** flag values (newNav, todayV2,
@@ -320,3 +334,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   Only public `EXPO_PUBLIC_*` config embedded (Stripe publishable key safe).
   Onairos key confirmed server-side (resolves old audit item). One dev-only
   `user.id` log (simulated IAP). Logged a P3 to strip console.* in prod.
+- 2026-06-26 (iter 7): **Permissions — verified solid.** All iOS usage strings
+  present (camera/mic via expo-camera plugin, photos in infoPlist + plugin,
+  notifications plugin + aps-environment + UIBackgroundModes); Android declared;
+  export-compliance flag set. Graceful denial everywhere (camera→Settings
+  redirect, photos/notifications/calendar all degrade, no crash). No change needed.
