@@ -33,6 +33,8 @@ import {
 import { Alert } from '../../components/InAppAlert';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
@@ -136,6 +138,47 @@ function suggestionsForTier(tier: 'beginner' | 'intermediate' | 'advanced' | 'un
   if (tier === 'beginner') return SUGGESTIONS_BEGINNER;
   if (tier === 'advanced') return SUGGESTIONS_ADVANCED;
   return SUGGESTIONS;
+}
+
+// Frosted-glass top-bar button — a blurred translucent pane with a bright rim,
+// a top sheen, and a soft shadow (the shadow rides the un-clipped outer wrapper
+// so overflow:hidden on the clip doesn't mask it).
+function GlassButton({
+  onPress,
+  children,
+  pill,
+  accessibilityLabel,
+  hitSlop,
+}: {
+  onPress: () => void;
+  children: React.ReactNode;
+  pill?: boolean;
+  accessibilityLabel?: string;
+  hitSlop?: { top: number; bottom: number; left: number; right: number };
+}) {
+  return (
+    <View style={[styles.glassShadow, pill ? styles.glassShadowPill : styles.glassShadowCircle]}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        hitSlop={hitSlop}
+        style={[styles.glassClip, pill ? styles.glassClipPill : styles.glassClipCircle]}
+      >
+        <BlurView intensity={26} tint="light" style={StyleSheet.absoluteFill} />
+        <View style={[StyleSheet.absoluteFill, styles.glassTint]} pointerEvents="none" />
+        <LinearGradient
+          pointerEvents="none"
+          colors={['rgba(255,255,255,0.65)', 'rgba(255,255,255,0)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.glassSheen}
+        />
+        {children}
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 export default function DayPlannerScreen({ embedded = false }: { embedded?: boolean }) {
@@ -330,46 +373,24 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
       {/* Top bar — Today pill (left) + manage / add (right), mirroring the ref. */}
       <View style={[styles.header, { paddingTop: insets.top + 22 }]}>
         {!embedded && navigation.canGoBack() ? (
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.iconBtn}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
+          <GlassButton onPress={() => navigation.goBack()} accessibilityLabel="Back" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="arrow-back" size={22} color={colors.foreground} />
-          </TouchableOpacity>
+          </GlassButton>
         ) : (
-          <TouchableOpacity
-            style={styles.todayPill}
-            activeOpacity={0.85}
-            onPress={() => setScope(todayKey)}
-            accessibilityRole="button"
-            accessibilityLabel="Jump to today"
-          >
+          <GlassButton pill onPress={() => setScope(todayKey)} accessibilityLabel="Jump to today">
             <Text style={styles.todayPillText}>Today</Text>
-          </TouchableOpacity>
+          </GlassButton>
         )}
         <View style={styles.headerRight}>
           {saving ? <ActivityIndicator size="small" color={colors.textMuted} style={{ marginRight: 2 }} /> : null}
           {/* Chatbot — opens the "tell Max" assistant. */}
-          <TouchableOpacity
-            style={styles.iconBtn}
-            activeOpacity={0.85}
-            onPress={() => setChatOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Ask Max"
-          >
+          <GlassButton onPress={() => setChatOpen(true)} accessibilityLabel="Ask Max">
             <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.foreground} />
-          </TouchableOpacity>
+          </GlassButton>
           {/* Commitments — opens the commitments sheet (list + add). */}
-          <TouchableOpacity
-            style={styles.iconBtn}
-            activeOpacity={0.85}
-            onPress={() => setCommitmentsOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Commitments"
-          >
+          <GlassButton onPress={() => setCommitmentsOpen(true)} accessibilityLabel="Commitments">
             <Ionicons name="add" size={22} color={colors.foreground} />
-          </TouchableOpacity>
+          </GlassButton>
         </View>
       </View>
 
@@ -665,15 +686,29 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     backgroundColor: BG,
   },
-  // Top-bar controls — white circular buttons + a Today pill, soft-shadowed.
-  iconBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', ...SOFT,
+  // Top-bar controls — frosted-glass buttons. Shadow on the outer wrapper; the
+  // blur/tint/rim live on the clipped inner so overflow:hidden keeps clean corners.
+  glassShadow: {
+    shadowColor: '#3A352B',
+    shadowOpacity: 0.13,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5,
   },
-  todayPill: {
-    paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999,
-    backgroundColor: '#FFFFFF', ...SOFT,
+  glassShadowCircle: { width: 40, height: 40, borderRadius: 20 },
+  glassShadowPill: { borderRadius: 999 },
+  glassClip: {
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
+  glassClipCircle: { width: 40, height: 40, borderRadius: 20 },
+  glassClipPill: { flexDirection: 'row', height: 40, paddingHorizontal: 18, borderRadius: 999 },
+  glassTint: { backgroundColor: 'rgba(255,255,255,0.32)' },
+  glassSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '55%' },
   todayPillText: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.foreground, letterSpacing: -0.1 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
