@@ -24,7 +24,6 @@ import {
 } from 'react-native'
 import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import PaywallDust from '../../components/PaywallDust';
 import { LiquidGlass } from '../../components/glass/LiquidGlass';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -247,41 +246,18 @@ export default function PaymentScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* CTA — clean glass: real iOS chrome material + ONE soft top
-                    highlight + a thin edge. No busy speculars (that read as a
-                    weird outlined blob). Outer view holds the float shadow since
-                    overflow:hidden on the button clips the blur to the pill. */}
-                <View style={s.ctaShadow}>
-                    <TouchableOpacity
-                        style={[s.cta, ctaBusy && s.ctaDisabled]}
-                        onPress={handleSubscribe}
-                        disabled={ctaBusy}
-                        activeOpacity={0.85}
-                    >
-                        <BlurView
-                            intensity={IS_IOS ? 64 : 28}
-                            tint={IS_IOS ? 'systemChromeMaterialDark' : 'dark'}
-                            style={StyleSheet.absoluteFill}
-                            experimentalBlurMethod={IS_IOS ? undefined : 'dimezisBlurView'}
-                            pointerEvents="none"
-                        />
-                        {!IS_IOS ? (
-                            <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(20,20,24,0.5)' }]} />
-                        ) : null}
-                        {/* one gentle top highlight — the single glass catch */}
-                        <LinearGradient
-                            pointerEvents="none"
-                            colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 0, y: 1 }}
-                            style={s.ctaSheen}
-                        />
-                        {ctaBusy
-                            ? <ActivityIndicator color={WHITE} />
-                            : <Text style={s.ctaText}>{ctaLabel}</Text>
-                        }
-                    </TouchableOpacity>
-                </View>
+                {/* CTA */}
+                <TouchableOpacity
+                    style={[s.cta, ctaBusy && s.ctaDisabled]}
+                    onPress={handleSubscribe}
+                    disabled={ctaBusy}
+                    activeOpacity={0.9}
+                >
+                    {ctaBusy
+                        ? <ActivityIndicator color={WHITE} />
+                        : <Text style={s.ctaText}>{ctaLabel}</Text>
+                    }
+                </TouchableOpacity>
 
                 {/* Referral / promo code (hidden + no-op when the `referrals` flag is OFF).
                     On a free comp the server grants entitlement; refresh + route past paywall. */}
@@ -457,22 +433,16 @@ const s = StyleSheet.create({
     },
 
     /* CTA — dark ink pill pops on the light cream canvas */
-    ctaShadow: {
-        borderRadius: 999,
-        ...(IS_IOS
-            ? { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 16, shadowOffset: { width: 0, height: 7 } }
-            : { elevation: 6 }),
-    },
     cta: {
-        height: 56,
+        backgroundColor: INK,
         borderRadius: 999,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.16)',
+        height: 56,
         alignItems: 'center',
         justifyContent: 'center',
+        ...(IS_IOS
+            ? { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } }
+            : { elevation: 6 }),
     },
-    ctaSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '52%' },
     ctaDisabled: { opacity: 0.5 },
     ctaText: {
         fontFamily: 'Matter-SemiBold',
