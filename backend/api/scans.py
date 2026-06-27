@@ -172,7 +172,6 @@ def _redacted_analysis(analysis: dict) -> dict:
         pass
     appeal = max(0.0, min(10.0, appeal))
     tier_s = pr.get("psl_tier") if isinstance(pr.get("psl_tier"), str) else ""
-    arch_s = pr.get("archetype") if isinstance(pr.get("archetype"), str) else ""
     try:
         asc_m = int(pr.get("ascension_time_months") or 0)
     except (TypeError, ValueError):
@@ -193,7 +192,12 @@ def _redacted_analysis(analysis: dict) -> dict:
             "psl_tier": tier_s,
             "ascension_time_months": max(0, min(120, asc_m)),
             "age_score": max(0, min(99, age_s)),
-            "archetype": arch_s[:200] if arch_s else "",
+            # Archetype is a locked metric card: its label is static client-side
+            # and its value is masked ("—") until paid, so the redacted payload
+            # must NOT carry the real archetype (it would be a value leak on the
+            # wire even though the UI masks it). The full analysis sent to paid
+            # users still includes it. (Ralph Task E.)
+            "archetype": "",
         },
         "locked": True,
     }
