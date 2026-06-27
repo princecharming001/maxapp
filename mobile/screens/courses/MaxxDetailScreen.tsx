@@ -398,7 +398,7 @@ export default function MaxxDetailScreen() {
                             </View>
                         ) : (
                             <TouchableOpacity
-                                style={[styles.primaryCta, { backgroundColor: accent }]}
+                                style={[styles.primaryCta, { backgroundColor: accent, shadowColor: accent }]}
                                 activeOpacity={0.88}
                                 onPress={() => {
                                     if (canSchedule) {
@@ -410,7 +410,7 @@ export default function MaxxDetailScreen() {
                             >
                                 <LinearGradient
                                     pointerEvents="none"
-                                    colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']}
+                                    colors={['rgba(255,255,255,0.34)', 'rgba(255,255,255,0)']}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 0, y: 1 }}
                                     style={styles.primaryCtaSheen}
@@ -821,10 +821,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 8,
         borderRadius: borderRadius.full,
-        paddingVertical: 16,
+        paddingVertical: 17,
         ...(Platform.OS === 'ios'
-            ? { shadowColor: '#3A352B', shadowOpacity: 0.14, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } }
-            : { elevation: 4 }),
+            ? { shadowOpacity: 0.30, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } }
+            : { elevation: 6 }),
     },
     primaryCtaSheen: {
         position: 'absolute',
