@@ -12,8 +12,8 @@
  *   • On today only: a live "now" line + dot, and past events are dimmed.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { LiquidGlassFill } from '../glass/LiquidGlass';
 import { colors, fonts } from '../../theme/dark';
 import type { ShapeFocus } from './DayEditorSheet';
 import {
@@ -337,19 +337,14 @@ export default function ScheduleGrid({
                   accessibilityRole={e.onPress ? 'button' : undefined}
                   accessibilityLabel={`${e.label}, ${fmt12Compact(min2hhmm(e.start))}`}
                 >
-                  {/* Frosted glass: a real blur of the timeline behind, a bright
-                      airy white pane, a faint cool tint, and a top rim of light
-                      for the glass edge. Colored events tint the pane to match. */}
-                  <BlurView
-                    intensity={Platform.OS === 'android' ? 32 : 44}
-                    tint="light"
-                    style={StyleSheet.absoluteFill}
-                  />
-                  <View pointerEvents="none" style={styles.cardGlass} />
+                  {/* Canonical liquid-glass optics (native frosted material +
+                      corner specular + luminous rim) blurring the timeline
+                      behind. Tiny cards skip the svg specular for perf. Colored
+                      events keep an accent wash on top to tint the pane. */}
+                  <LiquidGlassFill idSuffix={`evt${idx}`} spec={tiny ? 0 : 0.85} />
                   {e.accent === WORKOUT_ACCENT ? (
                     <View pointerEvents="none" style={styles.cardAccentWash} />
                   ) : null}
-                  <View pointerEvents="none" style={styles.cardRim} />
                   <View style={[styles.tick, { backgroundColor: e.accent }]} />
                   <View style={[styles.cardBody, tiny && styles.cardBodyTiny]}>
                     <Text
@@ -416,13 +411,8 @@ const styles = StyleSheet.create({
     shadowColor: '#1E2840', shadowOpacity: 0.13, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 3,
   },
   cardPast: { opacity: 0.42 },
-  // Whisper-cool wash — drops the warm cream temperature a touch without dimming.
-  cardGlass: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(236,240,247,0.20)' },
-  // Workout (and other colored events) tint the pane in their accent.
+  // Workout (and other colored events) tint the glass pane in their accent.
   cardAccentWash: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(47,107,78,0.14)' },
-  // A brighter 1px top rim — the lit edge of glass. (No half-height sheen: it
-  // made the card read two-tone; the pane is now one uniform fill.)
-  cardRim: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.7)' },
   tick: { width: 3, marginVertical: 7, borderRadius: 2 },
   cardBody: { flex: 1, paddingHorizontal: 11, paddingVertical: 7, justifyContent: 'flex-start' },
   cardBodyTiny: { justifyContent: 'center', paddingVertical: 4 },
