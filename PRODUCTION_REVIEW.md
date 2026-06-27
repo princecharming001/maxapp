@@ -495,3 +495,10 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   5/5 deferred glass errors, no new): removed the dead `referralDiscounts` flag;
   sanitized both HomeScreen schedule-error spots so a raw axios message can never
   reach the user (backend `detail` or friendly fallback only).
+- 2026-06-26 (iter 20): One careful retry of the core-loop walk — got past init
+  this time but failed because the app was stuck on the boot splash after the
+  repeated relaunch/terminate churn (dev bundle reloading via Metro; a dev-build
+  artifact, NOT a prod issue — prod embeds the bundle). Confirms sim-driven E2E is
+  not reliably completable this session. Holding the remaining sim-heavy walks
+  (core loop / TaskGuide / Fitmax / scan / achievements) for a stable driver/CI.
+  No app issue found; no code change.
