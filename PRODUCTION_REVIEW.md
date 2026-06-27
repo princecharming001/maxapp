@@ -214,8 +214,22 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       `maestro test smoke_no_redbox` PASSES** — cold launch, no "Something went
       wrong"/"Error"/"Invariant Violation"/"TypeError" overlay (EXIT 0). Per-tab
       first-render console-error check still TODO.
-- [ ] Every screen has sane empty / loading / error states (no infinite spinners,
-      no raw error objects shown to users).
+- [~] Every screen has sane empty / loading / error states (no infinite spinners,
+      no raw error objects shown to users). **2026-06-26 (iter 9): error states
+      verified good.**
+      - All user-facing `{error}` renders are curated strings (SmsSetup,
+        Personalization, OnboardingV2, GoogleSignInButton all use friendly copy
+        like "Could not save. Try again." / "Check your connection") — no raw
+        Error objects or stacks shown.
+      - Global `AppErrorBoundary` fallback: "Something went wrong … Your data is
+        safe — tap to reload" + Reload action; raw `error.message` is only logged,
+        never rendered.
+      - Empty/loading spot-checked sound: Home ("No habits… Start a program"),
+        Explore ("Loading Explore" → "No maxes yet").
+      - Minor (P3, non-blocking): HomeScreen schedule-load error can surface a raw
+        axios `e.message` (e.g. "Request failed with status code 500") when the
+        backend sends no `detail`; has a friendly fallback otherwise. Optional to
+        sanitize. Full per-screen empty/loading sweep still TODO.
 - [ ] Offline / flaky-network behavior is graceful (resilience layer is in place —
       verify it actually catches failures on the walked screens).
 - [x] No secrets / API keys committed in `mobile/`; no `console.log` of PII; dev
@@ -357,3 +371,8 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   under new arch; coordinate taps brittle) → flagged as test-infra Needs-Human-
   Decision (add tabBarButtonTestID). Reverted the home_dashboard_render tap
   experiment; documented its on-Home precondition. Screens render fine.
+- 2026-06-26 (iter 9): **Error states verified — clean.** All user-facing error
+  text is curated copy (no raw Error objects/stacks); AppErrorBoundary fallback is
+  friendly + has a Reload action and only logs the raw message. Empty/loading
+  spot-checked good. Noted one minor P3 (HomeScreen can surface a raw axios
+  message on schedule-load failure). No code change needed.
