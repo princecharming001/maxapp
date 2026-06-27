@@ -106,13 +106,27 @@ function Feasibility({ id, color }: { id: string; color: string }) {
                 Max fits {d.fits_n_of_m.fits} of {d.fits_n_of_m.of} weekly sessions into your real week.
             </Text>
             <View style={styles.ghostRow}>
-                {d.ghost_week.map((g) => (
-                    <View key={g.day} style={styles.ghostDay}>
-                        <View style={[styles.ghostDot, { backgroundColor: g.slots.length ? color : 'rgba(28,26,23,0.14)' }]} />
-                        <Text style={styles.ghostLetter}>{g.day[0]}</Text>
-                        <Text style={styles.ghostSlot}>{g.slots[0] || ' '}</Text>
-                    </View>
-                ))}
+                {d.ghost_week.map((g) => {
+                    const n = g.slots.length;
+                    const on = n > 0;
+                    // True intensity: bar height scales with that day's session count.
+                    const barH = on ? Math.min(12 + (n - 1) * 5, 24) : 6;
+                    return (
+                        <View key={g.day} style={styles.ghostDay}>
+                            <View style={styles.ghostBarWrap}>
+                                <View
+                                    style={[
+                                        styles.ghostBar,
+                                        on
+                                            ? { height: barH, backgroundColor: color, shadowColor: color, shadowOpacity: 0.5, shadowRadius: 5, shadowOffset: { width: 0, height: 1 } }
+                                            : { height: barH, backgroundColor: 'rgba(28,26,23,0.12)' },
+                                    ]}
+                                />
+                            </View>
+                            <Text style={[styles.ghostLetter, on && { color: INK }]}>{g.day[0]}</Text>
+                        </View>
+                    );
+                })}
             </View>
         </View>
     );
@@ -292,15 +306,20 @@ function SessionTimeline({ item, base }: { item: MarketplaceItem; base: string }
                     return (
                         <View key={i} style={tl.row}>
                             <View style={tl.rail}>
-                                <View style={[
-                                    tl.node,
-                                    n.state === 'done' && { backgroundColor: base, borderColor: base },
-                                    n.state === 'current' && { borderColor: base, borderWidth: 2.5 },
-                                    n.state === 'locked' && { borderColor: HAIRLINE },
-                                ]}>
-                                    {n.state === 'done' ? <Ionicons name="checkmark" size={14} color="#fff" />
-                                        : n.state === 'locked' ? <Ionicons name="lock-closed" size={11} color={MUTE} />
-                                        : <View style={[tl.dot, { backgroundColor: base }]} />}
+                                <View style={tl.nodeWrap}>
+                                    {n.state === 'current' ? (
+                                        <View style={[tl.nodeGlow, { backgroundColor: hexA(base, 0.2) }]} />
+                                    ) : null}
+                                    <View style={[
+                                        tl.node,
+                                        n.state === 'done' && { backgroundColor: base, borderColor: base },
+                                        n.state === 'current' && { backgroundColor: base, borderColor: base },
+                                        n.state === 'locked' && { backgroundColor: CARD, borderColor: HAIRLINE },
+                                    ]}>
+                                        {n.state === 'done' ? <Ionicons name="checkmark" size={14} color="#fff" />
+                                            : n.state === 'current' ? <View style={tl.dotCurrent} />
+                                            : <Ionicons name="lock-closed" size={11} color={MUTE} />}
+                                    </View>
                                 </View>
                                 {!last ? <View style={tl.connector} /> : null}
                             </View>
@@ -613,7 +632,7 @@ export default function MaxDetailScreen() {
                                 : item.weeks ? `${item.weeks} weeks · one payment` : 'one payment'}
                     </Text>
                 </View>
-                <Animated.View style={{ transform: [{ scale: ctaScale }] }}>
+                <Animated.View style={[styles.ctaBtnShadow, { shadowColor: item.entered ? ACCENT : '#000', transform: [{ scale: ctaScale }] }]}>
                     <TouchableOpacity
                         style={[styles.ctaBtn, { backgroundColor: item.entered ? ACCENT : INK }]}
                         activeOpacity={0.9}
@@ -622,6 +641,14 @@ export default function MaxDetailScreen() {
                         onPressIn={() => Animated.spring(ctaScale, { toValue: 0.95, useNativeDriver: true, speed: 40, bounciness: 0 }).start()}
                         onPressOut={() => Animated.spring(ctaScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start()}
                     >
+                        {/* glossy top sheen — light-aware depth */}
+                        <LinearGradient
+                            pointerEvents="none"
+                            colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 0, y: 1 }}
+                            style={styles.ctaSheen}
+                        />
                         {busy ? (
                             <ActivityIndicator color="#fff" />
                         ) : (
@@ -639,12 +666,14 @@ export default function MaxDetailScreen() {
 const tl = StyleSheet.create({
     row: { flexDirection: 'row', gap: 14 },
     rail: { alignItems: 'center', width: 30 },
+    nodeWrap: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
+    nodeGlow: { position: 'absolute', width: 42, height: 42, borderRadius: 21 },
     node: {
         width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
         borderWidth: 1.5, borderColor: HAIRLINE, backgroundColor: CARD,
     },
-    dot: { width: 9, height: 9, borderRadius: 5 },
-    connector: { flex: 1, width: 2, backgroundColor: HAIRLINE, marginVertical: 3, minHeight: 22 },
+    dotCurrent: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
+    connector: { flex: 1, width: 2.5, borderRadius: 2, backgroundColor: HAIRLINE, marginVertical: 3, minHeight: 22 },
     card: { flex: 1, paddingBottom: 18 },
     title: { fontFamily: 'Matter-SemiBold', fontSize: 15, color: INK },
     meta: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 3 },
@@ -716,11 +745,11 @@ const styles = StyleSheet.create({
     rowCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     feasVerdict: { fontFamily: 'Matter-SemiBold', fontSize: 14.5 },
     feasLine: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: SUB, marginTop: 7, lineHeight: 19 },
-    ghostRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 },
-    ghostDay: { alignItems: 'center', gap: 5, flex: 1 },
-    ghostDot: { width: 8, height: 8, borderRadius: 4 },
+    ghostRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18, alignItems: 'flex-end' },
+    ghostDay: { alignItems: 'center', gap: 8, flex: 1 },
+    ghostBarWrap: { height: 24, justifyContent: 'flex-end', alignItems: 'center' },
+    ghostBar: { width: 7, borderRadius: 4 },
     ghostLetter: { fontFamily: 'Matter-Medium', fontSize: 10.5, color: MUTE },
-    ghostSlot: { fontFamily: 'Matter-Regular', fontSize: 9.5, color: MUTE },
 
     // Outcomes
     outRow: { flexDirection: 'row', gap: 11, alignItems: 'flex-start' },
@@ -762,6 +791,14 @@ const styles = StyleSheet.create({
     },
     ctaPrice: { fontFamily: 'Matter-Bold', fontSize: 18, color: INK },
     ctaSub: { fontFamily: 'Matter-Regular', fontSize: 12, color: SUB, marginTop: 1 },
-    ctaBtn: { borderRadius: 999, paddingHorizontal: 32, paddingVertical: 15, minWidth: 124, alignItems: 'center' },
+    ctaBtnShadow: {
+        borderRadius: 999,
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 7,
+    },
+    ctaBtn: { borderRadius: 999, overflow: 'hidden', paddingHorizontal: 32, paddingVertical: 15, minWidth: 124, alignItems: 'center', justifyContent: 'center' },
+    ctaSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '52%' },
     ctaBtnText: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: '#fff' },
 });
