@@ -250,7 +250,7 @@ DIMORPHISM — set "dimorphism" 0-10 for how masculine (high) vs soft (low) the 
 
 GLOW_UP_LABEL — set "glow_up_label" to EXACTLY "High", "Medium", or "Low", based on how much is CONTROLLABLE without surgery (skin, hair, leanness, grooming, brows, facial hair, posture, photo presence). Good bone structure bottlenecked only by skin/hair/leanness = High. Already optimized or limited mostly by bone = Low.
 
-FIRST MOVE — set "first_move" to ONE, or at most TWO, max ids (from skinmax, hairmax, fitmax, bonemax, heightmax) that are the single most important place to START, highest priority first. This is the ONE action that matters most right now, not a full list.
+FIRST MOVE — set "first_move" to a list containing EXACTLY ONE max id (from skinmax, hairmax, fitmax, bonemax, heightmax): the single most important place to START right now, the one action that moves the needle most. ONE move, never a list of recommendations. The app shows only the first item, so lead with the single highest-impact max (usually the one that fixes the bottleneck).
 
 ADDITIONAL REQUIRED APP FIELDS (same JSON):
 - metrics: EXACTLY 6 objects in this order, each with id, label, score, summary:

@@ -988,12 +988,6 @@ export default function FaceScanResultsScreen() {
         typeof pr?.age_score === 'number' && !Number.isNaN(pr.age_score)
             ? pr.age_score
             : parseInt(String(pr?.age_score || '0'), 10) || 0;
-    let suggestedMods: string[] = Array.isArray(pi?.suggested_modules) ? pi.suggested_modules.map(String) : [];
-    if (!suggestedMods.length && Array.isArray(a?.suggested_modules)) suggestedMods = a.suggested_modules.map(String);
-    if (!suggestedMods.length && Array.isArray(facialSummary?.suggested_modules)) suggestedMods = (facialSummary!.suggested_modules as unknown[]).map(String);
-    if (!suggestedMods.length && a) suggestedMods = suggestedModulesFromUmax(a);
-    suggestedMods = suggestedMods.slice(0, 3);
-
     // ── New viral metrics (halo / failo / sex+trust / dimorphism / glow-up / first move) ──
     const _num10 = (v: any): number | null => {
         const n = parseFloat(String(v ?? ''));
@@ -1205,9 +1199,6 @@ export default function FaceScanResultsScreen() {
         })
         .filter((x): x is BentoFeatureItem => x !== null);
 
-    // Comprehensive looksmax breakdown → grouped mosaic sections.
-    const mosaicSections = !isProcessing ? buildMosaicSections(a, locked, archetype, pslTier) : [];
-
     return (
         <View style={s.root}>
 
@@ -1330,10 +1321,16 @@ export default function FaceScanResultsScreen() {
 
                     <Text style={s.statsSectionTitle}>Your Analysis</Text>
 
-                    {/* Archetype one-liner — factual, only when a scan produced an
-                        archetype. Ties the score to *their* type; no new claims. */}
-                    {personalizedUI && !isProcessing && archetypeLine(archetype, ratingDisplay) ? (
-                        <Text style={s.archetypeLine}>{archetypeLine(archetype, ratingDisplay)}</Text>
+                    {/* Face archetype — the identity headline. Shown even when locked
+                        (it's the teaser that hooks the rest of the read). */}
+                    {!isProcessing && archetype ? (
+                        <View style={s.archetypeCard}>
+                            <Text style={s.archetypeKicker}>YOUR ARCHETYPE</Text>
+                            <Text style={s.archetypeName} numberOfLines={2} adjustsFontSizeToFit>{archetype}</Text>
+                            {archetypeLine(archetype, ratingDisplay) ? (
+                                <Text style={s.archetypeDesc}>{archetypeLine(archetype, ratingDisplay)}</Text>
+                            ) : null}
+                        </View>
                     ) : null}
 
                     {/* ── Verdict: the viral read + the one First Move ─────── */}
@@ -1349,7 +1346,7 @@ export default function FaceScanResultsScreen() {
                                                 <Text style={s.firstMoveValue}>Locked</Text>
                                             </View>
                                         ) : (
-                                            <Text style={s.firstMoveValue}>{firstMove.map(formatSuggestedModuleTitle).join(' + ')}</Text>
+                                            <Text style={s.firstMoveValue}>{formatSuggestedModuleTitle(firstMove[0])}</Text>
                                         )}
                                         <Text style={s.firstMoveSub}>
                                             {locked ? 'Unlock to see exactly where to start.' : 'Start here. The one move that moves the needle most.'}
@@ -1421,41 +1418,13 @@ export default function FaceScanResultsScreen() {
                         </View>
                     ) : null}
 
-                    {/* Comprehensive looksmax breakdown — grouped mosaic sections.
-                        Tap any tile to expand it in place; the rest reflow with no
-                        gaps. Locked tiles blur the score behind an unlock prompt. */}
-                    {!isProcessing ? (
-                        <View>
-                            {locked ? (
-                                <Text style={s.breakdownHint}>
-                                    Tap a tile to expand it. Unlock to reveal every score.
-                                </Text>
-                            ) : null}
-                            {mosaicSections.map((sec) => (
-                                <View key={sec.key}>
-                                    <SectionHeader>{sec.title}</SectionHeader>
-                                    <MosaicGrid tiles={sec.tiles} onUnlock={goPayment} />
-                                </View>
-                            ))}
-                        </View>
-                    ) : (
+                    {/* While the scan is still computing, a quiet placeholder. The
+                        dense per-feature breakdown was removed — the read above (the
+                        seven coach metrics) is the analysis now. */}
+                    {isProcessing ? (
                         <View style={s.processingPlaceholder}>
                             <ActivityIndicator color={colors.foreground} />
                             <Text style={s.processingText}>Calculating your scores…</Text>
-                        </View>
-                    )}
-
-                    {/* Recommended modules */}
-                    {!locked && suggestedMods.length > 0 ? (
-                        <View style={s.recsSection}>
-                            <Text style={s.recsHeading}>Recommended for you</Text>
-                            <View style={s.recsPills}>
-                                {suggestedMods.map((m, i) => (
-                                    <View key={`${m}-${i}`} style={s.recPill}>
-                                        <Text style={s.recPillText}>{formatSuggestedModuleTitle(m)}</Text>
-                                    </View>
-                                ))}
-                            </View>
                         </View>
                     ) : null}
 
@@ -1748,6 +1717,19 @@ const s = StyleSheet.create({
         marginTop: -10,
         marginBottom: 22,
     },
+    /* Face archetype — the identity headline card above the read. */
+    archetypeCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.06)',
+        padding: 18,
+        marginBottom: 12,
+        ...GLASS_SHADOW,
+    },
+    archetypeKicker: { fontFamily: 'Matter-Medium', fontSize: 10.5, letterSpacing: 0.8, color: BENTO_SUB, textTransform: 'uppercase' },
+    archetypeName: { fontFamily: fonts.serif, fontSize: 30, color: BENTO_INK, letterSpacing: -0.6, marginTop: 7, lineHeight: 34 },
+    archetypeDesc: { fontFamily: 'Matter-Regular', fontSize: 13, lineHeight: 19, color: BENTO_SUB, marginTop: 9 },
     breakdownHint: {
         fontFamily: 'Matter-Regular',
         fontSize: 13,
