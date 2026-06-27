@@ -1,13 +1,13 @@
-# Regression: after exercising the Planner's commitment editor + the nested wheel
-# time picker, the app must stay fully tappable — no leaked/stacked Modal eating
-# touches (the "stuck planner"). The wheel time picker used to be a SECOND <Modal>
-# nested inside the editor <Modal> (two transparent iOS windows at once); it is
-# now an in-sheet overlay within the same modal. This flow drives
-# commitments -> add -> editor -> wheel -> confirm, asserts the editor survives
-# the wheel, closes it, and proves tabs + planner controls all still respond.
+# Regression: after EVERY planner interaction the app must stay fully tappable —
+# no leaked/stacked/always-mounted Modal leaving a full-screen overlay that
+# swallows touches (the "stuck planner"). Exercises the day editor (open, toggle,
+# close via Done and via swipe-down), the commitments editor + the wheel time
+# picker (the nested-Modal that used to wedge it), the assistant/chat sheet, and
+# rapid-open/close + tab-switch-mid-animation races. After each, asserts a planner
+# control or tab still responds.
 #
-# Self-recovering: mints a paid demo user via the DEV drawer, then runs on the
-# Planner tab. Requires the LOCAL sim backend (faux-signup).
+# Self-recovering: mints a paid demo user via the DEV drawer (needs the LOCAL sim
+# backend), then runs on the Planner tab.
 appId: com.cannon.mobile
 ---
 - launchApp
@@ -19,26 +19,80 @@ appId: com.cannon.mobile
 - waitForAnimationToEnd:
     timeout: 1200
 - tapOn:
-    point: "78%,91%"        # DEV drawer "Paid" pill
+    point: "78%,91%"          # DEV drawer "Paid" pill
     optional: true
 - waitForAnimationToEnd:
     timeout: 40000
 - tapOn:
-    text: "Skip for now"     # post-pay scan-load, if shown
+    text: "Skip for now"
     optional: true
 - waitForAnimationToEnd:
     timeout: 2500
-
-# ── On the Planner ──────────────────────────────────────────────
 - tapOn:
     id: "tab-planner"
 - waitForAnimationToEnd:
     timeout: 3000
 - assertVisible: "Your week"
 
-# Open commitments -> add -> editor (serialized close-before-open).
+# ── Day editor: open → toggle controls → close via Done ──────────
 - tapOn:
-    point: "89%,12%"        # "Commitments" header button
+    point: "50%,25%"          # "Edit your usual day" card
+- waitForAnimationToEnd:
+    timeout: 2500
+- assertVisible: "All days"
+- tapOn:
+    text: "Exact"
+    optional: true
+- tapOn:
+    text: "Set window"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1200
+- tapOn:
+    text: "Done"
+- waitForAnimationToEnd:
+    timeout: 2200
+- assertVisible: "Your week"
+
+# ── Day editor: open → swipe-down on the grabber → still tappable ─
+# (the swipe-down hook always springs translateY back to 0 and routes to
+#  requestClose; if an imprecise point-swipe doesn't land the dismiss, Done
+#  closes it — either way the app must stay tappable, never wedged.)
+- tapOn:
+    point: "50%,25%"
+- waitForAnimationToEnd:
+    timeout: 2200
+- assertVisible: "All days"
+- swipe:
+    start: "50%,23%"
+    end: "50%,80%"
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    text: "Done"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible: "Your week"
+
+# ── Day editor: rapid open → close (animation race) → tappable ──
+- tapOn:
+    point: "50%,25%"
+- waitForAnimationToEnd:
+    timeout: 1400
+- tapOn:
+    text: "Done"
+    optional: true
+- tapOn:
+    point: "50%,8%"           # backdrop, in case Done not yet laid out
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible: "Your week"
+
+# ── Commitments → add → editor → wheel picker → confirm ──────────
+- tapOn:
+    point: "89%,12%"          # "Commitments" header button
 - waitForAnimationToEnd:
     timeout: 2000
 - assertVisible: "Add a commitment"
@@ -47,37 +101,48 @@ appId: com.cannon.mobile
 - waitForAnimationToEnd:
     timeout: 2500
 - assertVisible: "New commitment"
-
-# Open the wheel time picker (was a nested 2nd Modal; now an in-sheet overlay).
 - tapOn:
     text: "Starts.*"
 - waitForAnimationToEnd:
     timeout: 3000
-# Confirm via the wheel's Done button (bottom-centre of the picker).
 - tapOn:
-    point: "50%,93%"
+    point: "50%,93%"          # wheel "Done" (in-sheet overlay, not a 2nd Modal)
 - waitForAnimationToEnd:
     timeout: 2500
-# The editor SURVIVES the wheel — the picker closed itself, not the editor.
-- assertVisible: "New commitment"
-
-# Close the editor by saving -> back to a live planner.
+- assertVisible: "New commitment"     # editor survives the wheel
 - tapOn:
     text: "Add"
 - waitForAnimationToEnd:
     timeout: 2500
 - assertVisible: "Your week"
 
-# ── Prove the app is fully tappable after the whole interaction ──
+# ── Assistant / chat sheet: open → close ────────────────────────
+- tapOn:
+    point: "77%,12%"          # chat bubble (Ask Max)
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    point: "50%,8%"           # tap backdrop above the sheet to dismiss
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible: "Your week"
+
+# ── Final proof: tabs + a planner control all still respond ─────
 - tapOn:
     id: "tab-explore"
 - waitForAnimationToEnd:
-    timeout: 2500
+    timeout: 2000
 - assertVisible:
     id: "tab-planner"
 - tapOn:
     id: "tab-planner"
 - waitForAnimationToEnd:
-    timeout: 2500
+    timeout: 2000
 - assertVisible: "Your week"
+- tapOn:
+    point: "89%,12%"
+- waitForAnimationToEnd:
+    timeout: 1800
+- assertVisible: "Add a commitment"
 - takeScreenshot: /tmp/planner_no_freeze_pass
