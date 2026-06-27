@@ -169,7 +169,10 @@ const styles = StyleSheet.create({
         position: 'absolute',
         width: 2,
         borderRadius: 1,
-        left: (RAIL_W - 2) / 2,
+        // The row has paddingHorizontal; absolute children are measured from the
+        // border edge (padding is NOT respected), so add it back to centre the
+        // spine on the rail / node column.
+        left: spacing.lg + (RAIL_W - 2) / 2,
     },
     /* floating jelly tile node (crafted journey step) */
     nodeWrap: {
