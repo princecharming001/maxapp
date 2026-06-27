@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from db import get_db
 from middleware import get_current_user
+from middleware.rate_limit import rate_limit
 from services.stripe_service import stripe_service
 from models.payment import (
     PaymentCreate,
@@ -198,7 +199,11 @@ async def billing_preview(
 # Native flow: subscribe (after Payment Sheet succeeds)
 # ------------------------------------------------------------------
 
-@router.post("/subscribe", response_model=SubscribeResponse)
+@router.post(
+    "/subscribe",
+    response_model=SubscribeResponse,
+    dependencies=[Depends(rate_limit(limit=10, window_s=300, scope="subscribe"))],
+)
 async def subscribe(
     body: SubscribeRequest,
     current_user: dict = Depends(get_current_user),
@@ -343,7 +348,10 @@ class AppleVerifyRequest(BaseModel):
     product_id: Optional[str] = None
 
 
-@router.post("/apple/verify")
+@router.post(
+    "/apple/verify",
+    dependencies=[Depends(rate_limit(limit=20, window_s=300, scope="apple_verify"))],
+)
 async def apple_verify(
     body: AppleVerifyRequest,
     current_user: dict = Depends(get_current_user),
@@ -778,7 +786,11 @@ async def resume_subscription(
 # Legacy: embedded Checkout session
 # ------------------------------------------------------------------
 
-@router.post("/create-session", response_model=CheckoutSessionResponse)
+@router.post(
+    "/create-session",
+    response_model=CheckoutSessionResponse,
+    dependencies=[Depends(rate_limit(limit=10, window_s=300, scope="create_session"))],
+)
 async def create_checkout_session(
     data: PaymentCreate,
     current_user: dict = Depends(get_current_user),
@@ -801,7 +813,10 @@ class TestActivateBody(BaseModel):
     tier: str = "premium"
 
 
-@router.post("/test-activate")
+@router.post(
+    "/test-activate",
+    dependencies=[Depends(rate_limit(limit=10, window_s=300, scope="test_activate"))],
+)
 async def test_activate_subscription(
     body: TestActivateBody = TestActivateBody(),
     current_user: dict = Depends(get_current_user),
