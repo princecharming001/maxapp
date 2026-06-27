@@ -48,6 +48,23 @@ export function useMainAppTour(
     const startedRef = useRef(false);
     const { redirectPending } = opts;
 
+    // Live snapshot of the gating inputs, re-read at execution time. The start is
+    // deferred past an interaction settle (so the tour and the post-pay redirect
+    // never run in the same tick); if the redirect fires or focus is lost DURING
+    // that settle window, these refs let us bail instead of starting against a
+    // screen that's already transitioning away (the post-pay race).
+    const gateRef = useRef({ isFocused, redirectPending, onboarding: user?.onboarding });
+    gateRef.current = { isFocused, redirectPending, onboarding: user?.onboarding };
+    const stillSafeToStart = () => {
+        const g = gateRef.current;
+        if (!g.isFocused) return false;
+        if (g.redirectPending) return false;
+        const ob = g.onboarding as Record<string, unknown> | undefined;
+        if (ob?.post_subscription_onboarding) return false;
+        if (ob?.main_app_tour_completed) return false;
+        return true;
+    };
+
     // Cross-launch guard: if we've already shown (or begun showing) the tour on
     // a previous launch, never start it again — even if the server flag didn't
     // persist because that run froze before onStop.
@@ -75,10 +92,12 @@ export function useMainAppTour(
         // real anchor. Only start once it reports a non-zero rect.
         InteractionManager.runAfterInteractions(() => {
             if (startedRef.current) return;
+            if (!stillSafeToStart()) return; // redirect fired / focus lost during settle
             const target = anchorRef.current;
             if (!target || typeof target.measureInWindow !== 'function') return;
             target.measureInWindow((_x, _y, width, height) => {
                 if (startedRef.current) return;
+                if (!stillSafeToStart()) return; // re-check after the async measure
                 if (!(width > 0 && height > 0)) return; // zero spot — unsafe, wait
                 startedRef.current = true;
                 // Persist "seen" the instant we start — survives a freeze/crash
