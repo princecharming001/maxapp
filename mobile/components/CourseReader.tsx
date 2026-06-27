@@ -31,6 +31,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    Animated,
+    Easing,
     FlatList,
     Modal,
     ScrollView,
@@ -44,7 +46,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Defs, RadialGradient, Stop, Rect, Ellipse } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 
 import {
@@ -56,14 +58,59 @@ import {
 import { sectionJellyIcon } from '../data/courseIcons';
 import { colors, fonts, spacing, typography } from '../theme/dark';
 
-/** Convert `#rrggbb` → `rgba(r,g,b,a)` for use in LinearGradient stops. */
-function hexToRgba(hex: string, alpha: number): string {
+/** Lighten a #rrggbb hex toward white by `amt` (0–1). */
+function lighten(hex: string, amt: number): string {
     const h = hex.replace('#', '');
     const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-    const r = parseInt(full.slice(0, 2), 16);
-    const g = parseInt(full.slice(2, 4), 16);
-    const b = parseInt(full.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    const ch = (i: number) => {
+        const v = parseInt(full.slice(i, i + 2), 16);
+        return Math.round(v + (255 - v) * amt);
+    };
+    return `rgb(${ch(0)}, ${ch(2)}, ${ch(4)})`;
+}
+
+/** Calm field of brand light the jelly floats in — a bright core "light well"
+ *  behind the icon + soft warm/cool mesh, low-contrast so the lesson reads. */
+function SlideField({ accent }: { accent: string }) {
+    const light = lighten(accent, 0.62);
+    return (
+        <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Defs>
+                <RadialGradient id="sf-core" cx="50%" cy="47%" r="46%">
+                    <Stop offset="0%" stopColor={accent} stopOpacity={0.30} />
+                    <Stop offset="38%" stopColor={accent} stopOpacity={0.13} />
+                    <Stop offset="100%" stopColor={accent} stopOpacity={0} />
+                </RadialGradient>
+                <RadialGradient id="sf-warm" cx="22%" cy="6%" r="60%">
+                    <Stop offset="0%" stopColor={light} stopOpacity={0.4} />
+                    <Stop offset="100%" stopColor={light} stopOpacity={0} />
+                </RadialGradient>
+                <RadialGradient id="sf-cool" cx="90%" cy="98%" r="58%">
+                    <Stop offset="0%" stopColor={light} stopOpacity={0.3} />
+                    <Stop offset="100%" stopColor={light} stopOpacity={0} />
+                </RadialGradient>
+            </Defs>
+            <Rect x="-20%" y="-20%" width="140%" height="140%" fill="url(#sf-warm)" />
+            <Rect x="-20%" y="-20%" width="140%" height="140%" fill="url(#sf-cool)" />
+            <Rect x="-20%" y="-20%" width="140%" height="140%" fill="url(#sf-core)" />
+        </Svg>
+    );
+}
+
+/** Soft blurred contact shadow ellipse — grounds the floating jelly. */
+function SlideShadow() {
+    return (
+        <Svg width="150" height="40" pointerEvents="none">
+            <Defs>
+                <RadialGradient id="sf-shadow" cx="50%" cy="50%" r="50%">
+                    <Stop offset="0%" stopColor="#2A2118" stopOpacity={0.24} />
+                    <Stop offset="62%" stopColor="#2A2118" stopOpacity={0.09} />
+                    <Stop offset="100%" stopColor="#2A2118" stopOpacity={0} />
+                </RadialGradient>
+            </Defs>
+            <Ellipse cx="75" cy="20" rx="73" ry="17" fill="url(#sf-shadow)" />
+        </Svg>
+    );
 }
 
 export type CourseReaderProps = {
@@ -273,8 +320,24 @@ type SlideProps = {
 };
 
 function Slide({ section, course, width }: SlideProps) {
-    const { accent, accentSoft, accentMid } = course;
+    const { accent } = course;
     const jelly = sectionJellyIcon(course.maxxId, section.icon);
+
+    // Gentle float — the jelly drifts in its field of light (shadow breathes).
+    const float = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        const loop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(float, { toValue: 1, duration: 3600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+                Animated.timing(float, { toValue: 0, duration: 3600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            ]),
+        );
+        loop.start();
+        return () => loop.stop();
+    }, [float]);
+    const iconY = float.interpolate({ inputRange: [0, 1], outputRange: [4, -7] });
+    const shScale = float.interpolate({ inputRange: [0, 1], outputRange: [1, 0.84] });
+    const shOpacity = float.interpolate({ inputRange: [0, 1], outputRange: [1, 0.74] });
 
     return (
         <View style={[slide.outer, { width }]}>
@@ -282,33 +345,27 @@ function Slide({ section, course, width }: SlideProps) {
                 contentContainerStyle={slide.scroll}
                 showsVerticalScrollIndicator={false}
             >
-                {/* ── Hero visual block ───────────────────────────────
-                    Soft accent gradient backdrop, two concentric accent
-                    rings (decorative depth), and the glossy jelly icon at
-                    center — the brand visual language, not a flat Ionicons
-                    disc. Purely decorative; no interactivity. */}
+                {/* ── Hero visual ──────────────────────────────────────
+                    The jelly floats in a calm field of brand light (a bright
+                    core glow + soft warm/cool mesh) with a blurred contact
+                    shadow — no rings, no flat disc. Purely decorative. */}
                 <View style={slide.visualBlock}>
-                    <LinearGradient
-                        pointerEvents="none"
-                        colors={[
-                            hexToRgba(accent, 0.10),
-                            hexToRgba(accent, 0.04),
-                            hexToRgba(accent, 0.0),
-                        ]}
-                        locations={[0, 0.6, 1]}
-                        style={StyleSheet.absoluteFill}
-                    />
-                    <View style={[slide.ringOuter, { borderColor: accentSoft }]}>
-                        <View style={[slide.ringInner, { borderColor: accentMid }]}>
-                            <View style={[slide.disc, { backgroundColor: accentSoft }]}>
-                                {jelly ? (
-                                    <Image source={jelly} style={slide.discJelly} contentFit="contain" transition={200} />
-                                ) : (
-                                    <Ionicons name={section.icon as any} size={40} color={accent} />
-                                )}
-                            </View>
-                        </View>
+                    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                        <SlideField accent={accent} />
                     </View>
+                    <Animated.View
+                        pointerEvents="none"
+                        style={[slide.shadowWrap, { opacity: shOpacity, transform: [{ scaleX: shScale }, { scaleY: shScale }] }]}
+                    >
+                        <SlideShadow />
+                    </Animated.View>
+                    <Animated.View pointerEvents="none" style={{ transform: [{ translateY: iconY }] }}>
+                        {jelly ? (
+                            <Image source={jelly} style={slide.heroJelly} contentFit="contain" transition={200} />
+                        ) : (
+                            <Ionicons name={section.icon as any} size={48} color={accent} />
+                        )}
+                    </Animated.View>
                 </View>
 
                 <Text style={[slide.eyebrow, { color: accent }]}>
@@ -429,9 +486,9 @@ const slide = StyleSheet.create({
         paddingTop: spacing.xs,
         paddingBottom: spacing.lg,
     },
-    /* Hero visual: gradient backdrop + concentric accent rings + icon disc */
+    /* Hero visual: the jelly floats in a field of brand light + contact shadow */
     visualBlock: {
-        height: 168,
+        height: 176,
         marginHorizontal: -spacing.lg, // bleed past slide padding for full-width feel
         marginTop: -spacing.xs,
         marginBottom: spacing.lg,
@@ -439,33 +496,15 @@ const slide = StyleSheet.create({
         justifyContent: 'center',
         overflow: 'hidden',
     },
-    ringOuter: {
-        width: 132,
-        height: 132,
-        borderRadius: 66,
+    shadowWrap: {
+        position: 'absolute',
+        bottom: 30,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 1,
     },
-    ringInner: {
-        width: 108,
-        height: 108,
-        borderRadius: 54,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-    },
-    disc: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-    },
-    discJelly: {
-        width: 60,
-        height: 60,
+    heroJelly: {
+        width: 128,
+        height: 128,
     },
     eyebrow: {
         fontFamily: fonts.sansSemiBold,
