@@ -121,15 +121,18 @@ export default function RevealV2Screen() {
     const closeLine =
         'Just a taste. Pick your maxes in Explore and Max builds the real plan around your day.';
 
-    const completeOnboarding = async () => {
+    // `dest` is where to go after onboarding saves. "Skip for now" → Payment
+    // (the paywall). "Scan now" → FaceScan DIRECTLY — going via Payment first
+    // would flash the paywall for a beat (both screens live in the same mounted
+    // unpaid stack, so we just navigate straight to the scan).
+    const completeOnboarding = async (dest: 'Payment' | 'FaceScan' = 'Payment') => {
         setBusy(true);
         try {
             await api.saveOnboarding({ ...(ob as any), completed: true });
             await refreshUser();
-            // Non-paid users must go through Payment before reaching Main.
             const { navigationRef } = require('../../lib/navigationRef');
             setTimeout(() => {
-                if (navigationRef.isReady()) (navigationRef as any).navigate('Payment');
+                if (navigationRef.isReady()) (navigationRef as any).navigate(dest);
             }, 350);
         } catch {
             // On the computer/web dev build the local save can fail (no backend);
@@ -138,7 +141,7 @@ export default function RevealV2Screen() {
             if (Platform.OS === 'web' && __DEV__) {
                 const { navigationRef } = require('../../lib/navigationRef');
                 setTimeout(() => {
-                    if (navigationRef.isReady()) (navigationRef as any).navigate('Payment');
+                    if (navigationRef.isReady()) (navigationRef as any).navigate(dest);
                 }, 350);
             } else {
                 setBusy(false);
@@ -212,19 +215,13 @@ export default function RevealV2Screen() {
                                 variant="primary"
                                 label="Scan now"
                                 loading={busy}
-                                onPress={async () => {
-                                    await completeOnboarding();
-                                    const { navigationRef } = require('../../lib/navigationRef');
-                                    setTimeout(() => {
-                                        if (navigationRef.isReady()) (navigationRef as any).navigate('FaceScan');
-                                    }, 400);
-                                }}
+                                onPress={() => completeOnboarding('FaceScan')}
                             />
                             <GlassButton
                                 variant="glass"
                                 label="Skip for now"
                                 loading={busy}
-                                onPress={completeOnboarding}
+                                onPress={() => completeOnboarding('Payment')}
                             />
                         </View>
                     </View>

@@ -948,6 +948,10 @@ export default function FaceScanResultsScreen() {
     const treatAsPaid = isPaid === true || isScanUser === true || scan?.is_unlocked === true;
     const locked = !treatAsPaid;
     const postPay = !!postPayParam && !locked && postSubscriptionOnboarding;
+    // The full "Your Analysis" breakdown is shown ONLY for the user's first scan
+    // ever (incl. the locked onboarding teaser + the post-pay reveal). Daily /
+    // repeat scans show just the three headline rings at the top — nothing else.
+    const isFirstScanEver = locked || postPayParam || scan?.is_first_scan === true;
     const sendbluePending =
         treatAsPaid &&
         (user?.onboarding as any)?.sendblue_connect_completed !== true;
@@ -1331,7 +1335,11 @@ export default function FaceScanResultsScreen() {
                 {/* ── Stats section ──────────────────────────────────────── */}
                 <View style={[s.statsSection, { paddingBottom: Math.max(insets.bottom, 24) + 24 }]}>
 
-                    <Text style={s.statsSectionTitle}>Your Analysis</Text>
+                    {/* Full breakdown only on the first scan ever; daily/repeat
+                        scans show just the three rings above. */}
+                    {isFirstScanEver ? (
+                        <Text style={s.statsSectionTitle}>Your Analysis</Text>
+                    ) : null}
 
                     {/* Face archetype — same unified gate as the verdict cards
                         below: the "Archetype" label is part of the locked paywall
@@ -1339,7 +1347,7 @@ export default function FaceScanResultsScreen() {
                         masked when locked and revealed when paid. Renders for any
                         non-processing scan so the locked teaser and the paid reveal
                         always carry the same card (parity), only the value differs. */}
-                    {!isProcessing ? (
+                    {isFirstScanEver && !isProcessing ? (
                         <View style={s.archetypeCard}>
                             <GlassFill />
                             <Text style={s.archetypeKicker}>YOUR ARCHETYPE</Text>
@@ -1365,7 +1373,7 @@ export default function FaceScanResultsScreen() {
                     ) : null}
 
                     {/* ── Verdict: the viral read + the one First Move ─────── */}
-                    {!isProcessing ? (
+                    {isFirstScanEver && !isProcessing ? (
                         <View style={s.verdict}>
                             {/* Always render every metric card when not processing so
                                 the locked teaser and the paid reveal carry the SAME

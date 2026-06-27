@@ -29,7 +29,7 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from datetime import datetime, timedelta
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from db import get_db
 from middleware.auth_middleware import require_paid_user, get_current_user
 from middleware.rate_limit import rate_limit
@@ -575,12 +575,23 @@ async def get_latest_scan(
     is_paid = current_user.get("is_paid", False)
     is_scan_user = current_user.get("is_scan_user", False)
     treat_as_paid = is_paid or is_scan_user
+    # First scan ever? The full analysis breakdown is only shown for the user's
+    # very first scan; daily/repeat scans show just the three headline metrics.
+    # The latest scan is the first iff it's the only completed one.
+    completed_count = int((await db.execute(
+        select(func.count(Scan.id)).where(
+            Scan.user_id == user_uuid,
+            Scan.processing_status == "completed",
+        )
+    )).scalar() or 0)
+
     response = {
         "id": str(scan.id),
         "created_at": scan.created_at,
         "images": scan.images or {},
         "is_unlocked": treat_as_paid,
         "processing_status": scan.processing_status,
+        "is_first_scan": completed_count <= 1,
     }
 
     if scan.analysis:
