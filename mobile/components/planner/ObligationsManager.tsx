@@ -160,8 +160,13 @@ function WheelTimeSheet({
   const [m, setM] = useState(init.m);
   const [p, setP] = useState(init.p);
 
+  // Rendered as an in-sheet absolute overlay INSIDE the editor Modal — NOT a
+  // second <Modal>. Two stacked transparent RN Modals (editor + this picker)
+  // present as separate iOS windows; a botched dismiss leaves an orphan overlay
+  // that swallows every tap (the "stuck planner"). Keeping the picker in the
+  // same modal tree avoids the two-modals-at-once deadlock entirely.
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+    <View style={StyleSheet.absoluteFill}>
       <TouchableOpacity style={styles.wheelBackdrop} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity style={styles.wheelSheet} activeOpacity={1} onPress={() => {}}>
           <Text style={styles.wheelSheetTitle}>{title}</Text>
@@ -182,7 +187,7 @@ function WheelTimeSheet({
           </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>
-    </Modal>
+    </View>
   );
 }
 
@@ -541,21 +546,23 @@ const ObligationsManager = forwardRef<
                   <Text style={styles.saveText}>{editIndex === null ? 'Add' : 'Save'}</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* Wheel time picker slides up over the editor sheet */}
-              {picker ? (
-                <WheelTimeSheet
-                  title={picker === 'from' ? 'Starts' : 'Ends'}
-                  value={picker === 'from' ? range[0] : range[1]}
-                  onClose={() => setPicker(null)}
-                  onConfirm={(v) => {
-                    setRange((r) => (picker === 'from' ? [v, r[1]] : [r[0], v]));
-                    setPicker(null);
-                  }}
-                />
-              ) : null}
             </View>
           </KeyboardAvoidingView>
+
+          {/* Wheel time picker — an in-sheet overlay within THIS editor modal,
+              NEVER a second <Modal> (avoids the two-modals-at-once iOS freeze).
+              Full-screen so a tap anywhere outside the wheel closes just it. */}
+          {picker ? (
+            <WheelTimeSheet
+              title={picker === 'from' ? 'Starts' : 'Ends'}
+              value={picker === 'from' ? range[0] : range[1]}
+              onClose={() => setPicker(null)}
+              onConfirm={(v) => {
+                setRange((r) => (picker === 'from' ? [v, r[1]] : [r[0], v]));
+                setPicker(null);
+              }}
+            />
+          ) : null}
         </View>
       </Modal>
     </View>

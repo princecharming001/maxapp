@@ -1,0 +1,83 @@
+# Regression: after exercising the Planner's commitment editor + the nested wheel
+# time picker, the app must stay fully tappable — no leaked/stacked Modal eating
+# touches (the "stuck planner"). The wheel time picker used to be a SECOND <Modal>
+# nested inside the editor <Modal> (two transparent iOS windows at once); it is
+# now an in-sheet overlay within the same modal. This flow drives
+# commitments -> add -> editor -> wheel -> confirm, asserts the editor survives
+# the wheel, closes it, and proves tabs + planner controls all still respond.
+#
+# Self-recovering: mints a paid demo user via the DEV drawer, then runs on the
+# Planner tab. Requires the LOCAL sim backend (faux-signup).
+appId: com.cannon.mobile
+---
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 4000
+- tapOn:
+    text: "Open dev drawer"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 1200
+- tapOn:
+    point: "78%,91%"        # DEV drawer "Paid" pill
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 40000
+- tapOn:
+    text: "Skip for now"     # post-pay scan-load, if shown
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2500
+
+# ── On the Planner ──────────────────────────────────────────────
+- tapOn:
+    id: "tab-planner"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible: "Your week"
+
+# Open commitments -> add -> editor (serialized close-before-open).
+- tapOn:
+    point: "89%,12%"        # "Commitments" header button
+- waitForAnimationToEnd:
+    timeout: 2000
+- assertVisible: "Add a commitment"
+- tapOn:
+    text: "Add a commitment"
+- waitForAnimationToEnd:
+    timeout: 2500
+- assertVisible: "New commitment"
+
+# Open the wheel time picker (was a nested 2nd Modal; now an in-sheet overlay).
+- tapOn:
+    text: "Starts.*"
+- waitForAnimationToEnd:
+    timeout: 3000
+# Confirm via the wheel's Done button (bottom-centre of the picker).
+- tapOn:
+    point: "50%,93%"
+- waitForAnimationToEnd:
+    timeout: 2500
+# The editor SURVIVES the wheel — the picker closed itself, not the editor.
+- assertVisible: "New commitment"
+
+# Close the editor by saving -> back to a live planner.
+- tapOn:
+    text: "Add"
+- waitForAnimationToEnd:
+    timeout: 2500
+- assertVisible: "Your week"
+
+# ── Prove the app is fully tappable after the whole interaction ──
+- tapOn:
+    id: "tab-explore"
+- waitForAnimationToEnd:
+    timeout: 2500
+- assertVisible:
+    id: "tab-planner"
+- tapOn:
+    id: "tab-planner"
+- waitForAnimationToEnd:
+    timeout: 2500
+- assertVisible: "Your week"
+- takeScreenshot: /tmp/planner_no_freeze_pass
