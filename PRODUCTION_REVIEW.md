@@ -129,11 +129,15 @@ item below to confirm the tour itself runs clean on a fresh account.
     advances/【dismisses】 reliably, or gate the auto-start behind a flag).
   - Re-verify: after the fix, a Maestro flow that taps a Home element must
     succeed. Add `mobile/maestro/home_tap_regression.yaml`.
-- [ ] Confirm there is no OTHER global full-screen overlay mounted at App root
-  (celebration host, dust/particle layer, coachmark) leaking touch capture on
-  any tab. Grep `absoluteFill`, `position: 'absolute'`, `<Modal`, `pointerEvents`
-  across `mobile/` and verify each full-screen layer either is `pointerEvents="none"`
-  or intentionally interactive.
+- [x] Confirm there is no OTHER global full-screen overlay mounted at App root
+  leaking touch capture. **2026-06-26 (iter 2): audited — clear.** The complete
+  set of persistently-mounted overlays: (1) SpotlightTour — was the bug, fixed;
+  (2) `AchievementCelebrationHost`→`CelebrationOverlay` (RootNavigator.tsx:212,
+  gated by `treatAsFull`) returns `null` when its queue is empty and is a
+  self-dismissing `<Modal>` (Pressable backdrop → next) when active —
+  CelebrationOverlay.tsx:152; (3) `InAppAlertHost` (App.tsx:396) returns `null`
+  when idle, `<Modal>` when active — InAppAlert.tsx:227; (4) `DevDrawer`
+  (`__DEV__`-only, Modal). None lays down an idle touch-capturing layer.
 
 ## P1 — SCREEN WALK (reach each on the sim; render + primary CTA works)
 
@@ -230,3 +234,7 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   (taps register). tsc clean for the change (3 unrelated pre-existing errors
   logged under P2). Live tour-wedge repro deferred to a tour-eligible account
   (logged under Needs Human Decision).
+- 2026-06-26 (iter 2): **P0 overlay audit — clear.** Verified the only globally
+  mounted overlays (celebration host, in-app alert host, dev drawer) all render
+  `null` when idle / are self-dismissing Modals; none traps touches. P0 section
+  now fully resolved. Next: P1 screen walk.
