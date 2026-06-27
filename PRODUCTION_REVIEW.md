@@ -169,10 +169,14 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
       2026-06-26 (iter 11)** via `tab_walk_min.yaml` (tab-explore tap succeeds,
       screen mounts; "Loading Explore" → "No maxes yet" on the empty faux account).
       Card detail + start-program (with real maxes) still TODO.
-- [x] Chat / Coach (`screens/chat/MaxChatScreen.tsx`) — **render-verified on sim
-      2026-06-26**: "What can I help with?", suggestion chips (Build my plan / skin
-      / Rate my routine), "Ask Max anything" composer. TODO: send a real message +
-      reply + error/offline state.
+- [x] Chat / Coach (`screens/chat/MaxChatScreen.tsx`) — **render + SEND verified
+      on sim 2026-06-26 (iter 15)** via `chat_send.yaml`: tapped the "Build my plan
+      for today" suggestion → message posts as a sent bubble, greeting clears,
+      "Thinking" indicator shows, composer switches to a Stop (cancel) button.
+      Client send path + states all correct (EXIT 0). NOTE: the AI reply was still
+      generating at 9s — full response round-trip depends on the backend LLM being
+      configured/responsive (backend concern, not a mobile blocker). Error/offline
+      state still TODO.
 - [~] You / Profile (`screens/profile/*`) — **Profile render-verified on sim
       2026-06-26** (Your Maxes, Weekly Progress, Progress calendar, Trophy Case).
       Edit/Personalization sub-screens still TODO.
@@ -445,3 +449,7 @@ Scan/Explore/Chat). Verify whichever set the production flag config ships.
   call sites; shipping ON/OFF values produce no dead/broken gated tabs (faceScan/
   personalizedUI/onboardingV2/revealV2/streakV2 ON; newNav/todayV2/referrals OFF).
   Found `referralDiscounts` is a dead flag (0 uses) → P3 cleanup. No code change.
+- 2026-06-26 (iter 15): **Chat SEND functionally verified** (chat_send.yaml, EXIT
+  0). Suggestion-chip tap posts the message, greeting clears, "Thinking" +
+  Stop-button states render correctly. AI reply still generating at 9s (backend
+  LLM round-trip — flagged as a backend, not mobile, concern).

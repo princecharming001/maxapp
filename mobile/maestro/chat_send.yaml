@@ -1,0 +1,18 @@
+# Chat send functional check: open Chat, tap a suggestion chip (which sends it as
+# a message), confirm the UI leaves the empty greeting (conversation started).
+# Precondition: logged-in paid user. Kill stray maestro + xctest before running.
+appId: com.cannon.mobile
+---
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 8000
+- tapOn:
+    id: "tab-chat"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible: "What can I help with?"
+- tapOn: "Build my plan for today"
+- waitForAnimationToEnd:
+    timeout: 9000
+- assertNotVisible: "What can I help with?"
+- takeScreenshot: /tmp/chat_send
