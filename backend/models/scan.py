@@ -481,17 +481,73 @@ class TripleFullScanResult(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _default_new_metrics(cls, data: Any) -> Any:
-        # Back-compat: a provider/old response that omits the new keys must still
-        # parse. Inject safe defaults before field validation.
-        if isinstance(data, dict):
-            for k, default in (
-                ("halo_feature", ""), ("bottleneck", ""), ("bottleneck_max", ""),
-                ("sex_appeal", 0.0), ("trust_appeal", 0.0), ("appeal_quadrant", ""),
-                ("dimorphism", 0.0), ("dimorphism_note", ""), ("glow_up_label", ""),
-                ("first_move", []),
-            ):
-                data.setdefault(k, default)
+    def _fill_defaults(cls, data: Any) -> Any:
+        # Resilience: LLMs (especially non-Gemini providers like OpenAI) often
+        # omit or null out some of the many required fields. Rejecting the whole
+        # payload then throws away the viral coach metrics we actually display
+        # (the screen dropped to UMax defaults — "only archetype shows"). Instead
+        # fill safe defaults for every missing field so a partial response always
+        # validates and the metrics survive. We no longer render the feature grid
+        # / proportions / side profile, so defaulting them is harmless.
+        if not isinstance(data, dict):
+            return data
+
+        for k, default in (
+            ("psl_score", 5.0), ("psl_tier", ""), ("potential", 5.0),
+            ("archetype", ""), ("appeal", 5.0), ("ascension_time_months", 0),
+            ("age_score", 0), ("weakest_link", ""), ("aura_tags", []),
+            ("masculinity_index", 5.0), ("mog_percentile", 50),
+            ("glow_up_potential", 50), ("metrics", []), ("preview_blurb", ""),
+            ("problems", []), ("suggested_modules", []),
+            # viral coach metrics (what the redesigned results screen shows)
+            ("halo_feature", ""), ("bottleneck", ""), ("bottleneck_max", ""),
+            ("sex_appeal", 0.0), ("trust_appeal", 0.0), ("appeal_quadrant", ""),
+            ("dimorphism", 0.0), ("dimorphism_note", ""), ("glow_up_label", ""),
+            ("first_move", []),
+        ):
+            if data.get(k) is None:
+                data[k] = default
+
+        # feature_scores — 18 cells, each {score, tag, notes}
+        feature_keys = (
+            "eyes", "jaw", "cheekbones", "chin", "nose", "lips", "brow_ridge",
+            "skin", "hairline", "symmetry", "midface", "canthal_tilt",
+            "hunter_eyes", "under_eye", "philtrum", "skin_texture",
+            "hair_density", "facial_hair",
+        )
+        fs = data.get("feature_scores")
+        if not isinstance(fs, dict):
+            fs = {}
+        for f in feature_keys:
+            cell = fs.get(f)
+            if not isinstance(cell, dict):
+                cell = {}
+            if cell.get("score") is None:
+                cell["score"] = 0.0
+            cell.setdefault("tag", "")
+            cell.setdefault("notes", "")
+            fs[f] = cell
+        data["feature_scores"] = fs
+
+        prop = data.get("proportions")
+        if not isinstance(prop, dict):
+            prop = {}
+        prop.setdefault("facial_thirds", "")
+        for k in ("golden_ratio_percent", "bigonial_bizygomatic_ratio", "fwhr"):
+            if prop.get(k) is None:
+                prop[k] = 0.0
+        data["proportions"] = prop
+
+        sp = data.get("side_profile")
+        if not isinstance(sp, dict):
+            sp = {}
+        for k in ("maxillary_projection", "mandibular_projection", "gonial_angle",
+                  "submental_angle", "ricketts_e_line"):
+            sp.setdefault(k, "")
+        if sp.get("forward_head_posture") is None:
+            sp["forward_head_posture"] = False
+        data["side_profile"] = sp
+
         return data
 
     @field_validator(
