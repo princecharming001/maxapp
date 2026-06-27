@@ -123,9 +123,17 @@ def _active_count(schedules: list[dict]) -> int:
 
 
 async def _scan_count(db: AsyncSession, user_id: str) -> int:
+    # Count only COMPLETED scans. A scan row is created the instant photos are
+    # uploaded (status "processing") and only flipped to "completed" once the
+    # analysis lands. Counting pending/failed rows would award "Baseline Set"
+    # for a scan that was started-then-abandoned — or even when the user skipped
+    # the scan after a stray processing row was left behind.
     try:
         return int((await db.execute(
-            select(func.count(Scan.id)).where(Scan.user_id == UUID(str(user_id)))
+            select(func.count(Scan.id)).where(
+                Scan.user_id == UUID(str(user_id)),
+                Scan.processing_status == "completed",
+            )
         )).scalar() or 0)
     except Exception as e:
         logger.debug("scan count failed: %s", e)
