@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, ActivityIndicator, Animated, Pressable, Platform, useWindowDimensions, Keyboard } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient';
 import { Alert } from '../../components/InAppAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -175,7 +176,7 @@ function ProgressCalendar({
 const cal = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
     navBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
-    monthLabel: { fontFamily: fonts.serif, fontSize: 16, color: INK, letterSpacing: -0.2 },
+    monthLabel: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK, letterSpacing: -0.2 },
     dayRow: { flexDirection: 'row', marginBottom: 4 },
     dayHead: { flex: 1, textAlign: 'center', fontFamily: 'Matter-Medium', fontSize: 10.5, color: MUTE, letterSpacing: 0.2 },
     grid: { flexDirection: 'row', flexWrap: 'wrap' },
@@ -198,7 +199,7 @@ const p = StyleSheet.create({
 
     identity: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginBottom: 18 },
     idLeft: { flex: 1, paddingRight: 16 },
-    name: { fontFamily: fonts.serif, fontSize: 27, color: INK, letterSpacing: -0.5, lineHeight: 31 },
+    name: { fontFamily: fonts.serif, fontSize: 27, color: INK, letterSpacing: -0.5, lineHeight: 31, textTransform: 'lowercase' },
     editPill: { alignSelf: 'flex-start', marginTop: 12, backgroundColor: INK, borderRadius: 999, paddingHorizontal: 15, paddingVertical: 7 },
     editPillText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: ON_INK, letterSpacing: 0.1 },
     avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#E4E3E0' },
@@ -206,7 +207,7 @@ const p = StyleSheet.create({
 
     card: { backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, marginBottom: 10, ...SOFT },
     cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    cardTitle: { fontFamily: fonts.serif, fontSize: 19, color: INK, letterSpacing: -0.4 },
+    cardTitle: { fontFamily: fonts.serif, fontSize: 19, color: INK, letterSpacing: -0.4, textTransform: 'lowercase' },
     seeAll: { fontFamily: 'Matter-Medium', fontSize: 13, color: MUTE },
     cheer: { fontFamily: 'Matter-Medium', fontSize: 12, color: SUB },
     eyebrow: { fontFamily: 'Matter-Medium', fontSize: 10, color: MUTE, letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 4 },
@@ -219,7 +220,7 @@ const p = StyleSheet.create({
     maxChipDot: { width: 6, height: 6, borderRadius: 3 },
     maxChipText: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: INK, letterSpacing: -0.1 },
     segRow: { flexDirection: 'row', gap: 5 },
-    seg: { flex: 1, height: 5, borderRadius: 3, backgroundColor: TRACK },
+    seg: { flex: 1, height: 5, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.08)' },
     segOn: { backgroundColor: INK },
 
     daysRow: { flexDirection: 'row', gap: 7, marginBottom: 16 },
@@ -635,11 +636,16 @@ export default function ProfileScreen() {
                                 <Text style={p.journeyProg}>{maxesActive}/{totalMaxes}</Text>
                             </View>
                         </View>
-                        <View style={p.segRow}>
+                        <LinearGradient
+                            colors={['#E879A9', '#8B5CF6', '#3B82F6', '#10B981']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={p.segRow}
+                        >
                             {Array.from({ length: totalMaxes }).map((_, i) => (
                                 <View key={i} style={[p.seg, i < maxesActive && p.segOn]} />
                             ))}
-                        </View>
+                        </LinearGradient>
                     </View>
 
                     {/* ── Weekly Progress (streak) ───────────────────── */}
