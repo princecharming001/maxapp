@@ -53,6 +53,10 @@ import {
   Scope,
   Weekday,
   WEEKDAYS,
+  WEEKDAY_KEYS,
+  DayRecurrence,
+  obligationAppliesTo,
+  daysKey,
   hydrateDayShape,
   hydrateWeekly,
   hydrateObligations,
@@ -315,18 +319,27 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     }
   };
 
-  // Commit one scope's edits: defaults for "All days", else a minimal per-weekday
-  // override (diffed against defaults so editing back to base clears it).
-  const commitScope = (s: Scope, day: DayShape) => {
-    if (s === 'all') {
+  // Commit an edit to a recurrence target:
+  //   'all'       → the baseline (every day inherits it)
+  //   'weekdays'  → Mon–Fri overrides
+  //   'weekends'  → Sat/Sun overrides
+  //   [weekday…]  → just those weekday overrides ("This day" = one weekday)
+  // Per-weekday writes are minimal partials diffed against defaults, so editing a
+  // day back to the base clears its override.
+  const commitRecurrence = (target: DayRecurrence, day: DayShape) => {
+    if (target === 'all') {
       setDefaults(day);
       persist(day, weekly, obligations);
       return;
     }
     const partial = diffDayShape(defaults, day);
+    const hasPartial = Object.keys(partial).length > 0;
+    const targets = WEEKDAY_KEYS.filter((wd) => obligationAppliesTo(target, wd));
     const nextWeekly: Partial<Record<Weekday, Partial<DayShape>>> = { ...weekly };
-    if (Object.keys(partial).length) nextWeekly[s] = partial;
-    else delete nextWeekly[s];
+    for (const wd of targets) {
+      if (hasPartial) nextWeekly[wd] = partial;
+      else delete nextWeekly[wd];
+    }
     setWeekly(nextWeekly);
     persist(defaults, nextWeekly, obligations);
   };
@@ -696,7 +709,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         overridden={editScope !== 'all' && hasOverride(weekly, editScope)}
         focus={editFocus}
         onClose={() => setSheetVisible(false)}
-        onCommit={commitScope}
+        onCommit={commitRecurrence}
         onReset={resetScope}
       />
     </View>

@@ -36,13 +36,17 @@ default is the chat or editing 7 days by hand — fix that.
   `commitScope('all',…)`). The previously-unreachable all-days editor is now
   reachable. tsc clean (only the 5 known glass errors). sim-unverified (driver
   unstable) — change is additive (a button reusing existing wiring).
-- [ ] **U2 — "Apply to" scope on commit.** When committing an edit, offer:
-  `Every day · Weekdays · Weekends · This day`. Map: Every day → `defaults`;
-  Weekdays → write Mon–Fri overrides; Weekends → Sat/Sun; This day → single
-  weekday override (current behaviour). Extend `commitScope` to accept a multi-day
-  scope and write the relevant `weekly` entries (keep the diff-against-default
-  semantics so unchanged days stay clean). Default selection: from the default-day
-  button = "Every day"; from a strip day = "This day".
+- [x] **U2 — "Apply to" scope on commit.** DONE 2026-06-27. Replaced `commitScope`
+  with `commitRecurrence(target: DayRecurrence, day)` in DayPlannerScreen: `'all'`
+  → defaults; `'weekdays'`/`'weekends'`/`Weekday[]` → write that set's `weekly`
+  overrides (diffed vs defaults, so editing back to base clears them) via the
+  existing `obligationAppliesTo`/`WEEKDAY_KEYS` helpers. Added an **"Apply to" chip
+  row** in DayEditorSheet's footer (`Every day · Weekdays · Weekends` when opened
+  from "Your usual day"; `This day · Weekdays · Weekends · Every day` from a strip
+  day) — the sheet now emits the chosen `DayRecurrence`. Default: 'all' from the
+  default-day button, `[weekday]` from a strip day → preserves existing per-day
+  behaviour exactly. tsc clean (5 known glass errors only). sim-unverified (driver
+  unstable); logic is straightforward + type-checked.
 - [ ] **U3 — Per-block repeat (the routine builder).** In the default-day editor,
   a COMPACT "Repeat: Every day ▾" control per block (Wake/Sleep/Get-ready/Workout)
   so e.g. workout = Mon/Wed/Fri while wake = every day. Implement by writing that
@@ -91,3 +95,7 @@ When all hold, output exactly: `<promise>PLANNER REDESIGN COMPLETE</promise>`
 - (start)
 - 2026-06-27 (iter 1): U1 shipped — "Your usual day" button (top of Planner) opens
   the all-days/default editor. Additive, tsc clean. Next: U2 (apply-to scope).
+- 2026-06-27 (iter 2): U2 shipped — commitRecurrence + "Apply to" chips (Every
+  day/Weekdays/Weekends/This day). P0 (U1+U2) now functionally complete: you can
+  set a wake/bedtime once and apply it to every day or weekdays/weekends. tsc
+  clean. Next: U3 (per-block repeat) or U4 (scope caption).

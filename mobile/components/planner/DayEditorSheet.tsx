@@ -38,6 +38,8 @@ import {
   Scope,
   Weekday,
   WEEKDAYS,
+  DayRecurrence,
+  daysKey,
   toMin,
   minToHHMM,
   eveMin,
@@ -120,7 +122,7 @@ export default function DayEditorSheet({
   overridden: boolean;
   focus?: ShapeFocus;
   onClose: () => void;
-  onCommit: (scope: Scope, day: DayShape) => void;
+  onCommit: (target: DayRecurrence, day: DayShape) => void;
   onReset: (scope: Weekday) => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -132,6 +134,9 @@ export default function DayEditorSheet({
   const [d, setD] = useState<DayShape>(initial);
   const [wakeMode, setWakeMode] = useState<Mode>('range');
   const [sleepMode, setSleepMode] = useState<Mode>('range');
+  // Which days this edit applies to. Opening from "Your usual day" (scope='all')
+  // defaults to Every day; opening from a specific weekday defaults to that day.
+  const [applyTo, setApplyTo] = useState<DayRecurrence>(scope === 'all' ? 'all' : [scope]);
   // True once the user changes any value, so dismissing via backdrop / X /
   // hardware back can warn before silently discarding edits.
   const [dirty, setDirty] = useState(false);
@@ -143,6 +148,7 @@ export default function DayEditorSheet({
     setD(initial);
     setWakeMode(isExact(initial.wakeWindow) ? 'exact' : 'range');
     setSleepMode(isExact(initial.sleepWindow) ? 'exact' : 'range');
+    setApplyTo(scope === 'all' ? 'all' : [scope]);
     setDirty(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, scope]);
@@ -235,9 +241,26 @@ export default function DayEditorSheet({
   };
 
   const done = () => {
-    onCommit(scope, d);
+    onCommit(applyTo, d);
     onClose();
   };
+
+  // "Apply to" options depend on where the sheet was opened from. Value is a
+  // DayRecurrence; equality is by daysKey so the selected chip lights up.
+  const applyOptions: { label: string; value: DayRecurrence }[] =
+    scope === 'all'
+      ? [
+          { label: 'Every day', value: 'all' },
+          { label: 'Weekdays', value: 'weekdays' },
+          { label: 'Weekends', value: 'weekends' },
+        ]
+      : [
+          { label: 'This day', value: [scope] },
+          { label: 'Weekdays', value: 'weekdays' },
+          { label: 'Weekends', value: 'weekends' },
+          { label: 'Every day', value: 'all' },
+        ];
+  const applyKey = daysKey(applyTo);
 
   const reset = () => {
     if (scope !== 'all') onReset(scope);
@@ -455,6 +478,33 @@ export default function DayEditorSheet({
             </ScrollView>
 
             <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
+              {/* Apply to — which days this edit recurs on. */}
+              <View style={styles.applyRow}>
+                <Text style={styles.applyLabel}>Apply to</Text>
+                <View style={styles.applyChips}>
+                  {applyOptions.map((opt) => {
+                    const sel = daysKey(opt.value) === applyKey;
+                    return (
+                      <TouchableOpacity
+                        key={opt.label}
+                        style={[styles.applyChip, sel && styles.applyChipSel]}
+                        onPress={() => {
+                          markDirty();
+                          setApplyTo(opt.value);
+                        }}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: sel }}
+                        accessibilityLabel={`Apply to ${opt.label}`}
+                      >
+                        <Text style={[styles.applyChipText, sel && styles.applyChipTextSel]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
               <TouchableOpacity style={styles.doneBtn} onPress={done} activeOpacity={0.9}>
                 <Text style={styles.doneText}>Done</Text>
               </TouchableOpacity>
@@ -565,6 +615,42 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.borderLight,
+  },
+  applyRow: {
+    marginBottom: 12,
+  },
+  applyLabel: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 11,
+    color: colors.textMuted,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  applyChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  applyChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderLight,
+  },
+  applyChipSel: {
+    backgroundColor: colors.foreground,
+    borderColor: colors.foreground,
+  },
+  applyChipText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 13,
+    color: colors.foreground,
+  },
+  applyChipTextSel: {
+    color: colors.background,
   },
   doneBtn: {
     backgroundColor: colors.foreground,
