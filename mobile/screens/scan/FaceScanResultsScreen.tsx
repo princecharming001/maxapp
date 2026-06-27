@@ -1373,7 +1373,12 @@ export default function FaceScanResultsScreen() {
                     {/* ── Verdict: the viral read + the one First Move ─────── */}
                     {!isProcessing ? (
                         <View style={s.verdict}>
-                            {(locked || firstMove.length > 0) ? (
+                            {/* Always render every metric card when not processing so
+                                the locked teaser and the paid reveal carry the SAME
+                                set (parity). Locked masks the value; unlocked shows
+                                the real value, or a graceful "Not measured" when the
+                                data is genuinely absent — never drop the card. */}
+                            {(
                                 <View style={s.firstMoveCard}>
                                     <GlassFill dark />
                                     <View style={{ flex: 1 }}>
@@ -1384,7 +1389,7 @@ export default function FaceScanResultsScreen() {
                                                 <Text style={s.firstMoveValue}>Locked</Text>
                                             </View>
                                         ) : (
-                                            <Text style={s.firstMoveValue}>{formatSuggestedModuleTitle(firstMove[0])}</Text>
+                                            <Text style={s.firstMoveValue}>{firstMove.length > 0 ? formatSuggestedModuleTitle(firstMove[0]) : 'Not measured'}</Text>
                                         )}
                                         <Text style={s.firstMoveSub}>
                                             {locked ? 'Unlock to see exactly where to start.' : 'Start here. The one move that moves the needle most.'}
@@ -1392,32 +1397,28 @@ export default function FaceScanResultsScreen() {
                                     </View>
                                     <Ionicons name="arrow-forward-circle" size={30} color="rgba(255,255,255,0.9)" />
                                 </View>
-                            ) : null}
+                            )}
 
-                            {(locked || haloFeature || bottleneck) ? (
+                            {(
                                 <View style={s.verdictRow}>
-                                    {(locked || haloFeature) ? (
-                                        <View style={[s.verdictCard, { borderColor: '#2F6B4E55' }]}>
-                                            <GlassFill />
-                                            <View style={[s.verdictDot, { backgroundColor: '#2F6B4E' }]} />
-                                            <Text style={s.verdictLabel}>YOUR HALO</Text>
-                                            <Text style={s.verdictValue} numberOfLines={2} adjustsFontSizeToFit>{locked ? '—' : haloFeature}</Text>
-                                            <Text style={s.verdictSub}>Your biggest natural edge.</Text>
-                                        </View>
-                                    ) : null}
-                                    {(locked || bottleneck) ? (
-                                        <View style={[s.verdictCard, { borderColor: '#C0452C55' }]}>
-                                            <GlassFill />
-                                            <View style={[s.verdictDot, { backgroundColor: '#C0452C' }]} />
-                                            <Text style={s.verdictLabel}>BOTTLENECK</Text>
-                                            <Text style={s.verdictValue} numberOfLines={2} adjustsFontSizeToFit>{locked ? '—' : bottleneck}</Text>
-                                            <Text style={s.verdictSub}>{!locked && bottleneckMax ? `Fix it with ${formatSuggestedModuleTitle(bottleneckMax)}.` : 'What is holding you back.'}</Text>
-                                        </View>
-                                    ) : null}
+                                    <View style={[s.verdictCard, { borderColor: '#2F6B4E55' }]}>
+                                        <GlassFill />
+                                        <View style={[s.verdictDot, { backgroundColor: '#2F6B4E' }]} />
+                                        <Text style={s.verdictLabel}>YOUR HALO</Text>
+                                        <Text style={s.verdictValue} numberOfLines={2} adjustsFontSizeToFit>{locked ? '—' : (haloFeature || 'Not measured')}</Text>
+                                        <Text style={s.verdictSub}>Your biggest natural edge.</Text>
+                                    </View>
+                                    <View style={[s.verdictCard, { borderColor: '#C0452C55' }]}>
+                                        <GlassFill />
+                                        <View style={[s.verdictDot, { backgroundColor: '#C0452C' }]} />
+                                        <Text style={s.verdictLabel}>BOTTLENECK</Text>
+                                        <Text style={s.verdictValue} numberOfLines={2} adjustsFontSizeToFit>{locked ? '—' : (bottleneck || 'Not measured')}</Text>
+                                        <Text style={s.verdictSub}>{!locked && bottleneckMax ? `Fix it with ${formatSuggestedModuleTitle(bottleneckMax)}.` : 'What is holding you back.'}</Text>
+                                    </View>
                                 </View>
-                            ) : null}
+                            )}
 
-                            {(locked || sexAppeal != null || trustAppeal != null) ? (
+                            {(
                                 <View style={s.appealCard}>
                                     <GlassFill />
                                     <Text style={s.verdictLabel}>SEX APPEAL vs TRUST APPEAL</Text>
@@ -1450,30 +1451,26 @@ export default function FaceScanResultsScreen() {
                                         </>
                                     )}
                                 </View>
-                            ) : null}
+                            )}
 
-                            {(locked || dimorphism != null || glowUpLabel) ? (
+                            {(
                                 <View style={s.verdictRow}>
-                                    {(locked || dimorphism != null) ? (
-                                        <View style={[s.verdictCard, { borderColor: '#4A4A7055' }]}>
-                                            <GlassFill />
-                                            <View style={[s.verdictDot, { backgroundColor: '#4A4A70' }]} />
-                                            <Text style={s.verdictLabel}>DIMORPHISM</Text>
-                                            <Text style={s.verdictValue}>{locked || dimorphism == null ? '—' : `${dimorphism.toFixed(1)}/10`}</Text>
-                                            <Text style={s.verdictSub} numberOfLines={2}>{locked || !dimorphismNote ? 'Masculine vs soft balance.' : dimorphismNote}</Text>
-                                        </View>
-                                    ) : null}
-                                    {(locked || glowUpLabel) ? (
-                                        <View style={[s.verdictCard, { borderColor: '#BC8B5755' }]}>
-                                            <GlassFill />
-                                            <View style={[s.verdictDot, { backgroundColor: '#BC8B57' }]} />
-                                            <Text style={s.verdictLabel}>GLOW-UP POTENTIAL</Text>
-                                            <Text style={s.verdictValue}>{locked ? '—' : glowUpLabel}</Text>
-                                            <Text style={s.verdictSub}>{!locked && glowUpGain ? `Est. +${glowUpGain.toFixed(1)} points` : 'How much is in your control.'}</Text>
-                                        </View>
-                                    ) : null}
+                                    <View style={[s.verdictCard, { borderColor: '#4A4A7055' }]}>
+                                        <GlassFill />
+                                        <View style={[s.verdictDot, { backgroundColor: '#4A4A70' }]} />
+                                        <Text style={s.verdictLabel}>DIMORPHISM</Text>
+                                        <Text style={s.verdictValue}>{locked ? '—' : (dimorphism == null ? 'Not measured' : `${dimorphism.toFixed(1)}/10`)}</Text>
+                                        <Text style={s.verdictSub} numberOfLines={2}>{locked || !dimorphismNote ? 'Masculine vs soft balance.' : dimorphismNote}</Text>
+                                    </View>
+                                    <View style={[s.verdictCard, { borderColor: '#BC8B5755' }]}>
+                                        <GlassFill />
+                                        <View style={[s.verdictDot, { backgroundColor: '#BC8B57' }]} />
+                                        <Text style={s.verdictLabel}>GLOW-UP POTENTIAL</Text>
+                                        <Text style={s.verdictValue}>{locked ? '—' : (glowUpLabel || 'Not measured')}</Text>
+                                        <Text style={s.verdictSub}>{!locked && glowUpGain ? `Est. +${glowUpGain.toFixed(1)} points` : 'How much is in your control.'}</Text>
+                                    </View>
                                 </View>
-                            ) : null}
+                            )}
                         </View>
                     ) : null}
 
