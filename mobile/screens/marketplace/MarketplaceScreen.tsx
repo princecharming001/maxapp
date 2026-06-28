@@ -453,8 +453,8 @@ export default function MarketplaceScreen() {
                         </View>
                     ) : (
                         <View style={[styles.gutter, styles.comingSoon]}>
-                            <View style={styles.comingSoonIcon}>
-                                <LaughCryIcon size={46} />
+                            <View style={styles.creatorIconWrap}>
+                                <LaughCryIcon size={88} />
                             </View>
                             <Text style={styles.comingSoonTitle}>No maxes yet</Text>
                             <Text style={styles.comingSoonSub}>
