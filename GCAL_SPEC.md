@@ -91,7 +91,7 @@ Do them in order. Each: touch the listed files, then run the VERIFY. Early units
   Files: `backend/services/google_integration.py` (`store_connection` writes `tokens_encrypted=encrypt(json.dumps(tokens))`, sets `tokens=None`; `_fresh_access_token` reads via `tokens_decrypted`, persists refreshed tokens encrypted). Keep dual-read fallback so legacy plaintext rows still work.
   VERIFY: `cd backend && pytest -q -k "google or calendar or planner"` stays green (or unchanged from baseline). Add/extend a unit test that stores then reads a connection round-trips tokens.
 
-- [ ] **U4 — `DELETE /google/disconnect`.**
+- [x] **U4 — `DELETE /google/disconnect`. (2026-06-28)**
   Files: `backend/api/google.py` (new endpoint: best-effort POST Google `oauth2/revoke` with refresh token, `is_active=False`, clear `tokens`+`tokens_encrypted`, purge that connection's `calendar_events`). `mobile/services/api.ts` (`disconnectGoogle(): Promise<{disconnected:boolean}>`).
   VERIFY: `cd backend && pytest -q -k google`; `cd mobile && npx tsc --noEmit`.
 
@@ -162,3 +162,4 @@ When all units are checked and completion criteria are met, output exactly:
 - U1 (2026-06-28): Created `services/secrets.py` (Fernet encrypt/decrypt, pass-through no-op without key) + `tests/test_secrets.py` (3 tests pass).
 - U2 (2026-06-28): Added `tokens_encrypted` LargeBinary column + `tokens_decrypted` property to `CalendarConnection`; migration SQL added; import + pytest collection verified.
 - U3 (2026-06-28): `store_connection` + `_fresh_access_token` now write `tokens_encrypted` + clear plaintext; `/status` reads via `tokens_decrypted`; baseline tests unchanged.
+- U4 (2026-06-28): `DELETE /google/disconnect` added (best-effort revoke, clear tokens, purge events); `disconnectGoogle()` added to mobile api.ts; tsc + import clean.

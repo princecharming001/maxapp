@@ -171,6 +171,47 @@ async def proposed_events(
     }
 
 
+@router.delete("/disconnect")
+async def disconnect(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Revoke Google Calendar access: best-effort token revoke, deactivate
+    connection, clear tokens, and purge that connection's calendar events."""
+    uid = _uid(current_user)
+    conn = (await db.execute(
+        select(CalendarConnection).where(
+            (CalendarConnection.user_id == uid)
+            & (CalendarConnection.provider == "google")
+        )
+    )).scalars().first()
+    if conn is None:
+        return {"disconnected": True}
+    # Best-effort revoke with Google
+    refresh_token = conn.tokens_decrypted.get("refresh_token")
+    if refresh_token:
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(
+                    "https://oauth2.googleapis.com/revoke",
+                    params={"token": refresh_token},
+                )
+        except Exception:
+            pass  # best-effort; proceed with local cleanup regardless
+    # Delete this connection's calendar events
+    from sqlalchemy import delete as sa_delete
+    await db.execute(
+        sa_delete(CalendarEvent).where(CalendarEvent.connection_id == conn.id)
+    )
+    # Clear tokens and deactivate
+    conn.is_active = False
+    conn.tokens = None
+    conn.tokens_encrypted = None
+    await db.commit()
+    return {"disconnected": True}
+
+
 @router.post("/proposed/{event_id}")
 async def resolve_proposed(
     event_id: str,

@@ -1319,6 +1319,11 @@ class ApiService {
         return response.data;
     }
 
+    async disconnectGoogle(): Promise<{ disconnected: boolean }> {
+        const response = await this.client.delete('google/disconnect');
+        return response.data;
+    }
+
     async getGoogleAuthUrl(includeGmail = false): Promise<{ auth_url: string }> {
         const response = await this.client.get('google/connect', {
             params: { include_gmail: includeGmail },
