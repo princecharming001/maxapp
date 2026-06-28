@@ -38,13 +38,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LiquidGlassFill } from '../../components/glass/LiquidGlass';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
+import { useQuery } from '@tanstack/react-query';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
 import { useFlag } from '../../constants/featureFlags';
 import { experienceTier } from '../../lib/personalization';
 import { colors, spacing, fonts } from '../../theme/dark';
 import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
-import ScheduleGrid from '../../components/planner/ScheduleGrid';
+import ScheduleGrid, { CalendarEventRow } from '../../components/planner/ScheduleGrid';
 import ObligationsManager, { ObligationsManagerHandle } from '../../components/planner/ObligationsManager';
 import {
   DayShape,
@@ -246,6 +247,31 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   const [sheetVisible, setSheetVisible] = useState(false);
 
   const [saving, setSaving] = useState(false);
+
+  // Google Calendar status (cached, stale-1m) — used to gate the calendar fetch.
+  const googleStatusQ = useQuery({
+    queryKey: ['googleStatus'],
+    queryFn: () => api.getGoogleStatus(),
+    staleTime: 60_000,
+  });
+  const calConnected = !!(googleStatusQ.data?.connected && googleStatusQ.data?.calendar_link_enabled);
+
+  // Fetch calendar events for the selected day, only when connected + flag on.
+  const calendarDayQ = useQuery({
+    queryKey: ['plannerToday', selectedIso],
+    queryFn: () => api.getPlannerToday(selectedIso),
+    enabled: calConnected,
+    staleTime: 5 * 60_000,
+  });
+  const calendarEvents: CalendarEventRow[] = (calendarDayQ.data?.structure ?? [])
+    .filter((s: any) => s.source === 'calendar')
+    .map((s: any) => ({
+      event_id: s.event_id as string,
+      time: s.time as string | undefined,
+      end: s.end as string | undefined,
+      label: s.label as string,
+      all_day: s.all_day as boolean | undefined,
+    }));
 
   // Assistant (demoted): hidden behind a floating button, opened only on demand.
   const [chatInput, setChatInput] = useState('');
@@ -512,6 +538,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             isToday={selectedIso === todayIso}
             onEditShape={(focus) => openEditor(scope, focus)}
             onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
+            calendarEvents={calendarEvents}
           />
 
           <View style={{ height: 96 + insets.bottom }} />

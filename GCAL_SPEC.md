@@ -107,7 +107,7 @@ Do them in order. Each: touch the listed files, then run the VERIFY. Early units
   Files: `mobile/components/planner/ScheduleGrid.tsx` (new optional `calendarEvents` prop; in `buildEvents` after obligations loop push read-only `Ev` per event: `key=cal-${event_id}`, accent `#B0B0B8`, `onPress:undefined`, `source:'calendar'`; card omits/hairlines tick + glyph; all-day → top pill).
   VERIFY: `cd mobile && npx tsc --noEmit`. Existing planner with no calendarEvents prop renders unchanged (prop optional, defaults `[]`).
 
-- [ ] **U8 — DayPlannerScreen fetches merged day.**
+- [x] **U8 — DayPlannerScreen fetches merged day. (2026-06-28)**
   Files: `mobile/screens/profile/DayPlannerScreen.tsx` (add a `getPlannerToday(selectedIso)` query gated on `getGoogleStatus().connected && calendar_link_enabled`; derive `structure.filter(s=>s.source==='calendar')`; pass as `calendarEvents` to `ScheduleGrid`). Null-safe: when not connected, pass `[]` and incur no extra fetch.
   VERIFY: `cd mobile && npx tsc --noEmit`. Confirm unconnected users do NOT trigger the extra call.
 
@@ -166,3 +166,4 @@ When all units are checked and completion criteria are met, output exactly:
 - U5 (2026-06-28): All-day events emit `{all_day:true, source:'calendar', event_id}` pill row, excluded from `cal_spans`/`calendar_busy_minutes`; timed events unchanged.
 - U6 (2026-06-28): TodayScreen threads `source`/`event_id`/`all_day` through row mapper; calendar rows render MUTE with calendar glyph + "Calendar" tag, no check-circle, long-press removes; all-day as pill; tsc clean.
 - U7 (2026-06-28): ScheduleGrid: `calendarEvents` optional prop + `CalendarEventRow` type; calendar Ev pushed after obligations with `#B0B0B8` accent, `onPress:undefined`, hairline tick, calendar glyph; tsc clean.
+- U8 (2026-06-28): DayPlannerScreen: `googleStatus` + `plannerToday` queries gated on `connected && calendar_link_enabled`; `calendarEvents` derived + passed to ScheduleGrid; unconnected users incur no extra fetch; tsc clean.
