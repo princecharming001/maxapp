@@ -24,6 +24,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
 import ChatHabitPicker, { type OfferedHabit } from '../../components/ChatHabitPicker';
 import CreatorMorphIcon from '../../components/CreatorMorphIcon';
+import { LiquidGlass } from '../../components/glass/LiquidGlass';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -488,17 +489,19 @@ export default function MarketplaceScreen() {
                         ) : (
                             <>
                                 <TouchableOpacity
-                                    style={styles.applyBtn}
+                                    style={styles.applyBtnWrap}
                                     onPress={() => navigation.navigate('CreatorApply')}
                                     activeOpacity={0.85}
                                     accessibilityRole="button"
                                     accessibilityLabel="Apply to host your own max"
                                 >
-                                    <Text style={styles.applyBtnText}>Host your own max</Text>
-                                    <Ionicons name="arrow-forward" size={17} color={ON_INK} />
+                                    <LiquidGlass radius={25} contentStyle={styles.applyBtnContent}>
+                                        <Text style={styles.applyBtnText}>Host your own max</Text>
+                                        <Ionicons name="arrow-forward" size={17} color={INK} />
+                                    </LiquidGlass>
                                 </TouchableOpacity>
                                 <Text style={styles.applyHint}>
-                                    Known for your niche? Claim it — one creator per max, first come first served.
+                                    First come, first served.
                                 </Text>
                             </>
                         )}
@@ -741,11 +744,9 @@ const styles = StyleSheet.create({
     comingSoonSub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE, marginTop: 8, textAlign: 'center', lineHeight: 21, maxWidth: 280 },
 
     // "Host your own max" call-to-apply
-    applyBtn: {
-        flexDirection: 'row', alignItems: 'center', gap: 8,
-        marginTop: 28, paddingHorizontal: 22, height: 50, borderRadius: 25, backgroundColor: INK,
-    },
-    applyBtnText: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: ON_INK, letterSpacing: 0.2 },
+    applyBtnWrap: { marginTop: 28, alignSelf: 'center' },
+    applyBtnContent: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 22, height: 50 },
+    applyBtnText: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: INK, letterSpacing: 0.2 },
     applyHint: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 14, textAlign: 'center', lineHeight: 18, maxWidth: 270 },
     appliedPill: {
         flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 28,
