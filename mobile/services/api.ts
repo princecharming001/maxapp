@@ -96,6 +96,17 @@ export interface MarketplaceItemDetail {
     inside_video?: string;
 }
 
+export interface SocialProfile {
+    platform: 'instagram' | 'tiktok';
+    handle: string;
+    url: string | null;
+    followers: number | null;
+    avatar_url: string | null;
+    full_name: string | null;
+    verified: boolean;
+    found: boolean;
+}
+
 export interface ReferralValidateResult {
     valid: boolean;
     kind?: 'free_comp' | 'discount' | 'referral';
@@ -1220,6 +1231,18 @@ class ApiService {
         tiktok?: string;
     }): Promise<{ id: string; status: string; max_name: string; instagram_url: string | null; tiktok_url: string | null }> {
         const response = await this.client.post('creator-applications', body);
+        return response.data;
+    }
+
+    /** Live public-profile lookup for the apply flow — follower count, avatar, etc. */
+    async lookupSocialProfile(platform: 'instagram' | 'tiktok', handle: string): Promise<SocialProfile> {
+        const response = await this.client.post('creator-applications/social-lookup', { platform, handle });
+        return response.data;
+    }
+
+    /** Is a max niche still open? (first-come-first-served gate, pre-submit). */
+    async checkMaxAvailability(maxName: string): Promise<{ available: boolean; max_name: string }> {
+        const response = await this.client.get('creator-applications/availability', { params: { max_name: maxName } });
         return response.data;
     }
 

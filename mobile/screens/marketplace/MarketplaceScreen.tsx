@@ -34,7 +34,6 @@ import { maxMeta } from '../../utils/scheduleAggregation';
 import { useFlag } from '../../constants/featureFlags';
 import { usePersonalization } from '../../hooks/usePersonalization';
 import { rankByGoals } from '../../lib/personalization';
-import CreatorApplySheet from '../../components/marketplace/CreatorApplySheet';
 
 const CACHE_KEY = 'marketplace_cache_v1';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -130,7 +129,6 @@ export default function MarketplaceScreen() {
     const [myMaxxes, setMyMaxxes] = useState<MyMax[]>([]);
     const [tuning, setTuning] = useState<MyMax | null>(null);
     const [savingTune, setSavingTune] = useState(false);
-    const [applyOpen, setApplyOpen] = useState(false);
     // The user's latest creator application, if any — drives the "applied" state.
     const [myApp, setMyApp] = useState<{ status: string; max_name: string } | null>(null);
     const queryClient = useQueryClient();
@@ -289,7 +287,7 @@ export default function MarketplaceScreen() {
 
     // Refetch entitlements on return (a completed purchase shows entered).
     useEffect(() => {
-        const unsub = navigation.addListener?.('focus', () => { if (!loading) void load(); void loadMine(); });
+        const unsub = navigation.addListener?.('focus', () => { if (!loading) void load(); void loadMine(); void loadMyApp(); });
         return unsub;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [navigation, loading]);
@@ -490,7 +488,7 @@ export default function MarketplaceScreen() {
                             <>
                                 <TouchableOpacity
                                     style={styles.applyBtn}
-                                    onPress={() => setApplyOpen(true)}
+                                    onPress={() => navigation.navigate('CreatorApply')}
                                     activeOpacity={0.85}
                                     accessibilityRole="button"
                                     accessibilityLabel="Apply to host your own max"
@@ -570,12 +568,6 @@ export default function MarketplaceScreen() {
                     </View>
                 </View>
             </Modal>
-
-            {/* Creator application — apply to host your own max. */}
-            <CreatorApplySheet
-                visible={applyOpen}
-                onClose={() => { setApplyOpen(false); void loadMyApp(); }}
-            />
         </View>
     );
 }

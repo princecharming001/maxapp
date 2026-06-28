@@ -1005,6 +1005,9 @@ class CreatorApplication(Base):
     instagram_url = Column(String, nullable=True)
     tiktok_handle = Column(String, nullable=True)
     tiktok_url = Column(String, nullable=True)
+    # Public profile signal pulled server-side at submit (per platform):
+    # { instagram: {followers, avatar_url, full_name, verified}, tiktok: {...} }.
+    social_stats = Column(JSON, default=dict)
 
     # pending | approved | rejected
     status = Column(String, default="pending", nullable=False)

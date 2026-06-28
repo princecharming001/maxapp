@@ -24,6 +24,7 @@ from db.sqlalchemy import get_db
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import rate_limit
 from models.sqlalchemy_models import CreatorApplication
+from services import social_lookup
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,18 @@ async def submit_application(
             detail="Someone's already in line for this max. It's first come, first served — try a different niche.",
         )
 
+    # Pull public profile signal server-side (authoritative — the client can't
+    # spoof follower counts). Best-effort: stays empty if no provider key.
+    social_stats: dict = {}
+    if ig_handle:
+        prof = await social_lookup.lookup_profile("instagram", ig_handle)
+        if prof:
+            social_stats["instagram"] = prof
+    if tt_handle:
+        prof = await social_lookup.lookup_profile("tiktok", tt_handle)
+        if prof:
+            social_stats["tiktok"] = prof
+
     app_row = CreatorApplication(
         user_id=user_id,
         applicant_name=body.applicant_name,
@@ -145,6 +158,7 @@ async def submit_application(
         instagram_url=ig_url,
         tiktok_handle=tt_handle,
         tiktok_url=tt_url,
+        social_stats=social_stats,
         status="pending",
     )
     db.add(app_row)
@@ -158,7 +172,32 @@ async def submit_application(
         "max_name": app_row.max_name,
         "instagram_url": app_row.instagram_url,
         "tiktok_url": app_row.tiktok_url,
+        "social_stats": app_row.social_stats or {},
     }
+
+
+class SocialLookupBody(BaseModel):
+    platform: str  # 'instagram' | 'tiktok'
+    handle: str
+
+
+@router.post(
+    "/social-lookup",
+    dependencies=[Depends(rate_limit(limit=40, window_s=600, scope="creator_social_lookup"))],
+)
+async def social_lookup_endpoint(
+    body: SocialLookupBody,
+    current_user: dict = Depends(get_current_user),
+):
+    """Live preview for the apply flow — pulls public follower count + avatar so
+    the creator can confirm they linked the right account before submitting."""
+    platform = (body.platform or "").strip().lower()
+    if platform not in ("instagram", "tiktok"):
+        raise HTTPException(status_code=422, detail="Unknown platform.")
+    profile = await social_lookup.lookup_profile(platform, body.handle)
+    if not profile:
+        raise HTTPException(status_code=422, detail="Enter a valid handle.")
+    return profile
 
 
 @router.get("/mine")
@@ -185,6 +224,7 @@ async def my_application(
             "max_description": row.max_description,
             "instagram_url": row.instagram_url,
             "tiktok_url": row.tiktok_url,
+            "social_stats": row.social_stats or {},
             "created_at": row.created_at.isoformat() if row.created_at else None,
         }
     }

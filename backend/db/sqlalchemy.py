@@ -411,6 +411,9 @@ async def _run_column_migrations():
         "ALTER TABLE user_schedules ADD COLUMN IF NOT EXISTS jitai_state JSONB DEFAULT '{}'",
         "ALTER TABLE calendar_connections ADD COLUMN IF NOT EXISTS tokens JSONB DEFAULT '{}'",
         "ALTER TABLE user_places ADD COLUMN IF NOT EXISTS address VARCHAR",
+        # creator_applications.social_stats added after the table shipped — the
+        # column won't exist on a DB created from the first version of the table.
+        "ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS social_stats JSONB DEFAULT '{}'",
     ]
     applied = 0
     for sql in migrations:
