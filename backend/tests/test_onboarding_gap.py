@@ -440,3 +440,32 @@ def test_mark_plan_dirty_only_when_plan(monkeypatch):
     writes.clear()
     _asyncio.run(mark_onboarding_plan_dirty("u", None))
     assert "last" not in writes
+
+
+def test_progress_field():
+    """field_to_question_payload carries an optional `progress` only when given;
+    `plan_progress` returns 1-based {index,total} for an active plan, else None."""
+    import asyncio as _asyncio
+    from services import task_catalog_service as tcs
+    from services.onboarding_questioner import (
+        field_to_question_payload, plan_progress, make_plan_pending, make_pending,
+    )
+
+    _asyncio.run(tcs.warm_catalog())
+    doc = tcs.get_doc("bonemax")
+    spec = doc.required_fields[0]
+
+    # No progress arg -> no progress key (back-compat / legacy path).
+    assert "progress" not in field_to_question_payload(spec)
+
+    # plan_progress: 1-based index over the plan length.
+    pending = make_plan_pending("bonemax", ["a", "b", "c"], idx=1)
+    prog = plan_progress(pending)
+    assert prog == {"index": 2, "total": 3}
+    payload = field_to_question_payload(spec, progress=prog)
+    assert payload["progress"] == {"index": 2, "total": 3}
+
+    # Legacy (no plan) -> plan_progress None; exhausted idx -> None.
+    assert plan_progress(make_pending("bonemax", "workout_frequency")) is None
+    assert plan_progress(make_plan_pending("bonemax", ["a"], idx=5)) is None
+    assert plan_progress(None) is None

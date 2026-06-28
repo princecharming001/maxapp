@@ -206,7 +206,7 @@ Rules:
   Add `mark_onboarding_plan_dirty(user_id, db)`; call after chat-volunteered facts persist. In the peek path, if `pending.plan_dirty`, recompute, re-anchor `idx`, clear flag. No synchronous LLM on the fact-write turn.
   VERIFY: `tests/test_onboarding_gap.py::test_plan_dirty_recompute` — mid-plan, inject a fact satisfying a queued slot, assert it's dropped on next peek. `python -m pytest tests/test_onboarding_gap.py -q`.
 
-- [ ] **U11 — Optional `progress:{index,total}` on the wire + confirm widget.**
+- [x] **U11 — Optional `progress:{index,total}` on the wire + confirm widget.** _(2026-06-28: `plan_progress(pending)` + optional `progress` arg on `field_to_question_payload`; `_finish_onboarding_turn` → 5-tuple; `ChatResponse.progress` (optional, client-ignored); wired through live-turn + history-reload. confirm→yes_no already done in U9. test_progress_field green (13). No TS touched; MaxChatScreen tsc-clean — only pre-existing glass/* Tamagui errors remain.)_
   Files: `backend/services/onboarding_questioner.py` (payload), `mobile/screens/chat/MaxChatScreen.tsx` (read-only; change only if needed — stream is already variable-length).
   Add `progress` to the payload when a plan exists (`index=idx+1,total=len(plan)`). Ensure `confirm` slots emit a yes_no payload the existing client renders. Do NOT change `forceNewConversation`.
   VERIFY backend: `tests/test_onboarding_gap.py::test_progress_field`. Mobile: `cd mobile && npx tsc --noEmit` clean for any TS touched (likely none).
@@ -269,6 +269,7 @@ _(empty)_
 ## Pre-existing test baseline (NOT caused by this work — do not chase)
 - `tests/test_max_doc_pipeline.py::test_validator_fixes_collisions_and_titles` FAILS on the clean tree (verified via `git stash` at U2, 2026-06-28). Treat as documented red.
 - `tests/test_chat_routing.py::test_process_chat_message_routes_knowledge_away_from_context_and_agent` FAILS on the clean tree (verified via `git stash` at U9, 2026-06-28). Treat as documented red.
+- Mobile `npx tsc --noEmit` has 5 PRE-EXISTING errors, all in `components/glass/GlassButton.tsx` + `GlassCard.tsx` (Tamagui prop typing — `alignItems`/`borderRadius`/`backgroundColor` shorthands). Unrelated to this work (no TS touched). `MaxChatScreen.tsx` is clean. Treat as documented baseline.
 
 ## Iteration-Log
 _(append one line per completed unit: `YYYY-MM-DD Uxx — <note>`)_
@@ -282,3 +283,4 @@ _(append one line per completed unit: `YYYY-MM-DD Uxx — <note>`)_
 2026-06-28 U8 — `plan_questions` + `_fence_plan` + memoize in onboarding_gap.py. `_complete_json` isolates the provider call (stubbed in tests). Fence intersects gap, dedups, drops confidently-known (conf≥0.85 unless confirm), importance-orders, caps. Returns None on any error. 9 tests green. Provider/model/caching caveat under Needs Human Decision.
 2026-06-28 U9 — Full three-rung ladder wired into `_run_onboarding_questioner`: `_try_build_llm_plan` (LLM rung + shadow) → `_apply_slot_prefill` → raw `peek_next_question`. Continue-path advances the plan cursor; plan exhaustion reverts to legacy pending so the generator `missing_required` backstop still fires. confirm→yes_no in `_peek_plan_field`. 10 tests green; recorded a 2nd pre-existing chat_routing baseline red.
 2026-06-28 U10 — plan_dirty hook: `mark_onboarding_plan_dirty` after Tier-0 fact persist (flag-gated, no LLM); `recompute_dirty_plan` deterministically drops now-known queued slots + re-anchors on the next plan continue-turn. Cross-Max suppression also covered by facts persisting (U6 prefill). 12 tests green. DESIGN CHOICE: deterministic recompute instead of a 2nd LLM call (reversible).
+2026-06-28 U11 — Optional wire `progress:{index,total}`: `plan_progress` + payload arg + `ChatResponse.progress` + 5-tuple `_finish_onboarding_turn`, threaded through live + reload paths. confirm widget (yes_no) already shipped in U9. 13 tests green. Mobile untouched; recorded pre-existing glass/* tsc baseline.

@@ -4098,11 +4098,11 @@ async def _run_onboarding_questioner(
     user_id: str,
     message_text: str,
     db: AsyncSession,
-) -> Optional[Tuple[str, list[str], Optional[dict], bool]]:
+) -> Optional[Tuple[str, list[str], Optional[dict], bool, Optional[dict]]]:
     """If the user is mid-onboarding for a doc-driven max, drive the next
     question deterministically using onboarding_questioner. Returns
-    (text, choices, input_widget, multi_choice) if the driver handled the
-    turn, or None to fall through to the legacy/agent path.
+    (text, choices, input_widget, multi_choice, progress) if the driver handled
+    the turn, or None to fall through to the legacy/agent path.
     """
     try:
         from services.onboarding_questioner import (
@@ -4114,6 +4114,7 @@ async def _run_onboarding_questioner(
             clear_pending,
             peek_next_question,
             field_to_question_payload,
+            plan_progress,
             coerce_answer,
             detect_max_start_intent,
         )
@@ -4155,7 +4156,7 @@ async def _run_onboarding_questioner(
                 await merge_context(
                     user_id, {**clear_pending(), "_onboarding_pending": plan_pending}, db
                 )
-                payload = field_to_question_payload(next_field)
+                payload = field_to_question_payload(next_field, progress=plan_progress(plan_pending))
                 text = (
                     f"let's get your {get_doc(new_max).display_name.lower()} schedule going. "
                     + payload["text"].lower()
@@ -4271,7 +4272,7 @@ async def _run_onboarding_questioner(
         # More to ask. Update pending pointer + persist answer.
         await merge_context(user_id, {**update, "_onboarding_pending": new_pending}, db)
         await _mirror_intake_to_facts(user_id, update, db)
-        payload = field_to_question_payload(next_field)
+        payload = field_to_question_payload(next_field, progress=plan_progress(new_pending))
         return _finish_onboarding_turn(
             "got it. " + payload["text"].lower(),
             payload,
@@ -4301,10 +4302,10 @@ async def _run_onboarding_questioner(
         # The habit-picker widget is attached centrally after dispatch (see
         # _habit_picker_for_new_schedule) so it fires for BOTH this questioner
         # path and the agent path that also generates.
-        return text, [], None, False
+        return text, [], None, False, None
     except Exception as e:
         logger.exception("onboarding completion → generate failed: %s", e)
-        return f"i collected everything but generation hit a snag: {e}. retry?", [], None, False
+        return f"i collected everything but generation hit a snag: {e}. retry?", [], None, False, None
 
 
 async def _mirror_intake_to_facts(user_id: str, update: dict, db: AsyncSession) -> None:
@@ -4330,14 +4331,19 @@ async def _mirror_intake_to_facts(user_id: str, update: dict, db: AsyncSession) 
         logger.warning("intake->user_facts mirror failed (non-fatal): %s", e)
 
 
-def _finish_onboarding_turn(text: str, payload: dict) -> Tuple[str, list[str], Optional[dict], bool]:
-    """Pack a question payload into the chat-response 4-tuple. The 4th element
-    is the multi-select flag the mobile client reads (`multi_choice`) — set for
-    fields the doc marks `multi: true`."""
+def _finish_onboarding_turn(
+    text: str, payload: dict
+) -> Tuple[str, list[str], Optional[dict], bool, Optional[dict]]:
+    """Pack a question payload into the chat-response 5-tuple:
+    (text, choices, input_widget, multi_choice, progress). The 4th element is
+    the multi-select flag the mobile client reads (`multi_choice`); the 5th is
+    the optional plan-progress hint (`{index,total}` or None — client ignores
+    when absent)."""
     choices = list(payload.get("choices") or [])
     iw = payload.get("input_widget")
     multi = bool(payload.get("multi_choice"))
-    return text, choices, iw, multi
+    progress = payload.get("progress")
+    return text, choices, iw, multi, progress
 
 
 # --------------------------------------------------------------------------- #
@@ -4647,8 +4653,9 @@ async def _send_message_locked(
             user_id=user_id, message_text=data.message, db=db,
         )
     driver_multi = False
+    driver_progress: Optional[dict] = None
     if driver_out is not None:
-        response_text, choices, iw, driver_multi = driver_out
+        response_text, choices, iw, driver_multi, driver_progress = driver_out
         # Persist the user message + assistant reply to ChatHistory so the
         # transcript matches what the user sees (the agent path does this
         # internally; we have to do it explicitly when bypassing).
@@ -4783,6 +4790,7 @@ async def _send_message_locked(
         products=products_out,
         conversation_id=conv_id,
         confirm=confirm_out,
+        progress=driver_progress,
     )
 
 
@@ -4969,6 +4977,7 @@ async def get_chat_history(
             get_pending,
             peek_next_question,
             field_to_question_payload,
+            plan_progress,
         )
         from services.user_context_service import get_context, merged_user_state
         from services.task_catalog_service import is_loaded, warm_catalog, get_doc
@@ -4985,7 +4994,9 @@ async def get_chat_history(
             state = await _apply_slot_prefill(user_id, pending["max"], state, db)
             next_field = peek_next_question(pending["max"], state)
             if next_field is not None:
-                payload = field_to_question_payload(next_field)
+                payload = field_to_question_payload(
+                    next_field, progress=plan_progress(pending)
+                )
                 pending_question = {
                     "max": pending["max"],
                     "field_id": next_field.get("id"),
@@ -4995,6 +5006,8 @@ async def get_chat_history(
                     # Carry the multi-select flag so reloading mid-onboarding
                     # re-renders toggle chips (not single-tap) for `multi` fields.
                     "multi_choice": bool(payload.get("multi_choice")),
+                    # Optional plan-progress hint (None unless a plan is active).
+                    "progress": payload.get("progress"),
                 }
     except Exception as _e:
         logger.warning("history pending-question hydrate failed: %s", _e)

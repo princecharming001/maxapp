@@ -257,7 +257,21 @@ def peek_next_question(maxx_id: str, user_state: dict) -> Optional[dict]:
     return missing[0] if missing else None
 
 
-def field_to_question_payload(field_spec: dict) -> dict:
+def plan_progress(pending: Optional[dict]) -> Optional[dict]:
+    """`{index, total}` (1-based) for an active plan queue, else None. Used to
+    render an optional progress hint; the client ignores it when absent."""
+    if not pending:
+        return None
+    plan = pending.get("plan") or []
+    if not plan:
+        return None
+    idx = int(pending.get("idx") or 0)
+    if idx < 0 or idx >= len(plan):
+        return None
+    return {"index": idx + 1, "total": len(plan)}
+
+
+def field_to_question_payload(field_spec: dict, progress: Optional[dict] = None) -> dict:
     """Convert a doc required_field spec into the wire format the mobile UI
     expects.  Always returns a dict with at minimum:
         {"text": "<question>", "field_id": "<id>"}
@@ -318,6 +332,10 @@ def field_to_question_payload(field_spec: dict) -> dict:
     else:
         # str — no constrained input; just emit the question. UI falls back to free text.
         pass
+
+    # Optional plan-progress hint (only when an LLM/plan-driven queue exists).
+    if progress:
+        payload["progress"] = progress
 
     return payload
 
