@@ -494,12 +494,33 @@ async def build_agent_system_prompt(
                     o_label = (item.get("label") or "obligation").strip()
                     if o_start and o_end:
                         avail_bits.append(f"busy {o_start}–{o_end} ({o_label})")
+            # When the user usually showers — skincare and other shower-dependent
+            # routines (cleanser, body care, minoxidil on dry hair, etc.) should
+            # land right after a shower, not at an arbitrary time.
+            shower = (ob.get("shower_time") or "").strip().lower()
+            shower_phrase = {
+                "morning": "showers in the morning (right after waking)",
+                "night": "showers at night (before bed)",
+                "both": "showers both morning and night",
+            }.get(shower)
+            if shower_phrase:
+                avail_bits.append(shower_phrase)
             if avail_bits:
                 context_str += (
                     f"\nDAILY AVAILABILITY: {' | '.join(avail_bits)}"
                     f"\n(plan routines around the busy window; AM tasks before "
                     f"the busy block, PM tasks after; never schedule during it)"
                 )
+                if shower_phrase:
+                    _anchor_when = {
+                        "morning": "the morning get-ready window",
+                        "night": "the wind-down window before bed",
+                        "both": "either the morning or the evening shower",
+                    }[shower]
+                    context_str += (
+                        f"\n(anchor skincare and shower-dependent routines to "
+                        f"{_anchor_when} so they happen right after a shower)"
+                    )
             # Per-weekday overrides from the Planner tab — only days that
             # differ from the default rhythm. The bot must honor the right
             # day's window/obligations (e.g. a later weekend wake, MWF class).

@@ -17,7 +17,7 @@ import {
     Pressable,
 } from 'react-native'
 import { Alert } from '../../components/InAppAlert';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
@@ -360,8 +360,12 @@ function ScanProcessingView({ onRetry, onBack }: { onRetry: () => void; onBack: 
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-function MetricRing({ score, outOf = 10, delay = 0, color = '#FFFFFF', size = 72 }: {
-    score: number; outOf?: number; delay?: number; color?: string; size?: number;
+function MetricRing({ score, outOf = 10, delay = 0, color, gradient, gid = 'mr', size = 72 }: {
+    score: number; outOf?: number; delay?: number; color?: string;
+    // Two-stop jewel-tone gradient [from, to] for a richer, non-flat ring. When
+    // set it overrides `color`. `gid` must be unique per mounted ring so the SVG
+    // gradient defs don't collide.
+    gradient?: readonly [string, string]; gid?: string; size?: number;
 }) {
     const stk = Math.max(3, Math.round(size * 0.072));
     const r = (size - stk) / 2;
@@ -384,13 +388,23 @@ function MetricRing({ score, outOf = 10, delay = 0, color = '#FFFFFF', size = 72
         extrapolate: 'clamp',
     });
 
+    const stroke = gradient ? `url(#${gid})` : (color || '#FFFFFF');
+
     return (
         <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
             <Svg width={size} height={size} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
+                {gradient ? (
+                    <Defs>
+                        <SvgLinearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+                            <Stop offset="0" stopColor={gradient[0]} />
+                            <Stop offset="1" stopColor={gradient[1]} />
+                        </SvgLinearGradient>
+                    </Defs>
+                ) : null}
                 <Circle cx={size / 2} cy={size / 2} r={r}
                     stroke="rgba(255,255,255,0.18)" strokeWidth={stk} fill="none" />
                 <AnimatedCircle cx={size / 2} cy={size / 2} r={r}
-                    stroke={color} strokeWidth={stk} fill="none"
+                    stroke={stroke} strokeWidth={stk} fill="none"
                     strokeLinecap="round"
                     strokeDasharray={circ}
                     strokeDashoffset={dashOffset} />
@@ -1198,7 +1212,8 @@ export default function FaceScanResultsScreen() {
             key: 'rating',
             label: 'Rating',
             score: ratingDisplay ?? 0,
-            color: '#FFFFFF',
+            // Rich gold (luminous → deep amber) — premium, not flat white.
+            gradient: ['#FFD15C', '#F0921B'] as const,
             desc: ratingDisplay != null && ratingDisplay >= 7
                 ? 'You rank in the top tier of facial attractiveness.'
                 : ratingDisplay != null && ratingDisplay >= 5
@@ -1209,7 +1224,8 @@ export default function FaceScanResultsScreen() {
             key: 'appeal',
             label: 'Appeal',
             score: appealScore,
-            color: '#FFB8D0',
+            // Vivid rose → magenta — saturated, not pastel pink.
+            gradient: ['#FF5C8D', '#D81E63'] as const,
             desc: appealScore >= 7
                 ? 'Exceptional facial harmony and symmetry.'
                 : appealScore >= 5
@@ -1220,7 +1236,8 @@ export default function FaceScanResultsScreen() {
             key: 'potential',
             label: 'Potential',
             score: potentialDisplay,
-            color: '#B8E8FF',
+            // Electric azure → indigo-violet — deep and premium, not pastel blue.
+            gradient: ['#4DA3FF', '#6C5CE7'] as const,
             desc: potentialDisplay >= 9
                 ? 'Near maximum potential — maintain your gains.'
                 : potentialDisplay >= 8
@@ -1345,7 +1362,8 @@ export default function FaceScanResultsScreen() {
                                             score={locked ? 0 : m.score}
                                             outOf={10}
                                             delay={i * 180}
-                                            color={m.color}
+                                            gradient={m.gradient}
+                                            gid={`ring-${m.key}`}
                                             size={72}
                                         />
                                         <View style={s.ringCenter} pointerEvents="none">
@@ -1431,7 +1449,6 @@ export default function FaceScanResultsScreen() {
                                             {locked ? 'Unlock to see exactly where to start.' : 'Start here. The one move that moves the needle most.'}
                                         </Text>
                                     </View>
-                                    <Ionicons name="arrow-forward-circle" size={30} color="rgba(255,255,255,0.9)" />
                                 </GlassCard>
                             )}
 
@@ -1566,7 +1583,8 @@ export default function FaceScanResultsScreen() {
                             score={locked ? 0 : METRICS[expandedIdx].score}
                             outOf={10}
                             delay={0}
-                            color={METRICS[expandedIdx].color}
+                            gradient={METRICS[expandedIdx].gradient}
+                            gid={`ring-exp-${METRICS[expandedIdx].key}`}
                             size={160}
                         />
                         <View style={s.expandedCenter} pointerEvents="none">
