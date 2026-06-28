@@ -123,3 +123,61 @@ def test_resolve_respects_source_rank():
     src = _sources(onboarding={"age": 30}, facts={"age": 28})
     known = resolve_prefill(schema, src)
     assert known.prefill["age"] == 28  # facts (chat rank 5) beats onboarding (4)
+
+
+def test_prefill_skips_known_question(monkeypatch):
+    """Flag ON + a known field => the prefill helper merges it into state so the
+    questioner's next pick is NOT that field. Flag OFF => state is untouched."""
+    import asyncio as _asyncio
+    from config import settings
+    from services import task_catalog_service as tcs
+    from services.onboarding_questioner import peek_next_question
+    from services.onboarding_gap import KnownContext
+    import api.chat as chat
+
+    _asyncio.run(tcs.warm_catalog())
+
+    # Pick a real max + the field its raw questioner would ask first on a blank
+    # state, then prefill exactly that field.
+    maxx_id = "bonemax"
+    first = peek_next_question(maxx_id, {})
+    assert first is not None
+    known_field = first["id"]
+
+    async def _fake_assemble(db, user_id, mx):
+        return KnownContext(prefill={known_field: _sample_value(maxx_id, known_field)}, provenance={}, brief=None)
+
+    async def _noop(*a, **k):
+        return None
+
+    monkeypatch.setattr(chat, "assemble_known_context", _fake_assemble, raising=False)
+    # The helper imports assemble_known_context locally from onboarding_gap, so
+    # patch it at the source module too.
+    monkeypatch.setattr("services.onboarding_gap.assemble_known_context", _fake_assemble)
+    monkeypatch.setattr("services.user_context_service.merge_context", _noop)
+    monkeypatch.setattr(chat, "_mirror_intake_to_facts", _noop)
+
+    # Flag OFF: state unchanged, raw question is still the known field.
+    monkeypatch.setattr(settings, "slot_prefill_enabled", False)
+    off_state = _asyncio.run(chat._apply_slot_prefill("00000000-0000-0000-0000-000000000001", maxx_id, {}, None))
+    assert known_field not in off_state
+    assert peek_next_question(maxx_id, off_state)["id"] == known_field
+
+    # Flag ON: known field merged in, so it is skipped.
+    monkeypatch.setattr(settings, "slot_prefill_enabled", True)
+    on_state = _asyncio.run(chat._apply_slot_prefill("00000000-0000-0000-0000-000000000001", maxx_id, {}, None))
+    assert known_field in on_state
+    nxt = peek_next_question(maxx_id, on_state)
+    assert nxt is None or nxt["id"] != known_field
+
+
+def _sample_value(maxx_id: str, field_id: str):
+    """A coercible-looking value for a field, derived from its spec options."""
+    from services.task_catalog_service import get_doc
+    doc = get_doc(maxx_id)
+    spec = next((f for f in doc.required_fields if f.get("id") == field_id), {})
+    if spec.get("type") == "enum" and spec.get("options"):
+        return next(iter(spec["options"].keys()))
+    if spec.get("type") == "yes_no":
+        return True
+    return "x"

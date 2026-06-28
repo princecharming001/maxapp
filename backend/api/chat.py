@@ -3979,6 +3979,48 @@ async def _habit_picker_for_new_schedule(
     return None
 
 
+async def _apply_slot_prefill(
+    user_id: str,
+    maxx_id: Optional[str],
+    state: dict,
+    db: AsyncSession,
+) -> dict:
+    """Deterministic prefill rung (NO LLM), gated by `slot_prefill_enabled`.
+
+    Resolve cross-source known-context for `maxx_id` and merge confidently-known
+    values into the user_state used to drive the next question, so already-known
+    fields are not re-asked (cross-Max dedup). Only fills keys genuinely missing
+    in `state` — never overrides a real answer. Persists filled values into
+    context + user_facts so the generator and future maxes see them.
+
+    Flag off, no maxx, no prefill, or ANY failure → returns `state` unchanged
+    (today's raw `missing_required` path).
+    """
+    if not settings.slot_prefill_enabled or not maxx_id:
+        return state
+    try:
+        from services.onboarding_gap import assemble_known_context
+        from services.user_context_service import merge_context
+
+        known = await assemble_known_context(db, user_id, maxx_id)
+        prefill = known.prefill or {}
+        new_vals = {
+            k: v for k, v in prefill.items()
+            if k and state.get(k) in (None, "", [], {})
+        }
+        if not new_vals:
+            return state
+        await merge_context(user_id, new_vals, db)
+        await _mirror_intake_to_facts(user_id, new_vals, db)
+        logger.info(
+            "[onboarding] slot-prefill filled %s for max=%s", sorted(new_vals), maxx_id
+        )
+        return {**state, **new_vals}
+    except Exception:
+        logger.exception("[onboarding] slot prefill failed; using raw state")
+        return state
+
+
 async def _run_onboarding_questioner(
     user_id: str,
     message_text: str,
@@ -4026,6 +4068,7 @@ async def _run_onboarding_questioner(
     if not pending:
         if not new_max:
             return None
+        state = await _apply_slot_prefill(user_id, new_max, state, db)
         next_field = peek_next_question(new_max, state)
         if next_field is None:
             # All required fields already known — let the agent trigger gen.
@@ -4056,6 +4099,10 @@ async def _run_onboarding_questioner(
         await merge_context(user_id, clear_pending(), db)
         return None
 
+    # Deterministic cross-Max prefill (no-op unless slot_prefill_enabled): merge
+    # already-known values into state so the continuing intake skips them.
+    state = await _apply_slot_prefill(user_id, maxx_id, state, db)
+
     # Interpret the message as the ANSWER to A's current question FIRST. A valid
     # answer always wins over a free-text max name — this stops a legit answer
     # that happens to mention another max (e.g. "improve my posture" hits the
@@ -4066,6 +4113,7 @@ async def _run_onboarding_questioner(
         # max, switch — but into that max's OWN thread so the new intake does
         # not bleed into this conversation. Otherwise just re-ask A's question.
         if new_max and new_max != maxx_id:
+            state = await _apply_slot_prefill(user_id, new_max, state, db)
             next_field = peek_next_question(new_max, state)
             if next_field is None:
                 return None
@@ -4819,6 +4867,7 @@ async def get_chat_history(
         state = merged_user_state(onboarding, persistent)
         pending = get_pending(state)
         if pending and get_doc(pending.get("max", "")):
+            state = await _apply_slot_prefill(user_id, pending["max"], state, db)
             next_field = peek_next_question(pending["max"], state)
             if next_field is not None:
                 payload = field_to_question_payload(next_field)
