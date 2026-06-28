@@ -181,3 +181,60 @@ def _sample_value(maxx_id: str, field_id: str):
     if spec.get("type") == "yes_no":
         return True
     return "x"
+
+
+def test_plan_queue_ordering():
+    """A plan-pending drives the queue in order, advances on coerce, and the
+    plan view exhausts at idx==len (then falls through to the raw backstop)."""
+    import asyncio as _asyncio
+    from services import task_catalog_service as tcs
+    from services.onboarding_questioner import (
+        make_plan_pending,
+        advance_plan,
+        peek_next_question,
+        _peek_plan_field,
+        PENDING_KEY,
+    )
+
+    _asyncio.run(tcs.warm_catalog())
+    maxx_id = "bonemax"
+    schema = tcs.get_info_schema(maxx_id)
+    slots = [s.slot for s in schema.active_slots() if s.field][:3]
+    assert len(slots) == 3
+
+    def field_of(slot_id):
+        s = next(x for x in schema.slots if x.slot == slot_id)
+        return s.field
+
+    adapted = {slots[0]: "custom phrased q0?"}
+    pending = make_plan_pending(maxx_id, slots, idx=0, adapted=adapted)
+
+    # idx 0 — adapted wording overrides the doc question.
+    q0 = peek_next_question(maxx_id, {PENDING_KEY: pending})
+    assert q0["id"] == field_of(slots[0])
+    assert q0["question"] == "custom phrased q0?"
+
+    # idx 1, 2 in order, default (non-adapted) wording.
+    pending = advance_plan(pending)
+    q1 = peek_next_question(maxx_id, {PENDING_KEY: pending})
+    assert q1["id"] == field_of(slots[1])
+
+    pending = advance_plan(pending)
+    q2 = peek_next_question(maxx_id, {PENDING_KEY: pending})
+    assert q2["id"] == field_of(slots[2])
+
+    # Past the end — the plan view is exhausted (idx == len).
+    pending = advance_plan(pending)
+    assert pending["idx"] == 3
+    assert _peek_plan_field(maxx_id, pending) is None
+
+
+def test_get_pending_accepts_old_and_new_shape():
+    """Backward compat: both the legacy {max,last_question} and the new
+    plan-pending validate via get_pending."""
+    from services.onboarding_questioner import get_pending, make_pending, make_plan_pending, PENDING_KEY
+    old = make_pending("skinmax", "skin_type")
+    assert get_pending({PENDING_KEY: old})["max"] == "skinmax"
+    new = make_plan_pending("skinmax", ["a", "b"], idx=0)
+    got = get_pending({PENDING_KEY: new})
+    assert got["max"] == "skinmax" and got.get("plan") == ["a", "b"]

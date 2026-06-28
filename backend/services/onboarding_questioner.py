@@ -28,7 +28,13 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from services.task_catalog_service import get_doc, missing_required, warm_catalog, is_loaded
+from services.task_catalog_service import (
+    get_doc,
+    get_info_schema,
+    missing_required,
+    warm_catalog,
+    is_loaded,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +64,94 @@ def clear_pending() -> dict:
 
 
 # --------------------------------------------------------------------------- #
+#  Plan queue (dynamic onboarding; backward compatible with old pending)      #
+# --------------------------------------------------------------------------- #
+# A "plan pending" extends the old {max, last_question} shape with a slot queue:
+#   {max, last_question, plan:[slot_id], idx, adapted:{slot:text}, plan_dirty,
+#    generated_by:"llm"|"prefill"|"raw"}
+# `get_pending` accepts BOTH shapes (it only requires max + last_question), so
+# nothing that reads the old shape breaks.
+
+
+def _field_id_for_slot(maxx_id: str, slot_id: str) -> Optional[str]:
+    """Map a plan slot id -> the required_fields[].id it asks. Returns None for
+    infer-only slots (no field) or unknown slots; falls back to slot_id itself
+    when no info_schema is available (auto-derive convention slot==field)."""
+    schema = get_info_schema(maxx_id)
+    if schema is None:
+        return slot_id
+    slot = next((s for s in schema.slots if s.slot == slot_id), None)
+    if slot is None:
+        return None
+    return slot.field  # may be None for infer-only slots
+
+
+def _field_spec_for_slot(maxx_id: str, slot_id: str) -> Optional[dict]:
+    """Resolve a plan slot id to its doc required_fields spec dict, or None."""
+    doc = get_doc(maxx_id)
+    if doc is None:
+        return None
+    field_id = _field_id_for_slot(maxx_id, slot_id)
+    if not field_id:
+        return None
+    return next((f for f in doc.required_fields if f.get("id") == field_id), None)
+
+
+def make_plan_pending(
+    maxx_id: str,
+    plan: list[str],
+    idx: int = 0,
+    adapted: Optional[dict] = None,
+    generated_by: str = "llm",
+) -> dict:
+    """Build a plan-pending state. `plan` is an ordered list of slot ids;
+    `adapted` maps slot id -> adapted question text. `last_question` is kept in
+    sync with the current slot's FIELD id so the existing coerce path works."""
+    plan = [str(s) for s in (plan or [])]
+    cur_slot = plan[idx] if 0 <= idx < len(plan) else (plan[-1] if plan else "")
+    last_field = _field_id_for_slot(maxx_id, cur_slot) or cur_slot
+    return {
+        "max": maxx_id,
+        "last_question": last_field,
+        "plan": plan,
+        "idx": idx,
+        "adapted": dict(adapted or {}),
+        "plan_dirty": False,
+        "generated_by": generated_by,
+    }
+
+
+def advance_plan(pending: dict) -> dict:
+    """Move the plan cursor forward one slot, re-syncing `last_question` to the
+    new current slot's field id. Caller persists the returned dict. Advance
+    should happen ONLY after a successful coerce of the current answer."""
+    p = dict(pending or {})
+    plan = p.get("plan") or []
+    p["idx"] = int(p.get("idx") or 0) + 1
+    if 0 <= p["idx"] < len(plan):
+        p["last_question"] = _field_id_for_slot(p.get("max", ""), plan[p["idx"]]) or plan[p["idx"]]
+    return p
+
+
+def _peek_plan_field(maxx_id: str, pending: dict) -> Optional[dict]:
+    """Field spec for the plan's current slot, with `question` overridden by the
+    adapted text. None when the plan is exhausted or the current slot can't be
+    resolved (caller then falls through to raw missing_required as a backstop)."""
+    plan = pending.get("plan") or []
+    idx = int(pending.get("idx") or 0)
+    if idx < 0 or idx >= len(plan):
+        return None
+    slot_id = plan[idx]
+    spec = _field_spec_for_slot(maxx_id, slot_id)
+    if spec is None:
+        return None
+    adapted = (pending.get("adapted") or {}).get(slot_id)
+    if adapted:
+        spec = {**spec, "question": adapted}
+    return spec
+
+
+# --------------------------------------------------------------------------- #
 #  Question building                                                          #
 # --------------------------------------------------------------------------- #
 
@@ -80,11 +174,25 @@ def _flag(field_spec: dict, name: str) -> bool:
 
 
 def peek_next_question(maxx_id: str, user_state: dict) -> Optional[dict]:
-    """Return the next missing required field as a structured spec, or None
-    when all required fields are answered."""
+    """Return the next question's field spec, or None when nothing is left.
+
+    If an active plan queue exists for `maxx_id`, drive it (returning the
+    current slot's field spec with adapted wording). When the plan is exhausted
+    or a slot can't resolve, fall through to the UNCHANGED raw `missing_required`
+    path — which is also the independent backstop that catches any required
+    field the plan under-asked. With no plan, behavior is byte-for-byte today's.
+    """
     if not is_loaded():
         # Caller is async; we can't await here. Caller must warm before invoking.
         logger.warning("peek_next_question called before catalog warm; expect empty.")
+
+    pending = get_pending(user_state)
+    if pending and pending.get("max") == maxx_id and pending.get("plan"):
+        spec = _peek_plan_field(maxx_id, pending)
+        if spec is not None:
+            return spec
+        # Plan exhausted / unresolvable → backstop on raw missing_required below.
+
     missing = missing_required(maxx_id, user_state)
     return missing[0] if missing else None
 
