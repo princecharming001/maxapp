@@ -191,6 +191,16 @@ async def planner_today(
     calendar_events = cal_res.scalars().all()
     cal_spans: list[tuple[int, int]] = []
     for ev in calendar_events:
+        if ev.all_day:
+            # All-day events render as a quiet pill; they do NOT consume timeline
+            # slots and are excluded from calendar_busy_minutes.
+            structure.append({
+                "label": (ev.title or "All day")[:40],
+                "all_day": True,
+                "source": "calendar",
+                "event_id": str(ev.id),
+            })
+            continue
         s = ev.starts_at.replace(tzinfo=None) if ev.starts_at.tzinfo else ev.starts_at
         e = ev.ends_at.replace(tzinfo=None) if ev.ends_at.tzinfo else ev.ends_at
         s, e = max(s, day_start), min(e, day_end)

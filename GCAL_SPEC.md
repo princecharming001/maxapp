@@ -95,7 +95,7 @@ Do them in order. Each: touch the listed files, then run the VERIFY. Early units
   Files: `backend/api/google.py` (new endpoint: best-effort POST Google `oauth2/revoke` with refresh token, `is_active=False`, clear `tokens`+`tokens_encrypted`, purge that connection's `calendar_events`). `mobile/services/api.ts` (`disconnectGoogle(): Promise<{disconnected:boolean}>`).
   VERIFY: `cd backend && pytest -q -k google`; `cd mobile && npx tsc --noEmit`.
 
-- [ ] **U5 — All-day handling in projection.**
+- [x] **U5 — All-day handling in projection. (2026-06-28)**
   Files: `backend/api/planner.py` (in the calendar-merge block ~L180-206: for `all_day` events emit a distinct `structure` row `{label, all_day:true, source:'calendar', event_id}` WITHOUT consuming the timeline, and EXCLUDE all-day from `calendar_busy_minutes`). Optionally refactor the inline projection into a shared `project_calendar_day(uid,target,db)` helper returning `(structure_rows, cal_spans)`.
   VERIFY: `cd backend && pytest -q -k planner`. Confirm an all-day-only day does not flip `today_read` to red.
 
@@ -163,3 +163,4 @@ When all units are checked and completion criteria are met, output exactly:
 - U2 (2026-06-28): Added `tokens_encrypted` LargeBinary column + `tokens_decrypted` property to `CalendarConnection`; migration SQL added; import + pytest collection verified.
 - U3 (2026-06-28): `store_connection` + `_fresh_access_token` now write `tokens_encrypted` + clear plaintext; `/status` reads via `tokens_decrypted`; baseline tests unchanged.
 - U4 (2026-06-28): `DELETE /google/disconnect` added (best-effort revoke, clear tokens, purge events); `disconnectGoogle()` added to mobile api.ts; tsc + import clean.
+- U5 (2026-06-28): All-day events emit `{all_day:true, source:'calendar', event_id}` pill row, excluded from `cal_spans`/`calendar_busy_minutes`; timed events unchanged.
