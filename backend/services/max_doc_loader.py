@@ -100,6 +100,7 @@ class MaxDoc:
     required_fields: list[dict]
     optional_context: list[dict]
     prompt_modifiers: list[dict]
+    info_schema: list[dict]
     chunks: list[RagChunk]
     tasks: list[TaskDef]
     source_path: str
@@ -165,11 +166,37 @@ def parse_max_doc(path: str | Path) -> MaxDoc:
         required_fields=front_matter.get("required_fields") or [],
         optional_context=front_matter.get("optional_context") or [],
         prompt_modifiers=front_matter.get("prompt_modifiers") or [],
+        info_schema=front_matter.get("info_schema") or [],
         chunks=chunks,
         tasks=tasks,
         source_path=str(path),
         content_hash=content_hash,
     )
+
+
+def derive_info_schema_from_required(required_fields: list[dict]) -> list[dict]:
+    """Auto-derive a minimal info_schema from a doc's required_fields.
+
+    Used as the fallback when a doc declares no explicit `info_schema`, so all
+    docs work on day one before manual enrichment. Each required field becomes
+    a slot with slot=field=id, importance=high, and same-name cross-source
+    aliases (onboarding + facts). Pure; no I/O.
+    """
+    schema: list[dict] = []
+    for f in required_fields or []:
+        fid = f.get("id")
+        if not fid:
+            continue
+        schema.append(
+            {
+                "slot": fid,
+                "field": fid,
+                "needs": f.get("question") or f.get("label") or fid,
+                "importance": "high",
+                "satisfied_by": [f"onboarding:{fid}", f"facts:{fid}"],
+            }
+        )
+    return schema
 
 
 def parse_all_max_docs(directory: str | Path = DEFAULT_MAX_DOC_DIR) -> list[MaxDoc]:

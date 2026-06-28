@@ -161,7 +161,7 @@ Rules:
   Add the eight `Field`s from Guardrail 1 to `Settings`. Nothing reads them yet.
   VERIFY: `cd backend && python -c "from config import settings; print(settings.slot_prefill_enabled, settings.dynamic_questions_enabled, settings.dynamic_questions_model)"` prints `False False claude-haiku-4-5`. `python -m pytest tests/test_pure_utils.py -q`.
 
-- [ ] **U2 — MaxDoc carries info_schema (additive, auto-derive fallback).**
+- [x] **U2 — MaxDoc carries info_schema (additive, auto-derive fallback).** _(2026-06-28: added `info_schema` field to MaxDoc + parse from front-matter; added `derive_info_schema_from_required`; helper prints `2`, loader imports, all 6 docs parse.)_
   Files: `backend/services/max_doc_loader.py`.
   Add `info_schema: list[dict]` to the `MaxDoc` dataclass (line 95 region). In `parse_max_doc`, set `info_schema=front_matter.get("info_schema") or []` (alongside 165-167). Add pure helper `derive_info_schema_from_required(required_fields) -> list[dict]` (slot=field=id, importance=high, satisfied_by=[`onboarding:<id>`,`facts:<id>`]). Do NOT call it here — just expose it.
   VERIFY: `cd backend && python -c "from services.max_doc_loader import derive_info_schema_from_required; print(len(derive_info_schema_from_required([{'id':'a','required':True},{'id':'b'}])))"` prints `2`; loader still imports.
@@ -263,6 +263,10 @@ _(empty — add items here as they arise; pick a reversible default and continue
 ## Deferred
 _(empty)_
 
+## Pre-existing test baseline (NOT caused by this work — do not chase)
+- `tests/test_max_doc_pipeline.py::test_validator_fixes_collisions_and_titles` FAILS on the clean tree (verified via `git stash` at U2, 2026-06-28). Treat as documented red.
+
 ## Iteration-Log
 _(append one line per completed unit: `YYYY-MM-DD Uxx — <note>`)_
 2026-06-28 U1 — Added 7 dynamic-onboarding config Fields (all default OFF) to `backend/config.py::Settings`. Spec lists 7 under Guardrail 1 ("eight" in U1 header is a typo). Verified flags load + test_pure_utils green.
+2026-06-28 U2 — `MaxDoc.info_schema` field + front-matter parse + `derive_info_schema_from_required` helper in `max_doc_loader.py`. Helper returns 2 slots for 2 fields; loader imports; 6 docs parse. (Noted pre-existing test_max_doc_pipeline collision-test red as baseline.)
