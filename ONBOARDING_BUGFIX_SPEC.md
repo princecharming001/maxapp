@@ -71,7 +71,7 @@ The first onboarding question is **blocked behind a cold chat-history GET** that
 
 ## BUILD UNITS (do the first unchecked one; one logical change per commit)
 
-- [ ] **T1 — Guard the onboarding driver body + call site → degrade to `None` on any error.** (ROOT-CAUSE fix for ERROR.) In `backend/api/chat.py`, wrap the unguarded state-machine body of `_run_onboarding_questioner` (everything after the import-`try` ending at ~4125 and before the already-guarded generate-`try` at 4284, i.e. ~`4127-4283`) in:
+- [x] **T1 — Guard the onboarding driver body + call site → degrade to `None` on any error.** _(2026-06-28: split body into `_run_onboarding_questioner_impl`; thin `_run_onboarding_questioner` wraps it in try/except → logger.exception + best-effort `await db.rollback()` + return None. Call site also try/excepted → driver_out=None. Fault-injection (merge_context raises mid-body) confirmed: rollback called, returns None. 33 passed.)_ (ROOT-CAUSE fix for ERROR.) In `backend/api/chat.py`, wrap the unguarded state-machine body of `_run_onboarding_questioner` (everything after the import-`try` ending at ~4125 and before the already-guarded generate-`try` at 4284, i.e. ~`4127-4283`) in:
   `try: ... except Exception as e: logger.exception("onboarding questioner body failed: %s", e); ` then **best-effort `await db.rollback()`** (`try/except: pass`) **then `return None`**. The rollback is **mandatory** — a failed `merge_context` execute poisons the `AsyncSession`, so without it the downstream agent path / `ChatHistory` writes (`chat.py:4662-4668`) would also fail. Belt-and-suspenders: also wrap the call site `driver_out = await _run_onboarding_questioner(...)` (`chat.py:4640-4644`) in `try/except → driver_out = None`. `None` routes to the existing legacy/agent path (`4651-4721`), preserving the fixed-flow fallback.
   - **VERIFY:** targeted backend pytest green (33). Manual fault: monkeypatch `merge_context` to raise → `_run_onboarding_questioner` returns `None` (not a raise).
 
@@ -156,3 +156,4 @@ _(pick a reversible default and continue; do not block)_
 
 ## Iteration Log
 _(append one line per completed unit: `YYYY-MM-DD Tn — <result>`)_
+2026-06-28 T1 — Guarded driver via `_impl` split + try/except wrapper (logger.exception + best-effort db.rollback + return None) and a call-site try/except. Fault-injection proves degrade-to-None + rollback; 33 targeted tests green.

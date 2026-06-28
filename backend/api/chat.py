@@ -4099,6 +4099,31 @@ async def _run_onboarding_questioner(
     message_text: str,
     db: AsyncSession,
 ) -> Optional[Tuple[str, list[str], Optional[dict], bool, Optional[dict]]]:
+    """Guarded entry point for the deterministic onboarding driver.
+
+    Wraps the whole state-machine body: on ANY error it logs, rolls the session
+    back (a failed `merge_context` execute poisons the AsyncSession, so the
+    downstream agent/legacy path + ChatHistory writes would also fail without
+    this), and returns ``None`` — which routes the turn to the existing
+    legacy/agent fallback (today's fixed-onboarding flow). Never raises into
+    `_send_message_locked`.
+    """
+    try:
+        return await _run_onboarding_questioner_impl(user_id, message_text, db)
+    except Exception as e:
+        logger.exception("onboarding questioner body failed: %s", e)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        return None
+
+
+async def _run_onboarding_questioner_impl(
+    user_id: str,
+    message_text: str,
+    db: AsyncSession,
+) -> Optional[Tuple[str, list[str], Optional[dict], bool, Optional[dict]]]:
     """If the user is mid-onboarding for a doc-driven max, drive the next
     question deterministically using onboarding_questioner. Returns
     (text, choices, input_widget, multi_choice, progress) if the driver handled
@@ -4637,11 +4662,22 @@ async def _send_message_locked(
     # NEW: deterministic onboarding questioner. Owns the conversation when
     # the user is collecting required fields for a doc-driven max schedule.
     # Returns None to fall through to the legacy/agent path.
-    driver_out = await _run_onboarding_questioner(
-        user_id=user_id,
-        message_text=data.message,
-        db=db,
-    )
+    # Belt-and-suspenders: the driver already guards its own body (degrade to
+    # None), but never let a driver failure 500 the whole turn — None routes to
+    # the legacy/agent fallback below.
+    try:
+        driver_out = await _run_onboarding_questioner(
+            user_id=user_id,
+            message_text=data.message,
+            db=db,
+        )
+    except Exception:
+        logger.exception("onboarding questioner call site failed; degrading to agent path")
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        driver_out = None
     # Broad-question MCQ gate. Deterministic clarifying chips for broad
     # personal-rec openers whose deciding fact we don't yet know. Runs after
     # the intake questioner (so a per-maxx intake owns the turn first) and
