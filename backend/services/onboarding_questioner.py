@@ -233,6 +233,16 @@ def _flag(field_spec: dict, name: str) -> bool:
     return bool(v)
 
 
+def _as_int(v: Any, d: int) -> int:
+    """Coerce a doc-provided numeric bound to int, falling back to `d`. A YAML
+    blank (`min:` -> None) or a non-numeric string would otherwise make
+    `int(...)` raise TypeError/ValueError and 500 the intake mid-onboarding."""
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return d
+
+
 def peek_next_question(maxx_id: str, user_state: dict) -> Optional[dict]:
     """Return the next question's field spec, or None when nothing is left.
 
@@ -316,10 +326,10 @@ def field_to_question_payload(field_spec: dict, progress: Optional[dict] = None)
         # Slider widget. Sensible defaults per field; can be overridden in doc.
         slider = {
             "type": "slider",
-            "min": int(field_spec.get("min", 13)),
-            "max": int(field_spec.get("max", 50)),
-            "step": int(field_spec.get("step", 1)),
-            "default": int(field_spec.get("default", 18)),
+            "min": _as_int(field_spec.get("min"), 13),
+            "max": _as_int(field_spec.get("max"), 50),
+            "step": _as_int(field_spec.get("step"), 1),
+            "default": _as_int(field_spec.get("default"), 18),
             "label": qtext,
             "unit": field_spec.get("unit") or "",
         }
