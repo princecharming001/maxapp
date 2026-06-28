@@ -615,19 +615,50 @@ const GLASS_SHADOW = {
     shadowColor: '#3A2E55', shadowOpacity: 0.1, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 3,
 } as const;
 
-// Liquid-glass fill for the analysis cards. The "liquid glass" look is faked
-// with the recognised recipe: a real backdrop blur (refraction), a strong top
-// SPECULAR highlight + a diagonal light-catch (light sliding across the
-// surface), luminous EDGE-LENSING rims that are brightest at the top/left edge,
-// and a faint inner shadow at the bottom for glass thickness/depth. `dark`
-// variant for the ink "first move" card. Decorative — sits behind the content.
-function GlassFill({ dark = false }: { dark?: boolean }) {
-    // The analysis cards already own their rounded clip + shadow, so route them
-    // through the canonical glass OPTICS (LiquidGlassFill) — same blur material,
-    // corner speculars, sheen and luminous rim as every other glass surface.
-    // useId keeps each mounted fill's svg gradient ids unique.
+// Canonical liquid-glass CARD — the same recipe as the planner's Today button.
+// An OUTER view carries the soft float shadow; an INNER overflow-hidden clip
+// owns the rounded shape, a bright hairline rim, a translucent wash (NOT a milky
+// fill — glass has to stay see-through) and the LiquidGlassFill optics. Splitting
+// outer/inner is what lets the float shadow survive the clip. `dark` = ink glass
+// for the over-photo hero windows (keeps white text legible); light = frosted for
+// the white analysis sheet. Pass onPress to make the whole pane tappable.
+const GLASS_FLOAT = {
+    shadowColor: '#2A2440', shadowOpacity: 0.14, shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 }, elevation: 4,
+} as const;
+
+function GlassCard({
+    children, style, contentStyle, radius = 20, dark = false, onPress, accessibilityLabel,
+}: {
+    children: React.ReactNode;
+    style?: any;
+    contentStyle?: any;
+    radius?: number;
+    dark?: boolean;
+    onPress?: () => void;
+    accessibilityLabel?: string;
+}) {
     const uid = useId().replace(/:/g, '');
-    return <LiquidGlassFill dark={dark} idSuffix={uid} />;
+    const Clip: any = onPress ? TouchableOpacity : View;
+    const fill = dark ? 'rgba(18,16,24,0.30)' : 'rgba(255,255,255,0.16)';
+    const rim = dark ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.7)';
+    return (
+        <View style={[{ borderRadius: radius, borderCurve: 'continuous' }, GLASS_FLOAT, style]}>
+            <Clip
+                {...(onPress ? { onPress, activeOpacity: 0.85, accessibilityRole: 'button', accessibilityLabel } : {})}
+                style={[
+                    {
+                        borderRadius: radius, borderCurve: 'continuous', overflow: 'hidden',
+                        borderWidth: StyleSheet.hairlineWidth, borderColor: rim, backgroundColor: fill,
+                    },
+                    contentStyle,
+                ]}
+            >
+                <LiquidGlassFill dark={dark} idSuffix={uid} />
+                {children}
+            </Clip>
+        </View>
+    );
 }
 
 const bento = StyleSheet.create({
@@ -1297,12 +1328,14 @@ export default function FaceScanResultsScreen() {
                     <View style={[s.cardsRow, { bottom: SCREEN_H * 0.17 }]} pointerEvents="box-none">
                         {METRICS.map((m, i) => (
                             <HoverCard key={m.key} style={s.cardHover} baseY={i === 1 ? 18 : 0} delay={i * 260}>
-                                <TouchableOpacity
-                                    style={s.metricCard}
+                                <GlassCard
+                                    dark
+                                    radius={22}
                                     onPress={() => setExpandedIdx(i)}
-                                    activeOpacity={0.85}
+                                    accessibilityLabel={`${m.label} score`}
+                                    style={s.metricCardOuter}
+                                    contentStyle={s.metricCardContent}
                                 >
-                                    <LiquidGlassFill dark idSuffix={`metric${i}`} />
                                     <View style={s.ringWrap}>
                                         <MetricRing
                                             score={locked ? 0 : m.score}
@@ -1322,7 +1355,7 @@ export default function FaceScanResultsScreen() {
                                         </View>
                                     </View>
                                     <Text style={s.metricLabel}>{m.label}</Text>
-                                </TouchableOpacity>
+                                </GlassCard>
                             </HoverCard>
                         ))}
                     </View>
@@ -1347,8 +1380,7 @@ export default function FaceScanResultsScreen() {
                         non-processing scan so the locked teaser and the paid reveal
                         always carry the same card (parity), only the value differs. */}
                     {isFirstScanEver && !isProcessing ? (
-                        <View style={s.archetypeCard}>
-                            <GlassFill />
+                        <GlassCard radius={20} style={s.archetypeCardOuter} contentStyle={s.archetypeCardContent}>
                             <Text style={s.archetypeKicker}>YOUR ARCHETYPE</Text>
                             {locked ? (
                                 <>
@@ -1368,7 +1400,7 @@ export default function FaceScanResultsScreen() {
                                     <Text style={s.archetypeDesc}>This scan didn't return an archetype.</Text>
                                 </>
                             )}
-                        </View>
+                        </GlassCard>
                     ) : null}
 
                     {/* ── Verdict: the viral read + the one First Move ─────── */}
@@ -1380,8 +1412,7 @@ export default function FaceScanResultsScreen() {
                                 the real value, or a graceful "Not measured" when the
                                 data is genuinely absent — never drop the card. */}
                             {(
-                                <View style={s.firstMoveCard}>
-                                    <GlassFill dark />
+                                <GlassCard dark radius={22} style={s.firstMoveCardOuter} contentStyle={s.firstMoveCardContent}>
                                     <View style={{ flex: 1 }}>
                                         <Text style={s.firstMoveKicker}>YOUR FIRST MOVE</Text>
                                         {locked ? (
@@ -1397,31 +1428,28 @@ export default function FaceScanResultsScreen() {
                                         </Text>
                                     </View>
                                     <Ionicons name="arrow-forward-circle" size={30} color="rgba(255,255,255,0.9)" />
-                                </View>
+                                </GlassCard>
                             )}
 
                             {(
                                 <View style={s.verdictRow}>
-                                    <View style={[s.verdictCard, { borderColor: '#2F6B4E55' }]}>
-                                        <GlassFill />
+                                    <GlassCard radius={18} style={s.verdictCardOuter} contentStyle={s.verdictCardContent}>
                                         <View style={[s.verdictDot, { backgroundColor: '#2F6B4E' }]} />
                                         <Text style={s.verdictLabel}>YOUR HALO</Text>
                                         <Text style={s.verdictValue} numberOfLines={2} adjustsFontSizeToFit>{locked ? '—' : (haloFeature || 'Not measured')}</Text>
                                         <Text style={s.verdictSub}>Your biggest natural edge.</Text>
-                                    </View>
-                                    <View style={[s.verdictCard, { borderColor: '#C0452C55' }]}>
-                                        <GlassFill />
+                                    </GlassCard>
+                                    <GlassCard radius={18} style={s.verdictCardOuter} contentStyle={s.verdictCardContent}>
                                         <View style={[s.verdictDot, { backgroundColor: '#C0452C' }]} />
                                         <Text style={s.verdictLabel}>BOTTLENECK</Text>
                                         <Text style={s.verdictValue} numberOfLines={2} adjustsFontSizeToFit>{locked ? '—' : (bottleneck || 'Not measured')}</Text>
                                         <Text style={s.verdictSub}>{!locked && bottleneckMax ? `Fix it with ${formatSuggestedModuleTitle(bottleneckMax)}.` : 'What is holding you back.'}</Text>
-                                    </View>
+                                    </GlassCard>
                                 </View>
                             )}
 
                             {(
-                                <View style={s.appealCard}>
-                                    <GlassFill />
+                                <GlassCard radius={18} style={s.appealCardOuter} contentStyle={s.appealCardContent}>
                                     <Text style={s.verdictLabel}>SEX APPEAL vs TRUST APPEAL</Text>
                                     {locked ? (
                                         <View style={s.appealRow}>
@@ -1451,25 +1479,23 @@ export default function FaceScanResultsScreen() {
                                             {appealQuadrant ? <Text style={s.appealQuadrant}>{appealQuadrant}</Text> : null}
                                         </>
                                     )}
-                                </View>
+                                </GlassCard>
                             )}
 
                             {(
                                 <View style={s.verdictRow}>
-                                    <View style={[s.verdictCard, { borderColor: '#4A4A7055' }]}>
-                                        <GlassFill />
+                                    <GlassCard radius={18} style={s.verdictCardOuter} contentStyle={s.verdictCardContent}>
                                         <View style={[s.verdictDot, { backgroundColor: '#4A4A70' }]} />
                                         <Text style={s.verdictLabel}>DIMORPHISM</Text>
                                         <Text style={s.verdictValue}>{locked ? '—' : (dimorphism == null ? 'Not measured' : `${dimorphism.toFixed(1)}/10`)}</Text>
                                         <Text style={s.verdictSub} numberOfLines={2}>{locked || !dimorphismNote ? 'Masculine vs soft balance.' : dimorphismNote}</Text>
-                                    </View>
-                                    <View style={[s.verdictCard, { borderColor: '#BC8B5755' }]}>
-                                        <GlassFill />
+                                    </GlassCard>
+                                    <GlassCard radius={18} style={s.verdictCardOuter} contentStyle={s.verdictCardContent}>
                                         <View style={[s.verdictDot, { backgroundColor: '#BC8B57' }]} />
                                         <Text style={s.verdictLabel}>GLOW-UP POTENTIAL</Text>
                                         <Text style={s.verdictValue}>{locked ? '—' : (glowUpLabel || 'Not measured')}</Text>
                                         <Text style={s.verdictSub}>{!locked && glowUpGain ? `Est. +${glowUpGain.toFixed(1)} points` : 'How much is in your control.'}</Text>
-                                    </View>
+                                    </GlassCard>
                                 </View>
                             )}
                         </View>
@@ -1640,22 +1666,21 @@ const s = StyleSheet.create({
 
     /* ── Verdict block (viral metrics + first move) ── */
     verdict: { marginTop: 6, marginBottom: 6 },
-    firstMoveCard: {
-        flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden',
-        backgroundColor: 'rgba(21,19,15,0.55)', borderRadius: 22, paddingHorizontal: 20, paddingVertical: 20, marginBottom: 12,
-        ...GLASS_SHADOW,
-    },
+    firstMoveCardOuter: { marginBottom: 12 },
+    firstMoveCardContent: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 20 },
     firstMoveKicker: { fontFamily: 'Matter-SemiBold', fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,0.55)', marginBottom: 6 },
     firstMoveLockRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     firstMoveValue: { fontFamily: fonts.serif, fontSize: 28, color: '#FFFFFF', letterSpacing: -0.5 },
     firstMoveSub: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: 'rgba(255,255,255,0.5)', marginTop: 6 },
     verdictRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-    verdictCard: { flex: 1, backgroundColor: 'rgba(255,255,255,0.42)', borderRadius: 18, borderWidth: 1, padding: 16, minHeight: 118, overflow: 'hidden', ...GLASS_SHADOW },
+    verdictCardOuter: { flex: 1, minHeight: 118 },
+    verdictCardContent: { flex: 1, minHeight: 118, padding: 16 },
     verdictDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 10 },
     verdictLabel: { fontFamily: 'Matter-Medium', fontSize: 10.5, letterSpacing: 0.8, color: BENTO_SUB, textTransform: 'uppercase' },
     verdictValue: { fontFamily: fonts.serif, fontSize: 20, color: BENTO_INK, letterSpacing: -0.3, marginTop: 5 },
     verdictSub: { fontFamily: 'Matter-Regular', fontSize: 11.5, color: BENTO_SUB, marginTop: 6, lineHeight: 15 },
-    appealCard: { backgroundColor: 'rgba(255,255,255,0.42)', borderRadius: 18, borderWidth: 1, borderColor: '#CC6F7355', padding: 18, marginBottom: 12, overflow: 'hidden', ...GLASS_SHADOW },
+    appealCardOuter: { marginBottom: 12 },
+    appealCardContent: { padding: 18 },
     appealRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
     appealCol: { flex: 1, alignItems: 'center' },
     appealDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: 'rgba(0,0,0,0.1)' },
@@ -1705,17 +1730,8 @@ const s = StyleSheet.create({
         gap: 10,
     },
     cardHover: { flex: 1 },
-    metricCard: {
-        flex: 1,
-        alignItems: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 8,
-        borderRadius: 22,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
-        position: 'relative',
-    },
+    metricCardOuter: { flex: 1 },
+    metricCardContent: { alignItems: 'center', paddingVertical: 16, paddingHorizontal: 8 },
     ringWrap: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center' },
     ringCenter: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
     metricScore: {
@@ -1776,16 +1792,8 @@ const s = StyleSheet.create({
         marginBottom: 22,
     },
     /* Face archetype — the identity headline card above the read. */
-    archetypeCard: {
-        backgroundColor: 'rgba(255,255,255,0.42)',
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
-        padding: 18,
-        marginBottom: 12,
-        overflow: 'hidden',
-        ...GLASS_SHADOW,
-    },
+    archetypeCardOuter: { marginBottom: 12 },
+    archetypeCardContent: { padding: 18 },
     archetypeKicker: { fontFamily: 'Matter-Medium', fontSize: 10.5, letterSpacing: 0.8, color: BENTO_SUB, textTransform: 'uppercase' },
     archetypeName: { fontFamily: fonts.serif, fontSize: 30, color: BENTO_INK, letterSpacing: -0.6, marginTop: 7, lineHeight: 34 },
     archetypeDesc: { fontFamily: 'Matter-Regular', fontSize: 13, lineHeight: 19, color: BENTO_SUB, marginTop: 9 },
