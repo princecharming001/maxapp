@@ -1164,8 +1164,8 @@ export default function FaceScanResultsScreen() {
             key: 'rating',
             label: 'Rating',
             score: ratingDisplay ?? 0,
-            // Rich gold (luminous → deep amber) — premium, not flat white.
-            gradient: ['#FFD15C', '#F0921B'] as const,
+            // Dark purple (luminous violet → deep purple) — same style as Potential.
+            gradient: ['#A77BFF', '#5B2BB0'] as const,
             desc: ratingDisplay != null && ratingDisplay >= 7
                 ? 'You rank in the top tier of facial attractiveness.'
                 : ratingDisplay != null && ratingDisplay >= 5
@@ -1176,8 +1176,8 @@ export default function FaceScanResultsScreen() {
             key: 'appeal',
             label: 'Appeal',
             score: appealScore,
-            // Vivid rose → magenta — saturated, not pastel pink.
-            gradient: ['#FF5C8D', '#D81E63'] as const,
+            // Dark green (luminous → deep emerald) — same style as Potential.
+            gradient: ['#4FD08A', '#157A45'] as const,
             desc: appealScore >= 7
                 ? 'Exceptional facial harmony and symmetry.'
                 : appealScore >= 5
