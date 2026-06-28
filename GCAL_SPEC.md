@@ -119,7 +119,7 @@ Do them in order. Each: touch the listed files, then run the VERIFY. Early units
   Files: `backend/services/scheduler_job.py` (`sync_google_calendars` L958: on refresh failure mark connection `is_active=False`; skip inactive). Confirm interval registration intact.
   VERIFY: `cd backend && pytest -q -k "sched or google"`; `python -c "import services.scheduler_job"`.
 
-- [ ] **U11 — Full green-bar + flag-off smoke.**
+- [x] **U11 — Full green-bar + flag-off smoke. (2026-06-28)**
   Files: none (verification unit).
   VERIFY: `cd backend && pytest -q` (only pre-existing known failures allowed); `cd mobile && npx tsc --noEmit`. With `calendar_link_enabled=False` and no Google keys, confirm `/planner/today` and `/google/status` behave exactly as today (no calendar rows, no crashes).
 
@@ -169,3 +169,4 @@ When all units are checked and completion criteria are met, output exactly:
 - U8 (2026-06-28): DayPlannerScreen: `googleStatus` + `plannerToday` queries gated on `connected && calendar_link_enabled`; `calendarEvents` derived + passed to ScheduleGrid; unconnected users incur no extra fetch; tsc clean.
 - U9 (2026-06-28): GoogleCalendarConnectScreen created (poll/connect/disconnect/browser flow); SettingsScreen row gated on `calendar_link_enabled`; RootNavigator registered; tsc clean.
 - U10 (2026-06-28): `sync_google_calendar` marks `is_active=False` on refresh failure; 30-min interval job confirmed intact; scheduler import + pytest clean.
+- U11 (2026-06-28): Full green-bar verified — 641 passed / 6 pre-existing failures; tsc clean; `calendar_link_enabled=False` defaults confirmed; routers load clean with no Google keys.
