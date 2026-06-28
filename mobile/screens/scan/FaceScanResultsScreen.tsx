@@ -834,6 +834,9 @@ export default function FaceScanResultsScreen() {
     const rootRef = useRef<View>(null);
     const analysisRef = useRef<View>(null);
     const [shareCaptureBusy, setShareCaptureBusy] = useState(false);
+    // Only true for the brief window while we snapshot for Save/Share, so the
+    // "max" watermark is burned into the exported images but never shown in-app.
+    const [exportWatermark, setExportWatermark] = useState(false);
     const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
     const scrollRef = useRef<ScrollView>(null);
 
@@ -1026,17 +1029,25 @@ export default function FaceScanResultsScreen() {
     // Restores the scroll position (the Share/Save buttons live in the sheet).
     const captureBothViews = async (): Promise<string[]> => {
         const uris: string[] = [];
-        // View 2 first — no scroll needed (the user is already on the sheet).
-        const analysis = await captureRatingCardToPng(analysisRef);
-        // View 1 — jump to the top so the hero fills the screen, then snapshot
-        // the whole screen (root holds the fixed background photo).
-        scrollRef.current?.scrollTo({ y: 0, animated: false });
+        // Burn in the "max" watermark for the export only, then wait a frame so
+        // it's painted before we snapshot.
+        setExportWatermark(true);
         await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-        const hero = await captureRatingCardToPng(rootRef);
-        // Restore — bring the buttons back into view.
-        scrollRef.current?.scrollToEnd({ animated: false });
-        if (hero) uris.push(hero);
-        if (analysis) uris.push(analysis);
+        try {
+            // View 2 first — no scroll needed (the user is already on the sheet).
+            const analysis = await captureRatingCardToPng(analysisRef);
+            // View 1 — jump to the top so the hero fills the screen, then snapshot
+            // the whole screen (root holds the fixed background photo).
+            scrollRef.current?.scrollTo({ y: 0, animated: false });
+            await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+            const hero = await captureRatingCardToPng(rootRef);
+            // Restore — bring the buttons back into view.
+            scrollRef.current?.scrollToEnd({ animated: false });
+            if (hero) uris.push(hero);
+            if (analysis) uris.push(analysis);
+        } finally {
+            setExportWatermark(false);
+        }
         return uris;
     };
 
@@ -1330,6 +1341,13 @@ export default function FaceScanResultsScreen() {
                 {/* ── Stats section ──────────────────────────────────────── */}
                 <View ref={analysisRef} collapsable={false} style={[s.statsSection, { paddingBottom: Math.max(insets.bottom, 24) + 24 }]}>
 
+                    {/* Export-only "max" watermark for the analysis capture (white). */}
+                    {exportWatermark ? (
+                        <View style={s.watermarkAnalysis} pointerEvents="none">
+                            <Text style={[s.watermarkText, s.watermarkOnLight]}>max</Text>
+                        </View>
+                    ) : null}
+
                     {/* Full breakdown only on the first scan ever; daily/repeat
                         scans show just the three rings above. */}
                     {isFirstScanEver ? (
@@ -1602,6 +1620,13 @@ export default function FaceScanResultsScreen() {
 
             {/* Off-screen share card retired — Save/Share now snapshot the real
                 hero + analysis views (see captureBothViews). */}
+
+            {/* Export-only "max" watermark over the hero capture (dark photo). */}
+            {exportWatermark ? (
+                <View style={s.watermark} pointerEvents="none">
+                    <Text style={[s.watermarkText, s.watermarkOnDark]}>max</Text>
+                </View>
+            ) : null}
         </View>
     );
 }
@@ -1777,6 +1802,18 @@ const s = StyleSheet.create({
     shareBtnText: { fontSize: 12, fontWeight: '500', color: colors.textMuted },
     shareBtnDisabled: { opacity: 0.3 },
     shareDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.textMuted, opacity: 0.25 },
+
+    /* ── Export-only "max" watermark (burned into Save/Share images, never shown live) ── */
+    watermark: { position: 'absolute', left: 20, bottom: 20 },
+    watermarkAnalysis: { position: 'absolute', right: 20, top: 18 },
+    watermarkText: { fontFamily: fonts.serif, fontSize: 18, letterSpacing: 0.5 },
+    watermarkOnDark: {
+        color: 'rgba(255,255,255,0.92)',
+        textShadowColor: 'rgba(0,0,0,0.55)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 6,
+    },
+    watermarkOnLight: { color: 'rgba(17,17,19,0.72)' },
 
     /* ── Disclaimer ── */
     disclaimer: { fontSize: 9, color: colors.textMuted, textAlign: 'center', marginBottom: 20, opacity: 0.3 },

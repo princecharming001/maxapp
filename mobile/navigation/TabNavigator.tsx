@@ -3,6 +3,7 @@ import { StyleSheet, Platform, View, Text, TouchableOpacity, Modal } from 'react
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { LiquidGlassFill } from '../components/glass/LiquidGlass';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, spacing, shadows, fonts, borderRadius } from '../theme/dark';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -50,28 +51,13 @@ function ScanCenterButton() {
             accessibilityLabel="Scan"
             testID="tab-scan"
         >
-            {/* Outer carrier holds the float shadow (un-clipped); inner clips the frost */}
+            {/* Same canonical liquid-glass optics as the Planner top-bar buttons:
+                outer carrier holds the float shadow (un-clipped), inner clips the
+                LiquidGlassFill material. */}
             <View style={scanBtnStyles.shadowWrap}>
                 <View style={scanBtnStyles.circleWrap}>
-                    {/* Transparent frosted glass — blurs the bar/content behind it */}
-                    <BlurView
-                        intensity={Platform.OS === 'ios' ? 20 : 34}
-                        tint="light"
-                        style={StyleSheet.absoluteFill}
-                        experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
-                    />
-                    {/* Whisper of body so it isn't fully clear */}
-                    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.08)' }]} pointerEvents="none" />
-                    {/* Subtle top sheen */}
-                    <LinearGradient
-                        colors={['rgba(255,255,255,0.26)', 'rgba(255,255,255,0)']}
-                        locations={[0, 0.55]}
-                        style={StyleSheet.absoluteFill}
-                        pointerEvents="none"
-                    />
-                    {/* Crisp inner highlight rim — the bright glass edge */}
-                    <View style={scanBtnStyles.innerRing} pointerEvents="none" />
-                    <Ionicons name="scan" size={22} color="rgba(22,24,32,0.82)" />
+                    <LiquidGlassFill idSuffix="scanTab" />
+                    <Ionicons name="scan" size={22} color={colors.foreground} />
                 </View>
             </View>
         </TouchableOpacity>
@@ -80,20 +66,22 @@ function ScanCenterButton() {
 
 const scanBtnStyles = StyleSheet.create({
     touch: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    // Outer carrier: casts the soft float shadow (NOT clipped — overflow stays visible).
+    // Outer carrier: casts the soft warm float shadow (matches the Planner glass
+    // buttons). NOT clipped — overflow stays visible.
     shadowWrap: {
         width: 50,
         height: 50,
         borderRadius: 25,
         backgroundColor: 'transparent',
-        shadowColor: '#0B0D14',
-        shadowOpacity: 0.12,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 4,
+        shadowColor: '#3A352B',
+        shadowOpacity: 0.13,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 5,
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
-    // Inner: clips the frosted layers and carries the crisp bright rim.
+    // Inner: clips the LiquidGlassFill material + carries the hairline rim, exactly
+    // like the Planner GlassButton's glassClip.
     circleWrap: {
         width: 50,
         height: 50,
@@ -101,17 +89,8 @@ const scanBtnStyles = StyleSheet.create({
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderWidth: 1.5,
-        borderColor: 'rgba(255,255,255,0.9)',
-        ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
-    },
-    // Second, inset rim — the crisp highlight edge that sells the glass depth.
-    innerRing: {
-        position: 'absolute',
-        top: 1.5, left: 1.5, right: 1.5, bottom: 1.5,
-        borderRadius: 22.5,
-        borderWidth: 1,
+        backgroundColor: 'rgba(255,255,255,0.18)',
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: 'rgba(255,255,255,0.7)',
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },

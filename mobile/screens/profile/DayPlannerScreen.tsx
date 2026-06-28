@@ -429,6 +429,10 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         )}
         <View style={styles.headerRight}>
           {saving ? <ActivityIndicator size="small" color={colors.textMuted} style={{ marginRight: 2 }} /> : null}
+          {/* Your usual day — edits the repeating baseline (scope='all'). */}
+          <GlassButton onPress={() => openEditor('all')} accessibilityLabel="Your usual day">
+            <Ionicons name="repeat" size={20} color={colors.foreground} />
+          </GlassButton>
           {/* Chatbot — opens the "tell Max" assistant. */}
           <GlassButton onPress={() => setChatOpen(true)} accessibilityLabel="Ask Max">
             <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.foreground} />
@@ -456,25 +460,6 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             </Text>
           </View>
 
-          {/* "Your usual day" — edits the repeating baseline (scope='all') that
-              every day inherits. A top-level shortcut, distinct from the per-day
-              strip below. */}
-          <TouchableOpacity
-            style={styles.defaultDayBtn}
-            activeOpacity={0.85}
-            onPress={() => openEditor('all')}
-            accessibilityRole="button"
-            accessibilityLabel="Edit your usual day"
-          >
-            <View style={styles.defaultDayIcon}>
-              <Ionicons name="repeat" size={16} color={colors.foreground} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.defaultDayTitle}>Your usual day</Text>
-              <Text style={styles.defaultDaySub}>Wake, workout &amp; bedtime that repeat</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
 
           {/* Day strip — starts today (leftmost) and scrolls infinitely into the
               future; more days append as you reach the end. No past dates. */}
