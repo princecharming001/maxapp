@@ -4021,6 +4021,79 @@ async def _apply_slot_prefill(
         return state
 
 
+async def _try_build_llm_plan(
+    user_id: str,
+    maxx_id: str,
+    state: dict,
+    db: AsyncSession,
+) -> Optional[dict]:
+    """Top rung of the ladder (flag-gated by `dynamic_questions_enabled`): build
+    an LLM-ordered, fully-fenced question plan for intake start.
+
+    assemble known-context → deterministic gap (`missing_required` on the
+    prefilled state) → `plan_questions` (one bounded, cached, fenced LLM call).
+    Returns a plan-pending dict (`make_plan_pending`, `generated_by="llm"`) or
+    None so the caller degrades to the deterministic prefill / raw rungs.
+
+    SHADOW mode (`dynamic_questions_shadow`, enforce flag off): compute the plan,
+    LOG the would-ask/would-skip diff vs. the raw gap, and return None (drives
+    the deterministic path). NEVER raises into the chat turn.
+    """
+    enforce = settings.dynamic_questions_enabled
+    shadow = settings.dynamic_questions_shadow
+    if not enforce and not shadow:
+        return None
+    try:
+        import asyncio as _asyncio
+        from services.onboarding_gap import assemble_known_context, plan_questions
+        from services.onboarding_questioner import make_plan_pending
+        from services.task_catalog_service import missing_required, get_info_schema
+
+        known = await assemble_known_context(db, user_id, maxx_id)
+        prefilled_state = {**state, **(known.prefill or {})}
+        gap_specs = missing_required(maxx_id, prefilled_state)
+        if not gap_specs:
+            return None
+
+        plan = await _asyncio.to_thread(
+            plan_questions, maxx_id, gap_specs, known.provenance, known.brief
+        )
+        if not plan or not plan.plan:
+            return None
+
+        schema = get_info_schema(maxx_id)
+        raw_slots = []
+        for spec in gap_specs:
+            s = schema.slot_for_field(spec["id"]) if schema else None
+            raw_slots.append(s.slot if s else spec["id"])
+
+        ordered_slots: list[str] = []
+        adapted: dict[str, str] = {}
+        actions: dict[str, str] = {}
+        for it in plan.plan:
+            ordered_slots.append(it.slot)
+            if it.adapted_question:
+                adapted[it.slot] = it.adapted_question
+            actions[it.slot] = it.action
+
+        if shadow and not enforce:
+            would_skip = [s for s in raw_slots if s not in ordered_slots]
+            logger.info(
+                "[onboarding][shadow] max=%s raw_gap=%s would_ask=%s would_skip=%s",
+                maxx_id, raw_slots, ordered_slots, would_skip,
+            )
+            return None
+
+        pending = make_plan_pending(
+            maxx_id, ordered_slots, idx=0, adapted=adapted, generated_by="llm"
+        )
+        pending["actions"] = actions
+        return pending
+    except Exception:
+        logger.exception("[onboarding] LLM plan build failed; using deterministic rung")
+        return None
+
+
 async def _run_onboarding_questioner(
     user_id: str,
     message_text: str,
@@ -4035,6 +4108,8 @@ async def _run_onboarding_questioner(
         from services.onboarding_questioner import (
             get_pending,
             make_pending,
+            make_plan_pending,
+            advance_plan,
             clear_pending,
             peek_next_question,
             field_to_question_payload,
@@ -4069,6 +4144,23 @@ async def _run_onboarding_questioner(
         if not new_max:
             return None
         state = await _apply_slot_prefill(user_id, new_max, state, db)
+        # Rung 1: LLM-ordered plan (flag-gated; None in shadow/off/failure).
+        plan_pending = await _try_build_llm_plan(user_id, new_max, state, db)
+        if plan_pending is not None:
+            next_field = peek_next_question(
+                new_max, {**state, "_onboarding_pending": plan_pending}
+            )
+            if next_field is not None:
+                await merge_context(
+                    user_id, {**clear_pending(), "_onboarding_pending": plan_pending}, db
+                )
+                payload = field_to_question_payload(next_field)
+                text = (
+                    f"let's get your {get_doc(new_max).display_name.lower()} schedule going. "
+                    + payload["text"].lower()
+                )
+                return _finish_onboarding_turn(text, payload)
+        # Rungs 2/3: deterministic prefill + raw missing_required (today's flow).
         next_field = peek_next_question(new_max, state)
         if next_field is None:
             # All required fields already known — let the agent trigger gen.
@@ -4155,10 +4247,23 @@ async def _run_onboarding_questioner(
     # for the generator).
     update = {last_qid: coerced}
     next_state = {**state, **update}
-    next_field = peek_next_question(maxx_id, next_state)
+    if pending.get("plan"):
+        # Plan-driven intake: advance the slot cursor on this successful coerce.
+        advanced = advance_plan(pending)
+        plan_view = {**next_state, "_onboarding_pending": advanced}
+        next_field = peek_next_question(maxx_id, plan_view)
+        # Still inside the plan → keep the plan pending; if the plan is exhausted
+        # and this is a raw-backstop field (generator gate), use legacy pending.
+        if next_field is not None:
+            if advanced["idx"] < len(advanced.get("plan") or []):
+                new_pending = advanced
+            else:
+                new_pending = make_pending(maxx_id, next_field["id"])
+    else:
+        next_field = peek_next_question(maxx_id, next_state)
+        new_pending = make_pending(maxx_id, next_field["id"]) if next_field is not None else None
     if next_field is not None:
         # More to ask. Update pending pointer + persist answer.
-        new_pending = make_pending(maxx_id, next_field["id"])
         await merge_context(user_id, {**update, "_onboarding_pending": new_pending}, db)
         await _mirror_intake_to_facts(user_id, update, db)
         payload = field_to_question_payload(next_field)

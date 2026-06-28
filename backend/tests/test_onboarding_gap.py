@@ -302,3 +302,71 @@ def test_plan_questions_fallback(monkeypatch):
     # Empty output also -> None.
     monkeypatch.setattr(og, "_complete_json", lambda s, u: "   ")
     assert og.plan_questions(maxx_id, gap_specs, provenance={}, brief="x") is None
+
+
+def test_ladder_degrades(monkeypatch):
+    """The three-rung ladder each produces a valid next-question payload:
+    (a) LLM plan OK, (b) LLM None -> deterministic prefill/raw, (c) all off -> raw."""
+    import asyncio as _asyncio
+    from config import settings
+    from services import task_catalog_service as tcs
+    from services import onboarding_gap as og
+    from services.onboarding_questioner import (
+        peek_next_question, field_to_question_payload, PENDING_KEY,
+    )
+    import api.chat as chat
+
+    _asyncio.run(tcs.warm_catalog())
+    maxx_id = "bonemax"
+    doc = tcs.get_doc(maxx_id)
+    schema = tcs.get_info_schema(maxx_id)
+    gap_specs = [f for f in doc.required_fields if f.get("required", True)][:3]
+    slot_ids = [schema.slot_for_field(f["id"]).slot for f in gap_specs]
+
+    uid = "00000000-0000-0000-0000-000000000009"
+
+    async def _noop(*a, **k):
+        return None
+
+    async def _empty_known(db, u, mx):
+        return _make_empty_known()
+
+    monkeypatch.setattr("services.user_context_service.merge_context", _noop)
+    monkeypatch.setattr(chat, "_mirror_intake_to_facts", _noop)
+    monkeypatch.setattr("services.onboarding_gap.assemble_known_context", _empty_known)
+
+    # (a) LLM plan OK -> plan-pending -> valid payload (adapted wording rides).
+    monkeypatch.setattr(settings, "dynamic_questions_enabled", True)
+    monkeypatch.setattr(settings, "dynamic_questions_shadow", False)
+    monkeypatch.setattr(settings, "slot_prefill_enabled", False)
+    good_plan = og.QuestionPlan(
+        plan=[og.QuestionPlanItem(slot=s, action="ask", adapted_question=f"adapted {s}?") for s in slot_ids],
+        skipped=[],
+    )
+    monkeypatch.setattr(og, "plan_questions", lambda *a, **k: good_plan)
+    pending = _asyncio.run(chat._try_build_llm_plan(uid, maxx_id, {}, None))
+    assert pending is not None and pending["generated_by"] == "llm"
+    nf = peek_next_question(maxx_id, {PENDING_KEY: pending})
+    payload_a = field_to_question_payload(nf)
+    assert payload_a["text"].startswith("adapted ")
+    assert payload_a["field_id"]
+
+    # (b) LLM returns None -> _try_build_llm_plan None -> deterministic peek works.
+    monkeypatch.setattr(og, "plan_questions", lambda *a, **k: None)
+    pending_b = _asyncio.run(chat._try_build_llm_plan(uid, maxx_id, {}, None))
+    assert pending_b is None
+    nf_b = peek_next_question(maxx_id, {})  # raw rung
+    assert field_to_question_payload(nf_b)["field_id"]
+
+    # (c) all flags off -> _try_build_llm_plan None -> raw rung valid.
+    monkeypatch.setattr(settings, "dynamic_questions_enabled", False)
+    monkeypatch.setattr(settings, "dynamic_questions_shadow", False)
+    pending_c = _asyncio.run(chat._try_build_llm_plan(uid, maxx_id, {}, None))
+    assert pending_c is None
+    nf_c = peek_next_question(maxx_id, {})
+    assert field_to_question_payload(nf_c)["field_id"]
+
+
+def _make_empty_known():
+    from services.onboarding_gap import KnownContext
+    return KnownContext(prefill={}, provenance={}, brief=None)

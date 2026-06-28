@@ -196,7 +196,7 @@ Rules:
   Implement `plan_questions(...)`: build prompt, call provider with `settings.dynamic_questions_model`, parse strict JSON → `QuestionPlan`, FENCE (intersect gap, drop hallucinated, dedup, re-sort by importance, cap length), memoize per (maxx, prefill-hash) for TTL, ephemeral cache_control on static prefix. try/except → return None.
   VERIFY: `tests/test_onboarding_gap.py::test_plan_questions_fence` (stub provider returns hallucinated slot + dup + bad order → fenced output is in-gap, deduped, importance-ordered) and `test_plan_questions_fallback` (provider raises → None). `python -m pytest tests/test_onboarding_gap.py -q`.
 
-- [ ] **U9 — Wire LLM rung into the questioner (full ladder), behind flags + shadow.**
+- [x] **U9 — Wire LLM rung into the questioner (full ladder), behind flags + shadow.** _(2026-06-28: `_try_build_llm_plan` (assemble→gap→plan_questions→make_plan_pending, shadow logs would-ask/skip then returns None) wired into fresh-start branch above prefill/raw rungs; continue-path advances plan cursor (advance_plan) and reverts to legacy pending on plan exhaustion (generator backstop); `_peek_plan_field` renders confirm slots as yes_no. test_ladder_degrades (3 sub-cases) green. chat_routing has only the documented pre-existing red.)_
   Files: `backend/api/chat.py` (`_run_onboarding_questioner`).
   Intake-start: if `dynamic_questions_enabled`, run assemble→gap→`plan_questions`; on success store plan via `make_plan_pending` (`generated_by="llm"`); on None → `slot_prefill` rung; if off/fails → raw. If `dynamic_questions_shadow`, compute plan and LOG would-ask/would-skip diffs but DRIVE the raw/prefill path. Render `action=confirm` as yes_no payload.
   VERIFY: `tests/test_onboarding_gap.py::test_ladder_degrades` — three sub-cases (LLM ok / LLM None→prefill / both off→raw) each produce a valid next-question payload. `cd backend && python -m pytest tests/test_onboarding_gap.py tests/test_chat_routing.py -q`.
@@ -268,6 +268,7 @@ _(empty)_
 
 ## Pre-existing test baseline (NOT caused by this work — do not chase)
 - `tests/test_max_doc_pipeline.py::test_validator_fixes_collisions_and_titles` FAILS on the clean tree (verified via `git stash` at U2, 2026-06-28). Treat as documented red.
+- `tests/test_chat_routing.py::test_process_chat_message_routes_knowledge_away_from_context_and_agent` FAILS on the clean tree (verified via `git stash` at U9, 2026-06-28). Treat as documented red.
 
 ## Iteration-Log
 _(append one line per completed unit: `YYYY-MM-DD Uxx — <note>`)_
@@ -279,3 +280,4 @@ _(append one line per completed unit: `YYYY-MM-DD Uxx — <note>`)_
 2026-06-28 U6 — Deterministic prefill rung wired into `_run_onboarding_questioner` (+ history re-render path) via `_apply_slot_prefill`, gated by `slot_prefill_enabled`. Flag OFF is byte-for-byte today's flow (early return). Persists filled values so generator + future maxes never re-ask. 23 tests green.
 2026-06-28 U7 — Plan slot-queue in onboarding_questioner: `make_plan_pending`/`advance_plan`/`_peek_plan_field`, slot→field via info_schema; `peek_next_question` drives the queue then backstops on raw missing_required. No plan present (today) = unchanged path. 7+18 tests green.
 2026-06-28 U8 — `plan_questions` + `_fence_plan` + memoize in onboarding_gap.py. `_complete_json` isolates the provider call (stubbed in tests). Fence intersects gap, dedups, drops confidently-known (conf≥0.85 unless confirm), importance-orders, caps. Returns None on any error. 9 tests green. Provider/model/caching caveat under Needs Human Decision.
+2026-06-28 U9 — Full three-rung ladder wired into `_run_onboarding_questioner`: `_try_build_llm_plan` (LLM rung + shadow) → `_apply_slot_prefill` → raw `peek_next_question`. Continue-path advances the plan cursor; plan exhaustion reverts to legacy pending so the generator `missing_required` backstop still fires. confirm→yes_no in `_peek_plan_field`. 10 tests green; recorded a 2nd pre-existing chat_routing baseline red.

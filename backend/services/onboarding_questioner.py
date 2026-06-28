@@ -145,6 +145,11 @@ def _peek_plan_field(maxx_id: str, pending: dict) -> Optional[dict]:
     spec = _field_spec_for_slot(maxx_id, slot_id)
     if spec is None:
         return None
+    # `confirm` slots render as a one-tap yes/no regardless of the field's own
+    # type (the existing client already handles yes_no chips).
+    action = (pending.get("actions") or {}).get(slot_id, "ask")
+    if action == "confirm":
+        spec = {**spec, "type": "yes_no"}
     adapted = (pending.get("adapted") or {}).get(slot_id)
     if adapted:
         spec = {**spec, "question": adapted}
