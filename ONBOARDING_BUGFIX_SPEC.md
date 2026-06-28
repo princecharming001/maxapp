@@ -137,13 +137,13 @@ The first onboarding question is **blocked behind a cold chat-history GET** that
 
 ## HOW TO RUN THIS LOOP
 
-Launch with the ralph-loop plugin (shell-safe — no backticks/quotes in the prompt):
+The `/ralph-loop` command splices its argument onto a raw shell command line, so the prompt MUST contain **no apostrophes, quotes, parentheses, or backticks** (any of them throws `unmatched '` / `unmatched "`). Keep the argument minimal — every guardrail and step already lives in this file, which the loop reads in full each iteration. Launch with exactly:
 
 ```
-/ralph-loop Read ONBOARDING_BUGFIX_SPEC.md in full, then follow its OPERATING PROTOCOL: do only the first unchecked BUILD UNIT, run that unit's VERIFY, check the box dated with a one-line Iteration-Log note, commit and push with prefix dyn-onboarding, and continue one unit per iteration. Obey the GUARDRAILS (flags stay default OFF, never break the fixed-onboarding fallback, the error except branch must await db.rollback before return None, keep backend pytest and mobile tsc green ignoring the documented pre-existing reds and the 5 glass baseline errors, never block on simulator or Maestro flakiness). Emit the completion promise verbatim only when every COMPLETION CRITERION is truly met. --max-iterations 16 --completion-promise "ONBOARDING_BUGFIX_COMPLETE"
+/ralph-loop Read ONBOARDING_BUGFIX_SPEC.md in full and follow its OPERATING PROTOCOL exactly, doing one unchecked BUILD UNIT per iteration with its VERIFY, then commit and push with prefix dyn-onboarding. --max-iterations 16 --completion-promise ONBOARDING_BUGFIX_COMPLETE
 ```
 
-(Or paste that same prompt into `/loop` if you prefer the self-paced runner.)
+(`--completion-promise` takes a bare token — no quotes. If you prefer the self-paced runner, paste the same minimal text into `/loop`, which does not have the shell-quoting constraint.)
 
 ---
 
