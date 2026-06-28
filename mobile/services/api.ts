@@ -1210,6 +1210,28 @@ class ApiService {
         return response.data;
     }
 
+    // --- Creator applications (own-your-own-max) -------------------------------
+    /** Submit a creator application. Throws on 409 when the max is already claimed. */
+    async submitCreatorApplication(body: {
+        applicant_name: string;
+        max_name: string;
+        max_description: string;
+        instagram?: string;
+        tiktok?: string;
+    }): Promise<{ id: string; status: string; max_name: string; instagram_url: string | null; tiktok_url: string | null }> {
+        const response = await this.client.post('creator-applications', body);
+        return response.data;
+    }
+
+    /** The caller's latest creator application (or null) — used to show "applied" state. */
+    async getMyCreatorApplication(): Promise<{ application: null | {
+        id: string; status: string; applicant_name: string; max_name: string;
+        max_description: string; instagram_url: string | null; tiktok_url: string | null; created_at: string | null;
+    } }> {
+        const response = await this.client.get('creator-applications/mine');
+        return response.data;
+    }
+
     async enterMarketplaceItem(itemId: string): Promise<{
         entered: boolean;
         item_id: string;

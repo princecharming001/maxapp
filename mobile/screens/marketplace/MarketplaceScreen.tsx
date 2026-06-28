@@ -34,6 +34,7 @@ import { maxMeta } from '../../utils/scheduleAggregation';
 import { useFlag } from '../../constants/featureFlags';
 import { usePersonalization } from '../../hooks/usePersonalization';
 import { rankByGoals } from '../../lib/personalization';
+import CreatorApplySheet from '../../components/marketplace/CreatorApplySheet';
 
 const CACHE_KEY = 'marketplace_cache_v1';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -129,7 +130,23 @@ export default function MarketplaceScreen() {
     const [myMaxxes, setMyMaxxes] = useState<MyMax[]>([]);
     const [tuning, setTuning] = useState<MyMax | null>(null);
     const [savingTune, setSavingTune] = useState(false);
+    const [applyOpen, setApplyOpen] = useState(false);
+    // The user's latest creator application, if any — drives the "applied" state.
+    const [myApp, setMyApp] = useState<{ status: string; max_name: string } | null>(null);
     const queryClient = useQueryClient();
+
+    // Load the caller's creator application once (best-effort) so the Creator tab
+    // can show "under review" instead of the apply button after they've applied.
+    const loadMyApp = useCallback(async () => {
+        try {
+            const res = await api.getMyCreatorApplication();
+            setMyApp(res.application ? { status: res.application.status, max_name: res.application.max_name } : null);
+        } catch {
+            // best-effort; leave prior value
+        }
+    }, []);
+
+    useEffect(() => { void loadMyApp(); }, [loadMyApp]);
 
     // Open the tune sheet for a max. We fetch the live offered set (the real
     // distinct catalog tasks on THIS schedule) so the chips are 1:1 with the
@@ -446,8 +463,8 @@ export default function MarketplaceScreen() {
                     )
                 ) : null}
 
-                {/* Creator tab — temporary "coming soon" placeholder while creator
-                    courses are disabled. */}
+                {/* Creator tab — "coming soon" plus a call for creators to apply
+                    to host their own max (first come, first served). */}
                 {tab === 'creator' ? (
                     <View style={[styles.gutter, styles.comingSoon]}>
                         <View style={styles.comingSoonIcon}>
@@ -457,6 +474,35 @@ export default function MarketplaceScreen() {
                         <Text style={styles.comingSoonSub}>
                             We&apos;re lining up creator courses. Check back shortly.
                         </Text>
+
+                        {myApp ? (
+                            <View style={styles.appliedPill}>
+                                <Ionicons name="checkmark-circle" size={16} color={INK} />
+                                <Text style={styles.appliedText}>
+                                    {myApp.status === 'approved'
+                                        ? `“${myApp.max_name}” approved — we'll be in touch`
+                                        : myApp.status === 'rejected'
+                                            ? 'Application reviewed — check your email'
+                                            : `“${myApp.max_name}” is under review`}
+                                </Text>
+                            </View>
+                        ) : (
+                            <>
+                                <TouchableOpacity
+                                    style={styles.applyBtn}
+                                    onPress={() => setApplyOpen(true)}
+                                    activeOpacity={0.85}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Apply to host your own max"
+                                >
+                                    <Text style={styles.applyBtnText}>Host your own max</Text>
+                                    <Ionicons name="arrow-forward" size={17} color={ON_INK} />
+                                </TouchableOpacity>
+                                <Text style={styles.applyHint}>
+                                    Known for your niche? Claim it — one creator per max, first come first served.
+                                </Text>
+                            </>
+                        )}
                     </View>
                 ) : null}
 
@@ -524,6 +570,12 @@ export default function MarketplaceScreen() {
                     </View>
                 </View>
             </Modal>
+
+            {/* Creator application — apply to host your own max. */}
+            <CreatorApplySheet
+                visible={applyOpen}
+                onClose={() => { setApplyOpen(false); void loadMyApp(); }}
+            />
         </View>
     );
 }
@@ -692,6 +744,20 @@ const styles = StyleSheet.create({
     },
     comingSoonTitle: { fontFamily: SERIF, fontSize: 26, color: INK, letterSpacing: -0.4 },
     comingSoonSub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE, marginTop: 8, textAlign: 'center', lineHeight: 21, maxWidth: 280 },
+
+    // "Host your own max" call-to-apply
+    applyBtn: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        marginTop: 28, paddingHorizontal: 22, height: 50, borderRadius: 25, backgroundColor: INK,
+    },
+    applyBtnText: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: ON_INK, letterSpacing: 0.2 },
+    applyHint: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 14, textAlign: 'center', lineHeight: 18, maxWidth: 270 },
+    appliedPill: {
+        flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 28,
+        paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999,
+        backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
+    },
+    appliedText: { fontFamily: 'Matter-Medium', fontSize: 13, color: INK, maxWidth: 250 },
 
     // My Maxxes cards
     myCard: {

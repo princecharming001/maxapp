@@ -977,3 +977,45 @@ class ScheduleChangeProposal(Base):
         Index("idx_sched_change_proposals_conv", conversation_id, status),
         Index("idx_sched_change_proposals_user", user_id, status, created_at.desc()),
     )
+
+
+class CreatorApplication(Base):
+    """A creator's application to own/host their own max on the marketplace.
+
+    First-come-first-served: only one PENDING/APPROVED application may claim a
+    given max niche at a time (enforced on the normalized name in the API).
+    Social handles are stored normalized (no @, no URL prefix) alongside the
+    canonical profile URL so the app/admin can deep-link straight to the page.
+    """
+    __tablename__ = "creator_applications"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+
+    # Who's applying + what they're known for.
+    applicant_name = Column(String, nullable=False)
+    # The max they want to own — display name + a normalized key for the
+    # one-creator-per-max uniqueness check.
+    max_name = Column(String, nullable=False)
+    max_name_normalized = Column(String, nullable=False, index=True)
+    max_description = Column(Text, nullable=False)
+
+    # Socials — at least one required. Stored normalized + as a canonical URL.
+    instagram_handle = Column(String, nullable=True)
+    instagram_url = Column(String, nullable=True)
+    tiktok_handle = Column(String, nullable=True)
+    tiktok_url = Column(String, nullable=True)
+
+    # pending | approved | rejected
+    status = Column(String, default="pending", nullable=False)
+    review_notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_creator_apps_user", user_id, created_at.desc()),
+        Index("idx_creator_apps_status", status),
+        # Fast lookup for the "is this max already claimed?" gate.
+        Index("idx_creator_apps_maxnorm_status", max_name_normalized, status),
+    )
