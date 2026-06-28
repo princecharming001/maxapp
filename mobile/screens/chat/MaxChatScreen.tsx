@@ -628,6 +628,11 @@ export default function MaxChatScreen() {
     const sendMessageWithContext = async (msg: string, initContext?: string, chatIntent?: string, forceNewConversation?: boolean) => {
         if (!msg.trim() || loading) return;
         setLoading(true);
+        // Snapshot the current question affordances so a 5xx can restore them
+        // (the user isn't stranded on a dead chat with the chips/slider gone).
+        const prevChoices = serverChoices;
+        const prevMulti = multiChoice;
+        const prevWidget = inputWidget;
         setServerChoices([]);
         setInputWidget(null);
         // Starting a new max's onboarding opens a fresh thread: drop the active
@@ -728,7 +733,15 @@ export default function MaxChatScreen() {
                 return;
             }
             console.error('sendMessageWithContext error:', e?.response?.data || e?.message || e);
-            const serverMsg = e?.response?.data?.response || e?.response?.data?.detail;
+            const status = e?.response?.status;
+            const isServerError = typeof status === 'number' && status >= 500;
+            // On a 5xx, never surface the raw server detail (e.g. "Internal
+            // server error") and don't strand the user: show a friendly
+            // retryable line and restore the question chips/slider cleared at
+            // send-start so they can answer again.
+            const serverMsg = isServerError
+                ? undefined
+                : (e?.response?.data?.response || e?.response?.data?.detail);
             // HTTP error => the server received and rejected this turn; clear the
             // pre-persisted pending blob so it doesn't auto-retry a request that
             // will just fail again (matches the prior "don't retry HTTP errors"
@@ -739,8 +752,18 @@ export default function MaxChatScreen() {
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: serverMsg || 'Something went wrong. Try sending that again in a sec.' },
+                {
+                    role: 'assistant',
+                    content: isServerError
+                        ? 'Hit a snag on my end — tap to resend that.'
+                        : (serverMsg || 'Something went wrong. Try sending that again in a sec.'),
+                },
             ]);
+            if (isServerError) {
+                setServerChoices(prevChoices);
+                setMultiChoice(prevMulti);
+                setInputWidget(prevWidget);
+            }
         } finally {
             setLoading(false);
         }
@@ -792,6 +815,10 @@ export default function MaxChatScreen() {
         const userContent = fromPreset || fromInput;
         if (!userContent || loading) return;
         setLoading(true);
+        // Snapshot question affordances so a 5xx can restore them (see catch).
+        const prevChoices = serverChoices;
+        const prevMulti = multiChoice;
+        const prevWidget = inputWidget;
         setServerChoices([]);
         setInputWidget(null);
         setPendingConfirm(null);
@@ -866,14 +893,30 @@ export default function MaxChatScreen() {
                 return;
             }
             console.error(e);
-            const serverMsg = e?.response?.data?.response || e?.response?.data?.detail;
+            const status = e?.response?.status;
+            const isServerError = typeof status === 'number' && status >= 500;
+            // 5xx: friendly retryable line (never the raw "Internal server
+            // error" detail) + restore the chips/slider so the user isn't stuck.
+            const serverMsg = isServerError
+                ? undefined
+                : (e?.response?.data?.response || e?.response?.data?.detail);
             if (!e?.response) {
                 await AsyncStorage.setItem(PENDING_CHAT_KEY, JSON.stringify({ msg: userContent })).catch(() => undefined);
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: serverMsg || 'Something went wrong. Try sending that again in a sec.' },
+                {
+                    role: 'assistant',
+                    content: isServerError
+                        ? 'Hit a snag on my end — tap to resend that.'
+                        : (serverMsg || 'Something went wrong. Try sending that again in a sec.'),
+                },
             ]);
+            if (isServerError) {
+                setServerChoices(prevChoices);
+                setMultiChoice(prevMulti);
+                setInputWidget(prevWidget);
+            }
         }
         finally { setLoading(false); }
     };
