@@ -4330,7 +4330,12 @@ async def _run_onboarding_questioner_impl(
         return text, [], None, False, None
     except Exception as e:
         logger.exception("onboarding completion → generate failed: %s", e)
-        return f"i collected everything but generation hit a snag: {e}. retry?", [], None, False, None
+        # User-safe string only — never interpolate the raw exception (this
+        # questioner text bypasses the agent-path tech-leak scrubber).
+        return (
+            "i collected everything but couldn't build the schedule just now — tap retry.",
+            [], None, False, None,
+        )
 
 
 async def _mirror_intake_to_facts(user_id: str, update: dict, db: AsyncSession) -> None:
