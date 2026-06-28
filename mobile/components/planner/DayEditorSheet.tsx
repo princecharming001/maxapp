@@ -29,7 +29,7 @@ import {
   useWindowDimensions,
 } from 'react-native'
 import Animated from 'react-native-reanimated';
-import { GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Alert, InAppAlertHost } from '../InAppAlert';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -295,6 +295,10 @@ export default function DayEditorSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={requestClose}>
+      {/* RN Modal renders in a SEPARATE native root outside the app's root
+          GestureHandlerRootView, so gestures inside it get no touches until we
+          mount our own root here. Without this the drag-to-dismiss does nothing. */}
+      <GestureHandlerRootView style={styles.ghRoot}>
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={requestClose} />
         <KeyboardAvoidingView
@@ -528,6 +532,7 @@ export default function DayEditorSheet({
             so the X and swipe-down appeared to do nothing on a dirty sheet. */}
         <InAppAlertHost />
       </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -549,6 +554,7 @@ const seg = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  ghRoot: { flex: 1 },
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheetWrap: { justifyContent: 'flex-end' },

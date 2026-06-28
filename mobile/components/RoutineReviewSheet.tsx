@@ -22,7 +22,7 @@ import {
   Pressable,
 } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSwipeDownDismiss } from '../hooks/useSwipeDownDismiss';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -125,6 +125,10 @@ export default function RoutineReviewSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onDone}>
+      {/* RN Modal renders in a separate native root outside the app's root
+          GestureHandlerRootView — gestures inside it are dead until we mount
+          our own root here. */}
+      <GestureHandlerRootView style={styles.ghRoot}>
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onDone} />
         <Animated.View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) }, animatedStyle]}>
@@ -250,11 +254,13 @@ export default function RoutineReviewSheet({
           </TouchableOpacity>
         </Animated.View>
       </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  ghRoot: { flex: 1 },
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
