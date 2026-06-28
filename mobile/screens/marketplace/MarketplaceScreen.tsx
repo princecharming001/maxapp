@@ -24,6 +24,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
 import ChatHabitPicker, { type OfferedHabit } from '../../components/ChatHabitPicker';
 import CreatorMorphIcon from '../../components/CreatorMorphIcon';
+import LaughCryIcon from '../../components/LaughCryIcon';
 import { LiquidGlass } from '../../components/glass/LiquidGlass';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -453,7 +454,7 @@ export default function MarketplaceScreen() {
                     ) : (
                         <View style={[styles.gutter, styles.comingSoon]}>
                             <View style={styles.comingSoonIcon}>
-                                <Ionicons name="leaf-outline" size={26} color={INK} />
+                                <LaughCryIcon size={46} />
                             </View>
                             <Text style={styles.comingSoonTitle}>No maxes yet</Text>
                             <Text style={styles.comingSoonSub}>
