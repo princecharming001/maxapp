@@ -185,6 +185,50 @@ required_fields:
     required: true
     why: "Decides which decompression tasks fire. None = floor/lying decompression only. Pull-up bar = hangs. Inversion table = inversions. Both = full hang + inversion protocol."
 
+# Canonical cross-Max information slots (DYNAMIC_ONBOARDING_SPEC.md). `age` and
+# `sleep_hours` are global/shared; sleep is also derivable from wake/sleep times.
+# training_status is NOT aliased to fitmax/bonemax workout fields (different value
+# vocab) — that equivalence is a flagged Human Decision, not guessed here.
+info_schema:
+  - slot: age
+    field: age
+    needs: "user age in years"
+    importance: high
+    satisfied_by: ["facts:age", "onboarding:age"]
+  - slot: heightmax_focus
+    field: heightmax_focus
+    needs: "what the user most wants from height work"
+    importance: high
+    satisfied_by: ["onboarding:heightmax_focus", "facts:heightmax_focus"]
+  - slot: posture_issues
+    field: posture_issues
+    needs: "severity of existing posture issues"
+    importance: high
+    satisfied_by: ["onboarding:posture_issues", "facts:posture_issues"]
+  - slot: training_status
+    field: training_status
+    needs: "whether the user currently trains"
+    importance: medium
+    satisfied_by: ["onboarding:training_status", "facts:training_status"]
+  # Cross-Max shared slot (also in fitmax); span() derive fills it from global
+  # wake/sleep times so it is never re-asked.
+  - slot: sleep_hours
+    field: sleep_hours
+    needs: "typical nightly sleep duration in hours"
+    importance: high
+    satisfied_by: ["facts:sleep_hours", "onboarding:sleep_hours"]
+    derive: "span(sleep_time, wake_time)"
+  - slot: spine_health
+    field: spine_health
+    needs: "spine / back health history (safety gate)"
+    importance: high
+    satisfied_by: ["onboarding:spine_health", "facts:spine_health"]
+  - slot: equipment_access
+    field: equipment_access
+    needs: "decompression equipment available"
+    importance: medium
+    satisfied_by: ["onboarding:equipment_access", "facts:equipment_access"]
+
 optional_context:
   - id: height_current
     description: "Current height, for perceived-height baseline (not promised growth)"

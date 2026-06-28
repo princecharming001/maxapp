@@ -469,3 +469,37 @@ def test_progress_field():
     assert plan_progress(make_pending("bonemax", "workout_frequency")) is None
     assert plan_progress(make_plan_pending("bonemax", ["a"], idx=5)) is None
     assert plan_progress(None) is None
+
+
+def test_all_docs_compile_no_dead_required():
+    """Every doc compiles; no required-backed slot is wrongly dead; explicitly
+    enriched docs (fitmax, heightmax) share the canonical `sleep_hours` slot with
+    a span() derive and cover all their required fields."""
+    from services.max_doc_loader import parse_all_max_docs
+    from services.onboarding_gap import compile_info_schema
+
+    docs = {d.maxx_id: d for d in parse_all_max_docs()}
+    for maxx_id, doc in docs.items():
+        schema = compile_info_schema(doc)
+        required_ids = {str(f["id"]) for f in doc.required_fields if f.get("required", True)}
+        slot_fields = {s.field for s in schema.slots if s.field}
+        # No required field that a live rule consumes should be left dead.
+        for s in schema.slots:
+            if s.dead and s.field in required_ids:
+                assert s.field not in schema.consumed_fields, (
+                    f"{maxx_id}: required+consumed field {s.field} wrongly dead"
+                )
+        # Enriched docs must cover every required field with a slot.
+        if doc.info_schema:
+            assert required_ids <= slot_fields, (
+                f"{maxx_id}: enriched info_schema misses required fields "
+                f"{required_ids - slot_fields}"
+            )
+
+    # The cross-Max sleep_hours slot exists in both and carries the span derive.
+    for mx in ("fitmax", "heightmax"):
+        sch = compile_info_schema(docs[mx])
+        sleep = next((s for s in sch.slots if s.slot == "sleep_hours"), None)
+        assert sleep is not None and sleep.field == "sleep_hours"
+        assert sleep.derive and sleep.derive.startswith("span(")
+        assert not sleep.dead

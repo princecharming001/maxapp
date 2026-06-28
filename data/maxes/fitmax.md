@@ -279,6 +279,76 @@ required_fields:
     required: true
     why: "Gates supplement reminders. None = no nudges. Basic = protein + creatine timing reminders. Full = pre-workout + EAA timing layered in."
 
+# Canonical cross-Max information slots (DYNAMIC_ONBOARDING_SPEC.md). Each slot's
+# `field` reuses an existing required_fields[].id verbatim (widget/coerce). Only
+# value-compatible cross-source aliases are declared — vocabulary-mismatched
+# overlaps (e.g. experience_level vs bonemax workout_frequency) are intentionally
+# NOT aliased here; that equivalence/normalization is a flagged Human Decision.
+info_schema:
+  - slot: goal
+    field: goal
+    needs: "primary training goal"
+    importance: high
+    satisfied_by: ["onboarding:goal", "facts:goal"]
+  - slot: experience_level
+    field: experience_level
+    needs: "lifting experience level"
+    importance: high
+    satisfied_by: ["onboarding:experience_level", "facts:experience_level"]
+  - slot: equipment
+    field: equipment
+    needs: "training equipment available"
+    importance: high
+    satisfied_by: ["onboarding:equipment", "facts:equipment"]
+  - slot: days_per_week
+    field: days_per_week
+    needs: "training days per week"
+    importance: high
+    satisfied_by: ["onboarding:days_per_week", "facts:days_per_week"]
+  - slot: session_minutes
+    field: session_minutes
+    needs: "typical session length in minutes"
+    importance: medium
+    satisfied_by: ["onboarding:session_minutes", "facts:session_minutes"]
+  - slot: daily_activity_level
+    field: daily_activity_level
+    needs: "daily non-training activity level"
+    importance: medium
+    satisfied_by: ["onboarding:daily_activity_level", "facts:daily_activity_level"]
+  - slot: estimated_body_fat
+    field: estimated_body_fat
+    needs: "estimated body-fat band"
+    importance: low
+    satisfied_by: ["onboarding:estimated_body_fat", "facts:estimated_body_fat"]
+  - slot: nutrition_tracking_pref
+    field: nutrition_tracking_pref
+    needs: "nutrition tracking preference"
+    importance: medium
+    satisfied_by: ["onboarding:nutrition_tracking_pref", "facts:nutrition_tracking_pref"]
+  # Cross-Max shared slot: also satisfied for free from global wake/sleep times
+  # via the span() derive, so neither fitmax nor heightmax re-asks it.
+  - slot: sleep_hours
+    field: sleep_hours
+    needs: "typical nightly sleep duration in hours"
+    importance: high
+    satisfied_by: ["facts:sleep_hours", "onboarding:sleep_hours"]
+    derive: "span(sleep_time, wake_time)"
+  - slot: dietary_restrictions
+    field: dietary_restrictions
+    needs: "dietary restriction / pattern"
+    importance: medium
+    satisfied_by: ["onboarding:dietary_restrictions", "facts:dietary_restrictions"]
+  - slot: injury_history
+    field: injury_history
+    needs: "current or recent injury to train around"
+    importance: high
+    satisfied_by: ["onboarding:injury_history", "facts:injury_history"]
+  - slot: supplement_openness
+    field: supplement_openness
+    needs: "openness to supplements"
+    importance: low
+    satisfied_by: ["onboarding:supplement_openness", "facts:supplement_openness"]
+
 optional_context:
   - id: age
     description: "User age (from onboarding), gates training intensity, recovery cadence."
