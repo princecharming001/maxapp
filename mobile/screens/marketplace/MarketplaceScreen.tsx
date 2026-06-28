@@ -466,8 +466,8 @@ export default function MarketplaceScreen() {
                     to host their own max (first come, first served). */}
                 {tab === 'creator' ? (
                     <View style={[styles.gutter, styles.comingSoon]}>
-                        <View style={styles.comingSoonIcon}>
-                            <CreatorMorphIcon size={40} />
+                        <View style={styles.creatorIconWrap}>
+                            <CreatorMorphIcon size={92} />
                         </View>
                         <Text style={styles.comingSoonTitle}>Creators coming soon</Text>
                         <Text style={styles.comingSoonSub}>
@@ -735,6 +735,8 @@ const styles = StyleSheet.create({
         width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center',
         backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, marginBottom: 18,
     },
+    // Creator icon: the morphing jelly glyph floats on its own — no circle.
+    creatorIconWrap: { alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
     comingSoonTitle: { fontFamily: SERIF, fontSize: 26, color: INK, letterSpacing: -0.4 },
     comingSoonSub: { fontFamily: 'Matter-Regular', fontSize: 14.5, color: MUTE, marginTop: 8, textAlign: 'center', lineHeight: 21, maxWidth: 280 },
 
