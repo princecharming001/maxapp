@@ -539,3 +539,103 @@ def test_backfill_idempotent():
     assert all(c["source"] == "onboarding" and c["confidence"] == 0.85 for c in calls)
     kk = _known_onboarding_keys()
     assert {"age", "goal", "sleep_hours"} <= kk
+
+
+def test_driver_degrades_to_none_on_db_fault(monkeypatch):
+    """A mid-onboarding DB fault (merge_context raises) must NOT propagate:
+    the guarded driver logs, rolls back, and returns None (degrade to the
+    legacy/agent fallback)."""
+    import asyncio as _asyncio
+    from services import task_catalog_service as tcs
+    import api.chat as chat
+
+    _asyncio.run(tcs.warm_catalog())
+
+    class _FakeDB:
+        async def get(self, *a, **k):
+            class _U:
+                onboarding = {}
+                schedule_preferences = {}
+                subscription_tier = None
+            return _U()
+        async def rollback(self):
+            self.rolled_back = True
+
+    async def _fake_get_context(uid, db):
+        return {"_onboarding_pending": {"max": "bonemax", "last_question": "workout_frequency"}}
+
+    async def _boom(*a, **k):
+        raise ValueError("boom merge_context")
+
+    monkeypatch.setattr("services.user_context_service.get_context", _fake_get_context)
+    monkeypatch.setattr("services.user_context_service.merge_context", _boom)
+
+    db = _FakeDB()
+    out = _asyncio.run(chat._run_onboarding_questioner(
+        "00000000-0000-0000-0000-000000000001", "heavy", db,
+    ))
+    assert out is None
+    assert getattr(db, "rolled_back", False) is True  # session un-poisoned
+
+
+def test_send_message_locked_no_500_on_driver_fault(monkeypatch):
+    """End-to-end guardrail: with the same mid-onboarding fault injected,
+    `_send_message_locked` returns a 200 ChatResponse (degrades to the agent
+    path) instead of raising into the global 500 handler."""
+    import asyncio as _asyncio
+    from fastapi import BackgroundTasks
+    from models.leaderboard import ChatRequest, ChatResponse
+    from services import task_catalog_service as tcs
+    import api.chat as chat
+
+    _asyncio.run(tcs.warm_catalog())
+
+    class _FakeDB:
+        async def get(self, *a, **k):
+            class _U:
+                onboarding = {}
+                schedule_preferences = {}
+                subscription_tier = None
+            return _U()
+        def add(self, *a, **k):
+            pass
+        async def commit(self):
+            pass
+        async def rollback(self):
+            pass
+
+    class _Conv:
+        id = "11111111-1111-1111-1111-111111111111"
+
+    async def _fake_get_context(uid, db):
+        return {"_onboarding_pending": {"max": "bonemax", "last_question": "workout_frequency"}}
+
+    async def _boom(*a, **k):
+        raise ValueError("boom merge_context")
+
+    # Inject the fault + neutralize the heavy collaborators on the degrade path.
+    monkeypatch.setattr("services.user_context_service.get_context", _fake_get_context)
+    monkeypatch.setattr("services.user_context_service.merge_context", _boom)
+    monkeypatch.setattr(chat, "_active_schedule_ids", _mk_async(set()))
+    monkeypatch.setattr(chat, "_handle_context_change", _mk_async(None))
+    monkeypatch.setattr(chat, "_broad_question_mcq", _mk_async(None))
+    monkeypatch.setattr(chat, "_handle_generic_schedule_modification", _mk_async(None))
+    monkeypatch.setattr(chat, "_habit_picker_for_new_schedule", _mk_async(None))
+    monkeypatch.setattr(chat, "process_chat_message", _mk_async(("agent fallback reply", [])))
+    monkeypatch.setattr(
+        "services.chat_conversations_service.resolve_active_conversation",
+        _mk_async(_Conv()),
+    )
+
+    data = ChatRequest(message="heavy")
+    resp = _asyncio.run(chat._send_message_locked(
+        data, BackgroundTasks(), {"id": "00000000-0000-0000-0000-000000000001"}, _FakeDB(), None,
+    ))
+    assert isinstance(resp, ChatResponse)
+    assert resp.response  # a real reply, not a 500
+
+
+def _mk_async(retval):
+    async def _f(*a, **k):
+        return retval
+    return _f

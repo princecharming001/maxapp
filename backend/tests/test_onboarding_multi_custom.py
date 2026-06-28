@@ -206,3 +206,20 @@ def test_skinmax_single_concern_regression():
     days = _gen("skinmax", st)
     assert sum(len(d["tasks"]) for d in days) > 0
     assert concern_key_for_state(st) == "redness"
+
+
+def test_int_field_null_bounds_default_safely():
+    """A doc int field with null (YAML-blank) min/max/step/default must produce
+    a slider with sane defaults instead of raising TypeError (would 500 intake).
+    Fails before T2, passes after."""
+    payload = field_to_question_payload(
+        {"id": "age", "type": "int", "min": None, "max": None, "step": None, "default": None}
+    )
+    iw = payload["input_widget"]
+    assert iw["type"] == "slider"
+    assert iw["min"] == 13 and iw["max"] == 50 and iw["step"] == 1 and iw["default"] == 18
+    # A non-numeric string bound also falls back rather than raising.
+    payload2 = field_to_question_payload(
+        {"id": "age", "type": "int", "min": "abc", "max": 40}
+    )
+    assert payload2["input_widget"]["min"] == 13 and payload2["input_widget"]["max"] == 40
