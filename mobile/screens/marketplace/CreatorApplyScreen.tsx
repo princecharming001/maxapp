@@ -134,9 +134,15 @@ function SocialLinker({ platform, handle, onChangeHandle, profile, onLinked, onC
         Haptics.selectionAsync().catch(() => {});
         try {
             const p = await api.lookupSocialProfile(platform, h);
-            onLinked(p);
+            if (p.found) {
+                onLinked(p);
+            } else {
+                // Handle is stored either way (you can still submit) — we just
+                // couldn't pull public stats (typo, private, or rate-limited).
+                setErr("Couldn't verify that handle — double-check it. You can still submit.");
+            }
         } catch {
-            setErr("Couldn't find that account. Check the handle.");
+            setErr("Couldn't reach the lookup right now. You can still submit the handle.");
         } finally {
             setLoading(false);
         }
