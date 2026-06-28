@@ -640,7 +640,7 @@ function GlassCard({
 }) {
     const uid = useId().replace(/:/g, '');
     const Clip: any = onPress ? TouchableOpacity : View;
-    const fill = dark ? 'rgba(18,16,24,0.30)' : 'rgba(255,255,255,0.16)';
+    const fill = dark ? 'rgba(18,16,24,0.20)' : 'rgba(255,255,255,0.10)';
     const rim = dark ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.7)';
     return (
         <View style={[{ borderRadius: radius, borderCurve: 'continuous' }, GLASS_FLOAT, style]}>
@@ -1313,11 +1313,11 @@ export default function FaceScanResultsScreen() {
                             'rgba(255,255,255,0)',
                             'rgba(255,255,255,0.04)',
                             'rgba(255,255,255,0.12)',
-                            'rgba(255,255,255,0.28)',
-                            'rgba(255,255,255,0.5)',
-                            'rgba(255,255,255,0.78)',
-                            '#FFFFFF',
-                            '#FFFFFF',
+                            'rgba(255,255,255,0.24)',
+                            'rgba(255,255,255,0.4)',
+                            'rgba(255,255,255,0.56)',
+                            'rgba(255,255,255,0.64)',
+                            'rgba(255,255,255,0.64)',
                         ]}
                         locations={[0, 0.18, 0.34, 0.48, 0.6, 0.7, 0.78, 1]}
                         style={[s.heroWhiteFade, { height: SCREEN_H * 0.46 }]}
@@ -1767,7 +1767,11 @@ const s = StyleSheet.create({
 
     /* ── Stats section ── */
     statsSection: {
-        backgroundColor: '#FFFFFF',
+        // Translucent (not solid) so the face photo stays faintly visible behind
+        // the whole analysis — this is what gives the glass cards something to
+        // refract, so they read as TRANSPARENT (like the planner Today button)
+        // instead of milky white-on-white.
+        backgroundColor: 'rgba(255,255,255,0.64)',
         paddingHorizontal: 20,
         // Keep "Your Analysis" below the first viewport — only the white sheet
         // (no title) shows before the user scrolls.
