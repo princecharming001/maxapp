@@ -145,10 +145,10 @@ const MAXX_TILES = [
 ] as const;
 
 const MOTIVATIONS = [
-    { id: 'event', label: 'A specific date or event' },
-    { id: 'photos', label: 'Want to feel better in photos' },
-    { id: 'comment', label: 'Someone said something' },
-    { id: 'long_term', label: 'Long term, no rush' },
+    { id: 'heartbreak', label: 'Someone broke my heart' },
+    { id: 'no_respect', label: 'No one respects me' },
+    { id: 'event', label: 'An upcoming date or event' },
+    { id: 'mog', label: 'I just want to mog' },
     { id: 'curious', label: 'Just curious' },
     // Open-ended escape hatch — picking this reveals a text box so the real
     // reason isn't forced into one of the buckets above.
