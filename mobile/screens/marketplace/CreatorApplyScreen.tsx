@@ -239,9 +239,9 @@ export default function CreatorApplyScreen() {
             body: (
                 <View style={styles.introWrap}>
                     {[
-                        ['ribbon-outline', 'For people known for their craft', 'Your reputation is the pitch.'],
-                        ['flash-outline', 'First come, first served', 'Once claimed, a niche is gone.'],
-                        ['time-outline', 'Hand-reviewed', 'We reply within 1-2 weeks.'],
+                        ['ribbon-outline', 'For people known for their craft', 'Your reputation is the pitch, not a CV.'],
+                        ['flash-outline', 'First come, first served', 'Once someone claims a niche, it’s gone.'],
+                        ['time-outline', 'Hand-reviewed', 'We read each one and reply in 1-2 weeks.'],
                     ].map(([icon, t, s]) => (
                         <View key={t} style={styles.introRow}>
                             <View style={styles.introIcon}><Ionicons name={icon as any} size={18} color={INK} /></View>
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
     headBlock: { width: '100%', alignItems: 'center' },
     bodyBlock: { width: '100%', marginTop: 26 },
     title: { fontFamily: 'Matter-Bold', fontSize: 30, color: INK, letterSpacing: -0.6, lineHeight: 36, textAlign: 'center' },
-    sub: { fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, marginTop: 12, lineHeight: 21, textAlign: 'center', maxWidth: 300, alignSelf: 'center' },
+    sub: { fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, marginTop: 12, lineHeight: 21, textAlign: 'center', maxWidth: 286, alignSelf: 'center' },
     helpNote: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE, marginTop: 14, lineHeight: 18, textAlign: 'center' },
     error: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: DANGER, marginTop: 18, lineHeight: 19, textAlign: 'center' },
 
