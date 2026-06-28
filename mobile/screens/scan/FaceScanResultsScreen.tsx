@@ -906,8 +906,11 @@ export default function FaceScanResultsScreen() {
     const [processing, setProcessing] = useState(false);
     const [advancing, setAdvancing] = useState(false);
     const advancedRef = useRef(false);
-    const shareCardRef = useRef<View>(null);
-    const [shareImageReady, setShareImageReady] = useState(true);
+    // Save/Share now snapshot the REAL views the user sees, not an off-screen
+    // designed card: rootRef = the full-screen hero (scan photo + the 3 rings),
+    // analysisRef = the white "Your Analysis" sheet.
+    const rootRef = useRef<View>(null);
+    const analysisRef = useRef<View>(null);
     const [shareCaptureBusy, setShareCaptureBusy] = useState(false);
     const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
     const scrollRef = useRef<ScrollView>(null);
@@ -1102,20 +1105,40 @@ export default function FaceScanResultsScreen() {
         navigation.setOptions({ gestureEnabled: !postPayOnboardingFlow });
     }, [navigation, postPayOnboardingFlow]);
 
+    // Snapshot the two views the user actually sees, in order:
+    //   [0] the full-screen hero (scan photo + 3 rings) — captured at scroll-top
+    //       so the photo background fills the frame,
+    //   [1] the white "Your Analysis" sheet — captures full-height on its own.
+    // Restores the scroll position (the Share/Save buttons live in the sheet).
+    const captureBothViews = async (): Promise<string[]> => {
+        const uris: string[] = [];
+        // View 2 first — no scroll needed (the user is already on the sheet).
+        const analysis = await captureRatingCardToPng(analysisRef);
+        // View 1 — jump to the top so the hero fills the screen, then snapshot
+        // the whole screen (root holds the fixed background photo).
+        scrollRef.current?.scrollTo({ y: 0, animated: false });
+        await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+        const hero = await captureRatingCardToPng(rootRef);
+        // Restore — bring the buttons back into view.
+        scrollRef.current?.scrollToEnd({ animated: false });
+        if (hero) uris.push(hero);
+        if (analysis) uris.push(analysis);
+        return uris;
+    };
+
     const onSaveScanPhoto = async () => {
         if (Platform.OS === 'web') {
-            Alert.alert('Save on web', 'Use your browser screenshot tool, or open Max on your phone to save your rating card to Photos.');
+            Alert.alert('Save on web', 'Open Max on your phone to save your results to Photos.');
             return;
         }
-        if (frontUri && !shareImageReady) { Alert.alert('Almost ready', 'Your scan photo is still loading. Try again in a second.'); return; }
         setShareCaptureBusy(true);
         try {
-            const pngUri = await captureRatingCardToPng(shareCardRef);
-            if (!pngUri) { Alert.alert('Save failed', 'Could not create the image. Try again.'); return; }
+            const uris = await captureBothViews();
+            if (!uris.length) { Alert.alert('Save failed', 'Could not create the images. Try again.'); return; }
             const perm = await MediaLibrary.requestPermissionsAsync();
-            if (!perm.granted) { Alert.alert('Permission needed', 'Allow Photos access to save your rating card.'); return; }
-            await MediaLibrary.saveToLibraryAsync(pngUri);
-            Alert.alert('Saved', 'Your rating card was saved to Photos.');
+            if (!perm.granted) { Alert.alert('Permission needed', 'Allow Photos access to save your results.'); return; }
+            for (const u of uris) await MediaLibrary.saveToLibraryAsync(u);
+            Alert.alert('Saved', uris.length > 1 ? 'Saved 2 images to Photos.' : 'Saved to Photos.');
         } catch (e) { console.error(e); Alert.alert('Save failed', 'Could not save to Photos. Try again.'); }
         finally { setShareCaptureBusy(false); }
     };
@@ -1123,30 +1146,37 @@ export default function FaceScanResultsScreen() {
     const onShareRating = async () => {
         const tierLine = pslTier ? ` · Tier: ${pslTier}` : '';
         const r = ratingDisplay != null ? ratingDisplay.toFixed(1) : '—';
-        const msg = `My facial rating on Max: ${r}/10 · Potential: ${potentialDisplay.toFixed(1)}/10${tierLine}`;
+        const msg = `My facial analysis on Max: ${r}/10 · Potential: ${potentialDisplay.toFixed(1)}/10${tierLine}`;
         if (Platform.OS === 'web') {
             try {
                 const nav = typeof globalThis !== 'undefined' ? (globalThis as any).navigator : undefined;
-                if (nav?.share) { await nav.share({ title: 'My Max rating', text: msg }); return; }
-                if (nav?.clipboard?.writeText) { await nav.clipboard.writeText(msg); Alert.alert('Copied', 'Rating text copied to clipboard.'); return; }
+                if (nav?.share) { await nav.share({ title: 'My Max results', text: msg }); return; }
+                if (nav?.clipboard?.writeText) { await nav.clipboard.writeText(msg); Alert.alert('Copied', 'Results text copied to clipboard.'); return; }
             } catch { /* fall through */ }
-            Alert.alert('My Max rating', msg);
+            Alert.alert('My Max results', msg);
             return;
         }
-        if (frontUri && !shareImageReady) { Alert.alert('Almost ready', 'Your scan photo is still loading. Try again in a second.'); return; }
         setShareCaptureBusy(true);
         try {
-            const pngUri = await captureRatingCardToPng(shareCardRef);
-            if (!pngUri) { await Share.share({ message: msg, title: 'My Max rating' }); return; }
+            const uris = await captureBothViews();
+            if (!uris.length) { await Share.share({ message: msg, title: 'My Max results' }); return; }
             const canShareFiles = await Sharing.isAvailableAsync();
             if (canShareFiles) {
-                await Sharing.shareAsync(pngUri, { mimeType: 'image/png', dialogTitle: 'Share your Max rating' });
+                // expo-sharing sends one file per sheet — share each view in turn.
+                for (const u of uris) {
+                    try {
+                        await Sharing.shareAsync(u, { mimeType: 'image/png', dialogTitle: 'Share your Max results' });
+                    } catch (e: any) {
+                        if (e?.message === 'User did not share') break; // user cancelled — stop
+                        throw e;
+                    }
+                }
             } else {
-                await Share.share({ title: 'My Max rating', message: msg, url: pngUri } as any);
+                await Share.share({ title: 'My Max results', message: msg, url: uris[0] } as any);
             }
         } catch (e: any) {
             if (e?.message !== 'User did not share') console.error(e);
-            try { await Share.share({ message: msg, title: 'My Max rating' }); } catch { /* ignore */ }
+            try { await Share.share({ message: msg, title: 'My Max results' }); } catch { /* ignore */ }
         } finally { setShareCaptureBusy(false); }
     };
 
@@ -1267,7 +1297,7 @@ export default function FaceScanResultsScreen() {
         .filter((x): x is BentoFeatureItem => x !== null);
 
     return (
-        <View style={s.root}>
+        <View style={s.root} ref={rootRef} collapsable={false}>
 
             {/* ── Fixed photo background ───────────────────────────────── */}
             {frontUri ? (
@@ -1387,7 +1417,7 @@ export default function FaceScanResultsScreen() {
                 </View>
 
                 {/* ── Stats section ──────────────────────────────────────── */}
-                <View style={[s.statsSection, { paddingBottom: Math.max(insets.bottom, 24) + 24 }]}>
+                <View ref={analysisRef} collapsable={false} style={[s.statsSection, { paddingBottom: Math.max(insets.bottom, 24) + 24 }]}>
 
                     {/* Full breakdown only on the first scan ever; daily/repeat
                         scans show just the three rings above. */}
@@ -1659,24 +1689,8 @@ export default function FaceScanResultsScreen() {
                 </Pressable>
             ) : null}
 
-            {/* ── Off-screen share card ─────────────────────────────────── */}
-            {!locked && !isProcessing && Platform.OS !== 'web' ? (
-                <View style={s.shareCardOffscreen} pointerEvents="none" collapsable={false}>
-                    <ResultsRatingShareCard
-                        cardRef={shareCardRef}
-                        frontUri={frontUri ?? null}
-                        ratingDisplay={ratingDisplay}
-                        potentialDisplay={potentialDisplay}
-                        ratingColorScore={ratingColorScore}
-                        appealScore={appealScore}
-                        pslTier={pslTier}
-                        archetype={archetype}
-                        ascensionLabelText={ascensionLabelText}
-                        ageScore={ageScore}
-                        onShareImageEvent={() => setShareImageReady(true)}
-                    />
-                </View>
-            ) : null}
+            {/* Off-screen share card retired — Save/Share now snapshot the real
+                hero + analysis views (see captureBothViews). */}
         </View>
     );
 }
