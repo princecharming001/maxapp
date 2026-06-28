@@ -503,3 +503,39 @@ def test_all_docs_compile_no_dead_required():
         assert sleep is not None and sleep.field == "sleep_hours"
         assert sleep.derive and sleep.derive.startswith("span(")
         assert not sleep.dead
+
+
+def test_backfill_idempotent():
+    """The onboarding->fact mapping is pure, stable, and keyed so a replay is
+    idempotent: running twice yields exactly one keyed call per onboarding field
+    (remember_fact's keyed dedupe collapses re-runs at the DB layer)."""
+    import asyncio as _asyncio
+    from services import task_catalog_service as tcs
+    from scripts.backfill_onboarding_facts import (
+        onboarding_to_fact_calls, _known_onboarding_keys,
+    )
+
+    _asyncio.run(tcs.warm_catalog())
+    onboarding = {
+        "sleep_time": "23:00",
+        "wake_time": "07:00",
+        "age": 24,
+        "goal": "muscle_gain",
+        "_onboarding_pending": {"max": "x"},  # internal -> skipped
+        "made_up_unmapped_key": "zzz",          # not a slot -> skipped
+        "equipment": "",                         # empty -> skipped
+    }
+    calls = onboarding_to_fact_calls(onboarding)
+    keys = [c["key"] for c in calls]
+
+    assert "onboarding.age" in keys and "onboarding.goal" in keys
+    assert "onboarding._onboarding_pending" not in keys
+    assert "onboarding.made_up_unmapped_key" not in keys
+    assert "onboarding.equipment" not in keys
+    # No duplicate keys -> one fact per key.
+    assert len(keys) == len(set(keys))
+    # Deterministic: a second run produces the identical key set.
+    assert keys == [c["key"] for c in onboarding_to_fact_calls(onboarding)]
+    assert all(c["source"] == "onboarding" and c["confidence"] == 0.85 for c in calls)
+    kk = _known_onboarding_keys()
+    assert {"age", "goal", "sleep_hours"} <= kk
