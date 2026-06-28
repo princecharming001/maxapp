@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
   // Workout (and other colored events) tint the glass pane in their accent.
   cardAccentWash: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(47,107,78,0.14)' },
   tick: { width: 3, marginVertical: 7, borderRadius: 2 },
-  cardBody: { flex: 1, paddingHorizontal: 11, paddingVertical: 7, justifyContent: 'flex-start' },
+  cardBody: { flex: 1, paddingHorizontal: 11, paddingVertical: 7, justifyContent: 'center' },
   cardBodyTiny: { justifyContent: 'center', paddingVertical: 4 },
   cardTitle: { fontFamily: fonts.serif, fontSize: 15, color: '#1B2430', letterSpacing: -0.2 },
   cardTitleNarrow: { fontSize: 13.5 },
