@@ -115,7 +115,7 @@ Do them in order. Each: touch the listed files, then run the VERIFY. Early units
   Files: NEW `mobile/screens/integrations/GoogleCalendarConnectScreen.tsx` (mirror `SendblueConnectScreen`: title, `getGoogleAuthUrl()` → `Linking.openURL`, poll `getGoogleStatus()` every ~4s until `connected`, success + Skip + Disconnect states; hidden unless `calendar_link_enabled`). `mobile/screens/profile/SettingsScreen.tsx` (row after "My products"). `mobile/navigation/RootNavigator.tsx` (register modal/screen).
   VERIFY: `cd mobile && npx tsc --noEmit`. Confirm the row/screen is gated off when flag is false.
 
-- [ ] **U10 — Background sync hardening (already-registered job).**
+- [x] **U10 — Background sync hardening (already-registered job). (2026-06-28)**
   Files: `backend/services/scheduler_job.py` (`sync_google_calendars` L958: on refresh failure mark connection `is_active=False`; skip inactive). Confirm interval registration intact.
   VERIFY: `cd backend && pytest -q -k "sched or google"`; `python -c "import services.scheduler_job"`.
 
@@ -168,3 +168,4 @@ When all units are checked and completion criteria are met, output exactly:
 - U7 (2026-06-28): ScheduleGrid: `calendarEvents` optional prop + `CalendarEventRow` type; calendar Ev pushed after obligations with `#B0B0B8` accent, `onPress:undefined`, hairline tick, calendar glyph; tsc clean.
 - U8 (2026-06-28): DayPlannerScreen: `googleStatus` + `plannerToday` queries gated on `connected && calendar_link_enabled`; `calendarEvents` derived + passed to ScheduleGrid; unconnected users incur no extra fetch; tsc clean.
 - U9 (2026-06-28): GoogleCalendarConnectScreen created (poll/connect/disconnect/browser flow); SettingsScreen row gated on `calendar_link_enabled`; RootNavigator registered; tsc clean.
+- U10 (2026-06-28): `sync_google_calendar` marks `is_active=False` on refresh failure; 30-min interval job confirmed intact; scheduler import + pytest clean.

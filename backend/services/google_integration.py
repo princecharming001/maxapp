@@ -266,6 +266,9 @@ async def sync_google_calendar(user_id, db: AsyncSession) -> dict[str, int]:
         return {"synced": 0}
     access = await _fresh_access_token(conn, db)
     if not access:
+        # Refresh failed → mark connection inactive so the UI shows reconnect state
+        conn.is_active = False
+        await db.commit()
         return {"synced": 0, "needs_reconnect": 1}
 
     win_from = datetime.utcnow() - timedelta(days=1)
