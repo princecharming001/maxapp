@@ -497,7 +497,9 @@ export default function MaxDetailScreen() {
     };
 
     const onCta = async () => {
-        if (item.entered) { goToSchedule(); return; }
+        // Already in: "Open" leads into the course docs / reader page (the
+        // swipeable per-max info), not the schedule tab.
+        if (item.entered) { openReader(); return; }
         if (busy) return;
         setBusy(true);
         try {
