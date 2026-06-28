@@ -11,7 +11,8 @@ export type FlagName =
     | 'streakV2'
     | 'faceScan'
     | 'personalizedUI'
-    | 'referrals';
+    | 'referrals'
+    | 'mainAppTour';
 
 const FLAGS: Record<FlagName, boolean> = {
     newNav: false,
@@ -29,6 +30,13 @@ const FLAGS: Record<FlagName, boolean> = {
     // line, goal-aware empty states). Each surface degrades to today's copy when
     // its signal is absent, so ON is cold-start-identical. See RALPH_PERSONALIZE.md.
     personalizedUI: true,
+    // Post-onboarding main-app SpotlightTour. Default OFF: react-native-spotlight-tour
+    // can land a zero-measured "spot", leaving a full-screen backdrop that swallows
+    // every touch with no visible tooltip/Skip — the "frozen Home after Get Started"
+    // bug. The measure-gated starter + watchdog reduce the risk but can't fully
+    // guarantee it on this RN version, so the auto-tour stays disabled until it's
+    // proven safe (or replaced). Flip ON only after verifying it can't trap touches.
+    mainAppTour: false,
 };
 
 export function getFlag(name: FlagName): boolean {

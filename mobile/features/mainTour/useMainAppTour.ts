@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { useSpotlightTour } from 'react-native-spotlight-tour';
 import { useAuth } from '../../context/AuthContext';
+import { useFlag } from '../../constants/featureFlags';
 import api from '../../services/api';
 
 // Local "seen" flag, written the moment the tour STARTS (not only on a clean
@@ -43,6 +44,9 @@ export function useMainAppTour(
     const { user, isPaid } = useAuth();
     const isFocused = useIsFocused();
     const { start } = useSpotlightTour();
+    // Hard kill-switch. While OFF the tour can NEVER start, so its backdrop can
+    // never trap touches on the post-pay Home entry. See featureFlags `mainAppTour`.
+    const tourEnabled = useFlag('mainAppTour');
     // Same-session guard: once we've started (or decided we never should), stay
     // off so a re-layout / re-focus can't double-fire.
     const startedRef = useRef(false);
@@ -79,6 +83,7 @@ export function useMainAppTour(
     }, []);
 
     const tryStart = useCallback(() => {
+        if (!tourEnabled) return; // kill-switch — never auto-start the tour
         if (startedRef.current) return;
         if (!isPaid) return;
         if (!isFocused) return;
@@ -108,7 +113,7 @@ export function useMainAppTour(
                 start();
             });
         });
-    }, [isPaid, isFocused, user?.onboarding, redirectPending, anchorRef, start]);
+    }, [tourEnabled, isPaid, isFocused, user?.onboarding, redirectPending, anchorRef, start]);
 
     // Re-attempt whenever the gating inputs change (focus regained, onboarding
     // flags resolve after payment, etc.).
