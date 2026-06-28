@@ -68,20 +68,23 @@ const scanBtnStyles = StyleSheet.create({
     touch: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     // Outer carrier: casts the soft warm float shadow (matches the Planner glass
     // buttons). NOT clipped — overflow stays visible.
+    // Stronger float shadow than the Planner buttons — the scan button sits on
+    // the near-white tab bar, so it needs a deeper drop shadow to read as a
+    // distinct glass disc instead of blending in.
     shadowWrap: {
         width: 50,
         height: 50,
         borderRadius: 25,
         backgroundColor: 'transparent',
-        shadowColor: '#3A352B',
-        shadowOpacity: 0.13,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 6 },
-        elevation: 5,
+        shadowColor: '#1C1E26',
+        shadowOpacity: 0.30,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 10,
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
-    // Inner: clips the LiquidGlassFill material + carries the hairline rim, exactly
-    // like the Planner GlassButton's glassClip.
+    // Inner: clips the LiquidGlassFill material. More body + a crisper rim than the
+    // Planner buttons so it stays visible on the white bar while still reading as glass.
     circleWrap: {
         width: 50,
         height: 50,
@@ -89,9 +92,9 @@ const scanBtnStyles = StyleSheet.create({
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.18)',
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(255,255,255,0.7)',
+        backgroundColor: 'rgba(255,255,255,0.42)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.95)',
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
     // Bright top edge of the frosted tab bar.
