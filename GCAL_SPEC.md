@@ -99,7 +99,7 @@ Do them in order. Each: touch the listed files, then run the VERIFY. Early units
   Files: `backend/api/planner.py` (in the calendar-merge block ~L180-206: for `all_day` events emit a distinct `structure` row `{label, all_day:true, source:'calendar', event_id}` WITHOUT consuming the timeline, and EXCLUDE all-day from `calendar_busy_minutes`). Optionally refactor the inline projection into a shared `project_calendar_day(uid,target,db)` helper returning `(structure_rows, cal_spans)`.
   VERIFY: `cd backend && pytest -q -k planner`. Confirm an all-day-only day does not flip `today_read` to red.
 
-- [ ] **U6 — Today display fix (thread source/event_id + read-only styling).**
+- [x] **U6 — Today display fix (thread source/event_id + read-only styling). (2026-06-28)**
   Files: `mobile/screens/today/TodayScreen.tsx` (row mapper L155-162: carry `source` + `event_id` + `all_day`; render `source==='calendar'` rows MUTE with calendar glyph + "Calendar" tag, NO check-circle, long-press → `removeCalendarEvent`; render `all_day` as a quiet pill).
   VERIFY: `cd mobile && npx tsc --noEmit`. Read the file to confirm calendar rows are visually distinct and non-completable.
 
@@ -164,3 +164,4 @@ When all units are checked and completion criteria are met, output exactly:
 - U3 (2026-06-28): `store_connection` + `_fresh_access_token` now write `tokens_encrypted` + clear plaintext; `/status` reads via `tokens_decrypted`; baseline tests unchanged.
 - U4 (2026-06-28): `DELETE /google/disconnect` added (best-effort revoke, clear tokens, purge events); `disconnectGoogle()` added to mobile api.ts; tsc + import clean.
 - U5 (2026-06-28): All-day events emit `{all_day:true, source:'calendar', event_id}` pill row, excluded from `cal_spans`/`calendar_busy_minutes`; timed events unchanged.
+- U6 (2026-06-28): TodayScreen threads `source`/`event_id`/`all_day` through row mapper; calendar rows render MUTE with calendar glyph + "Calendar" tag, no check-circle, long-press removes; all-day as pill; tsc clean.

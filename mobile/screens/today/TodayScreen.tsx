@@ -154,9 +154,26 @@ export default function TodayScreen() {
 
     // Merge tasks + structure rows into one time-ordered timeline.
     const timeline = useMemo(() => {
-        const rows: { kind: 'struct' | 'task'; time: string; task?: PlannerTask; label?: string }[] = [];
+        const rows: {
+            kind: 'struct' | 'task';
+            time: string;
+            task?: PlannerTask;
+            label?: string;
+            end?: string;
+            source?: string;
+            event_id?: string;
+            all_day?: boolean;
+        }[] = [];
         for (const s of data?.structure ?? []) {
-            rows.push({ kind: 'struct', time: s.time, label: s.label });
+            rows.push({
+                kind: 'struct',
+                time: s.time ?? '',
+                label: s.label,
+                end: (s as any).end,
+                source: (s as any).source,
+                event_id: (s as any).event_id,
+                all_day: (s as any).all_day ?? false,
+            });
         }
         for (const t of (data?.tasks ?? []) as PlannerTask[]) {
             rows.push({ kind: 'task', time: t.time || '00:00', task: t });
@@ -352,6 +369,19 @@ export default function TodayScreen() {
             return ctx;
         },
         onError: (_e, _t, ctx) => rollback(ctx),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: TODAY_QK }),
+    });
+
+    const removeCalMutation = useMutation({
+        mutationFn: (eventId: string) => api.removeCalendarEvent(eventId),
+        onMutate: async (eventId) => {
+            const ctx = await snapshotAndPatch((old: any) => ({
+                ...old,
+                structure: (old.structure ?? []).filter((s: any) => s.event_id !== eventId),
+            }));
+            return ctx;
+        },
+        onError: (_e, _v, ctx) => rollback(ctx),
         onSettled: () => queryClient.invalidateQueries({ queryKey: TODAY_QK }),
     });
 
@@ -639,8 +669,52 @@ export default function TodayScreen() {
                                 <View style={{ paddingVertical: 8, paddingHorizontal: 14 }}>
                                     {timeline.map((row, i) => {
                                         if (row.kind === 'struct') {
-                                            const range = (row as any).end
-                                                ? `${fmtTime(row.time)} - ${fmtTime((row as any).end)}`
+                                            const isCalendar = row.source === 'calendar';
+                                            // All-day calendar pill
+                                            if (isCalendar && row.all_day) {
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={`s${i}`}
+                                                        onLongPress={() => {
+                                                            if (row.event_id) removeCalMutation.mutate(row.event_id);
+                                                        }}
+                                                        style={[styles.trow, { opacity: 0.75 }]}
+                                                        activeOpacity={0.8}
+                                                    >
+                                                        <Ionicons name="calendar-outline" size={13} color={MUTE} style={{ marginRight: 6 }} />
+                                                        <Text style={[styles.trTitle, { color: MUTE, flex: 1 }]}>
+                                                            {'All day · '}{row.label}
+                                                        </Text>
+                                                        <Text style={[styles.trWhy, { marginLeft: 4 }]}>Calendar</Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            }
+                                            // Timed calendar row
+                                            if (isCalendar) {
+                                                const range = row.end
+                                                    ? `${fmtTime(row.time)} - ${fmtTime(row.end)}`
+                                                    : fmtTime(row.time);
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={`s${i}`}
+                                                        onLongPress={() => {
+                                                            if (row.event_id) removeCalMutation.mutate(row.event_id);
+                                                        }}
+                                                        style={styles.trow}
+                                                        activeOpacity={0.8}
+                                                    >
+                                                        <Text style={styles.trTime}>{fmtTime(row.time)}</Text>
+                                                        <Ionicons name="calendar-outline" size={13} color={MUTE} style={{ marginRight: 6 }} />
+                                                        <View style={{ flex: 1 }}>
+                                                            <Text style={[styles.trTitle, { color: MUTE }]}>{row.label}</Text>
+                                                            <Text style={styles.trWhy}>{range} · Calendar</Text>
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                );
+                                            }
+                                            // Regular struct row (wake, obligation, sleep)
+                                            const range = row.end
+                                                ? `${fmtTime(row.time)} - ${fmtTime(row.end)}`
                                                 : fmtTime(row.time);
                                             return (
                                                 <View key={`s${i}`} style={styles.trow}>
@@ -650,7 +724,7 @@ export default function TodayScreen() {
                                                         <Text style={[styles.trTitle, { color: MUTE, fontFamily: 'Matter-Medium' }]}>
                                                             {row.label}
                                                         </Text>
-                                                        {(row as any).end ? (
+                                                        {row.end ? (
                                                             <Text style={styles.trWhy}>{range}</Text>
                                                         ) : null}
                                                     </View>
