@@ -79,7 +79,7 @@ Do them in order. Each: touch the listed files, then run the VERIFY. Early units
   Files: `backend/config.py` (add `calendar_link_enabled: bool = False`), `backend/api/google.py` (`GET /status` returns `calendar_link_enabled` alongside `oauth_available`), `mobile/services/api.ts` (`getGoogleStatus` return type adds `calendar_link_enabled: boolean`).
   VERIFY: `cd backend && python -c "import config"`; `cd mobile && npx tsc --noEmit`. Confirm `/status` works with NO Google keys set (`oauth_available=false`, no crash).
 
-- [ ] **U1 — Token encryption helper (no Google needed).**
+- [x] **U1 — Token encryption helper (no Google needed). (2026-06-28)**
   Files: NEW `backend/services/secrets.py` (`encrypt_token`/`decrypt_token`, Fernet keyed off env `ENCRYPTION_KEY`; pass-through no-op + one-time warning when unset). NEW test `backend/tests/test_secrets.py` (round-trip with a key; pass-through without a key).
   VERIFY: `cd backend && pytest tests/test_secrets.py -q`.
 
@@ -159,3 +159,4 @@ When all units are checked and completion criteria are met, output exactly:
 
 ## Iteration-Log
 - U0 (2026-06-28): Added `calendar_link_enabled` flag to config + `/status` response + mobile type; verified import + tsc clean.
+- U1 (2026-06-28): Created `services/secrets.py` (Fernet encrypt/decrypt, pass-through no-op without key) + `tests/test_secrets.py` (3 tests pass).
