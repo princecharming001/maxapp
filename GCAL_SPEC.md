@@ -75,7 +75,7 @@ Pure JS/TS: Settings row + `GoogleCalendarConnectScreen`, thread `source`/`event
 ## BUILD UNITS
 Do them in order. Each: touch the listed files, then run the VERIFY. Early units stub/flag around human-only Google Cloud setup so the loop never blocks.
 
-- [ ] **U0 — Feature flag + status gating (no Google needed).**
+- [x] **U0 — Feature flag + status gating (no Google needed). (2026-06-28)**
   Files: `backend/config.py` (add `calendar_link_enabled: bool = False`), `backend/api/google.py` (`GET /status` returns `calendar_link_enabled` alongside `oauth_available`), `mobile/services/api.ts` (`getGoogleStatus` return type adds `calendar_link_enabled: boolean`).
   VERIFY: `cd backend && python -c "import config"`; `cd mobile && npx tsc --noEmit`. Confirm `/status` works with NO Google keys set (`oauth_available=false`, no crash).
 
@@ -158,4 +158,4 @@ When all units are checked and completion criteria are met, output exactly:
 - (none yet)
 
 ## Iteration-Log
-- (none yet)
+- U0 (2026-06-28): Added `calendar_link_enabled` flag to config + `/status` response + mobile type; verified import + tsc clean.

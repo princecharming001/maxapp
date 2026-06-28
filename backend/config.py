@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     supabase_db_pool_size: Optional[int] = Field(default=None)
     supabase_db_max_overflow: Optional[int] = Field(default=None)
 
+    # Social profile lookup (creator applications) — pulls public follower
+    # count + avatar for a given Instagram/TikTok handle. Provider-agnostic:
+    # set rapidapi_key and (optionally) override the hosts to any compatible
+    # RapidAPI scraper. When no key is set the flow still works — it just
+    # stores the handle/canonical URL without enriched stats.
+    social_lookup_provider: str = Field(default="rapidapi")
+    rapidapi_key: str = Field(default="")
+    rapidapi_ig_host: str = Field(default="instagram-scraper-api2.p.rapidapi.com")
+    rapidapi_tt_host: str = Field(default="tiktok-scraper7.p.rapidapi.com")
+
     # AWS RDS (shared data)
     aws_rds_host: str = Field(default="localhost")
     aws_rds_port: int = Field(default=5432)
@@ -232,6 +242,10 @@ class Settings(BaseSettings):
     gmail_scan_enabled: bool = Field(
         default=False,
         description="Gmail commitment scanning (restricted scope - enable only after CASA review)",
+    )
+    calendar_link_enabled: bool = Field(
+        default=False,
+        description="Google Calendar link feature (calendar.readonly). Default OFF until ready to roll out.",
     )
     # Google Sign-In (identity) client IDs per platform. The web/expo client id
     # is the audience an ID token is minted for; iOS gets its own. Both fall

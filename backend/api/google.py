@@ -80,6 +80,7 @@ async def status(
         "oauth_available": google_oauth_available(),
         "maps_available": maps_available(),
         "gmail_available": gmail_scan_available(),
+        "calendar_link_enabled": settings.calendar_link_enabled,
         "connected": conn is not None and bool((conn.tokens or {}).get("refresh_token")),
         "last_synced_at": conn.last_synced_at.isoformat() if conn and conn.last_synced_at else None,
     }
