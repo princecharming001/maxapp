@@ -1,11 +1,10 @@
 /**
- * Streak badge: single-color Ionicons flame + centered count (flat, minimal detail).
+ * Streak badge: glossy 3D "jelly" flame (Explore icon language, see c.md) with the
+ * day-count centered on top in dark ink + white outline so it reads up to 3 digits.
  */
 import React, { useEffect, useState } from 'react';
-import { AccessibilityInfo, Platform, View, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AccessibilityInfo, Platform, View, StyleSheet, Image } from 'react-native';
 import Svg, { Text as SvgText } from 'react-native-svg';
-import { colors } from '../theme/dark';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -25,12 +24,14 @@ type Props = {
   variant?: 'header' | 'hero';
 };
 
-const FLAME_ACTIVE = '#F97316';
-const FLAME_INACTIVE = colors.textMuted;
+// Glossy 3D "jelly" streak flame (matches the Explore max-icon language — see
+// c.md). Transparent PNG so it floats in the header; the day-count is drawn on
+// top in dark ink with a white outline so it reads on the pale glowing core.
+const FLAME_SRC = require('../assets/streakFlame.png');
 
 const VARIANT_DIM = {
-  header: { box: 40, flameSize: 28, numSize: 11, numLineHeight: 13 },
-  hero: { box: 46, flameSize: 32, numSize: 12, numLineHeight: 14 },
+  header: { box: 40, flameSize: 42, numSize: 12, numLineHeight: 14 },
+  hero: { box: 46, flameSize: 48, numSize: 13, numLineHeight: 15 },
 } as const;
 
 export function StreakFireBadge({ streakDays, variant = 'header' }: Props) {
@@ -93,8 +94,7 @@ export function StreakFireBadge({ streakDays, variant = 'header' }: Props) {
     transform: [{ translateY: floatY.value }, { scale: pop.value }],
   }));
 
-  const fontSize = narrow ? dim.numSize - 1 : dim.numSize;
-  const flameColor = inactive ? FLAME_INACTIVE : FLAME_ACTIVE;
+  const fontSize = narrow ? dim.numSize - 1.5 : dim.numSize;
   /** Optical vertical center for SVG text baseline */
   const numCenterY = dim.box / 2 + fontSize * 0.32;
 
@@ -106,10 +106,10 @@ export function StreakFireBadge({ streakDays, variant = 'header' }: Props) {
     >
       <View style={[styles.stack, { width: dim.box, height: dim.box }]}>
         <AnimatedView style={[styles.flameAnim, flameMotion]}>
-          <Ionicons
-            name="flame"
-            size={dim.flameSize}
-            color={flameColor}
+          <Image
+            source={FLAME_SRC}
+            style={{ width: dim.flameSize, height: dim.flameSize, opacity: inactive ? 0.4 : 1 }}
+            resizeMode="contain"
             accessibilityElementsHidden
           />
         </AnimatedView>
@@ -122,9 +122,9 @@ export function StreakFireBadge({ streakDays, variant = 'header' }: Props) {
               fontSize={fontSize}
               fontWeight="800"
               letterSpacing={narrow ? -0.5 : 0}
-              fill="#FFFFFF"
-              stroke="#000000"
-              strokeWidth={0.45}
+              fill="#26222B"
+              stroke="#FFFFFF"
+              strokeWidth={0.85}
               strokeLinejoin="round"
               strokeLinecap="round"
               opacity={inactive ? 0.85 : 1}
