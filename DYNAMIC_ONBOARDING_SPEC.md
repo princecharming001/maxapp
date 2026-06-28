@@ -171,7 +171,7 @@ Rules:
   Implement Pydantic `InfoSlot`, `QuestionPlan`. `compile_info_schema(doc) -> InfoSchema`: if `doc.info_schema` empty use `derive_info_schema_from_required`; cross-link each slot to its `required_fields[].id` (raise/log on bad ref); gather DSL exprs from `prompt_modifiers[].if`, every task `applies_when`+`contraindicated_when`, `skeleton.blocks[].if`; via `referenced_fields(...)` compute consumed fields; mark a slot `dead` if its `field` is in NO consumed set AND `keep` falsy; log coverage WARNING for any consumed field with no slot. Pure, no I/O.
   VERIFY: new `backend/tests/test_onboarding_gap.py::test_compile_autoderive_and_deadscan` — compile all 6 docs via the loader, assert every active slot's `field` exists in that doc's `required_fields`, no exception, dead-scan runs. `cd backend && python -m pytest tests/test_onboarding_gap.py -q`.
 
-- [ ] **U4 — Cache compiled InfoSchema in the catalog.**
+- [x] **U4 — Cache compiled InfoSchema in the catalog.** _(2026-06-28: `_Entry.info_schema` compiled at warm (try/except guards load); added `get_info_schema(maxx_id)`. test_get_info_schema_cached green; bonemax schema non-empty after warm.)_
   Files: `backend/services/task_catalog_service.py`.
   In `warm_catalog`/the `_Entry` cache, compute/store `info_schema = compile_info_schema(doc)` per maxx_id. Add `get_info_schema(maxx_id) -> InfoSchema | None`.
   VERIFY: `tests/test_onboarding_gap.py::test_get_info_schema_cached` asserts `get_info_schema("bonemax")` is non-empty after warm; `cd backend && python -m pytest tests/test_max_doc_pipeline.py tests/test_onboarding_gap.py -q`.
@@ -271,3 +271,4 @@ _(append one line per completed unit: `YYYY-MM-DD Uxx — <note>`)_
 2026-06-28 U1 — Added 7 dynamic-onboarding config Fields (all default OFF) to `backend/config.py::Settings`. Spec lists 7 under Guardrail 1 ("eight" in U1 header is a typo). Verified flags load + test_pure_utils green.
 2026-06-28 U2 — `MaxDoc.info_schema` field + front-matter parse + `derive_info_schema_from_required` helper in `max_doc_loader.py`. Helper returns 2 slots for 2 fields; loader imports; 6 docs parse. (Noted pre-existing test_max_doc_pipeline collision-test red as baseline.)
 2026-06-28 U3 — `services/onboarding_gap.py` created: Pydantic `InfoSlot`/`QuestionPlanItem`/`QuestionPlan` + dataclass `InfoSchema` + pure `compile_info_schema`. DSL static-scan (modifiers/tasks/skeleton) via `referenced_fields`. All 6 auto-derived docs: 0 dead, 0 uncovered required. New test_onboarding_gap green.
+2026-06-28 U4 — Cache compiled InfoSchema on catalog `_Entry` (computed in `_load`, guarded by try/except) + `get_info_schema(maxx_id)` accessor. test_get_info_schema_cached green.

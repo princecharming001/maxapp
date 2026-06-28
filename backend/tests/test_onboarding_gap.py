@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from services.max_doc_loader import parse_all_max_docs
 from services.onboarding_gap import compile_info_schema, InfoSchema, InfoSlot
 
@@ -34,3 +36,16 @@ def test_compile_autoderive_and_deadscan():
 
         # Dead-scan produced a (possibly empty) consumed-field set without error.
         assert isinstance(schema.consumed_fields, set)
+
+
+def test_get_info_schema_cached():
+    """After warm_catalog, the compiled InfoSchema is cached and retrievable."""
+    from services import task_catalog_service as tcs
+
+    asyncio.run(tcs.warm_catalog())
+    schema = tcs.get_info_schema("bonemax")
+    assert schema is not None
+    assert schema.maxx_id == "bonemax"
+    assert schema.slots, "expected a non-empty compiled slot list for bonemax"
+    # Unknown max -> None, not an error.
+    assert tcs.get_info_schema("nope_not_a_max") is None

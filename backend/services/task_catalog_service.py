@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from services.max_doc_loader import MaxDoc, TaskDef, parse_all_max_docs
+from services.onboarding_gap import InfoSchema, compile_info_schema
 from services.schedule_dsl import evaluate_all, evaluate_any
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 class _Entry:
     doc: MaxDoc
     by_id: dict[str, TaskDef]
+    info_schema: Optional[InfoSchema] = None
 
 
 _CACHE: dict[str, _Entry] = {}
@@ -56,9 +58,15 @@ async def _load() -> None:
     t0 = time.perf_counter()
     docs = await asyncio.to_thread(parse_all_max_docs)
     for doc in docs:
+        try:
+            info_schema = compile_info_schema(doc)
+        except Exception:  # compile is defensive, but never break catalog load
+            logger.exception("task_catalog: compile_info_schema failed for %s", doc.maxx_id)
+            info_schema = None
         _CACHE[doc.maxx_id] = _Entry(
             doc=doc,
             by_id={t.id: t for t in doc.tasks},
+            info_schema=info_schema,
         )
     _CACHE_LOAD_TS = time.time()
     logger.info(
@@ -72,6 +80,12 @@ async def _load() -> None:
 def get_doc(maxx_id: str) -> Optional[MaxDoc]:
     e = _CACHE.get(maxx_id)
     return e.doc if e else None
+
+
+def get_info_schema(maxx_id: str) -> Optional[InfoSchema]:
+    """Compiled info_schema for a max (cached at warm). None if unknown/uncompiled."""
+    e = _CACHE.get(maxx_id)
+    return e.info_schema if e else None
 
 
 def get_task(maxx_id: str, task_id: str) -> Optional[TaskDef]:
