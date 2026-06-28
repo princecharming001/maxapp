@@ -82,7 +82,6 @@ function Ghost({ t, size, color, dir, win }: { t: SharedValue<number>; size: num
     <Animated.Image
       source={src}
       resizeMode="contain"
-      pointerEvents="none"
       style={[StyleSheet.absoluteFill, { width: size, height: size, tintColor: color }, ghostA]}
     />
   );
