@@ -29,7 +29,7 @@ import {
   useWindowDimensions,
   Animated,
 } from 'react-native'
-import { Alert } from '../InAppAlert';
+import { Alert, InAppAlertHost } from '../InAppAlert';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -519,6 +519,11 @@ export default function DayEditorSheet({
             </View>
           </Animated.View>
         </KeyboardAvoidingView>
+        {/* A host mounted INSIDE this sheet's Modal so the "Discard changes?"
+            confirm renders ABOVE the sheet. Without it the alert routes to the
+            root host, which iOS presents BEHIND this modal — making it invisible,
+            so the X and swipe-down appeared to do nothing on a dirty sheet. */}
+        <InAppAlertHost />
       </View>
     </Modal>
   );

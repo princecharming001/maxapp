@@ -622,9 +622,10 @@ const GLASS_SHADOW = {
 // outer/inner is what lets the float shadow survive the clip. `dark` = ink glass
 // for the over-photo hero windows (keeps white text legible); light = frosted for
 // the white analysis sheet. Pass onPress to make the whole pane tappable.
+// Exact match for the planner Today-button float shadow (glassShadow).
 const GLASS_FLOAT = {
-    shadowColor: '#2A2440', shadowOpacity: 0.14, shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 }, elevation: 4,
+    shadowColor: '#3A352B', shadowOpacity: 0.13, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 }, elevation: 5,
 } as const;
 
 function GlassCard({
@@ -640,7 +641,10 @@ function GlassCard({
 }) {
     const uid = useId().replace(/:/g, '');
     const Clip: any = onPress ? TouchableOpacity : View;
-    const fill = dark ? 'rgba(18,16,24,0.20)' : 'rgba(255,255,255,0.10)';
+    // Light variant = the EXACT planner Today-button glass (0.18 white wash,
+    // 0.7 white hairline rim). Dark variant is the same recipe in ink, for the
+    // hero windows that float over the photo (white text needs the darker pane).
+    const fill = dark ? 'rgba(18,16,24,0.28)' : 'rgba(255,255,255,0.18)';
     const rim = dark ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.7)';
     return (
         <View style={[{ borderRadius: radius, borderCurve: 'continuous' }, GLASS_FLOAT, style]}>
@@ -1313,11 +1317,11 @@ export default function FaceScanResultsScreen() {
                             'rgba(255,255,255,0)',
                             'rgba(255,255,255,0.04)',
                             'rgba(255,255,255,0.12)',
-                            'rgba(255,255,255,0.24)',
-                            'rgba(255,255,255,0.4)',
-                            'rgba(255,255,255,0.56)',
-                            'rgba(255,255,255,0.64)',
-                            'rgba(255,255,255,0.64)',
+                            'rgba(255,255,255,0.28)',
+                            'rgba(255,255,255,0.5)',
+                            'rgba(255,255,255,0.78)',
+                            '#FFFFFF',
+                            '#FFFFFF',
                         ]}
                         locations={[0, 0.18, 0.34, 0.48, 0.6, 0.7, 0.78, 1]}
                         style={[s.heroWhiteFade, { height: SCREEN_H * 0.46 }]}
@@ -1767,11 +1771,7 @@ const s = StyleSheet.create({
 
     /* ── Stats section ── */
     statsSection: {
-        // Translucent (not solid) so the face photo stays faintly visible behind
-        // the whole analysis — this is what gives the glass cards something to
-        // refract, so they read as TRANSPARENT (like the planner Today button)
-        // instead of milky white-on-white.
-        backgroundColor: 'rgba(255,255,255,0.64)',
+        backgroundColor: '#FFFFFF',
         paddingHorizontal: 20,
         // Keep "Your Analysis" below the first viewport — only the white sheet
         // (no title) shows before the user scrolls.

@@ -26,7 +26,7 @@ import {
   KeyboardAvoidingView,
   useWindowDimensions,
 } from 'react-native'
-import { Alert } from '../InAppAlert';
+import { Alert, InAppAlertHost } from '../InAppAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../../theme/dark';
@@ -563,6 +563,10 @@ const ObligationsManager = forwardRef<
               }}
             />
           ) : null}
+          {/* Host inside this editor Modal so the "Remove commitment?" confirm
+              renders ABOVE the sheet (iOS won't present the root host's modal
+              over this one), so the × actually works on a dirty editor. */}
+          <InAppAlertHost />
         </View>
       </Modal>
     </View>
