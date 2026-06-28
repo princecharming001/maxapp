@@ -221,7 +221,7 @@ Rules:
   Replay User.onboarding answers through `remember_fact(source="onboarding", confidence=0.85)` mapped via slot `satisfied_by`. Idempotent (keyed-fact dedupe via existing conflict resolution). Do NOT run in the loop; ship + unit-test the mapping.
   VERIFY: `tests/test_onboarding_gap.py::test_backfill_idempotent` — running twice yields one fact per key. `python -m pytest tests/test_onboarding_gap.py -q`.
 
-- [ ] **U14 — Full-suite green + rollout note.**
+- [x] **U14 — Full-suite green + rollout note.** _(2026-06-28: `pytest tests/` = 635 passed, 6 failed — ALL 6 verified pre-existing by checking out the pre-U1 baseline commit and re-running them there: chat_routing knowledge-route, entitlement 402, fast_rag citations, max_doc collision, p0_security x2. 2 pytest collection errors are pre-existing DB-connect scripts (`scripts/test_db_connection.py`, `test_supabase.py`), untouched. NO new reds from this work. Mobile tsc: only pre-existing glass/* Tamagui errors; MaxChatScreen clean. Rollout note added below.)_
   Files: this spec's Iteration-Log; no code unless a regression appears.
   Run the backend suite (ignoring documented pre-existing failures) and mobile tsc.
   VERIFY: `cd backend && python -m pytest -q` (no NEW reds attributable to this work); `cd mobile && npx tsc --noEmit`.
@@ -288,3 +288,12 @@ _(append one line per completed unit: `YYYY-MM-DD Uxx — <note>`)_
 2026-06-28 U11 — Optional wire `progress:{index,total}`: `plan_progress` + payload arg + `ChatResponse.progress` + 5-tuple `_finish_onboarding_turn`, threaded through live + reload paths. confirm widget (yes_no) already shipped in U9. 13 tests green. Mobile untouched; recorded pre-existing glass/* tsc baseline.
 2026-06-28 U12 — Explicit info_schema on fitmax + heightmax (all required fields covered) with shared `sleep_hours` slot + span derive (resolves 8.0 from global times) + importance tiers. Other 4 docs on clean auto-derive. Flagged the vocab-mismatched activity/equipment equivalences as a Human Decision rather than guess unsafe aliases. test_all_docs_compile_no_dead_required green.
 2026-06-28 U13 — `scripts/backfill_onboarding_facts.py`: pure keyed mapping `onboarding_to_fact_calls` + `backfill_user`/`_main` CLI (`--dry-run`/`--user`). Idempotent via keyed-fact dedupe; not auto-run (prod-DB caution). test_backfill_idempotent green. Prod run flagged as Human Decision.
+2026-06-28 U14 — Full backend suite: 635 passed / 6 failed, all 6 confirmed pre-existing at the pre-U1 baseline commit (no new reds). Mobile tsc only pre-existing glass/* errors. Rollout note added. ALL UNITS DONE.
+
+## Rollout note (enabling the feature)
+All paths ship default-OFF; with every flag false, onboarding is byte-for-byte today's fixed-question state machine. Recommended staged enablement (env vars on Render):
+1. **Deterministic dedup first.** Set `SLOT_PREFILL_ENABLED=true` only. This is pure-Python: cross-Max known answers (sleep_hours via span derive, age, outdoor_exposure, skin/hair/scalp facts) are prefilled and not re-asked. No LLM, no latency. The generator's `missing_required` gate is untouched, so a wrong prefill can never let generation proceed under-asked.
+2. **Shadow the LLM.** Add `DYNAMIC_QUESTIONS_SHADOW=true` (keep `DYNAMIC_QUESTIONS_ENABLED=false`). Logs `[onboarding][shadow] would_ask/would_skip` diffs vs. the raw gap WITHOUT changing what the user sees. Review logs for a few days.
+3. **Enable LLM phrasing/ordering.** Set `DYNAMIC_QUESTIONS_ENABLED=true` (requires slot_prefill). One bounded, fenced, memoized call per intake-start; fence intersects the deterministic gap so the LLM can only reorder/rephrase/skip — never invent or under-ask past the generator gate. Three-rung fallback degrades to prefill → raw on any LLM failure.
+- Before step 3, resolve the **Needs Human Decision** items: provider/model pinning + prompt-cache (U8), confidence/freshness/safety-slot thresholds (U5), and optionally the cross-Max taxonomy (U12) + prod backfill (U13).
+- Roll back instantly by flipping any flag false; no data migration is required (pending state stays backward-compatible; `get_pending` accepts the old shape).
