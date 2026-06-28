@@ -33,6 +33,8 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import api, { type MarketplaceItem } from '../../services/api';
+import { queryClient, queryKeys } from '../../lib/queryClient';
+import { fetchChatHistory } from '../../hooks/useAppQueries';
 import { getCourseForMaxx, isCreatorCourse } from '../../data/courseContent';
 import { hexA, maxMeta } from '../../utils/scheduleAggregation';
 import { HABIT_CATALOG } from '../../data/habitCatalog';
@@ -468,6 +470,14 @@ export default function MaxDetailScreen() {
     };
     const goToChat = (maxxId: string) => {
         try {
+            // Warm chat history BEFORE navigating so the cold GET isn't
+            // serialized in front of the first-question POST (kills the blank
+            // spinner). Same queryKey/queryFn as useChatHistoryQuery(null).
+            queryClient.prefetchQuery({
+                queryKey: queryKeys.chatHistory,
+                queryFn: () => fetchChatHistory(null),
+                staleTime: 60_000,
+            });
             const { navigationRef } = require('../../lib/navigationRef');
             if (navigationRef.isReady()) navigationRef.navigate('Main', { screen: 'Chat', params: { initSchedule: maxxId } });
         } catch { navigation.goBack(); }

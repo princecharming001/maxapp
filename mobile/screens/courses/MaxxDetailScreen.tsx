@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { useFlag } from '../../constants/featureFlags';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
-import { useMaxxQuery, useMaxxScheduleQuery, useActiveSchedulesSummaryQuery } from '../../hooks/useAppQueries';
+import { useMaxxQuery, useMaxxScheduleQuery, useActiveSchedulesSummaryQuery, fetchChatHistory } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
 import { getMaxxDisplayDescription, getMaxxDisplayLabel } from '../../utils/maxxDisplay';
 import { useAuth } from '../../context/AuthContext';
@@ -402,6 +402,15 @@ export default function MaxxDetailScreen() {
                                 activeOpacity={0.88}
                                 onPress={() => {
                                     if (canSchedule) {
+                                        // Warm chat history BEFORE navigating so the
+                                        // cold GET isn't serialized in front of the
+                                        // first-question POST (kills the blank spinner).
+                                        // Same queryKey/queryFn as useChatHistoryQuery(null).
+                                        queryClient.prefetchQuery({
+                                            queryKey: queryKeys.chatHistory,
+                                            queryFn: () => fetchChatHistory(null),
+                                            staleTime: 60_000,
+                                        });
                                         navigation.navigate('Main', { screen: 'Chat', params: { initSchedule: maxxId } });
                                     } else if (firstSectionId) {
                                         openReaderAt(firstSectionId);

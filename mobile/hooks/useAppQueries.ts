@@ -141,6 +141,22 @@ export function useForumV2NotificationsQuery(unreadOnly: boolean) {
     });
 }
 
+// Shared fetcher so the screen's `useChatHistoryQuery(null)` and the
+// Start-schedule CTA prefetch use a BYTE-IDENTICAL queryFn + queryKey — the
+// screen then consumes the warmed cache instead of firing a second cold GET.
+export async function fetchChatHistory(conversationId?: string | null) {
+    const { messages, conversation_id, pending_question } = await api.getChatHistory({
+        limit: 80,
+        offset: 0,
+        conversationId: conversationId ?? null,
+    });
+    return {
+        messages: messages ?? [],
+        conversationId: conversation_id ?? null,
+        pendingQuestion: pending_question ?? null,
+    };
+}
+
 export function useChatHistoryQuery(conversationId?: string | null) {
     // When `conversationId` is undefined the backend returns the user's most-recent
     // thread (matches legacy single-thread behavior). When it's a specific id, the
@@ -149,18 +165,7 @@ export function useChatHistoryQuery(conversationId?: string | null) {
         queryKey: conversationId
             ? queryKeys.chatHistoryByConv(conversationId)
             : queryKeys.chatHistory,
-        queryFn: async () => {
-            const { messages, conversation_id, pending_question } = await api.getChatHistory({
-                limit: 80,
-                offset: 0,
-                conversationId: conversationId ?? null,
-            });
-            return {
-                messages: messages ?? [],
-                conversationId: conversation_id ?? null,
-                pendingQuestion: pending_question ?? null,
-            };
-        },
+        queryFn: () => fetchChatHistory(conversationId),
         staleTime: STALE_CHAT_HISTORY_MS,
     });
 }
