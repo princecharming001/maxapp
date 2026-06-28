@@ -176,7 +176,7 @@ Rules:
   In `warm_catalog`/the `_Entry` cache, compute/store `info_schema = compile_info_schema(doc)` per maxx_id. Add `get_info_schema(maxx_id) -> InfoSchema | None`.
   VERIFY: `tests/test_onboarding_gap.py::test_get_info_schema_cached` asserts `get_info_schema("bonemax")` is non-empty after warm; `cd backend && python -m pytest tests/test_max_doc_pipeline.py tests/test_onboarding_gap.py -q`.
 
-- [ ] **U5 — `assemble_known_context` (deterministic, no LLM).**
+- [x] **U5 — `assemble_known_context` (deterministic, no LLM).** _(2026-06-28: pure `resolve_prefill` (alias resolution across onboarding/facts/profile/scan, source-rank ties, min_confidence + freshness gates, `span()` derive) + async `_gather_sources` + guarded `assemble_known_context`. test_assemble_prefill_dedup + source-rank test green.)_
   Files: `backend/services/onboarding_gap.py`; read-only: `user_context_service.py`, `personalization.py`, `user_facts_service.py`.
   Implement `assemble_known_context(db, user_id, maxx_id) -> {prefill, provenance, brief}` per Design. Implement `span()` derive. Respect `_SOURCE_RANK`, `min_confidence`, freshness.
   VERIFY: `tests/test_onboarding_gap.py::test_assemble_prefill_dedup` — fake db/user where onboarding has `sleep_time`+`wake_time` and facts has `equipment`; assert `prefill` contains derived `sleep_hours` and `equipment` field ids. Use `conftest.py` fixtures. `python -m pytest tests/test_onboarding_gap.py -q`.
@@ -258,7 +258,9 @@ GUARDRAIL REMINDERS while coding: flags default OFF for the LLM path; fixed onbo
 ---
 
 ## Needs Human Decision
-_(empty — add items here as they arise; pick a reversible default and continue)_
+_(add items here as they arise; pick a reversible default and continue)_
+
+- **[U5] Per-source confidence + precedence numbers (provisional).** `onboarding_gap._ALIAS_META` assigns base confidence: onboarding=0.85, facts(→"chat")=0.9, profile=0.7, scan=0.7; local `_SOURCE_RANK` = chat 5 > onboarding 4 > profile 3 = scan 3 > onairos 2 = derived 2 > inferred 1; derive confidence fixed at 0.8. `slot_default_min_confidence=0.6`, `slot_freshness_ttl_days=180`. These mirror `personalization._DEFAULT_CONF`/`_SOURCE_RANK` but are guesses. Reversible (config + one dict). DECISION NEEDED: confirm thresholds, whether `facts` should always rank as "chat" (facts blob has no per-key source), and which slots are "safety slots" that must `confirm` regardless of confidence (e.g. injuries, medical/TMJ history).
 
 ## Deferred
 _(empty)_
@@ -272,3 +274,4 @@ _(append one line per completed unit: `YYYY-MM-DD Uxx — <note>`)_
 2026-06-28 U2 — `MaxDoc.info_schema` field + front-matter parse + `derive_info_schema_from_required` helper in `max_doc_loader.py`. Helper returns 2 slots for 2 fields; loader imports; 6 docs parse. (Noted pre-existing test_max_doc_pipeline collision-test red as baseline.)
 2026-06-28 U3 — `services/onboarding_gap.py` created: Pydantic `InfoSlot`/`QuestionPlanItem`/`QuestionPlan` + dataclass `InfoSchema` + pure `compile_info_schema`. DSL static-scan (modifiers/tasks/skeleton) via `referenced_fields`. All 6 auto-derived docs: 0 dead, 0 uncovered required. New test_onboarding_gap green.
 2026-06-28 U4 — Cache compiled InfoSchema on catalog `_Entry` (computed in `_load`, guarded by try/except) + `get_info_schema(maxx_id)` accessor. test_get_info_schema_cached green.
+2026-06-28 U5 — `assemble_known_context`/`resolve_prefill`/`_gather_sources` in onboarding_gap.py. Alias kinds onboarding/facts/profile/scan; per-source confidence + local _SOURCE_RANK (chat>onboarding>profile=scan>derived); freshness via facts `_stated_at`; eval-free `span(a,b)` derive. assemble wrapper never raises (returns empty KnownContext on failure). 4 tests green. NOTE: source/confidence/freshness numbers are provisional — see Needs Human Decision.

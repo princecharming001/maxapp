@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field as dc_field
+from datetime import date as _date
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from config import settings
 from services.max_doc_loader import MaxDoc, derive_info_schema_from_required
 from services.schedule_dsl import referenced_fields
 
@@ -167,3 +169,213 @@ def compile_info_schema(doc: MaxDoc) -> InfoSchema:
         consumed_fields=consumed,
         uncovered_fields=uncovered,
     )
+
+
+# --------------------------------------------------------------------------- #
+# Known-context assembly (deterministic, NO LLM)
+# --------------------------------------------------------------------------- #
+# Per-alias-kind (source label, base confidence). Rank below decides ties.
+_ALIAS_META: dict[str, tuple[str, float]] = {
+    "onboarding": ("onboarding", 0.85),
+    "facts": ("chat", 0.9),
+    "profile": ("profile", 0.7),
+    "scan": ("scan", 0.7),
+}
+# Source precedence (mirrors personalization._SOURCE_RANK, plus `profile`).
+_SOURCE_RANK: dict[str, int] = {
+    "chat": 5, "onboarding": 4, "profile": 3, "scan": 3,
+    "onairos": 2, "derived": 2, "inferred": 1,
+}
+
+
+@dataclass
+class _Sources:
+    onboarding: dict[str, Any]
+    context: dict[str, Any]
+    state: dict[str, Any]            # merged_user_state(onboarding, context)
+    profile_signals: dict[str, Any]  # profile_to_state_signals output (flat)
+    facts: dict[str, Any]            # user_facts blob ({key: value, _stated_at})
+    scan: dict[str, Any]             # scan_derived_signals(state)
+    brief: Optional[str] = None
+
+
+@dataclass
+class KnownContext:
+    prefill: dict[str, Any]                 # {field_id: value}
+    provenance: dict[str, dict]             # {slot: {value, field_id, source, confidence}}
+    brief: Optional[str] = None
+
+
+def _is_empty(v: Any) -> bool:
+    return v is None or v == "" or v == [] or v == {}
+
+
+def _parse_alias(alias: str) -> tuple[str, str]:
+    """`facts:equipment` -> ("facts","equipment"). Unknown kind -> ("", key)."""
+    if ":" not in alias:
+        return "", alias
+    kind, key = alias.split(":", 1)
+    return kind.strip(), key.strip()
+
+
+def _read_alias(kind: str, key: str, src: _Sources) -> tuple[Any, Optional[str]]:
+    """Resolve one alias to (value, stated_at_date|None). Empty -> (None, None)."""
+    if kind == "onboarding":
+        return src.state.get(key), None
+    if kind == "facts":
+        val = src.facts.get(key)
+        stated = (src.facts.get("_stated_at") or {}).get(key)
+        return val, stated
+    if kind == "profile":
+        # profile_to_state_signals is flat; accept "dim.field" or bare "field".
+        last = key.split(".")[-1]
+        return src.profile_signals.get(last, src.profile_signals.get(key)), None
+    if kind == "scan":
+        return src.scan.get(key), None
+    return None, None
+
+
+def _is_fresh(stated_at: Optional[str], ttl_days: int) -> bool:
+    """A dated fact is fresh if within ttl_days; undated values are always fresh."""
+    if not stated_at:
+        return True
+    try:
+        d = _date.fromisoformat(str(stated_at)[:10])
+    except ValueError:
+        return True
+    return (_date.today() - d).days <= ttl_days
+
+
+def _hhmm_to_min(v: Any) -> Optional[int]:
+    s = str(v or "").strip()
+    if ":" not in s:
+        return None
+    try:
+        h, m = s.split(":", 1)
+        return (int(h) % 24) * 60 + int(m[:2])
+    except (ValueError, TypeError):
+        return None
+
+
+def _apply_derive(expr: str, src: _Sources) -> Any:
+    """Whitelisted, eval-free derivations. Today: span(a, b) = hour gap a->b
+    (wraparound-safe). Unknown derive -> None (logged)."""
+    expr = (expr or "").strip()
+    if expr.startswith("span(") and expr.endswith(")"):
+        inner = expr[len("span("):-1]
+        parts = [p.strip() for p in inner.split(",")]
+        if len(parts) != 2:
+            return None
+        lookup = {**src.facts, **src.state}
+        a = _hhmm_to_min(lookup.get(parts[0]))
+        b = _hhmm_to_min(lookup.get(parts[1]))
+        if a is None or b is None:
+            return None
+        return round(((b - a) % (24 * 60)) / 60.0, 1)
+    logger.warning("onboarding_gap: unknown derive expr %r ignored", expr)
+    return None
+
+
+def _resolve_slot(slot: InfoSlot, src: _Sources) -> Optional[dict]:
+    """Resolve one slot from known-context. Returns {value, source, confidence}
+    or None if genuinely unknown. Highest source-rank candidate wins."""
+    min_conf = slot.min_confidence if slot.min_confidence is not None else settings.slot_default_min_confidence
+    ttl = settings.slot_freshness_ttl_days
+    candidates: list[tuple[int, Any, str, float]] = []
+    for alias in slot.satisfied_by:
+        kind, key = _parse_alias(alias)
+        val, stated = _read_alias(kind, key, src)
+        if _is_empty(val):
+            continue
+        source, conf = _ALIAS_META.get(kind, ("inferred", 0.5))
+        if conf < min_conf:
+            continue
+        if not _is_fresh(stated, ttl):
+            continue
+        candidates.append((_SOURCE_RANK.get(source, 1), val, source, conf))
+    if candidates:
+        candidates.sort(key=lambda c: c[0], reverse=True)
+        _, val, source, conf = candidates[0]
+        return {"value": val, "source": source, "confidence": conf}
+    if slot.derive:
+        dv = _apply_derive(slot.derive, src)
+        if not _is_empty(dv) and 0.8 >= min_conf:
+            return {"value": dv, "source": "derived", "confidence": 0.8}
+    return None
+
+
+def resolve_prefill(schema: InfoSchema, src: _Sources) -> KnownContext:
+    """Pure: resolve every slot against the gathered sources -> prefill +
+    provenance. Field-backed, confidently-resolved slots feed prefill."""
+    prefill: dict[str, Any] = {}
+    provenance: dict[str, dict] = {}
+    for slot in schema.slots:
+        resolved = _resolve_slot(slot, src)
+        if not resolved:
+            continue
+        entry = {**resolved, "field_id": slot.field}
+        provenance[slot.slot] = entry
+        if slot.field:
+            prefill[slot.field] = resolved["value"]
+    return KnownContext(prefill=prefill, provenance=provenance, brief=src.brief)
+
+
+async def _gather_sources(db, user_id: str) -> _Sources:
+    """Read every known-context source. Each guarded independently so one
+    failing source never blanks the others (degrades toward fewer prefills)."""
+    from models.sqlalchemy_models import User
+    from services.user_context_service import (
+        get_context, merged_user_state, scan_derived_signals,
+    )
+    from services.personalization import get_profile, profile_to_state_signals
+    from services.user_facts_service import FACTS_KEY
+    from uuid import UUID
+
+    onboarding: dict[str, Any] = {}
+    try:
+        user = await db.get(User, UUID(str(user_id)))
+        onboarding = dict((user.onboarding if user else None) or {})
+    except Exception as e:
+        logger.debug("onboarding_gap: onboarding load skipped: %s", e)
+
+    context: dict[str, Any] = {}
+    try:
+        context = await get_context(user_id, db)
+    except Exception as e:
+        logger.debug("onboarding_gap: context load skipped: %s", e)
+
+    state = merged_user_state(onboarding, context)
+
+    profile_signals: dict[str, Any] = {}
+    brief: Optional[str] = None
+    try:
+        built = await get_profile(db, user_id)
+        profile_signals = profile_to_state_signals(built.get("profile") or {}, brief=built.get("brief"))
+        brief = built.get("brief")
+    except Exception as e:
+        logger.debug("onboarding_gap: profile load skipped: %s", e)
+
+    facts = dict(context.get(FACTS_KEY) or {})
+    scan = scan_derived_signals(state)
+    return _Sources(
+        onboarding=onboarding, context=context, state=state,
+        profile_signals=profile_signals, facts=facts, scan=scan, brief=brief,
+    )
+
+
+async def assemble_known_context(db, user_id: str, maxx_id: str) -> KnownContext:
+    """Deterministic (NO LLM) cross-source known-context assembly for a max.
+
+    Never raises into a chat turn: on any failure returns an empty KnownContext
+    so callers fall back to today's raw `missing_required` flow.
+    """
+    try:
+        from services.task_catalog_service import get_info_schema  # lazy: avoid import cycle
+        schema = get_info_schema(maxx_id)
+        if schema is None:
+            return KnownContext(prefill={}, provenance={}, brief=None)
+        src = await _gather_sources(db, user_id)
+        return resolve_prefill(schema, src)
+    except Exception:
+        logger.exception("assemble_known_context failed for max=%s", maxx_id)
+        return KnownContext(prefill={}, provenance={}, brief=None)
