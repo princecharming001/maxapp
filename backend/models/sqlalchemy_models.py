@@ -15,6 +15,7 @@ from sqlalchemy import (
     UniqueConstraint,
     JSON,
     Float,
+    LargeBinary,
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY, BIGINT, JSONB
 from sqlalchemy.ext.declarative import declarative_base
@@ -547,6 +548,9 @@ class CalendarConnection(Base):
     # OAuth tokens for cloud providers (google). EventKit/manual stay empty -
     # the on-device path never stores tokens (spec 4.8).
     tokens = Column(JSON, default=dict)
+    # Fernet-encrypted token blob (replaces plaintext tokens). Nullable so
+    # legacy rows (plaintext) still work via the tokens_decrypted property.
+    tokens_encrypted = Column(LargeBinary, nullable=True)
     last_synced_at = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -554,6 +558,17 @@ class CalendarConnection(Base):
     __table_args__ = (
         Index("idx_calendar_connections_user_id", user_id),
     )
+
+    @property
+    def tokens_decrypted(self) -> dict:
+        """Return tokens as a dict, decrypting tokens_encrypted if present, else
+        falling back to the legacy plaintext tokens column."""
+        import json
+        from services.secrets import decrypt_token
+        if self.tokens_encrypted:
+            raw = decrypt_token(self.tokens_encrypted)
+            return json.loads(raw)
+        return self.tokens or {}
 
 
 class CalendarEvent(Base):
@@ -1005,6 +1020,9 @@ class CreatorApplication(Base):
     instagram_url = Column(String, nullable=True)
     tiktok_handle = Column(String, nullable=True)
     tiktok_url = Column(String, nullable=True)
+    # Public profile signal pulled server-side at submit (per platform):
+    # { instagram: {followers, avatar_url, full_name, verified}, tiktok: {...} }.
+    social_stats = Column(JSON, default=dict)
 
     # pending | approved | rejected
     status = Column(String, default="pending", nullable=False)

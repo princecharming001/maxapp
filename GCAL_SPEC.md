@@ -83,7 +83,7 @@ Do them in order. Each: touch the listed files, then run the VERIFY. Early units
   Files: NEW `backend/services/secrets.py` (`encrypt_token`/`decrypt_token`, Fernet keyed off env `ENCRYPTION_KEY`; pass-through no-op + one-time warning when unset). NEW test `backend/tests/test_secrets.py` (round-trip with a key; pass-through without a key).
   VERIFY: `cd backend && pytest tests/test_secrets.py -q`.
 
-- [ ] **U2 — Encrypted token column + dual-read property (additive migration).**
+- [x] **U2 — Encrypted token column + dual-read property (additive migration). (2026-06-28)**
   Files: `backend/models/sqlalchemy_models.py` (`CalendarConnection.tokens_encrypted` LargeBinary nullable; `tokens_decrypted` @property: decrypt-then-fallback-to-`tokens`). Add a migration SQL under `backend/scripts/sql/` (additive `ADD COLUMN`, no drop).
   VERIFY: `cd backend && python -c "from models.sqlalchemy_models import CalendarConnection"`; pytest collection still green. Property returns plaintext when `tokens_encrypted` is null.
 
@@ -160,3 +160,4 @@ When all units are checked and completion criteria are met, output exactly:
 ## Iteration-Log
 - U0 (2026-06-28): Added `calendar_link_enabled` flag to config + `/status` response + mobile type; verified import + tsc clean.
 - U1 (2026-06-28): Created `services/secrets.py` (Fernet encrypt/decrypt, pass-through no-op without key) + `tests/test_secrets.py` (3 tests pass).
+- U2 (2026-06-28): Added `tokens_encrypted` LargeBinary column + `tokens_decrypted` property to `CalendarConnection`; migration SQL added; import + pytest collection verified.
