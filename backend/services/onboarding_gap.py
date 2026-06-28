@@ -12,7 +12,10 @@ U3 scope: Pydantic models (`InfoSlot`, `QuestionPlan`) + the pure, no-I/O
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+import time
 from dataclasses import dataclass, field as dc_field
 from datetime import date as _date
 from typing import Any, Literal, Optional
@@ -379,3 +382,172 @@ async def assemble_known_context(db, user_id: str, maxx_id: str) -> KnownContext
     except Exception:
         logger.exception("assemble_known_context failed for max=%s", maxx_id)
         return KnownContext(prefill={}, provenance={}, brief=None)
+
+
+# --------------------------------------------------------------------------- #
+# Question planning LLM step (bounded / cached / fenced; flag-gated by caller)
+# --------------------------------------------------------------------------- #
+_IMPORTANCE_RANK = {"high": 3, "medium": 2, "low": 1}
+
+# Static system prompt = the cacheable prefix (ephemeral prompt-cache target).
+_PLAN_SYSTEM_PROMPT = (
+    "You phrase onboarding questions for a looksmaxxing coach. You are given an "
+    "EXACT set of information slots that are genuinely missing for this user and "
+    "must be collected. Produce an ORDERED question plan using ONLY the provided "
+    "slot ids — never invent a slot. For each slot choose action 'ask' (normal) "
+    "or 'confirm' (a low-confidence/stale known value, render as a yes/no). Adapt "
+    "the wording to the user's brief, but the answer must still fit the slot's "
+    "field type and options. Drop a slot only if it is clearly already known. "
+    "Return STRICT JSON: "
+    '{"plan":[{"slot":str,"action":"ask"|"confirm","adapted_question":str,'
+    '"reason":str}],"skipped":[{"slot":str,"reason":str}]}. No prose, JSON only.'
+)
+
+# Memoization: (cache_key) -> (inserted_at_epoch, QuestionPlan)
+_PLAN_CACHE: dict[str, tuple[float, QuestionPlan]] = {}
+
+
+def _gap_slot_map(maxx_id: str, gap_specs: list[dict]) -> dict[str, str]:
+    """Map each gap field id -> its slot id (falls back to field id itself)."""
+    from services.task_catalog_service import get_info_schema  # lazy: import cycle
+
+    schema = get_info_schema(maxx_id)
+    out: dict[str, str] = {}
+    for spec in gap_specs:
+        fid = str(spec.get("id") or "")
+        if not fid:
+            continue
+        slot_id = fid
+        if schema:
+            slot = schema.slot_for_field(fid)
+            if slot:
+                slot_id = slot.slot
+        out[fid] = slot_id
+    return out
+
+
+def _slot_importance(maxx_id: str, slot_id: str) -> str:
+    from services.task_catalog_service import get_info_schema  # lazy
+
+    schema = get_info_schema(maxx_id)
+    if schema:
+        slot = next((s for s in schema.slots if s.slot == slot_id), None)
+        if slot:
+            return slot.importance
+    return "high"
+
+
+def _plan_cache_key(maxx_id: str, gap_specs: list[dict], brief: Optional[str]) -> str:
+    ids = sorted(str(s.get("id") or "") for s in gap_specs)
+    raw = json.dumps({"m": maxx_id, "g": ids, "b": brief or ""}, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _complete_json(system_prompt: str, user_payload: dict) -> str:
+    """Single bounded provider call returning raw JSON text. SYNC — callers run
+    it off-thread. Isolated so tests can stub the provider boundary cleanly."""
+    import asyncio
+
+    from langchain_core.messages import SystemMessage, HumanMessage
+    from services.lc_providers import get_sync_json_llm
+
+    llm = get_sync_json_llm(max_tokens=1500)
+    msgs = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=json.dumps(user_payload, ensure_ascii=False)),
+    ]
+    resp = llm.invoke(msgs)
+    content = getattr(resp, "content", resp)
+    if isinstance(content, list):  # some providers return content blocks
+        content = "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in content)
+    return str(content or "")
+
+
+def _parse_plan(raw: str) -> QuestionPlan:
+    s = (raw or "").strip()
+    if s.startswith("```"):
+        parts = s.split("```", 2)
+        if len(parts) >= 2:
+            body = parts[1]
+            if body.lstrip().lower().startswith("json"):
+                body = body.lstrip()[4:]
+            s = body.strip()
+    return QuestionPlan.model_validate(json.loads(s))
+
+
+def _fence_plan(
+    maxx_id: str,
+    plan: QuestionPlan,
+    gap_specs: list[dict],
+    provenance: dict[str, dict],
+) -> QuestionPlan:
+    """Server-side allow-list fence over the LLM output:
+    - drop slots not in the gap set (hallucinated);
+    - dedup by slot (first wins);
+    - drop high-confidence-known slots unless action == confirm;
+    - re-sort by doc importance (high>medium>low), stable within a tier;
+    - cap length at len(gap_specs)."""
+    slot_by_field = _gap_slot_map(maxx_id, gap_specs)
+    gap_slots = set(slot_by_field.values())
+
+    seen: set[str] = set()
+    kept: list[QuestionPlanItem] = []
+    for item in plan.plan:
+        sid = item.slot
+        if sid not in gap_slots or sid in seen:
+            continue
+        prov = provenance.get(sid)
+        if prov and prov.get("confidence", 0) >= 0.85 and item.action != "confirm":
+            continue  # already confidently known — don't blind re-ask
+        seen.add(sid)
+        kept.append(item)
+
+    kept.sort(key=lambda it: _IMPORTANCE_RANK.get(_slot_importance(maxx_id, it.slot), 0), reverse=True)
+    kept = kept[: len(gap_specs)]
+    return QuestionPlan(plan=kept, skipped=plan.skipped)
+
+
+def plan_questions(
+    maxx_id: str,
+    gap_specs: list[dict],
+    provenance: dict[str, dict],
+    brief: Optional[str],
+) -> Optional[QuestionPlan]:
+    """One bounded LLM call that ORDERS + phrases the genuine gap into a question
+    plan. SYNC (run off-thread by the async caller). Memoized per
+    (maxx, gap, brief) for `dynamic_questions_cache_ttl_s`. Returns None on ANY
+    failure (timeout/empty/parse/exception) so the caller degrades to the
+    deterministic rung. NEVER widens the gap — output is fenced to gap_specs."""
+    if not gap_specs:
+        return QuestionPlan(plan=[], skipped=[])
+
+    key = _plan_cache_key(maxx_id, gap_specs, brief)
+    hit = _PLAN_CACHE.get(key)
+    if hit and (time.time() - hit[0]) < settings.dynamic_questions_cache_ttl_s:
+        return hit[1]
+
+    try:
+        slot_by_field = _gap_slot_map(maxx_id, gap_specs)
+        slots_payload = []
+        for spec in gap_specs:
+            fid = str(spec.get("id") or "")
+            sid = slot_by_field.get(fid, fid)
+            slots_payload.append({
+                "slot": sid,
+                "needs": spec.get("question") or spec.get("why") or fid,
+                "field_type": spec.get("type") or "str",
+                "options": list((spec.get("options") or {}).keys()) if isinstance(spec.get("options"), dict) else None,
+                "importance": _slot_importance(maxx_id, sid),
+            })
+        user_payload = {"maxx_id": maxx_id, "slots": slots_payload, "brief": brief or ""}
+
+        raw = _complete_json(_PLAN_SYSTEM_PROMPT, user_payload)
+        if not (raw or "").strip():
+            return None
+        parsed = _parse_plan(raw)
+        fenced = _fence_plan(maxx_id, parsed, gap_specs, provenance)
+        _PLAN_CACHE[key] = (time.time(), fenced)
+        return fenced
+    except Exception:
+        logger.exception("plan_questions failed for max=%s; falling back", maxx_id)
+        return None

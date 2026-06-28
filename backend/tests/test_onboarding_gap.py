@@ -238,3 +238,67 @@ def test_get_pending_accepts_old_and_new_shape():
     new = make_plan_pending("skinmax", ["a", "b"], idx=0)
     got = get_pending({PENDING_KEY: new})
     assert got["max"] == "skinmax" and got.get("plan") == ["a", "b"]
+
+
+def test_plan_questions_fence(monkeypatch):
+    """The LLM output is fenced: hallucinated slots dropped, dups removed,
+    importance-ordered, capped at gap length."""
+    import asyncio as _asyncio
+    import json as _json
+    from services import task_catalog_service as tcs
+    from services import onboarding_gap as og
+
+    _asyncio.run(tcs.warm_catalog())
+    maxx_id = "bonemax"
+    doc = tcs.get_doc(maxx_id)
+    # Use three real required fields as the gap.
+    gap_specs = [f for f in doc.required_fields if f.get("required", True)][:3]
+    schema = tcs.get_info_schema(maxx_id)
+    slot_ids = [schema.slot_for_field(f["id"]).slot for f in gap_specs]
+
+    # Stub returns: a hallucinated slot, a duplicate of slot_ids[2], then the
+    # real slots in REVERSE order — fence must clean all of that up.
+    fake_plan = {
+        "plan": [
+            {"slot": "TOTALLY_FAKE_SLOT", "action": "ask", "adapted_question": "q?", "reason": "x"},
+            {"slot": slot_ids[2], "action": "ask", "adapted_question": "dup", "reason": "x"},
+            {"slot": slot_ids[2], "action": "ask", "adapted_question": "dup2", "reason": "x"},
+            {"slot": slot_ids[1], "action": "ask", "adapted_question": "q1", "reason": "x"},
+            {"slot": slot_ids[0], "action": "ask", "adapted_question": "q0", "reason": "x"},
+        ],
+        "skipped": [],
+    }
+    monkeypatch.setattr(og, "_complete_json", lambda s, u: _json.dumps(fake_plan))
+
+    plan = og.plan_questions(maxx_id, gap_specs, provenance={}, brief=None)
+    assert plan is not None
+    out_slots = [it.slot for it in plan.plan]
+    # No hallucinated slot, no dup, all in-gap, capped at gap length.
+    assert "TOTALLY_FAKE_SLOT" not in out_slots
+    assert len(out_slots) == len(set(out_slots))  # deduped
+    assert set(out_slots) <= set(slot_ids)
+    assert len(out_slots) <= len(gap_specs)
+    # Importance-ordered (non-increasing).
+    ranks = [og._IMPORTANCE_RANK.get(og._slot_importance(maxx_id, s), 0) for s in out_slots]
+    assert ranks == sorted(ranks, reverse=True)
+
+
+def test_plan_questions_fallback(monkeypatch):
+    """Provider raising / empty output => plan_questions returns None."""
+    from services import task_catalog_service as tcs
+    from services import onboarding_gap as og
+    import asyncio as _asyncio
+
+    _asyncio.run(tcs.warm_catalog())
+    maxx_id = "bonemax"
+    gap_specs = [f for f in tcs.get_doc(maxx_id).required_fields if f.get("required", True)][:2]
+
+    def _boom(s, u):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(og, "_complete_json", _boom)
+    assert og.plan_questions(maxx_id, gap_specs, provenance={}, brief=None) is None
+
+    # Empty output also -> None.
+    monkeypatch.setattr(og, "_complete_json", lambda s, u: "   ")
+    assert og.plan_questions(maxx_id, gap_specs, provenance={}, brief="x") is None
