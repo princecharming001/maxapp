@@ -103,7 +103,7 @@ Do them in order. Each: touch the listed files, then run the VERIFY. Early units
   Files: `mobile/screens/today/TodayScreen.tsx` (row mapper L155-162: carry `source` + `event_id` + `all_day`; render `source==='calendar'` rows MUTE with calendar glyph + "Calendar" tag, NO check-circle, long-press → `removeCalendarEvent`; render `all_day` as a quiet pill).
   VERIFY: `cd mobile && npx tsc --noEmit`. Read the file to confirm calendar rows are visually distinct and non-completable.
 
-- [ ] **U7 — ScheduleGrid `calendarEvents` prop.**
+- [x] **U7 — ScheduleGrid `calendarEvents` prop. (2026-06-28)**
   Files: `mobile/components/planner/ScheduleGrid.tsx` (new optional `calendarEvents` prop; in `buildEvents` after obligations loop push read-only `Ev` per event: `key=cal-${event_id}`, accent `#B0B0B8`, `onPress:undefined`, `source:'calendar'`; card omits/hairlines tick + glyph; all-day → top pill).
   VERIFY: `cd mobile && npx tsc --noEmit`. Existing planner with no calendarEvents prop renders unchanged (prop optional, defaults `[]`).
 
@@ -165,3 +165,4 @@ When all units are checked and completion criteria are met, output exactly:
 - U4 (2026-06-28): `DELETE /google/disconnect` added (best-effort revoke, clear tokens, purge events); `disconnectGoogle()` added to mobile api.ts; tsc + import clean.
 - U5 (2026-06-28): All-day events emit `{all_day:true, source:'calendar', event_id}` pill row, excluded from `cal_spans`/`calendar_busy_minutes`; timed events unchanged.
 - U6 (2026-06-28): TodayScreen threads `source`/`event_id`/`all_day` through row mapper; calendar rows render MUTE with calendar glyph + "Calendar" tag, no check-circle, long-press removes; all-day as pill; tsc clean.
+- U7 (2026-06-28): ScheduleGrid: `calendarEvents` optional prop + `CalendarEventRow` type; calendar Ev pushed after obligations with `#B0B0B8` accent, `onPress:undefined`, hairline tick, calendar glyph; tsc clean.

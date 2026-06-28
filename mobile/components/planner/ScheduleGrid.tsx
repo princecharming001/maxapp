@@ -13,6 +13,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LiquidGlassFill } from '../glass/LiquidGlass';
 import { colors, fonts } from '../../theme/dark';
 import type { ShapeFocus } from './DayEditorSheet';
@@ -29,6 +30,7 @@ import {
 const WORKOUT_ACCENT = '#2F6B4E';
 const OB_INK = '#34343B';
 const NOW_ACCENT = '#111113';      // the "now" line — black
+const CAL_ACCENT = '#B0B0B8';     // calendar event accent (read-only, lighter than OB_INK)
 
 const HOUR_H = 56;                 // pixels per hour (full scale)
 const PX_PER_MIN = HOUR_H / 60;
@@ -49,6 +51,15 @@ type Ev = {
   sub?: string;
   accent: string;
   onPress?: () => void;
+  source?: 'calendar';
+};
+
+export type CalendarEventRow = {
+  event_id: string;
+  time?: string;
+  end?: string;
+  label: string;
+  all_day?: boolean;
 };
 
 type Seg = { s: number; e: number; y0: number; y1: number; compressed: boolean };
@@ -79,6 +90,7 @@ function buildEvents(
   scope: Scope,
   onEditShape: (focus: ShapeFocus) => void,
   onEditObligation?: (index: number) => void,
+  calendarEvents: CalendarEventRow[] = [],
 ): Ev[] {
   const evs: Ev[] = [];
 
@@ -118,6 +130,23 @@ function buildEvents(
       key: `ob-${i}-${o.start}`, start: s, end: e,
       label: o.label, accent: OB_INK,
       onPress: onEditObligation && i >= 0 ? () => onEditObligation(i) : undefined,
+    });
+  }
+
+  // Calendar events (read-only; all-day events are rendered as pills elsewhere)
+  for (const ev of calendarEvents) {
+    if (ev.all_day || !ev.time) continue; // skip all-day — shown as top pill
+    const s = toMin(ev.time);
+    let e = ev.end ? toMin(ev.end) : s + 30;
+    if (e <= s) e = s + 30;
+    evs.push({
+      key: `cal-${ev.event_id}`,
+      start: s,
+      end: e,
+      label: ev.label,
+      accent: CAL_ACCENT,
+      onPress: undefined,
+      source: 'calendar',
     });
   }
 
@@ -221,7 +250,7 @@ function inCompressedGap(segs: Seg[], min: number): boolean {
 }
 
 export default function ScheduleGrid({
-  day, obligations, scope, onEditShape, onEditObligation, isToday = false,
+  day, obligations, scope, onEditShape, onEditObligation, isToday = false, calendarEvents = [],
 }: {
   day: DayShape;
   obligations: Obligation[];
@@ -229,8 +258,9 @@ export default function ScheduleGrid({
   onEditShape: (focus: ShapeFocus) => void;
   onEditObligation?: (index: number) => void;
   isToday?: boolean;
+  calendarEvents?: CalendarEventRow[];
 }) {
-  const evs = buildEvents(day, obligations, scope, onEditShape, onEditObligation);
+  const evs = buildEvents(day, obligations, scope, onEditShape, onEditObligation, calendarEvents);
 
   // Live "now" — only ticks while viewing today (keeps the indicator current).
   const [now, setNow] = useState(nowMinutes);
@@ -345,14 +375,24 @@ export default function ScheduleGrid({
                   {e.accent === WORKOUT_ACCENT ? (
                     <View pointerEvents="none" style={styles.cardAccentWash} />
                   ) : null}
-                  <View style={[styles.tick, { backgroundColor: e.accent }]} />
+                  {/* Hairline tick — calendar events use a thin opacity line */}
+                  <View style={[
+                    styles.tick,
+                    { backgroundColor: e.accent },
+                    e.source === 'calendar' && { opacity: 0.4 },
+                  ]} />
                   <View style={[styles.cardBody, tiny && styles.cardBodyTiny]}>
-                    <Text
-                      style={[styles.cardTitle, narrow && styles.cardTitleNarrow]}
-                      numberOfLines={tiny ? 1 : 2}
-                    >
-                      {e.label}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      {e.source === 'calendar' ? (
+                        <Ionicons name="calendar-outline" size={10} color={CAL_ACCENT} />
+                      ) : null}
+                      <Text
+                        style={[styles.cardTitle, narrow && styles.cardTitleNarrow, e.source === 'calendar' && { color: CAL_ACCENT }]}
+                        numberOfLines={tiny ? 1 : 2}
+                      >
+                        {e.label}
+                      </Text>
+                    </View>
                     {!tiny && cardH >= 44 ? (
                       <Text style={styles.cardTime} numberOfLines={1}>
                         {fmt12Compact(min2hhmm(e.start))} – {fmt12Compact(min2hhmm(e.end))}
