@@ -2,9 +2,9 @@
  * TimePicker — the planner's one way to change a time.
  *
  * A horizontal RAIL (not the usual iOS vertical drum): times slide left/right and
- * snap, the centred one is the selection — shown large in the Fraunces serif so it
- * reads as a deliberate, editorial control rather than a stock picker. A window
- * stacks two rails (From / To) and keeps them ordered.
+ * snap, the centred one is the selection — shown large in Matter (tabular figures)
+ * so it reads clean and on-theme rather than as a stock picker. A window stacks two
+ * rails (From / To) and keeps them ordered.
  *
  * Pure JS (no native module): a snapping horizontal ScrollView whose offset drives
  * per-item opacity/scale, plus tap-an-item-to-centre.
@@ -284,9 +284,10 @@ const styles = StyleSheet.create({
   },
   item: { height: RAIL_H, alignItems: 'center', justifyContent: 'center' },
   itemText: {
-    fontFamily: fonts.serif,
-    fontSize: 26,
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 25,
     color: colors.foreground,
-    letterSpacing: -0.4,
+    letterSpacing: -0.2,
+    fontVariant: ['tabular-nums'],
   },
 });
