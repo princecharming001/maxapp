@@ -1,4 +1,5 @@
 import React, { useState, type ComponentProps } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
     View,
     Text,
@@ -81,6 +82,13 @@ export default function SettingsScreen() {
     const [deleteBusy, setDeleteBusy] = useState(false);
 
     const openDoc = (document: LegalDocId) => navigation.navigate('LegalDocument', { document });
+
+    const googleStatusQ = useQuery({
+        queryKey: ['googleStatus'],
+        queryFn: () => api.getGoogleStatus(),
+        staleTime: 60_000,
+    });
+    const showCalendarRow = googleStatusQ.data?.calendar_link_enabled === true;
 
     const openSupport = () => {
         const q = `subject=${encodeURIComponent('Max support')}`;
@@ -169,6 +177,13 @@ export default function SettingsScreen() {
                         label="My products"
                         onPress={() => navigation.navigate('MyProducts')}
                     />
+                    {showCalendarRow ? (
+                        <Row
+                            label="Google Calendar"
+                            hint={googleStatusQ.data?.connected ? 'Connected' : 'Link your calendar'}
+                            onPress={() => navigation.navigate('GoogleCalendarConnect')}
+                        />
+                    ) : null}
                     {/* Response length lives in the chat sidebar — keep
                         Settings focused on profile + account / legal. */}
                 </View>

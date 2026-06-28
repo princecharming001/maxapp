@@ -111,7 +111,7 @@ Do them in order. Each: touch the listed files, then run the VERIFY. Early units
   Files: `mobile/screens/profile/DayPlannerScreen.tsx` (add a `getPlannerToday(selectedIso)` query gated on `getGoogleStatus().connected && calendar_link_enabled`; derive `structure.filter(s=>s.source==='calendar')`; pass as `calendarEvents` to `ScheduleGrid`). Null-safe: when not connected, pass `[]` and incur no extra fetch.
   VERIFY: `cd mobile && npx tsc --noEmit`. Confirm unconnected users do NOT trigger the extra call.
 
-- [ ] **U9 — Connect screen + Settings entry (OTA, browser flow).**
+- [x] **U9 — Connect screen + Settings entry (OTA, browser flow). (2026-06-28)**
   Files: NEW `mobile/screens/integrations/GoogleCalendarConnectScreen.tsx` (mirror `SendblueConnectScreen`: title, `getGoogleAuthUrl()` → `Linking.openURL`, poll `getGoogleStatus()` every ~4s until `connected`, success + Skip + Disconnect states; hidden unless `calendar_link_enabled`). `mobile/screens/profile/SettingsScreen.tsx` (row after "My products"). `mobile/navigation/RootNavigator.tsx` (register modal/screen).
   VERIFY: `cd mobile && npx tsc --noEmit`. Confirm the row/screen is gated off when flag is false.
 
@@ -167,3 +167,4 @@ When all units are checked and completion criteria are met, output exactly:
 - U6 (2026-06-28): TodayScreen threads `source`/`event_id`/`all_day` through row mapper; calendar rows render MUTE with calendar glyph + "Calendar" tag, no check-circle, long-press removes; all-day as pill; tsc clean.
 - U7 (2026-06-28): ScheduleGrid: `calendarEvents` optional prop + `CalendarEventRow` type; calendar Ev pushed after obligations with `#B0B0B8` accent, `onPress:undefined`, hairline tick, calendar glyph; tsc clean.
 - U8 (2026-06-28): DayPlannerScreen: `googleStatus` + `plannerToday` queries gated on `connected && calendar_link_enabled`; `calendarEvents` derived + passed to ScheduleGrid; unconnected users incur no extra fetch; tsc clean.
+- U9 (2026-06-28): GoogleCalendarConnectScreen created (poll/connect/disconnect/browser flow); SettingsScreen row gated on `calendar_link_enabled`; RootNavigator registered; tsc clean.
