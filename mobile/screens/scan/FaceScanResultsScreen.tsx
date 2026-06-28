@@ -189,7 +189,6 @@ function computeDisplayPotential(rawPotential: number, treatAsPaid: boolean, rat
 }
 
 type RouteParams = { postPay?: boolean };
-const SHARE_CARD_WIDTH = 390;
 
 async function captureRatingCardToPng(ref: React.RefObject<View | null>): Promise<string | null> {
     if (!ref.current) return null;
@@ -201,83 +200,6 @@ async function captureRatingCardToPng(ref: React.RefObject<View | null>): Promis
         return typeof uri === 'string' ? uri : null;
     } catch (e) { console.error('captureRef failed', e); return null; }
 }
-
-// ─── Share card (off-screen capture) ─────────────────────────────────────────
-
-function ResultsRatingShareCard({
-    cardRef, frontUri, ratingDisplay, potentialDisplay, ratingColorScore,
-    appealScore, pslTier, archetype, ascensionLabelText, ageScore, onShareImageEvent,
-}: {
-    cardRef: React.RefObject<View | null>;
-    frontUri: string | null;
-    ratingDisplay: number | null;
-    potentialDisplay: number;
-    ratingColorScore: number;
-    appealScore: number;
-    pslTier: string;
-    archetype: string;
-    ascensionLabelText: string;
-    ageScore: number;
-    onShareImageEvent: () => void;
-}) {
-    return (
-        <View ref={cardRef} style={sc.root} collapsable={false}>
-            <Text style={sc.kicker}>AI facial analysis</Text>
-            {frontUri ? (
-                <View style={sc.photoRing} collapsable={false}>
-                    <CachedImage uri={frontUri} style={sc.photo} onLoad={onShareImageEvent} onError={onShareImageEvent} />
-                </View>
-            ) : <View style={[sc.photoRing, sc.photoPlaceholder]} collapsable={false} />}
-            {/* The three headline metrics — same as the top of the scan. */}
-            <View style={sc.scoreRow}>
-                <View style={sc.scoreOrb} collapsable={false}>
-                    <Text style={sc.orbLabel}>RATING</Text>
-                    <View style={sc.orbNums}>
-                        <Text style={[sc.orbNum, ratingDisplay != null ? { color: getScoreColor(ratingColorScore) } : null]}>
-                            {ratingDisplay != null ? ratingDisplay.toFixed(1) : '—'}
-                        </Text>
-                        <Text style={sc.orbOut}>/10</Text>
-                    </View>
-                </View>
-                <View style={sc.scoreOrb} collapsable={false}>
-                    <Text style={sc.orbLabel}>APPEAL</Text>
-                    <View style={sc.orbNums}>
-                        <Text style={[sc.orbNum, { color: getScoreColor(appealScore) }]}>{appealScore.toFixed(1)}</Text>
-                        <Text style={sc.orbOut}>/10</Text>
-                    </View>
-                </View>
-                <View style={sc.scoreOrb} collapsable={false}>
-                    <Text style={sc.orbLabel}>POTENTIAL</Text>
-                    <View style={sc.orbNums}>
-                        <Text style={[sc.orbNum, { color: getScoreColor(potentialDisplay) }]}>{potentialDisplay.toFixed(1)}</Text>
-                        <Text style={sc.orbOut}>/10</Text>
-                    </View>
-                </View>
-            </View>
-            <Text style={sc.brand}>MAX</Text>
-        </View>
-    );
-}
-
-const sc = StyleSheet.create({
-    root: { width: SHARE_CARD_WIDTH, backgroundColor: colors.background, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 32, alignItems: 'center' },
-    kicker: { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: 1.2, marginBottom: 16, textAlign: 'center' },
-    photoRing: { width: 200, height: 200, borderRadius: 100, overflow: 'hidden', borderWidth: 3, borderColor: colors.border, marginBottom: 20, backgroundColor: colors.surface },
-    photoPlaceholder: { backgroundColor: colors.surface },
-    photo: { width: '100%', height: '100%' },
-    scoreRow: { flexDirection: 'row', justifyContent: 'center', gap: 13, marginBottom: 4, width: '100%' },
-    scoreOrb: { width: 106, height: 106, borderRadius: 53, backgroundColor: colors.card, borderWidth: 2, borderColor: colors.borderLight, alignItems: 'center', justifyContent: 'center' },
-    orbLabel: { fontSize: 8.5, fontWeight: '700', color: colors.textMuted, marginBottom: 4, letterSpacing: 0.5 },
-    orbNums: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 2 },
-    orbNum: { fontSize: 30, fontWeight: '800', color: colors.foreground },
-    orbOut: { fontSize: 12, fontWeight: '600', color: colors.textMuted, paddingBottom: 3 },
-    statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: '100%', justifyContent: 'space-between' },
-    statCell: { width: '48%', backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: 12, borderWidth: 1, borderColor: colors.border },
-    statCellWide: { width: '100%' },
-    statLabel: { fontSize: 10, fontWeight: '700', color: colors.textMuted, marginBottom: 4, letterSpacing: 0.6 },
-    statValue: { fontSize: 15, fontWeight: '700', color: colors.foreground },
-    brand: { fontFamily: fonts.serif, fontSize: 12, letterSpacing: 2, color: colors.textMuted, textAlign: 'center', marginTop: 16, opacity: 0.5 },
-});
 
 // ─── Paywall blur shell ───────────────────────────────────────────────────────
 
@@ -1046,14 +968,6 @@ export default function FaceScanResultsScreen() {
     if (!pslTier && typeof a?.psl_tier === 'string') pslTier = a.psl_tier.trim();
     if (!pslTier && typeof facialSummary?.psl_tier === 'string') pslTier = facialSummary.psl_tier.trim();
     if (!pslTier) { const t = inferPslTierFromScore(overallScore); if (t) pslTier = t; }
-    const ascensionMonths =
-        typeof pr?.ascension_time_months === 'number' && !Number.isNaN(pr.ascension_time_months)
-            ? pr.ascension_time_months
-            : parseInt(String(pr?.ascension_time_months || '0'), 10) || 0;
-    const ageScore =
-        typeof pr?.age_score === 'number' && !Number.isNaN(pr.age_score)
-            ? pr.age_score
-            : parseInt(String(pr?.age_score || '0'), 10) || 0;
     // ── New viral metrics (halo / failo / sex+trust / dimorphism / glow-up / first move) ──
     const _num10 = (v: any): number | null => {
         const n = parseFloat(String(v ?? ''));
@@ -1232,9 +1146,6 @@ export default function FaceScanResultsScreen() {
             </View>
         );
     }
-
-    const ascensionLabelText = ascensionMonths > 0 ? `${ascensionMonths} months` : '—';
-    const ratingColorScore = ratingDisplay ?? RATING_DISPLAY_MIN;
 
     // Metric cards data
     const METRICS = [
@@ -1981,7 +1892,4 @@ const s = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.6)',
         alignItems: 'center', justifyContent: 'center',
     },
-
-    /* ── Off-screen share card ── */
-    shareCardOffscreen: { position: 'absolute', width: SHARE_CARD_WIDTH, left: -4000, top: 0, opacity: 1 },
 });
