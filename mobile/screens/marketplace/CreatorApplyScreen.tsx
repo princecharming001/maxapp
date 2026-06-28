@@ -509,13 +509,13 @@ const styles = StyleSheet.create({
     inputMulti: { minHeight: 96, textAlignVertical: 'top', textAlign: 'left', fontSize: 18, lineHeight: 26, fontFamily: 'Matter-Regular' },
 
     // social linker
-    linkerBlock: {},
+    linkerBlock: { gap: 12 },
     linkerRow: {
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: CARD, borderRadius: 16, paddingHorizontal: 14, height: 56, ...SOFT,
     },
-    linkerAt: { fontFamily: 'Matter-Medium', fontSize: 16, color: SUB, marginRight: 1 },
-    linkerInput: { flex: 1, fontFamily: 'Matter-Medium', fontSize: 16, color: INK, padding: 0 },
+    linkerAt: { fontFamily: 'Matter-Medium', fontSize: 16, color: SUB, marginRight: 2, marginLeft: 4 },
+    linkerInput: { flex: 1, fontFamily: 'Matter-Medium', fontSize: 16, color: INK, padding: 0, marginRight: 4 },
     linkBtn: { paddingHorizontal: 16, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
     linkBtnOff: { opacity: 0.5 },
     linkBtnText: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: INK },

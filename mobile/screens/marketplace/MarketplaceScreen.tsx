@@ -414,7 +414,7 @@ export default function MarketplaceScreen() {
 
                 {/* Pill tabs — All / Native / Creator */}
                 <View style={[styles.gutter, styles.tabs]}>
-                    {([['mine', 'My maxes'], ['all', 'All'], ['native', 'Native'], ['creator', 'Creator']] as const).map(([key, label]) => {
+                    {([['mine', 'Active'], ['all', 'All'], ['native', 'Native'], ['creator', 'Creator']] as const).map(([key, label]) => {
                         const on = tab === key;
                         return (
                             <TouchableOpacity
