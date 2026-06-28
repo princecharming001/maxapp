@@ -1350,7 +1350,11 @@ export default function MaxChatScreen() {
                     }}
                 />
 
-                {!historyReady && chatHistoryQuery.isPending ? (
+                {!historyReady && chatHistoryQuery.isPending && !route.params?.initSchedule ? (
+                    // Full-screen spinner only for a normal cold Chat-tab entry.
+                    // For the Start-schedule onboarding entry, render the list so
+                    // the optimistic user line + typing shimmer show immediately
+                    // (T6 prefetch warms history so historyReady flips fast anyway).
                     <View style={styles.historyLoading}>
                         <ActivityIndicator size="large" color={colors.foreground} />
                     </View>
