@@ -27,8 +27,9 @@ import {
   Platform,
   KeyboardAvoidingView,
   useWindowDimensions,
-  Animated,
 } from 'react-native'
+import Animated from 'react-native-reanimated';
+import { GestureDetector } from 'react-native-gesture-handler';
 import { Alert, InAppAlertHost } from '../InAppAlert';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -290,7 +291,7 @@ export default function DayEditorSheet({
 
   // Swipe the sheet down (from the grabber/header) to dismiss — routes through
   // requestClose so a dirty sheet still confirms before discarding.
-  const { translateY, panHandlers } = useSwipeDownDismiss(requestClose);
+  const { gesture, animatedStyle } = useSwipeDownDismiss(requestClose);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={requestClose}>
@@ -300,20 +301,22 @@ export default function DayEditorSheet({
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.sheetWrap}
         >
-          <Animated.View style={[styles.sheet, { maxHeight: sheetMaxH, transform: [{ translateY }] }]}>
-            <View {...panHandlers}>
-              <View style={styles.grabber} />
-              <View style={styles.header}>
-                <TouchableOpacity onPress={requestClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="close" size={22} color={colors.textMuted} />
-                </TouchableOpacity>
-                <View style={styles.headerCenter}>
-                  <Text style={styles.headerTitle}>{focus ? FOCUS_TITLE[focus] : scopeLong}</Text>
-                  {focus ? <Text style={styles.headerSub}>{scopeLong}</Text> : null}
+          <Animated.View style={[styles.sheet, { maxHeight: sheetMaxH }, animatedStyle]}>
+            <GestureDetector gesture={gesture}>
+              <View>
+                <View style={styles.grabber} />
+                <View style={styles.header}>
+                  <TouchableOpacity onPress={requestClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close" size={22} color={colors.textMuted} />
+                  </TouchableOpacity>
+                  <View style={styles.headerCenter}>
+                    <Text style={styles.headerTitle}>{focus ? FOCUS_TITLE[focus] : scopeLong}</Text>
+                    {focus ? <Text style={styles.headerSub}>{scopeLong}</Text> : null}
+                  </View>
+                  <View style={{ width: 22 }} />
                 </View>
-                <View style={{ width: 22 }} />
               </View>
-            </View>
+            </GestureDetector>
 
             <ScrollView
               style={{ flexShrink: 1 }}

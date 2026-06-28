@@ -1,52 +1,80 @@
 /**
- * useSwipeDownDismiss — drag-to-dismiss for bottom-sheet modals.
+ * useSwipeDownDismiss — interactive drag-to-dismiss for bottom-sheet modals.
  *
- * Returns an Animated `translateY` to put on the sheet's transform, and
- * `panHandlers` to spread onto the sheet's TOP drag zone (the grabber + header)
- * — NOT the scrolling body, so inner ScrollViews/inputs keep working. A
- * downward drag follows the finger; releasing past a distance/velocity threshold
- * calls `onDismiss` (which may itself confirm, e.g. a discard prompt), and the
- * sheet springs back to rest so it's correct whether or not the close proceeds.
+ * Press and drag the sheet DOWN and it follows your finger live (on the UI
+ * thread); release and it either springs back to rest (small drag) or, past a
+ * distance/velocity threshold, calls `onDismiss` (which may itself confirm —
+ * e.g. a discard prompt) — exactly the rubber-band behaviour iOS sheets use.
  *
- * Built on RN Animated + PanResponder — no new native modules.
+ * Usage:
+ *   const { gesture, animatedStyle } = useSwipeDownDismiss(onClose);
+ *   <Animated.View style={[styles.sheet, animatedStyle]}>      // Reanimated view
+ *     <GestureDetector gesture={gesture}>
+ *       <View>{grabber + header}</View>                        // the drag zone
+ *     </GestureDetector>
+ *     <ScrollView>…</ScrollView>                                // body scrolls free
+ *   </Animated.View>
+ *
+ * Built on Reanimated + gesture-handler so the drag tracks at 60fps. (The old
+ * PanResponder version mixed a JS `setValue` with a native-driver spring on one
+ * Animated.Value, which silently stopped the sheet from following the finger.)
  */
-import { useRef } from 'react';
-import { Animated, PanResponder } from 'react-native';
+import { useMemo, useRef } from 'react';
+import { Gesture } from 'react-native-gesture-handler';
+import {
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+    runOnJS,
+} from 'react-native-reanimated';
 
 export function useSwipeDownDismiss(
     onDismiss: () => void,
     opts?: { distance?: number; velocity?: number },
 ) {
-    const distance = opts?.distance ?? 110;
-    const velocity = opts?.velocity ?? 0.6;
-    const translateY = useRef(new Animated.Value(0)).current;
+    // distance = px dragged before release dismisses; velocity = a flick speed
+    // (px/s — gesture-handler units) that dismisses even on a short drag.
+    const distance = opts?.distance ?? 120;
+    const velocity = opts?.velocity ?? 900;
+
+    const translateY = useSharedValue(0);
     const dismissRef = useRef(onDismiss);
     dismissRef.current = onDismiss;
+    const fireDismiss = () => dismissRef.current();
 
-    const responder = useRef(
-        PanResponder.create({
-            // Only claim clearly-downward drags (let horizontal/upward gestures
-            // and taps pass through to children).
-            onMoveShouldSetPanResponder: (_e, g) =>
-                g.dy > 6 && g.dy > Math.abs(g.dx) * 1.5,
-            onPanResponderMove: (_e, g) => {
-                if (g.dy > 0) translateY.setValue(g.dy);
-            },
-            onPanResponderRelease: (_e, g) => {
-                const shouldDismiss = g.dy > distance || g.vy > velocity;
-                Animated.spring(translateY, {
-                    toValue: 0,
-                    useNativeDriver: true,
-                    bounciness: 2,
-                    speed: 18,
-                }).start();
-                if (shouldDismiss) dismissRef.current();
-            },
-            onPanResponderTerminate: () => {
-                Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
-            },
-        }),
-    ).current;
+    const gesture = useMemo(
+        () =>
+            Gesture.Pan()
+                // Only claim a clearly-DOWNWARD drag, so taps (the X) and any
+                // horizontal/upward gestures fall through to their targets.
+                .activeOffsetY(12)
+                .failOffsetX([-24, 24])
+                .onUpdate((e) => {
+                    'worklet';
+                    // Follow the finger downward only; ignore upward past rest.
+                    translateY.value = e.translationY > 0 ? e.translationY : 0;
+                })
+                .onEnd((e) => {
+                    'worklet';
+                    const shouldDismiss =
+                        e.translationY > distance || e.velocityY > velocity;
+                    // Always spring back to rest: if the dismiss is cancelled
+                    // (e.g. a "discard?" prompt), the sheet is already in place.
+                    translateY.value = withSpring(0, {
+                        damping: 22,
+                        stiffness: 240,
+                        mass: 0.5,
+                    });
+                    if (shouldDismiss) runOnJS(fireDismiss)();
+                }),
+        // Thresholds are captured once; the dismiss target is read via ref.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [],
+    );
 
-    return { translateY, panHandlers: responder.panHandlers };
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ translateY: translateY.value }],
+    }));
+
+    return { gesture, animatedStyle };
 }

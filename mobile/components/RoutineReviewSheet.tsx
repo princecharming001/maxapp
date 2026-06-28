@@ -20,8 +20,9 @@ import {
   Modal,
   ScrollView,
   Pressable,
-  Animated,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { GestureDetector } from 'react-native-gesture-handler';
 import { useSwipeDownDismiss } from '../hooks/useSwipeDownDismiss';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -120,27 +121,29 @@ export default function RoutineReviewSheet({
     onRemovePart(part);
   };
 
-  const { translateY, panHandlers } = useSwipeDownDismiss(onDone);
+  const { gesture, animatedStyle } = useSwipeDownDismiss(onDone);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onDone}>
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onDone} />
-        <Animated.View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12), transform: [{ translateY }] }]}>
-          <View {...panHandlers}>
-            <TouchableOpacity style={styles.closeX} onPress={onDone} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close" size={22} color={colors.textMuted} />
-            </TouchableOpacity>
-            <View style={styles.grabber} />
+        <Animated.View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) }, animatedStyle]}>
+          <GestureDetector gesture={gesture}>
+            <View>
+              <TouchableOpacity style={styles.closeX} onPress={onDone} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+              <View style={styles.grabber} />
 
-            <View style={styles.headerBlock}>
-              <Text style={styles.title}>Your routine</Text>
-              <Text style={styles.subhead}>
-                Here's what I built around your days. Skim it. Anything that doesn't fit your
-                life, cut it now and I'll work around it.
-              </Text>
+              <View style={styles.headerBlock}>
+                <Text style={styles.title}>Your routine</Text>
+                <Text style={styles.subhead}>
+                  Here's what I built around your days. Skim it. Anything that doesn't fit your
+                  life, cut it now and I'll work around it.
+                </Text>
+              </View>
             </View>
-          </View>
+          </GestureDetector>
 
           <ScrollView
             style={{ flexShrink: 1 }}
