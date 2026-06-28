@@ -18,7 +18,7 @@
  *   6. Sharpest    — chronotype, icon cards (a day-one peak prior).
  *   7. Meals       — breakfast / lunch / dinner, each with a skip toggle.
  *   8. Rhythm      — workout window + weekends, icon cards.
- *   9. Anchors     — what they already do every day, icon cards.
+ *   9. Shower      — when they usually shower (AM / PM / both), icon cards.
  *  10. Your day    — a read-only recap of the day we just learned.
  *
  * Saving (completed=false) triggers the backend starter-routine generation,
@@ -155,12 +155,13 @@ const MOTIVATIONS = [
     { id: 'other', label: 'Something else' },
 ] as const;
 
-// Each choice option carries its own icon (Cal AI style).
-const ANCHORS = [
-    { id: 'brush_teeth', label: 'Brush teeth', icon: 'sparkles-outline' },
-    { id: 'shower', label: 'Shower', icon: 'water-outline' },
-    { id: 'coffee', label: 'Coffee', icon: 'cafe-outline' },
-    { id: 'commute', label: 'Commute', icon: 'car-outline' },
+// Each choice option carries its own icon (Cal AI style). When the user usually
+// showers tells the scheduler where to anchor hygiene/skin routines — the AM
+// get-ready window, the PM wind-down, or both.
+const SHOWER_TIMES = [
+    { id: 'morning', label: 'After I wake up', icon: 'sunny-outline' },
+    { id: 'night', label: 'Before bed', icon: 'moon-outline' },
+    { id: 'both', label: 'Both', icon: 'water-outline' },
 ] as const;
 
 const CHRONOTYPES = [
@@ -512,7 +513,7 @@ export default function OnboardingV2Screen() {
     const [skipBreakfast, setSkipBreakfast] = useState(false);
     const [skipLunch, setSkipLunch] = useState(false);
     const [skipDinner, setSkipDinner] = useState(false);
-    const [anchors, setAnchors] = useState<string[]>([]);
+    const [showerTime, setShowerTime] = useState<string | null>(null);
     const [workoutMin, setWorkoutMin] = useState(7 * 60); // 7 AM default
     const [weekendShift, setWeekendShift] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -550,7 +551,7 @@ export default function OnboardingV2Screen() {
                 if (typeof a.skipBreakfast === 'boolean') setSkipBreakfast(a.skipBreakfast);
                 if (typeof a.skipLunch === 'boolean') setSkipLunch(a.skipLunch);
                 if (typeof a.skipDinner === 'boolean') setSkipDinner(a.skipDinner);
-                if (Array.isArray(a.anchors)) setAnchors(a.anchors);
+                if (typeof a.showerTime === 'string') setShowerTime(a.showerTime);
                 if (typeof a.workoutMin === 'number') setWorkoutMin(a.workoutMin);
                 if (typeof a.weekendShift === 'boolean') setWeekendShift(a.weekendShift);
                 if (typeof d.step === 'number' && d.step >= 0) setStep(d.step);
@@ -573,13 +574,13 @@ export default function OnboardingV2Screen() {
             goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
             workStartMin, workEndMin, workLocation, commuteMin, chronotype,
             breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
-            anchors, workoutMin, weekendShift,
+            showerTime, workoutMin, weekendShift,
         });
     }, [
         draftLoaded, step, goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
         workStartMin, workEndMin, workLocation, commuteMin, chronotype,
         breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
-        anchors, workoutMin, weekendShift,
+        showerTime, workoutMin, weekendShift,
     ]);
 
     // Wheel picker — `picker` holds the field currently being edited. A bumping
@@ -660,7 +661,7 @@ export default function OnboardingV2Screen() {
                     skipLunch && 'lunch',
                     skipDinner && 'dinner',
                 ].filter(Boolean) as string[],
-                anchor_cues: anchors,
+                shower_time: showerTime,
                 workout_time: hhmm(workoutMin),
                 weekend_shift: weekendShift,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
@@ -992,30 +993,22 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 9 — anchors (multi-select icon cards)
+        // 9 — shower timing (single-select; anchors hygiene/skin routines)
         {
-            title: 'What do you\ndo every day?',
-            sub: 'Existing habits make the best anchors for new routines.',
-            canNext: true,
+            title: 'When do you\nusually shower?',
+            sub: 'So Max anchors your skin and hygiene routines at the right time.',
+            canNext: !!showerTime,
             body: (
                 <View style={{ gap: 10 }}>
-                    {ANCHORS.map((a) => {
-                        const active = anchors.includes(a.id);
-                        return (
-                            <OptionCard
-                                key={a.id}
-                                icon={a.icon}
-                                label={a.label}
-                                active={active}
-                                multi
-                                onPress={() =>
-                                    setAnchors((arr) =>
-                                        active ? arr.filter((x) => x !== a.id) : [...arr, a.id],
-                                    )
-                                }
-                            />
-                        );
-                    })}
+                    {SHOWER_TIMES.map((s) => (
+                        <OptionCard
+                            key={s.id}
+                            icon={s.icon}
+                            label={s.label}
+                            active={showerTime === s.id}
+                            onPress={() => setShowerTime(s.id)}
+                        />
+                    ))}
                 </View>
             ),
         },

@@ -36,7 +36,9 @@ export type OnboardingAnswers = {
     skipBreakfast: boolean;
     skipLunch: boolean;
     skipDinner: boolean;
-    anchors: string[];
+    // When the user usually showers — 'morning' | 'night' | 'both'. Anchors
+    // skin/hygiene routines; sent to the backend as `shower_time`.
+    showerTime: string | null;
     workoutMin: number;
     weekendShift: boolean;
 };

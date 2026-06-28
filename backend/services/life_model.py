@@ -132,6 +132,9 @@ async def build_life_model(user: User, db: AsyncSession) -> dict[str, Any]:
     time_skeleton = {
         "wake": _skeleton_field("wake_time", "learned_wake", "learned_wake"),
         "sleep": _skeleton_field("sleep_time", "learned_sleep", "learned_sleep"),
+        # When the user usually showers — anchors skin/hygiene routines to the AM
+        # get-ready window, the PM wind-down, or both. One of morning|night|both.
+        "shower_time": _field(ob.get("shower_time"), 1.0, "stated"),
         "weekly_overrides": _field(
             ob.get("weekly_timings") or {}, 1.0, "stated"
         ),

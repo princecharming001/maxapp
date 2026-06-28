@@ -115,6 +115,11 @@ class OnboardingData(BaseModel):
     # Global schedule anchors — reused when starting any maxx module if already collected
     wake_time: Optional[str] = Field(default=None, description="Usual wake time HH:MM (24h), e.g. 07:00")
     sleep_time: Optional[str] = Field(default=None, description="Usual sleep time HH:MM (24h), e.g. 23:00")
+    # When the user usually showers — anchors skin/hygiene routines to the AM
+    # get-ready window, the PM wind-down, or both.
+    shower_time: Optional[str] = Field(
+        default=None, description="'morning' | 'night' | 'both' — when the user usually showers.",
+    )
     # Busy hours — fed to chatbot context so it plans routines around the
     # user's fixed obligations (work/school). work_schedule == "flexible"
     # means the user has no fixed daily window; work_start/end are null.
