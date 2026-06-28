@@ -73,6 +73,27 @@ class Settings(BaseSettings):
     # Anthropic Claude -- used for face-scan vision when LLM_PROVIDER=claude
     anthropic_api_key: str = Field(default="")
     anthropic_model: str = Field(default="claude-haiku-4-5")
+
+    # --- Dynamic per-user onboarding (DYNAMIC_ONBOARDING_SPEC.md) ------------
+    # All default OFF; the LLM path requires slot_prefill. With every flag off,
+    # onboarding stays byte-for-byte today's fixed-question state machine.
+    slot_prefill_enabled: bool = Field(
+        default=False,
+        description="Deterministic cross-Max dedup (prefill + missing_required). Ship/enable first.",
+    )
+    dynamic_questions_enabled: bool = Field(
+        default=False,
+        description="LLM question phrasing/ordering. Requires slot_prefill_enabled.",
+    )
+    dynamic_questions_shadow: bool = Field(
+        default=False,
+        description="Log would-skip/would-ask diffs without enforcing the LLM plan.",
+    )
+    dynamic_questions_model: str = Field(default="claude-haiku-4-5")
+    dynamic_questions_cache_ttl_s: int = Field(default=600)
+    slot_default_min_confidence: float = Field(default=0.6)
+    slot_freshness_ttl_days: int = Field(default=180)
+
     # OpenAI -- still required for face-scan vision fallback when Gemini key is missing
     openai_api_key: str = Field(default="")
     openai_model: str = Field(default="gpt-4o-mini")

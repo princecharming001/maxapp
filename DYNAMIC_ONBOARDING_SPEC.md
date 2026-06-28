@@ -156,7 +156,7 @@ Rules:
 
 > After finishing a unit: run its VERIFY, then check it off with the date, commit + push with prefix `dyn-onboarding:`, and continue to the next unchecked unit.
 
-- [ ] **U1 — Config flags.**
+- [x] **U1 — Config flags.** _(2026-06-28: added 7 dynamic-onboarding Fields after `anthropic_model`; prints `False False claude-haiku-4-5`; test_pure_utils 34 passed.)_
   Files: `backend/config.py`.
   Add the eight `Field`s from Guardrail 1 to `Settings`. Nothing reads them yet.
   VERIFY: `cd backend && python -c "from config import settings; print(settings.slot_prefill_enabled, settings.dynamic_questions_enabled, settings.dynamic_questions_model)"` prints `False False claude-haiku-4-5`. `python -m pytest tests/test_pure_utils.py -q`.
@@ -265,3 +265,4 @@ _(empty)_
 
 ## Iteration-Log
 _(append one line per completed unit: `YYYY-MM-DD Uxx — <note>`)_
+2026-06-28 U1 — Added 7 dynamic-onboarding config Fields (all default OFF) to `backend/config.py::Settings`. Spec lists 7 under Guardrail 1 ("eight" in U1 header is a typo). Verified flags load + test_pure_utils green.
