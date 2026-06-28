@@ -4110,6 +4110,7 @@ async def _run_onboarding_questioner(
             make_pending,
             make_plan_pending,
             advance_plan,
+            recompute_dirty_plan,
             clear_pending,
             peek_next_question,
             field_to_question_payload,
@@ -4250,6 +4251,10 @@ async def _run_onboarding_questioner(
     if pending.get("plan"):
         # Plan-driven intake: advance the slot cursor on this successful coerce.
         advanced = advance_plan(pending)
+        # If a chat-volunteered fact arrived since the last question, drop any
+        # now-known queued slots and re-anchor (deterministic; no LLM here).
+        if pending.get("plan_dirty"):
+            advanced = recompute_dirty_plan(maxx_id, advanced, next_state)
         plan_view = {**next_state, "_onboarding_pending": advanced}
         next_field = peek_next_question(maxx_id, plan_view)
         # Still inside the plan → keep the plan pending; if the plan is exhausted
@@ -4577,6 +4582,11 @@ async def _send_message_locked(
             existing_ctx = await get_context(user_id, db)
             merged_facts = merge_facts(existing_ctx.get(FACTS_KEY) or {}, new_facts)
             await merge_context(user_id, {FACTS_KEY: merged_facts}, db)
+            # A chat-volunteered fact may satisfy a queued onboarding slot. Flag
+            # the active plan dirty (no LLM now); next questioner turn re-anchors.
+            if settings.dynamic_questions_enabled:
+                from services.onboarding_questioner import mark_onboarding_plan_dirty
+                await mark_onboarding_plan_dirty(user_id, db)
     except Exception as _e:
         logger.warning("fact extractor failed (non-fatal): %s", _e)
 

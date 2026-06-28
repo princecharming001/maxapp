@@ -370,3 +370,73 @@ def test_ladder_degrades(monkeypatch):
 def _make_empty_known():
     from services.onboarding_gap import KnownContext
     return KnownContext(prefill={}, provenance={}, brief=None)
+
+
+def test_plan_dirty_recompute():
+    """A queued slot satisfied by a (volunteered) fact is dropped on recompute,
+    the cursor re-anchors, and plan_dirty clears — no LLM involved."""
+    import asyncio as _asyncio
+    from services import task_catalog_service as tcs
+    from services.onboarding_questioner import (
+        make_plan_pending, recompute_dirty_plan, peek_next_question, PENDING_KEY,
+    )
+
+    _asyncio.run(tcs.warm_catalog())
+    maxx_id = "bonemax"
+    schema = tcs.get_info_schema(maxx_id)
+    slots = [s.slot for s in schema.active_slots() if s.field][:3]
+    assert len(slots) == 3
+    A, B, C = slots
+
+    def field_of(slot_id):
+        return next(s for s in schema.slots if s.slot == slot_id).field
+
+    pending = make_plan_pending(maxx_id, [A, B, C], idx=0)
+    pending["plan_dirty"] = True
+
+    # A chat-volunteered fact satisfies B's field.
+    state = {field_of(B): _sample_value(maxx_id, field_of(B))}
+    new_pending = recompute_dirty_plan(maxx_id, pending, state)
+
+    assert new_pending["plan_dirty"] is False
+    assert B not in new_pending["plan"]
+    assert A in new_pending["plan"] and C in new_pending["plan"]
+
+    # The dropped slot never surfaces on peek.
+    nf = peek_next_question(maxx_id, {PENDING_KEY: new_pending})
+    assert nf is None or nf["id"] != field_of(B)
+
+
+def test_mark_plan_dirty_only_when_plan(monkeypatch):
+    """mark_onboarding_plan_dirty flips the flag for an active plan, and is a
+    no-op (no write) for legacy/no pending."""
+    import asyncio as _asyncio
+    from services.onboarding_questioner import (
+        mark_onboarding_plan_dirty, make_plan_pending, make_pending, PENDING_KEY,
+    )
+
+    writes = {}
+
+    async def _get_ctx_with(pending):
+        async def _g(uid, db):
+            return {PENDING_KEY: pending} if pending else {}
+        return _g
+
+    async def _merge(uid, updates, db):
+        writes["last"] = updates
+        return updates
+
+    # Active plan -> writes plan_dirty True.
+    monkeypatch.setattr("services.user_context_service.get_context",
+                        _asyncio.run(_get_ctx_with(make_plan_pending("bonemax", ["a", "b"]))))
+    monkeypatch.setattr("services.user_context_service.merge_context", _merge)
+    writes.clear()
+    _asyncio.run(mark_onboarding_plan_dirty("u", None))
+    assert writes["last"][PENDING_KEY]["plan_dirty"] is True
+
+    # Legacy pending (no plan) -> no write.
+    monkeypatch.setattr("services.user_context_service.get_context",
+                        _asyncio.run(_get_ctx_with(make_pending("bonemax", "workout_frequency"))))
+    writes.clear()
+    _asyncio.run(mark_onboarding_plan_dirty("u", None))
+    assert "last" not in writes

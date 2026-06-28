@@ -133,6 +133,61 @@ def advance_plan(pending: dict) -> dict:
     return p
 
 
+def _is_answered(v: Any) -> bool:
+    return not (v is None or v == "" or v == [] or v == {})
+
+
+def recompute_dirty_plan(maxx_id: str, pending: dict, user_state: dict) -> dict:
+    """Re-anchor a plan-dirty queue: DROP queued slots whose field is now known
+    in `user_state` (e.g. a chat-volunteered fact), keep the cursor on the right
+    remaining slot, and clear `plan_dirty`. Pure / deterministic — NO LLM (the
+    recompute only shrinks the queue; it never re-asks or invents). Returns the
+    updated pending dict for the caller to persist."""
+    plan = list(pending.get("plan") or [])
+    if not plan:
+        return {**pending, "plan_dirty": False}
+
+    idx = int(pending.get("idx") or 0)
+    cur_slot = plan[idx] if 0 <= idx < len(plan) else None
+    orig_index = {sid: i for i, sid in enumerate(plan)}
+
+    kept = [
+        sid for sid in plan
+        if (fid := _field_id_for_slot(maxx_id, sid)) and not _is_answered(user_state.get(fid))
+    ]
+
+    if cur_slot in kept:
+        new_idx = kept.index(cur_slot)
+    else:
+        new_idx = next(
+            (j for j, sid in enumerate(kept) if orig_index.get(sid, 0) >= idx),
+            len(kept),
+        )
+
+    out = {**pending, "plan": kept, "idx": new_idx, "plan_dirty": False}
+    if 0 <= new_idx < len(kept):
+        out["last_question"] = _field_id_for_slot(maxx_id, kept[new_idx]) or kept[new_idx]
+    return out
+
+
+async def mark_onboarding_plan_dirty(user_id: str, db) -> None:
+    """Flag an active plan-driven onboarding dirty so the NEXT questioner turn
+    drops any queued slot a chat-volunteered fact just satisfied. Cheap: one
+    context read + conditional write, NO synchronous LLM. Never raises."""
+    try:
+        from services.user_context_service import get_context, merge_context
+
+        ctx = await get_context(user_id, db)
+        pending = get_pending(ctx)
+        if not pending or not pending.get("plan") or pending.get("plan_dirty"):
+            return
+        await merge_context(
+            user_id, {PENDING_KEY: {**pending, "plan_dirty": True}}, db
+        )
+    except Exception as e:  # pragma: no cover - non-fatal best effort
+        logger.warning("mark_onboarding_plan_dirty failed (non-fatal): %s", e)
+
+
 def _peek_plan_field(maxx_id: str, pending: dict) -> Optional[dict]:
     """Field spec for the plan's current slot, with `question` overridden by the
     adapted text. None when the plan is exhausted or the current slot can't be
