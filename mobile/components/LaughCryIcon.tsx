@@ -1,13 +1,14 @@
 /**
- * LaughCryIcon — a glossy 3D "jelly" court jester (Explore icon language, see
- * c.md) laughing with tears of joy, on an infinite seamless loop:
- *   • the whole jester giggle-jiggles — a quick bob + squash + head tilt, which
- *     also swings the hat's bells, and
- *   • glossy blue teardrops stream from both eyes (two per eye on offset phases)
- *     down the face, fading to nothing at each cycle's ends so there's no seam
- *     (first frame == last frame).
- * The tears live inside the tilting frame, so they stay glued to the eyes and
- * lean with the head. Pure Reanimated + SVG, no Skia/Lottie.
+ * LaughCryIcon — a soft frosted 3D "jelly" court jester (Explore icon language /
+ * c.md: warm coral-amber top → glowing core → cool blue base) laughing until it
+ * cries, on an infinite seamless loop:
+ *   • the jester giggle-jiggles — a gentle bob + squash + head tilt (which swings
+ *     the hat bells), and
+ *   • a single small tear wells up at each eye, then rolls down the cheek with
+ *     gravity (accelerating) and fades — one per eye, alternating, with a gap so
+ *     it reads as occasional tears of joy, not a stream.
+ * Each tear fades to nothing at the ends of its cycle, so the loop has no seam.
+ * Tears ride inside the tilting frame, so they stay on the eyes. Pure Reanimated + SVG.
  */
 import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
@@ -27,28 +28,28 @@ import Svg, { Path, Defs, LinearGradient, Stop, Ellipse } from 'react-native-svg
 const FACE = require('../assets/jesterFace.png');
 const C = Extrapolation.CLAMP;
 
-// Eye anchor points (fractions of the box) measured off the jester asset.
-const EYE_Y = 0.63;
+const EYE_Y = 0.57; // tear origin (just below the eyes), fraction of the box
+const FALL = 0.24; // how far down the cheek the tear rolls, fraction of the box
+// One tear per eye, offset half a cycle so they alternate (never a stream).
 const TEARS = [
-  { x: 0.41, dir: -1, off: 0 },
-  { x: 0.41, dir: -1, off: 0.5 },
-  { x: 0.59, dir: 1, off: 0.28 },
-  { x: 0.59, dir: 1, off: 0.78 },
+  { x: 0.42, dir: -1, off: 0 },
+  { x: 0.60, dir: 1, off: 0.5 },
 ];
 
 function Tear({ tear, size, x, dir, off, idx }: { tear: SharedValue<number>; size: number; x: number; dir: number; off: number; idx: number }) {
-  const tw = size * 0.15;
-  const th = tw * 1.4;
-  const fall = 0.22; // fraction of size the tear travels down
+  const tw = size * 0.09;
+  const th = tw * 1.55;
   const gid = `tdrop${idx}`;
 
   const style = useAnimatedStyle(() => {
     const p = (tear.value + off) % 1;
-    const yy = (EYE_Y + fall * p) * size;
-    const xx = x * size + dir * size * 0.045 * p;
-    const sc = interpolate(p, [0, 0.18, 0.8, 1], [0.4, 1, 1, 0.55], C);
+    const roll = interpolate(p, [0.16, 0.82], [0, 1], C); // 0..1 down the cheek
+    const yy = (EYE_Y + FALL * roll * roll) * size; // ease-in: slow start, gravity pulls
+    const xx = (x + dir * 0.02) * size;
+    const sc = interpolate(p, [0.05, 0.2, 0.85, 0.92], [0.3, 1, 1, 0.7], C);
     return {
-      opacity: interpolate(p, [0, 0.1, 0.82, 1], [0, 1, 1, 0], C),
+      // wells in, holds while rolling, fades; then a gap (no tear) before the next.
+      opacity: interpolate(p, [0.05, 0.16, 0.82, 0.92], [0, 1, 1, 0], C),
       transform: [{ translateX: xx - tw / 2 }, { translateY: yy }, { scale: sc }],
     };
   });
@@ -58,13 +59,13 @@ function Tear({ tear, size, x, dir, off, idx }: { tear: SharedValue<number>; siz
       <Svg width={tw} height={th} viewBox="0 0 50 70">
         <Defs>
           <LinearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#CFE8FF" />
-            <Stop offset="0.55" stopColor="#5BA0F2" />
-            <Stop offset="1" stopColor="#3B82F6" />
+            <Stop offset="0" stopColor="#DCEEFF" />
+            <Stop offset="0.55" stopColor="#7FB6F5" />
+            <Stop offset="1" stopColor="#5B8FE0" />
           </LinearGradient>
         </Defs>
         <Path d="M25 2 C25 2 47 36 47 49 A22 22 0 1 1 3 49 C3 36 25 2 25 2 Z" fill={`url(#${gid})`} />
-        <Ellipse cx="17" cy="46" rx="6" ry="9" fill="rgba(255,255,255,0.55)" />
+        <Ellipse cx="17" cy="46" rx="5" ry="8" fill="rgba(255,255,255,0.5)" />
       </Svg>
     </Animated.View>
   );
@@ -75,22 +76,22 @@ export function LaughCryIcon({ size = 88 }: { size?: number }) {
   const tear = useSharedValue(0);
 
   useEffect(() => {
-    laugh.value = withRepeat(withTiming(1, { duration: 260, easing: Easing.inOut(Easing.quad) }), -1, true);
-    tear.value = withRepeat(withTiming(1, { duration: 1600, easing: Easing.linear }), -1, false);
+    laugh.value = withRepeat(withTiming(1, { duration: 290, easing: Easing.inOut(Easing.quad) }), -1, true);
+    tear.value = withRepeat(withTiming(1, { duration: 2800, easing: Easing.linear }), -1, false);
     return () => {
       cancelAnimation(laugh);
       cancelAnimation(tear);
     };
   }, [laugh, tear]);
 
-  // Bob + squash + head-tilt — the tilt swings the hat + bells. Tears ride inside
+  // Gentle bob + squash + head tilt (tilt swings the hat bells). Tears ride inside
   // this frame, so they stay on the eyes and lean with the head.
   const frame = useAnimatedStyle(() => ({
     transform: [
-      { translateY: interpolate(laugh.value, [0, 1], [0, -size * 0.04], C) },
-      { scaleX: interpolate(laugh.value, [0, 1], [1, 1.04], C) },
-      { scaleY: interpolate(laugh.value, [0, 1], [1, 0.96], C) },
-      { rotate: `${interpolate(laugh.value, [0, 1], [-3, 3], C)}deg` },
+      { translateY: interpolate(laugh.value, [0, 1], [0, -size * 0.03], C) },
+      { scaleX: interpolate(laugh.value, [0, 1], [1, 1.03], C) },
+      { scaleY: interpolate(laugh.value, [0, 1], [1, 0.97], C) },
+      { rotate: `${interpolate(laugh.value, [0, 1], [-2, 2], C)}deg` },
     ],
   }));
 
