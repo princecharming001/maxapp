@@ -87,7 +87,7 @@ Do them in order. Each: touch the listed files, then run the VERIFY. Early units
   Files: `backend/models/sqlalchemy_models.py` (`CalendarConnection.tokens_encrypted` LargeBinary nullable; `tokens_decrypted` @property: decrypt-then-fallback-to-`tokens`). Add a migration SQL under `backend/scripts/sql/` (additive `ADD COLUMN`, no drop).
   VERIFY: `cd backend && python -c "from models.sqlalchemy_models import CalendarConnection"`; pytest collection still green. Property returns plaintext when `tokens_encrypted` is null.
 
-- [ ] **U3 — Wire encryption into store/refresh.**
+- [x] **U3 — Wire encryption into store/refresh. (2026-06-28)**
   Files: `backend/services/google_integration.py` (`store_connection` writes `tokens_encrypted=encrypt(json.dumps(tokens))`, sets `tokens=None`; `_fresh_access_token` reads via `tokens_decrypted`, persists refreshed tokens encrypted). Keep dual-read fallback so legacy plaintext rows still work.
   VERIFY: `cd backend && pytest -q -k "google or calendar or planner"` stays green (or unchanged from baseline). Add/extend a unit test that stores then reads a connection round-trips tokens.
 
@@ -161,3 +161,4 @@ When all units are checked and completion criteria are met, output exactly:
 - U0 (2026-06-28): Added `calendar_link_enabled` flag to config + `/status` response + mobile type; verified import + tsc clean.
 - U1 (2026-06-28): Created `services/secrets.py` (Fernet encrypt/decrypt, pass-through no-op without key) + `tests/test_secrets.py` (3 tests pass).
 - U2 (2026-06-28): Added `tokens_encrypted` LargeBinary column + `tokens_decrypted` property to `CalendarConnection`; migration SQL added; import + pytest collection verified.
+- U3 (2026-06-28): `store_connection` + `_fresh_access_token` now write `tokens_encrypted` + clear plaintext; `/status` reads via `tokens_decrypted`; baseline tests unchanged.

@@ -169,7 +169,9 @@ async def exchange_code(code: str) -> dict[str, Any]:
 
 async def _fresh_access_token(conn: CalendarConnection, db: AsyncSession) -> str | None:
     """Refresh-token dance; updates stored expiry. None = needs reconnect."""
-    tokens = dict(conn.tokens or {})
+    from services.secrets import encrypt_token
+    import json
+    tokens = conn.tokens_decrypted  # dual-read: encrypted first, fallback plaintext
     access = tokens.get("access_token")
     expiry = tokens.get("expiry")
     if access and expiry:
@@ -198,7 +200,8 @@ async def _fresh_access_token(conn: CalendarConnection, db: AsyncSession) -> str
     tokens["expiry"] = (
         datetime.utcnow() + timedelta(seconds=int(data.get("expires_in") or 3600))
     ).isoformat()
-    conn.tokens = tokens
+    conn.tokens_encrypted = encrypt_token(json.dumps(tokens))
+    conn.tokens = None
     await db.commit()
     return tokens.get("access_token")
 
@@ -215,7 +218,9 @@ async def store_connection(
     if conn is None:
         conn = CalendarConnection(user_id=user_id, provider="google")
         db.add(conn)
-    tokens = dict(conn.tokens or {})
+    import json
+    from services.secrets import encrypt_token
+    tokens = conn.tokens_decrypted  # dual-read: encrypted first, fallback plaintext
     tokens["access_token"] = token_payload.get("access_token")
     if token_payload.get("refresh_token"):
         tokens["refresh_token"] = token_payload["refresh_token"]
@@ -223,7 +228,8 @@ async def store_connection(
     tokens["expiry"] = (
         datetime.utcnow() + timedelta(seconds=int(token_payload.get("expires_in") or 3600))
     ).isoformat()
-    conn.tokens = tokens
+    conn.tokens_encrypted = encrypt_token(json.dumps(tokens))
+    conn.tokens = None  # clear plaintext after encrypting
     conn.is_active = True
     await db.commit()
     return conn
