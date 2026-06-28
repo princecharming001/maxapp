@@ -117,9 +117,18 @@ export function LiquidGlassFill({
     intensity,
     spec = 1,
     idSuffix = '',
+    corners = true,
 }: Pick<LiquidGlassProps, 'dark' | 'tint' | 'intensity' | 'spec'> & {
     /** Unique-ify the svg gradient ids when several fills mount in one screen. */
     idSuffix?: string;
+    /**
+     * Draw the bright SVG corner speculars (top-left glint + bottom-right
+     * hotspot). On small surfaces (pills, chips) these read as crisp glints, but
+     * their radius is a % of the surface, so on LARGE panes they balloon into big
+     * white blobs that look like stray gradients. Pass `false` on big cards to
+     * keep just the blur + top sheen + rims.
+     */
+    corners?: boolean;
 }) {
     const material: BlurTint = tint ?? (IS_IOS
         ? (dark ? 'systemThinMaterialDark' : 'systemThinMaterialLight')
@@ -150,7 +159,7 @@ export function LiquidGlassFill({
             {/* 2. Corner speculars — a bright concentrated glint at the top-left
                 edge + a smaller hotspot near the bottom-right (the light
                 direction). Tight + bright so they read as glints, not a wash. */}
-            {sheen > 0 ? (
+            {corners && sheen > 0 ? (
                 <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
                     <Defs>
                         <RadialGradient id={tlId} cx="2%" cy="0%" r="72%">

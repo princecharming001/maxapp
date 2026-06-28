@@ -654,7 +654,7 @@ function GlassCard({
                     contentStyle,
                 ]}
             >
-                <LiquidGlassFill dark={dark} idSuffix={uid} />
+                <LiquidGlassFill dark={dark} idSuffix={uid} corners={false} />
                 {children}
             </Clip>
         </View>
