@@ -121,11 +121,11 @@ export default function RevealV2Screen() {
     const closeLine =
         'Just a taste. Pick your maxes in Explore and Max builds the real plan around your day.';
 
-    // `dest` is where to go after onboarding saves. "Skip for now" → Payment
-    // (the paywall). "Scan now" → FaceScan DIRECTLY — going via Payment first
-    // would flash the paywall for a beat (both screens live in the same mounted
-    // unpaid stack, so we just navigate straight to the scan).
-    const completeOnboarding = async (dest: 'Payment' | 'FaceScan' = 'Payment') => {
+    // `dest` is where to go after onboarding saves. "Skip for now" → ReferralCode
+    // (the referral step that leads on to the paywall). "Scan now" → FaceScan
+    // DIRECTLY — routing via the paywall first would flash it for a beat (both
+    // live in the same mounted unpaid stack, so we navigate straight to the scan).
+    const completeOnboarding = async (dest: 'ReferralCode' | 'FaceScan' = 'ReferralCode') => {
         setBusy(true);
         try {
             await api.saveOnboarding({ ...(ob as any), completed: true });
@@ -221,7 +221,7 @@ export default function RevealV2Screen() {
                                 variant="glass"
                                 label="Skip for now"
                                 loading={busy}
-                                onPress={() => completeOnboarding('Payment')}
+                                onPress={() => completeOnboarding('ReferralCode')}
                             />
                         </View>
                     </View>
