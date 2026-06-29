@@ -15,6 +15,12 @@ import api from '../../services/api';
 // even before the server flag converges.
 export const MAIN_TOUR_SEEN_KEY = 'main_app_tour_seen_v1';
 
+// Bounded retry for the anchor measure: up to ~1.4s of re-measuring (12 × 120ms)
+// so a slow/late layout that first reports a zero rect still gets caught instead
+// of silently dropping the tour.
+const TOUR_MEASURE_RETRIES = 12;
+const TOUR_MEASURE_INTERVAL_MS = 120;
+
 /**
  * Synchronized starter for the post-onboarding main-app tour.
  *
@@ -93,17 +99,30 @@ export function useMainAppTour(
         if (redirectPending) return; // post-pay redirect to FaceScanResults pending
         const node = anchorRef.current;
         if (!node) return;
-        // Let any in-flight navigation/layout settle one frame, then measure the
-        // real anchor. Only start once it reports a non-zero rect.
-        InteractionManager.runAfterInteractions(() => {
+        // Let any in-flight navigation/layout settle, then measure the real anchor
+        // and start only once it reports a NON-ZERO rect.
+        //
+        // The intermittent "tour never shows" was this measure landing on a ZERO
+        // rect (the anchor laid out a beat later than the settle) and then bailing
+        // FOREVER: onLayout won't fire again and no gating input changes, so
+        // tryStart never re-ran. Fix: retry the measure a bounded number of frames
+        // until the rect is non-zero — then give up safely. Every guard
+        // (startedRef, stillSafeToStart, kill-switch) is re-checked on each attempt,
+        // so this never starts against a screen that's transitioning away.
+        const measureAndStart = (attempt: number) => {
             if (startedRef.current) return;
-            if (!stillSafeToStart()) return; // redirect fired / focus lost during settle
+            if (!stillSafeToStart()) return; // redirect fired / focus lost
+            const retry = () => {
+                if (attempt < TOUR_MEASURE_RETRIES) {
+                    setTimeout(() => measureAndStart(attempt + 1), TOUR_MEASURE_INTERVAL_MS);
+                }
+            };
             const target = anchorRef.current;
-            if (!target || typeof target.measureInWindow !== 'function') return;
+            if (!target || typeof target.measureInWindow !== 'function') { retry(); return; }
             target.measureInWindow((_x, _y, width, height) => {
                 if (startedRef.current) return;
                 if (!stillSafeToStart()) return; // re-check after the async measure
-                if (!(width > 0 && height > 0)) return; // zero spot — unsafe, wait
+                if (!(width > 0 && height > 0)) { retry(); return; } // zero spot — wait + retry
                 startedRef.current = true;
                 // Persist "seen" the instant we start — survives a freeze/crash
                 // before onStop. Local flag first (authoritative for re-fire),
@@ -112,7 +131,8 @@ export function useMainAppTour(
                 api.completeMainAppTour().catch(() => {});
                 start();
             });
-        });
+        };
+        InteractionManager.runAfterInteractions(() => measureAndStart(0));
     }, [tourEnabled, isPaid, isFocused, user?.onboarding, redirectPending, anchorRef, start]);
 
     // Re-attempt whenever the gating inputs change (focus regained, onboarding
