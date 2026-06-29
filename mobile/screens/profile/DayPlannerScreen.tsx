@@ -860,8 +860,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
                 {googleStatusQ.data?.needs_resync ? (
                   <LiquidGlass
-                    radius={16}
-                    dark
+                    radius={26}
                     style={[styles.calConnectGlass, { marginBottom: 10 }, calResyncing && { opacity: 0.6 }]}
                     contentStyle={styles.calConnectContent}
                   >
@@ -873,7 +872,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                       accessibilityRole="button"
                     />
                     {calResyncing
-                      ? <ActivityIndicator size="small" color="#fff" />
+                      ? <ActivityIndicator size="small" color="#1C1A17" />
                       : <Text style={styles.calConnectText}>Sync next 2 months</Text>}
                   </LiquidGlass>
                 ) : null}
@@ -896,8 +895,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                 </Text>
 
                 <LiquidGlass
-                  radius={16}
-                  dark
+                  radius={26}
                   style={[styles.calConnectGlass, calConnecting && { opacity: 0.6 }]}
                   contentStyle={styles.calConnectContent}
                 >
@@ -910,10 +908,10 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                     accessibilityLabel="Connect Google Calendar"
                   />
                   {calConnecting ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color="#1C1A17" />
                   ) : (
                     <>
-                      <Ionicons name="logo-google" size={15} color="#fff" style={{ marginRight: 8 }} />
+                      <Ionicons name="logo-google" size={15} color="#1C1A17" style={{ marginRight: 8 }} />
                       <Text style={styles.calConnectText}>Connect Google Calendar</Text>
                     </>
                   )}
@@ -1429,7 +1427,7 @@ const styles = StyleSheet.create({
   calConnectText: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 14.5,
-    color: '#fff',
+    color: '#1C1A17',
     letterSpacing: 0.1,
   },
   calWaiting: {
