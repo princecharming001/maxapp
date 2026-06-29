@@ -139,7 +139,7 @@ export default function GoogleCalendarConnectScreen() {
             ) : (
                 <View style={styles.card}>
                     <Text style={styles.hint}>
-                        Max will read your primary calendar (next 14 days) to show events on your planner. Syncs every 30 minutes. Calendar data stays on Max servers — not shared.
+                        Max will read your primary calendar (next 60 days) to show events on your planner. Syncs every 30 minutes. Calendar data stays on Max servers — not shared.
                     </Text>
                     <TouchableOpacity
                         style={[styles.btn, connecting && styles.btnDisabled]}

@@ -16,7 +16,7 @@
  * surface family used across the rest of the app. One restrained green accent marks
  * the workout, today's ring, and the assistant; everything else is monochrome ink.
  */
-import React, { useId, useMemo, useRef, useState } from 'react';
+import React, { useId, useMemo, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -35,10 +35,12 @@ import {
 import { Alert } from '../../components/InAppAlert';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LiquidGlassFill } from '../../components/glass/LiquidGlass';
+import { LiquidGlassFill, LiquidGlass } from '../../components/glass/LiquidGlass';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Path, Rect } from 'react-native-svg';
 import api from '../../services/api';
-import { useQuery } from '@tanstack/react-query';
+import { Linking } from 'react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
 import { useFlag } from '../../constants/featureFlags';
@@ -197,6 +199,34 @@ function GlassButton({
   );
 }
 
+// Gradient calendar icon — warm coral→cool blue matching the 3D jelly icons
+// on the Explore page. No background — just the icon shape in gradient color.
+function GradientCalendarIcon({ size = 36 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Defs>
+        <SvgLinearGradient id="calGrad" x1="0" y1="1" x2="1" y2="0">
+          <Stop offset="0" stopColor="#E8896A" />
+          <Stop offset="0.5" stopColor="#C4A8D8" />
+          <Stop offset="1" stopColor="#7EC8E3" />
+        </SvgLinearGradient>
+      </Defs>
+      {/* Calendar outline path */}
+      <Path
+        d="M19 4h-1V2h-2v2H8V2H6v2H5C3.9 4 3 4.9 3 6v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM5 7V6h14v1H5z"
+        fill="url(#calGrad)"
+      />
+      {/* Grid dots */}
+      <Rect x="7" y="11" width="2" height="2" rx="0.5" fill="url(#calGrad)" />
+      <Rect x="11" y="11" width="2" height="2" rx="0.5" fill="url(#calGrad)" />
+      <Rect x="15" y="11" width="2" height="2" rx="0.5" fill="url(#calGrad)" />
+      <Rect x="7" y="15" width="2" height="2" rx="0.5" fill="url(#calGrad)" />
+      <Rect x="11" y="15" width="2" height="2" rx="0.5" fill="url(#calGrad)" />
+      <Rect x="15" y="15" width="2" height="2" rx="0.5" fill="url(#calGrad)" />
+    </Svg>
+  );
+}
+
 export default function DayPlannerScreen({ embedded = false }: { embedded?: boolean }) {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
@@ -248,6 +278,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
   const [saving, setSaving] = useState(false);
 
+  const qc = useQueryClient();
+
   // Google Calendar status (cached, stale-1m) — used to gate the calendar fetch.
   const googleStatusQ = useQuery({
     queryKey: ['googleStatus'],
@@ -255,6 +287,71 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     staleTime: 60_000,
   });
   const calConnected = !!(googleStatusQ.data?.connected && googleStatusQ.data?.calendar_link_enabled);
+  const calFlagOn = googleStatusQ.data?.calendar_link_enabled !== false;
+
+  // Calendar sheet state
+  const [calSheetOpen, setCalSheetOpen] = useState(false);
+  const [calConnecting, setCalConnecting] = useState(false);
+  const [calDisconnecting, setCalDisconnecting] = useState(false);
+  const [calResyncing, setCalResyncing] = useState(false);
+  const calPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const handleCalConnect = useCallback(async () => {
+    if (!googleStatusQ.data?.oauth_available) {
+      Alert.alert('Not configured', 'Google OAuth is not set up yet.');
+      return;
+    }
+    try {
+      setCalConnecting(true);
+      const { auth_url } = await api.getGoogleAuthUrl();
+      await Linking.openURL(auth_url);
+      calPollRef.current = setInterval(() => {
+        qc.invalidateQueries({ queryKey: ['googleStatus'] });
+      }, 4000);
+    } catch {
+      setCalConnecting(false);
+      Alert.alert('Error', 'Could not open the Google sign-in page.');
+    }
+  }, [googleStatusQ.data?.oauth_available, qc]);
+
+  const handleCalDisconnect = useCallback(async () => {
+    try {
+      setCalDisconnecting(true);
+      await api.disconnectGoogle();
+      qc.invalidateQueries({ queryKey: ['googleStatus'] });
+      qc.invalidateQueries({ queryKey: ['plannerToday'] });
+    } catch {
+      Alert.alert('Error', 'Could not disconnect. Please try again.');
+    } finally {
+      setCalDisconnecting(false);
+    }
+  }, [qc]);
+
+  const handleCalResync = useCallback(async () => {
+    try {
+      setCalResyncing(true);
+      await api.resyncGoogleCalendar();
+      qc.invalidateQueries({ queryKey: ['googleStatus'] });
+      qc.invalidateQueries({ queryKey: ['plannerToday'] });
+    } catch {
+      Alert.alert('Error', 'Could not re-sync. Please try again.');
+    } finally {
+      setCalResyncing(false);
+    }
+  }, [qc]);
+
+  // Stop polling once connected
+  React.useEffect(() => {
+    if (calConnected && calPollRef.current) {
+      clearInterval(calPollRef.current);
+      calPollRef.current = null;
+      setCalConnecting(false);
+    }
+  }, [calConnected]);
+
+  React.useEffect(() => () => {
+    if (calPollRef.current) clearInterval(calPollRef.current);
+  }, []);
 
   // Fetch calendar events for the selected day, only when connected + flag on.
   const calendarDayQ = useQuery({
@@ -455,6 +552,12 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         )}
         <View style={styles.headerRight}>
           {saving ? <ActivityIndicator size="small" color={colors.textMuted} style={{ marginRight: 2 }} /> : null}
+          {/* Google Calendar — only shown when flag is on. */}
+          {calFlagOn ? (
+            <GlassButton onPress={() => setCalSheetOpen(true)} accessibilityLabel="Google Calendar">
+              <Ionicons name="calendar-outline" size={19} color={colors.foreground} />
+            </GlassButton>
+          ) : null}
           {/* Your usual day — edits the repeating baseline (scope='all'). */}
           <GlassButton onPress={() => openEditor('all')} accessibilityLabel="Your usual day">
             <Ionicons name="repeat" size={20} color={colors.foreground} />
@@ -718,6 +821,114 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         onCommit={commitRecurrence}
         onReset={resetScope}
       />
+
+      {/* Google Calendar sheet */}
+      <Modal
+        visible={calSheetOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCalSheetOpen(false)}
+      >
+        <View style={styles.chatRoot}>
+          <Pressable style={styles.chatBackdrop} onPress={() => setCalSheetOpen(false)} />
+          <View style={[styles.calSheet, { paddingBottom: Math.max(insets.bottom, 12) + 16 }]}>
+            <View style={styles.grabber} />
+
+            <View style={styles.calHeader}>
+              <GradientCalendarIcon size={42} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.calTitle}>Google Calendar</Text>
+                <Text style={styles.calSub}>
+                  {calConnected
+                    ? 'Your calendar events appear on the planner.'
+                    : 'See your real events alongside Max tasks.'}
+                </Text>
+              </View>
+            </View>
+
+            {calConnected ? (
+              <>
+                <View style={styles.calConnectedBadge}>
+                  <Ionicons name="checkmark-circle" size={15} color={ACCENT} />
+                  <Text style={styles.calConnectedText}>Connected</Text>
+                  {googleStatusQ.data?.synced_through ? (
+                    <Text style={styles.calSyncTime}>
+                      · through {new Date(googleStatusQ.data.synced_through).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {googleStatusQ.data?.needs_resync ? (
+                  <LiquidGlass
+                    radius={16}
+                    dark
+                    style={[styles.calConnectGlass, { marginBottom: 10 }, calResyncing && { opacity: 0.6 }]}
+                    contentStyle={styles.calConnectContent}
+                  >
+                    <TouchableOpacity
+                      style={StyleSheet.absoluteFill}
+                      activeOpacity={0.75}
+                      onPress={handleCalResync}
+                      disabled={calResyncing}
+                      accessibilityRole="button"
+                    />
+                    {calResyncing
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <Text style={styles.calConnectText}>Sync next 2 months</Text>}
+                  </LiquidGlass>
+                ) : null}
+
+                <TouchableOpacity
+                  style={styles.calDisconnectBtn}
+                  activeOpacity={0.7}
+                  onPress={handleCalDisconnect}
+                  disabled={calDisconnecting}
+                >
+                  {calDisconnecting
+                    ? <ActivityIndicator size="small" color={colors.textMuted} />
+                    : <Text style={styles.calDisconnectText}>Disconnect</Text>}
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.calBody}>
+                  Read-only access to your primary calendar (next 60 days). Syncs every 30 minutes. Data stays on Max servers.
+                </Text>
+
+                <LiquidGlass
+                  radius={16}
+                  dark
+                  style={[styles.calConnectGlass, calConnecting && { opacity: 0.6 }]}
+                  contentStyle={styles.calConnectContent}
+                >
+                  <TouchableOpacity
+                    style={StyleSheet.absoluteFill}
+                    activeOpacity={0.75}
+                    onPress={handleCalConnect}
+                    disabled={calConnecting}
+                    accessibilityRole="button"
+                    accessibilityLabel="Connect Google Calendar"
+                  />
+                  {calConnecting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-google" size={15} color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.calConnectText}>Connect Google Calendar</Text>
+                    </>
+                  )}
+                </LiquidGlass>
+
+                {calConnecting ? (
+                  <Text style={styles.calWaiting}>
+                    Complete sign-in in your browser, then come back.
+                  </Text>
+                ) : null}
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1133,5 +1344,100 @@ const styles = StyleSheet.create({
     letterSpacing: 0.05,
     textDecorationLine: 'underline',
     textDecorationColor: colors.border,
+  },
+
+  // Google Calendar sheet
+  calSheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 12,
+  },
+  calHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 16,
+  },
+  calTitle: {
+    fontFamily: fonts.serif,
+    fontSize: 20,
+    color: colors.foreground,
+    letterSpacing: -0.4,
+  },
+  calSub: {
+    fontFamily: fonts.sans,
+    fontSize: 12.5,
+    color: colors.textMuted,
+    marginTop: 2,
+    letterSpacing: 0.05,
+  },
+  calConnectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: ACCENT_WASH,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+  },
+  calConnectedText: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 13.5,
+    color: ACCENT,
+    letterSpacing: 0.05,
+  },
+  calSyncTime: {
+    fontFamily: fonts.sans,
+    fontSize: 12.5,
+    color: colors.textMuted,
+  },
+  calDisconnectBtn: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  calDisconnectText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 14,
+    color: colors.textSecondary,
+    letterSpacing: 0.1,
+  },
+  calBody: {
+    fontFamily: fonts.sans,
+    fontSize: 13.5,
+    color: colors.textMuted,
+    lineHeight: 20,
+    marginBottom: 20,
+    letterSpacing: 0.05,
+  },
+  calConnectGlass: {
+    marginTop: 4,
+  },
+  calConnectContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  calConnectText: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 14.5,
+    color: '#fff',
+    letterSpacing: 0.1,
+  },
+  calWaiting: {
+    fontFamily: fonts.sans,
+    fontSize: 12.5,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 14,
+    letterSpacing: 0.05,
   },
 });
