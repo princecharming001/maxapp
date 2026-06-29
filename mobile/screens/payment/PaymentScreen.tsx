@@ -46,6 +46,7 @@ const CARD_BG  = 'rgba(255,255,255,0.55)';   // light frosted — bust shows thr
 const HAIR     = 'rgba(17,17,19,0.07)';
 const MUTED    = 'rgba(17,17,19,0.50)';
 const PLAN_BG  = 'rgba(17,17,19,0.05)';       // plan container
+const PLAN_SEL = '#FFFFFF';                   // selected option — white pill
 
 const IS_IOS = Platform.OS === 'ios';
 const SHOW_DEV_BYPASS = __DEV__;
@@ -211,7 +212,7 @@ export default function PaymentScreen() {
                 {/* Feature card — the canonical liquid-glass surface, floating
                     over the dust gradient (its contrast is what makes the glass
                     read). LiquidGlass owns the blur, speculars, rim and float. */}
-                <LiquidGlass radius={30} style={s.featureCard} contentStyle={s.featureCardContent}>
+                <LiquidGlass radius={30} intensity={IS_IOS ? 46 : 16} spec={1.15} style={s.featureCard} contentStyle={s.featureCardContent}>
                     {(selected === 'premium' ? chadFeatures : chadLiteFeatures).map((f) => (
                         <View key={f.title} style={s.featureRow}>
                             <View style={s.featureIconWrap}>
@@ -232,8 +233,6 @@ export default function PaymentScreen() {
                         onPress={() => setSelected('basic')}
                         activeOpacity={0.85}
                     >
-                        <LiquidGlassFill idSuffix="planBasic" />
-                        {selected === 'basic' ? <View style={s.planSelGlow} pointerEvents="none" /> : null}
                         <Text style={s.planName}>Chad Lite</Text>
                         <Text style={s.planPrice}>{basicPrice}<Text style={s.planPer}>/wk</Text></Text>
                         {perDayBasic ? <Text style={s.planNote}>{perDayBasic}</Text> : null}
@@ -243,26 +242,29 @@ export default function PaymentScreen() {
                         onPress={() => setSelected('premium')}
                         activeOpacity={0.85}
                     >
-                        <LiquidGlassFill idSuffix="planPremium" />
-                        {selected === 'premium' ? <View style={s.planSelGlow} pointerEvents="none" /> : null}
                         <Text style={s.planName}>Chad</Text>
                         <Text style={s.planPrice}>{premiumPrice}<Text style={s.planPer}>/wk</Text></Text>
                         {perDay ? <Text style={s.planNote}>{perDay}</Text> : null}
                     </TouchableOpacity>
                 </View>
 
-                {/* CTA */}
-                <TouchableOpacity
-                    style={[s.cta, ctaBusy && s.ctaDisabled]}
-                    onPress={handleSubscribe}
-                    disabled={ctaBusy}
-                    activeOpacity={0.9}
-                >
-                    {ctaBusy
-                        ? <ActivityIndicator color={WHITE} />
-                        : <Text style={s.ctaText}>{ctaLabel}</Text>
-                    }
-                </TouchableOpacity>
+                {/* CTA — dark liquid glass (float shadow on the outer wrapper so the
+                    inner overflow:hidden clip doesn't mask it). */}
+                <View style={[s.ctaWrap, ctaBusy && s.ctaDisabled]}>
+                    <TouchableOpacity
+                        style={s.cta}
+                        onPress={handleSubscribe}
+                        disabled={ctaBusy}
+                        activeOpacity={0.9}
+                    >
+                        <LiquidGlassFill dark idSuffix="cta" />
+                        <View style={s.ctaVeil} pointerEvents="none" />
+                        {ctaBusy
+                            ? <ActivityIndicator color={WHITE} />
+                            : <Text style={s.ctaText}>{ctaLabel}</Text>
+                        }
+                    </TouchableOpacity>
+                </View>
 
                 {/* Legal footer */}
                 <View style={s.legalRow}>
@@ -393,15 +395,15 @@ const s = StyleSheet.create({
         borderRadius: 13,
         paddingVertical: 14,
         paddingHorizontal: 14,
-        overflow: 'hidden',                       // clip the LiquidGlassFill to the pill
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(255,255,255,0.45)',    // faint glass rim
     },
     planOptionSel: {
-        borderColor: 'rgba(255,255,255,0.92)',    // brighter rim when selected
+        backgroundColor: PLAN_SEL,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(17,17,19,0.08)',
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }
+            : { elevation: 3 }),
     },
-    // Brighter frosted wash over the glass to mark the selected plan.
-    planSelGlow: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.34)' },
     planName: {
         fontFamily: 'Matter-Medium',
         fontSize: 12,
@@ -428,16 +430,26 @@ const s = StyleSheet.create({
     },
 
     /* CTA — dark ink pill pops on the light cream canvas */
-    cta: {
-        backgroundColor: INK,
+    // Outer wrapper carries the float shadow (un-clipped).
+    ctaWrap: {
         borderRadius: 999,
-        height: 56,
-        alignItems: 'center',
-        justifyContent: 'center',
+        borderCurve: 'continuous',
         ...(IS_IOS
             ? { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } }
             : { elevation: 6 }),
     },
+    // Inner clip: dark liquid glass (LiquidGlassFill dark + a dark veil for text legibility).
+    cta: {
+        borderRadius: 999,
+        borderCurve: 'continuous',
+        height: 56,
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.18)',
+    },
+    ctaVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,17,19,0.46)' },
     ctaDisabled: { opacity: 0.5 },
     ctaText: {
         fontFamily: 'Matter-SemiBold',
