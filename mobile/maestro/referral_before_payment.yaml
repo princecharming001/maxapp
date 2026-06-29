@@ -1,33 +1,36 @@
 appId: com.cannon.mobile
 ---
-# VERIFY (RALPH_SIM_FIXES U1-U3): the referral screen appears BEFORE Payment,
-# and CASH99 grants free access. Drives the UNPAID funnel via the DevDrawer so
-# no real face scan / prod account is needed. Requires the LOCAL backend on
-# :8000 (referrals_enabled) — confirmed up in U1.
+# VERIFY (RALPH_SIM_FIXES U1-U3): referral screen shows BEFORE Payment; CASH99
+# grants free access. Drives the UNPAID funnel via DevDrawer (local backend :8000).
 #
-# Maestro syntax note: this Maestro build rejects `accessibilityId:` (the repo's
-# older flows use it) — use `id:` (matches the iOS accessibility identifier /
-# accessibilityLabel) or `text:`.
+# SELECTOR RULES cracked in U1 (this Maestro build + iOS 26):
+#   - `accessibilityId:` is REJECTED (the repo's older flows use it). Use `text:`.
+#   - iOS accessibility LABELS surface as `text:` (e.g. text "Open dev drawer").
+#   - Modal/sheet content (the DevDrawer pills) is NOT queryable by text on iOS —
+#     tap the pills by POINT. Guest|Onboarding|Paid row sits at y~91%:
+#     Guest ~19%, Onboarding ~50%, Paid ~81%.
+#   - Always run the WHOLE journey in ONE flow (launchApp at the top) — driving the
+#     app across separate `maestro test` runs leaves modal/nav state unpredictable.
 - launchApp
-# The Expo dev client re-downloads the JS bundle on each launch (slow). Wait it
-# out by anchoring on a stable Home string instead of a fixed sleep.
+# Expo dev client re-downloads the JS bundle each launch (~45-120s, sometimes
+# times out) — anchor on the Home "DAY" string, not a fixed sleep.
 - extendedWaitUntil:
     visible: "DAY"
-    timeout: 60000
-# DevDrawer launcher — reliable selector (accessibilityLabel), not a coordinate.
+    timeout: 120000
+# Switch to the unpaid funnel.
 - tapOn:
-    id: "Open dev drawer"
+    text: "Open dev drawer"
 - waitForAnimationToEnd:
-    timeout: 3000
-# Enter the unpaid funnel (faux fresh signup against the local backend).
+    timeout: 2500
 - tapOn:
-    text: "Onboarding"
+    point: "50%,91%"        # Onboarding pill (Modal — must tap by point)
 - waitForAnimationToEnd:
-    timeout: 12000
-# TODO(next iteration): traverse onboarding -> face scan (reuse
-# camera_scan_entry.yaml / camera_capture_trigger.yaml) -> FaceScanResults, then:
-#   - tapOn: { id: "Unlock full results" }
-#   - assertVisible: "Have a referral code?"      # the referral screen intercepts
-#   - inputText (CASH99) into the code field, Apply, Unlock
+    timeout: 18000
+- takeScreenshot: referral_unpaid_landing
+# TODO(next iter): from the unpaid landing, complete onboarding + face scan
+# (reuse camera_scan_entry.yaml / camera_capture_trigger.yaml), reach
+# FaceScanResults, then:
+#   - tapOn: { text: "Unlock full results" }
+#   - assertVisible: "Have a referral code?"     # referral screen intercepts Payment
+#   - inputText CASH99 into the code field, Apply, Unlock
 #   - assert lands in-app with premium (paywall NOT shown)
-- takeScreenshot: referral_before_payment_progress
