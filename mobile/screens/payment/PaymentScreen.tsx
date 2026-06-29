@@ -21,10 +21,11 @@ import {
     TouchableOpacity,
     Platform,
     ActivityIndicator,
+    Image,
 } from 'react-native'
 import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
-import PaywallDust from '../../components/PaywallDust';
+const DUST = require('../../assets/paywall-dust.webp');
 import { LiquidGlass } from '../../components/glass/LiquidGlass';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -180,7 +181,9 @@ export default function PaymentScreen() {
             {/* ── Full-bleed background ── wisps of brand-colored dust over the
                 cream canvas (same hues as the Explore max icons). A soft cream
                 wash on top/bottom keeps the title and plans legible. ───────── */}
-            <PaywallDust />
+            {/* contain (not cover) so the full 5-wisp composition shows un-zoomed;
+                the image's cream matches the root CREAM so the letterbox is invisible. */}
+            <Image source={DUST} style={StyleSheet.absoluteFill} resizeMode="contain" />
             <LinearGradient
                 pointerEvents="none"
                 colors={['rgba(244,238,227,0.78)', 'rgba(244,238,227,0.10)', 'rgba(244,238,227,0.28)', 'rgba(244,238,227,0.95)']}
