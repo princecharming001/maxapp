@@ -166,8 +166,10 @@ function GradientHabit({
     row: MergedScheduleTask; done: boolean; busy: boolean; onToggle: () => void; onOpen: () => void; testID?: string;
 }) {
     const c = row.moduleColor && /^#/.test(row.moduleColor) ? row.moduleColor : '#8E8E93';
-    // Unchecked: white card with black text. Checked: brand color gradient with white text.
-    const txt = done ? (textOn(c) === '#15130F' ? '#15130F' : '#FFFFFF') : '#111113';
+    // Unchecked: white card with black text. Checked: brand color gradient with
+    // white text (the gradient darkens toward the base, so white reads even on
+    // the lighter brand hues like amber — don't flip to dark on those).
+    const txt = done ? '#FFFFFF' : '#111113';
     const subColor = done ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.45)';
     return (
         <TouchableOpacity style={gh.card} activeOpacity={0.92} onPress={onOpen} testID={testID} accessibilityLabel={row.title}>
