@@ -26,7 +26,7 @@ import {
 import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
 const DUST = require('../../assets/paywall-dust.webp');
-import { LiquidGlass } from '../../components/glass/LiquidGlass';
+import { LiquidGlass, LiquidGlassFill } from '../../components/glass/LiquidGlass';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,7 +46,6 @@ const CARD_BG  = 'rgba(255,255,255,0.55)';   // light frosted — bust shows thr
 const HAIR     = 'rgba(17,17,19,0.07)';
 const MUTED    = 'rgba(17,17,19,0.50)';
 const PLAN_BG  = 'rgba(17,17,19,0.05)';       // plan container
-const PLAN_SEL = '#FFFFFF';                   // selected option — white pill
 
 const IS_IOS = Platform.OS === 'ios';
 const SHOW_DEV_BYPASS = __DEV__;
@@ -233,6 +232,8 @@ export default function PaymentScreen() {
                         onPress={() => setSelected('basic')}
                         activeOpacity={0.85}
                     >
+                        <LiquidGlassFill idSuffix="planBasic" />
+                        {selected === 'basic' ? <View style={s.planSelGlow} pointerEvents="none" /> : null}
                         <Text style={s.planName}>Chad Lite</Text>
                         <Text style={s.planPrice}>{basicPrice}<Text style={s.planPer}>/wk</Text></Text>
                         {perDayBasic ? <Text style={s.planNote}>{perDayBasic}</Text> : null}
@@ -242,6 +243,8 @@ export default function PaymentScreen() {
                         onPress={() => setSelected('premium')}
                         activeOpacity={0.85}
                     >
+                        <LiquidGlassFill idSuffix="planPremium" />
+                        {selected === 'premium' ? <View style={s.planSelGlow} pointerEvents="none" /> : null}
                         <Text style={s.planName}>Chad</Text>
                         <Text style={s.planPrice}>{premiumPrice}<Text style={s.planPer}>/wk</Text></Text>
                         {perDay ? <Text style={s.planNote}>{perDay}</Text> : null}
@@ -390,15 +393,15 @@ const s = StyleSheet.create({
         borderRadius: 13,
         paddingVertical: 14,
         paddingHorizontal: 14,
+        overflow: 'hidden',                       // clip the LiquidGlassFill to the pill
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(255,255,255,0.45)',    // faint glass rim
     },
     planOptionSel: {
-        backgroundColor: PLAN_SEL,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(17,17,19,0.08)',
-        ...(Platform.OS === 'ios'
-            ? { shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }
-            : { elevation: 3 }),
+        borderColor: 'rgba(255,255,255,0.92)',    // brighter rim when selected
     },
+    // Brighter frosted wash over the glass to mark the selected plan.
+    planSelGlow: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.34)' },
     planName: {
         fontFamily: 'Matter-Medium',
         fontSize: 12,
