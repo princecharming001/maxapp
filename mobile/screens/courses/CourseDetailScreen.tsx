@@ -16,13 +16,13 @@ export default function CourseDetailScreen() {
     // push tap) — destructuring undefined here white-screens the app.
     const { courseId } = (route.params ?? {}) as { courseId: string };
     const { user } = useAuth();
-    // Defensive entry guard — list-level intercept routes locked taps
-    // to Payment directly. If a deep link / stale stack lands non-paid
-    // users here anyway, replace with Payment so they see the upgrade
-    // surface immediately (no intermediate confirm alert).
+    // Defensive entry guard — list-level intercept routes locked taps to the
+    // upgrade surface. If a deep link / stale stack lands non-paid users here
+    // anyway, replace with the referral step (which leads on to Payment) so the
+    // referral code page is never skipped on this path.
     useEffect(() => {
         if (canAccessCourseDocs(user)) return;
-        navigation.replace('Payment');
+        navigation.replace('ReferralCode');
     }, [user]);
     const [course, setCourse] = useState<any>(null);
     const [progress, setProgress] = useState<any>(null);
