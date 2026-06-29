@@ -1,18 +1,21 @@
 /**
  * ReferralCodeScreen — the step right before the paywall. Enter a referral code
- * (caps-only) and, on a full free comp (e.g. CASH99), the server grants premium
- * and we route PAST the payment screen straight into the app. No code → continue
- * to checkout as normal. The client never self-grants — a comp only routes the
- * user forward after the server has confirmed entitlement (ReferralCodeField →
- * refreshUser → onComped).
+ * (caps-only) and Apply → "Approved". On a full free comp (e.g. CASH99) the
+ * bottom button redeems server-side and routes PAST the payment screen straight
+ * into the app. No code → continue to checkout as normal. The client never
+ * self-grants — a comp only routes forward after the server confirms entitlement.
+ *
+ * Centered, "Craft"-aesthetic layout (cream canvas, serif display title) to match
+ * Landing / the paywall.
  */
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { ReferralCodeField } from '../../components/ReferralCodeField';
+import { ReferralCodeField, ReferralCodeHandle } from '../../components/ReferralCodeField';
 import { useAuth } from '../../context/AuthContext';
+import { fonts } from '../../theme/dark';
 
 const INK = '#15130F';
 const SUB = '#6B6B6B';
@@ -25,48 +28,80 @@ export default function ReferralCodeScreen() {
     const { refreshUser } = useAuth();
     const initialCode: string | undefined = route?.params?.referralCode;
 
+    const fieldRef = useRef<ReferralCodeHandle>(null);
+    const [compReady, setCompReady] = useState(false);
+
     // No code (or a discount-only code): continue to the paywall, passing any
     // params (e.g. a pre-filled referralCode) straight through.
     const goPayment = () => nav.navigate('Payment', route?.params);
+
+    // Bottom button: a full comp redeems + routes PAST the paywall; otherwise
+    // it's a normal "continue to checkout".
+    const onContinue = async () => {
+        if (compReady) {
+            const comped = await fieldRef.current?.redeem();
+            if (comped) return; // onComped already routed us into the app
+        }
+        goPayment();
+    };
 
     return (
         <View style={[styles.root, { paddingTop: insets.top + 6 }]}>
             <TouchableOpacity style={styles.back} onPress={() => nav.goBack()} hitSlop={12} accessibilityLabel="Back">
                 <Ionicons name="chevron-back" size={26} color={INK} />
             </TouchableOpacity>
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                <Text style={styles.title}>Have a referral{'\n'}code?</Text>
-                <Text style={styles.sub}>Enter it to unlock access. No code? Continue to checkout.</Text>
 
-                {/* Caps-only input + validate/redeem. On a full comp the server grants
-                    entitlement; we refresh auth and route past the paywall. */}
-                <ReferralCodeField
-                    initialCode={initialCode}
-                    onComped={async () => {
-                        await refreshUser();
-                        nav.navigate('FaceScanResults', { postPay: true });
-                    }}
-                />
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                <ScrollView
+                    contentContainerStyle={styles.content}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    <Text style={styles.title}>
+                        Have a referral{'\n'}<Text style={styles.titleItalic}>code?</Text>
+                    </Text>
+                    <Text style={styles.sub}>Enter it to unlock access. No code? Continue to checkout.</Text>
 
-                <TouchableOpacity style={styles.cta} onPress={goPayment} activeOpacity={0.9} accessibilityRole="button">
-                    <Text style={styles.ctaText}>Continue to checkout</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.skip} onPress={goPayment} hitSlop={8} accessibilityRole="button">
-                    <Text style={styles.skipText}>I don’t have a code</Text>
-                </TouchableOpacity>
-            </ScrollView>
+                    {/* Caps-only input + validate. On a full comp the bottom button
+                        redeems (server grants), refreshes auth and routes past the paywall. */}
+                    <ReferralCodeField
+                        ref={fieldRef}
+                        initialCode={initialCode}
+                        onValidated={(res) => setCompReady(res.valid && res.free)}
+                        onComped={async () => {
+                            await refreshUser();
+                            nav.navigate('FaceScanResults', { postPay: true });
+                        }}
+                    />
+
+                    <TouchableOpacity style={styles.cta} onPress={onContinue} activeOpacity={0.9} accessibilityRole="button">
+                        <Text style={styles.ctaText}>{compReady ? 'Unlock access' : 'Continue to checkout'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.skip} onPress={goPayment} hitSlop={8} accessibilityRole="button">
+                        <Text style={styles.skipText}>I don’t have a code</Text>
+                    </TouchableOpacity>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    root: { flex: 1, backgroundColor: BG, paddingHorizontal: 22 },
+    root: { flex: 1, backgroundColor: BG, paddingHorizontal: 24 },
     back: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
-    content: { paddingTop: 18, paddingBottom: 48 },
-    title: { fontFamily: 'Matter-Bold', fontSize: 34, color: INK, letterSpacing: -0.8, lineHeight: 38 },
-    sub: { fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, marginTop: 10, lineHeight: 21 },
-    cta: { marginTop: 26, height: 54, borderRadius: 27, backgroundColor: INK, alignItems: 'center', justifyContent: 'center' },
-    ctaText: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: '#FFFFFF', letterSpacing: 0.2 },
-    skip: { marginTop: 16, alignItems: 'center' },
-    skipText: { fontFamily: 'Matter-Regular', fontSize: 14, color: SUB, textDecorationLine: 'underline' },
+    // flexGrow + center → vertically centered when there's room, scrolls when the keyboard is up.
+    content: { flexGrow: 1, justifyContent: 'center', paddingBottom: 40 },
+    title: { fontFamily: fonts.serif, fontSize: 42, color: INK, letterSpacing: -1, lineHeight: 46 },
+    titleItalic: { fontFamily: fonts.serifItalic, fontStyle: 'italic' },
+    sub: { fontFamily: fonts.sans, fontSize: 15.5, color: SUB, marginTop: 12, lineHeight: 22 },
+    cta: {
+        marginTop: 28, height: 58, borderRadius: 999, backgroundColor: INK,
+        alignItems: 'center', justifyContent: 'center', borderCurve: 'continuous',
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 7 } }
+            : { elevation: 6 }),
+    },
+    ctaText: { fontFamily: fonts.sansSemiBold, fontSize: 16.5, color: '#FFFFFF', letterSpacing: 0.2 },
+    skip: { marginTop: 18, alignItems: 'center' },
+    skipText: { fontFamily: fonts.sans, fontSize: 14, color: SUB, textDecorationLine: 'underline' },
 });
