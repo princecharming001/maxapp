@@ -8,6 +8,7 @@ import {
     Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import ShineOverlay from '../../components/ShineOverlay';
@@ -19,16 +20,33 @@ const INK = '#1C1A17';
 const WHITE = '#FFFFFF';
 
 // The whole screen is the face — it bleeds edge-to-edge into a soft gradient;
-// brand + auth float over it (no panel).
-const HERO = require('../../assets/landing-hero.webp');
+// brand + auth float over it (no panel). Now a subtle living-portrait loop:
+// the still (same recolored frame) sits behind as an instant-paint poster, the
+// muted looping video plays on top.
+const HERO_VIDEO = require('../../assets/landing-hero.mp4');
+const HERO_POSTER = require('../../assets/landing-hero.webp');
 
 export default function LandingScreen() {
     const navigation = useNavigation<any>();
 
+    const player = useVideoPlayer(HERO_VIDEO, (p) => {
+        p.loop = true;
+        p.muted = true;
+        p.play();
+    });
+
     return (
         <View style={styles.root}>
             <View style={styles.phone}>
-                <Image source={HERO} style={styles.heroImg} resizeMode="cover" />
+                {/* Poster (same recolored frame) paints instantly; the loop plays over it. */}
+                <Image source={HERO_POSTER} style={styles.heroImg} resizeMode="cover" />
+                <VideoView
+                    style={styles.heroImg}
+                    player={player}
+                    contentFit="cover"
+                    nativeControls={false}
+                    pointerEvents="none"
+                />
 
                 {/* Edge-to-edge scrim — the photo dissolves into black at the base. */}
                 <LinearGradient
