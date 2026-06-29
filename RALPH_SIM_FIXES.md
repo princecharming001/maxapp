@@ -37,7 +37,7 @@ Tour: `mobile/features/mainTour/useMainAppTour.ts` — `tryStart()` defers via `
 
 ## UNITS (do the first unchecked one each iteration)
 
-### [ ] U0 — Branch + sim/Maestro baseline
+### [x] U0 — Branch + sim/Maestro baseline
 Create branch `sim-fixes`. Boot the sim, install/launch the dev build, and confirm Maestro can drive it (run `see_launcher.yaml` or `auth_login_success.yaml` to green; apply the `pkill -9 java` / restart runbook if needed). Create `SIM_FIXES_LOG.md` (what device/OS, build, baseline `pytest`/`tsc` status).
 **VERIFY:** a trivial Maestro flow passes; log written; committed.
 
@@ -92,4 +92,4 @@ and stop.
 
 ## ITERATION LOG (append one line per completed unit; newest last)
 
-- (none yet)
+- U0 (done) — branch `sim-fixes` created; iPhone 17 Pro Max iOS 26.0 booted with app installed; Maestro green on `see_launcher.yaml`; `SIM_FIXES_LOG.md` started.
