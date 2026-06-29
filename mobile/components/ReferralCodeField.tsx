@@ -15,6 +15,7 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet,
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useFlag } from '../constants/featureFlags';
+import { LiquidGlassFill } from './glass/LiquidGlass';
 
 type Status = 'idle' | 'checking' | 'valid' | 'invalid' | 'redeeming' | 'comped' | 'error';
 
@@ -120,26 +121,30 @@ export const ReferralCodeField = forwardRef<ReferralCodeHandle, {
     return (
         <View style={styles.wrap}>
             <View style={styles.row}>
-                <TextInput
-                    value={code}
-                    onChangeText={(t) => {
-                        setCode(t.toUpperCase());
-                        if (status !== 'idle') { setStatus('idle'); setFree(false); }
-                    }}
-                    placeholder="Have a referral code?"
-                    placeholderTextColor={SUB}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    editable={status !== 'comped' && !busy}
-                    style={styles.input}
-                    accessibilityLabel="Referral code"
-                />
+                <View style={styles.inputField}>
+                    <LiquidGlassFill idSuffix="refcode-input" />
+                    <TextInput
+                        value={code}
+                        onChangeText={(t) => {
+                            setCode(t.toUpperCase());
+                            if (status !== 'idle') { setStatus('idle'); setFree(false); }
+                        }}
+                        placeholder="Have a referral code?"
+                        placeholderTextColor={SUB}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        editable={status !== 'comped' && !busy}
+                        style={styles.input}
+                        accessibilityLabel="Referral code"
+                    />
+                </View>
                 {approved ? (
-                    <View style={[styles.applyBtn, styles.approvedBtn]}>
+                    <View style={[styles.applyField, styles.approvedField]}>
                         <Text style={styles.approvedText}>Approved ✓</Text>
                     </View>
                 ) : (
-                    <TouchableOpacity style={styles.applyBtn} onPress={() => onValidate()} disabled={busy} accessibilityRole="button">
+                    <TouchableOpacity style={styles.applyField} onPress={() => onValidate()} disabled={busy} accessibilityRole="button">
+                        <LiquidGlassFill idSuffix="refcode-apply" />
                         {busy ? <ActivityIndicator color={INK} size="small" /> : <Text style={styles.applyText}>Apply</Text>}
                     </TouchableOpacity>
                 )}
@@ -152,17 +157,23 @@ export const ReferralCodeField = forwardRef<ReferralCodeHandle, {
 const styles = StyleSheet.create({
     wrap: { width: '100%', marginTop: 12 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    input: {
-        flex: 1, height: 56, borderRadius: 16, paddingHorizontal: 18,
-        backgroundColor: 'rgba(255,255,255,0.9)', borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(0,0,0,0.10)', color: INK, fontSize: 16, letterSpacing: 1,
+    // Glass field: clipped rounded container with a LiquidGlassFill behind the
+    // input/label. overflow:hidden clips the fill to the squircle radius.
+    inputField: {
+        flex: 1, height: 56, borderRadius: 16, overflow: 'hidden', borderCurve: 'continuous',
+        borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.55)',
     },
-    applyBtn: {
-        height: 56, paddingHorizontal: 22, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.9)', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.10)',
+    input: {
+        flex: 1, paddingHorizontal: 18, color: INK, fontSize: 16, letterSpacing: 1,
+        backgroundColor: 'transparent',
+    },
+    applyField: {
+        height: 56, minWidth: 100, paddingHorizontal: 22, borderRadius: 16, overflow: 'hidden',
+        borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center',
+        borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.55)',
     },
     applyText: { color: INK, fontSize: 15.5, fontWeight: '600' },
-    approvedBtn: { backgroundColor: ACCENT, borderColor: ACCENT },
+    approvedField: { backgroundColor: ACCENT, borderColor: ACCENT },
     approvedText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
     msg: { marginTop: 8, fontSize: 13, paddingHorizontal: 4 },
 });

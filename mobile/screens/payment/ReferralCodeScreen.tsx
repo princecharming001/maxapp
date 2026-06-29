@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ReferralCodeField, ReferralCodeHandle } from '../../components/ReferralCodeField';
 import { useAuth } from '../../context/AuthContext';
+import { LiquidGlass } from '../../components/glass/LiquidGlass';
 import { fonts } from '../../theme/dark';
 
 const INK = '#15130F';
@@ -74,8 +75,10 @@ export default function ReferralCodeScreen() {
                         }}
                     />
 
-                    <TouchableOpacity style={styles.cta} onPress={onContinue} activeOpacity={0.9} accessibilityRole="button">
-                        <Text style={styles.ctaText}>{compReady ? 'Unlock access' : 'Continue to checkout'}</Text>
+                    <TouchableOpacity style={styles.ctaWrap} onPress={onContinue} activeOpacity={0.85} accessibilityRole="button">
+                        <LiquidGlass radius={29} contentStyle={styles.ctaContent}>
+                            <Text style={styles.ctaText}>{compReady ? 'Unlock access' : 'Continue to checkout'}</Text>
+                        </LiquidGlass>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.skip} onPress={goPayment} hitSlop={8} accessibilityRole="button">
                         <Text style={styles.skipText}>I don’t have a code</Text>
@@ -91,17 +94,12 @@ const styles = StyleSheet.create({
     back: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
     // flexGrow + center → vertically centered when there's room, scrolls when the keyboard is up.
     content: { flexGrow: 1, justifyContent: 'center', paddingBottom: 40 },
-    title: { fontFamily: fonts.serif, fontSize: 42, color: INK, letterSpacing: -1, lineHeight: 46 },
+    title: { fontFamily: fonts.serif, fontSize: 33, color: INK, letterSpacing: -0.6, lineHeight: 37 },
     titleItalic: { fontFamily: fonts.serifItalic, fontStyle: 'italic' },
     sub: { fontFamily: fonts.sans, fontSize: 15.5, color: SUB, marginTop: 12, lineHeight: 22 },
-    cta: {
-        marginTop: 28, height: 58, borderRadius: 999, backgroundColor: INK,
-        alignItems: 'center', justifyContent: 'center', borderCurve: 'continuous',
-        ...(Platform.OS === 'ios'
-            ? { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 7 } }
-            : { elevation: 6 }),
-    },
-    ctaText: { fontFamily: fonts.sansSemiBold, fontSize: 16.5, color: '#FFFFFF', letterSpacing: 0.2 },
+    ctaWrap: { marginTop: 28, alignSelf: 'stretch' },
+    ctaContent: { height: 58, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+    ctaText: { fontFamily: fonts.sansSemiBold, fontSize: 16.5, color: INK, letterSpacing: 0.2 },
     skip: { marginTop: 18, alignItems: 'center' },
     skipText: { fontFamily: fonts.sans, fontSize: 14, color: SUB, textDecorationLine: 'underline' },
 });
