@@ -134,6 +134,38 @@ def _credit_if_perfect_day(
     return True
 
 
+def _uncredit_if_unperfect(
+    profile: dict[str, Any],
+    schedules: list[dict],
+    today: date,
+) -> bool:
+    """Inverse of `_credit_if_perfect_day`. If today was already credited as a
+    perfect day but the merged view is no longer all-complete (the user
+    UN-checked a task), roll today's credit back so the streak reflects reality
+    instead of staying stuck at the value it reached when the day was complete."""
+    today_s = today.isoformat()
+    # Only undo when TODAY is the credited perfect day and it's no longer perfect.
+    if profile.get(LAST_PERFECT_KEY) != today_s:
+        return False
+    if merged_day_all_completed(schedules, today_s):
+        return False
+
+    current = int(profile.get(STREAK_KEY) or 0)
+    # Mirror the freeze earned in _credit_if_perfect_day: if today's credit had
+    # pushed the streak onto a weekly boundary, hand that freeze back too.
+    if current > 0 and current % 7 == 0:
+        profile[FREEZES_KEY] = max(0, int(profile.get(FREEZES_KEY) or 0) - 1)
+
+    new_streak = max(0, current - 1)
+    profile[STREAK_KEY] = new_streak
+    # The previous last-perfect day was yesterday (the only way today could have
+    # been credited as +1); drop to None when nothing is left.
+    profile[LAST_PERFECT_KEY] = (
+        (today - timedelta(days=1)).isoformat() if new_streak > 0 else None
+    )
+    return True
+
+
 def streak_payload_from_profile(profile: dict[str, Any], today: date) -> dict[str, Any]:
     freeze_used_on = profile.get(FREEZE_USED_ON_KEY)
     yesterday = (today - timedelta(days=1)).isoformat()
@@ -177,6 +209,9 @@ async def sync_master_schedule_streak(
 
     changed = _reconcile_missed(profile, today)
     changed = _credit_if_perfect_day(profile, schedules, today) or changed
+    # Reverse today's credit if the user un-checked a task and today is no longer
+    # perfect (mutually exclusive with the credit above). Keeps the streak honest.
+    changed = _uncredit_if_unperfect(profile, schedules, today) or changed
 
     # Anchor (and persist once) the Day-1 date so the day counter is stable.
     start = _journey_start(user, profile, onboarding, today)

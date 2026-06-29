@@ -507,13 +507,14 @@ export default function HomeScreen() {
         try {
             if (completing) {
                 await api.completeScheduleTask(row.scheduleId, row.task_id);
-                // Only a COMPLETE can earn a streak/achievement/celebration, so
-                // only then do the silent background re-sync. Uncompleting needs
-                // no refetch — the optimistic state is already correct, and the
-                // full /active/full refetch is the heavy "extra" work to avoid.
+                // A COMPLETE can earn a streak/achievement/celebration → re-sync.
                 void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
             } else {
                 await api.uncompleteScheduleTask(row.scheduleId, row.task_id);
+                // Un-checking can BREAK today's perfect day, which lowers the
+                // streak — so re-sync here too, otherwise the fire badge would
+                // stay stuck at the value it reached when the day was complete.
+                void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
             }
         } catch (e) {
             console.error('toggleTodayTask', e);
