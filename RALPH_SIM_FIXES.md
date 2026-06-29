@@ -61,7 +61,7 @@ As a paid user on the post-pay Home, cold-launch with `clearState:true` (resets 
 Instrument `useMainAppTour.tryStart()` (temporary `console.log` of each gate + the measured rect) and run several cold launches reading `xcrun simctl spawn booted log` or Metro logs. Identify which gate drops it on the miss runs — most likely `measureInWindow` returning a **zero rect** (anchor not laid out yet) with no retry, or the re-attempt effect not re-firing, or `redirectPending`/`isFocused` racing the post-pay redirect.
 **VERIFY:** SIM_FIXES_LOG names the exact failing gate with log evidence.
 
-### [ ] U6 — Make the tour present deterministically
+### [x] U6 — Make the tour present deterministically
 Fix the identified race WITHOUT weakening the guards: e.g. replace the single zero-rect bail with a **bounded retry/poll** of `measureInWindow` (a few frames / short backoff until a non-zero rect or a timeout), and/or trigger `tryStart` from the anchor's `onLayout`, and/or ensure the re-attempt effect re-runs when the anchor first measures. Keep the kill-switch, `stillSafeToStart()`, and the "persist seen the instant we start" behavior intact. Remove the temporary logs.
 **VERIFY:** `tsc` clean; the tour presents on cold launch.
 
