@@ -187,7 +187,7 @@ class Settings(BaseSettings):
     #    Stripe promo); OFF or with unset ids, discount codes degrade to
     #    "recognized, discount coming" and NEVER charge a wrong amount.
     #  - referral_rewards_enabled gates the referrer-reward hook.
-    referrals_enabled: bool = Field(default=False)
+    referrals_enabled: bool = Field(default=True)
     referral_discounts_enabled: bool = Field(default=False)
     referral_rewards_enabled: bool = Field(default=False)
     chat_max_context_tokens: int = Field(
