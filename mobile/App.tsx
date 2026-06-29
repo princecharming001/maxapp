@@ -301,17 +301,19 @@ export default function App() {
         'Matter-SemiBold': require('./assets/fonts/Matter-SemiBold.ttf'),
         'Matter-Bold': require('./assets/fonts/Matter-Bold.ttf'),
         'Matter-Light': require('./assets/fonts/Matter-Light.ttf'),
-        // Display serif = the original Playfair (the lighter "old" look). The
-        // Fraunces "Regular" cut read too bold for headlines, so every serif key —
-        // both the Fraunces aliases and the Playfair keys — points back at the
-        // Playfair variable fonts. One place, app-wide, no per-screen edits. To
-        // restore the heavier Craft serif, re-point these to the Fraunces-*.ttf.
-        'Fraunces': require('./assets/fonts/PlayfairDisplay-Variable.ttf'),
-        'Fraunces-SemiBold': require('./assets/fonts/PlayfairDisplay-Variable.ttf'),
-        'Fraunces-Italic': require('./assets/fonts/PlayfairDisplay-Italic-Variable.ttf'),
-        'PlayfairDisplay': require('./assets/fonts/PlayfairDisplay-Variable.ttf'),
-        'PlayfairDisplay-Regular': require('./assets/fonts/PlayfairDisplay-Variable.ttf'),
-        'PlayfairDisplay-Italic': require('./assets/fonts/PlayfairDisplay-Italic-Variable.ttf'),
+        // Display serif = the original thin Playfair (weight 400). The June
+        // "Craft" swap (e019c341) repointed these keys to Fraunces-Regular.ttf —
+        // which is internally a BLACK cut — making every headline read thick.
+        // Reverted to Playfair, and pinned to a STATIC 400 instance (not the
+        // variable font) so iOS can never render it heavy. Every serif key — the
+        // Fraunces aliases AND the Playfair keys — maps here, app-wide, one place.
+        // To restore the heavy Craft serif, re-point these to the Fraunces-*.ttf.
+        'Fraunces': require('./assets/fonts/PlayfairDisplay-Regular-Static.ttf'),
+        'Fraunces-SemiBold': require('./assets/fonts/PlayfairDisplay-Regular-Static.ttf'),
+        'Fraunces-Italic': require('./assets/fonts/PlayfairDisplay-Italic-Static.ttf'),
+        'PlayfairDisplay': require('./assets/fonts/PlayfairDisplay-Regular-Static.ttf'),
+        'PlayfairDisplay-Regular': require('./assets/fonts/PlayfairDisplay-Regular-Static.ttf'),
+        'PlayfairDisplay-Italic': require('./assets/fonts/PlayfairDisplay-Italic-Static.ttf'),
     });
 
     // Restore the persisted React Query cache BEFORE the provider tree mounts,
