@@ -1036,6 +1036,10 @@ export default function OnboardingV2Screen() {
         },
     ];
 
+    // Show motivation ("What's pulling you here?") before goals ("What are we
+    // working on?") — swap the first two onboarding questions.
+    [steps[0], steps[1]] = [steps[1], steps[0]];
+
     // A step removed beneath the current index (e.g. toggling work off while
     // past the Work step) would leave `step` dangling — clamp it so we never
     // read an undefined step.
