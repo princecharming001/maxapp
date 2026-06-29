@@ -18,6 +18,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { fonts } from '../../theme/dark';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
+import { LiquidGlass } from '../../components/glass/LiquidGlass';
 
 // ─── Error helpers (unchanged) ────────────────────────────────────────────────
 
@@ -336,14 +337,16 @@ export default function SignupScreen() {
 
                         {/* Continue CTA */}
                         <TouchableOpacity
-                            style={[s.cta, loading && s.ctaDisabled]}
+                            style={[s.ctaWrap, loading && s.ctaDisabled]}
                             onPress={handleSignup}
                             disabled={loading}
                             activeOpacity={0.85}
                             accessibilityRole="button"
                             accessibilityLabel="Continue"
                         >
-                            <Text style={s.ctaText}>{loading ? 'Creating account…' : 'Continue'}</Text>
+                            <LiquidGlass radius={28} contentStyle={s.ctaContent}>
+                                <Text style={s.ctaText}>{loading ? 'Creating account…' : 'Continue'}</Text>
+                            </LiquidGlass>
                         </TouchableOpacity>
 
                         {/* OR divider */}
@@ -357,14 +360,15 @@ export default function SignupScreen() {
                         <View style={s.social}>
                             <GoogleSignInButton label="Continue with Google" />
                             <TouchableOpacity
-                                style={s.appleBtn}
                                 activeOpacity={0.85}
                                 onPress={() => Alert.alert('Apple Sign In', 'Coming soon.')}
                                 accessibilityRole="button"
                                 accessibilityLabel="Continue with Apple"
                             >
-                                <Ionicons name="logo-apple" size={18} color={INK} />
-                                <Text style={s.appleBtnText}>Continue with Apple</Text>
+                                <LiquidGlass radius={27} contentStyle={s.appleContent}>
+                                    <Ionicons name="logo-apple" size={18} color={INK} />
+                                    <Text style={s.appleBtnText}>Continue with Apple</Text>
+                                </LiquidGlass>
                             </TouchableOpacity>
                         </View>
 
@@ -501,19 +505,18 @@ const s = StyleSheet.create({
         lineHeight: 18,
     },
 
-    cta: {
+    ctaWrap: { marginTop: 20, alignSelf: 'stretch' },
+    ctaContent: {
         height: 56,
-        borderRadius: 999,
-        backgroundColor: INK,
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 20,
+        paddingHorizontal: 24,
     },
     ctaDisabled: { opacity: 0.45 },
     ctaText: {
         fontFamily: 'Matter-SemiBold',
         fontSize: 16,
-        color: WHITE,
+        color: INK,
         letterSpacing: 0.2,
     },
 
@@ -532,16 +535,13 @@ const s = StyleSheet.create({
     },
 
     social: { gap: 10 },
-    appleBtn: {
+    appleContent: {
         height: 54,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: BORDER,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 10,
-        backgroundColor: WHITE,
+        paddingHorizontal: 24,
     },
     appleBtnText: {
         fontFamily: 'Matter-SemiBold',
