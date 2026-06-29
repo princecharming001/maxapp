@@ -244,8 +244,8 @@ class Settings(BaseSettings):
         description="Gmail commitment scanning (restricted scope - enable only after CASA review)",
     )
     calendar_link_enabled: bool = Field(
-        default=False,
-        description="Google Calendar link feature (calendar.readonly). Default OFF until ready to roll out.",
+        default=True,
+        description="Google Calendar link feature (calendar.readonly). Set CALENDAR_LINK_ENABLED=false to hide.",
     )
     # Google Sign-In (identity) client IDs per platform. The web/expo client id
     # is the audience an ID token is minted for; iOS gets its own. Both fall
