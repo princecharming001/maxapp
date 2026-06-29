@@ -301,16 +301,17 @@ export default function App() {
         'Matter-SemiBold': require('./assets/fonts/Matter-SemiBold.ttf'),
         'Matter-Bold': require('./assets/fonts/Matter-Bold.ttf'),
         'Matter-Light': require('./assets/fonts/Matter-Light.ttf'),
-        // Display serif = Fraunces (Craft-style: refined old-style with
-        // calligraphic italics), instanced to a display optical cut. The old
-        // Playfair keys re-point to Fraunces so every existing headline updates
-        // with no per-screen edits; new code uses 'Fraunces'.
-        'Fraunces': require('./assets/fonts/Fraunces-Regular.ttf'),
-        'Fraunces-SemiBold': require('./assets/fonts/Fraunces-SemiBold.ttf'),
-        'Fraunces-Italic': require('./assets/fonts/Fraunces-Italic.ttf'),
-        'PlayfairDisplay': require('./assets/fonts/Fraunces-Regular.ttf'),
-        'PlayfairDisplay-Regular': require('./assets/fonts/Fraunces-Regular.ttf'),
-        'PlayfairDisplay-Italic': require('./assets/fonts/Fraunces-Italic.ttf'),
+        // Display serif = the original Playfair (the lighter "old" look). The
+        // Fraunces "Regular" cut read too bold for headlines, so every serif key —
+        // both the Fraunces aliases and the Playfair keys — points back at the
+        // Playfair variable fonts. One place, app-wide, no per-screen edits. To
+        // restore the heavier Craft serif, re-point these to the Fraunces-*.ttf.
+        'Fraunces': require('./assets/fonts/PlayfairDisplay-Variable.ttf'),
+        'Fraunces-SemiBold': require('./assets/fonts/PlayfairDisplay-Variable.ttf'),
+        'Fraunces-Italic': require('./assets/fonts/PlayfairDisplay-Italic-Variable.ttf'),
+        'PlayfairDisplay': require('./assets/fonts/PlayfairDisplay-Variable.ttf'),
+        'PlayfairDisplay-Regular': require('./assets/fonts/PlayfairDisplay-Variable.ttf'),
+        'PlayfairDisplay-Italic': require('./assets/fonts/PlayfairDisplay-Italic-Variable.ttf'),
     });
 
     // Restore the persisted React Query cache BEFORE the provider tree mounts,
