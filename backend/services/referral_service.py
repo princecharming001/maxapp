@@ -316,3 +316,30 @@ def _discount_redemption_targets(row: ReferralCode, platform: Optional[str]) -> 
             "stripe_coupon_id": row.stripe_coupon_id,
             "stripe_price_id": row.stripe_price_id,
             "message": "discount will apply at checkout."}
+
+
+# Built-in launch comp codes — full free-premium, server-granted. Seeded
+# idempotently on startup so they exist in every environment without an ops
+# step (and survive DB resets). Add codes here to mint new comps.
+DEFAULT_COMP_CODES = ("CASH99",)
+
+
+async def ensure_default_codes(db: AsyncSession) -> None:
+    """Idempotently make sure the built-in free-comp codes exist as free_comp
+    rows (premium tier, unlimited). Inserts only what's missing; never updates
+    or deletes. Safe to call on every boot."""
+    created = []
+    for raw in DEFAULT_COMP_CODES:
+        code = normalize_code(raw)
+        if not code:
+            continue
+        existing = (
+            await db.execute(select(ReferralCode).where(ReferralCode.code == code))
+        ).scalar_one_or_none()
+        if existing:
+            continue
+        db.add(ReferralCode(code=code, kind="free_comp", granted_tier="premium", campaign="launch"))
+        created.append(code)
+    if created:
+        await db.commit()
+        logger.info("seeded default referral comp codes: %s", ", ".join(created))

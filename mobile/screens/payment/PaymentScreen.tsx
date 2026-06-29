@@ -36,7 +36,6 @@ import { useStripeSubscription } from '../../hooks/useStripeSubscription';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
 import { useFlag } from '../../constants/featureFlags';
-import { ReferralCodeField } from '../../components/ReferralCodeField';
 
 /* ── Palette ── light cream paywall (ink + blue, matches maxx clay icons) ─ */
 const WHITE   = '#FFFFFF';
@@ -258,16 +257,6 @@ export default function PaymentScreen() {
                         : <Text style={s.ctaText}>{ctaLabel}</Text>
                     }
                 </TouchableOpacity>
-
-                {/* Referral / promo code (hidden + no-op when the `referrals` flag is OFF).
-                    On a free comp the server grants entitlement; refresh + route past paywall. */}
-                <ReferralCodeField
-                    initialCode={route?.params?.referralCode}
-                    onComped={async () => {
-                        await refreshUser();
-                        navigation.navigate('FaceScanResults', { postPay: true });
-                    }}
-                />
 
                 {/* Legal footer */}
                 <View style={s.legalRow}>

@@ -452,7 +452,7 @@ export default function MaxxDetailScreen() {
                         <CourseTimeline course={courseDef} accent={accent} onOpenSection={openReaderAt} />
                     ) : (
                         <View style={styles.lockedWrap}>
-                            <CourseLockedCard accent={accent} onUpgrade={() => navigation.navigate('Payment')} />
+                            <CourseLockedCard accent={accent} onUpgrade={() => navigation.navigate('ReferralCode')} />
                         </View>
                     )}
                 </ScrollView>
@@ -645,7 +645,7 @@ export default function MaxxDetailScreen() {
                             activeOpacity={0.85}
                             onPress={() => {
                                 if (lockedPremium) {
-                                    navigation.navigate('Payment');
+                                    navigation.navigate('ReferralCode');
                                     return;
                                 }
                                 openModuleReader(mod, idx);

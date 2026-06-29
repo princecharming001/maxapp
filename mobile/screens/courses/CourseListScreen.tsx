@@ -26,7 +26,7 @@ export default function CourseListScreen() {
     // Direct nav — no intermediate alert. Tap → Payment. The lock
     // pill on each card already signals "this is paid"; an extra
     // confirm-tap to reach the upgrade screen was friction.
-    const goToUpgrade = () => navigation.navigate('Payment');
+    const goToUpgrade = () => navigation.navigate('ReferralCode');
 
     const handlePress = (item: any) => {
         if (isLocked) { goToUpgrade(); return; }

@@ -994,7 +994,7 @@ export default function FaceScanResultsScreen() {
     ).map(String).filter(Boolean).slice(0, 2);
     const glowUpGain = ratingDisplay != null ? Math.max(0, Math.round((potentialDisplay - ratingDisplay) * 10) / 10) : null;
 
-    const goPayment = () => navigation.navigate('Payment');
+    const goPayment = () => navigation.navigate('ReferralCode');
 
     const onPrimaryCta = async () => {
         if (isScanUser) { navigation.reset({ index: 0, routes: [{ name: 'FaceScan' }] }); return; }

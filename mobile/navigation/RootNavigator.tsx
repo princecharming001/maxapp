@@ -23,6 +23,7 @@ import GoogleCalendarConnectScreen from '../screens/integrations/GoogleCalendarC
 import NotificationChannelsScreen from '../screens/scan/NotificationChannelsScreen';
 import ScanDetailScreen from '../screens/scan/ScanDetailScreen';
 import PaymentScreen from '../screens/payment/PaymentScreen';
+import ReferralCodeScreen from '../screens/payment/ReferralCodeScreen';
 import PaymentThankYouScreen from '../screens/payment/PaymentThankYouScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import SmsSetupScreen from '../screens/profile/SmsSetupScreen';
@@ -110,7 +111,7 @@ export function RootNavigator() {
                     ? !onboardingCompleted
                         ? 'Onboarding'
                         : !faceScan
-                            ? 'Payment'
+                            ? 'ReferralCode'
                             : firstScanDone
                                 ? 'FaceScanResults'
                                 : 'FeaturesIntro'
@@ -161,6 +162,7 @@ export function RootNavigator() {
                     <Stack.Screen name="FaceScan" component={FaceScanScreen} options={{ gestureEnabled: false }} />
                     <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} options={{ gestureEnabled: false }} />
                     <Stack.Screen name="ScanDetail" component={ScanDetailScreen} />
+                    <Stack.Screen name="ReferralCode" component={ReferralCodeScreen} />
                     <Stack.Screen name="Payment" component={PaymentScreen} />
                     <Stack.Screen name="PaymentThankYou" component={PaymentThankYouScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
@@ -173,6 +175,7 @@ export function RootNavigator() {
                     <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} />
                     {/* Locked scan results can show "Unlock full results" here too, so
                         Payment must be reachable from this stack — not just the funnel. */}
+                    <Stack.Screen name="ReferralCode" component={ReferralCodeScreen} />
                     <Stack.Screen name="Payment" component={PaymentScreen} />
                     <Stack.Screen name="PaymentThankYou" component={PaymentThankYouScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="SmsCoachingIntro" component={SmsCoachingIntroScreen} />

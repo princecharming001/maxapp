@@ -99,7 +99,7 @@ export default function ForumsHomeV2Screen() {
     const openSubforum = (s: Subforum) => {
         const tier = (s.access_tier ?? 'public').toLowerCase();
         if (tier === 'premium' && !canAccessPremium) {
-            navigation.navigate('Payment');
+            navigation.navigate('ReferralCode');
             return;
         }
         navigation.navigate('SubforumThreadsV2', { subforumId: s.id, subforumName: s.name, accessTier: tier, isReadOnly: !!s.is_read_only });

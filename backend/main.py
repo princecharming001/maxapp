@@ -40,6 +40,17 @@ async def lifespan(app: FastAPI):
     # Startup
     settings.validate_production_config()
     await init_db()
+    # Idempotently seed built-in free-comp referral codes (e.g. CASH99) so they
+    # exist in every environment. Guarded by the flag; never blocks startup.
+    if settings.referrals_enabled:
+        try:
+            from db.sqlalchemy import AsyncSessionLocal
+            from services.referral_service import ensure_default_codes
+            async with AsyncSessionLocal() as _seed_session:
+                await ensure_default_codes(_seed_session)
+        except Exception as _seed_err:  # noqa: BLE001
+            import logging as _logging
+            _logging.getLogger("referral").warning("default comp-code seed skipped: %s", _seed_err)
     from services.prompt_loader import refresh_prompt_cache
     await refresh_prompt_cache()
     await init_rds_db()
