@@ -225,7 +225,7 @@ export default function ManageSubscriptionScreen() {
                         await loadStatus();
                         if (immediate) {
                             navigation.dispatch(
-                                CommonActions.reset({ index: 0, routes: [{ name: 'Payment' }] }),
+                                CommonActions.reset({ index: 0, routes: [{ name: 'ReferralCode' }] }),
                             );
                         }
                     } catch (e: unknown) {
