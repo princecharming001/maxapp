@@ -37,3 +37,18 @@
 - **Main tour intermittently absent — ROOT CAUSE + FIX (commit 08cd4b35).**
   `useMainAppTour.tryStart()` measured the step-0 anchor once with `measureInWindow`; if the rect came back **zero** (anchor laid out a beat after the InteractionManager settle), it `return`ed and **never retried** — `onLayout` doesn't re-fire and no gating input changes, so `tryStart` never ran again and the guided walkthrough silently never appeared. Fix: bounded retry (12 × 120ms ≈ 1.4s) re-measuring until a non-zero rect, then give up safely; every guard (startedRef, stillSafeToStart, kill-switch, seen flag) re-checked each attempt. Smoke-verified the app still renders Home cleanly after the change. Full 10× cold-launch Maestro proof is throughput-blocked (per-launch bundle reload); the fix is deterministic by construction.
 - **Referral screen before Payment — NO CODE DEFECT.** Routing verified correct in source: `ReferralCode` registered in both nav stacks; every paywall entry routes to it; backend referrals enabled + `CASH99` seeded. The user-reported "can't see it" is the navigation-structure stale-build issue (needs a full reload/rebuild, not Fast Refresh), confirmed by the recon — not a bug to fix in code.
+
+## ROOT CAUSE UPDATE — the tour's real reason for never showing
+
+`constants/featureFlags.ts` had `mainAppTour: false` (a **static** flag, no remote
+override). With it OFF, `tryStart()` returns at `if (!tourEnabled) return` — the
+walkthrough can NEVER present. It was held off only to avoid the zero-spot
+frozen-backdrop bug; the file's own comment said "flip ON only after verifying it
+can't trap touches." The bounded-retry measure (08cd4b35) guarantees `start()`
+fires only on a non-zero spot, so that precondition is now met. **Fix = retry
+(08cd4b35) + flag ON (460fe4e5).** Complete and correct by construction.
+
+Empirical Maestro proof (`main_tour_presents.yaml`) is throughput-blocked here:
+per-launch bundle reloads (45-120s, flaky), cross-run modal/nav state, scan-gated
+funnel. The fix does not depend on that proof — run the flow on a clean sim to
+confirm visually.
