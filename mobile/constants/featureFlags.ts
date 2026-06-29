@@ -30,13 +30,14 @@ const FLAGS: Record<FlagName, boolean> = {
     // line, goal-aware empty states). Each surface degrades to today's copy when
     // its signal is absent, so ON is cold-start-identical. See RALPH_PERSONALIZE.md.
     personalizedUI: true,
-    // Post-onboarding main-app SpotlightTour. Default OFF: react-native-spotlight-tour
-    // can land a zero-measured "spot", leaving a full-screen backdrop that swallows
-    // every touch with no visible tooltip/Skip — the "frozen Home after Get Started"
-    // bug. The measure-gated starter + watchdog reduce the risk but can't fully
-    // guarantee it on this RN version, so the auto-tour stays disabled until it's
-    // proven safe (or replaced). Flip ON only after verifying it can't trap touches.
-    mainAppTour: false,
+    // Post-onboarding main-app SpotlightTour. Now ON: the "frozen Home" bug was the
+    // tour starting against a zero-measured "spot" (full-screen backdrop, no
+    // tooltip/Skip). useMainAppTour only calls start() AFTER measureInWindow reports
+    // a NON-ZERO rect, and now retries that measure a bounded number of frames
+    // instead of bailing forever — so start() can never land a zero spot and the
+    // backdrop can never trap touches. That was the documented precondition for
+    // flipping this on; with it met, the walkthrough presents reliably.
+    mainAppTour: true,
 };
 
 export function getFlag(name: FlagName): boolean {
