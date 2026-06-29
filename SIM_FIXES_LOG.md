@@ -20,3 +20,9 @@
 ## Iteration notes
 
 - U0 — env confirmed, Maestro drives the app, branch + log created.
+- U1 (in progress) — reproduction reconnaissance:
+  - **Maestro syntax:** this build rejects `accessibilityId:` (repo's older flows use it). Use `id:` (maps to the iOS accessibility identifier / `accessibilityLabel`) or `text:`. The repo flows need a syntax pass.
+  - **App state:** logged in as a **PAID** user on Home ("DAY 1/365", tab bar). Backend = **local** `127.0.0.1:8000` (`EXPO_PUBLIC_API_BASE_URL`), **up** (root/docs 200) with **referrals enabled** (`/api/referral/validate` → "Not authenticated", NOT 404).
+  - **Repro lever found:** `components/DevDrawer.tsx` — a dev sheet with **guest / unpaid("Onboarding") / paid** pills (`fauxFreshSignup`/`fauxSkipSignup`). Launcher selector = `id: "Open dev drawer"` (a coordinate point-tap missed; use the label). Switching to "Onboarding" enters the unpaid funnel without a real account — works because the backend is local (faux-signup is 404 only on prod).
+  - **Blockers to a clean repro:** (1) dev-client **re-downloads the JS bundle every launch** (slow; anchor waits on the "DAY" Home string, ~45-60s). (2) Unpaid users live in the linear funnel stack (no tab bar) — the only paywall path is Onboarding → **face scan** → FaceScanResults → "Unlock full results" → ReferralCode; the scan step must be driven via `camera_scan_entry.yaml`/`camera_capture_trigger.yaml`.
+  - **Artifact:** authored `mobile/maestro/referral_before_payment.yaml` (correct `id:` syntax + DevDrawer entry; funnel traversal + the `assertVisible "Have a referral code?"` step is the next-iteration TODO).

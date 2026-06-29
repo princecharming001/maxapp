@@ -1,0 +1,33 @@
+appId: com.cannon.mobile
+---
+# VERIFY (RALPH_SIM_FIXES U1-U3): the referral screen appears BEFORE Payment,
+# and CASH99 grants free access. Drives the UNPAID funnel via the DevDrawer so
+# no real face scan / prod account is needed. Requires the LOCAL backend on
+# :8000 (referrals_enabled) — confirmed up in U1.
+#
+# Maestro syntax note: this Maestro build rejects `accessibilityId:` (the repo's
+# older flows use it) — use `id:` (matches the iOS accessibility identifier /
+# accessibilityLabel) or `text:`.
+- launchApp
+# The Expo dev client re-downloads the JS bundle on each launch (slow). Wait it
+# out by anchoring on a stable Home string instead of a fixed sleep.
+- extendedWaitUntil:
+    visible: "DAY"
+    timeout: 60000
+# DevDrawer launcher — reliable selector (accessibilityLabel), not a coordinate.
+- tapOn:
+    id: "Open dev drawer"
+- waitForAnimationToEnd:
+    timeout: 3000
+# Enter the unpaid funnel (faux fresh signup against the local backend).
+- tapOn:
+    text: "Onboarding"
+- waitForAnimationToEnd:
+    timeout: 12000
+# TODO(next iteration): traverse onboarding -> face scan (reuse
+# camera_scan_entry.yaml / camera_capture_trigger.yaml) -> FaceScanResults, then:
+#   - tapOn: { id: "Unlock full results" }
+#   - assertVisible: "Have a referral code?"      # the referral screen intercepts
+#   - inputText (CASH99) into the code field, Apply, Unlock
+#   - assert lands in-app with premium (paywall NOT shown)
+- takeScreenshot: referral_before_payment_progress
