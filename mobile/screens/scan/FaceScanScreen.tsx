@@ -582,8 +582,16 @@ export default function FaceScanScreen() {
                             <View style={styles.shutterInner} />
                         </TouchableOpacity>
 
-                        {/* Spacer mirror */}
-                        <View style={styles.sideAction} />
+                        {/* Spacer mirror — in dev, a skip-scan shortcut so the
+                            post-scan funnel (results → paywall → referral) can be
+                            driven on a simulator, which has no camera to capture. */}
+                        {__DEV__ ? (
+                            <TouchableOpacity style={styles.sideAction} onPress={navigateToResults} activeOpacity={0.7} accessibilityLabel="Skip scan dev">
+                                <Ionicons name="play-forward-outline" size={26} color="rgba(255,255,255,0.80)" />
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={styles.sideAction} />
+                        )}
                     </View>
                 ) : (
                     <View style={styles.confirmedRow}>
