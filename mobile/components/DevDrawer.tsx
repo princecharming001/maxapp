@@ -86,6 +86,27 @@ function DevDrawerInner() {
         }
     }, [currentState, fauxFreshSignup]);
 
+    // Jump straight to CreateAccount ("Save your results") — the account-after-scan
+    // claim step — bypassing the camera-gated scan, so the claim -> referral flow
+    // (and the returning-user "Sign in instead" path) can be tested on a simulator.
+    const goToCreateAccount = useCallback(async () => {
+        setOpen(false);
+        const navTo = () => {
+            const { navigationRef } = require('../lib/navigationRef');
+            if (navigationRef.isReady()) navigationRef.navigate('CreateAccount');
+        };
+        try {
+            if (currentState !== 'unpaid') {
+                await fauxFreshSignup?.();
+                setTimeout(navTo, 450);
+            } else {
+                navTo();
+            }
+        } catch (e: any) {
+            Alert.alert('Dev create-account failed', String(e?.message || e || 'Could not open CreateAccount.'));
+        }
+    }, [currentState, fauxFreshSignup]);
+
     return (
         <>
             <Pressable
@@ -116,6 +137,9 @@ function DevDrawerInner() {
                         </View>
                         <Pressable onPress={() => void goToReveal()} style={s.actionBtn}>
                             <Text style={s.actionText}>Reveal → scan (mock data)</Text>
+                        </Pressable>
+                        <Pressable onPress={() => void goToCreateAccount()} style={s.actionBtn}>
+                            <Text style={s.actionText}>→ Create account (claim)</Text>
                         </Pressable>
                         <Pressable onPress={() => setOpen(false)} style={s.closeBtn}>
                             <Text style={s.closeText}>Close</Text>
