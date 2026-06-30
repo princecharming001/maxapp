@@ -181,9 +181,10 @@ export default function PaymentScreen() {
             {/* ── Full-bleed background ── wisps of brand-colored dust over the
                 cream canvas (same hues as the Explore max icons). A soft cream
                 wash on top/bottom keeps the title and plans legible. ───────── */}
-            {/* contain (not cover) so the full 5-wisp composition shows un-zoomed;
-                the image's cream matches the root CREAM so the letterbox is invisible. */}
-            <Image source={DUST} style={StyleSheet.absoluteFill} resizeMode="contain" />
+            {/* The dust image is pre-padded to the phone's portrait aspect (0.462) with
+                matching cream, so cover fills full-bleed yet only ever crops the invisible
+                cream margins — the full 5-wisp composition always shows, un-zoomed. */}
+            <Image source={DUST} style={StyleSheet.absoluteFill} resizeMode="cover" />
             <LinearGradient
                 pointerEvents="none"
                 colors={['rgba(244,238,227,0.78)', 'rgba(244,238,227,0.10)', 'rgba(244,238,227,0.28)', 'rgba(244,238,227,0.95)']}
