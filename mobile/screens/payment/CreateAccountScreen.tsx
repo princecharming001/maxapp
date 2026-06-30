@@ -8,11 +8,12 @@
 import React, { useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-    KeyboardAvoidingView, Platform, ActivityIndicator,
+    KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import { useAuth } from '../../context/AuthContext';
 import { navigationRef } from '../../lib/navigationRef';
 import { fonts } from '../../theme/dark';
@@ -103,6 +104,24 @@ export default function CreateAccountScreen() {
                         {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.ctaText}>Save & continue</Text>}
                     </TouchableOpacity>
 
+                    <View style={styles.orRow}>
+                        <View style={styles.orLine} />
+                        <Text style={styles.orText}>OR</Text>
+                        <View style={styles.orLine} />
+                    </View>
+
+                    <GoogleSignInButton label="Continue with Google" />
+                    <TouchableOpacity
+                        style={styles.apple}
+                        onPress={() => Alert.alert('Apple Sign In', 'Coming soon.')}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel="Continue with Apple"
+                    >
+                        <Ionicons name="logo-apple" size={18} color={INK} />
+                        <Text style={styles.appleText}>Continue with Apple</Text>
+                    </TouchableOpacity>
+
                     <TouchableOpacity style={styles.signin} onPress={onSignInInstead} hitSlop={8} accessibilityRole="button">
                         <Text style={styles.signinText}>Already have an account? <Text style={styles.signinStrong}>Sign in</Text></Text>
                     </TouchableOpacity>
@@ -136,6 +155,17 @@ const styles = StyleSheet.create({
     },
     ctaDisabled: { opacity: 0.4 },
     ctaText: { fontFamily: fonts.sansSemiBold, fontSize: 16.5, color: '#FFFFFF', letterSpacing: 0.2 },
+    orRow: { flexDirection: 'row', alignItems: 'center', marginTop: 22, marginBottom: 14, gap: 12 },
+    orLine: { flex: 1, height: 1, backgroundColor: '#E6E2D8' },
+    orText: { fontFamily: fonts.sans, fontSize: 11, color: '#A8A29A', letterSpacing: 1.2 },
+    apple: {
+        marginTop: 10, height: 54, borderRadius: 27, borderCurve: 'continuous',
+        backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#1A1714', shadowOpacity: 0.06, shadowRadius: 9, shadowOffset: { width: 0, height: 4 } }
+            : { elevation: 2 }),
+    },
+    appleText: { fontFamily: fonts.sansSemiBold, fontSize: 15.5, color: INK },
     signin: { marginTop: 18, alignItems: 'center' },
     signinText: { fontFamily: fonts.sans, fontSize: 14, color: SUB },
     signinStrong: { fontFamily: fonts.sansSemiBold, color: INK, textDecorationLine: 'underline' },
