@@ -994,7 +994,10 @@ export default function FaceScanResultsScreen() {
     ).map(String).filter(Boolean).slice(0, 2);
     const glowUpGain = ratingDisplay != null ? Math.max(0, Math.round((potentialDisplay - ratingDisplay) * 10) / 10) : null;
 
-    const goPayment = () => navigation.navigate('ReferralCode');
+    // Account-after-scan: an unclaimed (anon) user creates their account first;
+    // a claimed user goes straight to the referral/paywall step.
+    const isAnon = !!user?.email && String(user.email).endsWith('@anon.maxapp.invalid');
+    const goPayment = () => navigation.navigate(isAnon ? 'CreateAccount' : 'ReferralCode');
 
     const onPrimaryCta = async () => {
         if (isScanUser) { navigation.reset({ index: 0, routes: [{ name: 'FaceScan' }] }); return; }

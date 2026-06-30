@@ -24,6 +24,7 @@ import NotificationChannelsScreen from '../screens/scan/NotificationChannelsScre
 import ScanDetailScreen from '../screens/scan/ScanDetailScreen';
 import PaymentScreen from '../screens/payment/PaymentScreen';
 import ReferralCodeScreen from '../screens/payment/ReferralCodeScreen';
+import CreateAccountScreen from '../screens/payment/CreateAccountScreen';
 import PaymentThankYouScreen from '../screens/payment/PaymentThankYouScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import SmsSetupScreen from '../screens/profile/SmsSetupScreen';
@@ -162,6 +163,8 @@ export function RootNavigator() {
                     <Stack.Screen name="FaceScan" component={FaceScanScreen} options={{ gestureEnabled: false }} />
                     <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} options={{ gestureEnabled: false }} />
                     <Stack.Screen name="ScanDetail" component={ScanDetailScreen} />
+                    {/* Account-after-scan: claim the anon account before the paywall. */}
+                    <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
                     <Stack.Screen name="ReferralCode" component={ReferralCodeScreen} />
                     <Stack.Screen name="Payment" component={PaymentScreen} />
                     <Stack.Screen name="PaymentThankYou" component={PaymentThankYouScreen} options={{ headerShown: false }} />
@@ -173,6 +176,7 @@ export function RootNavigator() {
                     <Stack.Screen name="Main" component={TabNavigator} />
                     <Stack.Screen name="FaceScan" component={FaceScanScreen} />
                     <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} />
+                    <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
                     {/* Locked scan results can show "Unlock full results" here too, so
                         Payment must be reachable from this stack — not just the funnel. */}
                     <Stack.Screen name="ReferralCode" component={ReferralCodeScreen} />

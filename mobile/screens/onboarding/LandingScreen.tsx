@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -6,11 +6,12 @@ import {
     TouchableOpacity,
     Platform,
     Image,
+    Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../../context/AuthContext';
 import ShineOverlay from '../../components/ShineOverlay';
 
 const isWeb = Platform.OS === 'web';
@@ -20,33 +21,32 @@ const INK = '#1C1A17';
 const WHITE = '#FFFFFF';
 
 // The whole screen is the face — it bleeds edge-to-edge into a soft gradient;
-// brand + auth float over it (no panel). Now a subtle living-portrait loop:
-// the still (same recolored frame) sits behind as an instant-paint poster, the
-// muted looping video plays on top.
-const HERO_VIDEO = require('../../assets/landing-hero.mp4');
-const HERO_POSTER = require('../../assets/landing-hero.webp');
+// brand + auth float over it (no panel). A pixelated-but-realistic portrait
+// rendered entirely in the brand orange/blue (Explore icon hues).
+const HERO = require('../../assets/landing-hero.webp');
 
 export default function LandingScreen() {
     const navigation = useNavigation<any>();
+    const { startAnon } = useAuth();
+    const [starting, setStarting] = useState(false);
 
-    const player = useVideoPlayer(HERO_VIDEO, (p) => {
-        p.loop = true;
-        p.muted = true;
-        p.play();
-    });
+    // "Get started" mints a free anonymous account; the RootNavigator then switches
+    // to the funnel (onboarding -> scan). The account is claimed before the paywall.
+    const onGetStarted = async () => {
+        if (starting) return;
+        setStarting(true);
+        try {
+            await startAnon();
+        } catch (e: any) {
+            setStarting(false);
+            Alert.alert('Something went wrong', 'Could not get you started just now. Please try again.');
+        }
+    };
 
     return (
         <View style={styles.root}>
             <View style={styles.phone}>
-                {/* Poster (same recolored frame) paints instantly; the loop plays over it. */}
-                <Image source={HERO_POSTER} style={styles.heroImg} resizeMode="cover" />
-                <VideoView
-                    style={styles.heroImg}
-                    player={player}
-                    contentFit="cover"
-                    nativeControls={false}
-                    pointerEvents="none"
-                />
+                <Image source={HERO} style={styles.heroImg} resizeMode="cover" />
 
                 {/* Edge-to-edge scrim — the photo dissolves into black at the base. */}
                 <LinearGradient
@@ -63,7 +63,8 @@ export default function LandingScreen() {
                     <TouchableOpacity
                         style={styles.primaryBtn}
                         activeOpacity={0.9}
-                        onPress={() => navigation.navigate('Signup')}
+                        onPress={onGetStarted}
+                        disabled={starting}
                         accessibilityRole="button"
                         accessibilityLabel="Get started"
                     >
