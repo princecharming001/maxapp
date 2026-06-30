@@ -96,6 +96,8 @@ interface AuthContextType {
     isPaid: boolean;
     isPremium: boolean;
     isScanUser: boolean;
+    /** True for an unclaimed anonymous "guest" account — must claim an account before the paywall/app. */
+    isAnonymous: boolean;
     subscriptionTier: SubscriptionTier;
     login: (identifier: string, password: string) => Promise<void>;
     signup: (email: string, password: string, first_name: string, last_name: string, username: string, phone_number?: string) => Promise<void>;
@@ -329,6 +331,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             isPaid: user?.is_paid ?? false,
             isPremium: user?.is_admin || (user?.is_paid && subscriptionTier === 'premium') || false,
             isScanUser: user?.is_scan_user ?? false,
+            isAnonymous: !!user?.email && String(user.email).endsWith('@anon.trymax.app'),
             subscriptionTier,
             login,
             signup,

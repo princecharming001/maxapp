@@ -13,7 +13,7 @@
  *                       · full course library · priority support
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -101,7 +101,13 @@ export default function PaymentScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const insets     = useSafeAreaInsets();
-    const { user, refreshUser } = useAuth();
+    const { user, refreshUser, isAnonymous } = useAuth();
+
+    // Guest gate (belt-and-suspenders): an unclaimed anon guest must claim an
+    // account before paying — ReferralCode gates first, this catches direct paths.
+    useEffect(() => {
+        if (isAnonymous) navigation.replace('CreateAccount');
+    }, [isAnonymous]);
 
     const faceScanEnabled = useFlag('faceScan');
     const chadFeatures      = faceScanEnabled ? CHAD_FEATURES      : CHAD_FEATURES_NO_SCAN;

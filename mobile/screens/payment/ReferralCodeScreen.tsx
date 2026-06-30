@@ -8,7 +8,7 @@
  * Centered, "Craft"-aesthetic layout (cream canvas, serif display title) to match
  * Landing / the paywall.
  */
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,11 +25,17 @@ export default function ReferralCodeScreen() {
     const nav = useNavigation<any>();
     const route = useRoute<any>();
     const insets = useSafeAreaInsets();
-    const { refreshUser } = useAuth();
+    const { refreshUser, isAnonymous } = useAuth();
     const initialCode: string | undefined = route?.params?.referralCode;
 
     const fieldRef = useRef<ReferralCodeHandle>(null);
     const [compReady, setCompReady] = useState(false);
+
+    // Guest gate: an unclaimed anonymous "guest" must create/claim an account before
+    // the paywall — never let a guest reach referral/payment (or the app) as anon.
+    useEffect(() => {
+        if (isAnonymous) nav.replace('CreateAccount', route?.params);
+    }, [isAnonymous]);
 
     // No code (or a discount-only code): continue to the paywall, passing any
     // params (e.g. a pre-filled referralCode) straight through.
@@ -44,6 +50,8 @@ export default function ReferralCodeScreen() {
         }
         goPayment();
     };
+
+    if (isAnonymous) return <View style={styles.root} />;  // redirecting an anon guest to CreateAccount
 
     return (
         <View style={[styles.root, { paddingTop: insets.top + 6 }]}>
