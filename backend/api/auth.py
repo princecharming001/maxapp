@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import bcrypt
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt
 from sqlalchemy import delete, desc, func, select
@@ -634,6 +634,28 @@ async def _unique_username(db: AsyncSession, base: str) -> str:
     return f"{stem}{secrets.token_hex(4)}"
 
 
+async def _optional_anon_caller(authorization: str | None, db: AsyncSession) -> "User | None":
+    """If the request carries a valid access token for an UNCLAIMED anon account,
+    return that user — so a social sign-in can CLAIM it (preserving the funnel's
+    onboarding + scan) instead of starting a fresh account. Any problem -> None,
+    so a bad/expired token never blocks a normal sign-in."""
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    token = authorization.split(" ", 1)[1].strip()
+    try:
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        if payload.get("type") != "access":
+            return None
+        user = (await db.execute(
+            select(User).where(User.id == UUID(str(payload.get("sub"))))
+        )).scalar_one_or_none()
+        if user and _is_anonymous_email(user.email):
+            return user
+    except Exception:  # noqa: BLE001 — best-effort; never block sign-in on a bad token
+        return None
+    return None
+
+
 async def _find_or_create_google_user(
     db: AsyncSession,
     *,
@@ -641,6 +663,7 @@ async def _find_or_create_google_user(
     email: str,
     given_name: str = "",
     family_name: str = "",
+    claim_user: "User | None" = None,
 ) -> tuple[User, bool]:
     """Resolve a Google identity to an app user (created = was new).
 
@@ -670,6 +693,22 @@ async def _find_or_create_google_user(
             await db.commit()
             await db.refresh(user)
             return user, False
+
+    # Account-after-scan: claim the CALLER's own unclaimed anon account with this
+    # Google identity, preserving its onboarding + scan, instead of starting fresh.
+    if claim_user is not None and email:
+        claim_user.email = email
+        claim_user.google_sub = sub
+        claim_user.auth_provider = "google"
+        if given_name:
+            claim_user.first_name = given_name.strip()
+        if family_name:
+            claim_user.last_name = family_name.strip()
+        claim_user.username = await _unique_username(db, email.split("@", 1)[0])
+        claim_user.updated_at = datetime.utcnow()
+        await db.commit()
+        await db.refresh(claim_user)
+        return claim_user, False
 
     username = await _unique_username(db, email.split("@", 1)[0] if email else "max")
     user = User(
@@ -707,7 +746,7 @@ async def google_signin_config():
 
 
 @router.post("/google", response_model=TokenResponse)
-async def google_signin(payload: dict, db: AsyncSession = Depends(get_db)):
+async def google_signin(payload: dict, db: AsyncSession = Depends(get_db), authorization: str | None = Header(default=None)):
     """Sign in / sign up with a Google ID token. The client obtains the token
     via the Google consent flow and POSTs it here; we verify it against
     Google's keys, then find-or-create the account and issue our own tokens."""
@@ -732,6 +771,7 @@ async def google_signin(payload: dict, db: AsyncSession = Depends(get_db)):
         email=str(claims.get("email") or ""),
         given_name=str(claims.get("given_name") or ""),
         family_name=str(claims.get("family_name") or ""),
+        claim_user=await _optional_anon_caller(authorization, db),
     )
     user_id = str(user.id)
     return TokenResponse(
@@ -742,7 +782,7 @@ async def google_signin(payload: dict, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/google/dev", response_model=TokenResponse)
-async def google_signin_dev(payload: dict, db: AsyncSession = Depends(get_db)):
+async def google_signin_dev(payload: dict, db: AsyncSession = Depends(get_db), authorization: str | None = Header(default=None)):
     """DEV-ONLY: exercise the exact find-or-create + token path WITHOUT a real
     Google token, so the identity flow is testable before OAuth client IDs are
     provisioned. Disabled in production."""
@@ -755,6 +795,7 @@ async def google_signin_dev(payload: dict, db: AsyncSession = Depends(get_db)):
     given, _, family = name.partition(" ")
     user, _created = await _find_or_create_google_user(
         db, sub=sub, email=email, given_name=given, family_name=family,
+        claim_user=await _optional_anon_caller(authorization, db),
     )
     user_id = str(user.id)
     return TokenResponse(
