@@ -134,6 +134,14 @@ async def signup(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
+
+    # The anon subdomain is reserved for credential-less accounts — a real signup
+    # must never land on it (else it'd look "claimable").
+    if _is_anonymous_email(user_data.email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="That email domain is reserved. Please use a different email.",
+        )
     
     # Check if username exists
     result = await db.execute(select(User).where(User.username == user_data.username.lower()))
@@ -286,9 +294,12 @@ def _new_demo_identity(prefix: str = "demo") -> tuple[str, str, str, str]:
 # the next paywall bypass:
 #   - is_paid=False / is_admin=False ALWAYS — an anon account can never be premium.
 #   - rate-limited per-IP to stop account-spam / DB bloat.
-#   - a reserved `.invalid` email + a random password the client never sees, so the
-#     account cannot be password-logged-into until it is claimed.
-ANON_EMAIL_DOMAIN = "anon.maxapp.invalid"
+#   - a reserved app-owned email subdomain + a random password the client never sees,
+#     so the account can't be password-logged-into until it is claimed, and /signup
+#     refuses the reserved domain. NB: this MUST be a VALID email domain — EmailStr
+#     (used by UserResponse) rejects special-use TLDs like .invalid / .test, which
+#     would 500 GET /users/me for every anon user.
+ANON_EMAIL_DOMAIN = "anon.trymax.app"
 
 
 def _new_anon_identity() -> tuple[str, str, str]:
@@ -297,7 +308,7 @@ def _new_anon_identity() -> tuple[str, str, str]:
 
 
 def _is_anonymous_email(email: str | None) -> bool:
-    """True for an unclaimed anon account (its email is the reserved .invalid one)."""
+    """True for an unclaimed anon account (its email is on the reserved anon domain)."""
     return bool(email) and email.lower().endswith("@" + ANON_EMAIL_DOMAIN)
 
 

@@ -996,7 +996,7 @@ export default function FaceScanResultsScreen() {
 
     // Account-after-scan: an unclaimed (anon) user creates their account first;
     // a claimed user goes straight to the referral/paywall step.
-    const isAnon = !!user?.email && String(user.email).endsWith('@anon.maxapp.invalid');
+    const isAnon = !!user?.email && String(user.email).endsWith('@anon.trymax.app');
     const goPayment = () => navigation.navigate(isAnon ? 'CreateAccount' : 'ReferralCode');
 
     const onPrimaryCta = async () => {
