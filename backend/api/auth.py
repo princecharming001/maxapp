@@ -276,6 +276,139 @@ def _new_demo_identity(prefix: str = "demo") -> tuple[str, str, str, str]:
     return email, username, password, phone
 
 
+# ── Anonymous account (Approach A: account-after-scan) ────────────────────────
+# A guest taps "Get started" → mint a credential-less, FREE-tier account so the whole
+# auth-gated funnel (onboarding + scan) works with a real user WITHOUT asking for an
+# email/password up front. Right before the paywall the user CLAIMS the account
+# (sets email + password) via /auth/claim.
+#
+# Unlike the faux-signup endpoints this is PROD-SAFE — but hardened so it can't become
+# the next paywall bypass:
+#   - is_paid=False / is_admin=False ALWAYS — an anon account can never be premium.
+#   - rate-limited per-IP to stop account-spam / DB bloat.
+#   - a reserved `.invalid` email + a random password the client never sees, so the
+#     account cannot be password-logged-into until it is claimed.
+ANON_EMAIL_DOMAIN = "anon.maxapp.invalid"
+
+
+def _new_anon_identity() -> tuple[str, str, str]:
+    tag = _random_string(16)
+    return f"anon_{tag}@{ANON_EMAIL_DOMAIN}", f"anon_{tag}", secrets.token_urlsafe(24)
+
+
+def _is_anonymous_email(email: str | None) -> bool:
+    """True for an unclaimed anon account (its email is the reserved .invalid one)."""
+    return bool(email) and email.lower().endswith("@" + ANON_EMAIL_DOMAIN)
+
+
+@router.post(
+    "/anon",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit(limit=30, window_s=3600, scope="anon"))],
+)
+async def anon_signup(db: AsyncSession = Depends(get_db)):
+    """Mint a credential-less FREE-tier account so the funnel can run before sign-up.
+    Claimed (email + password set) via /auth/claim before checkout."""
+    email, username, password = _new_anon_identity()
+    user = User(
+        email=email,
+        password_hash=hash_password(password),  # random — never returned to the client
+        first_name="",
+        last_name="",
+        username=username,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        is_paid=False,   # SECURITY: anon accounts are NEVER premium
+        is_admin=False,
+        onboarding={},   # fresh — they go through onboarding
+        profile=UserProfile().model_dump(),
+        first_scan_completed=False,
+        phone_number=None,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    user_id = str(user.id)
+    return TokenResponse(
+        access_token=create_access_token(user_id),
+        refresh_token=create_refresh_token(user_id),
+        token_type="bearer",
+    )
+
+
+@router.post(
+    "/claim",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit(limit=10, window_s=3600, scope="claim"))],
+)
+async def claim_account(
+    user_data: UserCreate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Claim an anonymous account: set its real email + password + username + name.
+    Only an UNCLAIMED (anon-email) account can be claimed, so a claim can never
+    hijack or overwrite a credentialed user. Never grants premium."""
+    result = await db.execute(select(User).where(User.id == UUID(current_user["id"])))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+    if not _is_anonymous_email(user.email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account is already set up. Sign in instead.",
+        )
+
+    new_email = user_data.email.lower()
+    new_username = user_data.username.lower()
+    # Uniqueness — against every OTHER user (exclude self).
+    if (await db.execute(
+        select(User).where(User.email == new_email, User.id != user.id)
+    )).scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+    if (await db.execute(
+        select(User).where(User.username == new_username, User.id != user.id)
+    )).scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken")
+
+    normalized_phone = None
+    raw_phone = (user_data.phone_number or "").strip()
+    if raw_phone:
+        normalized_phone = normalize_phone(raw_phone)
+        if len(re.sub(r"\D", "", normalized_phone)) < 10:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Enter a valid phone number with country code, or leave phone blank.",
+            )
+        phone_candidates = list(dict.fromkeys(phone_lookup_candidates(normalized_phone) + [normalized_phone]))
+        if (await db.execute(
+            select(User).where(User.phone_number.in_(phone_candidates), User.id != user.id)
+        )).scalar_one_or_none():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Phone number already registered")
+
+    user.email = new_email
+    user.password_hash = hash_password(user_data.password)
+    user.username = new_username
+    user.first_name = user_data.first_name
+    user.last_name = user_data.last_name
+    if user_data.bio:
+        prof = dict(user.profile or {})
+        prof["bio"] = user_data.bio
+        user.profile = prof  # reassign so the JSON column updates
+    if normalized_phone:
+        user.phone_number = normalized_phone
+    user.updated_at = datetime.utcnow()
+    # SECURITY: is_paid is intentionally never touched here — claiming ≠ paying.
+    await db.commit()
+    await db.refresh(user)
+    user_id = str(user.id)
+    return TokenResponse(
+        access_token=create_access_token(user_id),
+        refresh_token=create_refresh_token(user_id),
+        token_type="bearer",
+    )
+
+
 @router.post("/faux-signup", response_model=TokenResponse)
 async def faux_signup(db: AsyncSession = Depends(get_db)):
     """
