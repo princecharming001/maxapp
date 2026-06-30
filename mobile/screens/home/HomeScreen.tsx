@@ -571,23 +571,24 @@ export default function HomeScreen() {
                         </View>
                     </View>
 
-                    {/* ── HEADER: kicker + DAY X / N ── */}
-                    <View style={s.header}>
-                        <Text style={s.kicker} numberOfLines={1}>
-                            {(activeDisplayLabel || 'TODAY').toUpperCase()}
-                        </Text>
-                        <Text style={s.dayTitle}>
-                            DAY {activeDayIndex}
-                            <Text style={s.dayTitleMuted}> / 365</Text>
-                        </Text>
-                    </View>
-
-                    {/* ── DAY STRIP — always shown; tap a day to see its tasks ── */}
-                    {/* tourAnchorRef wraps step 0's anchor so the tour starter can
-                        measure a real non-zero rect BEFORE starting (never a zero
-                        spot). collapsable=false keeps the View measurable on iOS. */}
+                    {/* ── HEADER + DAY STRIP ──────────────────────────────────────
+                        The tour's "Your progress" step highlights BOTH the DAY X/365
+                        header and the day strip, so the spotlight covers the whole
+                        progress block (not just the pills). tourAnchorRef gives the
+                        starter a real non-zero rect to measure before it starts (never
+                        a zero spot); collapsable=false keeps it measurable on iOS. ── */}
                     <View ref={tourAnchorRef} collapsable={false} onLayout={onTourAnchorLayout}>
                     <AttachStep index={TOUR_STEP.PROGRESS} fill>
+                        <View>
+                            <View style={s.header}>
+                                <Text style={s.kicker} numberOfLines={1}>
+                                    {(activeDisplayLabel || 'TODAY').toUpperCase()}
+                                </Text>
+                                <Text style={s.dayTitle}>
+                                    DAY {activeDayIndex}
+                                    <Text style={s.dayTitleMuted}> / 365</Text>
+                                </Text>
+                            </View>
                         <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}
@@ -625,6 +626,7 @@ export default function HomeScreen() {
                                 );
                             })}
                         </ScrollView>
+                        </View>
                     </AttachStep>
                     </View>
 
