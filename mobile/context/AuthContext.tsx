@@ -103,6 +103,8 @@ interface AuthContextType {
     fauxSkipSignup: () => Promise<void>;
     /** DEV: throwaway account with EMPTY onboarding (lands on step 1). */
     fauxFreshSignup: () => Promise<void>;
+    startAnon: () => Promise<void>;
+    claimAccount: (email: string, password: string, first_name: string, last_name: string, username: string, phone_number?: string) => Promise<void>;
     /** Sign in / up with a verified Google ID token (find-or-create). */
     signInWithGoogle: (idToken: string) => Promise<void>;
     /** DEV-only Google identity path (no real token) for localhost testing. */
@@ -259,6 +261,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(userData);
     }, []);
 
+    // Account-after-scan: mint a credential-less FREE account at "Get started" so
+    // the funnel runs before sign-up; the user claims it before the paywall.
+    const startAnon = useCallback(async () => {
+        await api.anonSignup();
+        const userData = await api.getMe();
+        setUser(userData);
+    }, []);
+
+    const claimAccount = useCallback(
+        async (email: string, password: string, first_name: string, last_name: string, username: string, phone_number?: string) => {
+            await api.claimAccount(email, password, first_name, last_name, username, phone_number);
+            const userData = await api.getMe();
+            setUser(userData);
+        },
+        [],
+    );
+
     const signInWithGoogle = useCallback(async (idToken: string) => {
         await api.googleSignIn(idToken);
         const userData = await api.getMe();
@@ -316,13 +335,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             fauxSignup,
             fauxSkipSignup,
             fauxFreshSignup,
+            startAnon,
+            claimAccount,
             signInWithGoogle,
             signInWithGoogleDev,
             logout,
             refreshUser,
             deleteAccount,
         }),
-        [user, isLoading, subscriptionTier, login, signup, fauxSignup, fauxSkipSignup, fauxFreshSignup, signInWithGoogle, signInWithGoogleDev, logout, refreshUser, deleteAccount],
+        [user, isLoading, subscriptionTier, login, signup, fauxSignup, fauxSkipSignup, fauxFreshSignup, startAnon, claimAccount, signInWithGoogle, signInWithGoogleDev, logout, refreshUser, deleteAccount],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

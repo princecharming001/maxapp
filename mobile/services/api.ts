@@ -511,6 +511,37 @@ class ApiService {
         return response.data;
     }
 
+    /**
+     * Mint a credential-less FREE-tier account ("Get started") so the funnel can
+     * run before sign-up. PROD-SAFE (unlike the faux-signup endpoints) — the user
+     * later claims it (sets email + password) via claimAccount().
+     */
+    async anonSignup() {
+        const response = await this.client.post(
+            'auth/anon',
+            {},
+            { timeout: Platform.OS === 'web' ? WEB_AUTH_TIMEOUT_MS : undefined },
+        );
+        await this.setTokens(response.data.access_token, response.data.refresh_token);
+        return response.data;
+    }
+
+    /**
+     * Claim the current anonymous account: set its real email + password + name.
+     * Server only allows this on an unclaimed account. Returns fresh tokens.
+     */
+    async claimAccount(email: string, password: string, first_name: string, last_name: string, username: string, phone_number?: string) {
+        const body: Record<string, string> = { email, password, first_name, last_name, username };
+        if (phone_number && String(phone_number).replace(/\D/g, '').length >= 7) {
+            body.phone_number = phone_number;
+        }
+        const response = await this.client.post('auth/claim', body, {
+            timeout: Platform.OS === 'web' ? WEB_AUTH_TIMEOUT_MS : undefined,
+        });
+        await this.setTokens(response.data.access_token, response.data.refresh_token);
+        return response.data;
+    }
+
     /** What the client needs to start Google Sign-In (public). */
     async getGoogleAuthConfig(): Promise<{
         available: boolean;
@@ -1314,6 +1345,8 @@ class ApiService {
         calendar_link_enabled: boolean;
         connected: boolean;
         last_synced_at: string | null;
+        synced_through: string | null;
+        needs_resync: boolean;
     }> {
         const response = await this.client.get('google/status');
         return response.data;
@@ -1321,6 +1354,11 @@ class ApiService {
 
     async disconnectGoogle(): Promise<{ disconnected: boolean }> {
         const response = await this.client.delete('google/disconnect');
+        return response.data;
+    }
+
+    async resyncGoogleCalendar(): Promise<{ synced: number }> {
+        const response = await this.client.post('google/sync');
         return response.data;
     }
 
