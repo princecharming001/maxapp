@@ -846,9 +846,172 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // Commute, chronotype, meals, rhythm and shower questions are deferred
-        // to in-chat per-maxx onboarding. State keeps safe defaults below so the
-        // scheduler still gets values without asking up front.
+        // 5 — where you work (only when they work)
+        ...(works
+            ? [{
+                title: 'Where do\nyou work?',
+                sub: 'Your commute becomes real protected time, not a guess.',
+                canNext: true,
+                body: (
+                    <View>
+                        <View style={styles.seg}>
+                            {LOCATIONS.map(([id, label]) => {
+                                const active = workLocation === id;
+                                return (
+                                    <TouchableOpacity
+                                        key={id}
+                                        style={[styles.segItem, active && styles.segItemActive]}
+                                        onPress={() => setWorkLocation(id)}
+                                        accessibilityRole="button"
+                                        accessibilityState={{ selected: active }}
+                                        accessibilityLabel={label}
+                                    >
+                                        <Text style={[styles.segText, active && styles.segTextActive]}>
+                                            {label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+
+                        {workLocation !== 'home' ? (
+                            <View style={styles.commuteWrap}>
+                                <View style={styles.commuteHead}>
+                                    <Text style={[styles.groupLabel, styles.groupLabelInRow]}>COMMUTE EACH WAY</Text>
+                                    <Text style={styles.commuteValue}>
+                                        {commuteMin >= 60 ? '60+ min' : `${commuteMin} min`}
+                                    </Text>
+                                </View>
+                                <Slider
+                                    value={commuteMin}
+                                    min={15}
+                                    max={60}
+                                    step={5}
+                                    onChange={setCommuteMin}
+                                />
+                                <View style={styles.sliderEnds}>
+                                    <Text style={styles.sliderEndText}>15 min</Text>
+                                    <Text style={styles.sliderEndText}>60+ min</Text>
+                                </View>
+                            </View>
+                        ) : null}
+                    </View>
+                ),
+            }]
+            : []),
+        // 6 — sharpest (chronotype) — icon cards
+        {
+            title: 'When are you\nsharpest?',
+            sub: "Hard things land when you've got the most in the tank.",
+            canNext: true,
+            body: (
+                <View style={{ gap: 10 }}>
+                    {CHRONOTYPES.map(([id, label, icon]) => (
+                        <OptionCard
+                            key={id}
+                            icon={icon}
+                            label={label}
+                            active={chronotype === id}
+                            onPress={() => setChronotype(id)}
+                        />
+                    ))}
+                </View>
+            ),
+        },
+        // 7 — meals
+        {
+            title: 'When do\nyou eat?',
+            sub: 'Max keeps your routines clear of the meals you keep.',
+            canNext: true,
+            body: (
+                <View>
+                    <View style={styles.shapeCard}>
+                        <MealRow
+                            label="Breakfast"
+                            value={breakfastMin}
+                            skipped={skipBreakfast}
+                            onToggleSkip={() => setSkipBreakfast((s) => !s)}
+                            onPressTime={() => openTime('Breakfast', breakfastMin, setBreakfastMin)}
+                        />
+                        <View style={styles.hairline} />
+                        <MealRow
+                            label="Lunch"
+                            value={lunchMin}
+                            skipped={skipLunch}
+                            onToggleSkip={() => setSkipLunch((s) => !s)}
+                            onPressTime={() => openTime('Lunch', lunchMin, setLunchMin)}
+                        />
+                        <View style={styles.hairline} />
+                        <MealRow
+                            label="Dinner"
+                            value={dinnerMin}
+                            skipped={skipDinner}
+                            onToggleSkip={() => setSkipDinner((s) => !s)}
+                            onPressTime={() => openTime('Dinner', dinnerMin, setDinnerMin)}
+                        />
+                    </View>
+                    <Text style={styles.helpNote}>
+                        Toggle off any meal you don't eat — that frees the time for your routines.
+                    </Text>
+                </View>
+            ),
+        },
+        // 8 — rhythm (workout time + weekends)
+        {
+            title: 'Your rhythm',
+            sub: 'So things land when they actually happen.',
+            canNext: true,
+            body: (
+                <View>
+                    <View style={styles.shapeCard}>
+                        <TouchableOpacity
+                            style={styles.timeRow}
+                            activeOpacity={0.7}
+                            onPress={() => openTime('When do you work out?', workoutMin, setWorkoutMin)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Workout time, ${fmt12(workoutMin)}`}
+                        >
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.timeRowLabel}>Workout</Text>
+                                <Text style={styles.timeRowValue}>{fmt12(workoutMin)}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.groupLabel}>WEEKENDS?</Text>
+                    <View style={{ gap: 10 }}>
+                        {WEEKENDS.map(([val, label, icon]) => (
+                            <OptionCard
+                                key={label}
+                                icon={icon}
+                                label={label}
+                                active={weekendShift === val}
+                                onPress={() => setWeekendShift(val)}
+                            />
+                        ))}
+                    </View>
+                </View>
+            ),
+        },
+        // 9 — shower timing (single-select; anchors hygiene/skin routines)
+        {
+            title: 'When do you\nusually shower?',
+            sub: 'So Max anchors your skin and hygiene routines at the right time.',
+            canNext: !!showerTime,
+            body: (
+                <View style={{ gap: 10 }}>
+                    {SHOWER_TIMES.map((s) => (
+                        <OptionCard
+                            key={s.id}
+                            icon={s.icon}
+                            label={s.label}
+                            active={showerTime === s.id}
+                            onPress={() => setShowerTime(s.id)}
+                        />
+                    ))}
+                </View>
+            ),
+        },
         // 10 — recap
         {
             title: "Here's\nyour day",
