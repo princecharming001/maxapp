@@ -14,6 +14,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
+import { navigationRef } from '../../lib/navigationRef';
 import { fonts } from '../../theme/dark';
 
 const INK = '#15130F';
@@ -33,7 +34,7 @@ export default function CreateAccountScreen() {
     const nav = useNavigation<any>();
     const route = useRoute<any>();
     const insets = useSafeAreaInsets();
-    const { claimAccount } = useAuth();
+    const { claimAccount, logout } = useAuth();
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -55,6 +56,14 @@ export default function CreateAccountScreen() {
         } finally {
             setBusy(false);
         }
+    };
+
+    // Returning user who tapped "Get started" by mistake: drop the throwaway anon
+    // session and send them to sign in instead.
+    const onSignInInstead = async () => {
+        try { await logout(); } catch { /* fall through to Login regardless */ }
+        // logout swaps to the unauthenticated stack; jump to Login once it's mounted.
+        setTimeout(() => { if (navigationRef.isReady()) navigationRef.navigate('Login' as never); }, 350);
     };
 
     return (
@@ -93,6 +102,10 @@ export default function CreateAccountScreen() {
                     >
                         {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.ctaText}>Save & continue</Text>}
                     </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.signin} onPress={onSignInInstead} hitSlop={8} accessibilityRole="button">
+                        <Text style={styles.signinText}>Already have an account? <Text style={styles.signinStrong}>Sign in</Text></Text>
+                    </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -123,4 +136,7 @@ const styles = StyleSheet.create({
     },
     ctaDisabled: { opacity: 0.4 },
     ctaText: { fontFamily: fonts.sansSemiBold, fontSize: 16.5, color: '#FFFFFF', letterSpacing: 0.2 },
+    signin: { marginTop: 18, alignItems: 'center' },
+    signinText: { fontFamily: fonts.sans, fontSize: 14, color: SUB },
+    signinStrong: { fontFamily: fonts.sansSemiBold, color: INK, textDecorationLine: 'underline' },
 });
