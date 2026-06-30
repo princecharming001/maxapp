@@ -131,8 +131,8 @@ const STEP_CONTENT: { title: string; body: string }[] = [
         body: 'Tasks done and your streak, at a glance. Tap to open your schedule.',
     },
     {
-        title: 'Your programs',
-        body: "The maxxes you're on live here. Tap one to open it, or + to add more.",
+        title: 'Your habits',
+        body: "Today's routine lives here. Check each one off as you go.",
     },
     {
         title: 'Schedule',
