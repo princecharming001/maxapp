@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ReferralCodeField, ReferralCodeHandle } from '../../components/ReferralCodeField';
 import { useAuth } from '../../context/AuthContext';
-import { LiquidGlass } from '../../components/glass/LiquidGlass';
 import { fonts } from '../../theme/dark';
 
 const INK = '#15130F';
@@ -75,10 +74,8 @@ export default function ReferralCodeScreen() {
                         }}
                     />
 
-                    <TouchableOpacity style={styles.ctaWrap} onPress={onContinue} activeOpacity={0.85} accessibilityRole="button">
-                        <LiquidGlass radius={29} contentStyle={styles.ctaContent}>
-                            <Text style={styles.ctaText}>{compReady ? 'Unlock access' : 'Continue to checkout'}</Text>
-                        </LiquidGlass>
+                    <TouchableOpacity style={styles.cta} onPress={onContinue} activeOpacity={0.85} accessibilityRole="button">
+                        <Text style={styles.ctaText}>{compReady ? 'Unlock access' : 'Continue to checkout'}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.skip} onPress={goPayment} hitSlop={8} accessibilityRole="button">
                         <Text style={styles.skipText}>I don’t have a code</Text>
@@ -97,8 +94,13 @@ const styles = StyleSheet.create({
     title: { fontFamily: fonts.serif, fontSize: 33, color: INK, letterSpacing: -0.6, lineHeight: 37 },
     titleItalic: { fontFamily: fonts.serifItalic, fontStyle: 'italic' },
     sub: { fontFamily: fonts.sans, fontSize: 15.5, color: SUB, marginTop: 12, lineHeight: 22 },
-    ctaWrap: { marginTop: 28, alignSelf: 'stretch' },
-    ctaContent: { height: 58, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+    cta: {
+        marginTop: 28, alignSelf: 'stretch', height: 58, borderRadius: 29, borderCurve: 'continuous',
+        backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
+        ...(Platform.OS === 'ios'
+            ? { shadowColor: '#1A1714', shadowOpacity: 0.10, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } }
+            : { elevation: 4 }),
+    },
     ctaText: { fontFamily: fonts.sansSemiBold, fontSize: 16.5, color: INK, letterSpacing: 0.2 },
     skip: { marginTop: 18, alignItems: 'center' },
     skipText: { fontFamily: fonts.sans, fontSize: 14, color: SUB, textDecorationLine: 'underline' },

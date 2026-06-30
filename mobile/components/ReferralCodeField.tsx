@@ -15,7 +15,6 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet,
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useFlag } from '../constants/featureFlags';
-import { LiquidGlassFill } from './glass/LiquidGlass';
 
 type Status = 'idle' | 'checking' | 'valid' | 'invalid' | 'redeeming' | 'comped' | 'error';
 
@@ -122,7 +121,6 @@ export const ReferralCodeField = forwardRef<ReferralCodeHandle, {
         <View style={styles.wrap}>
             <View style={styles.row}>
                 <View style={styles.inputField}>
-                    <LiquidGlassFill idSuffix="refcode-input" />
                     <TextInput
                         value={code}
                         onChangeText={(t) => {
@@ -144,7 +142,6 @@ export const ReferralCodeField = forwardRef<ReferralCodeHandle, {
                     </View>
                 ) : (
                     <TouchableOpacity style={styles.applyField} onPress={() => onValidate()} disabled={busy} accessibilityRole="button">
-                        <LiquidGlassFill idSuffix="refcode-apply" />
                         {busy ? <ActivityIndicator color={INK} size="small" /> : <Text style={styles.applyText}>Apply</Text>}
                     </TouchableOpacity>
                 )}
@@ -157,23 +154,31 @@ export const ReferralCodeField = forwardRef<ReferralCodeHandle, {
 const styles = StyleSheet.create({
     wrap: { width: '100%', marginTop: 12 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    // Glass field: clipped rounded container with a LiquidGlassFill behind the
-    // input/label. overflow:hidden clips the fill to the squircle radius.
+    // Clean soft-white fields, uniform — no rim. (Liquid glass needs a textured
+    // background to read right; on this flat cream screen it only drew a
+    // discolored edge, so a plain white card + soft shadow is cleaner here.)
     inputField: {
-        flex: 1, height: 56, borderRadius: 16, overflow: 'hidden', borderCurve: 'continuous',
-        borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.55)',
+        flex: 1, height: 56, borderRadius: 16, borderCurve: 'continuous',
+        backgroundColor: '#FFFFFF',
+        ...Platform.select({
+            ios: { shadowColor: '#1A1714', shadowOpacity: 0.06, shadowRadius: 9, shadowOffset: { width: 0, height: 4 } },
+            android: { elevation: 2 },
+        }),
     },
     input: {
         flex: 1, paddingHorizontal: 18, color: INK, fontSize: 16, letterSpacing: 1,
         backgroundColor: 'transparent',
     },
     applyField: {
-        height: 56, minWidth: 100, paddingHorizontal: 22, borderRadius: 16, overflow: 'hidden',
-        borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center',
-        borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.55)',
+        height: 56, minWidth: 100, paddingHorizontal: 22, borderRadius: 16, borderCurve: 'continuous',
+        alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF',
+        ...Platform.select({
+            ios: { shadowColor: '#1A1714', shadowOpacity: 0.06, shadowRadius: 9, shadowOffset: { width: 0, height: 4 } },
+            android: { elevation: 2 },
+        }),
     },
     applyText: { color: INK, fontSize: 15.5, fontWeight: '600' },
-    approvedField: { backgroundColor: ACCENT, borderColor: ACCENT },
+    approvedField: { backgroundColor: ACCENT },
     approvedText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
     msg: { marginTop: 8, fontSize: 13, paddingHorizontal: 4 },
 });
