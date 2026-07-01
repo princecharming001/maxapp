@@ -84,8 +84,15 @@ export default function ChannelChatScreen() {
     const LEGACY_UPVOTE = 'â¬†ï¸';
     const LEGACY_DOWNVOTE = 'â¬‡ï¸';
     const [pendingReactions, setPendingReactions] = useState<Record<string, boolean>>({});
+    const [hasMore, setHasMore] = useState(false);
+    const [loadingEarlier, setLoadingEarlier] = useState(false);
     const loadMessagesInFlight = useRef(false);
+    // Suppresses the auto-scroll-to-end when we PREPEND older messages (load
+    // earlier), so the user stays anchored instead of being yanked to the bottom.
+    const prependingRef = useRef(false);
     const wsConnectedRef = useRef(false);
+
+    const PAGE_SIZE = 50;
 
     const forumWsRef = useRef<WebSocket | null>(null);
     const connectRef = useRef<(() => void) | null>(null);
@@ -244,27 +251,39 @@ export default function ChannelChatScreen() {
         if (loadMessagesInFlight.current) return;
         loadMessagesInFlight.current = true;
         try {
-            const data = await api.getChannelMessages(channelId, 10, searchQuery);
-            const sorted = (data.messages || []).slice().sort((a: Message, b: Message) => {
-                const aUp = (a.reactions?.[UPVOTE] || a.reactions?.[LEGACY_UPVOTE] || []).length;
-                const aDown = (a.reactions?.[DOWNVOTE] || a.reactions?.[LEGACY_DOWNVOTE] || []).length;
-                const bUp = (b.reactions?.[UPVOTE] || b.reactions?.[LEGACY_UPVOTE] || []).length;
-                const bDown = (b.reactions?.[DOWNVOTE] || b.reactions?.[LEGACY_DOWNVOTE] || []).length;
-                const aScore = aUp - aDown;
-                const bScore = bUp - bDown;
-                if (aScore !== bScore) return bScore - aScore;
-                const at = parseTimestamp(a.created_at);
-                const bt = parseTimestamp(b.created_at);
-                if (at !== bt) return bt - at;
-                return b.id.localeCompare(a.id);
-            });
-            setMessages(sorted);
+            // Fetch the most RECENT page and render it as a chronological timeline
+            // (oldest→newest, newest at bottom) — matching the real-time WS append,
+            // which is also chronological. The old vote-sort re-ordered the initial
+            // load, so the list jarringly jumped to chronological the moment any WS
+            // message arrived; chronological throughout is the coherent behavior.
+            const data = await api.getChannelMessages(channelId, PAGE_SIZE, searchQuery);
+            setMessages(sortMessagesChronological(data.messages || []));
+            setHasMore(!searchQuery && !!data.has_more);
             if (data.is_admin_only !== undefined) setIsAdminOnly(data.is_admin_only);
             if (data.channel_description !== undefined) setChannelDescription(data.channel_description);
             if (data.channel_category !== undefined) setChannelCategory(data.channel_category);
             if (data.channel_tags !== undefined) setChannelTags(data.channel_tags || []);
         }
         catch (e) { console.error(e); } finally { setLoading(false); loadMessagesInFlight.current = false; }
+    };
+
+    // "Load earlier": page BACKWARD from the oldest loaded message and PREPEND.
+    const loadEarlier = async () => {
+        if (!channelId || loadingEarlier || isSearching || !messages.length) return;
+        setLoadingEarlier(true);
+        try {
+            const oldest = messages[0];
+            const data = await api.getChannelMessages(channelId, PAGE_SIZE, undefined, oldest.id);
+            const older = (data.messages || []) as Message[];
+            if (older.length) {
+                prependingRef.current = true;  // don't scroll to bottom on this content change
+                setMessages((prev) => {
+                    const seen = new Set(prev.map((m) => m.id));
+                    return sortMessagesChronological([...older.filter((m) => !seen.has(m.id)), ...prev]);
+                });
+            }
+            setHasMore(!!data.has_more && older.length > 0);
+        } catch (e) { console.error(e); } finally { setLoadingEarlier(false); }
     };
 
     const handlePickImage = async () => { const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.8 }); if (!result.canceled) setSelectedImage(result.assets[0].uri); };
@@ -583,12 +602,30 @@ export default function ChannelChatScreen() {
                     contentContainerStyle={[styles.messagesList, { paddingBottom: insets.bottom + 24 }]}
                     style={styles.messagesListContainer}
                     onContentSizeChange={() => {
-                        if (!isSearching) flatListRef.current?.scrollToEnd({ animated: false });
+                        if (isSearching) return;
+                        // Prepending older messages must NOT yank the user to the
+                        // bottom — consume the flag and stay anchored.
+                        if (prependingRef.current) { prependingRef.current = false; return; }
+                        flatListRef.current?.scrollToEnd({ animated: false });
                     }}
                     showsVerticalScrollIndicator={false}
                     ListHeaderComponent={
                         !isSearching ? (
                             <View style={styles.threadHeader}>
+                                {hasMore && (
+                                    <TouchableOpacity
+                                        style={styles.loadEarlierBtn}
+                                        onPress={loadEarlier}
+                                        disabled={loadingEarlier}
+                                        activeOpacity={0.7}
+                                    >
+                                        {loadingEarlier ? (
+                                            <ActivityIndicator size="small" color={colors.textSecondary} />
+                                        ) : (
+                                            <Text style={styles.loadEarlierText}>Load earlier messages</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                )}
                                 <View style={styles.threadHeaderHero}>
                                     <View style={[styles.threadIconWrap, isAdminOnly ? styles.threadIconOfficial : styles.threadIconCommunity]}>
                                         <Ionicons
@@ -841,6 +878,19 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
     },
+    loadEarlierBtn: {
+        alignSelf: 'center',
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        marginBottom: spacing.md,
+        borderRadius: borderRadius.full,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.border,
+        minHeight: 34,
+        justifyContent: 'center',
+    },
+    loadEarlierText: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
     threadHeaderHero: { flexDirection: 'row', alignItems: 'flex-start' },
     threadIconWrap: {
         width: 48,

@@ -169,9 +169,15 @@ async def get_messages(
     if query:
         msg_query = msg_query.where(ChannelMessage.content.ilike(f"%{query}%"))
 
-    msg_query = msg_query.order_by(ChannelMessage.created_at.asc()).limit(limit)
+    # Fetch the NEWEST `limit` (order DESC + limit), then restore ascending order
+    # for display. The old ASC+limit returned the OLDEST messages, so recent ones
+    # were unreachable and there was no way to page forward. With `before`
+    # (created_at < cursor) the client pages BACKWARD through older messages.
+    msg_query = msg_query.order_by(ChannelMessage.created_at.desc()).limit(limit)
     msg_result = await rds_db.execute(msg_query)
-    messages = msg_result.scalars().all()
+    fetched = msg_result.scalars().all()
+    has_more = len(fetched) == limit  # a full page → older messages likely remain
+    messages = list(reversed(fetched))  # oldest → newest for the client to render bottom-anchored
 
     viewer_row = await db.get(User, UUID(current_user["id"]))
     blocked_ids = _blocked_user_ids_for_viewer(viewer_row)
@@ -205,6 +211,7 @@ async def get_messages(
 
     return {
         "messages": payload,
+        "has_more": has_more,
         "channel_name": channel.name,
         "channel_description": channel.description,
         "channel_category": channel.category,

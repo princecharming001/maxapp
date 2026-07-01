@@ -9,6 +9,7 @@ there is exactly one path that emits task pushes — never push AND SMS for the
 same task (cross-channel dedup).
 """
 
+import asyncio
 import logging
 import re
 from collections import defaultdict
@@ -775,7 +776,15 @@ async def send_weekly_resets():
         from services.coaching_service import coaching_service
 
         async with AsyncSessionLocal() as db:
-            result = await db.execute(select(User).where(User.is_paid == True))
+            # This job is SMS-only (want_push is hardcoded False) and skips
+            # non-phone users immediately, and has no non-SMS side effects — so
+            # filter to phone-holders in SQL instead of loading every paid user
+            # and db.get()-ing them one at a time (collapses the O(N) sweep).
+            result = await db.execute(
+                select(User).where(
+                    (User.is_paid == True) & (User.phone_number.isnot(None))
+                )
+            )
             paid_ids = [u.id for u in result.scalars().all()]
 
         for uid in paid_ids:
@@ -1009,12 +1018,23 @@ async def sync_google_calendars():
                 )
             )
             user_ids = [c.user_id for c in res.scalars().all()]
-        for uid in user_ids:
-            try:
-                async with AsyncSessionLocal() as db:
-                    await sync_google_calendar(uid, db)
-            except Exception as e:
-                logger.warning("google calendar poll failed for %s: %s", uid, e)
+
+        # Sync users with BOUNDED concurrency (was fully serial → >30min at
+        # scale). Cap at 3, NOT higher: sync_google_calendar holds its pooled
+        # connection across the ~20s httpx round-trip, and the Supabase pooler
+        # can be as small as a few slots — a wide fan-out would starve live
+        # API traffic. Each user gets its own session + per-user error isolation.
+        sem = asyncio.Semaphore(3)
+
+        async def _sync_one(uid):
+            async with sem:
+                try:
+                    async with AsyncSessionLocal() as db:
+                        await sync_google_calendar(uid, db)
+                except Exception as e:
+                    logger.warning("google calendar poll failed for %s: %s", uid, e)
+
+        await asyncio.gather(*[_sync_one(uid) for uid in user_ids])
     except Exception as e:
         logger.error(f"Google calendar poll job error: {e}", exc_info=True)
 

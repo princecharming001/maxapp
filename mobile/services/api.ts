@@ -1687,8 +1687,8 @@ class ApiService {
         return response.data;
     }
 
-    async getChannelMessages(channelId: string, limit: number = 50, query?: string) {
-        const response = await this.client.get(`forums/${channelId}/messages`, { params: { limit, query } });
+    async getChannelMessages(channelId: string, limit: number = 50, query?: string, before?: string) {
+        const response = await this.client.get(`forums/${channelId}/messages`, { params: { limit, query, before } });
         return response.data;
     }
 
