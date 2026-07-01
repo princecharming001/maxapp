@@ -24,7 +24,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cannon.mobile",
-      "buildNumber": "323",
+      "buildNumber": "324",
       "entitlements": {
         "aps-environment": "production"
       },
