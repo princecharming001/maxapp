@@ -3,12 +3,15 @@ Guideline Service — Fetches maxx schedule guidelines from RDS with fallback to
 Used by schedule_service for AI schedule generation.
 """
 
+import logging
 from typing import Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from models.rds_models import Maxx
 from services.maxx_guidelines import MAXX_GUIDELINES, get_maxx_guideline as _get_fallback
+
+logger = logging.getLogger(__name__)
 
 
 def _maxx_row_to_guideline(m: Maxx) -> dict:
@@ -33,13 +36,24 @@ def _maxx_row_to_guideline(m: Maxx) -> dict:
 
 async def get_maxx_guideline_async(maxx_id: str, rds_db: Optional[AsyncSession] = None) -> Optional[dict]:
     """
-    Fetch maxx guideline from RDS. Falls back to maxx_guidelines.py if RDS has no data.
+    Fetch maxx guideline from RDS. Falls back to the built-in maxx_guidelines.py when
+    RDS has no data, is unconfigured, OR is unreachable (e.g. an asyncpg connect
+    TimeoutError). Building a schedule must never hard-fail just because the shared
+    RDS is slow/down — every maxx has a complete code guideline to fall back to.
     """
     if rds_db:
-        result = await rds_db.execute(select(Maxx).where(Maxx.id == maxx_id))
-        row = result.scalar_one_or_none()
-        if row and (row.protocols or row.schedule_rules):
-            return _maxx_row_to_guideline(row)
+        try:
+            result = await rds_db.execute(select(Maxx).where(Maxx.id == maxx_id))
+            row = result.scalar_one_or_none()
+            if row and (row.protocols or row.schedule_rules):
+                return _maxx_row_to_guideline(row)
+        except Exception as e:
+            # RDS timeout / connection error / any query failure -> use the code
+            # guideline instead of letting the whole schedule build blow up.
+            logger.warning(
+                "RDS guideline fetch failed for %r (%s: %s); using code fallback",
+                maxx_id, type(e).__name__, e,
+            )
     return _get_fallback(maxx_id)
 
 
