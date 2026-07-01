@@ -236,10 +236,13 @@ async def planner_today(
     sleep_hours = _stated_sleep_hours(ob)
     locked_in = bool((ob.get("lock_ins") or {}).get(target.isoformat()))
 
-    # Streak v2 state for the ring glyph + freeze-used card.
-    from services.schedule_streak import streak_payload_from_profile
+    # Streak v2 state for the ring glyph + freeze-used card. The streak ring is a
+    # CURRENT-day glyph, so reconcile against local TODAY — not the requested
+    # `target` (which can be a past/other day); _reconcile_missed's gap math is
+    # anchored on "now", so a past target would yield a wrong streak view.
+    from services.schedule_streak import streak_payload_from_profile, local_today_date
     profile = dict(user.profile or {}) if user else {}
-    streak = streak_payload_from_profile(profile, target)
+    streak = streak_payload_from_profile(profile, local_today_date(ob))
 
     # Learner surfaces (spec 4.5): lazy nightly recompute, slip detection with
     # a streak-safe reflow suggestion, welcome-back mode, fresh insights.

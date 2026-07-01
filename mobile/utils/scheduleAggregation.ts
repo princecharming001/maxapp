@@ -208,6 +208,10 @@ function dedupeKeyForTask(t: MergedScheduleTask): string {
   return `${t.moduleLabel}|${(t.time || '').trim()}|${rk}`;
 }
 
+const STATUS_RANK: Record<string, number> = { completed: 3, skipped: 2, pending: 1 };
+const statusRank = (t: MergedScheduleTask): number =>
+  STATUS_RANK[String(t.status || 'pending').toLowerCase()] ?? 0;
+
 function dedupeMasterTasksForDay(tasks: MergedScheduleTask[]): MergedScheduleTask[] {
   const best = new Map<string, MergedScheduleTask>();
   for (const t of tasks) {
@@ -215,6 +219,17 @@ function dedupeMasterTasksForDay(tasks: MergedScheduleTask[]): MergedScheduleTas
     const prev = best.get(key);
     if (!prev) {
       best.set(key, t);
+      continue;
+    }
+    // Status-primary tiebreak (mirrors the backend merge): keep the resolved
+    // instance (completed > skipped > pending) so a task the user completed in
+    // ONE schedule isn't shown unresolved because a longer-described duplicate
+    // in another schedule stayed pending. Only fall back to description length
+    // within the SAME status — otherwise app display and streak credit diverge.
+    const nr = statusRank(t);
+    const pr = statusRank(prev);
+    if (nr !== pr) {
+      best.set(key, nr > pr ? t : prev);
       continue;
     }
     const nextLen = (t.description || '').length;
