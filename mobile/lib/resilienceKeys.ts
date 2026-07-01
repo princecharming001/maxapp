@@ -20,6 +20,11 @@ export const STORAGE_KEYS = {
     navState: 'max.resilience.navstate.v1',
     /** Onboarding wizard draft: { step, answers } (AsyncStorage). */
     onboardingDraft: 'max.resilience.onboardingDraft.v1',
+    /** First-run-after-install marker (AsyncStorage — cleared on uninstall,
+     *  unlike the SecureStore token Keychain which survives on iOS). Absent ⇒
+     *  a fresh (re)install: purge any inherited secure tokens so a download
+     *  starts at Landing, not mid-funnel from a prior install's session. */
+    installMarker: 'max.install.v1',
 } as const;
 
 /** The two blobs that are RESTORED at boot and could therefore crash-loop the
