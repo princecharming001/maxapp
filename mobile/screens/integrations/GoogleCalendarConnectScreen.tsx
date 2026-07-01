@@ -77,8 +77,10 @@ export default function GoogleCalendarConnectScreen() {
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
             qc.invalidateQueries({ queryKey: STATUS_QK });
             qc.invalidateQueries({ queryKey: ['plannerToday'] });
-        } catch {
-            Alert.alert('Error', 'Could not open the Google sign-in page.');
+        } catch (e: any) {
+            const s = e?.response?.status;
+            const detail = s ? `HTTP ${s}` : e?.message ? String(e.message) : 'no response (network)';
+            Alert.alert('Could not connect Google Calendar', `Please try again.\n\n(${detail})`);
         } finally {
             setConnecting(false);
         }

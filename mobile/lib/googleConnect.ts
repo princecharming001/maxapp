@@ -2,24 +2,37 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import api from '../services/api';
 
-// Open the Google Calendar OAuth consent flow as a NATIVE auth sheet
-// (ASWebAuthenticationSession on iOS / Chrome Custom Tab on Android) rather than
-// a plain in-app browser tab.
+// Open the Google Calendar OAuth consent flow.
 //
-// Why this over WebBrowser.openBrowserAsync:
-//  - openBrowserAsync = SFSafariViewController, a full browser sheet with a URL
-//    bar that reads as "Safari" and only closes on a status-poll + dismissBrowser.
-//  - openAuthSessionAsync = the system "<App> Wants to Use google.com to Sign In"
-//    sheet (same family as the native account Sign-In), and it AUTO-CLOSES the
-//    moment the backend callback redirects to our app scheme — no poll/dismiss race.
+// Primary: openAuthSessionAsync — the native "<App> Wants to Use google.com to
+// Sign In" sheet (ASWebAuthenticationSession on iOS / Chrome Custom Tab on
+// Android) that AUTO-CLOSES the moment the backend callback redirects to our app
+// scheme (cannon://google-connected, per app.json).
 //
-// The app scheme is "cannon" (app.json), so Linking.createURL('google-connected')
-// resolves to cannon://google-connected in a standalone build. We pass that to
-// the backend so /google/callback can 302 back to it and dismiss the sheet.
+// Fallback: on some builds / OS states openAuthSessionAsync can throw or fail to
+// present (returns 'locked'). In that case we open a plain in-app browser sheet
+// (SFSafariViewController), which reliably opens; the caller's status poll then
+// detects the connection. Either way the button always DOES something rather
+// than silently no-op-ing.
 export async function openGoogleCalendarAuth(
     includeGmail = false,
-): Promise<WebBrowser.WebBrowserAuthSessionResult> {
+): Promise<void> {
     const returnUrl = Linking.createURL('google-connected');
     const { auth_url } = await api.getGoogleAuthUrl(includeGmail, returnUrl);
-    return WebBrowser.openAuthSessionAsync(auth_url, returnUrl);
+    if (!auth_url) {
+        throw new Error('The server did not return a Google sign-in URL.');
+    }
+
+    try {
+        const res = await WebBrowser.openAuthSessionAsync(auth_url, returnUrl);
+        // 'locked' = another auth session is already in progress and this one
+        // never presented — fall back so the user isn't stuck on nothing.
+        if (res.type === 'locked') {
+            await WebBrowser.openBrowserAsync(auth_url);
+        }
+    } catch {
+        // openAuthSessionAsync threw (couldn't present the native sheet). Open a
+        // regular browser sheet instead — it always opens; the poll finishes it.
+        await WebBrowser.openBrowserAsync(auth_url);
+    }
 }

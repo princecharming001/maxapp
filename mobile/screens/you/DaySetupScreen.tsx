@@ -27,6 +27,7 @@ import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
 import api from '../../services/api';
+import { Alert } from '../../components/InAppAlert';
 import { openGoogleCalendarAuth } from '../../lib/googleConnect';
 
 const INK = '#1C1A17';
@@ -106,6 +107,13 @@ function GoogleSection() {
             // Native auth sheet (ASWebAuthenticationSession) — the system
             // "wants to use google.com to sign in" popup; auto-closes on redirect.
             await openGoogleCalendarAuth(statusQ.data?.gmail_available ?? false);
+        },
+        onError: (e: any) => {
+            // Was silent before — surface the real cause so the button never
+            // just "does nothing".
+            const status = e?.response?.status;
+            const detail = status ? `HTTP ${status}` : e?.message ? String(e.message) : 'no response (network)';
+            Alert.alert('Could not connect Google Calendar', `Please try again.\n\n(${detail})`);
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['googleStatus'] });
