@@ -1369,9 +1369,9 @@ class ApiService {
         return response.data;
     }
 
-    async getGoogleAuthUrl(includeGmail = false): Promise<{ auth_url: string }> {
+    async getGoogleAuthUrl(includeGmail = false, returnUrl?: string): Promise<{ auth_url: string }> {
         const response = await this.client.get('google/connect', {
-            params: { include_gmail: includeGmail },
+            params: { include_gmail: includeGmail, ...(returnUrl ? { return_url: returnUrl } : {}) },
         });
         return response.data;
     }

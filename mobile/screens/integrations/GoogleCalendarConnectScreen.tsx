@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
+import { openGoogleCalendarAuth } from '../../lib/googleConnect';
 import { colors, spacing, fonts } from '../../theme/dark';
 
 const STATUS_QK = ['googleStatus'];
@@ -49,7 +50,7 @@ export default function GoogleCalendarConnectScreen() {
             clearInterval(pollRef.current);
             pollRef.current = null;
             setConnecting(false);
-            WebBrowser.dismissBrowser().catch(() => {});
+            try { WebBrowser.dismissAuthSession(); } catch { /* auto-closes on redirect */ }
             qc.invalidateQueries({ queryKey: ['plannerToday'] });
         }
     }, [connected, qc]);
@@ -66,17 +67,16 @@ export default function GoogleCalendarConnectScreen() {
         }
         try {
             setConnecting(true);
-            const { auth_url } = await api.getGoogleAuthUrl();
-            // Poll for the connection while the in-app browser is open (openBrowserAsync
-            // blocks until it closes; the connected-effect dismisses it on success).
+            // Belt-and-suspenders poll while the auth sheet is open.
             pollRef.current = setInterval(() => {
                 qc.invalidateQueries({ queryKey: STATUS_QK });
             }, 3000);
-            // In-app browser (SFSafariViewController / Custom Tab) — keep the user
-            // inside the app instead of bouncing out to Safari/Chrome.
-            await WebBrowser.openBrowserAsync(auth_url);
+            // Native auth sheet (ASWebAuthenticationSession) — auto-closes when the
+            // backend callback redirects back to cannon://google-connected.
+            await openGoogleCalendarAuth();
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
             qc.invalidateQueries({ queryKey: STATUS_QK });
+            qc.invalidateQueries({ queryKey: ['plannerToday'] });
         } catch {
             Alert.alert('Error', 'Could not open the Google sign-in page.');
         } finally {

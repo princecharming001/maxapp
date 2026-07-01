@@ -27,6 +27,7 @@ import { ScreenBackdrop } from '../../components/glass/ScreenBackdrop';
 import { GlassCard } from '../../components/glass/GlassCard';
 import { GlassButton } from '../../components/glass/GlassButton';
 import api from '../../services/api';
+import { openGoogleCalendarAuth } from '../../lib/googleConnect';
 
 const INK = '#1C1A17';
 const GOLD = '#2C6BED';
@@ -96,19 +97,19 @@ function GoogleSection() {
     });
 
     const connect = useMutation({
-        mutationFn: () => api.getGoogleAuthUrl(statusQ.data?.gmail_available ?? false),
-        onSuccess: ({ auth_url }) => {
+        mutationFn: async () => {
             if (Platform.OS === 'web') {
+                const { auth_url } = await api.getGoogleAuthUrl(statusQ.data?.gmail_available ?? false);
                 window.open(auth_url, '_blank');
-            } else {
-                // In-app browser (SFSafariViewController / Custom Tab) — keep the
-                // user inside the app; refresh status when the browser closes.
-                const WebBrowser = require('expo-web-browser');
-                WebBrowser.openBrowserAsync(auth_url).finally(() => {
-                    queryClient.invalidateQueries({ queryKey: ['googleStatus'] });
-                    queryClient.invalidateQueries({ queryKey: ['plannerToday'] });
-                });
+                return;
             }
+            // Native auth sheet (ASWebAuthenticationSession) — the system
+            // "wants to use google.com to sign in" popup; auto-closes on redirect.
+            await openGoogleCalendarAuth(statusQ.data?.gmail_available ?? false);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['googleStatus'] });
+            queryClient.invalidateQueries({ queryKey: ['plannerToday'] });
         },
     });
     const sync = useMutation({

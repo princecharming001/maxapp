@@ -41,6 +41,7 @@ import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Path, Rect } from
 import api from '../../services/api';
 import { Linking, AppState } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import { openGoogleCalendarAuth } from '../../lib/googleConnect';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
@@ -304,17 +305,15 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     }
     try {
       setCalConnecting(true);
-      const { auth_url } = await api.getGoogleAuthUrl();
-      // Poll for the connection WHILE the in-app browser is open — openBrowserAsync
-      // blocks until the browser closes, and the connected-effect dismisses it once
-      // /google/status flips to connected.
+      // Belt-and-suspenders poll while the auth sheet is open; the sheet itself
+      // auto-closes when the backend callback redirects to cannon://google-connected.
       calPollRef.current = setInterval(() => {
         qc.invalidateQueries({ queryKey: ['googleStatus'] });
       }, 3000);
-      // In-app browser (iOS SFSafariViewController / Android Custom Tab) so the
-      // user stays inside the app instead of being kicked out to Safari/Chrome.
-      await WebBrowser.openBrowserAsync(auth_url);
-      // Browser closed (auto-dismissed on success, or by the user). Clean up + refresh.
+      // Native auth sheet (ASWebAuthenticationSession) — the system
+      // "wants to use google.com to sign in" popup, not a Safari-looking tab.
+      await openGoogleCalendarAuth();
+      // Sheet closed (auto-dismissed on success, or by the user). Clean up + refresh.
       if (calPollRef.current) { clearInterval(calPollRef.current); calPollRef.current = null; }
       qc.invalidateQueries({ queryKey: ['googleStatus'] });
       qc.invalidateQueries({ queryKey: ['plannerToday'] });
@@ -351,15 +350,17 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     }
   }, [qc]);
 
-  // Stop polling + auto-close the in-app browser once connected.
+  // Stop polling + dismiss the auth sheet once connected. Keys off the RAW
+  // connected flag (not calConnected, which is gated on calendar_link_enabled)
+  // so it closes even when that flag is off. Backup for the redirect auto-close.
   React.useEffect(() => {
-    if (calConnected && calPollRef.current) {
+    if (googleStatusQ.data?.connected && calPollRef.current) {
       clearInterval(calPollRef.current);
       calPollRef.current = null;
       setCalConnecting(false);
-      WebBrowser.dismissBrowser().catch(() => {});
+      try { WebBrowser.dismissAuthSession(); } catch { /* auto-closes on redirect */ }
     }
-  }, [calConnected]);
+  }, [googleStatusQ.data?.connected]);
 
   React.useEffect(() => () => {
     if (calPollRef.current) clearInterval(calPollRef.current);

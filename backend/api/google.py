@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +30,8 @@ from services.google_integration import (
     scan_gmail_commitments,
     store_connection,
     sync_google_calendar,
+    SYNC_WINDOW_DAYS,
+    RESYNC_NUDGE_DAYS,
 )
 
 router = APIRouter(prefix="/google", tags=["Google"])
@@ -45,22 +47,40 @@ def _uid(current_user: dict) -> UUID:
         raise HTTPException(status_code=401, detail="Bad user id")
 
 
-def _sign_state(user_id: str) -> str:
+# The mobile app's custom URL scheme (app.json "scheme": "cannon"). Only a
+# return_url on this scheme is honored, so the callback redirect can never be
+# pointed at an attacker-controlled destination (open-redirect guard).
+_APP_SCHEME = "cannon://"
+
+
+def _sign_state(user_id: str, return_url: str | None = None) -> str:
+    # Payload is just the user_id when there's no return_url — byte-identical to
+    # the previous format, so states already in flight during a deploy still verify.
+    payload = user_id if not return_url else f"{user_id}|{return_url}"
     sig = hmac.new(
-        settings.jwt_secret_key.encode(), user_id.encode(), hashlib.sha256
+        settings.jwt_secret_key.encode(), payload.encode(), hashlib.sha256
     ).hexdigest()[:32]
-    return f"{user_id}.{sig}"
+    return f"{payload}.{sig}"
 
 
-def _verify_state(state: str) -> str | None:
+def _verify_state(state: str) -> tuple[str, str | None] | None:
+    """Returns (user_id, return_url|None) if the signature checks out, else None."""
     try:
-        user_id, sig = state.rsplit(".", 1)
+        payload, sig = state.rsplit(".", 1)
     except ValueError:
         return None
     expected = hmac.new(
-        settings.jwt_secret_key.encode(), user_id.encode(), hashlib.sha256
+        settings.jwt_secret_key.encode(), payload.encode(), hashlib.sha256
     ).hexdigest()[:32]
-    return user_id if hmac.compare_digest(sig, expected) else None
+    if not hmac.compare_digest(sig, expected):
+        return None
+    if "|" in payload:
+        user_id, return_url = payload.split("|", 1)
+    else:
+        user_id, return_url = payload, None
+    if return_url is not None and not return_url.startswith(_APP_SCHEME):
+        return_url = None  # ignore anything that isn't our app scheme
+    return user_id, return_url
 
 
 @router.get("/status")
@@ -76,26 +96,43 @@ async def status(
             & (CalendarConnection.is_active.is_(True))
         )
     )).scalars().first()
+    connected = conn is not None and bool(conn.tokens_decrypted.get("refresh_token"))
+    # How far ahead is the calendar synced? Re-sync nudge fires when coverage
+    # drops below RESYNC_NUDGE_DAYS (i.e. sync window is running out).
+    needs_resync = False
+    synced_through = None
+    if connected and conn and conn.last_synced_at:
+        synced_through_dt = conn.last_synced_at.replace(tzinfo=timezone.utc) + timedelta(days=SYNC_WINDOW_DAYS)
+        synced_through = synced_through_dt.isoformat()
+        days_remaining = (synced_through_dt - datetime.now(timezone.utc)).days
+        needs_resync = days_remaining < RESYNC_NUDGE_DAYS
     return {
         "oauth_available": google_oauth_available(),
         "maps_available": maps_available(),
         "gmail_available": gmail_scan_available(),
         "calendar_link_enabled": settings.calendar_link_enabled,
-        "connected": conn is not None and bool(conn.tokens_decrypted.get("refresh_token")),
+        "connected": connected,
         "last_synced_at": conn.last_synced_at.isoformat() if conn and conn.last_synced_at else None,
+        "synced_through": synced_through,
+        "needs_resync": needs_resync,
     }
 
 
 @router.get("/connect")
 async def connect(
     include_gmail: bool = Query(default=False),
+    return_url: str | None = Query(default=None),
     current_user: dict = Depends(get_current_user),
 ):
-    """Returns the Google consent URL; the client opens it in a browser."""
+    """Returns the Google consent URL; the client opens it in a browser.
+
+    A native client passes return_url (its cannon:// deep link) so the callback
+    can redirect back into the app and auto-dismiss the auth sheet."""
     if not google_oauth_available():
         raise HTTPException(status_code=503, detail="Google OAuth is not configured")
     uid = str(_uid(current_user))
-    return {"auth_url": build_auth_url(_sign_state(uid), include_gmail)}
+    ru = return_url if (return_url and return_url.startswith(_APP_SCHEME)) else None
+    return {"auth_url": build_auth_url(_sign_state(uid, ru), include_gmail)}
 
 
 @router.get("/callback")
@@ -104,11 +141,13 @@ async def callback(
     state: str = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """OAuth redirect target. Stores tokens, kicks an initial sync, and shows
-    a tiny self-closing page (the app polls /google/status)."""
-    user_id = _verify_state(state)
-    if user_id is None:
+    """OAuth redirect target. Stores tokens, kicks an initial sync, then either
+    redirects back into the app (native auth sheet auto-dismisses) or shows a
+    tiny self-closing page (web / legacy clients; the app also polls /status)."""
+    verified = _verify_state(state)
+    if verified is None:
         raise HTTPException(status_code=400, detail="Bad state")
+    user_id, return_url = verified
     try:
         payload = await exchange_code(code)
     except Exception:
@@ -118,6 +157,11 @@ async def callback(
         await sync_google_calendar(UUID(user_id), db)
     except Exception:
         pass  # initial sync is best-effort; the poll job catches up
+    if return_url:
+        # 302 to cannon://google-connected — ASWebAuthenticationSession sees the
+        # app-scheme redirect and dismisses itself, handing control back to Max.
+        sep = "&" if "?" in return_url else "?"
+        return RedirectResponse(url=f"{return_url}{sep}connected=1", status_code=302)
     return HTMLResponse(
         "<html><body style='font-family: sans-serif; padding: 40px; text-align: center;'>"
         "<h3>Google connected.</h3><p>You can close this window and return to Max.</p>"
