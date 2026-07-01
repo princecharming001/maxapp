@@ -255,6 +255,18 @@ MOG PERCENTILE — 1-99 vs same-age men.
 
 GLOW_UP_POTENTIAL — 1-100 room for non-surgical improvement.
 
+HALO FEATURE — set "halo_feature" to the user's single BEST / most attractive feature, framed as a halo. Use EXACTLY one: "Jawline Halo", "Eye Area Halo", "Hair Halo", "Skin Halo", "Smile Halo", "Cheekbone Halo", "Facial Harmony Halo". Pick their genuinely strongest one.
+
+BOTTLENECK (the one thing holding them back) — set "bottleneck" to EXACTLY one of: "Skin", "Hair", "Eye area", "Facial leanness", "Style / grooming", "Photo quality". Then set "bottleneck_max" to the SINGLE max id that best fixes it (one of skinmax, hairmax, fitmax, bonemax, heightmax).
+
+SEX APPEAL vs TRUST APPEAL — two INDEPENDENT 0-10 axes. "sex_appeal" = how attractive / exciting / desirable the face reads. "trust_appeal" = how safe / warm / trustworthy it reads. Some faces are hot but intimidating; some safe but unexciting. Then set "appeal_quadrant" to EXACTLY one (high/low split at 5.5): "Universally attractive" (high sex + high trust), "Mysterious & edgy" (high sex + low trust), "Approachable, needs edge" (low sex + high trust), "Needs a reset" (low sex + low trust).
+
+DIMORPHISM — set "dimorphism" 0-10 for how masculine (high) vs soft (low) the face presents overall. Set "dimorphism_note" to ONE short sentence explaining the balance (e.g. "leans masculine, but a soft eye area and skin balance it").
+
+GLOW_UP_LABEL — set "glow_up_label" to EXACTLY "High", "Medium", or "Low", based on how much is CONTROLLABLE without surgery (skin, hair, leanness, grooming, brows, facial hair, posture, photo presence). Good bone structure bottlenecked only by skin/hair/leanness = High. Already optimized or limited mostly by bone = Low.
+
+FIRST MOVE — set "first_move" to a list containing EXACTLY ONE max id (from skinmax, hairmax, fitmax, bonemax, heightmax): the single most important place to START right now, the one action that moves the needle most. ONE move, never a list of recommendations. The app shows only the first item, so lead with the single highest-impact max (usually the one that fixes the bottleneck).
+
 ADDITIONAL REQUIRED APP FIELDS (same JSON):
 - metrics: EXACTLY 6 objects in this order, each with id, label, score, summary:
   1) jawline / "Jawline & chin"
