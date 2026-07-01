@@ -126,11 +126,17 @@ export function useAppleSubscription() {
             const skus = [APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU];
             console.log(`[AppleIAP] Fetching products (attempt ${attempt + 1}):`, skus);
             try {
-                const fetched = await fetchProducts({ skus, type: 'subs' });
-                const list = (fetched ?? []) as Product[];
+                let list = ((await fetchProducts({ skus, type: 'subs' })) ?? []) as Product[];
+                // Fallback: some react-native-iap v14 setups return [] for
+                // type:'subs' on TestFlight even when the subscriptions are
+                // approved. Re-query type:'all' and filter to our skus — this
+                // sidesteps any subscription-type classification mismatch.
+                if (list.length === 0) {
+                    console.warn('[AppleIAP] subs fetch empty; retrying as type:all');
+                    const all = ((await fetchProducts({ skus, type: 'all' })) ?? []) as Product[];
+                    list = all.filter((p) => skus.includes(productSku(p) ?? ''));
+                }
                 if (list.length > 0) {
-                    // `Product` is a union (iOS | Android); cast so TS picks up
-                    // the `productId` field that exists at runtime on iOS.
                     console.log('[AppleIAP] Products loaded:', list.map((p) => productSku(p)));
                     setProducts(list);
                     return list;
