@@ -120,6 +120,19 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Best-effort reset of the native Google Sign-In SDK session. Without this, after
+// an app logout the SDK keeps its cached Google session, and a later signIn() can
+// return a null idToken → "Google did not return a token" (can't re-sign-in).
+async function resetGoogleNativeSession(): Promise<void> {
+    if (Platform.OS === 'web') return;
+    try {
+        const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+        await GoogleSignin.signOut();
+    } catch {
+        /* not signed in via Google / module unavailable — harmless no-op */
+    }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -153,7 +166,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             const token = await getItemAsync('access_token');
             if (token) {
-                const userData = await api.getMe();
+                // Generous timeout on the boot restore so a cold-Render wake
+                // (>12s) resumes the session instead of throwing a transient
+                // error and dropping the user to Landing for that launch.
+                const userData = await api.getMe({ timeout: 45_000 });
                 // Cross-user guard: the query cache was hydrated at boot before
                 // we knew who's logged in. If the persisted blob belongs to a
                 // DIFFERENT user (a prior session that ended without teardown),
@@ -310,6 +326,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const logout = useCallback(async () => {
         await api.clearTokens();
         setUser(null);
+        // Reset the native Google SDK session so a later "Sign in with Google"
+        // re-prompts cleanly instead of reusing a stale session (null idToken).
+        await resetGoogleNativeSession();
         // Drop cached server state on logout so user B can't see user A's data.
         queryClient.clear();
         await clearPendingFaceScanSubmit().catch(() => undefined);
@@ -329,6 +348,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await api.deleteAccount(password);
         await api.clearTokens();
         setUser(null);
+        await resetGoogleNativeSession();
         await clearPendingFaceScanSubmit().catch(() => undefined);
         await clearFaceScanDraft().catch(() => undefined);
         await clearOnboardingDraft().catch(() => undefined);

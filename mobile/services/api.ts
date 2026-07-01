@@ -438,11 +438,15 @@ class ApiService {
     }
 
     async setTokens(accessToken: string, refreshToken: string): Promise<void> {
+        // Durable-first: persist to secure storage BEFORE exposing the in-memory
+        // token, so the session is recoverable the instant auth state flips — a
+        // crash mid-sign-in can't leave an in-memory-only token that vanishes on
+        // the next launch. (setTokens is always awaited, so ordering is safe.)
+        await setItemAsync('access_token', accessToken);
+        await setItemAsync('refresh_token', refreshToken);
         this.accessToken = accessToken;
         // Fresh tokens — lift any post-failure cooldown so new sessions work immediately.
         this.refreshFailedUntil = 0;
-        await setItemAsync('access_token', accessToken);
-        await setItemAsync('refresh_token', refreshToken);
     }
 
     async clearTokens(): Promise<void> {
@@ -608,8 +612,12 @@ class ApiService {
         return response.data as { message: string };
     }
 
-    async getMe() {
-        const response = await this.client.get('users/me');
+    async getMe(opts?: { timeout?: number }) {
+        // Boot restore passes a generous timeout: a cold Render backend can take
+        // >12s (the default) to wake, and without this the boot getMe throws a
+        // transient error and — even though tokens are now preserved — leaves the
+        // user on Landing until the next launch instead of resuming the session.
+        const response = await this.client.get('users/me', opts?.timeout ? { timeout: opts.timeout } : undefined);
         return response.data;
     }
 
