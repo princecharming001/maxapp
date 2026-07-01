@@ -315,6 +315,12 @@ class StripeService:
                 result["action"] = "activate"
             elif data.status in ("past_due", "unpaid"):
                 result["action"] = "payment_failed"
+            elif data.status in ("canceled", "incomplete_expired"):
+                # Stripe sometimes delivers a cancellation as a status=canceled
+                # `updated` event (the separate `.deleted` event may be delayed or
+                # dropped). Treat it as a deactivation, not a no-op update, so the
+                # user actually loses access.
+                result["action"] = "cancel"
             else:
                 result["action"] = "update"
 

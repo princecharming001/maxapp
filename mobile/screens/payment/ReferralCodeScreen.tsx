@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ReferralCodeField, ReferralCodeHandle } from '../../components/ReferralCodeField';
 import { useAuth } from '../../context/AuthContext';
+import { useFlag } from '../../constants/featureFlags';
 import { fonts } from '../../theme/dark';
 
 const INK = '#15130F';
@@ -26,10 +27,19 @@ export default function ReferralCodeScreen() {
     const route = useRoute<any>();
     const insets = useSafeAreaInsets();
     const { refreshUser, isAnonymous } = useAuth();
+    const referralsEnabled = useFlag('referrals');
     const initialCode: string | undefined = route?.params?.referralCode;
 
     const fieldRef = useRef<ReferralCodeHandle>(null);
     const [compReady, setCompReady] = useState(false);
+
+    // When the `referrals` flag is OFF, the code field renders nothing — this
+    // mandatory funnel step would otherwise show a "Have a referral code?" prompt
+    // with no input. Skip straight to the paywall so users aren't stranded.
+    useEffect(() => {
+        if (!referralsEnabled) nav.replace('Payment', route?.params);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [referralsEnabled]);
 
     // Guest gate: an unclaimed anonymous "guest" must create/claim an account before
     // the paywall — never let a guest reach referral/payment (or the app) as anon.
@@ -62,6 +72,7 @@ export default function ReferralCodeScreen() {
     };
 
     if (isAnonymous) return <View style={styles.root} />;  // redirecting an anon guest to CreateAccount
+    if (!referralsEnabled) return <View style={styles.root} />;  // redirecting to Payment (referrals off)
 
     return (
         <View style={[styles.root, { paddingTop: insets.top + 6 }]}>

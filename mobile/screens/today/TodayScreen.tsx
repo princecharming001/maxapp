@@ -352,11 +352,16 @@ export default function TodayScreen() {
     });
 
     // Freeze-used card shown = the freeze event happened (once per day).
+    // Fire in an effect, never in the render body: a side effect (analytics +
+    // ref write) during render is skipped by React concurrent pre-renders and
+    // double-fires in StrictMode.
     const freezeTracked = useRef(false);
-    if ((data as any)?.freeze_used_yesterday && !freezeTracked.current) {
-        freezeTracked.current = true;
-        track('freeze_used');
-    }
+    useEffect(() => {
+        if ((data as any)?.freeze_used_yesterday && !freezeTracked.current) {
+            freezeTracked.current = true;
+            track('freeze_used');
+        }
+    }, [(data as any)?.freeze_used_yesterday]);
 
     const skipMutation = useMutation({
         mutationFn: (t: PlannerTask) => api.skipPlannerTask(t.schedule_id!, t.task_id!),

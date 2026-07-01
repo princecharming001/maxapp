@@ -18,6 +18,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from config import settings
@@ -470,8 +471,19 @@ class CoachingService:
         if not state:
             state = UserCoachingState(user_id=user_uuid)
             db.add(state)
-            await db.commit()
-            await db.refresh(state)
+            try:
+                await db.commit()
+                await db.refresh(state)
+            except IntegrityError:
+                # First-ever coaching interaction where two requests race for a
+                # brand-new user: the loser's INSERT violates the unique user_id.
+                # Roll back and return the winner instead of 500ing.
+                await db.rollback()
+                state = (
+                    await db.execute(
+                        select(UserCoachingState).where(UserCoachingState.user_id == user_uuid)
+                    )
+                ).scalar_one_or_none()
         return state
 
     async def update_state(self, user_id: str, db: AsyncSession, **kwargs) -> UserCoachingState:

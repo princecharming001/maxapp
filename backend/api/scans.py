@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from db import get_db
 from middleware.auth_middleware import require_paid_user, get_current_user
 from middleware.rate_limit import rate_limit
@@ -60,11 +61,15 @@ async def _update_leaderboard_after_scan(
     leaderboard_result = await db.execute(select(Leaderboard).where(Leaderboard.user_id == user_uuid))
     entry = leaderboard_result.scalar_one_or_none()
 
+    def _apply(e: Leaderboard) -> None:
+        e.score = max(e.score or 0, leaderboard_score)
+        e.level = overall
+        e.last_scan_at = datetime.utcnow()
+        e.scans_count = (e.scans_count or 0) + 1
+
     if entry:
-        entry.score = max(entry.score or 0, leaderboard_score)
-        entry.level = overall
-        entry.last_scan_at = datetime.utcnow()
-        entry.scans_count = (entry.scans_count or 0) + 1
+        _apply(entry)
+        await db.commit()
     else:
         entry = Leaderboard(
             user_id=user_uuid,
@@ -77,8 +82,18 @@ async def _update_leaderboard_after_scan(
             created_at=datetime.utcnow(),
         )
         db.add(entry)
-
-    await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Concurrent first scan already created the row — fold this scan into
+            # the winner instead of 500ing on the unique user_id violation.
+            await db.rollback()
+            entry = (await db.execute(
+                select(Leaderboard).where(Leaderboard.user_id == user_uuid)
+            )).scalar_one_or_none()
+            if entry is not None:
+                _apply(entry)
+                await db.commit()
     # NOTE: rank is computed on read (see api/leaderboard.py). We no longer
     # rewrite every row's rank on each scan — that was O(n) writes per upload
     # and serialized concurrent scans.
@@ -527,6 +542,7 @@ async def analyze_scan(
             entry.improvement_percentage = improvement_percentage
             entry.last_scan_at = datetime.utcnow()
             entry.scans_count = (entry.scans_count or 0) + 1
+            await db.commit()
         else:
             entry = Leaderboard(
                 user_id=user_uuid,
@@ -539,8 +555,23 @@ async def analyze_scan(
                 created_at=datetime.utcnow(),
             )
             db.add(entry)
-
-        await db.commit()
+            try:
+                await db.commit()
+            except IntegrityError:
+                # Two near-simultaneous scans (retry/double-upload) both insert
+                # the first leaderboard row; the loser violates the unique
+                # user_id. Roll back, re-select the winner and fold this scan in.
+                await db.rollback()
+                entry = (await db.execute(
+                    select(Leaderboard).where(Leaderboard.user_id == user_uuid)
+                )).scalar_one_or_none()
+                if entry is not None:
+                    entry.score = max(entry.score or 0, (overall_score or 0) * 10)
+                    entry.level = overall_score or 0
+                    entry.improvement_percentage = improvement_percentage
+                    entry.last_scan_at = datetime.utcnow()
+                    entry.scans_count = (entry.scans_count or 0) + 1
+                    await db.commit()
         # rank is computed on read (api/leaderboard.py); no O(n) rewrite here.
 
         return {"message": "Analysis complete", "scan_id": scan_id}
@@ -548,6 +579,12 @@ async def analyze_scan(
     except HTTPException:
         raise
     except Exception as e:
+        # Roll back first: if the failure was an IntegrityError (e.g. the
+        # leaderboard upsert racing another scan), the session is poisoned and
+        # this commit would itself raise PendingRollbackError — losing the
+        # 'failed' status marker. scan was committed as 'processing' earlier, so
+        # it's still persistent after the rollback.
+        await db.rollback()
         scan.processing_status = "failed"
         scan.error_message = str(e)
         await db.commit()

@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt
 from sqlalchemy import delete, desc, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
@@ -188,10 +189,20 @@ async def signup(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
         phone_number=normalized_phone,
     )
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Double-submitted signup races past the existence checks above; the
+        # loser's INSERT violates the unique email/username/phone constraint.
+        # Roll back and return the same 400 the pre-check would have.
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
     await db.refresh(user)
     user_id = str(user.id)
-    
+
     # Create tokens
     access_token = create_access_token(user_id)
     refresh_token = create_refresh_token(user_id)
@@ -728,7 +739,23 @@ async def _find_or_create_google_user(
         first_scan_completed=False,
     )
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Double-tapped "Sign in with Google" for a brand-new user: both requests
+        # pass the google_sub/email checks and both INSERT. Roll back and return
+        # the winner (idempotent) instead of 500ing.
+        await db.rollback()
+        existing = (await db.execute(
+            select(User).where(User.google_sub == sub)
+        )).scalar_one_or_none()
+        if existing is None and email:
+            existing = (await db.execute(
+                select(User).where(User.email == email)
+            )).scalar_one_or_none()
+        if existing is not None:
+            return existing, False
+        raise
     await db.refresh(user)
     return user, True
 

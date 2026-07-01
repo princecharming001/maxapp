@@ -1363,6 +1363,25 @@ async def planner_chat(
     }
 
 
+_MAX_IMAGE_BYTES = 12 * 1024 * 1024  # 12 MB — mirror /scans/upload's cap
+
+
+def _validate_image_upload(data: bytes, content_type: Optional[str], label: str) -> None:
+    """Reject oversized or non-image uploads before they hit memory/storage.
+
+    Without this, upload_avatar / upload_progress_photo `await file.read()` the
+    entire body into memory with no bound — a memory-exhaustion vector.
+    """
+    if len(data) > _MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"{label} image is too large (max {_MAX_IMAGE_BYTES // (1024 * 1024)}MB).",
+        )
+    ct = (content_type or "").lower()
+    if ct and not ct.startswith("image/"):
+        raise HTTPException(status_code=400, detail=f"{label} must be an image.")
+
+
 @router.post("/me/avatar")
 async def upload_avatar(
     file: UploadFile = File(...),
@@ -1373,6 +1392,7 @@ async def upload_avatar(
     Upload profile picture
     """
     content = await file.read()
+    _validate_image_upload(content, file.content_type, "Avatar")
 
     user_uuid = UUID(current_user["id"])
     user = await db.get(User, user_uuid)
@@ -1456,6 +1476,7 @@ async def upload_progress_photo(
         )
 
     content = await upload.read()
+    _validate_image_upload(content, upload.content_type, "Progress photo")
     image_url = await storage_service.upload_image(
         content,
         current_user["id"],
@@ -1514,6 +1535,8 @@ async def upload_progress_photo_base64(
 
     if not content:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Empty image")
+    # content_type isn't available on a base64 body; cap decoded size only.
+    _validate_image_upload(content, None, "Progress photo")
 
     image_url = await storage_service.upload_image(
         content,

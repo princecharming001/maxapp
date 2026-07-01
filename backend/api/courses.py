@@ -7,6 +7,7 @@ from datetime import datetime
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from db import get_db, get_rds_db
 from middleware.auth_middleware import require_paid_user, get_current_admin_user
 from models.course import CourseCreate, CourseResponse, ChapterCompletionRequest
@@ -113,8 +114,22 @@ async def start_course(
         is_completed=False
     )
     db.add(progress)
-    await db.commit()
-    await db.refresh(progress)
+    try:
+        await db.commit()
+        await db.refresh(progress)
+    except IntegrityError:
+        # Double-tapped "Start course": the loser violates the unique
+        # (user_id, course_id). Roll back and return the existing enrollment.
+        await db.rollback()
+        existing = (await db.execute(
+            select(UserCourseProgress).where(
+                (UserCourseProgress.user_id == UUID(current_user["id"])) &
+                (UserCourseProgress.course_id == course_uuid)
+            )
+        )).scalar_one_or_none()
+        if existing is not None:
+            return {"message": "Already enrolled", "progress_id": str(existing.id)}
+        raise
     return {"message": "Course started", "progress_id": str(progress.id)}
 
 
@@ -148,10 +163,15 @@ async def complete_chapter(
     
     course_result = await rds_db.execute(select(Course).where(Course.id == course_uuid))
     course = course_result.scalar_one_or_none()
-    
-    # Calculate progress
-    total_chapters = sum(len(m.get("chapters", [])) for m in (course.modules or []))
-    percentage = (len(completed) / total_chapters * 100) if total_chapters > 0 else 0
+
+    # Calculate progress. If the course row can't be loaded (deleted/unpublished
+    # or a transient RDS miss), don't 500 — the chapter completion itself already
+    # succeeded, so keep the prior percentage rather than dereferencing None.
+    if course is None:
+        percentage = progress.progress_percentage or 0
+    else:
+        total_chapters = sum(len(m.get("chapters", [])) for m in (course.modules or []))
+        percentage = (len(completed) / total_chapters * 100) if total_chapters > 0 else 0
     
     # Update current module logic (simple: max module touched or just logic based on percentage)
     # For now, keep as is or update based on chapter's module

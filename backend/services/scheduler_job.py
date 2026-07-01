@@ -1085,6 +1085,48 @@ async def send_queued_notifications():
         logger.error(f"Queued notifications job error: {e}", exc_info=True)
 
 
+async def reconcile_expired_subscriptions():
+    """Self-heal lapsed subscriptions the DB missed.
+
+    An Apple EXPIRED / DID_FAIL_TO_RENEW ASN (or a comp expiry) can be dropped or
+    delayed, leaving is_paid=True with a subscription_end_date already in the
+    past. The middleware read-guard (auth_middleware._user_dict / require_paid_user)
+    already denies access for those rows, but the stored is_paid stays stale and
+    background jobs that filter on `is_paid == True` (coaching, weekly, etc.) keep
+    treating them as active. Flip is_paid=False + status='expired' for any
+    apple/referral_comp row whose end date has passed so the DB matches reality.
+    Stripe is intentionally excluded here — Stripe manages its own dunning window
+    and emits explicit cancel/expire events.
+    """
+    try:
+        from datetime import timezone as _tz
+        from sqlalchemy import update, and_, or_
+        now_utc = datetime.now(_tz.utc)
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                update(User)
+                .where(
+                    and_(
+                        User.is_paid == True,  # noqa: E712
+                        User.subscription_end_date.isnot(None),
+                        User.subscription_end_date < now_utc,
+                        or_(
+                            User.billing_provider == "apple",
+                            User.billing_provider == "referral_comp",
+                        ),
+                        # admins/scan users are never billing-gated
+                        User.is_admin == False,  # noqa: E712
+                    )
+                )
+                .values(is_paid=False, subscription_status="expired")
+            )
+            await db.commit()
+            if result.rowcount:
+                logger.info("reconcile_expired_subscriptions: expired %s stale row(s)", result.rowcount)
+    except Exception as e:
+        logger.error("reconcile_expired_subscriptions job error: %s", e, exc_info=True)
+
+
 def start_scheduler(app):
     """Start the APScheduler background job."""
     try:
@@ -1168,6 +1210,13 @@ def start_scheduler(app):
             "interval",
             minutes=60,
             id="prompt_cache_refresh",
+            **job_defaults,
+        )
+        scheduler.add_job(
+            reconcile_expired_subscriptions,
+            "interval",
+            minutes=60,
+            id="reconcile_expired_subscriptions",
             **job_defaults,
         )
         scheduler.start()

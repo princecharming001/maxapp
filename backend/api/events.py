@@ -66,7 +66,14 @@ async def get_calendar(
     now = datetime.utcnow()
     month = month or now.month
     year = year or now.year
-    
+
+    # Validate params so a client bug / fuzzed request (month=13, year=0) returns
+    # a 422 instead of 500ing on datetime() construction.
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=422, detail="month must be between 1 and 12")
+    if not (2000 <= year <= 2100):
+        raise HTTPException(status_code=422, detail="year must be between 2000 and 2100")
+
     start = datetime(year, month, 1)
     end = datetime(year, month + 1, 1) if month < 12 else datetime(year + 1, 1, 1)
     

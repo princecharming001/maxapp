@@ -272,6 +272,14 @@ async def _maybe_reward_referrer(db: AsyncSession, row: ReferralCode, redeemer_i
         from datetime import timedelta
         base = _as_aware(owner.subscription_end_date) or _utcnow()
         owner.subscription_end_date = max(base, _utcnow()) + timedelta(days=30)
+        # Extending subscription_end_date alone grants no access — every gated
+        # surface checks is_paid. Flip the entitlement flags so the comp reward
+        # actually unlocks premium (mirrors the referral_comp redeem path above).
+        owner.is_paid = True
+        owner.billing_provider = "referral_comp"
+        if not owner.subscription_tier or owner.subscription_tier == "free":
+            owner.subscription_tier = "premium"
+        owner.subscription_status = "comped"
     except Exception as e:  # never let a reward failure break the redemption
         logger.warning("referral reward hook skipped: %s", e)
 

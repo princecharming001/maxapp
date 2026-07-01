@@ -4,7 +4,7 @@ Payments API — Stripe SetupIntent + Subscription flow, Apple IAP (iOS) verify 
 
 import logging
 import stripe
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request, Depends
 from uuid import UUID
 from pydantic import BaseModel
@@ -126,6 +126,30 @@ def _is_apple_billed_user(current_user: dict) -> bool:
     return (current_user.get("billing_provider") or "").lower() == "apple"
 
 
+async def _resolve_apple_user(claims: dict, db: AsyncSession) -> Optional[str]:
+    """Resolve the owning user from TRUSTED Apple transaction claims.
+
+    Never trusts the raw notification's inner JWS: this is called only on claims
+    fetched from Apple's authenticated App Store Server API. Prefers the
+    appAccountToken (our user id, set at purchase), falling back to matching the
+    originalTransactionId against a stored subscription_id.
+    """
+    tok = claims.get("appAccountToken")
+    if tok:
+        try:
+            UUID(str(tok))
+            return str(tok)
+        except ValueError:
+            pass
+    original = str(claims.get("originalTransactionId") or "")
+    if original:
+        res = await db.execute(select(User).where(User.subscription_id == original))
+        row = res.scalar_one_or_none()
+        if row:
+            return str(row.id)
+    return None
+
+
 async def _apple_sync_entitlement(user_id: str, claims: dict, db: AsyncSession) -> None:
     """Apply App Store transaction claims to Supabase user (active or expired)."""
     from services import apple_iap_service as apple
@@ -153,15 +177,33 @@ async def _apple_sync_entitlement(user_id: str, claims: dict, db: AsyncSession) 
     )
 
 
+def _stripe_field(sub, key):
+    """Read a field from a Stripe subscription object (attr) or dict."""
+    if sub is None:
+        return None
+    if isinstance(sub, dict):
+        return sub.get(key)
+    return getattr(sub, key, None)
+
+
 async def _sync_subscription_tier_from_stripe(user_id: str, subscription_id: str, db: AsyncSession) -> None:
     try:
         sub = stripe_service.retrieve_subscription_object(subscription_id)
         tier = stripe_service.tier_from_subscription(sub)
-        if not tier:
-            return
+        # Persist the period end so the entitlement date-guard
+        # (auth_middleware._subscription_expired) and the reconciliation job also
+        # protect Stripe users: a failed renewal (is_paid left True) then expires
+        # once current_period_end passes, instead of granting access forever.
+        cpe = _stripe_field(sub, "current_period_end")
         user = await db.get(User, UUID(user_id))
         if user:
-            user.subscription_tier = tier
+            if tier:
+                user.subscription_tier = tier
+            if cpe:
+                try:
+                    user.subscription_end_date = datetime.fromtimestamp(int(cpe), tz=timezone.utc)
+                except (ValueError, TypeError, OSError):
+                    pass
             await db.commit()
     except Exception as e:
         logger.warning("Could not sync subscription tier from Stripe: %s", e)
@@ -486,10 +528,24 @@ async def apple_server_notifications(
     from services import apple_iap_service as apple
 
     sec = (settings.apple_asn_shared_secret or "").strip()
+    token = request.query_params.get("token") or request.query_params.get("secret")
+    # Whether THIS request is provably from Apple. Two independent trust anchors:
+    #   (a) the shared-secret token in the URL (only Apple + us know it), and
+    #   (b) — applied in the grant path below — a round-trip to Apple's
+    #       authenticated App Store Server API to fetch the real transaction.
+    # Entitlements are only ever granted when one of these vouches for the data;
+    # the raw inner JWS is NEVER trusted on its own (it isn't signature-verified).
+    authenticated_via_secret = False
     if sec:
-        token = request.query_params.get("token") or request.query_params.get("secret")
         if token != sec:
             raise HTTPException(status_code=403, detail="Invalid notification token")
+        authenticated_via_secret = True
+    elif settings.is_production and not apple.apple_iap_configured():
+        # No shared secret AND no App Store Server API key configured: we can
+        # neither authenticate the caller nor independently verify the
+        # transaction with Apple. Fail closed (like the Sendblue webhook) so a
+        # forged notification can't mint a free premium subscription.
+        raise HTTPException(status_code=403, detail="Webhook not configured")
 
     try:
         payload_json: dict[str, Any] = await request.json()
@@ -556,17 +612,26 @@ async def apple_server_notifications(
             "DID_CHANGE_RENEWAL_PREF",
             "DID_CHANGE_RENEWAL_STATUS",
         ):
+            granted = False
+            # Preferred path: re-fetch the transaction from Apple's authenticated
+            # App Store Server API. This is the strong trust anchor — a forged
+            # transactionId returns 404, so nothing is granted. Resolve and
+            # validate the owner from the TRUSTED claims, never from the
+            # attacker-controllable inner JWS's appAccountToken.
             if txn_id and apple.apple_iap_configured():
                 try:
                     claims = await apple.fetch_transaction_claims(txn_id)
-                    await _apple_sync_entitlement(user_id_str, claims, db)
+                    trusted_uid = await _resolve_apple_user(claims, db) or user_id_str
+                    apple.validate_claims_for_user(claims, trusted_uid)
+                    await _apple_sync_entitlement(trusted_uid, claims, db)
+                    granted = True
                 except Exception as e:
-                    logger.warning("ASN sync fetch failed, using inner JWS: %s", e)
-                    try:
-                        await _apple_sync_entitlement(user_id_str, txn_inner, db)
-                    except ValueError:
-                        pass
-            else:
+                    logger.warning("ASN trusted entitlement sync failed: %s", e)
+            # Fallback ONLY when the request itself is authenticated as Apple via
+            # the shared-secret URL — then the inner JWS came from Apple and can
+            # be trusted without the Server API round-trip. Otherwise grant
+            # nothing: the raw JWS is not signature-verified.
+            if not granted and authenticated_via_secret:
                 try:
                     await _apple_sync_entitlement(user_id_str, txn_inner, db)
                 except ValueError:

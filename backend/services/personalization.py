@@ -36,6 +36,7 @@ from typing import Any, Iterable, Optional
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -839,6 +840,18 @@ async def rebuild_profile(user_id: str, db: AsyncSession) -> dict[str, Any]:
         db, user_id, onboarding=onboarding, coaching_tone=coaching_tone
     )
 
+    now = _utcnow()
+
+    def _apply(target: UserPersonalizationProfile) -> None:
+        target.profile = built["profile"]
+        target.completeness = built["completeness"]
+        target.sources = built["sources"]
+        target.brief = built["brief"]
+        target.rebuilt_at = now
+        flag_modified(target, "profile")
+        flag_modified(target, "completeness")
+        flag_modified(target, "sources")
+
     row = (
         await db.execute(
             select(UserPersonalizationProfile).where(
@@ -846,27 +859,30 @@ async def rebuild_profile(user_id: str, db: AsyncSession) -> dict[str, Any]:
             )
         )
     ).scalar_one_or_none()
-    now = _utcnow()
     if row is None:
-        row = UserPersonalizationProfile(
-            user_id=UUID(str(user_id)),
-            profile=built["profile"],
-            completeness=built["completeness"],
-            sources=built["sources"],
-            brief=built["brief"],
-            rebuilt_at=now,
-        )
+        row = UserPersonalizationProfile(user_id=UUID(str(user_id)))
+        _apply(row)
         db.add(row)
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Concurrent rebuild (onboarding save + first chat turn) already
+            # inserted the unique user_id row. Roll back, re-select the winner,
+            # and apply onto it instead of leaving the session poisoned.
+            await db.rollback()
+            row = (
+                await db.execute(
+                    select(UserPersonalizationProfile).where(
+                        UserPersonalizationProfile.user_id == UUID(str(user_id))
+                    )
+                )
+            ).scalar_one_or_none()
+            if row is not None:
+                _apply(row)
+                await db.commit()
     else:
-        row.profile = built["profile"]
-        row.completeness = built["completeness"]
-        row.sources = built["sources"]
-        row.brief = built["brief"]
-        row.rebuilt_at = now
-        flag_modified(row, "profile")
-        flag_modified(row, "completeness")
-        flag_modified(row, "sources")
-    await db.commit()
+        _apply(row)
+        await db.commit()
     return built
 
 
@@ -874,6 +890,12 @@ async def _safe_rebuild(user_id: str, db: AsyncSession) -> None:
     try:
         await rebuild_profile(user_id, db)
     except Exception as e:
+        # Roll back so a failed rebuild can't poison the caller's session
+        # (the next statement on this db would otherwise raise PendingRollback).
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         logger.warning("personalization rebuild failed for user=%s: %s", user_id, e)
 
 

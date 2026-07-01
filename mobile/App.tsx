@@ -216,7 +216,10 @@ function AppNavigator() {
                             await clearPendingFaceScanSubmit();
                             await clearFaceScanDraft();
                             navRef.dispatch(
-                                CommonActions.reset({ index: 1, routes: [{ name: 'FeaturesIntro' }, { name: 'FaceScanResults' }] }),
+                                // FeaturesIntro only exists in the UNPAID stack; a paid
+                            // user's stack has 'Main' instead. Resetting to a route
+                            // absent from the active stack no-ops/errors, so branch.
+                            CommonActions.reset({ index: 1, routes: [{ name: isPaid ? 'Main' : 'FeaturesIntro' }, { name: 'FaceScanResults' }] }),
                             );
                             return;
                         }
@@ -229,7 +232,10 @@ function AppNavigator() {
                             await clearPendingFaceScanSubmit();
                             await clearFaceScanDraft();
                             navRef.dispatch(
-                                CommonActions.reset({ index: 1, routes: [{ name: 'FeaturesIntro' }, { name: 'FaceScanResults' }] }),
+                                // FeaturesIntro only exists in the UNPAID stack; a paid
+                            // user's stack has 'Main' instead. Resetting to a route
+                            // absent from the active stack no-ops/errors, so branch.
+                            CommonActions.reset({ index: 1, routes: [{ name: isPaid ? 'Main' : 'FeaturesIntro' }, { name: 'FaceScanResults' }] }),
                             );
                             return;
                         }
@@ -246,7 +252,10 @@ function AppNavigator() {
                     if (st === 'processing') {
                         await clearPendingFaceScanSubmit();
                         navRef.dispatch(
-                            CommonActions.reset({ index: 1, routes: [{ name: 'FeaturesIntro' }, { name: 'FaceScanResults' }] }),
+                            // FeaturesIntro only exists in the UNPAID stack; a paid
+                            // user's stack has 'Main' instead. Resetting to a route
+                            // absent from the active stack no-ops/errors, so branch.
+                            CommonActions.reset({ index: 1, routes: [{ name: isPaid ? 'Main' : 'FeaturesIntro' }, { name: 'FaceScanResults' }] }),
                         );
                     }
                 } catch { /* no scan */ }

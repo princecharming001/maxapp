@@ -228,6 +228,16 @@ async def _run_app_users_column_migrations():
         "CREATE UNIQUE INDEX IF NOT EXISTS ix_app_users_google_sub ON app_users (google_sub) WHERE google_sub IS NOT NULL",
         # subscription_id was unique but Apple reuses originalTransactionId across renewals
         "ALTER TABLE app_users DROP CONSTRAINT IF EXISTS app_users_subscription_id_key",
+        # Billing provider ('apple' | 'stripe' | 'referral_comp' | ...). This is
+        # SELECTed on every user load (User.billing_provider); a migration for it
+        # was accidentally dropped in an unrelated commit, so freshly-provisioned
+        # or restored app_users tables 500 the whole app without it. Re-added.
+        "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS billing_provider VARCHAR",
+        # Referral attribution — mapped on the User model but never previously
+        # added by any migration, so any DB predating these columns 500s on every
+        # request that loads a user (login, /me, chat, scans — the whole app).
+        "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS referred_by_code_id UUID",
+        "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS referral_source VARCHAR",
     ]
     try:
         async with engine.begin() as conn:
@@ -299,12 +309,20 @@ async def _run_chat_history_column_migrations():
                     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
                     user_id uuid NOT NULL,
                     title varchar(120) NOT NULL DEFAULT 'new chat',
+                    channel varchar NOT NULL DEFAULT 'app',
                     is_archived boolean NOT NULL DEFAULT false,
                     last_message_at timestamptz,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now()
                 )
             """))
+            # channel is mapped on ChatConversation and FILTERED in queries
+            # (resolve_active_conversation), so any pre-existing table without it
+            # 500s all chat. Add it as its own idempotent ALTER for existing DBs.
+            await conn.execute(text(
+                "ALTER TABLE public.chat_conversations "
+                "ADD COLUMN IF NOT EXISTS channel varchar NOT NULL DEFAULT 'app'"
+            ))
             await conn.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_chat_conversations_user
                     ON public.chat_conversations(user_id, is_archived, last_message_at DESC)

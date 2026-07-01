@@ -103,7 +103,10 @@ export function RootNavigator() {
     const treatAsFull = isPaid;
 
     const initialRoute = !isAuthenticated
-        ? 'Login'
+        // New users land on the Landing 'Get started' funnel (which mints the
+        // anonymous account + starts the scan flow), not the Login form. Login is
+        // still reachable via the 'Sign in' link on Landing.
+        ? 'Landing'
         : isScanUser
             ? 'ScanOnly'
             : user?.is_admin

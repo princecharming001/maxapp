@@ -81,6 +81,12 @@ async def get_current_user(
 
 def _user_dict(user: User) -> dict:
     """Build the standard user dict returned by auth dependencies."""
+    # Effective entitlement: a paid subscription that has passed its end date is
+    # NOT entitled. Compute it once here so EVERY is_paid reader (/users/me,
+    # /scans/latest, treat_as_paid, push-token) agrees with require_paid_user
+    # instead of trusting a stale is_paid=True when an EXPIRED webhook was missed.
+    raw_is_paid = bool(user.is_paid)
+    is_entitled = raw_is_paid and not _subscription_expired(user.subscription_end_date)
     return {
         "id": str(user.id),
         "email": user.email,
@@ -88,7 +94,9 @@ def _user_dict(user: User) -> dict:
         "last_name": user.last_name,
         "username": user.username,
         "created_at": user.created_at,
-        "is_paid": user.is_paid,
+        "is_paid": is_entitled,
+        "is_paid_raw": raw_is_paid,
+        "is_entitled": is_entitled,
         "is_admin": user.is_admin,
         "is_scan_user": user.is_scan_user,
         "subscription_tier": user.subscription_tier,

@@ -7,6 +7,7 @@ from datetime import datetime
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from db import get_db
 from middleware.auth_middleware import require_paid_user
 from models.sqlalchemy_models import Leaderboard, User, Scan
@@ -118,9 +119,17 @@ async def get_my_rank(
                 created_at=datetime.utcnow()
             )
             db.add(new_entry)
-            await db.commit()
-            await db.refresh(new_entry)
-            entry = new_entry
+            try:
+                await db.commit()
+                await db.refresh(new_entry)
+                entry = new_entry
+            except IntegrityError:
+                # A concurrent scan/leaderboard-view already created the row.
+                # Roll back and read the winner rather than 500ing.
+                await db.rollback()
+                entry = (await db.execute(
+                    select(Leaderboard).where(Leaderboard.user_id == user_uuid)
+                )).scalar_one_or_none()
             total = await _non_admin_total()
         else:
             return {"rank": None, "total_users": total, "message": "Complete a scan to join"}

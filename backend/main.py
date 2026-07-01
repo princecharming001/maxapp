@@ -97,7 +97,11 @@ _app_env = (getattr(settings, "app_env", "") or "").strip().lower()
 # Localhost/LAN origins are allowed ONLY outside production. Do NOT also key this
 # on `debug` — a stray DEBUG=true in production must never widen CORS to let a
 # local proxy make credentialed cross-origin requests.
-_allow_localhost_regex = _app_env != "production"
+# Use the hardened `is_production` flag (the authoritative guard used everywhere
+# else) rather than an exact APP_ENV == "production" match: on a real Render
+# deploy where APP_ENV is left at its default, an exact match would (wrongly)
+# keep the localhost/LAN regex enabled with allow_credentials=True.
+_allow_localhost_regex = not settings.is_production
 # LAN IPs: Expo web opened as http://192.168.x.x:8081 (phone) must be allowed to call the API.
 _cors_regex = (
     (
