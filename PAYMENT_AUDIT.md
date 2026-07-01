@@ -1,11 +1,17 @@
 # Payment / IAP Audit — 2026-06-30
 
 ## Verdict
-**The payment path is healthy end-to-end. The TestFlight "payment plan not
-functioning" symptom was caused by the stale production backend — the same root
-cause as the "Get started" 404 — now fixed by redeploying Render.** No code or
-config defect prevents purchasing. One real (minor) UI bug was found and fixed
-during the audit (mislabeled "Restore Purchases" control).
+**UPDATED 2026-07-01 — real root cause found.** The "Plan not available yet" error
+was a **client bug**: `react-native-iap` v14 exposes the StoreKit product identifier
+as `id` (ProductCommon.id), but the pre-purchase gate in `useAppleSubscription.ios.ts`
+matched on `p.productId` (undefined in v14). So every gate check failed even though the
+App Store returned the products correctly, surfacing a false "Plan not available yet".
+Fixed by matching on `id ?? productId` (helper `productSku`). Requires a new build
+(320) — 318/319 carry the bug. App Store Connect config was verified fully correct
+(both subs APPROVED, en-US localized, US priced $5.99/$3.99, 175 territories), which is
+why it looked perfect. The earlier stale-backend fix (below) was also real and
+necessary for `/apple/verify`, but was not the cause of the "not available" symptom.
+A separate minor UI bug (mislabeled "Restore Purchases") was fixed too.
 
 ## Root cause
 Render's GitHub auto-deploy webhook had been dead since **2026-06-24**, so a week

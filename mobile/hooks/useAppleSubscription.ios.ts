@@ -12,6 +12,16 @@ import api from '../services/api';
 
 type Tier = 'basic' | 'premium';
 
+// react-native-iap v14 exposes the StoreKit product identifier as `id`
+// (ProductCommon.id); older shapes used `productId`. The pre-purchase gate must
+// match on EITHER — matching only `productId` made every check fail on v14
+// (productId is undefined there) and surfaced a false "Plan not available yet"
+// even when the App Store returned the products correctly.
+const productSku = (p: unknown): string | undefined => {
+    const o = p as { id?: string; productId?: string } | null | undefined;
+    return o?.id ?? o?.productId;
+};
+
 export function useAppleSubscription() {
     const { user, refreshUser } = useAuth();
     const queryClient = useQueryClient();
@@ -121,7 +131,7 @@ export function useAppleSubscription() {
                 if (list.length > 0) {
                     // `Product` is a union (iOS | Android); cast so TS picks up
                     // the `productId` field that exists at runtime on iOS.
-                    console.log('[AppleIAP] Products loaded:', list.map((p) => (p as { productId?: string }).productId));
+                    console.log('[AppleIAP] Products loaded:', list.map((p) => productSku(p)));
                     setProducts(list);
                     return list;
                 }
@@ -218,12 +228,12 @@ export function useAppleSubscription() {
             // propagating to sandbox, or a transient empty fetch) silently does
             // nothing — no sheet, no error — which reads as a dead button. A
             // bounded check lets us give real feedback instead.
-            let productCached = products.some((p) => (p as { productId?: string }).productId === sku);
+            let productCached = products.some((p) => productSku(p) === sku);
             if (!productCached) {
                 console.log('[AppleIAP] Cache miss at subscribe time; fetching before purchase:', sku);
                 try {
                     const list = await loadProducts();
-                    productCached = list.some((p) => (p as { productId?: string }).productId === sku);
+                    productCached = list.some((p) => productSku(p) === sku);
                 } catch (err) {
                     console.warn('[AppleIAP] product fetch before purchase failed:', err);
                 }
