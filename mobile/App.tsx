@@ -14,6 +14,7 @@ import { getFlag } from './constants/featureFlags';
 import { parseReferralCode } from './lib/referralLink';
 import { RootNavigator } from './navigation/RootNavigator';
 import { queryClient } from './lib/queryClient';
+import { FeatureFlagsProvider } from './constants/featureFlags';
 import { hydrateQueryClient, startQueryPersistence } from './lib/queryPersist';
 import { installGlobalErrorHandlers } from './lib/globalErrorHandlers';
 import AppErrorBoundary from './components/AppErrorBoundary';
@@ -48,6 +49,7 @@ installGlobalErrorHandlers();
 
 // DEV: set true to render the planner redesign mockups (design review only).
 const SHOW_PLANNER_MOCKS = false;
+
 
 // Routes a push notification is allowed to deep-link into. Keep this an
 // explicit allow-list — we never navigate to an arbitrary route name handed
@@ -389,12 +391,14 @@ export default function App() {
                     <QueryClientProvider client={queryClient}>
                         <SafeAreaProvider style={{ flex: 1, backgroundColor: colors.background }}>
                             <View style={[{ flex: 1, backgroundColor: colors.background }, webContainerStyle]}>
-                                <AuthProvider>
-                                    <AppNavigator />
-                                </AuthProvider>
-                                {/* In-app alert host — renders Alert.alert() prompts as
-                                    on-brand modals instead of the native OS dialog. */}
-                                <InAppAlertHost />
+                                <FeatureFlagsProvider>
+                                    <AuthProvider>
+                                        <AppNavigator />
+                                    </AuthProvider>
+                                    {/* In-app alert host — renders Alert.alert() prompts as
+                                        on-brand modals instead of the native OS dialog. */}
+                                    <InAppAlertHost />
+                                </FeatureFlagsProvider>
                             </View>
                         </SafeAreaProvider>
                     </QueryClientProvider>

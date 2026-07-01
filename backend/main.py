@@ -31,6 +31,7 @@ from api import (
     google_router,
     referral_router,
     creator_applications_router,
+    config_router,
 )
 
 
@@ -216,6 +217,7 @@ app.include_router(analytics_router, prefix="/api")
 app.include_router(google_router, prefix="/api")
 app.include_router(referral_router, prefix="/api")
 app.include_router(creator_applications_router, prefix="/api")
+app.include_router(config_router, prefix="/api")
 
 # Mount uploads directory
 uploads_dir = os.path.join(os.path.dirname(__file__), "uploads")

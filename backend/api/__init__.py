@@ -26,3 +26,4 @@ from .analytics import router as analytics_router
 from .google import router as google_router
 from .referral import router as referral_router
 from .creator_applications import router as creator_applications_router
+from .config import router as config_router

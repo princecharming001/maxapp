@@ -3,6 +3,13 @@
     "name": "Max",
     "slug": "cannon-mobile",
     "version": "3.0.8",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f3fa5d9c-7073-4b53-9376-6b2f693c6a39",
+      "fallbackToCacheTimeout": 0
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

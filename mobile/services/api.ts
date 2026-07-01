@@ -554,6 +554,13 @@ class ApiService {
         return response.data;
     }
 
+    /** Remote feature-flag overrides (public). Returns {} on any issue so the
+     *  client falls back to its built-in defaults. */
+    async getFeatureFlags(): Promise<Record<string, boolean>> {
+        const response = await this.client.get('config/flags');
+        return (response.data && typeof response.data === 'object') ? response.data : {};
+    }
+
     /** Sign in / up with a verified Google ID token. */
     async googleSignIn(idToken: string) {
         const response = await this.client.post(
