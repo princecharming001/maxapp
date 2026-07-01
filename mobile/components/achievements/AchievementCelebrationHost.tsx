@@ -23,9 +23,8 @@ import CelebrationOverlay from './CelebrationOverlay';
 // gets captured + marked seen; the overlay just waits until the user is elsewhere.
 const SUPPRESS_ROUTES = new Set<string>([
     'FaceScan', 'FaceScanResults', 'FaceScanArchive', 'ModuleSelect',
-    'Onboarding', 'RoutineReveal', 'FeaturesIntro', 'Payment', 'PaymentThankYou',
+    'Onboarding', 'RoutineReveal', 'FeaturesIntro', 'Payment',
     'Landing', 'Login', 'Signup', 'ForgotPassword',
-    'SmsCoachingIntro', 'SendblueConnect', 'SmsSetup',
 ]);
 
 function useCurrentRouteName(): string | undefined {

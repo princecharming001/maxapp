@@ -928,9 +928,6 @@ export default function FaceScanResultsScreen() {
     // ever (incl. the locked onboarding teaser + the post-pay reveal). Daily /
     // repeat scans show just the three headline rings at the top — nothing else.
     const isFirstScanEver = locked || postPayParam || scan?.is_first_scan === true;
-    const sendbluePending =
-        treatAsPaid &&
-        (user?.onboarding as any)?.sendblue_connect_completed !== true;
 
     // Finish the post-pay flow: clear the post-subscription flag (so HomeScreen
     // stops redirecting back here) and land on Main. Programs are picked later in

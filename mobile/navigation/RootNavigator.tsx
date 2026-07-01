@@ -17,17 +17,12 @@ import FeaturesIntroScreen from '../screens/onboarding/FeaturesIntroScreen';
 import RoutineRevealScreen from '../screens/onboarding/RoutineRevealScreen';
 import FaceScanScreen from '../screens/scan/FaceScanScreen';
 import FaceScanResultsScreen from '../screens/scan/FaceScanResultsScreen';
-import SmsCoachingIntroScreen from '../screens/scan/SmsCoachingIntroScreen';
-import SendblueConnectScreen from '../screens/scan/SendblueConnectScreen';
 import GoogleCalendarConnectScreen from '../screens/integrations/GoogleCalendarConnectScreen';
-import NotificationChannelsScreen from '../screens/scan/NotificationChannelsScreen';
 import ScanDetailScreen from '../screens/scan/ScanDetailScreen';
 import PaymentScreen from '../screens/payment/PaymentScreen';
 import ReferralCodeScreen from '../screens/payment/ReferralCodeScreen';
 import CreateAccountScreen from '../screens/payment/CreateAccountScreen';
-import PaymentThankYouScreen from '../screens/payment/PaymentThankYouScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
-import SmsSetupScreen from '../screens/profile/SmsSetupScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
 import EditPersonalScreen from '../screens/profile/EditPersonalScreen';
 import PersonalizationScreen from '../screens/profile/PersonalizationScreen';
@@ -39,9 +34,6 @@ import ManageSubscriptionScreen from '../screens/profile/ManageSubscriptionScree
 import PersonalInfoScreen from '../screens/profile/PersonalInfoScreen';
 import ProgressArchiveScreen from '../screens/profile/ProgressArchiveScreen';
 import FaceScanArchiveScreen from '../screens/profile/FaceScanArchiveScreen';
-import CourseListScreen from '../screens/courses/CourseListScreen';
-import CourseDetailScreen from '../screens/courses/CourseDetailScreen';
-import ChapterViewScreen from '../screens/courses/ChapterViewScreen';
 import ScheduleScreen from '../screens/courses/ScheduleScreen';
 import MaxxDetailScreen from '../screens/courses/MaxxDetailScreen';
 import MaxDetailScreen from '../screens/marketplace/MaxDetailScreen';
@@ -92,10 +84,9 @@ export function RootNavigator() {
      * Pre-pay:  Onboarding -> FeaturesIntro -> FaceScan -> FaceScanResults (locked) -> Payment.
      * Post-pay: Main (HomeScreen redirects to FaceScanResults postPay) -> Main.
      *
-     * SMS + notification screens (SmsCoachingIntro, SendblueConnect, SmsSetup,
-     * NotificationChannels) stay registered in the paid stack and are reachable
-     * from the post-scan flow. Push notifications default to ON for paid users;
-     * they can still toggle device-level permissions via OS settings.
+     * Push notifications default to ON for paid users; they can toggle
+     * device-level permissions via OS settings. (The old SMS-coaching opt-in
+     * funnel was removed — it was unreachable and superseded by push-first.)
      */
     // Gate on paid entitlement ONLY — onboarding completion is not a substitute
     // for payment. A user who completes onboarding without subscribing stays in
@@ -170,7 +161,6 @@ export function RootNavigator() {
                     <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
                     <Stack.Screen name="ReferralCode" component={ReferralCodeScreen} />
                     <Stack.Screen name="Payment" component={PaymentScreen} />
-                    <Stack.Screen name="PaymentThankYou" component={PaymentThankYouScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} options={{ headerShown: false }} />
                 </>
@@ -184,11 +174,6 @@ export function RootNavigator() {
                         Payment must be reachable from this stack — not just the funnel. */}
                     <Stack.Screen name="ReferralCode" component={ReferralCodeScreen} />
                     <Stack.Screen name="Payment" component={PaymentScreen} />
-                    <Stack.Screen name="PaymentThankYou" component={PaymentThankYouScreen} options={{ headerShown: false }} />
-                    <Stack.Screen name="SmsCoachingIntro" component={SmsCoachingIntroScreen} />
-                    <Stack.Screen name="SendblueConnect" component={SendblueConnectScreen} />
-                    <Stack.Screen name="SmsSetup" component={SmsSetupScreen} />
-                    <Stack.Screen name="NotificationChannels" component={NotificationChannelsScreen} />
                     <Stack.Screen name="Profile" component={ProfileScreen} />
                     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="EditPersonal" component={EditPersonalScreen} />
@@ -204,9 +189,6 @@ export function RootNavigator() {
                     <Stack.Screen name="DaySetup" component={DaySetupScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="RoutineReveal" component={RevealComponent} />
 
-                    <Stack.Screen name="CourseList" component={CourseListScreen} />
-                    <Stack.Screen name="CourseDetail" component={CourseDetailScreen} options={{ headerShown: false }} />
-                    <Stack.Screen name="ChapterView" component={ChapterViewScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="Schedule" component={ScheduleScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="TaskGuide" component={TaskGuideScreen} options={{ headerShown: false, presentation: 'modal' }} />
                     <Stack.Screen name="MaxxDetail" component={MaxxDetailScreen} options={{ headerShown: false }} />

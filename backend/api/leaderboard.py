@@ -42,8 +42,8 @@ async def get_leaderboard(
             "user_email": (email[:3] + "***") if email else "Anonymous",
             "score": entry.score or 0,
             "level": entry.level or 0,
-            "streak_days": entry.streak_days or 0,
-            "improvement_percentage": entry.improvement_percentage or 0
+            # streak_days / improvement_percentage were never actually computed
+            # (constant 1 / 0) — dropped rather than surface dead data.
         })
     return {"entries": entries, "total_users": len(entries)}
 
@@ -139,7 +139,6 @@ async def get_my_rank(
         "total_users": total,
         "score": entry.score or 0,
         "level": entry.level or 0,
-        "streak_days": entry.streak_days or 0,
-        "improvement_percentage": entry.improvement_percentage or 0
+        # streak_days / improvement_percentage dropped — never computed (dead data).
     }
 

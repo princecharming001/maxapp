@@ -23,7 +23,6 @@ export default function LeaderboardManageScreen() {
                 <Text style={styles.score}>{item.score.toFixed(0)} pts</Text>
             </View>
             <View style={styles.stats}>
-                <Text style={styles.statText}>{item.streak_days}d streak</Text>
                 <Text style={styles.statText}>Lv {item.level}</Text>
             </View>
         </View>

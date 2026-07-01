@@ -1038,25 +1038,6 @@ class ApiService {
         return response.data;
     }
 
-    async completeSendblueConnect(prefs?: { sms_opt_in?: boolean; app_notifications_opt_in?: boolean }) {
-        const response = await this.client.post('users/sendblue-connect/complete', prefs ?? {});
-        return response.data;
-    }
-
-    /** Dev-only: allow bypassing inbound SMS requirement. */
-    async completeSendblueConnectDevSkip() {
-        const response = await this.client.post('users/sendblue-connect/complete', undefined, {
-            headers: { 'x-dev-skip-sendblue': '1' },
-        });
-        return response.data;
-    }
-
-    /** DEBUG: mark SMS engaged only — then show notification channel picker. */
-    async devSkipSendblueEngageOnly() {
-        const response = await this.client.post('users/sendblue-connect/dev-skip-engage');
-        return response.data;
-    }
-
     /**
      * DEBUG: bulk-reset user flags so a single account can replay
      * onboarding / scan / paywall flows. Backend 404s when DEBUG=false.
@@ -1110,11 +1091,6 @@ class ApiService {
 
     async clearPushToken() {
         const response = await this.client.delete('users/push-token');
-        return response.data;
-    }
-
-    async patchNotificationChannels(prefs: { sms_opt_in: boolean; app_notifications_opt_in: boolean }) {
-        const response = await this.client.patch('users/notification-channels', prefs);
         return response.data;
     }
 
@@ -1472,35 +1448,6 @@ class ApiService {
         confirmations: { id: string; accepted: boolean; value?: string }[],
     ): Promise<{ stored: number }> {
         const response = await this.client.post('planner/reviews/weekly', { confirmations });
-        return response.data;
-    }
-
-    // Courses
-    async getCourses() {
-        const response = await this.client.get('courses');
-        return response.data;
-    }
-
-    async getCourse(courseId: string) {
-        const response = await this.client.get(`courses/${courseId}`);
-        return response.data;
-    }
-
-    async startCourse(courseId: string) {
-        const response = await this.client.post(`courses/${courseId}/start`);
-        return response.data;
-    }
-
-    async completeChapter(courseId: string, chapterId: string, moduleNumber: number) {
-        const response = await this.client.put(`courses/${courseId}/complete-chapter`, {
-            chapter_id: chapterId,
-            module_number: moduleNumber
-        });
-        return response.data;
-    }
-
-    async getCourseProgress() {
-        const response = await this.client.get('courses/progress/current');
         return response.data;
     }
 
