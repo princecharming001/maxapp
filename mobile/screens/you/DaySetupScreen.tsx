@@ -101,8 +101,13 @@ function GoogleSection() {
             if (Platform.OS === 'web') {
                 window.open(auth_url, '_blank');
             } else {
-                const { Linking } = require('react-native');
-                Linking.openURL(auth_url);
+                // In-app browser (SFSafariViewController / Custom Tab) — keep the
+                // user inside the app; refresh status when the browser closes.
+                const WebBrowser = require('expo-web-browser');
+                WebBrowser.openBrowserAsync(auth_url).finally(() => {
+                    queryClient.invalidateQueries({ queryKey: ['googleStatus'] });
+                    queryClient.invalidateQueries({ queryKey: ['plannerToday'] });
+                });
             }
         },
     });

@@ -15,6 +15,7 @@ import {
     ScrollView,
     Linking,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { Alert } from '../../components/InAppAlert';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,6 +49,7 @@ export default function GoogleCalendarConnectScreen() {
             clearInterval(pollRef.current);
             pollRef.current = null;
             setConnecting(false);
+            WebBrowser.dismissBrowser().catch(() => {});
             qc.invalidateQueries({ queryKey: ['plannerToday'] });
         }
     }, [connected, qc]);
@@ -65,14 +67,20 @@ export default function GoogleCalendarConnectScreen() {
         try {
             setConnecting(true);
             const { auth_url } = await api.getGoogleAuthUrl();
-            await Linking.openURL(auth_url);
-            // Poll until connected
+            // Poll for the connection while the in-app browser is open (openBrowserAsync
+            // blocks until it closes; the connected-effect dismisses it on success).
             pollRef.current = setInterval(() => {
                 qc.invalidateQueries({ queryKey: STATUS_QK });
-            }, 4000);
+            }, 3000);
+            // In-app browser (SFSafariViewController / Custom Tab) — keep the user
+            // inside the app instead of bouncing out to Safari/Chrome.
+            await WebBrowser.openBrowserAsync(auth_url);
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+            qc.invalidateQueries({ queryKey: STATUS_QK });
         } catch {
-            setConnecting(false);
             Alert.alert('Error', 'Could not open the Google sign-in page.');
+        } finally {
+            setConnecting(false);
         }
     };
 
