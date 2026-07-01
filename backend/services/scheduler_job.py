@@ -213,6 +213,11 @@ async def send_due_notifications():
             for schedule in schedules:
                 by_user[schedule.user_id].append(schedule)
 
+            # Warm the identity map with ONE query so the per-user db.get(User)
+            # inside _plan_and_send_for_user is a cache hit, not an N+1 SELECT.
+            if by_user:
+                await db.execute(select(User).where(User.id.in_(list(by_user.keys()))))
+
             for user_id, user_schedules in by_user.items():
                 try:
                     await _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days)
@@ -307,6 +312,20 @@ async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
         if (schedule_push_marked_sent(t) if channel == "push" else schedule_sms_marked_sent(t))
     }
 
+    # Cross-tick enforcement: plan_day only knows about THIS tick, so the daily
+    # cap and min-interval must be reduced by what was already sent earlier today
+    # (state persists across ticks). Without this, the cap/interval reset every
+    # 5-min tick and a user could be nudged far past the intended ceiling.
+    if not _sms_fast_mode():
+        already_today = ns.sent_count_today(state, today_iso)
+        remaining_cap = max(0, cap - already_today)
+        if remaining_cap == 0:
+            return
+        last_send = ns.last_send_min_today(state, today_iso)
+        if last_send is not None and (now_min - last_send) < cfg.min_interval_min:
+            return
+        cap = remaining_cap
+
     ctx = PlannerContext(
         now_min=now_min, wake_min=wake_min, sleep_min=sleep_min,
         cap=cap, min_interval_min=cfg.min_interval_min,
@@ -323,6 +342,12 @@ async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
     for c in due:
         if c.dedup_key in ns.sent_keys_today(state, today_iso):
             continue
+        # Respect the min-interval within this tick too: once we send one, the
+        # rest wait for a future tick (state is updated by record_sent below).
+        if not _sms_fast_mode():
+            ls = ns.last_send_min_today(state, today_iso)
+            if ls is not None and (now_min - ls) < cfg.min_interval_min:
+                break
         ok = False
         if channel == "push":
             custom = build_push_custom(c.category, c.route, c.params)
@@ -779,6 +804,8 @@ async def send_weekly_resets():
                         user_tz = ZoneInfo("UTC")
 
                     local_now = datetime.now(ZoneInfo("UTC")).astimezone(user_tz)
+                    _iso = local_now.isocalendar()
+                    iso_wk = f"{_iso[0]}-W{_iso[1]:02d}"
                     fitmax_result = await db.execute(
                         select(UserSchedule).where(
                             (UserSchedule.user_id == user.id)
@@ -788,11 +815,15 @@ async def send_weekly_resets():
                     )
                     has_fitmax = fitmax_result.scalar_one_or_none() is not None
                     if not _sms_fast_mode():
+                        # Widened from an EXACT hour to a 2-hour window: a deploy/
+                        # restart re-anchors the interval timer and can push the
+                        # fire past a single target hour, skipping the whole week.
+                        # The ISO-week idempotency check below keeps this safe.
                         if has_fitmax:
-                            if local_now.weekday() != 6 or local_now.hour != 19:
+                            if local_now.weekday() != 6 or not (19 <= local_now.hour <= 20):
                                 continue
                         else:
-                            if local_now.weekday() != 0 or local_now.hour != 9:
+                            if local_now.weekday() != 0 or not (9 <= local_now.hour <= 10):
                                 continue
 
                     state_result = await db.execute(
@@ -800,6 +831,10 @@ async def send_weekly_resets():
                     )
                     state = state_result.scalar_one_or_none()
                     if not state:
+                        continue
+                    # Idempotency: at most one weekly reset per ISO week per user,
+                    # so the widened window can't double-send.
+                    if not _sms_fast_mode() and state.last_weekly_reset_iso_week == iso_wk:
                         continue
 
                     phone = user.phone_number
@@ -836,6 +871,7 @@ async def send_weekly_resets():
                     st = st_res.scalar_one_or_none()
                     if st:
                         st.missed_days = 0
+                        st.last_weekly_reset_iso_week = iso_wk
                         st.updated_at = datetime.utcnow()
 
                     await db.commit()
@@ -1028,6 +1064,10 @@ async def send_queued_notifications():
                 .limit(500)
             )
             rows = res.scalars().all()
+            # Warm the identity map with ONE query so the per-row db.get(User)
+            # below is a cache hit rather than an N+1 across up to 500 rows.
+            if rows:
+                await db.execute(select(User).where(User.id.in_({r.user_id for r in rows})))
             for row in rows:
                 try:
                     user = await db.get(User, row.user_id)
@@ -1053,8 +1093,14 @@ async def send_queued_notifications():
                     state = ns.get_state(user.profile)
                     today_iso = local_now.date().isoformat()
                     # Respect the per-user daily cap + min-interval so a queued
-                    # broadcast can't push a user over the ceiling.
-                    if ns.sent_count_today(state, today_iso) >= cfg.cap:
+                    # broadcast can't push a user over the ceiling. Use the ADAPTIVE
+                    # effective_cap (matches the task-due path) rather than the raw
+                    # cfg.cap — effective_cap only ever clamps <= cfg.cap, so this
+                    # can only make queued delivery equal or more conservative.
+                    lapse_days = int(getattr(settings, "notif_lapse_days", 4) or 4)
+                    deliv, opened, returning = ns.backoff_inputs(state, local_now, lapse_days=lapse_days)
+                    cap = effective_cap(cfg.cap, recent_delivered=deliv, recent_opened=opened, returning_lapsed=returning)
+                    if ns.sent_count_today(state, today_iso) >= cap:
                         continue
                     last = ns.last_send_min_today(state, today_iso)
                     if last is not None and (now_min - last) < cfg.min_interval_min:

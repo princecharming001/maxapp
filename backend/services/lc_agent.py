@@ -2091,9 +2091,16 @@ def make_chat_tools(
             if not hints:
                 hints = ["general"]
 
+            # Retrieve the hinted modules concurrently (was serial ~3x latency).
+            # Safe: hybrid_retrieve doesn't use the passed db (vector_search opens
+            # its own session, BM25 is in-memory), so concurrent calls don't
+            # collide; and embed_text now caches, so the shared query embeds once.
+            sel_hints = hints[:3]
+            got_lists = await asyncio.gather(
+                *[hybrid_retrieve(db=db, maxx_id=h, query=q, k=3) for h in sel_hints]
+            )
             rows: list[dict] = []
-            for hint in hints[:3]:
-                got = await hybrid_retrieve(db=db, maxx_id=hint, query=q, k=3)
+            for hint, got in zip(sel_hints, got_lists):
                 rows.extend([{**r, "_maxx": hint} for r in got])
             if not rows:
                 return "no relevant knowledge found"

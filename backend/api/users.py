@@ -631,6 +631,23 @@ async def save_onboarding(
     # the Purchase table, never from a client-supplied onboarding field (P0-1).
     for _entitlement_key in ("entered_maxxes", "entered_courses"):
         onboarding_data.pop(_entitlement_key, None)
+    # This endpoint REPLACES user.onboarding wholesale, so a partial payload from
+    # a future screen would wipe server-authored keys (lock-ins, notif prefs, tour
+    # flags, post-pay steps). Preserve those from the existing blob and never take
+    # them from the request body. (Client-settable keys like intensity_preference
+    # and chat-owned response_length are intentionally NOT in this set.)
+    _SERVER_OWNED = (
+        "maxx_entered_at", "lock_ins", "confirmed_facts", "notif_category_prefs",
+        "sendblue_sms_opt_in", "app_notifications_opt_in", "main_app_tour_completed",
+        "post_subscription_onboarding", "sendblue_connect_completed",
+        "notification_channels_completed", "module_select_completed",
+    )
+    _existing_ob = dict(user.onboarding or {})
+    for _k in _SERVER_OWNED:
+        if _k in _existing_ob:
+            onboarding_data[_k] = _existing_ob[_k]
+        else:
+            onboarding_data.pop(_k, None)
     unit = str(onboarding_data.get("unit_system") or "imperial").strip().lower()
     height = onboarding_data.get("height")
     weight = onboarding_data.get("weight")
@@ -1607,6 +1624,7 @@ async def list_progress_photos(
     """
     List recent progress photos for the current user (most recent first).
     """
+    limit = min(max(1, limit), 100)  # clamp — don't let a client request unbounded rows
     result = await db.execute(
         select(UserProgressPhoto)
         .where(UserProgressPhoto.user_id == UUID(current_user["id"]))

@@ -199,10 +199,15 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
     if user is None:
         return []
     try:
-        stats = await compute_stats(db, user, streak=streak, schedules=schedules)
+        # Read what's already earned FIRST — if everything is earned, skip the
+        # count queries in compute_stats entirely (this runs on the hottest
+        # endpoint, /schedules/active/full, on every load).
         earned = set((await db.execute(
             select(UserAchievement.code).where(UserAchievement.user_id == user.id)
         )).scalars().all())
+        if len(earned) >= len(CATALOG):
+            return []
+        stats = await compute_stats(db, user, streak=streak, schedules=schedules)
         newly: list[dict] = []
         now = _utcnow()
         for a in CATALOG:

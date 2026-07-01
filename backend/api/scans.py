@@ -43,6 +43,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/scans", tags=["Face Scans"])
 
+# Strong references to fire-and-forget notification tasks. asyncio only keeps a
+# WEAK reference to a bare create_task result, so without this the scan-complete
+# push/SMS could be garbage-collected mid-flight and never actually send.
+_bg_tasks: set = set()
+
+
+def _spawn_bg(coro):
+    t = asyncio.create_task(coro)
+    _bg_tasks.add(t)
+    t.add_done_callback(_bg_tasks.discard)
+    return t
+
 
 class RealtimeScanRequest(BaseModel):
     image: str
@@ -114,7 +126,7 @@ async def _maybe_notify_scan_whatsapp(user: Optional[User], overall_score: Optio
             return
 
         if want_sms:
-            asyncio.create_task(
+            _spawn_bg(
                 sendblue_service.send_scan_complete(
                     user.phone_number,
                     user.email or "",
@@ -137,7 +149,7 @@ async def _maybe_notify_scan_whatsapp(user: Optional[User], overall_score: Optio
             async def _do_push():
                 await send_apns_alert(tok, title, body)
 
-            asyncio.create_task(_do_push())
+            _spawn_bg(_do_push())
     except Exception as notif_err:
         logger.warning("Scan notification failed: %s", notif_err)
 
@@ -487,16 +499,21 @@ async def analyze_scan(
             raise HTTPException(status_code=400, detail="Missing image URLs")
 
         if front_url.startswith("/uploads/"):
-            front_data = await storage_service.get_image(front_url)
-            left_data = await storage_service.get_image(left_url)
-            right_data = await storage_service.get_image(right_url)
+            # Fetch the three angles concurrently (were 3 sequential round-trips).
+            front_data, left_data, right_data = await asyncio.gather(
+                storage_service.get_image(front_url),
+                storage_service.get_image(left_url),
+                storage_service.get_image(right_url),
+            )
         else:
             import httpx
 
             async with httpx.AsyncClient() as client:
-                front_resp = await client.get(front_url)
-                left_resp = await client.get(left_url)
-                right_resp = await client.get(right_url)
+                front_resp, left_resp, right_resp = await asyncio.gather(
+                    client.get(front_url),
+                    client.get(left_url),
+                    client.get(right_url),
+                )
             front_data = front_resp.content
             left_data = left_resp.content
             right_data = right_resp.content

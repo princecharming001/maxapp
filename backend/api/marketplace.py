@@ -934,6 +934,27 @@ async def enter(
             price_data["recurring"] = {"interval": "week"}
             mode = "subscription"
         base = getattr(settings, "frontend_url", "") or "https://usemaxapp.com"
+
+        # Idempotency: reuse an existing OPEN pending checkout for this item
+        # instead of minting a new Purchase row + session on every tap. Prevents
+        # orphan pending rows and, for the weekly=subscription path, guards
+        # against a user opening two live checkouts and double-subscribing.
+        existing = (await db.execute(
+            select(Purchase).where(
+                (Purchase.user_id == uid)
+                & (Purchase.item_id == item_id)
+                & (Purchase.provider == "stripe")
+                & (Purchase.status == "pending")
+            ).order_by(Purchase.created_at.desc())
+        )).scalars().first()
+        if existing is not None and existing.provider_ref:
+            try:
+                prior = stripe.checkout.Session.retrieve(existing.provider_ref)
+                if getattr(prior, "status", None) == "open" and getattr(prior, "url", None):
+                    return {"entered": False, "checkout_url": prior.url, "item_id": item_id}
+            except Exception:
+                pass  # session expired/deleted — fall through and mint a fresh one
+
         session = stripe.checkout.Session.create(
             mode=mode,
             line_items=[{"price_data": price_data, "quantity": 1}],
@@ -941,12 +962,19 @@ async def enter(
             cancel_url=f"{base}/explore",
             metadata={"user_id": str(uid), "marketplace_item_id": item_id},
         )
-        db.add(Purchase(
-            user_id=uid, item_id=item_id,
-            kind="course" if is_course else "maxx",
-            price_cents=price_cents, price_model=price_model,
-            provider="stripe", provider_ref=session.id, status="pending",
-        ))
+        if existing is not None:
+            # Reuse the stale pending row rather than inserting a duplicate.
+            # (updated_at is refreshed automatically via the column's onupdate.)
+            existing.provider_ref = session.id
+            existing.price_cents = price_cents
+            existing.price_model = price_model
+        else:
+            db.add(Purchase(
+                user_id=uid, item_id=item_id,
+                kind="course" if is_course else "maxx",
+                price_cents=price_cents, price_model=price_model,
+                provider="stripe", provider_ref=session.id, status="pending",
+            ))
         await db.commit()
         return {"entered": False, "checkout_url": session.url, "item_id": item_id}
 
@@ -995,6 +1023,11 @@ async def cancel(
                 ),
             )
         _set_entitlement(user, item_id, is_course=False, granted=False)
+        # Deactivate the generated UserSchedule too — otherwise its tasks stay in
+        # the master view (no entitlement filter there) and, because fulfill skips
+        # regeneration when an active schedule exists, the user can't re-add the Max.
+        from services.schedule_service import schedule_service
+        await schedule_service.deactivate_schedule_by_maxx(str(uid), item_id, db)
         for row in (await db.execute(
             select(Purchase).where(
                 (Purchase.user_id == uid)
@@ -1039,6 +1072,12 @@ async def cancel(
         pe = pe.replace(tzinfo=_tz.utc)
     if pe is None or pe <= datetime.now(_tz.utc):
         _set_entitlement(user, item_id, is_course, granted=False)
+        # Access has actually lapsed — also deactivate any generated schedule so
+        # orphaned tasks don't linger and re-purchase can regenerate. No-op for
+        # pure courses (they have no UserSchedule). Kept out of the still-entitled
+        # branch so a cancel-at-period-end user keeps their plan until then.
+        from services.schedule_service import schedule_service
+        await schedule_service.deactivate_schedule_by_maxx(str(uid), item_id, db)
     await db.commit()
     return {
         "status": "canceled",

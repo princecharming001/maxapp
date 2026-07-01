@@ -17,7 +17,7 @@ import logging
 import math
 import re
 import time
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -355,6 +355,14 @@ async def _bm25_retrieve_chunks(
         return []
 
 
+# Small TTL+LRU cache so one chat turn (which fans out multiple retrieval tiers
+# over the SAME query text) doesn't fire 3-8 identical billed embedding calls.
+# Embeddings are deterministic; TTL bounds staleness if the model/dim env flips.
+_EMBED_CACHE: "OrderedDict[str, tuple[float, list[float]]]" = OrderedDict()
+_EMBED_CACHE_MAX = 256
+_EMBED_CACHE_TTL_S = 300.0
+
+
 async def embed_text(text: str) -> list[float]:
     """Generate query/document embeddings for hybrid retrieval."""
     global _EMBEDDING_CLIENT
@@ -370,12 +378,27 @@ async def embed_text(text: str) -> list[float]:
         _EMBEDDING_CLIENT = AsyncOpenAI(api_key=api_key)
     model = getattr(settings, "rag_embedding_model", "text-embedding-3-small") or "text-embedding-3-small"
     dim = int(getattr(settings, "rag_embedding_dimensions", 1536) or 1536)
+
+    cache_key = f"{model}|{dim}|{hashlib.sha1(body.encode('utf-8')).hexdigest()}"
+    hit = _EMBED_CACHE.get(cache_key)
+    if hit is not None:
+        ts, vec = hit
+        if (time.time() - ts) <= _EMBED_CACHE_TTL_S:
+            _EMBED_CACHE.move_to_end(cache_key)
+            return vec
+        _EMBED_CACHE.pop(cache_key, None)
+
     response = await _EMBEDDING_CLIENT.embeddings.create(
         model=model,
         input=body,
         dimensions=dim,
     )
-    return list(response.data[0].embedding)
+    vec = list(response.data[0].embedding)
+    _EMBED_CACHE[cache_key] = (time.time(), vec)
+    _EMBED_CACHE.move_to_end(cache_key)
+    while len(_EMBED_CACHE) > _EMBED_CACHE_MAX:
+        _EMBED_CACHE.popitem(last=False)
+    return vec
 
 
 async def embed_batch(texts: list[str], batch_size: int = 96) -> list[list[float]]:
@@ -517,7 +540,20 @@ async def hybrid_retrieve(
         bm25_rows.extend(gen_sparse)
         vec_rows.extend(gen_vec)
 
+    # Relevance floor: RRF fuses by RANK, so a vector hit with near-zero cosine
+    # still surfaces if it ranks high among equally-weak candidates — off-topic
+    # turns then get irrelevant course chunks injected as authoritative context.
+    # Restore the documented "below threshold, retrieval is ignored" invariant by
+    # keeping only rows that are grounded: any BM25 term match, OR a vector hit at
+    # or above the cosine floor. Compute BEFORE fusion (which overwrites
+    # 'similarity'); id/doc_title/chunk_index survive fusion so the filter holds.
+    def _key(r):
+        return f"{r.get('id') or ''}|{r.get('doc_title') or ''}|{r.get('chunk_index') or 0}"
+    grounded = {_key(r) for r in bm25_rows}
+    grounded |= {_key(r) for r in vec_rows if float(r.get("similarity") or 0.0) >= min_similarity}
+
     fused = reciprocal_rank_fusion([bm25_rows, vec_rows], k=int(getattr(settings, "rag_rrf_k", 60) or 60))
+    fused = [r for r in fused if _key(r) in grounded]
     out = fused[:k]
     log_retrieval(
         maxx_id=maxx_id,

@@ -992,13 +992,15 @@ async def weekly_review(
     # Learner facts (real inference): wake drift, best window - confirm-first.
     from services.learner import fresh_insights
     if user is not None:
+        # Fetch the learned-prefs row ONCE, not per insight — it's keyed on the
+        # same uid every iteration (was an N+1 query inside the loop).
+        from models.sqlalchemy_models import UserLearnedPrefs
+        prefs = (await db.execute(
+            select(UserLearnedPrefs).where(UserLearnedPrefs.user_id == uid)
+        )).scalars().first()
         for ins in await fresh_insights(user, db, limit=3):
             if ins["id"] in confirmed or any(f["id"] == ins["id"] for f in facts):
                 continue
-            from models.sqlalchemy_models import UserLearnedPrefs
-            prefs = (await db.execute(
-                select(UserLearnedPrefs).where(UserLearnedPrefs.user_id == uid)
-            )).scalars().first()
             value = ""
             if ins["id"] == "wake_drift" and prefs and prefs.learned_wake:
                 value = prefs.learned_wake

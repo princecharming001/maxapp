@@ -3250,24 +3250,34 @@ Ask ONE question at a time. Your very first response must ask the concern questi
     # retrieve_chunks returns [] on any failure, so chat degrades gracefully.
     retrieved_chunks: list[dict] = []
     partner_rule_ids: list[int] = []
-    try:
-        _maxx = maxx_id or ((active_schedule or {}).get("maxx_id") if active_schedule else None)
-        if _maxx and turn_intent.get("intent") != "KNOWLEDGE":
-            retrieved_chunks = await rag_retrieve_chunks(
-                db,
-                maxx_id=str(_maxx),
-                query=message_text,
-                k=int(getattr(settings, "rag_top_k", 4) or 4),
-                min_similarity=float(getattr(settings, "rag_score_threshold", 0.35) or 0.35),
-            )
-    except Exception as rag_err:
-        logger.warning("RAG retrieval skipped: %s", rag_err)
 
-    user_context["coaching_context"] = await coaching_service.build_full_context(
-        user_id,
-        db,
-        rds_db,
-        intent=str(turn_intent.get("intent") or "OTHER"),
+    # RAG retrieval and the coaching-context build are independent, so run them
+    # concurrently to shave the chat hot path. Safe: retrieve_chunks documents
+    # its `db` arg as unused (it opens its own session / uses the in-memory BM25
+    # index), so only build_full_context touches the shared `db` session here.
+    async def _do_rag() -> list[dict]:
+        try:
+            _maxx = maxx_id or ((active_schedule or {}).get("maxx_id") if active_schedule else None)
+            if _maxx and turn_intent.get("intent") != "KNOWLEDGE":
+                return await rag_retrieve_chunks(
+                    db,
+                    maxx_id=str(_maxx),
+                    query=message_text,
+                    k=int(getattr(settings, "rag_top_k", 4) or 4),
+                    min_similarity=float(getattr(settings, "rag_score_threshold", 0.35) or 0.35),
+                )
+        except Exception as rag_err:
+            logger.warning("RAG retrieval skipped: %s", rag_err)
+        return []
+
+    retrieved_chunks, user_context["coaching_context"] = await asyncio.gather(
+        _do_rag(),
+        coaching_service.build_full_context(
+            user_id,
+            db,
+            rds_db,
+            intent=str(turn_intent.get("intent") or "OTHER"),
+        ),
     )
 
     # --- Inject tone preamble + RAG context + partner suffix into coaching_context ---

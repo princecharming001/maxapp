@@ -436,6 +436,14 @@ async def _run_column_migrations():
         # creator_applications.social_stats added after the table shipped — the
         # column won't exist on a DB created from the first version of the table.
         "ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS social_stats JSONB DEFAULT '{}'",
+        # Weekly-reset idempotency marker (see scheduler_job.send_weekly_resets).
+        "ALTER TABLE user_coaching_state ADD COLUMN IF NOT EXISTS last_weekly_reset_iso_week VARCHAR",
+        # Composite indexes — create_all() never retro-adds indexes to existing
+        # tables, so add them here. These cover the achievement counts on the hot
+        # /schedules/active/full endpoint + active-schedule reads.
+        "CREATE INDEX IF NOT EXISTS idx_scans_user_status ON scans (user_id, processing_status)",
+        "CREATE INDEX IF NOT EXISTS idx_user_memories_user_status ON user_memories (user_id, status)",
+        "CREATE INDEX IF NOT EXISTS idx_user_schedules_user_active ON user_schedules (user_id, is_active, created_at DESC)",
     ]
     applied = 0
     for sql in migrations:

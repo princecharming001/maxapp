@@ -23,6 +23,10 @@ LAST_PERFECT_KEY = "master_schedule_streak_last_perfect_date"
 # safe." Never the words lost/broke/failed/missed near the streak number.
 FREEZES_KEY = "master_schedule_streak_freezes"
 FREEZE_USED_ON_KEY = "master_schedule_streak_freeze_used_on"
+# The date a weekly freeze was actually GRANTED. Lets the un-credit path be
+# symmetric with the CLAMPED grant: if the +1 was clamped away (already at max),
+# un-checking that day must not hand back a freeze that was never earned.
+FREEZE_CREDITED_ON_KEY = "master_schedule_streak_freeze_credited_on"
 RESET_ON_KEY = "master_schedule_streak_reset_on"
 MAX_ARMED_FREEZES = 2
 # Stable journey anchor: "Day 1" is the day the user onboarded their first max
@@ -126,11 +130,15 @@ def _credit_if_perfect_day(
 
     profile[STREAK_KEY] = new_streak
     profile[LAST_PERFECT_KEY] = today_s
-    # Earn a freeze for every fully-closed week, capped at 2 armed.
+    # Earn a freeze for every fully-closed week, capped at 2 armed. Record the
+    # grant date ONLY when the +1 actually took effect (wasn't clamped away), so
+    # the un-credit path knows whether there's a freeze to hand back.
     if new_streak > 0 and new_streak % 7 == 0:
-        profile[FREEZES_KEY] = min(
-            MAX_ARMED_FREEZES, int(profile.get(FREEZES_KEY) or 0) + 1
-        )
+        prev = int(profile.get(FREEZES_KEY) or 0)
+        new_freezes = min(MAX_ARMED_FREEZES, prev + 1)
+        profile[FREEZES_KEY] = new_freezes
+        if new_freezes > prev:
+            profile[FREEZE_CREDITED_ON_KEY] = today_s
     return True
 
 
@@ -151,10 +159,19 @@ def _uncredit_if_unperfect(
         return False
 
     current = int(profile.get(STREAK_KEY) or 0)
-    # Mirror the freeze earned in _credit_if_perfect_day: if today's credit had
-    # pushed the streak onto a weekly boundary, hand that freeze back too.
-    if current > 0 and current % 7 == 0:
+    # Mirror the freeze earned in _credit_if_perfect_day, but ONLY if a freeze
+    # was actually granted for today (not clamped away at the max). Otherwise
+    # un-checking a day when already at max freezes would destroy an earlier,
+    # legitimately-earned freeze.
+    if (
+        current > 0
+        and current % 7 == 0
+        and profile.get(FREEZE_CREDITED_ON_KEY) == today_s
+    ):
         profile[FREEZES_KEY] = max(0, int(profile.get(FREEZES_KEY) or 0) - 1)
+    # Clear the per-day grant marker regardless once we've undone today's credit.
+    if profile.get(FREEZE_CREDITED_ON_KEY) == today_s:
+        profile.pop(FREEZE_CREDITED_ON_KEY, None)
 
     new_streak = max(0, current - 1)
     profile[STREAK_KEY] = new_streak

@@ -50,7 +50,8 @@ DISTANCE_MATRIX_URL = "https://maps.googleapis.com/maps/api/distancematrix/json"
 SCOPE_CALENDAR = "https://www.googleapis.com/auth/calendar.readonly"
 SCOPE_GMAIL = "https://www.googleapis.com/auth/gmail.readonly"
 
-SYNC_WINDOW_DAYS = 14
+SYNC_WINDOW_DAYS = 60   # ~2 months; re-sync nudge fires when < RESYNC_NUDGE_DAYS remain
+RESYNC_NUDGE_DAYS = 7   # /status returns needs_resync=True when coverage drops below this
 
 # Google's OpenID Connect endpoints for verifying Sign-In ID tokens.
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
@@ -465,7 +466,10 @@ async def scan_gmail_commitments(user_id, db: AsyncSession) -> dict[str, int]:
             & (CalendarConnection.is_active.is_(True))
         )
     )).scalars().first()
-    if conn is None or SCOPE_GMAIL not in str((conn.tokens or {}).get("scope") or ""):
+    # Read the DECRYPTED tokens — conn.tokens (plaintext) is set to None after
+    # Fernet-encrypting into tokens_encrypted, so the old `conn.tokens` read was
+    # always {} and the Gmail scope gate always failed (Gmail scan never ran).
+    if conn is None or SCOPE_GMAIL not in str((conn.tokens_decrypted or {}).get("scope") or ""):
         return {"proposed": 0, "needs_scope": 1}
     access = await _fresh_access_token(conn, db)
     if not access:

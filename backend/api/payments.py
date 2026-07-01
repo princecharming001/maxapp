@@ -10,7 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel
 from typing import Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update as sa_update
 from db import get_db
 from middleware import get_current_user
 from middleware.rate_limit import rate_limit
@@ -102,11 +102,11 @@ async def _activate_user(
         if ob.get("sendblue_connect_completed") is None:
             ob["sendblue_connect_completed"] = False
         user.onboarding = ob
-    scans_result = await db.execute(
-        select(Scan).where(Scan.user_id == user_uuid)
+    # Bulk UPDATE instead of loading every scan row into the session to flip a
+    # single boolean — one statement, no per-row materialization.
+    await db.execute(
+        sa_update(Scan).where(Scan.user_id == user_uuid).values(is_unlocked=True)
     )
-    for scan in scans_result.scalars().all():
-        scan.is_unlocked = True
     await db.commit()
 
 

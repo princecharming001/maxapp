@@ -209,8 +209,11 @@ def detect_slips(
     for t in tasks:
         if (t.get("status") or "pending") in ("completed", "skipped"):
             continue
-        slot = _to_min(t.get("time"), 0)
-        if not slot:
+        # -1 sentinel: a genuine 00:00 task has slot==0, which `if not slot`
+        # wrongly treated as "no time" and skipped (never flagged as slipped).
+        # Only a missing/unparseable time (-1) should be skipped.
+        slot = _to_min(t.get("time"), -1)
+        if slot < 0:
             continue
         slot_w = _work_min(slot, wake_min, overnight)
         if slot_w + SLIP_GRACE_MIN <= now_w:

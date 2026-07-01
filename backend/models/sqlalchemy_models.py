@@ -154,6 +154,12 @@ class UserCoachingState(Base):
     last_calories = Column(Integer)
     last_mood = Column(String)  # 1-10 or text
 
+    # Idempotency for the weekly-reset job: the ISO week ("2026-W27") a reset was
+    # last sent. A deploy/restart re-anchors the interval timer and can push the
+    # fire past the exact target hour, skipping the whole week — a widened send
+    # window guarded by this marker fixes both misses and double-sends.
+    last_weekly_reset_iso_week = Column(String)
+
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -185,6 +191,9 @@ class Scan(Base):
     __table_args__ = (
         Index("idx_scans_user_id", user_id),
         Index("idx_scans_created_at", created_at.desc()),
+        # Covers the achievement scan-count (user_id + processing_status) that
+        # runs on every /schedules/active/full.
+        Index("idx_scans_user_status", user_id, processing_status),
     )
 
 
@@ -478,6 +487,8 @@ class UserSchedule(Base):
         Index("idx_user_schedules_course_id", course_id),
         Index("idx_user_schedules_active", is_active),
         Index("idx_user_schedules_maxx_id", maxx_id),
+        # Covers the hot "active schedules for user (most recent first)" reads.
+        Index("idx_user_schedules_user_active", user_id, is_active, created_at.desc()),
     )
 
 
@@ -804,6 +815,8 @@ class UserMemory(Base):
         Index("idx_user_memories_user_id", user_id),
         Index("idx_user_memories_user_dim", user_id, dimension),
         Index("idx_user_memories_user_key", user_id, key),
+        # Covers the achievement fact-count (user_id + status) on /active/full.
+        Index("idx_user_memories_user_status", user_id, status),
     )
 
 

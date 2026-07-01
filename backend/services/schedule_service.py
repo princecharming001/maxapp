@@ -2749,9 +2749,12 @@ class ScheduleService:
         if already_completed:
             stats = self._recalc_completion_stats_from_days(days)
         else:
-            stats = schedule.completion_stats or {"completed": 0, "total": 0, "skipped": 0}
-            stats["completed"] = stats.get("completed", 0) + 1
-            stats["total"] = sum(len(d.get("tasks", [])) for d in days)
+            # Recompute from the (now-updated) days rather than incrementing the
+            # stored 'completed' counter: regenerate_active_schedules reassigns
+            # sched.days on many events WITHOUT touching completion_stats, so an
+            # incremented count drifts and completion_rate could exceed 100%.
+            # The task was just set to 'completed' above, so recompute counts it.
+            stats = self._recalc_completion_stats_from_days(days)
 
             schedule.days = days
             flag_modified(schedule, "days")

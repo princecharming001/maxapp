@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -508,9 +508,15 @@ class CoachingService:
         state = await self.get_or_create_state(user_id, db)
 
         if data.get("workout_done") is True:
-            state.last_workout = datetime.utcnow()
-            state.streak_days = (state.streak_days or 0) + 1
-            state.missed_days = 0
+            # Only bump the streak on a genuinely NEW day — two "did my workout"
+            # messages the same day must not give +2. (last_workout is written
+            # every time so the coach still sees the latest activity.)
+            now = datetime.utcnow()
+            prev = state.last_workout
+            if prev is None or prev.date() < now.date():
+                state.streak_days = (state.streak_days or 0) + 1
+                state.missed_days = 0
+            state.last_workout = now
         elif data.get("workout_done") is False:
             state.streak_days = 0
         if data.get("missed") is True:
@@ -1144,12 +1150,14 @@ class CoachingService:
         )
         fitmax_schedule = fitmax_result.scalar_one_or_none()
 
-        n_active_result = await db.execute(
-            select(UserSchedule).where(
+        # Count active schedules with COUNT(*) — the value is only used for the
+        # `> 1` boolean below, so materializing every UserSchedule row (each with
+        # a multi-day 'days' JSON blob) just to len() them is pure waste.
+        n_active_schedules = int((await db.execute(
+            select(func.count(UserSchedule.id)).where(
                 (UserSchedule.user_id == UUID(user_id)) & (UserSchedule.is_active == True)
             )
-        )
-        n_active_schedules = len(list(n_active_result.scalars().all()))
+        )).scalar() or 0)
         multi_module_sms_hint = ""
         if n_active_schedules > 1:
             multi_module_sms_hint = (

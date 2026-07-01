@@ -99,13 +99,13 @@ async def get_my_rank(
             overall_score = analysis.get("overall_score") or analysis.get("metrics", {}).get("overall_score", 0)
             leaderboard_score = (float(overall_score) if overall_score else 0) * 10
             
-            # Count scans
-            scans_result = await db.execute(
-                select(Scan).where(
+            # Count scans with COUNT(*) instead of loading every completed Scan
+            # row (each with a large analysis JSON) just to len() them.
+            scans_count = int((await db.execute(
+                select(func.count(Scan.id)).where(
                     (Scan.user_id == user_uuid) & (Scan.processing_status == "completed")
                 )
-            )
-            scans_count = len(scans_result.scalars().all())
+            )).scalar() or 0)
             
             # Create leaderboard entry
             new_entry = Leaderboard(
