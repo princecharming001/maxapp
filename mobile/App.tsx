@@ -16,6 +16,7 @@ import { RootNavigator } from './navigation/RootNavigator';
 import { queryClient } from './lib/queryClient';
 import { FeatureFlagsProvider } from './constants/featureFlags';
 import { hydrateQueryClient, startQueryPersistence } from './lib/queryPersist';
+import { checkAndApplyUpdate } from './lib/otaUpdates';
 import { installGlobalErrorHandlers } from './lib/globalErrorHandlers';
 import AppErrorBoundary from './components/AppErrorBoundary';
 import { loadRestoredTab, persistActiveTab, extractActiveTab } from './lib/navState';
@@ -113,6 +114,18 @@ function AppNavigator() {
             sub.remove();
         };
     }, [navRef]);
+
+    // Apply pending OTA updates promptly: check on mount and whenever the app
+    // returns to the foreground, then hot-swap the new JS bundle. Without this,
+    // fallbackToCacheTimeout:0 means a shipped update only applies on the *next*
+    // cold start (effectively two relaunches). Guarded against dev/web/loops.
+    useEffect(() => {
+        void checkAndApplyUpdate(true);
+        const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+            if (next === 'active') void checkAndApplyUpdate();
+        });
+        return () => sub.remove();
+    }, []);
 
     // Clear badge count when the app enters the foreground and wire up
     // notification-tap deep-linking.
