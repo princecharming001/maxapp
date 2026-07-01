@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Alert } from './InAppAlert';
 import { useAuth } from '../context/AuthContext';
 
@@ -13,6 +13,11 @@ export default function DevDrawer() {
 function DevDrawerInner() {
     const { isAuthenticated, isPaid, logout, fauxSkipSignup, fauxFreshSignup } = useAuth() as any;
     const [open, setOpen] = useState(false);
+    // Keep the launcher out of the way: idle-invisible, reveal on hover (web) or
+    // press (native). On web it can be fully hidden since hover brings it back;
+    // on native there's no hover, so leave a faint trace so it stays findable.
+    const [revealed, setRevealed] = useState(false);
+    const idleOpacity = Platform.OS === 'web' ? 0 : 0.12;
 
     const currentState: AppState = !isAuthenticated ? 'guest' : isPaid ? 'paid' : 'unpaid';
 
@@ -111,9 +116,13 @@ function DevDrawerInner() {
         <>
             <Pressable
                 onPress={() => setOpen(true)}
-                style={s.launcher}
+                onHoverIn={() => setRevealed(true)}
+                onHoverOut={() => setRevealed(false)}
+                onPressIn={() => setRevealed(true)}
+                onPressOut={() => setRevealed(false)}
+                style={[s.launcher, { opacity: revealed ? 1 : idleOpacity }]}
                 accessibilityLabel="Open dev drawer"
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
                 <Text style={s.launcherText}>DEV</Text>
             </Pressable>
