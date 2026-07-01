@@ -397,7 +397,17 @@ class ApiService {
 
     private async getToken(): Promise<string | null> {
         if (this.accessToken) return this.accessToken;
-        return await getItemAsync('access_token');
+        try {
+            const t = await getItemAsync('access_token');
+            // Cache in memory so a later secure-store hiccup can't drop the header.
+            if (t) this.accessToken = t;
+            return t;
+        } catch {
+            // NEVER let a secure-store read failure throw here: getToken() runs in
+            // the request interceptor, so a throw would fail EVERY request (boot
+            // getMe → Landing, "Get started" → error). Fall back to no token.
+            return null;
+        }
     }
 
     private async refreshToken(): Promise<void> {
@@ -438,21 +448,33 @@ class ApiService {
     }
 
     async setTokens(accessToken: string, refreshToken: string): Promise<void> {
-        // Durable-first: persist to secure storage BEFORE exposing the in-memory
-        // token, so the session is recoverable the instant auth state flips — a
-        // crash mid-sign-in can't leave an in-memory-only token that vanishes on
-        // the next launch. (setTokens is always awaited, so ordering is safe.)
-        await setItemAsync('access_token', accessToken);
-        await setItemAsync('refresh_token', refreshToken);
+        // In-memory FIRST so the current session works even if the secure-store
+        // write fails — otherwise a keychain hiccup would turn sign-in / "Get
+        // started" into a hard error (setTokens throwing → the caller throws).
+        // The durable write is then best-effort (storage.ts already retries once);
+        // worst case the session is memory-only and re-persists on the next call.
         this.accessToken = accessToken;
         // Fresh tokens — lift any post-failure cooldown so new sessions work immediately.
         this.refreshFailedUntil = 0;
+        try {
+            await setItemAsync('access_token', accessToken);
+            await setItemAsync('refresh_token', refreshToken);
+        } catch {
+            /* keep the in-memory session; durability is best-effort */
+        }
     }
 
     async clearTokens(): Promise<void> {
         this.accessToken = null;
-        await deleteItemAsync('access_token');
-        await deleteItemAsync('refresh_token');
+        // A fresh logged-out state must NOT carry a stale refresh cooldown, or the
+        // next session's first 401 would be short-circuited instead of refreshing.
+        this.refreshFailedUntil = 0;
+        try {
+            await deleteItemAsync('access_token');
+            await deleteItemAsync('refresh_token');
+        } catch {
+            /* best-effort */
+        }
     }
 
     // Auth

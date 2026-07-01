@@ -191,10 +191,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
             const token = await getItemAsync('access_token');
             if (token) {
-                // Generous timeout on the boot restore so a cold-Render wake
-                // (>12s) resumes the session instead of throwing a transient
-                // error and dropping the user to Landing for that launch.
-                const userData = await api.getMe({ timeout: 45_000 });
+                // Generous timeout + one retry on the boot restore so a cold-Render
+                // wake or a transient blip resumes the session instead of throwing
+                // and dropping the user to Landing for that launch.
+                let userData: User;
+                try {
+                    userData = await api.getMe({ timeout: 45_000 });
+                } catch (firstErr: any) {
+                    const s = firstErr?.response?.status;
+                    if (s === 401 || s === 403) throw firstErr;  // definitive — let the catch clear tokens
+                    await new Promise((r) => setTimeout(r, 1200));
+                    userData = await api.getMe({ timeout: 45_000 });
+                }
                 // Cross-user guard: the query cache was hydrated at boot before
                 // we knew who's logged in. If the persisted blob belongs to a
                 // DIFFERENT user (a prior session that ended without teardown),
@@ -323,7 +331,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // the funnel runs before sign-up; the user claims it before the paywall.
     const startAnon = useCallback(async () => {
         await api.anonSignup();
-        const userData = await api.getMe();
+        // The account + tokens are set now; don't let a transient getMe blip fail
+        // "Get started" — retry once with a generous timeout before surfacing it.
+        let userData: User;
+        try {
+            userData = await api.getMe({ timeout: 45_000 });
+        } catch {
+            await new Promise((r) => setTimeout(r, 1000));
+            userData = await api.getMe({ timeout: 45_000 });
+        }
         setUser(userData);
     }, []);
 
