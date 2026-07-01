@@ -33,13 +33,13 @@ import {
   useWindowDimensions,
 } from 'react-native'
 import { Alert } from '../../components/InAppAlert';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LiquidGlassFill, LiquidGlass } from '../../components/glass/LiquidGlass';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Path, Rect } from 'react-native-svg';
 import api from '../../services/api';
-import { Linking } from 'react-native';
+import { Linking, AppState } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { useAuth } from '../../context/AuthContext';
@@ -352,6 +352,33 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   React.useEffect(() => () => {
     if (calPollRef.current) clearInterval(calPollRef.current);
   }, []);
+
+  // Real-time-ish freshness: auto-sync Google Calendar whenever the planner comes
+  // into view OR the app returns to the foreground, so events you just added in
+  // Google appear without waiting for the 30-min background job or the manual
+  // "resync" button. Debounced to at most once/min so a focus/foreground storm
+  // never hammers the sync (Google rate limits + a 60-day pull isn't free). Silent.
+  const lastAutoSyncRef = useRef(0);
+  const autoSyncCalendar = useCallback(async () => {
+    if (!calConnected) return;
+    const now = Date.now();
+    if (now - lastAutoSyncRef.current < 60_000) return;
+    lastAutoSyncRef.current = now;
+    try {
+      await api.googleSyncNow();
+      qc.invalidateQueries({ queryKey: ['plannerToday'] });
+    } catch { /* silent: the 30-min background job + manual resync still cover it */ }
+  }, [calConnected, qc]);
+
+  useFocusEffect(
+    React.useCallback(() => { void autoSyncCalendar(); }, [autoSyncCalendar]),
+  );
+  React.useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') void autoSyncCalendar();
+    });
+    return () => sub.remove();
+  }, [autoSyncCalendar]);
 
   // Fetch calendar events for the selected day, only when connected + flag on.
   const calendarDayQ = useQuery({
