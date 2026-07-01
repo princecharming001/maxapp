@@ -136,8 +136,27 @@ async def recompute_learned_prefs(user: User, db: AsyncSession) -> dict[str, Any
         select(UserLearnedPrefs).where(UserLearnedPrefs.user_id == uid)
     )).scalars().first()
     if prefs is None:
-        prefs = UserLearnedPrefs(user_id=uid)
-        db.add(prefs)
+        # Atomically ensure the row exists. The home screen / guide flow fires
+        # several recompute calls for the same user concurrently, so a bare
+        # SELECT-then-add() races: both see no row, both INSERT, and the loser
+        # violates user_learned_prefs_user_id_key. That IntegrityError poisons the
+        # request's DB session (PendingRollbackError) and breaks whatever runs
+        # next in that request — e.g. "couldn't load your guide". An ON CONFLICT
+        # DO NOTHING insert can't collide, then we re-select the surviving row.
+        from sqlalchemy.dialects.postgresql import insert as _pg_insert
+        await db.execute(
+            _pg_insert(UserLearnedPrefs)
+            .values(user_id=uid)
+            .on_conflict_do_nothing(index_elements=["user_id"])
+        )
+        prefs = (await db.execute(
+            select(UserLearnedPrefs).where(UserLearnedPrefs.user_id == uid)
+        )).scalars().first()
+        if prefs is None:
+            # extremely defensive: if the row still isn't visible, fall back to a
+            # transient object so recompute can proceed without crashing.
+            prefs = UserLearnedPrefs(user_id=uid)
+            db.add(prefs)
 
     changed: dict[str, Any] = {}
     confidences = dict(prefs.confidences or {})
