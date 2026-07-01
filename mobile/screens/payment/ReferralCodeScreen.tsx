@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ReferralCodeField, ReferralCodeHandle } from '../../components/ReferralCodeField';
 import { useAuth } from '../../context/AuthContext';
 import { useFlag } from '../../constants/featureFlags';
+import { markPostPayPending } from '../../lib/postPayNav';
 import { fonts } from '../../theme/dark';
 
 const INK = '#15130F';
@@ -26,7 +27,7 @@ export default function ReferralCodeScreen() {
     const nav = useNavigation<any>();
     const route = useRoute<any>();
     const insets = useSafeAreaInsets();
-    const { refreshUser, isAnonymous } = useAuth();
+    const { isAnonymous } = useAuth();
     const referralsEnabled = useFlag('referrals');
     const initialCode: string | undefined = route?.params?.referralCode;
 
@@ -97,9 +98,15 @@ export default function ReferralCodeScreen() {
                         ref={fieldRef}
                         initialCode={initialCode}
                         onValidated={(res) => setCompReady(res.valid && res.free)}
-                        onComped={async () => {
-                            await refreshUser();
-                            nav.navigate('FaceScanResults', { postPay: true });
+                        onComped={() => {
+                            // A full comp makes the user PAID, so the field's
+                            // refreshUser() flips isPaid and REMOUNTS the navigator
+                            // into the paid stack — a direct navigate() here races and
+                            // loses to that remount (the screen just froze). Set the
+                            // same one-shot post-pay flag the real IAP purchase path
+                            // uses (BEFORE the field refreshes); App.tsx then routes to
+                            // FaceScanResults (or Home) once the paid stack has mounted.
+                            markPostPayPending();
                         }}
                     />
 

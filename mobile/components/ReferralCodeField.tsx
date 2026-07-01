@@ -87,10 +87,15 @@ export const ReferralCodeField = forwardRef<ReferralCodeHandle, {
             const res = await api.redeemReferral(c, platform);
             if (res.free) {
                 // Entitlement granted server-side; reflect it and route past paywall.
-                await refreshUser();
                 setStatus('comped');
                 setMessage(res.message || 'premium is on us, welcome in.');
+                // Fire onComped BEFORE refreshUser: the host sets the one-shot
+                // post-pay flag here, and refreshUser() below is what flips isPaid
+                // (remounting into the paid stack). If we refreshed first, the
+                // isPaid transition would fire before the flag was set and App.tsx
+                // would skip the post-pay navigation — leaving the screen stuck.
                 onComped?.();
+                await refreshUser();
                 return true;
             }
             // Discount path: recognized; price applies via Apple/Stripe (or "coming").
