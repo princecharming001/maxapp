@@ -2,7 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native'
 import { Alert } from '../components/InAppAlert';
 import { useQueryClient } from '@tanstack/react-query';
-import { useIAP, ErrorCode, type Purchase, type Product } from 'react-native-iap';
+import {
+    useIAP,
+    ErrorCode,
+    // Use the STANDALONE fetchProducts/getAvailablePurchases — they RESOLVE to the
+    // arrays. The useIAP() wrappers of the same name return Promise<void> and only
+    // push results into the hook's internal state, so `await hookFetchProducts()`
+    // is always undefined → the paywall saw 0 products ("Plan not available yet").
+    fetchProducts as fetchProductsRaw,
+    getAvailablePurchases as getAvailablePurchasesRaw,
+    type Purchase,
+    type Product,
+} from 'react-native-iap';
 import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../constants/appleIap';
 import { useAuth } from '../context/AuthContext';
 import { prefetchMainTabData } from '../lib/prefetchMainTabData';
@@ -33,7 +44,7 @@ export function useAppleSubscription() {
     const recoveringRef = useRef(false);
     const [products, setProducts] = useState<Product[]>([]);
 
-    const { connected, fetchProducts, requestPurchase, finishTransaction, getAvailablePurchases } =
+    const { connected, requestPurchase, finishTransaction } =
         useIAP({
             onPurchaseSuccess: async (purchase: Purchase) => {
                 if (Platform.OS !== 'ios') return;
@@ -126,14 +137,14 @@ export function useAppleSubscription() {
             const skus = [APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU];
             console.log(`[AppleIAP] Fetching products (attempt ${attempt + 1}):`, skus);
             try {
-                let list = ((await fetchProducts({ skus, type: 'subs' })) ?? []) as Product[];
+                let list = ((await fetchProductsRaw({ skus, type: 'subs' })) ?? []) as Product[];
                 // Fallback: some react-native-iap v14 setups return [] for
                 // type:'subs' on TestFlight even when the subscriptions are
                 // approved. Re-query type:'all' and filter to our skus — this
                 // sidesteps any subscription-type classification mismatch.
                 if (list.length === 0) {
                     console.warn('[AppleIAP] subs fetch empty; retrying as type:all');
-                    const all = ((await fetchProducts({ skus, type: 'all' })) ?? []) as Product[];
+                    const all = ((await fetchProductsRaw({ skus, type: 'all' })) ?? []) as Product[];
                     list = all.filter((p) => skus.includes(productSku(p) ?? ''));
                 }
                 if (list.length > 0) {
@@ -163,7 +174,7 @@ export function useAppleSubscription() {
                 return [];
             }
         },
-        [fetchProducts],
+        [],
     );
 
     useEffect(() => {
@@ -180,7 +191,7 @@ export function useAppleSubscription() {
                 // `getAvailablePurchases()` can resolve to `undefined` on iOS
                 // when the StoreKit queue is empty or not yet initialised; normalise
                 // to an array so downstream `.length` / `for..of` never crash.
-                const purchases = (await getAvailablePurchases()) ?? [];
+                const purchases = (await getAvailablePurchasesRaw()) ?? [];
                 console.log('[AppleIAP] Recovering pending purchases:', purchases.length);
                 for (const purchase of purchases) {
                     const p = purchase as { transactionId?: string; id?: string; productId?: string };
@@ -200,7 +211,7 @@ export function useAppleSubscription() {
             }
         };
         void recoverPending();
-    }, [connected, getAvailablePurchases, finishTransaction, refreshUser]);
+    }, [connected, finishTransaction, refreshUser]);
 
     const subscribeTier = useCallback(
         async (tier: Tier): Promise<boolean> => {
@@ -331,7 +342,7 @@ export function useAppleSubscription() {
             // resolve to `undefined` when there are no prior purchases on the
             // Apple ID, which would otherwise throw "Cannot read property
             // 'length' of undefined" and surface a misleading "Restore failed".
-            const purchases = (await getAvailablePurchases()) ?? [];
+            const purchases = (await getAvailablePurchasesRaw()) ?? [];
             console.log('[AppleIAP] restorePurchases: found', purchases.length, 'purchase(s)');
 
             for (const purchase of purchases) {
@@ -383,7 +394,6 @@ export function useAppleSubscription() {
         restoring,
         user?.id,
         connected,
-        getAvailablePurchases,
         finishTransaction,
         refreshUser,
         queryClient,
