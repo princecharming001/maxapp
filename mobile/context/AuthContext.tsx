@@ -170,8 +170,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
                 setUser(userData);
             }
-        } catch {
-            await api.clearTokens();
+        } catch (e: any) {
+            // Only DESTROY the durable tokens on a DEFINITIVE auth failure
+            // (deleted user / rotated key → 401, or 403). A transient failure —
+            // a cold-Render timeout, a 5xx, or being briefly offline at boot —
+            // must NOT clear tokens: the access token is valid 24h and the
+            // refresh token 300 days, and they live in secure storage, so a
+            // quit/reopen should resume the session. Clearing here permanently
+            // stranded users on Landing — and an anon "Get started" account has
+            // no email/password to log back in with, so it was unrecoverable.
+            // (A real 401 is already handled by the response interceptor, which
+            // attempts a refresh and, on refresh failure, clears + emits authLost.)
+            const status = e?.response?.status;
+            if (status === 401 || status === 403) {
+                await api.clearTokens();
+            }
+            // else: keep the durable tokens; the next boot (or a refetch once the
+            // backend is reachable) resumes the session.
         } finally {
             setIsLoading(false);
         }
