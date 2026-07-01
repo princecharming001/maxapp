@@ -14,7 +14,8 @@ import AchievementBadge from '../../components/achievements/AchievementBadge';
 import { StreakMilestoneCallout } from '../../components/StreakMilestoneCallout';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { formatFaceRatingLabel } from '../../utils/faceRatingLabel';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../lib/queryClient';
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
 import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
@@ -286,10 +287,31 @@ export default function ProfileScreen() {
         if (!enrolledIds.size) return [];
         return allMaxxes.filter((m: any) => m.id && enrolledIds.has(String(m.id).toLowerCase()));
     }, [maxxesQuery.data, schedulesFullQuery.data]);
-    const [loading, setLoading] = useState(true);
-    const [progressPhotos, setProgressPhotos] = useState<any[]>([]);
-    const [achievements, setAchievements] = useState<any | null>(null);
-    const [scanPts, setScanPts] = useState<{ score: number; at?: string }[]>([]);
+    const queryClient = useQueryClient();
+    // Photos / achievements / scan history via React Query (was manual
+    // useState+useEffect that cold-refetched every mount and never revalidated).
+    // Now cached, and focus/foreground revalidation comes free from the RQ config.
+    const photosQuery = useQuery({
+        queryKey: queryKeys.profileProgressPhotos,
+        queryFn: () => api.getProgressPhotos(),
+        select: (d: any) => d?.photos ?? [],
+        staleTime: 60 * 1000,
+    });
+    const achievementsQuery = useQuery({
+        queryKey: queryKeys.profileAchievements,
+        queryFn: () => api.getAchievements(),
+        staleTime: 60 * 1000,
+    });
+    const scanQuery = useQuery({
+        queryKey: queryKeys.profileScanHistory,
+        queryFn: () => api.getScanHistory(),
+        select: (d: any) => parseScanPoints(d),
+        staleTime: 60 * 1000,
+    });
+    const progressPhotos: any[] = photosQuery.data ?? [];
+    const achievements = achievementsQuery.data ?? null;
+    const scanPts = scanQuery.data ?? [];
+    const loading = photosQuery.isLoading || achievementsQuery.isLoading || scanQuery.isLoading;
     const [progressModalVisible, setProgressModalVisible] = useState(false);
     const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number>(0);
     const [uploadingProgress, setUploadingProgress] = useState(false);
@@ -303,26 +325,8 @@ export default function ProfileScreen() {
     const fadeAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        loadData();
         Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
     }, []);
-
-    const loadData = async () => {
-        try {
-            const [progressRes, achRes, scanRes] = await Promise.all([
-                api.getProgressPhotos().catch(() => ({ photos: [] })),
-                api.getAchievements().catch(() => null),
-                api.getScanHistory().catch(() => null),
-            ]);
-            setProgressPhotos(progressRes.photos || []);
-            setAchievements(achRes);
-            setScanPts(parseScanPoints(scanRes));
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleEditPress = () => {
         setEditBio(user?.profile?.bio || '');
@@ -353,8 +357,7 @@ export default function ProfileScreen() {
             } else {
                 await api.uploadProgressPhoto(uri);
             }
-            const progressRes = await api.getProgressPhotos().catch(() => ({ photos: [] }));
-            setProgressPhotos(progressRes.photos || []);
+            await queryClient.invalidateQueries({ queryKey: queryKeys.profileProgressPhotos });
         } catch (e) {
             console.error(e);
             const msg = 'Could not upload progress photo. Please try again.';
@@ -376,13 +379,19 @@ export default function ProfileScreen() {
         const doDelete = async () => {
             try {
                 await api.deleteProgressPhoto(photo.id);
-                const updated = progressPhotos.filter((_, i) => i !== index);
-                setProgressPhotos(updated);
-                if (updated.length === 0) {
+                // Optimistically drop it from the cache (raw {photos} shape) for
+                // instant UI, then reconcile with the server.
+                queryClient.setQueryData(queryKeys.profileProgressPhotos, (old: any) => ({
+                    ...(old || {}),
+                    photos: ((old?.photos || []) as any[]).filter((p) => p.id !== photo.id),
+                }));
+                const remaining = progressPhotos.length - 1;
+                if (remaining <= 0) {
                     setProgressModalVisible(false);
                 } else {
-                    setSelectedPhotoIndex(Math.min(index, updated.length - 1));
+                    setSelectedPhotoIndex(Math.min(index, remaining - 1));
                 }
+                queryClient.invalidateQueries({ queryKey: queryKeys.profileProgressPhotos });
             } catch (e) {
                 console.error(e);
                 if (Platform.OS === 'web') {

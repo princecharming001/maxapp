@@ -51,6 +51,11 @@ export default function AchievementCelebrationHost() {
     });
     const shown = useRef<Set<string>>(new Set());
     const [queue, setQueue] = useState<EarnedAchievement[]>([]);
+    // The frozen batch currently being celebrated. Freezing it (rather than
+    // handing the live, growing `queue` to the overlay and clearing it wholesale
+    // on done) means a badge that arrives mid-celebration is NOT dropped by the
+    // done handler — it stays queued and gets its own celebration next.
+    const [showing, setShowing] = useState<EarnedAchievement[] | null>(null);
     const routeName = useCurrentRouteName();
 
     const fresh = (data as any)?.newly_earned_achievements as EarnedAchievement[] | undefined;
@@ -59,11 +64,34 @@ export default function AchievementCelebrationHost() {
         if (!list.length) return;
         list.forEach((a) => shown.current.add(a.code));
         setQueue((q) => [...q, ...list]);
-        api.markAchievementsSeen(list.map((a) => a.code)).catch(() => {});
+        // NOTE: mark-seen is deferred until the badge is actually displayed
+        // (the promote effect below), not fired here at capture.
     }, [fresh]);
 
     // Hold the celebration until the user is on a calm screen (not mid-scan etc.).
     const onSafeScreen = !!routeName && !SUPPRESS_ROUTES.has(routeName);
-    if (!queue.length || !onSafeScreen) return null;
-    return <CelebrationOverlay queue={queue} onDone={() => setQueue([])} />;
+
+    // Promote the pending queue to a frozen "showing" batch once we're on a safe
+    // screen and nothing is currently celebrating. Mark those seen now (they're
+    // about to be displayed).
+    useEffect(() => {
+        if (showing || !onSafeScreen || !queue.length) return;
+        const batch = queue;
+        setShowing(batch);
+        api.markAchievementsSeen(batch.map((a) => a.code)).catch(() => {});
+    }, [showing, onSafeScreen, queue]);
+
+    if (!showing || !onSafeScreen) return null;
+    return (
+        <CelebrationOverlay
+            queue={showing}
+            onDone={() => {
+                // Drop exactly the celebrated codes — anything appended during
+                // the celebration survives and triggers the next batch.
+                const shownCodes = new Set(showing.map((a) => a.code));
+                setQueue((q) => q.filter((a) => !shownCodes.has(a.code)));
+                setShowing(null);
+            }}
+        />
+    );
 }

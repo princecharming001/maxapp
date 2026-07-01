@@ -59,4 +59,7 @@ export const queryKeys = {
     chatHistoryByConv: (conversationId: string | null) =>
         ['chat', 'history', conversationId ?? 'default'] as const,
     chatConversations: ['chat', 'conversations'] as const,
+    profileProgressPhotos: ['profile', 'progressPhotos'] as const,
+    profileAchievements: ['profile', 'achievements'] as const,
+    profileScanHistory: ['profile', 'scanHistory'] as const,
 };
