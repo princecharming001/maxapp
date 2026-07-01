@@ -244,9 +244,16 @@ export default function TodayScreen() {
             haptic('success');
             const ctx = await snapshotAndPatch(patchStatus(t.task_id, 'completed'));
             track('done_tapped', { program: t.maxx_id });
-            // Last open task of the day -> the day is closed.
-            if (pending.length === 1 && pending[0]?.task_id === t.task_id) {
-                track('day_closed', { done: completed.length + 1 });
+            // Last open task of the day -> the day is closed. Read the PRE-patch
+            // snapshot (ctx.prev), not the render-time `pending` closure, which
+            // goes stale on rapid multi-task completion and under-fires this.
+            const prevTasks = ((ctx?.prev as any)?.tasks ?? []) as PlannerTask[];
+            const prevPending = prevTasks.filter(
+                (x) => !['completed', 'skipped'].includes(x.status || 'pending'),
+            );
+            if (prevPending.length === 1 && prevPending[0]?.task_id === t.task_id) {
+                const prevDone = prevTasks.filter((x) => x.status === 'completed').length;
+                track('day_closed', { done: prevDone + 1 });
             }
             return ctx;
         },
@@ -335,6 +342,11 @@ export default function TodayScreen() {
             setToast("Couldn't move it. Try again.");
             setTimeout(() => setToast(null), 3000);
         },
+        // Re-sync server-authored fields (the red "Missed…" slip card, leave_by)
+        // that the optimistic time-only patch doesn't recompute. Matches the
+        // skip/removeCal mutations. Safe: onMutate's snapshotAndPatch cancels
+        // TODAY_QK, so this post-settle refetch won't clobber the optimistic patch.
+        onSettled: () => queryClient.invalidateQueries({ queryKey: TODAY_QK }),
     });
 
     const lockInMutation = useMutation({
@@ -349,6 +361,7 @@ export default function TodayScreen() {
             setToast("Couldn't lock in. Try again.");
             setTimeout(() => setToast(null), 3000);
         },
+        onSettled: () => queryClient.invalidateQueries({ queryKey: TODAY_QK }),
     });
 
     // Freeze-used card shown = the freeze event happened (once per day).

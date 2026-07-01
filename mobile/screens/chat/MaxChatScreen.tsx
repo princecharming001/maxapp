@@ -703,6 +703,26 @@ export default function MaxChatScreen() {
             setMultiChoice(!!multi_choice);
             setMultiPicked(new Set());
             setInputWidget(isRenderableWidget(input_widget) ? (input_widget as SliderSpec | HabitPickerSpec) : null);
+            // Mirror the sendMessage/chip path: write this turn into the ACTIVE
+            // conversation's history cache. Without it, a remount inside the 60s
+            // stale window re-seeds from the persisted cache (which lacks this
+            // turn), so the just-sent message vanishes until the next round-trip.
+            {
+                const activeKey = (conversation_id ?? activeConversationId)
+                    ? queryKeys.chatHistoryByConv((conversation_id ?? activeConversationId) as string)
+                    : queryKeys.chatHistory;
+                queryClient.setQueryData<{ messages: Message[]; conversationId: string | null }>(activeKey as any, (prev) => {
+                    const prevMsgs = prev?.messages ?? [];
+                    return {
+                        messages: [
+                            ...prevMsgs,
+                            { role: 'user', content: msg } as Message,
+                            { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] } as Message,
+                        ],
+                        conversationId: (conversation_id ?? activeConversationId) ?? null,
+                    };
+                });
+            }
             // Invalidate the conversations list so the sidebar reorders + renames.
             queryClient.invalidateQueries({ queryKey: queryKeys.chatConversations });
             // Schedule + maxes can change as a side effect of any chat turn
@@ -1072,6 +1092,25 @@ export default function MaxChatScreen() {
             setMultiChoice(!!multi_choice);
             setMultiPicked(new Set());
             setInputWidget(isRenderableWidget(input_widget) ? (input_widget as SliderSpec | HabitPickerSpec) : null);
+            // Write this image turn into the active conversation's history cache
+            // (mirrors sendMessage) so a remount inside the stale window doesn't
+            // drop it. The user turn carries the local image + attachment type.
+            {
+                const activeKey = (conversation_id ?? activeConversationId)
+                    ? queryKeys.chatHistoryByConv((conversation_id ?? activeConversationId) as string)
+                    : queryKeys.chatHistory;
+                queryClient.setQueryData<{ messages: Message[]; conversationId: string | null }>(activeKey as any, (prev) => {
+                    const prevMsgs = prev?.messages ?? [];
+                    return {
+                        messages: [
+                            ...prevMsgs,
+                            { role: 'user', content: caption, localImageUri: uri, attachment_type: 'image' } as Message,
+                            { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] } as Message,
+                        ],
+                        conversationId: (conversation_id ?? activeConversationId) ?? null,
+                    };
+                });
+            }
             queryClient.invalidateQueries({ queryKey: queryKeys.chatConversations });
         } catch (e: any) {
             if (isAbortError(e)) {

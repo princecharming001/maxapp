@@ -10,7 +10,7 @@ export default function LeaderboardManageScreen() {
     useEffect(() => { loadRankings(); }, []);
 
     const loadRankings = async () => {
-        try { const data = await api.getLeaderboard(); setRankings(data || []); }
+        try { const data = await api.getLeaderboard(); setRankings(data?.entries || []); }
         catch (error) { console.error(error); }
         finally { setLoading(false); }
     };
