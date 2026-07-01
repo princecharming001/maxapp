@@ -282,7 +282,12 @@ export default function DayEditorSheet({
       'You have unsaved edits.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Discard', style: 'destructive', onPress: onClose },
+        // Defer the parent-sheet dismissal a tick: the alert lives in a nested
+        // <Modal> stacked on THIS sheet's <Modal>. Dismissing both in the same
+        // frame is the iOS two-modal deadlock (the JS thread stops registering
+        // taps app-wide → needs a restart). Let the alert modal finish tearing
+        // down first, then close the sheet.
+        { text: 'Discard', style: 'destructive', onPress: () => setTimeout(onClose, 0) },
       ],
       { cancelable: true },
     );

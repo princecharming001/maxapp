@@ -295,16 +295,22 @@ const ObligationsManager = forwardRef<
   // to window.confirm there — otherwise the "×" silently does nothing on web.
   const confirmRemove = (idx: number, after?: () => void) => {
     const name = obligations[idx]?.label || 'this commitment';
-    const doRemove = () => {
+    const doRemove = (deferAfter: boolean) => {
       remove(idx);
-      after?.();
+      // `after` (e.g. () => setEditorOpen(false)) dismisses the editor <Modal>.
+      // When the confirm comes from the native path it lives in a nested <Modal>
+      // stacked on the editor; closing both in the same frame is the iOS
+      // two-modal deadlock (taps freeze app-wide → restart). Defer a tick so the
+      // alert modal tears down first. The web path has no nested RN Modal, so it
+      // runs `after` synchronously.
+      if (after) deferAfter ? setTimeout(after, 0) : after();
     };
     if (Platform.OS === 'web') {
       const ok =
         typeof window === 'undefined' ||
         // eslint-disable-next-line no-alert
         window.confirm(`Remove "${name}"? This takes it off your week.`);
-      if (ok) doRemove();
+      if (ok) doRemove(false);
       return;
     }
     Alert.alert(
@@ -312,7 +318,7 @@ const ObligationsManager = forwardRef<
       `This takes "${name}" off your week.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: doRemove },
+        { text: 'Remove', style: 'destructive', onPress: () => doRemove(true) },
       ],
       { cancelable: true },
     );

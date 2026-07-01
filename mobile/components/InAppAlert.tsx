@@ -152,6 +152,11 @@ export function InAppAlertHost() {
     const scale = useRef(new Animated.Value(0.92)).current;
     const opacity = useRef(new Animated.Value(0)).current;
     const closingRef = useRef(false);
+    // Mirror `current` in a ref so the unmount cleanup can read the LATEST value
+    // without needing `current` in the effect deps (which would re-subscribe the
+    // host on every alert and reorder the host stack).
+    const currentRef = useRef<AlertSpec | null>(null);
+    currentRef.current = current;
 
     const pullNext = useCallback(() => {
         const next = _queue.shift() || null;
@@ -179,7 +184,20 @@ export function InAppAlertHost() {
         return () => {
             const i = _hosts.lastIndexOf(pull);
             if (i >= 0) _hosts.splice(i, 1);
-            // Hand any still-queued alert to whatever host is now on top.
+            // A host mounted INSIDE a dismissable surface (chat drawer, planner
+            // sheet) can unmount while it is still SHOWING an alert — the parent
+            // Modal closes (backdrop tap, tab blur, a failsafe unmount timer)
+            // before the user answers. That alert was already `current` (shifted
+            // out of `_queue`), so re-notifying `_queue` alone silently destroys
+            // the visible confirm dialog AND its stranded button state — a lost
+            // prompt, and (with two stacked Modals tearing down together) the
+            // classic iOS two-modal deadlock that freezes every tap app-wide.
+            // Re-enqueue the still-open alert so the next surviving host (the
+            // root) re-presents it in its OWN modal instead.
+            const stranded = currentRef.current;
+            if (stranded) _queue.unshift(stranded);
+            // Hand any still-queued alert (re-enqueued or otherwise) to whatever
+            // host is now on top.
             if (_queue.length) _notifyTop();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
