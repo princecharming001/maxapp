@@ -39,13 +39,17 @@ export default function LandingScreen() {
             await startAnon();
         } catch (e: any) {
             setStarting(false);  // keep the button tappable so a retry works
-            // The anon-signup endpoint is rate-limited per IP; a 429 (e.g. rapid
-            // taps, or many users behind one NAT) needs a "try again shortly"
-            // message, not the generic error.
             if (e?.response?.status === 429) {
                 Alert.alert('One moment', 'Too many attempts right now. Please try again in a minute.');
             } else {
-                Alert.alert('Something went wrong', 'Could not get you started just now. Please try again.');
+                // Diagnostic detail so the real cause is visible if it still
+                // fails (network vs a specific HTTP status vs a client error).
+                const status = e?.response?.status;
+                const detail =
+                    status ? `HTTP ${status}`
+                    : e?.message ? String(e.message)
+                    : 'no response (network)';
+                Alert.alert('Something went wrong', `Could not get you started just now. Please try again.\n\n(${detail})`);
             }
         }
     };
