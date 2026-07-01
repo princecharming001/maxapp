@@ -33,8 +33,18 @@ export default function ReferralCodeScreen() {
 
     // Guest gate: an unclaimed anonymous "guest" must create/claim an account before
     // the paywall — never let a guest reach referral/payment (or the app) as anon.
+    // Debounced: right after claiming (from CreateAccount) the auth state can lag one
+    // render, so isAnonymous is briefly still true when we arrive here. Only bounce a
+    // guest back if they're STILL anon after the transition settles — otherwise a
+    // just-claimed user gets kicked back into CreateAccount in a loop.
+    const isAnonRef = useRef(isAnonymous);
+    isAnonRef.current = isAnonymous;
     useEffect(() => {
-        if (isAnonymous) nav.replace('CreateAccount', route?.params);
+        if (!isAnonymous) return;
+        const t = setTimeout(() => {
+            if (isAnonRef.current) nav.replace('CreateAccount', route?.params);
+        }, 600);
+        return () => clearTimeout(t);
     }, [isAnonymous]);
 
     // No code (or a discount-only code): continue to the paywall, passing any

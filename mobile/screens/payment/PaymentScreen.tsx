@@ -131,14 +131,6 @@ export default function PaymentScreen() {
     const perDay       = perDayLabel(premiumPrice);
     const perDayBasic  = perDayLabel(basicPrice);
 
-    // TEMP diagnostic (remove once IAP confirmed on TestFlight): an always-visible
-    // readout of the StoreKit state so the paywall is debuggable from a screenshot.
-    const storeConnected = IS_IOS ? !!(apple as any).storeConnected : true;
-    const iapDiag = IS_IOS
-        ? `IAP: store ${storeConnected ? 'connected' : 'NOT connected'} · products ${appleProducts.length}` +
-          (appleProducts.length ? ` [${appleProducts.map((p) => p?.id ?? p?.productId).join(', ')}]` : '')
-        : '';
-
     // Selected plan — default to chad (premium)
     const [selected, setSelected] = useState<'basic' | 'premium'>('premium');
 
@@ -280,9 +272,6 @@ export default function PaymentScreen() {
                         }
                     </TouchableOpacity>
                 </View>
-
-                {/* TEMP IAP diagnostic — remove once confirmed working on TestFlight */}
-                {IS_IOS && iapDiag ? <Text style={s.diag}>{iapDiag}</Text> : null}
 
                 {/* Legal footer */}
                 <View style={s.legalRow}>
@@ -488,12 +477,5 @@ const s = StyleSheet.create({
         fontSize: 11,
         color: MUTED,
         textDecorationLine: 'underline',
-    },
-    diag: {
-        fontFamily: 'Matter-Regular',
-        fontSize: 10,
-        color: 'rgba(17,17,19,0.40)',
-        textAlign: 'center',
-        marginBottom: 6,
     },
 });

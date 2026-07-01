@@ -8,8 +8,9 @@
 import React, { useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-    KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+    KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +23,10 @@ const INK = '#15130F';
 const SUB = '#6B6B6B';
 const BG = '#F4F2ED';
 const ERR = '#B23A2E';
+
+// Same hero backdrop as the Landing screen, so the claim step reads as part of
+// the same funnel instead of a bare cream form.
+const HERO = require('../../assets/landing-hero.webp');
 
 // The claim endpoint needs a unique username; the user doesn't pick one here, so
 // derive a sane one from the email + a random suffix.
@@ -45,12 +50,19 @@ export default function CreateAccountScreen() {
 
     const canSubmit = name.trim().length > 0 && /\S+@\S+\.\S+/.test(email.trim()) && password.length >= 8 && !busy;
 
+    // After a successful claim (password OR Google), continue the funnel to the
+    // referral/paywall step. Unlike the guest Login/Signup screens — which live in
+    // the unauthenticated stack, so signing in there flips isAuthenticated and the
+    // navigator remounts onto the funnel automatically — the anon user is ALREADY
+    // authenticated here, so claiming changes no stack and we must navigate explicitly.
+    const goForward = () => nav.navigate('ReferralCode', route?.params);
+
     const onSubmit = async () => {
         if (!canSubmit) return;
         setBusy(true); setError(null);
         try {
             await claimAccount(email.trim(), password, name.trim(), '', deriveUsername(email.trim()));
-            nav.navigate('ReferralCode', route?.params);
+            goForward();
         } catch (e: any) {
             const detail = e?.response?.data?.detail;
             setError(typeof detail === 'string' ? detail : 'Could not save your account. Please try again.');
@@ -69,6 +81,14 @@ export default function CreateAccountScreen() {
 
     return (
         <View style={[styles.root, { paddingTop: insets.top + 6 }]}>
+            {/* Landing hero backdrop + soft cream scrim so the form stays legible. */}
+            <Image source={HERO} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            <LinearGradient
+                pointerEvents="none"
+                colors={['rgba(244,242,237,0.86)', 'rgba(244,242,237,0.74)', 'rgba(244,242,237,0.93)']}
+                locations={[0, 0.5, 1]}
+                style={StyleSheet.absoluteFill}
+            />
             <TouchableOpacity style={styles.back} onPress={() => nav.goBack()} hitSlop={12} accessibilityLabel="Back">
                 <Ionicons name="chevron-back" size={26} color={INK} />
             </TouchableOpacity>
@@ -110,7 +130,7 @@ export default function CreateAccountScreen() {
                         <View style={styles.orLine} />
                     </View>
 
-                    <GoogleSignInButton label="Continue with Google" />
+                    <GoogleSignInButton label="Continue with Google" onAuthSuccess={goForward} />
                     <TouchableOpacity
                         style={styles.apple}
                         onPress={() => Alert.alert('Apple Sign In', 'Coming soon.')}

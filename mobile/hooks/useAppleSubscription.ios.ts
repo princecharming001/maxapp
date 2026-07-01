@@ -230,8 +230,7 @@ export function useAppleSubscription() {
                 console.error('[AppleIAP] Store not connected');
                 Alert.alert(
                     'App Store unavailable',
-                    'Cannot connect to the App Store. Please check your internet connection and try again.\n\n' +
-                        'Diagnostic: StoreKit connected=false (initConnection did not succeed).',
+                    'Cannot connect to the App Store. Please check your internet connection and try again.',
                 );
                 return false;
             }
@@ -249,28 +248,17 @@ export function useAppleSubscription() {
             let productCached = products.some((p) => productSku(p) === sku);
             if (!productCached) {
                 console.log('[AppleIAP] Cache miss at subscribe time; fetching before purchase:', sku);
-                let fetchedIds: (string | undefined)[] = products.map((p) => productSku(p));
-                let fetchErr: unknown = null;
                 try {
                     const list = await loadProducts();
-                    fetchedIds = list.map((p) => productSku(p));
                     productCached = list.some((p) => productSku(p) === sku);
                 } catch (err) {
-                    fetchErr = err;
                     console.warn('[AppleIAP] product fetch before purchase failed:', err);
                 }
                 if (!productCached) {
                     console.error('[AppleIAP] Product not available from StoreKit, aborting purchase:', sku);
-                    // TEMP diagnostic (remove once IAP confirmed working on TestFlight):
-                    // surfaces the exact state so a failing purchase is debuggable from a screenshot.
-                    const diag =
-                        `connected=${connected} · fetched ${fetchedIds.length}` +
-                        (fetchedIds.length ? ` [${fetchedIds.join(', ')}]` : '') +
-                        (fetchErr ? ` · err=${String((fetchErr as Error)?.message || fetchErr)}` : '') +
-                        ` · want=${sku}`;
                     Alert.alert(
                         'Plan not available yet',
-                        `This plan isn't available from the App Store right now. Please try again shortly.\n\nDiagnostic: ${diag}`,
+                        "This plan isn't available from the App Store right now. If it was just set up, it can take a little while to appear — please try again shortly.",
                     );
                     return false;
                 }

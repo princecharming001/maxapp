@@ -73,7 +73,7 @@ function ButtonShell({
 
 /** Real OAuth-backed button. Only mounted when client ids exist, so the
  *  useAuthRequest hook always receives valid input. */
-function RealGoogleButton({ cfg, label, variant }: { cfg: Cfg; label: string; variant?: 'solid' | 'glass' }) {
+function RealGoogleButton({ cfg, label, variant, onAuthSuccess }: { cfg: Cfg; label: string; variant?: 'solid' | 'glass'; onAuthSuccess?: () => void }) {
     const { signInWithGoogle } = useAuth();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -103,6 +103,7 @@ function RealGoogleButton({ cfg, label, variant }: { cfg: Cfg; label: string; va
         }
         setBusy(true);
         signInWithGoogle(idToken)
+            .then(() => onAuthSuccess?.())
             .catch(() => setError("Couldn't sign in with Google. Try again."))
             .finally(() => setBusy(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,7 +136,7 @@ function RealGoogleButton({ cfg, label, variant }: { cfg: Cfg; label: string; va
 
 /** DEV fallback when no OAuth client is configured: proves the identity path
  *  end-to-end on localhost. Never calls the OAuth hook. */
-function DevGoogleButton({ label, variant }: { label: string; variant?: 'solid' | 'glass' }) {
+function DevGoogleButton({ label, variant, onAuthSuccess }: { label: string; variant?: 'solid' | 'glass'; onAuthSuccess?: () => void }) {
     const { signInWithGoogleDev } = useAuth();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -162,6 +163,7 @@ function DevGoogleButton({ label, variant }: { label: string; variant?: 'solid' 
                 setBusy(true);
                 try {
                     await signInWithGoogleDev(email, name);
+                    onAuthSuccess?.();
                 } catch {
                     setError("Couldn't sign in. Try again.");
                 } finally {
@@ -179,7 +181,7 @@ function DevGoogleButton({ label, variant }: { label: string; variant?: 'solid' 
  *  clients can't do the implicit id_token flow. The native SDK runs Google's
  *  proper iOS flow and returns an ID token directly, which our backend verifies
  *  the same way. The module is loaded lazily so web never touches the native code. */
-function NativeGoogleButton({ cfg, label, variant }: { cfg: Cfg; label: string; variant?: 'solid' | 'glass' }) {
+function NativeGoogleButton({ cfg, label, variant, onAuthSuccess }: { cfg: Cfg; label: string; variant?: 'solid' | 'glass'; onAuthSuccess?: () => void }) {
     const { signInWithGoogle } = useAuth();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -213,6 +215,7 @@ function NativeGoogleButton({ cfg, label, variant }: { cfg: Cfg; label: string; 
                 return;
             }
             await signInWithGoogle(idToken);
+            onAuthSuccess?.();
         } catch (e: any) {
             const msg = String(e?.message || '');
             const code = String(e?.code || '');
@@ -229,7 +232,7 @@ function NativeGoogleButton({ cfg, label, variant }: { cfg: Cfg; label: string; 
     return <ButtonShell label={label} busy={busy} error={error} variant={variant} onPress={onPress} />;
 }
 
-export function GoogleSignInButton({ label, variant }: { label?: string; variant?: 'solid' | 'glass' }) {
+export function GoogleSignInButton({ label, variant, onAuthSuccess }: { label?: string; variant?: 'solid' | 'glass'; onAuthSuccess?: () => void }) {
     const [cfg, setCfg] = useState<Cfg | null>(null);
 
     useEffect(() => {
@@ -245,10 +248,10 @@ export function GoogleSignInButton({ label, variant }: { label?: string; variant
     if (cfg.available) {
         // iOS: native SDK (reliable id_token). Web/other: expo-auth-session flow.
         return Platform.OS === 'ios'
-            ? <NativeGoogleButton cfg={cfg} label={text} variant={variant} />
-            : <RealGoogleButton cfg={cfg} label={text} variant={variant} />;
+            ? <NativeGoogleButton cfg={cfg} label={text} variant={variant} onAuthSuccess={onAuthSuccess} />
+            : <RealGoogleButton cfg={cfg} label={text} variant={variant} onAuthSuccess={onAuthSuccess} />;
     }
-    if (__DEV__) return <DevGoogleButton label={text} variant={variant} />;
+    if (__DEV__) return <DevGoogleButton label={text} variant={variant} onAuthSuccess={onAuthSuccess} />;
     return null;                                     // unconfigured in prod: hide
 }
 
