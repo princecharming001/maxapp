@@ -275,20 +275,19 @@ export default function PaymentScreen() {
 
                 {/* Legal footer */}
                 <View style={s.legalRow}>
-                    {IS_IOS && (
-                        <TouchableOpacity onPress={handleRestore} disabled={busy} hitSlop={8} activeOpacity={0.7}>
-                            <Text style={s.legalLink}>{appleRestoring ? 'Restoring…' : 'Restore'}</Text>
-                        </TouchableOpacity>
-                    )}
                     <TouchableOpacity onPress={() => navigation.navigate('LegalDocument', { document: 'terms' })} hitSlop={8} activeOpacity={0.7}>
                         <Text style={s.legalLink}>Terms of Service</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => navigation.navigate('LegalDocument', { document: 'privacy' })} hitSlop={8} activeOpacity={0.7}>
                         <Text style={s.legalLink}>Privacy Policy</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => navigation.navigate('LegalDocument', { document: 'terms' })} hitSlop={8} activeOpacity={0.7}>
-                        <Text style={s.legalLink}>Restore Purchases</Text>
-                    </TouchableOpacity>
+                    {/* Apple requires a working Restore control (Guideline 3.1.1). This is
+                        the single canonical one — it actually restores, not a link to Terms. */}
+                    {IS_IOS && (
+                        <TouchableOpacity onPress={handleRestore} disabled={busy} hitSlop={8} activeOpacity={0.7}>
+                            <Text style={s.legalLink}>{appleRestoring ? 'Restoring…' : 'Restore Purchases'}</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
             </View>
