@@ -16,6 +16,7 @@ import { RootNavigator } from './navigation/RootNavigator';
 import { queryClient } from './lib/queryClient';
 import { FeatureFlagsProvider } from './constants/featureFlags';
 import { hydrateQueryClient, startQueryPersistence } from './lib/queryPersist';
+import { ensureFirstRunClean } from './lib/firstRunGuard';
 import { checkAndApplyUpdate } from './lib/otaUpdates';
 import { installGlobalErrorHandlers } from './lib/globalErrorHandlers';
 import AppErrorBoundary from './components/AppErrorBoundary';
@@ -349,11 +350,17 @@ export default function App() {
         // Restore the persisted cache AND the last-active tab before the first
         // paint, so data screens show last-known data and the user lands back on
         // the tab they left.
-        void Promise.all([hydrateQueryClient(queryClient), loadRestoredTab()]).finally(() => {
-            if (cancelled) return;
-            setCacheHydrated(true);
-            stopPersistence = startQueryPersistence(queryClient);
-        });
+        // Run the fresh-(re)install guard FIRST — before the query-cache persister
+        // starts writing — so a download always resumes at Landing (never a stale
+        // inherited session), and the "empty AsyncStorage" signal it relies on is
+        // reliable. Then hydrate the cache + restore the tab, then start persisting.
+        void ensureFirstRunClean()
+            .then(() => Promise.all([hydrateQueryClient(queryClient), loadRestoredTab()]))
+            .finally(() => {
+                if (cancelled) return;
+                setCacheHydrated(true);
+                stopPersistence = startQueryPersistence(queryClient);
+            });
         return () => {
             cancelled = true;
             stopPersistence?.();

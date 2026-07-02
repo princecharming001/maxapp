@@ -4,10 +4,9 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import { getItemAsync } from '../services/storage';
-import { STORAGE_KEYS } from '../lib/resilienceKeys';
+import { ensureFirstRunClean } from '../lib/firstRunGuard';
 import api, { subscribeAuthLost } from '../services/api';
 import { clearFaceScanDraft, clearPendingFaceScanSubmit } from '../lib/faceScanDraft';
 import { clearOnboardingDraft } from '../lib/onboardingDraft';
@@ -166,29 +165,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
         }
         try {
-            // First-run-after-(re)install guard. expo-secure-store lives in the
-            // iOS Keychain, which SURVIVES an app uninstall; AsyncStorage does
-            // not. So a fresh download can inherit the previous install's tokens
-            // and restore that stale session (often an unclaimed anon account),
-            // dropping the user mid-funnel (e.g. CreateAccount) instead of the
-            // Landing page.
-            //
-            // When our AsyncStorage install marker is absent we distinguish a real
-            // (re)install from an EXISTING user first-running this bundle via OTA:
-            // a genuine (re)install has EMPTY AsyncStorage (uninstall wiped it),
-            // whereas an existing user has app data (RQ cache, drafts, nav state).
-            // Only purge the inherited secure tokens in the empty case — so a
-            // download starts logged-out at Landing WITHOUT logging out existing
-            // users on the OTA (which would re-strand unclaimed anon accounts).
-            const installed = await AsyncStorage.getItem(STORAGE_KEYS.installMarker).catch(() => null);
-            if (!installed) {
-                // Default to NON-empty on error so a failure never logs anyone out.
-                const keys = await AsyncStorage.getAllKeys().catch(() => ['__err__'] as readonly string[]);
-                if (keys.length === 0) {
-                    await api.clearTokens().catch(() => undefined);
-                }
-                await AsyncStorage.setItem(STORAGE_KEYS.installMarker, '1').catch(() => undefined);
-            }
+            // Clear an inherited token on a genuine fresh (re)install so the app
+            // starts at Landing, not mid-funnel from a prior install's session.
+            // Memoized + shared with App.tsx boot; runs before persistence writes
+            // and before we read the token here. See lib/firstRunGuard.
+            await ensureFirstRunClean();
             const token = await getItemAsync('access_token');
             if (token) {
                 // Generous timeout + one retry on the boot restore so a cold-Render
