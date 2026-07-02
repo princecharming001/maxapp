@@ -30,6 +30,7 @@ import {
     Modal,
     PanResponder,
     Platform,
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -283,8 +284,13 @@ function TimePickerSheet({
 
     return (
         <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-            <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={onClose}>
-                <TouchableOpacity style={styles.sheet} activeOpacity={1} onPress={() => {}}>
+            {/* Backdrop is a sibling BEHIND the sheet (not a parent), and the sheet
+                is a plain View — NOT a TouchableOpacity. A touchable ancestor steals
+                the pan gesture from the nested wheel ScrollViews on iOS, which is why
+                the time couldn't be changed. */}
+            <View style={styles.sheetBackdrop}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
+                <View style={styles.sheet}>
                     <Text style={styles.sheetTitle}>{title}</Text>
                     <View style={styles.wheelRow}>
                         <View style={styles.wheelBand} pointerEvents="none" />
@@ -301,8 +307,8 @@ function TimePickerSheet({
                     >
                         <Text style={styles.sheetDoneText}>Done</Text>
                     </TouchableOpacity>
-                </TouchableOpacity>
-            </TouchableOpacity>
+                </View>
+            </View>
         </Modal>
     );
 }
