@@ -31,6 +31,8 @@ import { GlassButton } from '../../components/glass/GlassButton';
 import SlideToConfirm from '../../components/today/SlideToConfirm';
 import { track } from '../../lib/analytics';
 import { queryKeys } from '../../lib/queryClient';
+import { maxColor } from '../../utils/scheduleAggregation';
+import { syncTodayWidget, type WidgetTask } from '../../lib/widgetSync';
 import api from '../../services/api';
 
 const INK = '#1C1A17';
@@ -188,6 +190,33 @@ export default function TodayScreen() {
     );
     const completed = tasks.filter((t) => t.status === 'completed');
     const programCount = new Set(tasks.map((t) => t.maxx_id).filter(Boolean)).size;
+
+    // Push a compact snapshot to the Home Screen / Lock Screen widget whenever
+    // today's tasks or streak change. No-op off iOS / without the native
+    // module; syncTodayWidget dedupes so repeated renders are cheap.
+    useEffect(() => {
+        if (Platform.OS !== 'ios') return;
+        const toWidget = (t: PlannerTask): WidgetTask => ({
+            title: displayTitle(t.title) || 'Max',
+            time: t.status === 'completed' ? '' : fmtTime(t.time),
+            color: maxColor(t.maxx_id),
+            done: t.status === 'completed',
+        });
+        // Pending (time-ordered) first so the small widget surfaces what's
+        // next, then completed — mirrors the in-app + Reminders ordering.
+        const ordered = [
+            ...[...pending].sort((a, b) => toMin(a.time) - toMin(b.time)),
+            ...[...completed].sort((a, b) => toMin(a.time) - toMin(b.time)),
+        ]
+            .slice(0, 6)
+            .map(toWidget);
+        syncTodayWidget({
+            streak,
+            done: completed.length,
+            total: tasks.length,
+            tasks: ordered,
+        });
+    }, [tasks, pending, completed, streak]);
 
     const nowMin = now.getHours() * 60 + now.getMinutes();
     // Upcoming first; otherwise the NEAREST pending by clock distance - at

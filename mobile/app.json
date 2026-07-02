@@ -24,9 +24,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cannon.mobile",
+      "appleTeamId": "3TJ8RC3JCX",
       "buildNumber": "325",
       "entitlements": {
-        "aps-environment": "production"
+        "aps-environment": "production",
+        "com.apple.security.application-groups": [
+          "group.com.cannon.mobile"
+        ]
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -56,6 +60,7 @@
       "bundler": "metro"
     },
     "plugins": [
+      "@bacons/apple-targets",
       "./plugins/withModularHeaders",
       [
         "expo-camera",
