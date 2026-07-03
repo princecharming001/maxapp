@@ -36,6 +36,21 @@ logger = logging.getLogger(__name__)
 # on chat-burst sequences.
 _CACHE: dict[str, tuple[float, dict]] = {}
 _CACHE_TTL_S = 60.0
+# Hard size cap: contexts can be tens of KB (facts + onboarding overlays), and
+# TTL alone never REMOVES entries — at 10k+ users the dict would grow into a
+# real share of a small instance's RAM. Insertion order ≈ oldest first.
+_CACHE_MAX = 2000
+
+
+def _cache_put(user_id: str, ctx: dict) -> None:
+    if len(_CACHE) >= _CACHE_MAX:
+        now = time.time()
+        expired = [k for k, (ts, _) in _CACHE.items() if now - ts >= _CACHE_TTL_S]
+        for k in expired:
+            _CACHE.pop(k, None)
+        while len(_CACHE) >= _CACHE_MAX:
+            _CACHE.pop(next(iter(_CACHE)), None)
+    _CACHE[user_id] = (time.time(), ctx)
 
 
 async def get_context(user_id: str, db: AsyncSession) -> dict[str, Any]:
@@ -53,7 +68,7 @@ async def get_context(user_id: str, db: AsyncSession) -> dict[str, Any]:
     except Exception as e:
         logger.warning("user_schedule_context fetch failed user=%s: %s", user_id, e)
         ctx = {}
-    _CACHE[user_id] = (time.time(), ctx)
+    _cache_put(user_id, ctx)
     return dict(ctx)
 
 

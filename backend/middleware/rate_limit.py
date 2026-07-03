@@ -40,7 +40,16 @@ def _check(key: str, limit: int, window_s: float) -> None:
     cutoff = now - window_s
     with _LOCK:
         if len(_HITS) > _MAX_KEYS:
-            _HITS.clear()  # crude safety valve; brief over-permissiveness is fine
+            # Under a distributed key flood, evict stale/oldest entries instead of
+            # clear() — clearing ALL state disabled every limit (incl. login
+            # brute-force) for a window, which is exactly when it matters most.
+            stale = [k for k, dq in _HITS.items() if not dq or dq[-1] < cutoff]
+            for k in stale:
+                _HITS.pop(k, None)
+            if len(_HITS) > _MAX_KEYS:
+                # Still over: drop the oldest-inserted tenth (approx-LRU, O(n)).
+                for k in list(_HITS)[: _MAX_KEYS // 10]:
+                    _HITS.pop(k, None)
         dq = _HITS[key]
         while dq and dq[0] < cutoff:
             dq.popleft()

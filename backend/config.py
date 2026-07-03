@@ -288,6 +288,13 @@ class Settings(BaseSettings):
     # fires immediately; coaching  weekly send at most once per user until you restart the API process.
     sms_scheduler_test_fast_mode: bool = Field(default=False)
 
+    # Whether THIS process runs the APScheduler background jobs (notifications,
+    # coaching, calendar polls). Default true = today's single-instance posture.
+    # Set RUN_SCHEDULER=false on additional web instances / workers when scaling
+    # horizontally — the scheduler is in-process, so two instances running it
+    # would double-send every notification.
+    run_scheduler: bool = Field(default=True)
+
     # When true (default), FitMax and HairMax use fixed question scripts in chat.py before schedule creation.
     # When false, those modules use the LangChain agent only (LLM-written replies + tools), like Skinmax/Heightmax.
     chat_scripted_fitmax_hairmax_onboarding: bool = Field(default=True)

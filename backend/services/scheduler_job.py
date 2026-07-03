@@ -195,6 +195,40 @@ def _pending_morning_wake_tasks_today(schedules: list, today_iso: str) -> bool:
     return False
 
 
+# How many users' schedules a tick materializes at once. Schedule rows carry the
+# full `days` JSONB (tens-to-hundreds of KB each), so loading EVERY active
+# schedule in one query — the old behavior — scales the tick's memory with the
+# user base and OOMs a small instance long before 10k users. An id-only sweep
+# + per-chunk loads keeps peak memory constant regardless of user count.
+_TICK_USER_CHUNK = 200
+
+
+def _chunked(seq: list, n: int):
+    for i in range(0, len(seq), n):
+        yield seq[i:i + n]
+
+
+async def _active_schedule_user_ids(paid_with_phone_only: bool = False) -> list:
+    """Id-only sweep of users with an active schedule (tiny rows, any scale).
+    `paid_with_phone_only` pushes the SMS-job eligibility filter into SQL so
+    those ticks never even look at the (majority) ineligible users."""
+    async with AsyncSessionLocal() as db:
+        q = select(UserSchedule.user_id).where(UserSchedule.is_active.is_(True)).distinct()
+        if paid_with_phone_only:
+            q = (
+                select(UserSchedule.user_id)
+                .join(User, User.id == UserSchedule.user_id)
+                .where(
+                    UserSchedule.is_active.is_(True),
+                    User.is_paid.is_(True),
+                    User.phone_number.isnot(None),
+                )
+                .distinct()
+            )
+        res = await db.execute(q)
+        return [r[0] for r in res.all()]
+
+
 async def send_due_notifications():
     """Planner-governed push/SMS sends. The v2 daily planner is the SINGLE path
     that emits task reminders + the broad daily categories: it enforces the
@@ -206,26 +240,33 @@ async def send_due_notifications():
     try:
         cfg = PlannerConfig.from_settings()
         lapse_days = int(getattr(settings, "notif_lapse_days", 4) or 4)
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(select(UserSchedule).where(UserSchedule.is_active == True))
-            schedules = result.scalars().all()
+        user_ids = await _active_schedule_user_ids()
+        # Fresh session per chunk: bounded identity map + released JSONB blobs,
+        # so tick memory stays flat no matter how many schedules exist.
+        for chunk in _chunked(user_ids, _TICK_USER_CHUNK):
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(UserSchedule).where(
+                        UserSchedule.is_active.is_(True),
+                        UserSchedule.user_id.in_(chunk),
+                    )
+                )
+                by_user: dict = defaultdict(list)
+                for schedule in result.scalars().all():
+                    by_user[schedule.user_id].append(schedule)
 
-            by_user: dict = defaultdict(list)
-            for schedule in schedules:
-                by_user[schedule.user_id].append(schedule)
+                # Warm the identity map with ONE query so the per-user db.get(User)
+                # inside _plan_and_send_for_user is a cache hit, not an N+1 SELECT.
+                if by_user:
+                    await db.execute(select(User).where(User.id.in_(list(by_user.keys()))))
 
-            # Warm the identity map with ONE query so the per-user db.get(User)
-            # inside _plan_and_send_for_user is a cache hit, not an N+1 SELECT.
-            if by_user:
-                await db.execute(select(User).where(User.id.in_(list(by_user.keys()))))
+                for user_id, user_schedules in by_user.items():
+                    try:
+                        await _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days)
+                    except Exception as ue:
+                        logger.warning("planner send failed for %s: %s", user_id, ue, exc_info=True)
 
-            for user_id, user_schedules in by_user.items():
-                try:
-                    await _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days)
-                except Exception as ue:
-                    logger.warning("planner send failed for %s: %s", user_id, ue, exc_info=True)
-
-            await db.commit()
+                await db.commit()
 
     except Exception as e:
         logger.error(f"Scheduler job error: {e}", exc_info=True)
@@ -457,106 +498,116 @@ async def send_bedtime_progress_picture_prompts():
 
         now_utc = datetime.now(ZoneInfo("UTC"))
 
-        async with AsyncSessionLocal() as db:
-            sched_result = await db.execute(
-                select(UserSchedule).where(UserSchedule.is_active == True)
-            )
+        # This job is SMS-only for PAID users with a phone — filter in SQL so the
+        # sweep touches only eligible users, then load their schedules (full
+        # `days` JSONB) one bounded chunk at a time; each chunk is fully
+        # processed and released before the next loads, so tick memory stays
+        # flat at any user count.
+        user_ids = await _active_schedule_user_ids(paid_with_phone_only=True)
+        for chunk in _chunked(user_ids, _TICK_USER_CHUNK):
             by_user: dict = {}
-            for row in sched_result.scalars().all():
-                by_user.setdefault(row.user_id, []).append(row)
-
-        for uid, schedules in by_user.items():
-            try:
-                async with AsyncSessionLocal() as db:
-                    user = await db.get(User, uid)
-                    if not user or not user.is_paid:
-                        continue
-
-                    want_sms = bool(user.phone_number) and onboarding_allows_proactive_sms(
-                        user.onboarding
+            async with AsyncSessionLocal() as db:
+                sched_result = await db.execute(
+                    select(UserSchedule).where(
+                        UserSchedule.is_active.is_(True),
+                        UserSchedule.user_id.in_(chunk),
                     )
-                    # Push is consolidated into the v2 planner
-                    # (send_due_notifications). Legacy coaching jobs are SMS-only
-                    # so there's exactly one path emitting pushes.
-                    want_push = False
-                    if not want_sms and not want_push:
+                )
+                for row in sched_result.scalars().all():
+                    by_user.setdefault(row.user_id, []).append(row)
+
+            for uid, schedules in by_user.items():
+                try:
+                    async with AsyncSessionLocal() as db:
+                        user = await db.get(User, uid)
+                        if not user or not user.is_paid:
+                            continue
+
+                        want_sms = bool(user.phone_number) and onboarding_allows_proactive_sms(
+                            user.onboarding
+                        )
+                        # Push is consolidated into the v2 planner
+                        # (send_due_notifications). Legacy coaching jobs are SMS-only
+                        # so there's exactly one path emitting pushes.
+                        want_push = False
+                        if not want_sms and not want_push:
+                            continue
+
+                        tz_name = (user.onboarding or {}).get("timezone", "UTC")
+                        try:
+                            user_tz = ZoneInfo(tz_name)
+                        except Exception:
+                            user_tz = ZoneInfo("UTC")
+
+                        local_now = now_utc.astimezone(user_tz)
+                        today_iso = local_now.date().isoformat()
+
+                        if user.last_progress_prompt_date == today_iso:
+                            continue
+
+                        # Bedtime for *tonight* — prefer the Planner's per-weekday
+                        # override so a later-Friday / sleep-in-Sunday user gets the
+                        # prompt at the hour they actually wind down that day. The
+                        # window fires before bed, so the winding-down weekday is
+                        # local_now's (correct for the common pre-midnight bedtime).
+                        weekday = local_now.strftime("%A").lower()  # monday..sunday
+                        sleep_hm = _resolve_user_sleep_time(user, schedules, weekday=weekday)
+                        if not sleep_hm:
+                            continue
+
+                        sh, sm = sleep_hm
+                        sleep_dt = local_now.replace(hour=sh, minute=sm, second=0, microsecond=0)
+                        if sleep_dt <= local_now:
+                            sleep_dt = sleep_dt + timedelta(days=1)
+
+                        window_start = sleep_dt - timedelta(minutes=WINDOW_START_BEFORE_SLEEP_MIN)
+                        window_end = sleep_dt - timedelta(minutes=WINDOW_END_BEFORE_SLEEP_MIN)
+                        in_bedtime_window = window_start <= local_now < window_end
+                        if not (_sms_fast_mode() or in_bedtime_window):
+                            continue
+
+                        phone = user.phone_number
+                        apns_tok = (user.apns_device_token or "").strip()
+                        user_uuid = user.id
+
+                    delivered = False
+                    if want_sms and phone:
+                        # SMS users reply to the thread with a photo.
+                        sms_msg = await coaching_service.generate_bedtime_progress_picture_prompt(
+                            str(user_uuid), None, None, channel="sms"
+                        )
+                        delivered = bool(await sendblue_service.send_coaching_sms(phone, sms_msg))
+                    if want_push and apns_tok:
+                        # Push users can't reply with a photo, so the copy invites a
+                        # tap and the payload deep-links straight to the progress
+                        # archive where they add tonight's pic.
+                        push_msg = await coaching_service.generate_bedtime_progress_picture_prompt(
+                            str(user_uuid), None, None, channel="push"
+                        )
+                        ok, http_status = await send_apns_alert(
+                            apns_tok, "Max", push_msg, custom={"route": "ProgressArchive"}
+                        )
+                        if apns_response_should_invalidate_token(http_status):
+                            async with AsyncSessionLocal() as db2:
+                                u2 = await db2.get(User, user_uuid)
+                                if u2:
+                                    u2.apns_device_token = None
+                                    u2.apns_token_updated_at = None
+                                    await db2.commit()
+                        delivered = delivered or ok
+                    if not delivered:
                         continue
 
-                    tz_name = (user.onboarding or {}).get("timezone", "UTC")
-                    try:
-                        user_tz = ZoneInfo(tz_name)
-                    except Exception:
-                        user_tz = ZoneInfo("UTC")
-
-                    local_now = now_utc.astimezone(user_tz)
-                    today_iso = local_now.date().isoformat()
-
-                    if user.last_progress_prompt_date == today_iso:
-                        continue
-
-                    # Bedtime for *tonight* — prefer the Planner's per-weekday
-                    # override so a later-Friday / sleep-in-Sunday user gets the
-                    # prompt at the hour they actually wind down that day. The
-                    # window fires before bed, so the winding-down weekday is
-                    # local_now's (correct for the common pre-midnight bedtime).
-                    weekday = local_now.strftime("%A").lower()  # monday..sunday
-                    sleep_hm = _resolve_user_sleep_time(user, schedules, weekday=weekday)
-                    if not sleep_hm:
-                        continue
-
-                    sh, sm = sleep_hm
-                    sleep_dt = local_now.replace(hour=sh, minute=sm, second=0, microsecond=0)
-                    if sleep_dt <= local_now:
-                        sleep_dt = sleep_dt + timedelta(days=1)
-
-                    window_start = sleep_dt - timedelta(minutes=WINDOW_START_BEFORE_SLEEP_MIN)
-                    window_end = sleep_dt - timedelta(minutes=WINDOW_END_BEFORE_SLEEP_MIN)
-                    in_bedtime_window = window_start <= local_now < window_end
-                    if not (_sms_fast_mode() or in_bedtime_window):
-                        continue
-
-                    phone = user.phone_number
-                    apns_tok = (user.apns_device_token or "").strip()
-                    user_uuid = user.id
-
-                delivered = False
-                if want_sms and phone:
-                    # SMS users reply to the thread with a photo.
-                    sms_msg = await coaching_service.generate_bedtime_progress_picture_prompt(
-                        str(user_uuid), None, None, channel="sms"
-                    )
-                    delivered = bool(await sendblue_service.send_coaching_sms(phone, sms_msg))
-                if want_push and apns_tok:
-                    # Push users can't reply with a photo, so the copy invites a
-                    # tap and the payload deep-links straight to the progress
-                    # archive where they add tonight's pic.
-                    push_msg = await coaching_service.generate_bedtime_progress_picture_prompt(
-                        str(user_uuid), None, None, channel="push"
-                    )
-                    ok, http_status = await send_apns_alert(
-                        apns_tok, "Max", push_msg, custom={"route": "ProgressArchive"}
-                    )
-                    if apns_response_should_invalidate_token(http_status):
-                        async with AsyncSessionLocal() as db2:
-                            u2 = await db2.get(User, user_uuid)
-                            if u2:
-                                u2.apns_device_token = None
-                                u2.apns_token_updated_at = None
-                                await db2.commit()
-                    delivered = delivered or ok
-                if not delivered:
-                    continue
-
-                async with AsyncSessionLocal() as db:
-                    user = await db.get(User, user_uuid)
-                    if not user:
-                        continue
-                    user.last_progress_prompt_date = today_iso
-                    user.updated_at = datetime.utcnow()
-                    await db.commit()
-                    logger.info("Sent bedtime progress picture prompt to user %s", user.id)
-            except Exception as e:
-                logger.warning("Bedtime progress prompt failed for %s: %s", uid, e)
+                    async with AsyncSessionLocal() as db:
+                        user = await db.get(User, user_uuid)
+                        if not user:
+                            continue
+                        user.last_progress_prompt_date = today_iso
+                        user.updated_at = datetime.utcnow()
+                        await db.commit()
+                        logger.info("Sent bedtime progress picture prompt to user %s", user.id)
+                except Exception as e:
+                    logger.warning("Bedtime progress prompt failed for %s: %s", uid, e)
 
     except Exception as e:
         logger.error("Bedtime progress picture prompts job error: %s", e, exc_info=True)

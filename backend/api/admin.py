@@ -8,7 +8,7 @@ from typing import List, Optional
 from datetime import datetime
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 
 from db import get_db, get_rds_db
 from middleware.auth_middleware import get_current_admin_user
@@ -140,22 +140,18 @@ async def broadcast_message(
     db: AsyncSession = Depends(get_db)
 ):
     """Send a message to ALL users in their Cannon AI chat"""
-    result = await db.execute(select(User.id))
-    user_ids = result.scalars().all()
-
-    count = 0
-    for user_id in user_ids:
-        db.add(ChatHistory(
-            user_id=user_id,
-            role="assistant",
-            content=f"[BROADCAST] {data.content}",
-            channel="app",
-            created_at=datetime.utcnow()
-        ))
-        count += 1
-
+    # One INSERT..SELECT instead of materializing every user id and one ORM row
+    # per user — at 10k+ users the old loop held 10k pending objects in memory
+    # and pushed 10k INSERTs through the pool in a single transaction.
+    result = await db.execute(
+        text(
+            "INSERT INTO chat_history (id, user_id, role, content, channel, created_at) "
+            "SELECT gen_random_uuid(), id, 'assistant', :content, 'app', NOW() FROM app_users"
+        ),
+        {"content": f"[BROADCAST] {data.content}"},
+    )
     await db.commit()
-    return {"message": f"Broadcast sent to {count} users"}
+    return {"message": f"Broadcast sent to {result.rowcount} users"}
 
 
 @router.post("/direct")

@@ -71,7 +71,11 @@ async def lifespan(app: FastAPI):
             "APNs not configured — push notifications will be silently skipped. "
             "Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push."
         )
-    scheduler = start_scheduler(app)
+    # Env-gated so extra instances can run scheduler-free when scaling out
+    # (two in-process schedulers would double-send every notification).
+    scheduler = start_scheduler(app) if settings.run_scheduler else None
+    if scheduler is None and not settings.run_scheduler:
+        logging.getLogger("scheduler").info("RUN_SCHEDULER=false — background jobs disabled on this instance")
     yield
     # Shutdown
     stop_scheduler(scheduler)
