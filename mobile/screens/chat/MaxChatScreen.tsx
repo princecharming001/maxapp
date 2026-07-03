@@ -1418,6 +1418,10 @@ export default function MaxChatScreen() {
                         }
                         contentContainerStyle={[styles.messageList, messages.length === 0 && styles.messageListEmpty]}
                         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                        // The list FRAME also shrinks (keyboard up, chip stack appears) —
+                        // onContentSizeChange doesn't fire for that, so without this the
+                        // current question ends up hidden behind the chips/keyboard.
+                        onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
                         showsVerticalScrollIndicator={false}
                         ListEmptyComponent={ListEmpty}
                     />
@@ -1479,7 +1483,13 @@ export default function MaxChatScreen() {
                         </View>
                     )}
                     {!loading && !pendingConfirm && !inputWidget && quickReplies.length > 0 && !multiChoice && (
-                        <View style={styles.quickReplyStack}>
+                        <ScrollView
+                            style={styles.quickReplyScroll}
+                            contentContainerStyle={styles.quickReplyStackInner}
+                            keyboardShouldPersistTaps="handled"
+                            bounces={false}
+                            showsVerticalScrollIndicator={false}
+                        >
                             {quickReplies.map((choice) => {
                                 const custom = isCustomChip(choice);
                                 return (
@@ -1507,10 +1517,17 @@ export default function MaxChatScreen() {
                                     </TouchableOpacity>
                                 );
                             })}
-                        </View>
+                        </ScrollView>
                     )}
                     {!loading && !inputWidget && quickReplies.length > 0 && multiChoice && (
                         <View style={styles.quickReplyStack}>
+                            <ScrollView
+                                style={styles.quickReplyScrollMulti}
+                                contentContainerStyle={styles.quickReplyStackInner}
+                                keyboardShouldPersistTaps="handled"
+                                bounces={false}
+                                showsVerticalScrollIndicator={false}
+                            >
                             {quickReplies.map((choice) => {
                                 const on = multiPicked.has(choice);
                                 const custom = isCustomChip(choice);
@@ -1573,6 +1590,8 @@ export default function MaxChatScreen() {
                                     </TouchableOpacity>
                                 );
                             })}
+                            </ScrollView>
+                            {/* Submit stays OUTSIDE the scroll region so it's always visible. */}
                             <TouchableOpacity
                                 style={[
                                     styles.multiSubmitBtn,
@@ -1785,6 +1804,23 @@ const styles = StyleSheet.create({
         flexDirection: 'column',
         gap: 8,
         marginBottom: 10,
+        paddingHorizontal: 2,
+    },
+    // Chip area is height-capped: past ~4 rows the options scroll instead of
+    // crushing the conversation viewport (the question text was disappearing
+    // behind the chips whenever the keyboard was up).
+    quickReplyScroll: {
+        maxHeight: 226,
+        flexGrow: 0,
+        marginBottom: 10,
+    },
+    quickReplyScrollMulti: {
+        maxHeight: 186,
+        flexGrow: 0,
+    },
+    quickReplyStackInner: {
+        flexDirection: 'column',
+        gap: 8,
         paddingHorizontal: 2,
     },
     /* Schedule-change Yes/No confirm row (RALPH_CHAT_RESCHEDULE). */
