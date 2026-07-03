@@ -4104,6 +4104,130 @@ async def _try_build_llm_plan(
         return None
 
 
+# Pending-marker qid for "intake finished but the build failed" — any next
+# message (the "try again" chip, "retry", …) re-runs generation deterministically
+# instead of dropping to the free-form agent.
+_RETRY_GENERATE_QID = "_retry_generate"
+
+
+def _maxx_display(maxx_id: str) -> str:
+    from services.task_catalog_service import get_doc
+    doc = get_doc(maxx_id)
+    return doc.display_name.lower() if doc is not None else maxx_id
+
+
+async def _schedule_capacity_message(
+    user_id: str, maxx_id: str, user, db: AsyncSession
+) -> Optional[str]:
+    """Friendly blocker when a new active schedule can't be added (tier cap),
+    so the intake can refuse UP FRONT instead of collecting ten answers and
+    failing at generation. None = capacity available — or the check itself
+    failed, which must never block the intake."""
+    from services.schedule_runtime import ScheduleLimitError, _enforce_active_schedule_limit
+    try:
+        await _enforce_active_schedule_limit(
+            user_id=user_id, db=db, replacing_maxx_id=maxx_id,
+            subscription_tier=getattr(user, "subscription_tier", None),
+        )
+        return None
+    except ScheduleLimitError as e:
+        names = ", ".join(_maxx_display(m) for m in e.active_labels)
+        return (
+            f"you're at your active-schedule limit — {names} are already running. "
+            f"pause or finish one in explore, then i'll set up your {_maxx_display(maxx_id)} plan."
+        )
+    except Exception as e:
+        logger.warning("schedule capacity pre-check failed (non-blocking): %s", e)
+        return None
+
+
+async def _generate_after_intake(
+    *,
+    user_id: str,
+    maxx_id: str,
+    doc,
+    user,
+    merged_onboarding: dict,
+    wake_time: str,
+    sleep_time: str,
+    db: AsyncSession,
+) -> Tuple[str, list[str], Optional[dict], bool, Optional[dict]]:
+    """Build + persist the schedule once intake is complete. Shared by the
+    normal completion turn and the retry turn (pending == _RETRY_GENERATE_QID).
+    Contract: the caller has already COMMITTED the collected answers, so the
+    rollbacks below never lose them."""
+    from services.onboarding_questioner import clear_pending, make_pending
+    from services.user_context_service import merge_context
+    from services.schedule_runtime import ScheduleLimitError, generate_and_persist
+
+    try:
+        result = await generate_and_persist(
+            user_id=user_id,
+            maxx_id=maxx_id,
+            db=db,
+            onboarding=merged_onboarding,
+            wake_time=wake_time,
+            sleep_time=sleep_time,
+            subscription_tier=getattr(user, "subscription_tier", None),
+        )
+        # Clears the retry marker when this WAS a retry (no-op on the normal path).
+        await merge_context(user_id, clear_pending(), db)
+        await db.commit()
+        n_days = len(result.get("days") or [])
+        text = (
+            f"perfect. your {doc.display_name.lower()} schedule is live — {n_days} days, "
+            f"day 1 starts now. quick last step — pick the habits you want in it, "
+            f"and tap any you'd rather skip:"
+        )
+        # The habit-picker widget is attached centrally after dispatch (see
+        # _habit_picker_for_new_schedule) so it fires for BOTH this questioner
+        # path and the agent path that also generates.
+        return text, [], None, False, None
+    except ScheduleLimitError as e:
+        # Tier cap: retrying can't succeed — say what's actually blocking and
+        # how to fix it, instead of the old generic "tap retry" dead end.
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        try:
+            await merge_context(user_id, clear_pending(), db)
+            await db.commit()
+        except Exception:
+            logger.warning("could not clear pending after limit block", exc_info=True)
+        names = ", ".join(_maxx_display(m) for m in e.active_labels)
+        return (
+            f"almost — you're at your active-schedule limit ({names} are running). "
+            f"pause or finish one in explore, then say \"build my {_maxx_display(maxx_id)} plan\" — "
+            f"your answers are saved.",
+            [], None, False, None,
+        )
+    except Exception as e:
+        logger.exception("onboarding completion → generate failed: %s", e)
+        # Un-poison the session (a mid-generate DB error would otherwise fail
+        # every later write this turn), then park the retry marker so the next
+        # message re-runs the build.
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        try:
+            await merge_context(
+                user_id,
+                {"_onboarding_pending": make_pending(maxx_id, _RETRY_GENERATE_QID)},
+                db,
+            )
+            await db.commit()
+        except Exception:
+            logger.warning("could not park retry marker after failed generate", exc_info=True)
+        # User-safe string only — never interpolate the raw exception (this
+        # questioner text bypasses the agent-path tech-leak scrubber).
+        return (
+            "i've got everything i need, but the build hiccuped just now — tap try again.",
+            ["try again"], None, False, None,
+        )
+
+
 async def _run_onboarding_questioner(
     user_id: str,
     message_text: str,
@@ -4180,6 +4304,12 @@ async def _run_onboarding_questioner_impl(
     if not pending:
         if not new_max:
             return None
+        # Capacity gate BEFORE the interview: if a new schedule can't be added
+        # (tier cap on active schedules), refuse now with the real reason —
+        # don't collect ten answers and fail at generation (the old behavior).
+        capacity_block = await _schedule_capacity_message(user_id, new_max, user, db)
+        if capacity_block is not None:
+            return capacity_block, [], None, False, None
         state = await _apply_slot_prefill(user_id, new_max, state, db)
         # Rung 1: LLM-ordered plan (flag-gated; None in shadow/off/failure).
         plan_pending = await _try_build_llm_plan(user_id, new_max, state, db)
@@ -4222,6 +4352,26 @@ async def _run_onboarding_questioner_impl(
         # Doc disappeared (unlikely) → bail to legacy path.
         await merge_context(user_id, clear_pending(), db)
         return None
+
+    # ── Finished intake whose build failed → retry turn ──────────────────
+    if last_qid == _RETRY_GENERATE_QID:
+        # Honor an explicit switch to a different max; anything else (the
+        # "try again" chip, "retry", "go") re-runs the build from the answers
+        # that were committed before the failed attempt.
+        if new_max and new_max != maxx_id:
+            await merge_context(user_id, clear_pending(), db)
+            await db.commit()
+            return await _run_onboarding_questioner_impl(user_id, message_text, db)
+        return await _generate_after_intake(
+            user_id=user_id,
+            maxx_id=maxx_id,
+            doc=doc,
+            user=user,
+            merged_onboarding={**onboarding, **persistent},
+            wake_time=str(state.get("wake_time") or "07:00"),
+            sleep_time=str(state.get("sleep_time") or "23:00"),
+            db=db,
+        )
 
     last_field = next((f for f in doc.required_fields if f.get("id") == last_qid), None)
     if last_field is None:
@@ -4316,36 +4466,20 @@ async def _run_onboarding_questioner_impl(
     # All required fields collected → clear pending and generate.
     await merge_context(user_id, {**update, **clear_pending()}, db)
     await _mirror_intake_to_facts(user_id, update, db)
-    try:
-        from services.schedule_runtime import generate_and_persist
-        result = await generate_and_persist(
-            user_id=user_id,
-            maxx_id=maxx_id,
-            db=db,
-            onboarding={**onboarding, **persistent, **update},
-            wake_time=str(state.get("wake_time") or "07:00"),
-            sleep_time=str(state.get("sleep_time") or "23:00"),
-            subscription_tier=getattr(user, "subscription_tier", None),
-        )
-        await db.commit()
-        n_days = len(result.get("days") or [])
-        text = (
-            f"perfect. your {doc.display_name.lower()} schedule is live — {n_days} days, "
-            f"day 1 starts now. quick last step — pick the habits you want in it, "
-            f"and tap any you'd rather skip:"
-        )
-        # The habit-picker widget is attached centrally after dispatch (see
-        # _habit_picker_for_new_schedule) so it fires for BOTH this questioner
-        # path and the agent path that also generates.
-        return text, [], None, False, None
-    except Exception as e:
-        logger.exception("onboarding completion → generate failed: %s", e)
-        # User-safe string only — never interpolate the raw exception (this
-        # questioner text bypasses the agent-path tech-leak scrubber).
-        return (
-            "i collected everything but couldn't build the schedule just now — tap retry.",
-            [], None, False, None,
-        )
+    # Commit NOW: the answers must survive a failed build (the failure handler
+    # rolls back to un-poison the session, which would otherwise also discard
+    # this final answer and the pending clear).
+    await db.commit()
+    return await _generate_after_intake(
+        user_id=user_id,
+        maxx_id=maxx_id,
+        doc=doc,
+        user=user,
+        merged_onboarding={**onboarding, **persistent, **update},
+        wake_time=str(state.get("wake_time") or "07:00"),
+        sleep_time=str(state.get("sleep_time") or "23:00"),
+        db=db,
+    )
 
 
 async def _mirror_intake_to_facts(user_id: str, update: dict, db: AsyncSession) -> None:
