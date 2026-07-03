@@ -31,6 +31,13 @@ ALLOWED_EVENTS = frozenset({
     "freeze_used",
     "review_confirmed",
     "onboarding_step",
+    # Paywall / purchase funnel (added 2026-07 for conversion measurement).
+    # onboarding_step (with a `step` prop) covers every pre-paywall milestone;
+    # these four capture the paywall→purchase leg dashboards can't infer.
+    "plan_selected",
+    "purchase_started",
+    "purchase_success",
+    "purchase_failed",
 })
 
 _MAX_BATCH = 25

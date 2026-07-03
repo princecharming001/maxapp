@@ -111,6 +111,18 @@ def _display_module_label(
     return base_label
 
 
+# When two schedules produce the same logical task, the winner must reflect the
+# most-resolved state the user reached — otherwise completing it once (in either
+# schedule) is discarded in favor of a still-pending duplicate and the day never
+# closes for the streak. Status is the PRIMARY tiebreak; description length only
+# breaks ties within the same status (keeps the richer copy for display).
+_STATUS_RANK = {"completed": 3, "skipped": 2, "pending": 1}
+
+
+def _status_rank(task: dict) -> int:
+    return _STATUS_RANK.get(str(task.get("status") or "pending").lower(), 0)
+
+
 def _dedupe_master_tasks(tasks: list[dict]) -> list[dict]:
     best: dict[str, dict] = {}
     for t in tasks:
@@ -123,6 +135,11 @@ def _dedupe_master_tasks(tasks: list[dict]) -> list[dict]:
         prev = best.get(key)
         if not prev:
             best[key] = t
+            continue
+        next_rank = _status_rank(t)
+        prev_rank = _status_rank(prev)
+        if next_rank != prev_rank:
+            best[key] = t if next_rank > prev_rank else prev
             continue
         next_len = len(t.get("description") or "")
         prev_len = len(prev.get("description") or "")
