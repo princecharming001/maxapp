@@ -425,7 +425,10 @@ class ApiService {
                 const response = await axios.post(
                     `${API_BASE_URL}auth/refresh`,
                     { refresh_token: refreshToken },
-                    { timeout: 15_000 },
+                    // 45s, not 15s: a cold backend wake regularly outlives 15s, and a
+                    // timed-out refresh at boot used to read as "session dead" — the
+                    // #1 way mid-funnel users got dumped back to Landing.
+                    { timeout: 45_000 },
                 );
                 await this.setTokens(response.data.access_token, response.data.refresh_token);
             } catch (e: any) {

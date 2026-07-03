@@ -3,7 +3,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
-import { Platform } from 'react-native';
+import { AppState, type AppStateStatus, Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { getItemAsync } from '../services/storage';
 import { ensureFirstRunClean } from '../lib/firstRunGuard';
@@ -207,7 +207,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     userData = await api.getMe({ timeout: 45_000 });
                 } catch (firstErr: any) {
                     const s = firstErr?.response?.status;
-                    if (s === 401 || s === 403) throw firstErr;  // definitive — let the catch clear tokens
+                    if (s === 403) throw firstErr;  // definitive (blocked) — let the catch below handle it
+                    // Everything else gets one more try — INCLUDING 401: the api
+                    // layer refreshes on 401, and a refresh that failed transiently
+                    // (cold-Render wake outliving the timeout, brief offline)
+                    // surfaces here as a 401 even though the session is still
+                    // valid. The retry runs a fresh refresh attempt.
                     await new Promise((r) => setTimeout(r, 1200));
                     userData = await api.getMe({ timeout: 45_000 });
                 }
@@ -239,11 +244,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // (A real 401 is already handled by the response interceptor, which
             // attempts a refresh and, on refresh failure, clears + emits authLost.)
             const status = e?.response?.status;
-            if (status === 401 || status === 403) {
+            if (status === 403) {
                 await api.clearTokens();
             }
-            // else: keep the durable tokens; the next boot (or a refetch once the
-            // backend is reachable) resumes the session.
+            // 401 is deliberately NOT cleared here: the refresh interceptor is
+            // the authority — when the refresh token is definitively rejected it
+            // clears storage + emits authLost itself. A 401 that reaches us with
+            // tokens still on disk means the refresh failed TRANSIENTLY (cold
+            // backend, offline blip) and the session must survive for the next
+            // attempt. Clearing on 401 here was how mid-funnel users got dumped
+            // to Landing — and an anon "Get started" account is unrecoverable.
+            // else: keep the durable tokens; the next boot (or the foreground
+            // resume below, or a refetch once the backend is reachable) resumes
+            // the session.
         } finally {
             setIsLoading(false);
         }
@@ -252,6 +265,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         void checkAuth();
     }, [checkAuth]);
+
+    // Boot can end logged-out while a durable session token still exists — a
+    // transiently-failed restore (cold backend wake, brief offline). The user
+    // is sitting on Landing with a perfectly valid session on disk. Retry the
+    // restore once shortly after boot and whenever the app foregrounds, so
+    // they get their session (and their mid-funnel progress) back.
+    useEffect(() => {
+        if (isLoading || user) return;
+        let cancelled = false;
+        const tryResume = async () => {
+            try {
+                const token = await getItemAsync('access_token');
+                if (!cancelled && token) void checkAuth();
+            } catch {
+                /* secure-store hiccup — next trigger retries */
+            }
+        };
+        const timer = setTimeout(() => void tryResume(), 8_000);
+        const sub = AppState.addEventListener('change', (s: AppStateStatus) => {
+            if (s === 'active') void tryResume();
+        });
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+            sub.remove();
+        };
+    }, [isLoading, user, checkAuth]);
 
     // Stamp the persisted query cache with the current user so a different
     // user's cold start can detect + drop a stale blob. Covers every path that
@@ -338,6 +378,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Account-after-scan: mint a credential-less FREE account at "Get started" so
     // the funnel runs before sign-up; the user claims it before the paywall.
     const startAnon = useCallback(async () => {
+        // A durable token here means a previous session was interrupted (the
+        // boot restore failed transiently and dropped the user on Landing).
+        // Resume THAT account instead of minting a fresh one — minting would
+        // permanently orphan its onboarding answers / scan. Logout and a
+        // definitive auth failure both clear tokens, so this never resurrects
+        // a session the user chose to leave.
+        try {
+            const existing = await getItemAsync('access_token');
+            if (existing) {
+                const userData = await api.getMe({ timeout: 20_000 });
+                setUser(userData);
+                return;
+            }
+        } catch {
+            /* unreadable/dead session — fall through to a fresh start */
+        }
         await api.anonSignup();
         // The account + tokens are set now; don't let a transient getMe blip fail
         // "Get started" — retry once with a generous timeout before surfacing it.

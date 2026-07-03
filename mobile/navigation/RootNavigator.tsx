@@ -79,6 +79,14 @@ export function RootNavigator() {
 
     const onboardingCompleted = user?.onboarding?.completed === true;
     const firstScanDone = user?.first_scan_completed === true;
+    // The V2 wizard saves its full payload (completed:false) BEFORE the reveal,
+    // so "finished the quiz but hasn't accepted/skipped the scan yet" is visible
+    // server-side. Relaunching in that window resumes at the reveal → scan-offer
+    // step instead of dropping the user back to step 0 of the wizard.
+    const wizardFinished =
+        onboardingV2 &&
+        typeof (user?.onboarding as any)?.wake_time === 'string' &&
+        Array.isArray((user?.onboarding as any)?.priority_order);
 
     /**
      * Pre-pay:  Onboarding -> FeaturesIntro -> FaceScan -> FaceScanResults (locked) -> Payment.
@@ -107,7 +115,9 @@ export function RootNavigator() {
                 ? 'Admin'
                 : !treatAsFull
                     ? !onboardingCompleted
-                        ? 'Onboarding'
+                        ? wizardFinished
+                            ? 'RoutineReveal'
+                            : 'Onboarding'
                         : !faceScan
                             ? 'ReferralCode'
                             : firstScanDone
