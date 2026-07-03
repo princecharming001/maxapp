@@ -32,6 +32,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import api from '../../services/api';
+import { track } from '../../lib/analytics';
 import { useAuth } from '../../context/AuthContext';
 import { useStripeSubscription } from '../../hooks/useStripeSubscription';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
@@ -101,13 +102,17 @@ export default function PaymentScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const insets     = useSafeAreaInsets();
-    const { user, refreshUser, isAnonymous } = useAuth();
+    const { user, refreshUser, isAnonymous, isFreeTier, chooseFreeTier } = useAuth();
 
     // Guest gate (belt-and-suspenders): an unclaimed anon guest must claim an
     // account before paying — ReferralCode gates first, this catches direct paths.
     useEffect(() => {
         if (isAnonymous) navigation.replace('CreateAccount');
     }, [isAnonymous]);
+
+    useEffect(() => {
+        if (!isAnonymous) track('paywall_view');
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const faceScanEnabled = useFlag('faceScan');
     const chadFeatures      = faceScanEnabled ? CHAD_FEATURES      : CHAD_FEATURES_NO_SCAN;
@@ -168,11 +173,18 @@ export default function PaymentScreen() {
         // had. This works on web and on a simulator/device where real Apple IAP
         // can't complete. Production builds (__DEV__ false) always run the real
         // Stripe / Apple IAP purchase flow below, unchanged.
+        track('purchase_started', { plan: selected });
         if (SHOW_DEV_BYPASS) {
             await devBypass(selected);
             return;
         }
-        await (selected === 'basic' ? sub.subscribeBasic() : sub.subscribePremium());
+        try {
+            await (selected === 'basic' ? sub.subscribeBasic() : sub.subscribePremium());
+            track('purchase_success', { plan: selected });
+        } catch (e: any) {
+            track('purchase_failed', { plan: selected, error: String(e?.message ?? 'unknown') });
+            throw e;
+        }
     };
 
     const ctaBusy = busy || devBusy !== null;
@@ -181,6 +193,20 @@ export default function PaymentScreen() {
         : selected === 'premium'
         ? `Upgrade to Chad · ${premiumPrice}/wk`
         : `Get Chad Lite · ${basicPrice}/wk`;
+
+    // "Continue with the free plan" — browse-only access. First time (funnel):
+    // persists the choice, which flips the navigator onto the Main stack. When
+    // the paywall was PUSHED as an in-app gate (already free tier, canGoBack),
+    // it simply dismisses back to where the user was.
+    const onContinueFree = async () => {
+        if (ctaBusy) return;
+        track('paywall_view', { action: 'continue_free' });
+        if (isFreeTier && navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+        }
+        await chooseFreeTier();
+    };
 
     return (
         <View style={s.root}>
@@ -207,6 +233,21 @@ export default function PaymentScreen() {
                     hitSlop={12}
                 >
                     <Text style={s.skipText}>Skip</Text>
+                </TouchableOpacity>
+            )}
+
+            {/* ── Close (free-tier gate) — when the paywall was pushed over the app
+                by an action gate, a free user can dismiss it and keep browsing. ── */}
+            {!SHOW_DEV_BYPASS && isFreeTier && navigation.canGoBack() && (
+                <TouchableOpacity
+                    style={[s.close, { top: Math.max(insets.top + 8, 52) }]}
+                    onPress={() => navigation.goBack()}
+                    activeOpacity={0.7}
+                    hitSlop={12}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close"
+                >
+                    <Ionicons name="close" size={18} color={INK} />
                 </TouchableOpacity>
             )}
 
@@ -237,7 +278,7 @@ export default function PaymentScreen() {
                 <View style={s.planContainer}>
                     <TouchableOpacity
                         style={[s.planOption, selected === 'basic' && s.planOptionSel]}
-                        onPress={() => setSelected('basic')}
+                        onPress={() => { setSelected('basic'); track('plan_selected', { plan: 'basic' }); }}
                         activeOpacity={0.85}
                     >
                         <Text style={s.planName}>Chad Lite</Text>
@@ -246,7 +287,7 @@ export default function PaymentScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[s.planOption, selected === 'premium' && s.planOptionSel]}
-                        onPress={() => setSelected('premium')}
+                        onPress={() => { setSelected('premium'); track('plan_selected', { plan: 'premium' }); }}
                         activeOpacity={0.85}
                     >
                         <Text style={s.planName}>Chad</Text>
@@ -272,6 +313,20 @@ export default function PaymentScreen() {
                         }
                     </TouchableOpacity>
                 </View>
+
+                {/* Continue free — quiet escape hatch under the CTA. Browse-only:
+                    every action re-gates to this screen until they subscribe. */}
+                <TouchableOpacity
+                    style={s.freeLink}
+                    onPress={() => void onContinueFree()}
+                    disabled={ctaBusy}
+                    activeOpacity={0.7}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Continue with the free plan"
+                >
+                    <Text style={s.freeLinkText}>Continue with the free plan</Text>
+                </TouchableOpacity>
 
                 {/* Legal footer */}
                 <View style={s.legalRow}>
@@ -313,6 +368,33 @@ const s = StyleSheet.create({
         fontSize: 14,
         color: INK,
         letterSpacing: 0.2,
+    },
+
+    /* free-tier gate close chip (mirrors skip placement) */
+    close: {
+        position: 'absolute',
+        right: 22,
+        zIndex: 10,
+        backgroundColor: 'rgba(17,17,19,0.07)',
+        borderRadius: 999,
+        width: 32,
+        height: 32,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    /* continue-free link under the CTA */
+    freeLink: {
+        alignSelf: 'center',
+        paddingVertical: 6,
+        marginTop: 2,
+    },
+    freeLinkText: {
+        fontFamily: 'Matter-Medium',
+        fontSize: 13,
+        color: 'rgba(17,17,19,0.55)',
+        textDecorationLine: 'underline',
+        letterSpacing: 0.1,
     },
 
     content: {

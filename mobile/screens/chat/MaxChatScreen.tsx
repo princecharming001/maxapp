@@ -21,6 +21,7 @@ import ChatConversationsDrawer from '../../components/ChatConversationsDrawer';
 import ChatSliderInput, { SliderSpec } from '../../components/ChatSliderInput';
 import ChatHabitPicker, { HabitPickerSpec } from '../../components/ChatHabitPicker';
 import { renderRichText } from '../../utils/chatMarkdown';
+import { usePaywallGate } from '../../hooks/usePaywallGate';
 
 const PENDING_CHAT_KEY = '@max_pending_chat_v1';
 
@@ -464,6 +465,7 @@ export default function MaxChatScreen() {
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
+    const gate = usePaywallGate();
     // MaxChatScreen is a bottom-tab child, so the keyboard avoider must offset by
     // the tab bar height — otherwise the composer (and its Send button) hides
     // BEHIND the keyboard when typing a reply, e.g. a custom onboarding answer.
@@ -627,6 +629,9 @@ export default function MaxChatScreen() {
 
     const sendMessageWithContext = async (msg: string, initContext?: string, chatIntent?: string, forceNewConversation?: boolean) => {
         if (!msg.trim() || loading) return;
+        // Free tier: chat is paid — every send path (typed, chips, max-onboarding
+        // auto-init) funnels through here, so one gate covers them all.
+        if (gate('chat_send')) return;
         setLoading(true);
         // Snapshot the current question affordances so a 5xx can restore them
         // (the user isn't stranded on a dead chat with the chips/slider gone).
@@ -834,6 +839,8 @@ export default function MaxChatScreen() {
         const fromInput = String(input ?? '').trim();
         const userContent = fromPreset || fromInput;
         if (!userContent || loading) return;
+        // Free tier: chat is paid — gate BEFORE loading state so nothing spins.
+        if (gate('chat_send')) return;
         setLoading(true);
         // Snapshot question affordances so a 5xx can restore them (see catch).
         const prevChoices = serverChoices;
@@ -1129,6 +1136,7 @@ export default function MaxChatScreen() {
 
     const pickAndSendImage = async () => {
         if (loading) return;
+        if (gate('chat_image')) return;
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ['images'],
@@ -1227,6 +1235,9 @@ export default function MaxChatScreen() {
             return;
         }
         if (input.trim()) { void sendMessage(); return; }
+        // Voice input starts a recording (a paid action) — gate before the mic
+        // spins up; text/image sends are gated at sendMessageWithContext.
+        if (gate('chat_voice')) return;
         toggleVoice();
     };
 

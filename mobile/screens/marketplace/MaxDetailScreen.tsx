@@ -39,6 +39,7 @@ import { getCourseForMaxx, isCreatorCourse } from '../../data/courseContent';
 import { hexA, maxMeta } from '../../utils/scheduleAggregation';
 import { HABIT_CATALOG } from '../../data/habitCatalog';
 import { track } from '../../lib/analytics';
+import { usePaywallGate } from '../../hooks/usePaywallGate';
 
 const CANVAS = '#FFFFFF';
 const CARD = '#FFFFFF';
@@ -419,6 +420,7 @@ export default function MaxDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const insets = useSafeAreaInsets();
+    const gate = usePaywallGate();
     const passed = route.params?.item as MarketplaceItem | undefined;
     const itemId = route.params?.itemId || passed?.id;
 
@@ -497,6 +499,9 @@ export default function MaxDetailScreen() {
     };
 
     const onCta = async () => {
+        // Free tier: starting a plan / enrolling is a PAID action — bounce to
+        // the paywall. (Browsing this detail page stays free.)
+        if (!item.entered && gate('start_plan')) return;
         // Already in: "Open" leads into the course docs / reader page (the
         // swipeable per-max info), not the schedule tab.
         if (item.entered) { openReader(); return; }

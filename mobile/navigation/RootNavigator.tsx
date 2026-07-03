@@ -60,7 +60,7 @@ import { useFlag } from '../constants/featureFlags';
 const Stack = createNativeStackNavigator();
 
 export function RootNavigator() {
-    const { user, isLoading, isAuthenticated, isPaid, isScanUser } = useAuth();
+    const { user, isLoading, isAuthenticated, isPaid, isScanUser, isFreeTier } = useAuth();
     // Pivot flags: onboardingV2 = free-until-marketplace funnel (completed
     // unpaid users land on Main, not the legacy tier paywall); revealV2 swaps
     // the reveal behind its existing route name.
@@ -88,10 +88,13 @@ export function RootNavigator() {
      * device-level permissions via OS settings. (The old SMS-coaching opt-in
      * funnel was removed — it was unreachable and superseded by push-first.)
      */
-    // Gate on paid entitlement ONLY — onboarding completion is not a substitute
-    // for payment. A user who completes onboarding without subscribing stays in
-    // the unpaid stack and must go through Payment to reach Main.
-    const treatAsFull = isPaid;
+    // Paid users get the full stack. A user who explicitly chose "Continue with
+    // the free plan" on the paywall (isFreeTier) ALSO enters the Main stack — but
+    // browse-only: every real action (start a plan, chat send, …) is bounced back
+    // to Payment by usePaywallGate, and paid content stays server-gated. Free
+    // tier still requires completed onboarding; mid-funnel users stay in the
+    // funnel stack.
+    const treatAsFull = isPaid || (isFreeTier && onboardingCompleted);
 
     const initialRoute = !isAuthenticated
         // New users land on the Landing 'Get started' funnel (which mints the

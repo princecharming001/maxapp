@@ -73,7 +73,11 @@ function ButtonShell({
 
 /** Real OAuth-backed button. Only mounted when client ids exist, so the
  *  useAuthRequest hook always receives valid input. */
-function RealGoogleButton({ cfg, label, variant, onAuthSuccess }: { cfg: Cfg; label: string; variant?: 'solid' | 'glass'; onAuthSuccess?: () => void }) {
+/** Called with the signed-in user (AuthContext's User) so screens can tell an
+ *  anon-account CLAIM (same user id) from a sign-in that switched accounts. */
+type OnAuthSuccess = (user?: { id: string; is_paid?: boolean; onboarding?: { completed?: boolean } }) => void;
+
+function RealGoogleButton({ cfg, label, variant, onAuthSuccess }: { cfg: Cfg; label: string; variant?: 'solid' | 'glass'; onAuthSuccess?: OnAuthSuccess }) {
     const { signInWithGoogle } = useAuth();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -103,7 +107,7 @@ function RealGoogleButton({ cfg, label, variant, onAuthSuccess }: { cfg: Cfg; la
         }
         setBusy(true);
         signInWithGoogle(idToken)
-            .then(() => onAuthSuccess?.())
+            .then((u) => onAuthSuccess?.(u as Parameters<OnAuthSuccess>[0]))
             .catch(() => setError("Couldn't sign in with Google. Try again."))
             .finally(() => setBusy(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -136,7 +140,7 @@ function RealGoogleButton({ cfg, label, variant, onAuthSuccess }: { cfg: Cfg; la
 
 /** DEV fallback when no OAuth client is configured: proves the identity path
  *  end-to-end on localhost. Never calls the OAuth hook. */
-function DevGoogleButton({ label, variant, onAuthSuccess }: { label: string; variant?: 'solid' | 'glass'; onAuthSuccess?: () => void }) {
+function DevGoogleButton({ label, variant, onAuthSuccess }: { label: string; variant?: 'solid' | 'glass'; onAuthSuccess?: OnAuthSuccess }) {
     const { signInWithGoogleDev } = useAuth();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -162,8 +166,8 @@ function DevGoogleButton({ label, variant, onAuthSuccess }: { label: string; var
                 }
                 setBusy(true);
                 try {
-                    await signInWithGoogleDev(email, name);
-                    onAuthSuccess?.();
+                    const u = await signInWithGoogleDev(email, name);
+                    onAuthSuccess?.(u as Parameters<OnAuthSuccess>[0]);
                 } catch {
                     setError("Couldn't sign in. Try again.");
                 } finally {
@@ -181,7 +185,7 @@ function DevGoogleButton({ label, variant, onAuthSuccess }: { label: string; var
  *  clients can't do the implicit id_token flow. The native SDK runs Google's
  *  proper iOS flow and returns an ID token directly, which our backend verifies
  *  the same way. The module is loaded lazily so web never touches the native code. */
-function NativeGoogleButton({ cfg, label, variant, onAuthSuccess }: { cfg: Cfg; label: string; variant?: 'solid' | 'glass'; onAuthSuccess?: () => void }) {
+function NativeGoogleButton({ cfg, label, variant, onAuthSuccess }: { cfg: Cfg; label: string; variant?: 'solid' | 'glass'; onAuthSuccess?: OnAuthSuccess }) {
     const { signInWithGoogle } = useAuth();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -214,8 +218,8 @@ function NativeGoogleButton({ cfg, label, variant, onAuthSuccess }: { cfg: Cfg; 
                 setBusy(false);
                 return;
             }
-            await signInWithGoogle(idToken);
-            onAuthSuccess?.();
+            const u = await signInWithGoogle(idToken);
+            onAuthSuccess?.(u as Parameters<OnAuthSuccess>[0]);
         } catch (e: any) {
             const msg = String(e?.message || '');
             const code = String(e?.code || '');
@@ -232,7 +236,7 @@ function NativeGoogleButton({ cfg, label, variant, onAuthSuccess }: { cfg: Cfg; 
     return <ButtonShell label={label} busy={busy} error={error} variant={variant} onPress={onPress} />;
 }
 
-export function GoogleSignInButton({ label, variant, onAuthSuccess }: { label?: string; variant?: 'solid' | 'glass'; onAuthSuccess?: () => void }) {
+export function GoogleSignInButton({ label, variant, onAuthSuccess }: { label?: string; variant?: 'solid' | 'glass'; onAuthSuccess?: OnAuthSuccess }) {
     const [cfg, setCfg] = useState<Cfg | null>(null);
 
     useEffect(() => {

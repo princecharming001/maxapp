@@ -191,7 +191,14 @@ export default function RevealV2Screen() {
                                 variant="primary"
                                 label={taskCount === 0 ? 'Continue' : 'Looks right'}
                                 disabled={taskCount > 0 && !revealSettled}
-                                onPress={() => (faceScanEnabled ? setPhase('scan') : completeOnboarding())}
+                                onPress={() => {
+                                    if (faceScanEnabled) {
+                                        setPhase('scan');
+                                        track('onboarding_step', { step: 'scan_offered' });
+                                    } else {
+                                        completeOnboarding();
+                                    }
+                                }}
                             />
                         </View>
                     </>
@@ -215,13 +222,19 @@ export default function RevealV2Screen() {
                                 variant="primary"
                                 label="Scan now"
                                 loading={busy}
-                                onPress={() => completeOnboarding('FaceScan')}
+                                onPress={() => {
+                                    track('onboarding_step', { step: 'scan_started' });
+                                    completeOnboarding('FaceScan');
+                                }}
                             />
                             <GlassButton
                                 variant="glass"
                                 label="Skip for now"
                                 loading={busy}
-                                onPress={() => completeOnboarding('ReferralCode')}
+                                onPress={() => {
+                                    track('onboarding_step', { step: 'scan_skipped' });
+                                    completeOnboarding('ReferralCode');
+                                }}
                             />
                         </View>
                     </View>

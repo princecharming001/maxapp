@@ -60,11 +60,27 @@ import * as Haptics from 'expo-haptics';
 
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import { track } from '../../lib/analytics';
 import {
     saveOnboardingDraft,
     loadOnboardingDraft,
     clearOnboardingDraft,
 } from '../../lib/onboardingDraft';
+
+// Stable per-step keys for funnel analytics (title → slug), so step drop-off
+// is queryable regardless of copy edits. Keep in sync with the step titles.
+const STEP_KEYS: Record<string, string> = {
+    'What are we\nworking on?': 'goals',
+    "What's pulling\nyou here?": 'motivation',
+    'The shape of\nyour day': 'day_shape',
+    'Work or\nschool?': 'work',
+    'Where do\nyou work?': 'work_location',
+    'When are you\nsharpest?': 'chronotype',
+    'When do\nyou eat?': 'meals',
+    'Your rhythm': 'rhythm',
+    'When do you\nusually shower?': 'shower',
+    "Here's\nyour day": 'recap',
+};
 
 // Cal AI × Stoic palette — black ink, Stoic's soft gray canvas, white
 // soft-shadow pill cards, black-fill selection.
@@ -223,19 +239,40 @@ function Wheel({
     initialIndex,
     onChange,
     width = 62,
+    loop = false,
 }: {
     values: string[];
     initialIndex: number;
     onChange: (i: number) => void;
     width?: number;
+    // A looping column repeats its values so a value at the list's edge (e.g. the
+    // 12 o'clock hour) still has neighbours in BOTH directions. Without this the
+    // hour wheel dead-ends at 12: a midday default sits at the very bottom, so
+    // scrolling "down" to pick a later time (1pm, 2pm…) hits a wall and the picker
+    // feels capped at 12:59. Enabled for the hour column.
+    loop?: boolean;
 }) {
     const ref = useRef<ScrollView>(null);
     const inited = useRef(false);
-    const [active, setActive] = useState(initialIndex);
+    const N = values.length;
+    // Render REPEATS copies and start centred in the middle copy; the committed
+    // value is the scrolled index modulo N, so which copy you land on is irrelevant.
+    // 5 copies give two full cycles of travel in each direction — a user never
+    // reaches the ends in practice.
+    const REPEATS = loop ? 5 : 1;
+    const offset = loop ? N * Math.floor(REPEATS / 2) : 0;
+    const display = loop
+        ? Array.from({ length: N * REPEATS }, (_, i) => values[i % N])
+        : values;
+    const startIndex = offset + initialIndex;
+    const [active, setActive] = useState(startIndex);
+    const lastReal = useRef(initialIndex);
 
     const settle = (y: number) => {
-        const i = Math.max(0, Math.min(values.length - 1, Math.round(y / ITEM_H)));
-        if (i !== active) { setActive(i); onChange(i); }
+        const raw = Math.max(0, Math.min(display.length - 1, Math.round(y / ITEM_H)));
+        if (raw !== active) setActive(raw);
+        const real = ((raw % N) + N) % N;
+        if (real !== lastReal.current) { lastReal.current = real; onChange(real); }
     };
 
     return (
@@ -249,14 +286,14 @@ function Wheel({
                 onLayout={() => {
                     if (!inited.current) {
                         inited.current = true;
-                        ref.current?.scrollTo({ y: initialIndex * ITEM_H, animated: false });
+                        ref.current?.scrollTo({ y: startIndex * ITEM_H, animated: false });
                     }
                 }}
                 onScroll={(e) => settle(e.nativeEvent.contentOffset.y)}
                 onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.y)}
                 contentContainerStyle={{ paddingVertical: ITEM_H * 2 }}
             >
-                {values.map((v, i) => (
+                {display.map((v, i) => (
                     <View key={i} style={styles.wheelItem}>
                         <Text style={[styles.wheelText, i === active && styles.wheelTextActive]}>{v}</Text>
                     </View>
@@ -294,7 +331,7 @@ function TimePickerSheet({
                     <Text style={styles.sheetTitle}>{title}</Text>
                     <View style={styles.wheelRow}>
                         <View style={styles.wheelBand} pointerEvents="none" />
-                        <Wheel values={HOURS} initialIndex={init.h} onChange={setH} />
+                        <Wheel values={HOURS} initialIndex={init.h} onChange={setH} loop />
                         <Wheel values={MINUTES} initialIndex={init.m} onChange={setM} />
                         <Wheel values={PERIODS} initialIndex={init.p} onChange={setP} width={56} />
                     </View>
@@ -674,6 +711,12 @@ export default function OnboardingV2Screen() {
                 completed: false,
             };
         const goReveal = () => {
+            track('onboarding_step', {
+                step: 'completed',
+                goals,
+                motivation,
+                has_work: works,
+            });
             // Onboarding is effectively done — drop the resume draft so a later
             // relaunch doesn't drag the user back into the wizard.
             void clearOnboardingDraft();
@@ -1082,6 +1125,20 @@ export default function OnboardingV2Screen() {
         t.value = 0;
         t.value = withTiming(1, { duration: 460, easing: Easing.out(Easing.cubic) });
     }, [safeStep, reduced, t]);
+
+    // Funnel analytics: one event per step VIEWED, so we can see exactly where
+    // users drop off in the quiz. `step` is a stable slug; index/total let us
+    // reconstruct the funnel even as the (conditional) step count varies.
+    useEffect(() => {
+        if (!draftLoaded) return;
+        const title = steps[safeStep]?.title ?? '';
+        track('onboarding_step', {
+            step: STEP_KEYS[title] ?? `idx_${safeStep}`,
+            index: safeStep,
+            total: steps.length,
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [safeStep, draftLoaded]);
     const headStyle = useAnimatedStyle(() => ({
         opacity: interpolate(t.value, [0, 0.6], [0, 1], Extrapolation.CLAMP),
         transform: [{ translateX: interpolate(t.value, [0, 1], [dir * 34, 0], Extrapolation.CLAMP) }],

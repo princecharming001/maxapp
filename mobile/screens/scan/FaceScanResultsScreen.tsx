@@ -37,6 +37,7 @@ import { CachedImage } from '../../components/CachedImage';
 import { userHasSignupPhone } from '../../utils/userPhone';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
 import MosaicGrid, { type MosaicTile } from '../../components/scan/MosaicGrid';
+import { track } from '../../lib/analytics';
 
 function formatSuggestedModuleTitle(id: string): string {
     const t = getMaxxDisplayLabel({ id }).trim();
@@ -839,6 +840,7 @@ export default function FaceScanResultsScreen() {
     const [exportWatermark, setExportWatermark] = useState(false);
     const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
     const scrollRef = useRef<ScrollView>(null);
+    const didTrackResultsView = useRef(false);
 
     // Tap-a-stat → glassy elaboration overlay (never auto-navigates to paywall).
     const [detail, setDetail] = useState<{ name: string; blurb: string; accent: string; locked: boolean } | null>(null);
@@ -870,6 +872,13 @@ export default function FaceScanResultsScreen() {
     }, [postPayParam, refreshUser, scanIdParam]);
 
     useEffect(() => { bootstrap(); }, [bootstrap]);
+
+    useEffect(() => {
+        if (hydrating) return;
+        if (didTrackResultsView.current) return;
+        didTrackResultsView.current = true;
+        track('onboarding_step', { step: 'results_view' });
+    }, [hydrating]);
 
     // Clear the in-flight submit flag + captured-photo draft ONLY when this is
     // the genuine post-upload hand-off (FaceScanScreen passes justSubmitted).

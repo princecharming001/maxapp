@@ -587,8 +587,32 @@ class ApiService {
         return (response.data && typeof response.data === 'object') ? response.data : {};
     }
 
+    /** True when a JWT is expired (or expires within `bufferS`). Unparseable → treated as expiring, so callers err toward refreshing. */
+    private static jwtExpiresSoon(token: string, bufferS = 60): boolean {
+        try {
+            const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+            const { exp } = JSON.parse(globalThis.atob(payload));
+            return typeof exp !== 'number' || exp * 1000 < Date.now() + bufferS * 1000;
+        } catch {
+            return true;
+        }
+    }
+
     /** Sign in / up with a verified Google ID token. */
     async googleSignIn(idToken: string) {
+        // Account-after-scan: /auth/google CLAIMS the caller's anon funnel account
+        // (keeping its onboarding + scan) only when the Authorization header holds
+        // a VALID access token — the server silently ignores an expired one and
+        // mints a fresh empty account, losing the results the user is saving.
+        // Refresh proactively so the claim can't be lost to token expiry.
+        try {
+            const access = await this.getToken();
+            if (access && ApiService.jwtExpiresSoon(access) && (await getItemAsync('refresh_token'))) {
+                await this.refreshToken();
+            }
+        } catch {
+            /* no session or refresh failed — proceed as a plain sign-in */
+        }
         const response = await this.client.post(
             'auth/google',
             { id_token: idToken },

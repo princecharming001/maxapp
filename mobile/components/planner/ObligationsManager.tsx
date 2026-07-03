@@ -98,21 +98,37 @@ function Wheel({
   initialIndex,
   onChange,
   width = 62,
+  loop = false,
 }: {
   values: string[];
   initialIndex: number;
   onChange: (i: number) => void;
   width?: number;
+  // Looping repeats the values so an edge value (e.g. the 12 o'clock hour) keeps
+  // neighbours in BOTH directions — otherwise the hour wheel dead-ends at 12 and
+  // scrolling "down" for a later time hits a wall (the picker feels capped at
+  // 12:59). Enabled for the hour column.
+  loop?: boolean;
 }) {
   const ref = useRef<ScrollView>(null);
   const inited = useRef(false);
-  const [active, setActive] = useState(initialIndex);
+  const N = values.length;
+  const REPEATS = loop ? 5 : 1;
+  const offset = loop ? N * Math.floor(REPEATS / 2) : 0;
+  const display = loop
+    ? Array.from({ length: N * REPEATS }, (_, i) => values[i % N])
+    : values;
+  const startIndex = offset + initialIndex;
+  const [active, setActive] = useState(startIndex);
+  const lastReal = useRef(initialIndex);
 
   const settle = (y: number) => {
-    const i = Math.max(0, Math.min(values.length - 1, Math.round(y / ITEM_H)));
-    if (i !== active) {
-      setActive(i);
-      onChange(i);
+    const raw = Math.max(0, Math.min(display.length - 1, Math.round(y / ITEM_H)));
+    if (raw !== active) setActive(raw);
+    const real = ((raw % N) + N) % N;
+    if (real !== lastReal.current) {
+      lastReal.current = real;
+      onChange(real);
     }
   };
 
@@ -127,14 +143,14 @@ function Wheel({
         onLayout={() => {
           if (!inited.current) {
             inited.current = true;
-            ref.current?.scrollTo({ y: initialIndex * ITEM_H, animated: false });
+            ref.current?.scrollTo({ y: startIndex * ITEM_H, animated: false });
           }
         }}
         onScroll={(e) => settle(e.nativeEvent.contentOffset.y)}
         onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.y)}
         contentContainerStyle={{ paddingVertical: ITEM_H * 2 }}
       >
-        {values.map((v, i) => (
+        {display.map((v, i) => (
           <View key={i} style={styles.wheelItem}>
             <Text style={[styles.wheelText, i === active && styles.wheelTextActive]}>{v}</Text>
           </View>
@@ -172,7 +188,7 @@ function WheelTimeSheet({
           <Text style={styles.wheelSheetTitle}>{title}</Text>
           <View style={styles.wheelRow}>
             <View style={styles.wheelBand} pointerEvents="none" />
-            <Wheel values={HOURS} initialIndex={init.h} onChange={setH} />
+            <Wheel values={HOURS} initialIndex={init.h} onChange={setH} loop />
             <Wheel values={MINUTES} initialIndex={init.m} onChange={setM} />
             <Wheel values={PERIODS} initialIndex={init.p} onChange={setP} width={56} />
           </View>

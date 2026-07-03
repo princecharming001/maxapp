@@ -17,7 +17,13 @@ export type AnalyticsEvent =
     | 'freeze_used'
     | 'review_confirmed'
     | 'onboarding_step'
-    | 'onboarding_chat_setup';
+    | 'onboarding_chat_setup'
+    // Paywall / purchase funnel. onboarding_step (with a `step` prop) carries
+    // every pre-paywall milestone; these capture the paywall→purchase leg.
+    | 'plan_selected'
+    | 'purchase_started'
+    | 'purchase_success'
+    | 'purchase_failed';
 
 let queue: { event: AnalyticsEvent; props?: Record<string, unknown> }[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;

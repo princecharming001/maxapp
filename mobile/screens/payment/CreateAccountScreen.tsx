@@ -5,7 +5,7 @@
  * then routes to ReferralCode. A returning user who lands here gets a clear "email
  * already registered" error (they sign in from Landing instead).
  */
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
     KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image,
@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import { useAuth } from '../../context/AuthContext';
+import { track } from '../../lib/analytics';
 import { navigationRef } from '../../lib/navigationRef';
 import { fonts } from '../../theme/dark';
 
@@ -36,11 +37,26 @@ function deriveUsername(email: string): string {
     return `${base}_${suffix}`.slice(0, 30);
 }
 
+// FastAPI errors: `detail` is a string for our own HTTPExceptions but an ARRAY
+// of {msg,...} for 422 validation errors — unpack both so the user sees the
+// actual problem ("value is not a valid email address") instead of a generic one.
+function claimErrorMessage(e: any): string {
+    const detail = e?.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail) && typeof detail[0]?.msg === 'string') return detail[0].msg;
+    return 'Could not save your account. Please try again.';
+}
+
+const ANON_EMAIL_SUFFIX = '@anon.trymax.app';
+
 export default function CreateAccountScreen() {
     const nav = useNavigation<any>();
     const route = useRoute<any>();
     const insets = useSafeAreaInsets();
-    const { claimAccount, logout } = useAuth();
+    const { user, claimAccount, logout, refreshUser } = useAuth();
+    // The anon account this screen is claiming — captured at mount so a Google
+    // sign-in can tell a CLAIM (same id) from a switch to an existing account.
+    const anonIdRef = useRef(user?.id);
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -55,17 +71,64 @@ export default function CreateAccountScreen() {
     // the unauthenticated stack, so signing in there flips isAuthenticated and the
     // navigator remounts onto the funnel automatically — the anon user is ALREADY
     // authenticated here, so claiming changes no stack and we must navigate explicitly.
-    const goForward = () => nav.navigate('ReferralCode', route?.params);
+    const goForward = (method: 'email' | 'google' = 'email') => {
+        track('onboarding_step', { step: 'account_created', method });
+        nav.navigate('ReferralCode', route?.params);
+    };
+
+    // A Google sign-in either CLAIMED the anon account (same user id — the normal
+    // save-your-results path) or matched an EXISTING account and switched the
+    // session to it. The two must route differently: a claim continues the funnel;
+    // an existing account resumes wherever THAT account left off — never a fake
+    // "account created" + ReferralCode push (which shoved even paid users back
+    // toward the paywall and let onboarding-incomplete accounts skip onboarding).
+    const onGoogleSuccess = (u?: { id: string; is_paid?: boolean; onboarding?: { completed?: boolean } }) => {
+        if (!u || u.id === anonIdRef.current) { goForward('google'); return; }
+        track('onboarding_step', { step: 'signed_in_existing', method: 'google' });
+        // Paid account: treatAsFull flips, the navigator remounts onto Main — any
+        // manual navigate here would race the remount. Do nothing.
+        if (u.is_paid) return;
+        // Unpaid, onboarding done: continue to the paywall step.
+        if (u.onboarding?.completed === true) { nav.navigate('ReferralCode', route?.params); return; }
+        // Unpaid, onboarding NOT done: run onboarding — clear the anon funnel
+        // history so back-swipes can't resurface another account's scan results.
+        nav.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
+    };
 
     const onSubmit = async () => {
         if (!canSubmit) return;
         setBusy(true); setError(null);
         try {
-            await claimAccount(email.trim(), password, name.trim(), '', deriveUsername(email.trim()));
-            goForward();
+            // The username is auto-derived (user never sees it) — retry a couple of
+            // times on a collision instead of surfacing "Username already taken"
+            // for a name they never chose.
+            for (let attempt = 0; ; attempt++) {
+                try {
+                    await claimAccount(email.trim(), password, name.trim(), '', deriveUsername(email.trim()));
+                    break;
+                } catch (e: any) {
+                    if (e?.response?.data?.detail === 'Username already taken' && attempt < 2) continue;
+                    throw e;
+                }
+            }
+            goForward('email');
         } catch (e: any) {
-            const detail = e?.response?.data?.detail;
-            setError(typeof detail === 'string' ? detail : 'Could not save your account. Please try again.');
+            const message = claimErrorMessage(e);
+            // "Already set up" can mean a PREVIOUS attempt succeeded but its
+            // response was lost (timeout) — the account is claimed, we just never
+            // heard back. If this session now owns a claimed account with the
+            // entered email, that's exactly what happened: continue instead of
+            // stranding the user on an error they can't act on.
+            if (/already set up/i.test(message)) {
+                try {
+                    const u = await refreshUser();
+                    if (u?.email && !u.email.endsWith(ANON_EMAIL_SUFFIX) && u.email.toLowerCase() === email.trim().toLowerCase()) {
+                        goForward('email');
+                        return;
+                    }
+                } catch { /* fall through to the error message */ }
+            }
+            setError(message);
         } finally {
             setBusy(false);
         }
@@ -130,17 +193,22 @@ export default function CreateAccountScreen() {
                         <View style={styles.orLine} />
                     </View>
 
-                    <GoogleSignInButton label="Continue with Google" onAuthSuccess={goForward} />
-                    <TouchableOpacity
-                        style={styles.apple}
-                        onPress={() => Alert.alert('Apple Sign In', 'Coming soon.')}
-                        activeOpacity={0.85}
-                        accessibilityRole="button"
-                        accessibilityLabel="Continue with Apple"
-                    >
-                        <Ionicons name="logo-apple" size={18} color={INK} />
-                        <Text style={styles.appleText}>Continue with Apple</Text>
-                    </TouchableOpacity>
+                    <GoogleSignInButton label="Continue with Google" onAuthSuccess={onGoogleSuccess} />
+                    {/* Apple Sign In needs a native build (P0.3) — until it ships, a
+                        dead "Coming soon" button on a conversion step only loses users,
+                        so it's dev-only. */}
+                    {__DEV__ ? (
+                        <TouchableOpacity
+                            style={styles.apple}
+                            onPress={() => Alert.alert('Apple Sign In', 'Coming soon.')}
+                            activeOpacity={0.85}
+                            accessibilityRole="button"
+                            accessibilityLabel="Continue with Apple"
+                        >
+                            <Ionicons name="logo-apple" size={18} color={INK} />
+                            <Text style={styles.appleText}>Continue with Apple</Text>
+                        </TouchableOpacity>
+                    ) : null}
 
                     <TouchableOpacity style={styles.signin} onPress={onSignInInstead} hitSlop={8} accessibilityRole="button">
                         <Text style={styles.signinText}>Already have an account? <Text style={styles.signinStrong}>Sign in</Text></Text>

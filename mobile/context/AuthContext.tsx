@@ -11,6 +11,7 @@ import api, { subscribeAuthLost } from '../services/api';
 import { clearFaceScanDraft, clearPendingFaceScanSubmit } from '../lib/faceScanDraft';
 import { clearOnboardingDraft } from '../lib/onboardingDraft';
 import { clearRestoredTab } from '../lib/navState';
+import { loadFreeTierChoice, saveFreeTierChoice, clearFreeTierChoice } from '../lib/freeTier';
 import {
     clearPersistedQueryCache,
     getPersistedCacheUserId,
@@ -99,6 +100,14 @@ interface AuthContextType {
     isScanUser: boolean;
     /** True for an unclaimed anonymous "guest" account — must claim an account before the paywall/app. */
     isAnonymous: boolean;
+    /**
+     * User tapped "Continue with the free plan" on the paywall. Grants UI access
+     * only — every real action is bounced to Payment by usePaywallGate, and the
+     * backend still treats the user as unpaid. Always false once isPaid.
+     */
+    isFreeTier: boolean;
+    /** Persist the free-plan choice and enter the main app unpaid. */
+    chooseFreeTier: () => Promise<void>;
     subscriptionTier: SubscriptionTier;
     login: (identifier: string, password: string) => Promise<void>;
     signup: (email: string, password: string, first_name: string, last_name: string, username: string, phone_number?: string) => Promise<void>;
@@ -108,10 +117,11 @@ interface AuthContextType {
     fauxFreshSignup: () => Promise<void>;
     startAnon: () => Promise<void>;
     claimAccount: (email: string, password: string, first_name: string, last_name: string, username: string, phone_number?: string) => Promise<void>;
-    /** Sign in / up with a verified Google ID token (find-or-create). */
-    signInWithGoogle: (idToken: string) => Promise<void>;
+    /** Sign in / up with a verified Google ID token (find-or-create). Returns the
+     *  resolved user so callers can tell a CLAIM (same id) from an account switch. */
+    signInWithGoogle: (idToken: string) => Promise<User>;
     /** DEV-only Google identity path (no real token) for localhost testing. */
-    signInWithGoogleDev: (email: string, name?: string) => Promise<void>;
+    signInWithGoogleDev: (email: string, name?: string) => Promise<User>;
     logout: () => Promise<void>;
     /** Returns latest user from API (e.g. after payment) so callers can branch before next render. */
     refreshUser: () => Promise<User>;
@@ -137,7 +147,24 @@ async function resetGoogleNativeSession(): Promise<void> {
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [freeTierChosen, setFreeTierChosen] = useState(false);
     const queryClient = useQueryClient();
+
+    // Restore the per-user "continue free" choice whenever the signed-in user
+    // changes (boot restore, login, claim). A different account never inherits it.
+    useEffect(() => {
+        let cancelled = false;
+        if (!user?.id) {
+            setFreeTierChosen(false);
+            return;
+        }
+        void loadFreeTierChoice(user.id).then((chosen) => {
+            if (!cancelled) setFreeTierChosen(chosen);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.id]);
 
     const checkAuth = useCallback(async () => {
         if (__DEV__) {
@@ -327,7 +354,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const claimAccount = useCallback(
         async (email: string, password: string, first_name: string, last_name: string, username: string, phone_number?: string) => {
             await api.claimAccount(email, password, first_name, last_name, username, phone_number);
-            const userData = await api.getMe();
+            // The claim itself SUCCEEDED — don't let a transient getMe blip make the
+            // screen report failure (a retry would then hit "already set up" and
+            // strand the user). Retry once with a generous timeout, like startAnon.
+            let userData: User;
+            try {
+                userData = await api.getMe({ timeout: 45_000 });
+            } catch {
+                await new Promise((r) => setTimeout(r, 1000));
+                userData = await api.getMe({ timeout: 45_000 });
+            }
             setUser(userData);
         },
         [],
@@ -337,22 +373,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await api.googleSignIn(idToken);
         const userData = await api.getMe();
         setUser(userData);
+        return userData;
     }, []);
 
     const signInWithGoogleDev = useCallback(async (email: string, name?: string) => {
         await api.googleSignInDev(email, name);
         const userData = await api.getMe();
         setUser(userData);
+        return userData;
     }, []);
 
     const logout = useCallback(async () => {
         await api.clearTokens();
         setUser(null);
+        setFreeTierChosen(false);
         // Reset the native Google SDK session so a later "Sign in with Google"
         // re-prompts cleanly instead of reusing a stale session (null idToken).
         await resetGoogleNativeSession();
         // Drop cached server state on logout so user B can't see user A's data.
         queryClient.clear();
+        await clearFreeTierChoice().catch(() => undefined);
         await clearPendingFaceScanSubmit().catch(() => undefined);
         await clearFaceScanDraft().catch(() => undefined);
         await clearOnboardingDraft().catch(() => undefined);
@@ -370,13 +410,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await api.deleteAccount(password);
         await api.clearTokens();
         setUser(null);
+        setFreeTierChosen(false);
         await resetGoogleNativeSession();
+        await clearFreeTierChoice().catch(() => undefined);
         await clearPendingFaceScanSubmit().catch(() => undefined);
         await clearFaceScanDraft().catch(() => undefined);
         await clearOnboardingDraft().catch(() => undefined);
         await clearRestoredTab().catch(() => undefined);
         await clearPersistedQueryCache().catch(() => undefined);
     }, []);
+
+    const chooseFreeTier = useCallback(async () => {
+        // Flip state first so the navigator remounts onto Main immediately; the
+        // persist is best-effort (worst case: re-tap on next cold start).
+        setFreeTierChosen(true);
+        if (user?.id) await saveFreeTierChoice(user.id);
+    }, [user?.id]);
 
     const subscriptionTier: SubscriptionTier = (user?.subscription_tier as SubscriptionTier) ?? null;
 
@@ -389,6 +438,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             isPremium: user?.is_admin || (user?.is_paid && subscriptionTier === 'premium') || false,
             isScanUser: user?.is_scan_user ?? false,
             isAnonymous: !!user?.email && String(user.email).endsWith('@anon.trymax.app'),
+            // Never "free tier" once actually paid — paying supersedes the choice.
+            isFreeTier: freeTierChosen && !(user?.is_paid ?? false),
+            chooseFreeTier,
             subscriptionTier,
             login,
             signup,
@@ -403,7 +455,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             refreshUser,
             deleteAccount,
         }),
-        [user, isLoading, subscriptionTier, login, signup, fauxSignup, fauxSkipSignup, fauxFreshSignup, startAnon, claimAccount, signInWithGoogle, signInWithGoogleDev, logout, refreshUser, deleteAccount],
+        [user, isLoading, freeTierChosen, chooseFreeTier, subscriptionTier, login, signup, fauxSignup, fauxSkipSignup, fauxFreshSignup, startAnon, claimAccount, signInWithGoogle, signInWithGoogleDev, logout, refreshUser, deleteAccount],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
