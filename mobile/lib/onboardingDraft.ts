@@ -11,10 +11,11 @@ import { STORAGE_KEYS } from './resilienceKeys';
  * crashes a restore — missing fields just fall back to the screen's defaults.
  * Cleared on successful submit and on logout (AuthContext).
  */
-// v2 (funnel V4): adds `phase` (intro | effort | schedule) + ageBand/gender/
-// effort answers. Version bump deliberately discards v1 drafts — the step
-// order changed, so an old step index would resume into the wrong question.
-const DRAFT_VERSION = 2;
+// v3 (funnel V4 final shape): phase is intro|schedule (the old standalone
+// 'effort' phase merged into intro) + scanSkipped/ageBand/gender/effort
+// answers. Version bumps deliberately discard older drafts — step indexes and
+// phase names moved, so a stale draft would resume into the wrong question.
+const DRAFT_VERSION = 3;
 
 export type OnboardingAnswers = {
     /** User declined the scan at the funnel's scan offer (results gate skipped). */

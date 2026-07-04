@@ -4,13 +4,11 @@
  * Layout: a classical bust dissolving into blue particle-smoke (Higgsfield,
  * cream + ink + brand-blue — same palette as the maxx clay icons) fills the
  * screen, a soft cream gradient keeps text legible, a light frosted feature
- * card floats in the middle, Chad/Chad Lite plan picker at the bottom, single
- * ink pill CTA.
+ * card floats in the middle, a Today/Day-2/Day-3 trial timeline below it,
+ * single ink pill CTA.
  *
- * Tiers (unchanged):
- *   Chad Lite (basic):  chatbot · 2 active programs · weekly face scan
- *   Chad (premium):     chatbot pro · 3 active programs · daily scans
- *                       · full course library · priority support
+ * Single plan (funnel V4): Chad — 3-day free trial (Apple introductory
+ * offer), then $5.99/wk. Hard paywall: no free tier entry point.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -91,7 +89,7 @@ export default function PaymentScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const insets     = useSafeAreaInsets();
-    const { user, refreshUser, isAnonymous, isFreeTier, chooseFreeTier } = useAuth();
+    const { user, refreshUser, isAnonymous, isFreeTier } = useAuth();
 
     // Funnel V4: the paywall comes BEFORE account creation — anonymous users
     // purchase (Apple IAP is Apple-ID-scoped; the entitlement attaches to this
@@ -180,20 +178,10 @@ export default function PaymentScreen() {
     const ctaBusy = busy || devBusy !== null;
     const ctaLabel = ctaBusy ? 'Processing…' : 'Start my 3-day free trial';
 
-    // "Continue with the free plan" — browse-only access. Mid-funnel it records
-    // the choice and continues to the account step (the funnel still finishes);
-    // when the paywall was PUSHED as an in-app gate (already free tier,
-    // canGoBack), it simply dismisses back to where the user was.
-    const onContinueFree = async () => {
-        if (ctaBusy) return;
-        track('paywall_view', { action: 'continue_free' });
-        if (isFreeTier && navigation.canGoBack()) {
-            navigation.goBack();
-            return;
-        }
-        await chooseFreeTier();
-        if (!onboardingCompleted) navigation.navigate('CreateAccount');
-    };
+    // The free tier is RETIRED as an entry point (hard paywall: trial or
+    // subscribe). chooseFreeTier stays in AuthContext only so accounts that
+    // already chose it keep working; the close chip below still lets them
+    // dismiss a gate-pushed paywall.
 
     return (
         <View style={s.root}>
@@ -261,15 +249,28 @@ export default function PaymentScreen() {
                     ))}
                 </LiquidGlass>
 
-                {/* One plan — the trial terms, stated plainly. Nothing is charged
-                    today; Apple's intro offer converts to the weekly price after
-                    3 days unless they cancel. */}
-                <View style={s.planContainer}>
-                    <View style={[s.planOption, s.planOptionSel, s.planOptionFull]}>
-                        <Text style={s.planName}>Chad · 3 days free</Text>
-                        <Text style={s.planPrice}>{premiumPrice}<Text style={s.planPer}>/wk after</Text></Text>
-                        <Text style={s.planNote}>{perDay ? `${perDay} · ` : ''}cancel anytime before the trial ends</Text>
-                    </View>
+                {/* How the trial works — the day-by-day timeline (the pattern
+                    every high-converting trial paywall uses): it answers "when
+                    am I charged?" before the user has to ask, which is the #1
+                    objection on a free-trial CTA. */}
+                <View style={s.timelineCard}>
+                    <TimelineRow
+                        icon="lock-open-outline"
+                        title="Today — full access"
+                        sub="Everything Chad has, free. Nothing charged."
+                        first
+                    />
+                    <TimelineRow
+                        icon="notifications-outline"
+                        title="Day 2 — reminder"
+                        sub="We'll remind you before your trial ends."
+                    />
+                    <TimelineRow
+                        icon="star-outline"
+                        title={`Day 3 — ${premiumPrice}/wk`}
+                        sub={`${perDay ? `${perDay} · ` : ''}cancel anytime in Settings`}
+                        last
+                    />
                 </View>
 
                 {/* CTA — dark liquid glass (float shadow on the outer wrapper so the
@@ -290,19 +291,9 @@ export default function PaymentScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Continue free — quiet escape hatch under the CTA. Browse-only:
-                    every action re-gates to this screen until they subscribe. */}
-                <TouchableOpacity
-                    style={s.freeLink}
-                    onPress={() => void onContinueFree()}
-                    disabled={ctaBusy}
-                    activeOpacity={0.7}
-                    hitSlop={8}
-                    accessibilityRole="button"
-                    accessibilityLabel="Continue with the free plan"
-                >
-                    <Text style={s.freeLinkText}>Continue with the free plan</Text>
-                </TouchableOpacity>
+                {/* Hard paywall: trial or subscribe — no free tier. The line under
+                    the CTA restates the only thing a hesitant thumb needs to hear. */}
+                <Text style={s.noPaymentNote}>No payment due now</Text>
 
                 {/* Legal footer */}
                 <View style={s.legalRow}>
@@ -321,6 +312,27 @@ export default function PaymentScreen() {
                     )}
                 </View>
 
+            </View>
+        </View>
+    );
+}
+
+/* ── Trial timeline row (Today / Day 2 / Day 3) ────────────────────────── */
+function TimelineRow({ icon, title, sub, first, last }: {
+    icon: React.ComponentProps<typeof Ionicons>['name'];
+    title: string; sub: string; first?: boolean; last?: boolean;
+}) {
+    return (
+        <View style={s.tlRow}>
+            <View style={s.tlRail}>
+                <View style={[s.tlDot, first && s.tlDotFirst]}>
+                    <Ionicons name={icon} size={15} color={first ? WHITE : INK} />
+                </View>
+                {!last ? <View style={s.tlLine} /> : null}
+            </View>
+            <View style={[s.tlBody, last && s.tlBodyLast]}>
+                <Text style={s.tlTitle}>{title}</Text>
+                <Text style={s.tlSub}>{sub}</Text>
             </View>
         </View>
     );
@@ -359,19 +371,37 @@ const s = StyleSheet.create({
         justifyContent: 'center',
     },
 
-    /* continue-free link under the CTA */
-    freeLink: {
+    /* "No payment due now" reassurance under the CTA */
+    noPaymentNote: {
         alignSelf: 'center',
-        paddingVertical: 6,
-        marginTop: 2,
-    },
-    freeLinkText: {
+        marginTop: 10,
         fontFamily: 'Matter-Medium',
         fontSize: 13,
         color: 'rgba(17,17,19,0.55)',
-        textDecorationLine: 'underline',
         letterSpacing: 0.1,
     },
+    /* trial timeline (Today / Day 2 / Day 3) */
+    timelineCard: {
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderRadius: 18,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: HAIR,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+    },
+    tlRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+    tlRail: { alignItems: 'center', width: 30 },
+    tlDot: {
+        width: 30, height: 30, borderRadius: 15,
+        backgroundColor: 'rgba(17,17,19,0.06)',
+        alignItems: 'center', justifyContent: 'center',
+    },
+    tlDotFirst: { backgroundColor: INK },
+    tlLine: { width: 2, flex: 1, minHeight: 12, backgroundColor: 'rgba(17,17,19,0.10)', marginVertical: 2 },
+    tlBody: { flex: 1, paddingBottom: 12 },
+    tlBodyLast: { paddingBottom: 0 },
+    tlTitle: { fontFamily: 'Matter-SemiBold', fontSize: 14.5, color: INK },
+    tlSub: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTED, marginTop: 2, lineHeight: 17 },
 
     content: {
         flex: 1,

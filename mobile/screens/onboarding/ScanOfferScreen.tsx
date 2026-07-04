@@ -37,7 +37,11 @@ export default function ScanOfferScreen() {
         if (checked.current) return;
         checked.current = true;
         void api.getLatestScan()
-            .then((scan) => { if (scan) nav.replace('Onboarding', { phase: 'intro' }); })
+            .then((scan) => {
+                // Only redirect while this screen is still the one on screen —
+                // if the user already tapped Scan/Skip, their choice wins.
+                if (scan && nav.isFocused()) nav.replace('Onboarding', { phase: 'intro' });
+            })
             .catch(() => undefined);
     }, [nav]);
 
