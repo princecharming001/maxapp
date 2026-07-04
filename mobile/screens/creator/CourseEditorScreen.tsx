@@ -16,7 +16,7 @@ import { fonts } from '../../theme/dark';
 
 const INK = '#111113';
 const MUTE = '#6B6B6B';
-const BG = '#F5F5F5';
+const BG = '#F1F1EF';
 const CREAM = '#F1F1EF';
 
 type Lesson = {

@@ -31,6 +31,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
@@ -388,18 +389,38 @@ async def block_user(
     )).first()
     if not exists:
         db.add(CreatorBlock(creator_id=creator.id, blocked_user_id=blocked))
-        # hide their visible comments on this creator's posts
-        await db.execute(
-            CreatorPostComment.__table__.update()
-            .where(
+        # Hide their visible comments on this creator's posts, decrementing each
+        # affected post's comment_count so the badge matches the visible list.
+        hidden = (await db.execute(
+            select(CreatorPostComment).where(
                 (CreatorPostComment.creator_id == creator.id)
                 & (CreatorPostComment.user_id == blocked)
                 & (CreatorPostComment.status == "visible")
             )
-            .values(status="hidden")
-        )
+        )).scalars().all()
+        for c in hidden:
+            c.status = "hidden"
+        _decr = {}
+        for c in hidden:
+            _decr[c.post_id] = _decr.get(c.post_id, 0) + 1
+        for pid, n in _decr.items():
+            post = await db.get(CreatorPost, pid)
+            if post is not None:
+                post.comment_count = max(0, int(post.comment_count or 0) - n)
         await db.commit()
     return {"ok": True}
+
+
+@router.get("/me/blocks")
+async def my_blocks(
+    current_user: dict = Depends(require_creator_user),
+    db: AsyncSession = Depends(get_db),
+):
+    creator = await _require_own_creator(current_user, db)
+    rows = (await db.execute(
+        select(CreatorBlock.blocked_user_id).where(CreatorBlock.creator_id == creator.id)
+    )).scalars().all()
+    return {"blocked_user_ids": [str(x) for x in rows]}
 
 
 @router.delete("/me/blocks/{user_id}")
@@ -409,11 +430,33 @@ async def unblock_user(
     db: AsyncSession = Depends(get_db),
 ):
     creator = await _require_own_creator(current_user, db)
+    try:
+        blocked = UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Bad user id")
     await db.execute(
         CreatorBlock.__table__.delete().where(
-            (CreatorBlock.creator_id == creator.id) & (CreatorBlock.blocked_user_id == UUID(user_id))
+            (CreatorBlock.creator_id == creator.id) & (CreatorBlock.blocked_user_id == blocked)
         )
     )
+    # Restore the comments this block hid (only ones hidden by the block, i.e.
+    # still 'hidden' with no open reports) and re-increment their posts' counts.
+    restored = (await db.execute(
+        select(CreatorPostComment).where(
+            (CreatorPostComment.creator_id == creator.id)
+            & (CreatorPostComment.user_id == blocked)
+            & (CreatorPostComment.status == "hidden")
+            & (CreatorPostComment.report_count == 0)
+        )
+    )).scalars().all()
+    _incr = {}
+    for c in restored:
+        c.status = "visible"
+        _incr[c.post_id] = _incr.get(c.post_id, 0) + 1
+    for pid, n in _incr.items():
+        post = await db.get(CreatorPost, pid)
+        if post is not None:
+            post.comment_count = int(post.comment_count or 0) + n
     await db.commit()
     return {"ok": True}
 
@@ -520,7 +563,14 @@ async def my_stats(
     db: AsyncSession = Depends(get_db),
 ):
     creator = await _require_own_creator(current_user, db)
-    subs = int(creator.subscriber_count or 0)
+    # Compute from the source-of-truth tables so the numbers never drift from a
+    # stale cached counter (subs excludes time-lapsed; posts counts live rows).
+    subs = await creator_service.live_subscriber_count(creator, db)
+    post_count = int((await db.execute(
+        select(func.count()).select_from(CreatorPost).where(
+            (CreatorPost.creator_id == creator.id) & (CreatorPost.status == "published")
+        )
+    )).scalar_one() or 0)
     # Gross monthly, then Apple's ~30% cut → creator's estimated take.
     gross_cents = subs * int(creator.price_cents or 0)
     creator_cents = int(round(gross_cents * 0.70))
@@ -539,7 +589,7 @@ async def my_stats(
         "total_likes": int(agg[0]),
         "total_comments": int(agg[1]),
         "total_views": int(agg[2]),
-        "post_count": int(creator.post_count or 0),
+        "post_count": post_count,
         "apple_review_status": creator.apple_review_status,
         "status": creator.status,
     }
@@ -599,6 +649,10 @@ async def creator_feed(
     creator = await creator_service.get_creator_by_maxx(maxx_id, db)
     if creator is None:
         raise HTTPException(status_code=404, detail="Not a creator max")
+    is_owner = str(creator.user_id) == current_user["id"]
+    # A taken-down creator's paid content is gone for everyone but the owner/admin.
+    if creator.status == "takedown" and not (is_owner or current_user.get("is_admin")):
+        raise HTTPException(status_code=404, detail="This max is unavailable.")
     access = await creator_service.has_creator_access(current_user["id"], creator, db)
     q = (
         select(CreatorPost).where(
@@ -615,7 +669,9 @@ async def creator_feed(
     )).scalar_one() or 0
     liked = await _liked_post_ids(current_user["id"], [p.id for p in rows], db) if access else set()
     posts = [_post_dict(p, locked=not access, liked=str(p.id) in liked) for p in rows]
-    return {"posts": posts, "total": int(total), "has_access": access, "creator": creator_service.creator_public_dict(creator)}
+    creator_dict = creator_service.creator_public_dict(creator)
+    creator_dict["is_owner"] = is_owner  # client shows "Open Studio" vs subscribe
+    return {"posts": posts, "total": int(total), "has_access": access, "creator": creator_dict}
 
 
 @router.post(
@@ -636,7 +692,12 @@ async def like_post(
     if not exists:
         db.add(CreatorPostLike(post_id=post.id, user_id=UUID(current_user["id"])))
         post.like_count = int(post.like_count or 0) + 1
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Concurrent double-tap raced the uniqueness constraint — the like
+            # already landed; return idempotently instead of 500ing.
+            await db.rollback()
     return {"ok": True, "like_count": int(post.like_count or 0)}
 
 
@@ -736,10 +797,21 @@ async def delete_comment(
     is_author = str(comment.user_id) == current_user["id"]
     if not (is_author or is_owner_creator or current_user.get("is_admin")):
         raise HTTPException(status_code=403, detail="Not allowed")
+    was_visible = comment.status == "visible"
     comment.status = "removed"
-    post = await db.get(CreatorPost, comment.post_id)
-    if post is not None:
-        post.comment_count = max(0, int(post.comment_count or 0) - 1)
+    # Only decrement if it was still counted (visible) — a hidden/auto-hidden
+    # comment already had its count removed, so don't double-decrement.
+    if was_visible:
+        post = await db.get(CreatorPost, comment.post_id)
+        if post is not None:
+            post.comment_count = max(0, int(post.comment_count or 0) - 1)
+    # Clear any open reports so a self/creator-deleted comment leaves the admin
+    # moderation queue.
+    await db.execute(
+        CreatorCommentReport.__table__.update()
+        .where((CreatorCommentReport.comment_id == comment.id) & (CreatorCommentReport.status == "open"))
+        .values(status="resolved")
+    )
     await db.commit()
     return {"ok": True}
 
@@ -842,6 +914,19 @@ async def verify_creator_subscription(
         except Exception as e:
             logger.warning("creator apple verify failed: %s", e)
             raise HTTPException(status_code=401, detail="Could not verify purchase.")
+        # CRITICAL: bind the ENTITLEMENT SCOPE to the verified receipt, not the URL.
+        # Without this, a user who bought creator A's SKU could replay that
+        # transaction against creator B's verify endpoint and unlock B for free
+        # (validate_claims_for_user only checks bundleId + appAccountToken). The
+        # purchased productId MUST match the creator being subscribed to — the
+        # same binding the ASN webhook does (resolve creator BY product id).
+        claim_product = str(claims.get("productId") or "")
+        if claim_product != (creator.apple_product_id or ""):
+            logger.warning(
+                "creator verify product mismatch: bought %s, requested %s",
+                claim_product, creator.apple_product_id,
+            )
+            raise HTTPException(status_code=400, detail="This purchase is for a different creator.")
         if not subscription_active_from_claims(claims):
             await creator_service.deactivate_creator_subscription(
                 user_id=current_user["id"], creator=creator, db=db, status="expired"
@@ -880,6 +965,9 @@ async def dev_activate_creator_subscription(
     so the full loop is testable on the simulator. Mirrors /payments/test-activate."""
     if settings.is_production:
         raise HTTPException(status_code=403, detail="Only available in development mode")
+    # Mirror the real verify path: creator subs are an add-on to Chad.
+    if not current_user.get("is_paid", False):
+        raise HTTPException(status_code=402, detail="A Chad subscription is required first.")
     creator = await creator_service.get_creator_by_maxx(maxx_id, db)
     if creator is None:
         raise HTTPException(status_code=404, detail="Not a creator max")
@@ -914,10 +1002,13 @@ async def _accessible_post(
         raise HTTPException(status_code=404, detail="Post not found")
     if not await creator_service.has_creator_access(user_id, creator, db):
         raise HTTPException(status_code=403, detail="Subscribe to interact.")
-    if require_sub and str(creator.user_id) != user_id and not (
-        await creator_service.active_subscription(user_id, str(creator.id), db)
-    ):
-        raise HTTPException(status_code=403, detail="Subscribe to comment.")
+    if require_sub:
+        u = await db.get(User, UUID(str(user_id)))
+        is_privileged = str(creator.user_id) == user_id or (u is not None and getattr(u, "is_admin", False))
+        if not is_privileged and not (
+            await creator_service.active_subscription(user_id, str(creator.id), db)
+        ):
+            raise HTTPException(status_code=403, detail="Subscribe to comment.")
     return post
 
 

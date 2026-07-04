@@ -569,10 +569,14 @@ async def admin_remove_creator_comment(
     )).scalar_one_or_none()
     if comment is None:
         raise HTTPException(status_code=404, detail="Comment not found")
+    # Only decrement if it was still counted (visible) — an auto-hidden comment
+    # already had its count removed, so don't double-decrement.
+    was_visible = comment.status == "visible"
     comment.status = "removed"
-    post = await db.get(_CreatorPost, comment.post_id)
-    if post is not None:
-        post.comment_count = max(0, int(post.comment_count or 0) - 1)
+    if was_visible:
+        post = await db.get(_CreatorPost, comment.post_id)
+        if post is not None:
+            post.comment_count = max(0, int(post.comment_count or 0) - 1)
     await db.execute(
         _CreatorCommentReport.__table__.update()
         .where(_CreatorCommentReport.comment_id == comment.id)
@@ -596,6 +600,10 @@ async def admin_keep_creator_comment(
         raise HTTPException(status_code=404, detail="Comment not found")
     if comment.status == "hidden":
         comment.status = "visible"
+        # Auto-hide decremented the count; restoring re-adds it.
+        post = await db.get(_CreatorPost, comment.post_id)
+        if post is not None:
+            post.comment_count = int(post.comment_count or 0) + 1
     comment.report_count = 0
     await db.execute(
         _CreatorCommentReport.__table__.update()

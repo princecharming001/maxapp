@@ -69,10 +69,13 @@ def _supabase_connect_args() -> dict:
     if not through_pooler:
         server_settings["search_path"] = "public,extensions"
 
+    # A local Postgres (localhost dev / CI) usually isn't configured for TLS, so
+    # requiring SSL there fails the connection. Supabase always needs it.
+    is_local = host in {"", "localhost", "127.0.0.1", "::1"}
     args: dict = {
         "timeout": 10,
         "command_timeout": 15,
-        "ssl": "require",
+        "ssl": False if is_local else "require",
         "server_settings": server_settings,
     }
     if through_pooler:

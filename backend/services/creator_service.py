@@ -323,6 +323,9 @@ async def activate_creator_subscription(
         user.updated_at = datetime.utcnow()
 
     if not was_active:
+        # Flush the just-added row first so the COUNT sees it (else the new
+        # subscriber is undercounted by one).
+        await db.flush()
         await _recount_subscribers(creator, db)
     return sub
 
@@ -344,25 +347,50 @@ async def deactivate_creator_subscription(
     sub.auto_renew = False
     sub.updated_at = datetime.utcnow()
     if was_active:
+        await db.flush()
         await _recount_subscribers(creator, db)
 
 
 async def _recount_subscribers(creator: Creator, db: AsyncSession) -> None:
+    # Count only subscriptions that are BOTH marked active AND not past their
+    # expiry (a sub can lapse purely by time with no ASN yet) so the count and
+    # the earnings estimate match effective access (has_creator_access/_sub_active).
+    now = datetime.now(timezone.utc)
     n = (await db.execute(
         select(func.count()).select_from(CreatorSubscription).where(
             (CreatorSubscription.creator_id == creator.id)
             & (CreatorSubscription.status == "active")
+            & ((CreatorSubscription.expires_at.is_(None)) | (CreatorSubscription.expires_at > now))
         )
     )).scalar_one() or 0
     creator.subscriber_count = int(n)
     creator.updated_at = datetime.utcnow()
 
 
+async def live_subscriber_count(creator: Creator, db: AsyncSession) -> int:
+    """Authoritative active-subscriber count (excludes time-lapsed subs). Used by
+    the stats endpoint so the displayed number never drifts from real access."""
+    now = datetime.now(timezone.utc)
+    return int((await db.execute(
+        select(func.count()).select_from(CreatorSubscription).where(
+            (CreatorSubscription.creator_id == creator.id)
+            & (CreatorSubscription.status == "active")
+            & ((CreatorSubscription.expires_at.is_(None)) | (CreatorSubscription.expires_at > now))
+        )
+    )).scalar_one() or 0)
+
+
 # ── Moderation ─────────────────────────────────────────────────────────────
 async def maybe_auto_hide_comment(comment: CreatorPostComment, db: AsyncSession) -> bool:
-    """Hide a comment once it crosses the report threshold. Returns True if hidden."""
+    """Hide a comment once it crosses the report threshold. Decrements the post's
+    comment_count so the badge stays consistent with the visible-only list.
+    Returns True if hidden."""
     if comment.status == "visible" and (comment.report_count or 0) >= AUTO_HIDE_REPORTS:
         comment.status = "hidden"
+        from models.sqlalchemy_models import CreatorPost
+        post = await db.get(CreatorPost, comment.post_id)
+        if post is not None:
+            post.comment_count = max(0, int(post.comment_count or 0) - 1)
         return True
     return False
 

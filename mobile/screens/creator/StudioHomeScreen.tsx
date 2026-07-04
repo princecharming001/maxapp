@@ -17,7 +17,7 @@ import { fonts } from '../../theme/dark';
 
 const INK = '#111113';
 const MUTE = '#6B6B6B';
-const BG = '#F5F5F5';
+const BG = '#F1F1EF';
 const GOLD = '#B8860B';
 
 function money(cents: number): string {
@@ -112,7 +112,12 @@ export default function StudioHomeScreen() {
                         <Ionicons name="settings-outline" size={20} color={accent} />
                         <Text style={s.linkText}>Settings</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={s.linkCard} onPress={() => nav.navigate('CreatorFeed', { maxxId: creator?.maxx_id })} activeOpacity={0.85}>
+                    <TouchableOpacity
+                        style={[s.linkCard, !creator?.maxx_id && { opacity: 0.4 }]}
+                        disabled={!creator?.maxx_id}
+                        onPress={() => creator?.maxx_id && nav.navigate('CreatorFeed', { maxxId: creator.maxx_id })}
+                        activeOpacity={0.85}
+                    >
                         <Ionicons name="eye-outline" size={20} color={accent} />
                         <Text style={s.linkText}>Preview</Text>
                     </TouchableOpacity>

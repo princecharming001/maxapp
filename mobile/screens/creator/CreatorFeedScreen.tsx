@@ -20,7 +20,7 @@ import CommentSheet from '../../components/creator/CommentSheet';
 
 const INK = '#111113';
 const MUTE = '#6B6B6B';
-const BG = '#F5F5F5';
+const BG = '#F1F1EF';
 
 export default function CreatorFeedScreen() {
     const nav = useNavigation<any>();
@@ -50,13 +50,17 @@ export default function CreatorFeedScreen() {
     const accent = creator?.accent_color || '#BC7A3C';
 
     const onLike = async (p: CreatorPost) => {
-        // optimistic
-        setPosts((prev) => prev.map((x) => x.id === p.id
-            ? { ...x, liked: !x.liked, like_count: x.like_count + (x.liked ? -1 : 1) }
-            : x));
+        // Optimistic, driven by the CURRENT row state (not the captured p) so
+        // rapid double-taps stay consistent; count clamped at 0.
+        let willLike = false;
+        setPosts((prev) => prev.map((x) => {
+            if (x.id !== p.id) return x;
+            willLike = !x.liked;
+            return { ...x, liked: willLike, like_count: Math.max(0, x.like_count + (willLike ? 1 : -1)) };
+        }));
         try {
-            if (p.liked) await api.unlikeCreatorPost(p.id);
-            else await api.likeCreatorPost(p.id);
+            if (willLike) await api.likeCreatorPost(p.id);
+            else await api.unlikeCreatorPost(p.id);
         } catch {
             void load(); // reconcile on failure
         }

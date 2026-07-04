@@ -95,15 +95,28 @@ def test_sub_active_naive_datetime_is_treated_utc():
 
 
 # ── comment auto-hide threshold ─────────────────────────────────────────────
-def test_auto_hide_at_threshold():
+class _FakeDB:
+    """Minimal async session stub: get() returns a post whose comment_count we
+    can assert decremented (the post-count consistency invariant)."""
+    def __init__(self, post=None):
+        self._post = post
+    async def get(self, model, pk):
+        return self._post
+
+
+def test_auto_hide_at_threshold_hides_and_decrements():
+    post = CreatorPost(comment_count=3)
     c = CreatorPostComment(body="x", status="visible", report_count=cs.AUTO_HIDE_REPORTS)
-    hidden = asyncio.get_event_loop().run_until_complete(cs.maybe_auto_hide_comment(c, None))
+    c.post_id = None
+    hidden = asyncio.get_event_loop().run_until_complete(cs.maybe_auto_hide_comment(c, _FakeDB(post)))
     assert hidden is True and c.status == "hidden"
+    assert post.comment_count == 2  # decremented so the badge matches the visible list
 
 
 def test_no_auto_hide_below_threshold():
     c = CreatorPostComment(body="x", status="visible", report_count=cs.AUTO_HIDE_REPORTS - 1)
-    hidden = asyncio.get_event_loop().run_until_complete(cs.maybe_auto_hide_comment(c, None))
+    c.post_id = None
+    hidden = asyncio.get_event_loop().run_until_complete(cs.maybe_auto_hide_comment(c, _FakeDB(None)))
     assert hidden is False and c.status == "visible"
 
 

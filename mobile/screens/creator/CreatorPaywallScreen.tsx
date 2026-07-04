@@ -20,7 +20,7 @@ import { hexA } from '../../utils/scheduleAggregation';
 
 const INK = '#111113';
 const MUTE = '#6B6B6B';
-const BG = '#F5F5F5';
+const BG = '#F1F1EF';
 const SHOW_DEV = __DEV__;
 
 const BENEFITS = [
@@ -49,7 +49,7 @@ export default function CreatorPaywallScreen() {
     const price = creator ? `$${((creator.price_cents || 0) / 100).toFixed(2)}` : '';
 
     const subscribe = async () => {
-        if (busy) return;
+        if (busy || !creator) return;
         // Chad base sub is required underneath.
         if (!isPaid) {
             Alert.alert('Chad required', 'Creator subscriptions are an add-on to Chad. Start Chad first.', [
@@ -113,7 +113,7 @@ export default function CreatorPaywallScreen() {
                     <Text style={s.priceNote}>Cancel anytime · billed on top of Chad</Text>
                 </View>
 
-                <TouchableOpacity style={[s.cta, { backgroundColor: accent }]} onPress={subscribe} disabled={busy} activeOpacity={0.9}>
+                <TouchableOpacity style={[s.cta, { backgroundColor: accent }, (busy || !creator) && { opacity: 0.5 }]} onPress={subscribe} disabled={busy || !creator} activeOpacity={0.9}>
                     {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.ctaText}>Start subscription</Text>}
                 </TouchableOpacity>
                 {SHOW_DEV ? <Text style={s.devNote}>DEV: activates instantly (no Apple)</Text> : null}
