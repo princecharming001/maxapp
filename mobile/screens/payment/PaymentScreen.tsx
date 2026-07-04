@@ -199,15 +199,17 @@ export default function PaymentScreen() {
                 style={StyleSheet.absoluteFill}
             />
 
-            {/* ── Skip (DEV-only — real users can't bypass the paywall) ── */}
+            {/* ── Skip payment (DEV-only — sim testing; real users can't bypass
+                the paywall). Continues the funnel WITHOUT purchasing: mid-funnel
+                → Save-your-results → schedule questions; gate context → back. ── */}
             {SHOW_DEV_BYPASS && (
                 <TouchableOpacity
                     style={[s.skip, { top: Math.max(insets.top + 8, 52) }]}
-                    onPress={() => navigation.goBack()}
+                    onPress={afterPurchase}
                     activeOpacity={0.7}
                     hitSlop={12}
                 >
-                    <Text style={s.skipText}>Skip</Text>
+                    <Text style={s.skipText}>Skip payment</Text>
                 </TouchableOpacity>
             )}
 
