@@ -418,3 +418,216 @@ async def delete_partner_rule(
     await db.commit()
     invalidate_cache()
     return {"message": "deleted"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Creator platform — approvals, provisioning & moderation
+# ═══════════════════════════════════════════════════════════════════════════
+from models.sqlalchemy_models import (
+    CreatorApplication as _CreatorApplication,
+    Creator as _Creator,
+    CreatorPostComment as _CreatorPostComment,
+    CreatorCommentReport as _CreatorCommentReport,
+    CreatorPost as _CreatorPost,
+)
+from services import creator_service as _creator_service
+
+
+@router.get("/creator-applications")
+async def admin_list_creator_applications(
+    status_filter: str = Query("pending"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Pending (default) creator applications for review."""
+    q = select(_CreatorApplication)
+    if status_filter in ("pending", "approved", "rejected"):
+        q = q.where(_CreatorApplication.status == status_filter)
+    q = q.order_by(_CreatorApplication.created_at.desc()).offset(skip).limit(limit)
+    rows = (await db.execute(q)).scalars().all()
+    uids = list({r.user_id for r in rows})
+    users = {u.id: u for u in (await db.execute(select(User).where(User.id.in_(uids)))).scalars().all()} if uids else {}
+    out = []
+    for r in rows:
+        u = users.get(r.user_id)
+        out.append({
+            "id": str(r.id),
+            "user_id": str(r.user_id),
+            "user_email": u.email if u else None,
+            "applicant_name": r.applicant_name,
+            "max_name": r.max_name,
+            "max_description": r.max_description,
+            "instagram_handle": r.instagram_handle,
+            "tiktok_handle": r.tiktok_handle,
+            "social_stats": r.social_stats or {},
+            "status": r.status,
+            "created_at": r.created_at,
+        })
+    return {"applications": out, "skip": skip, "limit": limit}
+
+
+class _ApproveBody(BaseModel):
+    tier: str = "t1"
+
+
+@router.post("/creator-applications/{application_id}/approve")
+async def admin_approve_creator_application(
+    application_id: str,
+    body: _ApproveBody,
+    admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Approve → provision: mint the max, create the Creator, flip is_creator,
+    register the catalog doc. Idempotent."""
+    app_row = (await db.execute(
+        select(_CreatorApplication).where(_CreatorApplication.id == UUID(application_id))
+    )).scalar_one_or_none()
+    if app_row is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+    tier = body.tier if body.tier in _creator_service.PRICE_TIERS else "t1"
+    creator = await _creator_service.provision_creator_from_application(app_row, db, tier=tier)
+    app_row.status = "approved"
+    app_row.updated_at = datetime.utcnow()
+    await db.commit()
+    return {"ok": True, "creator": _creator_service.creator_private_dict(creator)}
+
+
+class _RejectBody(BaseModel):
+    notes: Optional[str] = None
+
+
+@router.post("/creator-applications/{application_id}/reject")
+async def admin_reject_creator_application(
+    application_id: str,
+    body: _RejectBody,
+    admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    app_row = (await db.execute(
+        select(_CreatorApplication).where(_CreatorApplication.id == UUID(application_id))
+    )).scalar_one_or_none()
+    if app_row is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+    app_row.status = "rejected"
+    app_row.review_notes = body.notes
+    app_row.updated_at = datetime.utcnow()
+    await db.commit()
+    return {"ok": True}
+
+
+@router.get("/creator-comment-reports")
+async def admin_list_creator_comment_reports(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Open creator-comment reports (UGC moderation queue, Guideline 1.2)."""
+    total = (await db.execute(
+        select(func.count(_CreatorCommentReport.id)).where(_CreatorCommentReport.status == "open")
+    )).scalar() or 0
+    rows = (await db.execute(
+        select(_CreatorCommentReport).where(_CreatorCommentReport.status == "open")
+        .order_by(_CreatorCommentReport.created_at.desc()).offset(skip).limit(limit)
+    )).scalars().all()
+    cids = list({r.comment_id for r in rows})
+    comments = {c.id: c for c in (await db.execute(
+        select(_CreatorPostComment).where(_CreatorPostComment.id.in_(cids))
+    )).scalars().all()} if cids else {}
+    uids = list({r.reporter_user_id for r in rows} | {c.user_id for c in comments.values()})
+    users = {u.id: u for u in (await db.execute(select(User).where(User.id.in_(uids)))).scalars().all()} if uids else {}
+    out = []
+    for r in rows:
+        c = comments.get(r.comment_id)
+        rep = users.get(r.reporter_user_id)
+        author = users.get(c.user_id) if c else None
+        out.append({
+            "id": str(r.id),
+            "created_at": r.created_at,
+            "reason": r.reason or "",
+            "comment_id": str(r.comment_id),
+            "comment_body": (c.body[:500] if c else None),
+            "comment_status": c.status if c else None,
+            "author_email": author.email if author else None,
+            "reporter_email": rep.email if rep else None,
+        })
+    return {"total": total, "reports": out, "skip": skip, "limit": limit}
+
+
+@router.post("/creator-comments/{comment_id}/remove")
+async def admin_remove_creator_comment(
+    comment_id: str,
+    admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Uphold reports: remove the comment, resolve its reports, strike the creator's
+    account is NOT struck for a user comment — only the comment is removed."""
+    comment = (await db.execute(
+        select(_CreatorPostComment).where(_CreatorPostComment.id == UUID(comment_id))
+    )).scalar_one_or_none()
+    if comment is None:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    comment.status = "removed"
+    post = await db.get(_CreatorPost, comment.post_id)
+    if post is not None:
+        post.comment_count = max(0, int(post.comment_count or 0) - 1)
+    await db.execute(
+        _CreatorCommentReport.__table__.update()
+        .where(_CreatorCommentReport.comment_id == comment.id)
+        .values(status="resolved")
+    )
+    await db.commit()
+    return {"ok": True}
+
+
+@router.post("/creator-comments/{comment_id}/keep")
+async def admin_keep_creator_comment(
+    comment_id: str,
+    admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Dismiss reports: restore the comment to visible + clear its report count."""
+    comment = (await db.execute(
+        select(_CreatorPostComment).where(_CreatorPostComment.id == UUID(comment_id))
+    )).scalar_one_or_none()
+    if comment is None:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    if comment.status == "hidden":
+        comment.status = "visible"
+    comment.report_count = 0
+    await db.execute(
+        _CreatorCommentReport.__table__.update()
+        .where(_CreatorCommentReport.comment_id == comment.id)
+        .values(status="dismissed")
+    )
+    await db.commit()
+    return {"ok": True}
+
+
+class _CreatorStatusBody(BaseModel):
+    status: str  # live | paused | takedown
+
+
+@router.post("/creators/{creator_id}/status")
+async def admin_set_creator_status(
+    creator_id: str,
+    body: _CreatorStatusBody,
+    admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Pause / take down / re-list a creator; approve their Apple SKU review."""
+    creator = (await db.execute(
+        select(_Creator).where(_Creator.id == UUID(creator_id))
+    )).scalar_one_or_none()
+    if creator is None:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    if body.status not in ("live", "paused", "takedown", "onboarding"):
+        raise HTTPException(status_code=422, detail="Bad status")
+    creator.status = body.status
+    if body.status == "live":
+        creator.apple_review_status = "approved"
+    creator.updated_at = datetime.utcnow()
+    await db.commit()
+    return {"ok": True, "creator": _creator_service.creator_private_dict(creator)}

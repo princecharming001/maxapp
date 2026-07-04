@@ -28,7 +28,7 @@ from models.payment import (
     ChangeTierResponse,
     ResumeSubscriptionResponse,
 )
-from models.sqlalchemy_models import User, Scan
+from models.sqlalchemy_models import User, Scan, Creator, CreatorSubscription
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -596,6 +596,20 @@ async def apple_server_notifications(
         logger.info("ASN %s: no user resolved (original=%s)", ntype, original_id)
         return {"status": "ok"}
 
+    # Route per-creator subscription products to the creator entitlement path —
+    # they must NEVER touch the base Chad subscription (_activate/_deactivate_user).
+    product_id = str(txn_inner.get("productId") or "")
+    if product_id.startswith("com.cannon.creator."):
+        try:
+            await _handle_creator_asn(
+                ntype=ntype, product_id=product_id, user_id=user_id_str,
+                txn_id=txn_id, original_id=original_id, txn_inner=txn_inner,
+                authenticated_via_secret=authenticated_via_secret, db=db,
+            )
+        except Exception:
+            logger.exception("creator ASN handler error")
+        return {"status": "ok"}
+
     try:
         if ntype in ("REFUND", "REVOKE", "EXPIRED"):
             u = await db.get(User, UUID(user_id_str))
@@ -645,6 +659,71 @@ async def apple_server_notifications(
         logger.exception("ASN handler error: %s", e)
 
     return {"status": "ok"}
+
+
+async def _handle_creator_asn(
+    *, ntype: str, product_id: str, user_id: str, txn_id: Optional[str],
+    original_id: str, txn_inner: dict, authenticated_via_secret: bool, db: AsyncSession,
+) -> None:
+    """ASN lifecycle for a per-creator subscription product. Resolves the creator
+    by its Apple product id and activates/deactivates the creator sub only."""
+    from services import apple_iap_service as apple
+    from services import creator_service
+
+    creator = (await db.execute(
+        select(Creator).where(Creator.apple_product_id == product_id)
+    )).scalar_one_or_none()
+    if creator is None:
+        logger.info("creator ASN: no creator for product %s", product_id)
+        return
+
+    if ntype in ("REFUND", "REVOKE", "EXPIRED"):
+        await creator_service.deactivate_creator_subscription(
+            user_id=user_id, creator=creator, db=db, status="expired",
+        )
+        await db.commit()
+        return
+
+    if ntype in ("SUBSCRIBED", "DID_RENEW", "INITIAL_BUY",
+                 "DID_CHANGE_RENEWAL_PREF", "DID_CHANGE_RENEWAL_STATUS"):
+        expires = None
+        claims = None
+        if txn_id and apple.apple_iap_configured():
+            try:
+                claims = await apple.fetch_transaction_claims(txn_id)
+                apple.validate_claims_for_user(claims, user_id)
+            except Exception as e:
+                logger.warning("creator ASN trusted fetch failed: %s", e)
+                claims = None
+        if claims is None and authenticated_via_secret:
+            claims = txn_inner  # inner JWS trusted only when request carried the shared secret
+        if claims is None:
+            return  # not verifiable — grant nothing
+        if not apple.subscription_active_from_claims(claims):
+            await creator_service.deactivate_creator_subscription(
+                user_id=user_id, creator=creator, db=db, status="expired",
+            )
+            await db.commit()
+            return
+        expires = apple.expires_datetime_from_claims(claims)
+        await creator_service.activate_creator_subscription(
+            user_id=user_id, creator=creator, product_id=product_id,
+            original_transaction_id=original_id or txn_id, provider="apple",
+            expires_at=expires, db=db,
+        )
+        await db.commit()
+        return
+
+    if ntype == "DID_FAIL_TO_RENEW":
+        sub = (await db.execute(
+            select(CreatorSubscription).where(
+                (CreatorSubscription.user_id == UUID(user_id))
+                & (CreatorSubscription.creator_id == creator.id)
+            )
+        )).scalar_one_or_none()
+        if sub is not None:
+            sub.status = "past_due"
+            await db.commit()
 
 
 # ------------------------------------------------------------------

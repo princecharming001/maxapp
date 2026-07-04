@@ -99,6 +99,7 @@ def _user_dict(user: User) -> dict:
         "is_entitled": is_entitled,
         "is_admin": user.is_admin,
         "is_scan_user": user.is_scan_user,
+        "is_creator": bool(getattr(user, "is_creator", False)),
         "subscription_tier": user.subscription_tier,
         "subscription_status": user.subscription_status,
         "subscription_id": user.subscription_id,
@@ -151,6 +152,19 @@ async def get_current_admin_user(current_user: dict = Depends(get_current_user))
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
+        )
+    return current_user
+
+
+async def require_creator_user(current_user: dict = Depends(get_current_user)) -> dict:
+    """Verify the user is an approved creator (gates the /creators/me studio API).
+    Admins are always allowed so support can act on a creator's behalf."""
+    if current_user.get("is_admin", False):
+        return current_user
+    if not current_user.get("is_creator", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Creator access required",
         )
     return current_user
 

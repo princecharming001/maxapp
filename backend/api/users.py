@@ -199,6 +199,7 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
         first_scan_completed=current_user.get("first_scan_completed", False),
         is_admin=current_user.get("is_admin", False),
         is_scan_user=current_user.get("is_scan_user", False),
+        is_creator=current_user.get("is_creator", False),
         phone_number=current_user.get("phone_number"),
         has_apns_token=current_user.get("has_apns_token", False),
         coaching_tone=current_user.get("coaching_tone") or "default",

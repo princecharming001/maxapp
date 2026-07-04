@@ -238,6 +238,10 @@ async def _run_app_users_column_migrations():
         # request that loads a user (login, /me, chat, scans — the whole app).
         "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS referred_by_code_id UUID",
         "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS referral_source VARCHAR",
+        # Creator platform: gates the Creator Studio. SELECTed on every user load
+        # via _user_dict, so a missing column would 500 the whole app — always
+        # ship the ALTER when adding a User column (schema-drift rule).
+        "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS is_creator BOOLEAN DEFAULT FALSE",
     ]
     try:
         async with engine.begin() as conn:

@@ -56,6 +56,9 @@ class User(Base):
     is_paid = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)
     is_scan_user = Column(Boolean, default=False)
+    # Creator platform: True once a creator_application is approved + provisioned.
+    # Gates the Creator Studio (own tab/stack) + the /creators/me endpoints.
+    is_creator = Column(Boolean, default=False)
     subscription_tier = Column(String, default=None)  # null (free), 'basic', 'premium'
     subscription_status = Column(String)
     subscription_id = Column(String)
@@ -1049,4 +1052,220 @@ class CreatorApplication(Base):
         Index("idx_creator_apps_status", status),
         # Fast lookup for the "is this max already claimed?" gate.
         Index("idx_creator_apps_maxnorm_status", max_name_normalized, status),
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Creator platform
+#  A creator owns exactly one max (minted from their approved application).
+#  They post video/text UPDATES to enrolled users, edit their COURSE lessons,
+#  and users subscribe monthly (per-creator, on top of the Chad base sub).
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class Creator(Base):
+    """A creator's owned max. One row per approved creator (1:1 user, 1:1 maxx)."""
+    __tablename__ = "creators"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    # The max this creator owns — matches a doc in the catalog + entered_maxxes.
+    maxx_id = Column(String, nullable=False, unique=True)
+
+    display_name = Column(String, nullable=False)      # "Clay"
+    handle = Column(String, nullable=False, unique=True)  # "clay" (normalized, no @)
+    bio = Column(Text, default="")
+    tagline = Column(String, default="")
+    avatar_url = Column(String, nullable=True)
+    accent_color = Column(String, default="#BC7A3C")   # hex; drives the max's UI tint
+    icon = Column(String, default="star-outline")       # Ionicons name
+    socials = Column(JSON, default=dict)                # {instagram, tiktok, youtube}
+    verified = Column(Boolean, default=False)
+
+    # Monetization. price_tier is a fixed ladder key ("free"|"t1".."t4"); the
+    # apple_product_id is the auto-renewable SKU minted in App Store Connect for
+    # this creator (own subscription group — Apple subs in one group are
+    # mutually exclusive, so each creator needs their own). apple_review_status
+    # tracks the SKU through Apple review before it can be listed for sale.
+    price_tier = Column(String, default="t1")           # free | t1 | t2 | t3 | t4
+    price_cents = Column(Integer, default=999)          # cached display price
+    apple_product_id = Column(String, nullable=True)    # com.cannon.creator.<maxx>.monthly
+    stripe_price_id = Column(String, nullable=True)     # web/Android fallback
+    apple_review_status = Column(String, default="none")  # none|pending|approved|rejected
+
+    # onboarding: profile being filled · pending_review: SKU in Apple review ·
+    # live: listed + sellable · paused: hidden (creator or admin) · takedown: banned
+    status = Column(String, default="onboarding", nullable=False)
+    strikes = Column(Integer, default=0)                # 2 → auto-pause
+
+    # Cached counters (kept fresh on write; source of truth is the child tables).
+    subscriber_count = Column(Integer, default=0)
+    post_count = Column(Integer, default=0)
+    course_version = Column(Integer, default=1)         # bump on lesson publish → clients refetch
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_creators_maxx", maxx_id),
+        Index("idx_creators_status", status),
+    )
+
+
+class CreatorPost(Base):
+    """A single update in a creator's feed — video or text."""
+    __tablename__ = "creator_posts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    creator_id = Column(UUID(as_uuid=True), ForeignKey("creators.id", ondelete="CASCADE"), nullable=False)
+    maxx_id = Column(String, nullable=False)            # denormalized for feed queries
+
+    type = Column(String, nullable=False, default="text")  # video | text
+    body = Column(Text, default="")                     # caption (video) or the text post
+    video_url = Column(String, nullable=True)
+    poster_url = Column(String, nullable=True)
+    duration_s = Column(Integer, nullable=True)
+
+    pinned = Column(Boolean, default=False)
+    # published | removed (creator/admin takedown) | processing (upload in flight)
+    status = Column(String, default="published", nullable=False)
+
+    like_count = Column(Integer, default=0)
+    comment_count = Column(Integer, default=0)
+    view_count = Column(Integer, default=0)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        # Feed query: newest published posts for a max, pinned first.
+        Index("idx_creator_posts_feed", maxx_id, status, created_at.desc()),
+        Index("idx_creator_posts_creator", creator_id, created_at.desc()),
+    )
+
+
+class CreatorPostLike(Base):
+    """One like per (post, user)."""
+    __tablename__ = "creator_post_likes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    post_id = Column(UUID(as_uuid=True), ForeignKey("creator_posts.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("post_id", "user_id", name="uq_creator_post_like"),
+        Index("idx_creator_post_likes_post", post_id),
+    )
+
+
+class CreatorPostComment(Base):
+    """A user comment under a creator post."""
+    __tablename__ = "creator_post_comments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    post_id = Column(UUID(as_uuid=True), ForeignKey("creator_posts.id", ondelete="CASCADE"), nullable=False)
+    creator_id = Column(UUID(as_uuid=True), ForeignKey("creators.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+
+    body = Column(Text, nullable=False)                 # ≤ 1000 chars, enforced in API
+    pinned = Column(Boolean, default=False)             # creator can pin one
+    # visible | hidden (auto-hidden by reports, pending admin) | removed (creator/admin)
+    status = Column(String, default="visible", nullable=False)
+    report_count = Column(Integer, default=0)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_creator_comments_post", post_id, created_at.desc()),
+        Index("idx_creator_comments_creator_status", creator_id, status),
+    )
+
+
+class CreatorCommentReport(Base):
+    """A user report of a comment — deduped per (comment, reporter)."""
+    __tablename__ = "creator_comment_reports"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    comment_id = Column(UUID(as_uuid=True), ForeignKey("creator_post_comments.id", ondelete="CASCADE"), nullable=False)
+    creator_id = Column(UUID(as_uuid=True), ForeignKey("creators.id", ondelete="CASCADE"), nullable=False)
+    reporter_user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+    reason = Column(String, default="")
+    status = Column(String, default="open", nullable=False)  # open | resolved | dismissed
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("comment_id", "reporter_user_id", name="uq_creator_comment_report"),
+        Index("idx_creator_comment_reports_status", status, created_at.desc()),
+    )
+
+
+class CreatorBlock(Base):
+    """A creator blocking a user from commenting on their posts."""
+    __tablename__ = "creator_blocks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    creator_id = Column(UUID(as_uuid=True), ForeignKey("creators.id", ondelete="CASCADE"), nullable=False)
+    blocked_user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("creator_id", "blocked_user_id", name="uq_creator_block"),
+    )
+
+
+class CreatorSubscription(Base):
+    """A user's monthly subscription to ONE creator (add-on over the Chad base
+    sub). Mirrors the main sub's ASN lifecycle, keyed by originalTransactionId."""
+    __tablename__ = "creator_subscriptions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+    creator_id = Column(UUID(as_uuid=True), ForeignKey("creators.id", ondelete="CASCADE"), nullable=False)
+    maxx_id = Column(String, nullable=False)
+
+    apple_product_id = Column(String, nullable=True)
+    original_transaction_id = Column(String, nullable=True)  # Apple stable sub id
+    billing_provider = Column(String, default="apple")       # apple | stripe | dev
+    status = Column(String, default="active", nullable=False)  # active | expired | canceled | past_due
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    auto_renew = Column(Boolean, default=True)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        # A user has at most one live sub row per creator.
+        UniqueConstraint("user_id", "creator_id", name="uq_creator_subscription"),
+        Index("idx_creator_subs_user", user_id, status),
+        Index("idx_creator_subs_creator", creator_id, status),
+        Index("idx_creator_subs_otxn", original_transaction_id),
+    )
+
+
+class CreatorCourseLesson(Base):
+    """A DB-backed lesson in a creator's course (course editing). Supplements the
+    system-built daily plan; ordered within a module. Legacy code-baked courses
+    (coloringmax) keep working — the client falls back when no DB rows exist."""
+    __tablename__ = "creator_course_lessons"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    creator_id = Column(UUID(as_uuid=True), ForeignKey("creators.id", ondelete="CASCADE"), nullable=False)
+    maxx_id = Column(String, nullable=False)
+
+    module_number = Column(Integer, default=1, nullable=False)
+    sort = Column(Integer, default=0, nullable=False)   # order within module
+    title = Column(String, nullable=False)
+    subtitle = Column(String, default="")
+    body_md = Column(Text, default="")                  # markdown
+    video_url = Column(String, nullable=True)
+    poster_url = Column(String, nullable=True)
+    icon = Column(String, default="book-outline")
+    status = Column(String, default="draft", nullable=False)  # draft | published
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_creator_lessons_maxx", maxx_id, status, module_number, sort),
     )
