@@ -697,6 +697,16 @@ class ApiService {
         return response.data;
     }
 
+    /** Record that the native App Store review sheet was requested (throttle). */
+    async markReviewOpened(): Promise<{ review_request_count: number; last_review_request_date: string } | null> {
+        try {
+            const response = await this.client.post('users/me/review-opened', {});
+            return response.data;
+        } catch {
+            return null; // best-effort
+        }
+    }
+
     async uploadAvatar(imageUri: string) {
         const formData = new FormData();
         if (Platform.OS === 'web') {

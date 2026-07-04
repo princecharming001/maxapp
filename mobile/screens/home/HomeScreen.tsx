@@ -18,6 +18,7 @@ import { colors, spacing, typography, fonts, borderRadius } from '../../theme/da
 import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
 import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, moduleColorForSchedule, type MergedScheduleTask } from '../../utils/scheduleAggregation';
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
+import { useReviewTriggers } from '../../hooks/useReviewTriggers';
 import { queryKeys } from '../../lib/queryClient';
 import { useFlag } from '../../constants/featureFlags';
 import { usePersonalization } from '../../hooks/usePersonalization';
@@ -491,6 +492,14 @@ export default function HomeScreen() {
 
     const completedCount = scheduleRows.filter(r => r.status === 'completed').length;
     const totalCount = scheduleRows.length;
+
+    // Positive-moment triggers: rank level-up celebration + throttled review asks
+    // (level-up / full day). Reads gamification from the schedules-full payload.
+    useReviewTriggers(
+        schedulesQuery.data?.gamification,
+        totalCount > 0 && completedCount === totalCount,
+        schedulesQuery.data?.today_date,
+    );
 
     const toggleTodayTask = async (row: MergedScheduleTask) => {
         const key = `${row.scheduleId}:${row.task_id}`;

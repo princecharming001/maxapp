@@ -1422,6 +1422,31 @@ def _validate_image_upload(data: bytes, content_type: Optional[str], label: str)
         raise HTTPException(status_code=400, detail=f"{label} must be an image.")
 
 
+@router.post("/me/review-opened")
+async def mark_review_opened(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Record that the native App Store review prompt was requested for this user.
+    Apple never tells us whether the user actually rated, so we count REQUESTS to
+    enforce the cross-install throttle (Apple itself only shows the sheet ~3x/yr).
+    The client also keeps a local same-session throttle. Best-effort + idempotent-ish."""
+    from sqlalchemy.orm.attributes import flag_modified
+    user = await db.get(User, UUID(current_user["id"]))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    profile = dict(user.profile or {})
+    profile["review_request_count"] = int(profile.get("review_request_count") or 0) + 1
+    profile["last_review_request_date"] = datetime.now(timezone.utc).date().isoformat()
+    user.profile = profile
+    flag_modified(user, "profile")
+    await db.commit()
+    return {
+        "review_request_count": profile["review_request_count"],
+        "last_review_request_date": profile["last_review_request_date"],
+    }
+
+
 @router.post("/me/avatar")
 async def upload_avatar(
     file: UploadFile = File(...),

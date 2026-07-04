@@ -283,6 +283,9 @@ class UserProfile(BaseModel):
     master_schedule_streak_last_perfect_date: Optional[str] = Field(
         default=None, description="YYYY-MM-DD in user's timezone when streak day was earned"
     )
+    # App Store review throttle (client reads these to gate the native prompt).
+    review_request_count: int = Field(default=0, ge=0)
+    last_review_request_date: Optional[str] = Field(default=None)
 
 
 class UserCreate(BaseModel):

@@ -17,6 +17,7 @@ import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
+import { manualReview } from '../../services/reviewService';
 import Constants from 'expo-constants';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
@@ -206,6 +207,13 @@ export default function SettingsScreen() {
                         onPress={openSupport}
                         trailing={<Ionicons name="open-outline" size={14} color={colors.textMuted} style={{ opacity: 0.4 }} />}
                     />
+                    {Platform.OS === 'ios' ? (
+                        <Row
+                            label="Rate us on the App Store"
+                            onPress={() => { void manualReview(); }}
+                            trailing={<Ionicons name="star-outline" size={14} color={colors.textMuted} style={{ opacity: 0.5 }} />}
+                        />
+                    ) : null}
                     {LEGAL_ROWS.map((row) => (
                         <Row key={row.id} label={row.label} onPress={() => openDoc(row.id)} />
                     ))}
