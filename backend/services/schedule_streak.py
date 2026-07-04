@@ -312,11 +312,23 @@ async def sync_master_schedule_streak(
     profile = dict(user.profile or {})
 
     # Pass schedules so a rest/no-task gap day doesn't burn a freeze or reset.
+    prev_streak = int(profile.get(STREAK_KEY) or 0)
     changed = _reconcile_missed(profile, today, schedules)
     changed = _credit_if_perfect_day(profile, schedules, today) or changed
     # Reverse today's credit if the user un-checked a task and today is no longer
     # perfect (mutually exclusive with the credit above). Keeps the streak honest.
     changed = _uncredit_if_unperfect(profile, schedules, today) or changed
+
+    # XP: perfect-day (+25) once/day + 7-day milestone bonus (+100), additive-only.
+    # Awarded here so it rides the streak's own commit. Best-effort — never fatal.
+    try:
+        from services.gamification import award_streak_xp
+        new_streak = int(profile.get(STREAK_KEY) or 0)
+        _xp = award_streak_xp(profile, prev_streak, new_streak, today.isoformat())
+        if _xp.get("xp_awarded"):
+            changed = True
+    except Exception:  # pragma: no cover - non-fatal
+        pass
 
     # Anchor (and persist once) the Day-1 date so the day counter is stable.
     start = _journey_start(user, profile, onboarding, today)

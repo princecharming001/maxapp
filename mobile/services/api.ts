@@ -59,6 +59,18 @@ export interface EarnedAchievement {
     category?: string;
 }
 
+/** XP + rank block served by /schedules/active/full. */
+export interface Gamification {
+    current_xp: number;
+    current_level: number;
+    rank: string;
+    xp_earned_today: number;
+    xp_into_level: number;
+    xp_for_next_level: number;
+    next_level_at: number;
+    is_max_level: boolean;
+}
+
 export interface MarketplaceItem {
     type: 'maxx' | 'course';
     id: string;
@@ -2183,6 +2195,7 @@ class ApiService {
         schedule_streak?: { current: number; last_perfect_date?: string | null; today_date: string };
         today_date?: string;
         newly_earned_achievements?: EarnedAchievement[];
+        gamification?: Gamification | null;
     }> {
         const response = await this.client.get('schedules/active/full');
         return response.data;

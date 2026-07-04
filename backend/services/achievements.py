@@ -220,6 +220,19 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
             except Exception as e:
                 logger.debug("achievement check failed for %s: %s", a.code, e)
         if newly:
+            # Grant XP for each freshly-earned badge (+50 each). Best-effort,
+            # rides this same commit; a failure never blocks the badge award.
+            try:
+                from services.gamification import award_xp, XP_ACHIEVEMENT
+                from sqlalchemy.orm.attributes import flag_modified as _flag
+                today_iso = str((streak or {}).get("today_date") or "")
+                profile = dict(user.profile or {})
+                for _ in newly:
+                    award_xp(profile, XP_ACHIEVEMENT, today_iso)
+                user.profile = profile
+                _flag(user, "profile")
+            except Exception as _xp_e:
+                logger.debug("achievement XP award skipped: %s", _xp_e)
             await db.commit()
             try:
                 await _send_milestone_push(db, user, streak)

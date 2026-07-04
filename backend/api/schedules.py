@@ -161,6 +161,15 @@ async def get_all_active_schedules_full(
         newly_earned = await _evaluate_achievements(db, user_row, streak=streak, schedules=schedules)
     except Exception:
         newly_earned = []
+    # XP / rank block — pure dict reads off the freshly-synced profile. Best-effort.
+    try:
+        from services.gamification import gamification_payload
+        gamification = gamification_payload(
+            dict(user_row.profile or {}) if user_row else {},
+            streak.get("today_date") or "",
+        )
+    except Exception:
+        gamification = None
     return {
         "schedules": schedules,
         "schedule_streak": streak,
@@ -168,6 +177,7 @@ async def get_all_active_schedules_full(
         "day_number": streak.get("day_number"),
         "journey_start_date": streak.get("journey_start_date"),
         "newly_earned_achievements": newly_earned,
+        "gamification": gamification,
     }
 
 

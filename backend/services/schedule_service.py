@@ -2728,10 +2728,12 @@ class ScheduleService:
 
         updated = False
         already_completed = False
+        task_day_date = None  # ISO date of the day the task lives in
         days = schedule.days or []
         for day in days:
             for task in day.get("tasks", []):
                 if task.get("task_id") == task_id:
+                    task_day_date = day.get("date")
                     if task.get("status") == "completed":
                         already_completed = True
                         updated = True
@@ -2760,6 +2762,23 @@ class ScheduleService:
             flag_modified(schedule, "days")
             schedule.completion_stats = stats
             schedule.updated_at = datetime.utcnow()
+
+            # Award XP for completing a task ON TIME (its own day == local today).
+            # Best-effort: rides this commit, never blocks completion. Late
+            # backfill of a past day earns no XP (the "before day's end" rule).
+            try:
+                from services.gamification import award_xp, XP_TASK_ON_TIME
+                from services.schedule_streak import local_today_date
+                user = await db.get(User, UUID(user_id))
+                if user is not None:
+                    today_iso = local_today_date(user.onboarding).isoformat()
+                    if task_day_date == today_iso:
+                        profile = dict(user.profile or {})
+                        award_xp(profile, XP_TASK_ON_TIME, today_iso)
+                        user.profile = profile
+                        flag_modified(user, "profile")
+            except Exception as _xp_e:  # pragma: no cover - non-fatal
+                logger.warning("task-completion XP award failed (non-fatal): %s", _xp_e)
 
         feedback_logged = False
         if feedback:

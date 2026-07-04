@@ -12,6 +12,7 @@ import { CachedImage } from '../../components/CachedImage';
 import SectionLabel from '../../components/SectionLabel';
 import AchievementBadge from '../../components/achievements/AchievementBadge';
 import { StreakMilestoneCallout } from '../../components/StreakMilestoneCallout';
+import XpProgressCard from '../../components/XpProgressCard';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { formatFaceRatingLabel } from '../../utils/faceRatingLabel';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -704,6 +705,9 @@ export default function ProfileScreen() {
                         </View>
                         <StreakMilestoneCallout />
                     </View>
+
+                    {/* ── XP / Rank ──────────────────────────────────── */}
+                    <XpProgressCard data={schedulesFullQuery.data?.gamification} />
 
                     {/* ── Progress Calendar ──────────────────────────── */}
                     <View style={p.card}>

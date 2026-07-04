@@ -25,6 +25,17 @@ export function useActiveSchedulesFullQuery() {
     });
 }
 
+/** XP / rank block — a thin selector over the active-schedules query (which
+ *  already carries `gamification`), so it shares one fetch + cache. */
+export function useGamificationQuery() {
+    return useQuery({
+        queryKey: queryKeys.schedulesActiveFull,
+        queryFn: () => api.getActiveSchedulesFull(),
+        staleTime: STALE_SCHEDULES_FULL_MS,
+        select: (d) => d?.gamification ?? null,
+    });
+}
+
 export function useMaxxQuery(maxxId: string | undefined) {
     return useQuery({
         queryKey: queryKeys.maxx(maxxId ?? ''),

@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api, { AchievementItem, AchievementsResponse } from '../../services/api';
+import { useGamificationQuery } from '../../hooks/useAppQueries';
 import { colors, spacing, borderRadius, fonts } from '../../theme/dark';
 import AchievementBadge, { Tier } from '../../components/achievements/AchievementBadge';
 
@@ -76,6 +77,7 @@ export default function AchievementsScreen() {
     const earned = data?.earned_count ?? 0;
     const total = data?.total ?? 0;
     const frac = total ? earned / total : 0;
+    const gamif = useGamificationQuery().data;
 
     return (
         <View style={styles.container}>
@@ -100,6 +102,12 @@ export default function AchievementsScreen() {
                             <View style={styles.track}>
                                 <View style={[styles.fill, { width: `${Math.round(frac * 100)}%` }]} />
                             </View>
+                            {gamif ? (
+                                <Text style={styles.xpStat}>
+                                    {gamif.rank} · Level {gamif.current_level}
+                                    {gamif.xp_earned_today > 0 ? `  ·  +${gamif.xp_earned_today.toLocaleString()} XP today` : ''}
+                                </Text>
+                            ) : null}
                         </View>
 
                         {CATEGORY_ORDER.map((cat) => {
@@ -139,6 +147,7 @@ const styles = StyleSheet.create({
     summaryNum: { fontFamily: fonts.sansSemiBold, fontSize: 46, color: colors.foreground, letterSpacing: -1.5 },
     summaryDen: { fontFamily: fonts.sansMedium, fontSize: 24, color: colors.textMuted, letterSpacing: -0.5 },
     summaryLabel: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.4, marginTop: 2 },
+    xpStat: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textMuted, letterSpacing: 0.2, marginTop: 10 },
     track: {
         width: '70%', height: 6, borderRadius: 3, backgroundColor: colors.surface,
         marginTop: 14, overflow: 'hidden',
