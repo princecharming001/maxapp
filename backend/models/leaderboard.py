@@ -79,6 +79,26 @@ class ChatRequest(BaseModel):
     )
 
 
+class VisualBlock(BaseModel):
+    """A structured visual the assistant can emit alongside prose (rendered as a
+    native component on mobile, never as markdown). `type` is validated against an
+    allow-list on extraction; malformed blocks are dropped (graceful degrade)."""
+    type: str  # table | comparison | timeline | flowchart | stat_cards | checklist
+    title: Optional[str] = None
+    data: dict = Field(default_factory=dict)
+
+
+class MethodConfidence(BaseModel):
+    """How confident the assistant is in a specific method/protocol it suggested.
+    Surfaced behind a small "i" button in chat. `confidence` is normalized to
+    0-100. `sources` are grounded against retrieved RAG chunks (hallucinated
+    sources are dropped)."""
+    title: str
+    confidence: int = 0
+    rationale: Optional[str] = None
+    sources: Optional[list[str]] = None
+
+
 class ChatResponse(BaseModel):
     """Chat response"""
     response: str
@@ -114,6 +134,15 @@ class ChatResponse(BaseModel):
     # applies the EXACT stored proposal; No → focus composer for a re-prompt.
     # None on normal turns (RALPH_CHAT_RESCHEDULE).
     confirm: Optional[dict] = None
+    # Structured visuals emitted this turn (tables, comparisons, timelines,
+    # flowcharts, stat-cards, checklists), extracted from [VISUAL_BLOCK] markers
+    # in the LLM output and stripped from `response`. Empty on normal turns; old
+    # clients ignore it. Rendered as native components below the prose.
+    visual_blocks: list[VisualBlock] = Field(default_factory=list)
+    # Per-method confidence for methods the assistant proposed this turn, from
+    # [METHOD_CONFIDENCE] markers. Surfaced behind a small "i" button. None on
+    # normal turns.
+    method_metadata: Optional[dict] = None
 
 
 class ChatHistoryInDB(BaseModel):

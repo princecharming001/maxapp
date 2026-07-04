@@ -59,6 +59,21 @@ export interface EarnedAchievement {
     category?: string;
 }
 
+/** A structured visual emitted by the assistant (rendered natively in chat). */
+export interface VisualBlock {
+    type: 'table' | 'comparison' | 'timeline' | 'flowchart' | 'stat_cards' | 'checklist';
+    title?: string | null;
+    data: Record<string, any>;
+}
+
+/** How confident the assistant is in a specific method it proposed. */
+export interface MethodConfidence {
+    title: string;
+    confidence: number; // 0-100
+    rationale?: string | null;
+    sources?: string[] | null;
+}
+
 /** XP + rank block served by /schedules/active/full. */
 export interface Gamification {
     current_xp: number;
@@ -1571,6 +1586,11 @@ class ApiService {
         // When the coach proposed a schedule change this turn, the client renders
         // Yes/No buttons; Yes → confirmScheduleChange(proposal_id). (RALPH_CHAT_RESCHEDULE)
         confirm?: { proposal_id: string; summary: string } | null;
+        // Structured visuals (tables/comparisons/timelines/flowcharts/stat-cards/
+        // checklists) extracted from the answer; rendered as native components.
+        visual_blocks?: VisualBlock[];
+        // Per-method confidence, surfaced behind a small "i" button.
+        method_metadata?: { methods: MethodConfidence[] } | null;
     }> {
         const body: any = {
             message,

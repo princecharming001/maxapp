@@ -5,6 +5,7 @@ The core logic lives in process_chat_message() so it can be reused by the SMS we
 """
 
 import asyncio
+import json
 import logging
 import re
 from datetime import datetime, timedelta, timezone
@@ -600,6 +601,132 @@ def _extract_inline_choices(text: str) -> tuple[str, list[str], bool]:
     # Tidy up trailing whitespace/punctuation left by the strip.
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return cleaned, options, multi
+
+
+# ── Visual blocks + per-method confidence ────────────────────────────────────
+# The assistant can emit structured visuals and confidence metadata as markers
+# that carry a JSON payload. They're extracted here and stripped from the prose,
+# so the chat bubble stays clean and the client renders native components.
+# Regex spans brackets/braces (JSON), case-insensitive (survives smart-lowercase).
+_VISUAL_BLOCK_RE = re.compile(r"\[VISUAL_BLOCK\]\s*(.*?)\s*\[/VISUAL_BLOCK\]", re.IGNORECASE | re.DOTALL)
+_METHOD_CONF_RE = re.compile(r"\[METHOD_CONFIDENCE\]\s*(.*?)\s*\[/METHOD_CONFIDENCE\]", re.IGNORECASE | re.DOTALL)
+_ALLOWED_BLOCK_TYPES = {"table", "comparison", "timeline", "flowchart", "stat_cards", "checklist"}
+
+
+def _extract_visual_blocks(text: str) -> tuple[str, list[dict]]:
+    """Pull [VISUAL_BLOCK]{json}[/VISUAL_BLOCK] markers (JSON {type,title?,data})
+    out of `text`. Invalid JSON or unknown type is dropped SILENTLY so the turn
+    degrades gracefully to prose. Returns (clean_text, [block dicts])."""
+    if not text or "[visual_block]" not in text.lower():
+        return text, []
+    blocks: list[dict] = []
+    for m in _VISUAL_BLOCK_RE.finditer(text):
+        raw = (m.group(1) or "").strip()
+        try:
+            obj = json.loads(raw)
+            btype = str(obj.get("type") or "").strip().lower()
+            if btype in _ALLOWED_BLOCK_TYPES and isinstance(obj.get("data"), (dict, list)):
+                blocks.append({
+                    "type": btype,
+                    "title": (str(obj["title"]).strip() if obj.get("title") else None),
+                    "data": obj.get("data"),
+                })
+        except Exception:
+            continue  # malformed marker → skip it, keep prose clean
+    clean = _VISUAL_BLOCK_RE.sub("", text)
+    clean = re.sub(r"\n{3,}", "\n\n", clean).strip()
+    return clean, blocks[:6]
+
+
+def _extract_method_confidence(text: str, chunk_ids: "set[str] | None" = None) -> tuple[str, Optional[dict]]:
+    """Pull a [METHOD_CONFIDENCE]{json}[/METHOD_CONFIDENCE] marker with payload
+    {"methods":[{title,confidence,rationale?,sources?}]}. Confidence accepts a
+    0-1 float or 0-100 int → normalized to int 0-100. When RAG chunk ids are
+    known, sources not among them are dropped (anti-hallucination). Malformed →
+    (clean_text, None). Returns (clean_text, dict|None)."""
+    if not text or "[method_confidence]" not in text.lower():
+        return text, None
+    m = _METHOD_CONF_RE.search(text)
+    if not m:
+        return text, None
+    methods: list[dict] = []
+    try:
+        obj = json.loads((m.group(1) or "").strip())
+        raw_methods = obj.get("methods") if isinstance(obj, dict) else None
+        for meth in (raw_methods or []):
+            if not isinstance(meth, dict) or not meth.get("title"):
+                continue
+            conf = meth.get("confidence", 0)
+            try:
+                conf = float(conf)
+                conf = int(round(conf * 100)) if 0.0 <= conf <= 1.0 else int(round(conf))
+            except (TypeError, ValueError):
+                conf = 0
+            conf = max(0, min(100, conf))
+            srcs = meth.get("sources")
+            if isinstance(srcs, list):
+                srcs = [str(s).strip() for s in srcs if str(s).strip()]
+                if chunk_ids:
+                    srcs = [s for s in srcs if s in chunk_ids]
+                srcs = srcs or None
+            else:
+                srcs = None
+            methods.append({
+                "title": str(meth["title"]).strip()[:120],
+                "confidence": conf,
+                "rationale": (str(meth["rationale"]).strip()[:400] if meth.get("rationale") else None),
+                "sources": srcs,
+            })
+    except Exception:
+        methods = []
+    clean = _METHOD_CONF_RE.sub("", text)
+    clean = re.sub(r"\n{3,}", "\n\n", clean).strip()
+    return clean, ({"methods": methods[:8]} if methods else None)
+
+
+_MD_TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$")
+
+
+def _md_cells(line: str) -> list[str]:
+    s = line.strip()
+    if s.startswith("|"):
+        s = s[1:]
+    if s.endswith("|"):
+        s = s[:-1]
+    return [c.strip() for c in s.split("|")]
+
+
+def _extract_markdown_tables(text: str) -> tuple[str, list[dict]]:
+    """The LLM emits GitHub-style markdown tables naturally. Convert them into
+    native `table` visual blocks and remove them from the prose so the client
+    renders a real table instead of monospaced pipes. Returns (clean, [blocks])."""
+    if not text or "|" not in text:
+        return text, []
+    lines = text.split("\n")
+    n = len(lines)
+    blocks: list[dict] = []
+    out: list[str] = []
+    i = 0
+    while i < n:
+        line = lines[i]
+        if "|" in line and i + 1 < n and _MD_TABLE_SEP_RE.match(lines[i + 1]):
+            header = _md_cells(line)
+            j = i + 2
+            rows: list[list[str]] = []
+            while j < n and "|" in lines[j] and lines[j].strip():
+                rows.append(_md_cells(lines[j]))
+                j += 1
+            if len(header) >= 2 and rows:
+                w = len(header)
+                norm = [(r + [""] * w)[:w] for r in rows]
+                blocks.append({"type": "table", "title": None,
+                               "data": {"columns": header, "rows": norm}})
+                i = j
+                continue
+        out.append(line)
+        i += 1
+    clean = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+    return clean, blocks[:6]
 
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -4967,6 +5094,19 @@ async def _send_message_locked(
         iw = None
         products_out = []
 
+    # Extract structured visuals + per-method confidence from the assistant's
+    # output and strip their markers from the prose. Case-insensitive, JSON-safe,
+    # and fully graceful: a malformed marker is dropped and the prose is unchanged.
+    # Suppressed when chips/confirm own the turn (visuals don't belong there).
+    visual_blocks: list = []
+    method_metadata = None
+    if not choices and not confirm_out:
+        response_text, visual_blocks = _extract_visual_blocks(response_text)
+        response_text, method_metadata = _extract_method_confidence(response_text)
+        # Also convert any natural markdown tables into native table blocks.
+        response_text, _md_tables = _extract_markdown_tables(response_text)
+        visual_blocks = (visual_blocks + _md_tables)[:6]
+
     return ChatResponse(
         response=response_text,
         choices=choices,
@@ -4976,6 +5116,8 @@ async def _send_message_locked(
         conversation_id=conv_id,
         confirm=confirm_out,
         progress=driver_progress,
+        visual_blocks=visual_blocks,
+        method_metadata=method_metadata,
     )
 
 

@@ -11,7 +11,9 @@ import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } 
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useQueryClient } from '@tanstack/react-query';
-import api from '../../services/api';
+import api, { type VisualBlock, type MethodConfidence } from '../../services/api';
+import MessageBlocks from '../../components/MessageBlocks';
+import ConfidenceInfoButton from '../../components/ConfidenceInfoButton';
 import { useChatHistoryQuery } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
 import { ChatTypingIndicator, ChatTypingMode } from '../../components/ChatTypingIndicator';
@@ -64,6 +66,10 @@ interface Message {
   reply_to?: { id: string; role: 'user' | 'assistant'; preview: string } | null;
   /** Structured product cards surfaced with this assistant reply. */
   products?: ProductCard[];
+  /** Native visuals (tables/comparisons/etc) rendered below the prose. */
+  blocks?: VisualBlock[];
+  /** Per-method confidence, surfaced behind a small "i" button. */
+  methodMetadata?: { methods: MethodConfidence[] } | null;
 }
 
 // Chips whose text means "my answer isn't here" — tapping one focuses the
@@ -672,7 +678,7 @@ export default function MaxChatScreen() {
         ).catch(() => undefined);
         try {
             abortRef.current = new AbortController();
-            const { response, choices, multi_choice, input_widget, products, conversation_id } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, products, conversation_id, visual_blocks, method_metadata } = await api.sendChatMessage(
                 msg,
                 undefined,
                 undefined,
@@ -702,7 +708,7 @@ export default function MaxChatScreen() {
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] },
+                { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [], blocks: Array.isArray(visual_blocks) ? visual_blocks : [], methodMetadata: method_metadata ?? null },
             ]);
             setServerChoices(Array.isArray(choices) ? choices : []);
             setMultiChoice(!!multi_choice);
@@ -722,7 +728,7 @@ export default function MaxChatScreen() {
                         messages: [
                             ...prevMsgs,
                             { role: 'user', content: msg } as Message,
-                            { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] } as Message,
+                            { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [], blocks: Array.isArray(visual_blocks) ? visual_blocks : [], methodMetadata: method_metadata ?? null } as Message,
                         ],
                         conversationId: (conversation_id ?? activeConversationId) ?? null,
                     };
@@ -859,7 +865,7 @@ export default function MaxChatScreen() {
         if (replyTarget) setReplyTarget(null);
         try {
             abortRef.current = new AbortController();
-            const { response, choices, multi_choice, input_widget, products, conversation_id, confirm } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, products, conversation_id, confirm, visual_blocks, method_metadata } = await api.sendChatMessage(
                 userContent,
                 undefined,
                 undefined,
@@ -878,7 +884,7 @@ export default function MaxChatScreen() {
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] },
+                { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [], blocks: Array.isArray(visual_blocks) ? visual_blocks : [], methodMetadata: method_metadata ?? null },
             ]);
             // A schedule-change proposal owns the turn: render Yes/No, suppress chips/widget.
             const confirmObj = confirm && (confirm as any).proposal_id ? (confirm as { proposal_id: string; summary: string }) : null;
@@ -901,7 +907,7 @@ export default function MaxChatScreen() {
                     messages: [
                         ...prevMsgs,
                         { role: 'user', content: userContent } as Message,
-                        { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] } as Message,
+                        { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [], blocks: Array.isArray(visual_blocks) ? visual_blocks : [], methodMetadata: method_metadata ?? null } as Message,
                     ],
                     conversationId: (conversation_id ?? activeConversationId) ?? null,
                 };
@@ -1077,7 +1083,7 @@ export default function MaxChatScreen() {
             }
             const uploadRes = await api.uploadChatFile(formData);
             abortRef.current = new AbortController();
-            const { response, choices, multi_choice, input_widget, products, conversation_id } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, products, conversation_id, visual_blocks, method_metadata } = await api.sendChatMessage(
                 caption || 'What do you think of this?',
                 uploadRes.url,
                 'image',
@@ -1093,7 +1099,7 @@ export default function MaxChatScreen() {
             }
             setMessages((prev) => [
                 ...prev.filter((m) => !m.isTyping),
-                { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] },
+                { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [], blocks: Array.isArray(visual_blocks) ? visual_blocks : [], methodMetadata: method_metadata ?? null },
             ]);
             setServerChoices(Array.isArray(choices) ? choices : []);
             setMultiChoice(!!multi_choice);
@@ -1112,7 +1118,7 @@ export default function MaxChatScreen() {
                         messages: [
                             ...prevMsgs,
                             { role: 'user', content: caption, localImageUri: uri, attachment_type: 'image' } as Message,
-                            { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [] } as Message,
+                            { role: 'assistant', content: response, justArrived: true, products: Array.isArray(products) ? products : [], blocks: Array.isArray(visual_blocks) ? visual_blocks : [], methodMetadata: method_metadata ?? null } as Message,
                         ],
                         conversationId: (conversation_id ?? activeConversationId) ?? null,
                     };
@@ -1302,8 +1308,25 @@ export default function MaxChatScreen() {
                     {productCards.length > 0 && (
                         <ProductCards products={productCards} onOpen={openUrl} />
                     )}
+                    {/* Native visuals — render after the streaming reveal completes
+                        so they can't interfere with the char-by-char animation or
+                        FlashList row recycling. Additive: null when no blocks. */}
+                    {!animate && item.blocks && item.blocks.length > 0 ? (
+                        <MessageBlocks blocks={item.blocks} />
+                    ) : null}
                     {image}
-                    {!animate && displayText ? <AssistantActions text={displayText} /> : null}
+                    {!animate && displayText ? (
+                        item.methodMetadata?.methods?.length ? (
+                            // Only wrap when there's confidence to show — keeps the
+                            // baseline layout byte-identical for normal messages.
+                            <View style={cg.assistantFooterRow}>
+                                <AssistantActions text={displayText} />
+                                <ConfidenceInfoButton methods={item.methodMetadata.methods} />
+                            </View>
+                        ) : (
+                            <AssistantActions text={displayText} />
+                        )
+                    ) : null}
                 </View>
             );
             if (!canReply) return content;
@@ -2014,6 +2037,7 @@ const cg = StyleSheet.create({
     headerTitle: { fontFamily: fonts.sansSemiBold, fontSize: 17, color: CG_INK, letterSpacing: -0.2 },
 
     assistantRow: { paddingHorizontal: 4, paddingTop: 6, paddingBottom: 8, marginBottom: 2 },
+    assistantFooterRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     assistantText: { fontSize: 16, lineHeight: 25, color: CG_INK, letterSpacing: 0 },
     caret: { color: CG_INK },
 

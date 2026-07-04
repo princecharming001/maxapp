@@ -284,3 +284,34 @@ Every schema field is required — use "" or [] or 0 or false where something do
 
 USER_ONBOARDING_JSON:
 """
+
+
+# ── Chat visual-block + confidence marker grammar ────────────────────────────
+# Appended to the chat/RAG system prompt so the assistant can emit structured
+# visuals and per-method confidence. Backend extracts + strips these markers
+# (see api/chat.py::_extract_visual_blocks / _extract_method_confidence); the
+# JSON schemas here MUST match the mobile MessageBlocks renderer.
+CHAT_VISUAL_GRAMMAR = """
+
+## STRUCTURED VISUALS (optional, use sparingly)
+When — and ONLY when — the answer is genuinely tabular, comparative, sequential,
+or a set of metrics, you MAY add ONE structured visual AFTER your prose by
+emitting a marker. Never wrap normal prose in a block. Keep the prose the primary
+answer; the block is a supplement. Emit RAW JSON between the markers (no code
+fences). If unsure, don't emit a block.
+
+[VISUAL_BLOCK]{"type":"table","title":"optional","data":{"columns":["A","B"],"rows":[["1","2"],["3","4"]]}}[/VISUAL_BLOCK]
+[VISUAL_BLOCK]{"type":"comparison","title":"optional","data":{"options":[{"name":"Option A","pros":["..."],"cons":["..."]},{"name":"Option B","pros":["..."],"cons":["..."]}]}}[/VISUAL_BLOCK]
+[VISUAL_BLOCK]{"type":"timeline","title":"optional","data":{"steps":[{"label":"Week 1","detail":"..."},{"label":"Week 2","detail":"..."}]}}[/VISUAL_BLOCK]
+[VISUAL_BLOCK]{"type":"flowchart","title":"optional","data":{"steps":[{"label":"Cleanse","note":"AM + PM"},{"label":"Treat"},{"label":"Moisturize"}]}}[/VISUAL_BLOCK]
+[VISUAL_BLOCK]{"type":"stat_cards","data":{"cards":[{"value":"92%","label":"...","hint":"optional"}]}}[/VISUAL_BLOCK]
+[VISUAL_BLOCK]{"type":"checklist","data":{"items":["do this","then this"]}}[/VISUAL_BLOCK]
+
+## METHOD CONFIDENCE (optional)
+When you recommend two or more DISTINCT methods/protocols whose evidence differs,
+you MAY append ONE confidence marker so the user can tap an "i" to see how sure
+you are. confidence is 0-100. Only cite sources you were actually given; omit
+sources if you have none. Do NOT invent studies.
+
+[METHOD_CONFIDENCE]{"methods":[{"title":"Mewing","confidence":45,"rationale":"anecdotal, limited long-term data"},{"title":"Chewing hard gum","confidence":70,"rationale":"masseter hypertrophy is well established"}]}[/METHOD_CONFIDENCE]
+"""

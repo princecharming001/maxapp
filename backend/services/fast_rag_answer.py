@@ -13,7 +13,7 @@ from typing import Optional
 from config import settings
 from services.chat_telemetry import log_prompt_budget
 from services.lc_providers import get_chat_llm_with_fallback
-from services.prompt_constants import MAX_CHAT_SYSTEM_PROMPT
+from services.prompt_constants import MAX_CHAT_SYSTEM_PROMPT, CHAT_VISUAL_GRAMMAR
 from services.prompt_loader import PromptKey, resolve_prompt
 from services.rag_prompt_selector import _LEXICONS, select_rag_system_prompt
 from services.rag_service import retrieve_chunks, VALID_MAXX_IDS
@@ -454,7 +454,7 @@ async def _answer_without_evidence(
     # evidence-grounded turns only — it's calibrated to refuse when docs
     # are thin, which is the wrong shape for a foundational-knowledge turn.
     persona_prompt = resolve_prompt(PromptKey.MAX_CHAT_SYSTEM, MAX_CHAT_SYSTEM_PROMPT)
-    system_prompt = persona_prompt + _length_suffix(response_length) + _NATIVE_KNOWLEDGE_SUFFIX
+    system_prompt = persona_prompt + _length_suffix(response_length) + _NATIVE_KNOWLEDGE_SUFFIX + CHAT_VISUAL_GRAMMAR
 
     logger.info(
         "[fast_rag] native-knowledge fallback fired: maxx_hints=%s active_maxx=%s msg=%r",

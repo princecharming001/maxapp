@@ -117,7 +117,7 @@ from services import fitmax_plan as fplan
 from services.chat_telemetry import log_agent_run, log_prompt_budget
 from services.lc_memory import history_dicts_to_lc_messages
 from services.lc_providers import get_chat_llm_with_tools_and_fallback
-from services.prompt_constants import MAX_CHAT_SYSTEM_PROMPT
+from services.prompt_constants import MAX_CHAT_SYSTEM_PROMPT, CHAT_VISUAL_GRAMMAR
 from services.prompt_loader import PromptKey, resolve_prompt
 from services.sms_reply_style import sms_chat_appendix
 from services.token_budget import count_tokens, trim_context_blob, trim_text_block
@@ -868,7 +868,9 @@ async def build_agent_system_prompt(
             preserve_head_chars=preserve_head,
             preserve_tail_chars=preserve_tail,
         )
-    return chat_prompt
+    # Appended AFTER the token trim so the visual/confidence grammar always
+    # survives (it's small + must reach the model intact to be usable).
+    return chat_prompt + CHAT_VISUAL_GRAMMAR
 
 
 # ---------------------------------------------------------------------------
