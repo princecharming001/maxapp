@@ -822,6 +822,13 @@ async def _generate_program_schedule(
         await db.commit()
         return True
     except Exception as e:
+        # The entitlement/Purchase is already committed by the caller before this
+        # runs, so a generation failure can't lose it — but a DB error leaves the
+        # transaction aborted, so roll back to hand the caller a clean session.
+        try:
+            await db.rollback()
+        except Exception:  # pragma: no cover - rollback of an already-dead session
+            pass
         import logging
         logging.getLogger(__name__).warning(
             "post-enter schedule generation failed for %s (non-fatal): %s", item_id, e

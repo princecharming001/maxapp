@@ -29,7 +29,7 @@ def _as_utc_aware(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-from db import get_db, get_rds_db
+from db import get_db, get_rds_db, best_effort
 from middleware import get_current_user
 from services.storage_service import storage_service, delete_by_url
 from models.user import (
@@ -409,16 +409,18 @@ async def patch_intensity_preference(
     user.onboarding = ob
     user.updated_at = datetime.utcnow()
     await db.flush()
-    try:
+    # Persist the preference before the best-effort regen — a regen DB error must
+    # not roll back the setting the user just chose (see db.best_effort).
+    await db.commit()
+
+    async def _regen():
         from services.schedule_runtime import regenerate_active_schedules
         from services.user_context_service import invalidate as _invalidate_ctx
         _invalidate_ctx(str(user_uuid))
         await regenerate_active_schedules(
             user_id=str(user_uuid), db=db, reason="intensity_preference",
         )
-    except Exception as e:
-        logger.warning("intensity-preference schedule regen failed (non-fatal): %s", e)
-    await db.commit()
+    await best_effort(db, "intensity-preference schedule regen", _regen)
     return {"message": "ok", "intensity": intensity}
 
 
@@ -790,13 +792,20 @@ async def save_onboarding(
     user.onboarding = onboarding_data
     user.updated_at = datetime.utcnow()
     await db.flush()
+    # Commit the ONE thing that must persist — onboarding `completed` — BEFORE any
+    # best-effort side-effect. A DB error in a side-effect aborts the shared
+    # transaction, which would turn the final commit into a silent ROLLBACK and
+    # strand the user mid-funnel (completed never sticks, the client keeps reading
+    # completed:false and never advances). See db.best_effort.
+    await db.commit()
 
     # Mirror durable profile facts (wake/sleep, skin/hair type, equipment, ...)
     # into user_facts so they're part of KNOWN PROFILE and never re-asked when
     # the user later sets up a different maxx. THE bug this fixes: onboarding
     # answers used to live only in user.onboarding, so per-maxx intake (which
-    # reads user_facts) couldn't see them and re-asked.
-    try:
+    # reads user_facts) couldn't see them and re-asked. Isolated: a failure here
+    # can't undo the onboarding save above.
+    async def _sync_user_facts():
         from services.user_facts_service import facts_from_onboarding, merge_facts, FACTS_KEY
         from services.user_context_service import get_context, merge_context
         ob_facts = facts_from_onboarding(onboarding_data)
@@ -804,39 +813,34 @@ async def save_onboarding(
             existing_ctx = await get_context(str(user_uuid), db)
             merged = merge_facts(existing_ctx.get(FACTS_KEY) or {}, ob_facts)
             await merge_context(str(user_uuid), {FACTS_KEY: merged}, db)
-    except Exception as e:
-        logger.warning("onboarding->user_facts sync failed (non-fatal): %s", e)
+    await best_effort(db, "onboarding->user_facts sync", _sync_user_facts)
 
     # Editing lifestyle (wake/sleep/work hours, workout time, get-ready time)
     # must propagate to the user's live schedules immediately — otherwise the
     # precise timings the user just set wouldn't take effect until they touch
     # the chatbot. Skeleton re-expansion is pure-Python (<100ms) and only
     # writes when something actually changed, so this is cheap to do eagerly.
-    try:
+    async def _regen_schedules():
         from services.schedule_runtime import regenerate_active_schedules
         from services.user_context_service import invalidate as _invalidate_ctx
         _invalidate_ctx(str(user_uuid))
         await regenerate_active_schedules(
             user_id=str(user_uuid), db=db, reason="edit_lifestyle",
         )
-    except Exception as e:
-        logger.warning("post-onboarding schedule regen failed (non-fatal): %s", e)
+    await best_effort(db, "post-onboarding schedule regen", _regen_schedules)
 
     # Fold the fresh onboarding answers into the unified personalization profile
     # so the chat brief + scheduler signals reflect them immediately.
-    try:
+    async def _rebuild_personalization():
         from services.personalization import rebuild_profile as _rebuild_pers
         await _rebuild_pers(str(user_uuid), db)
-    except Exception as e:
-        logger.warning("post-onboarding personalization rebuild failed (non-fatal): %s", e)
+    await best_effort(db, "post-onboarding personalization rebuild", _rebuild_personalization)
 
     # Product decision: onboarding no longer PRESETS any max. A brand-new user
     # lands with an empty plan and chooses the maxes they want in the marketplace
     # (Explore), onboarding each one themselves via its chat flow. So we don't
     # auto-build a #1-priority routine here anymore — the reveal is just a taste.
     first_routine = None
-
-    await db.commit()
 
     # `first_routine` (when present) lets the client reveal the freshly-built
     # plan right after onboarding, BEFORE the paywall — the schedule endpoints
@@ -1378,17 +1382,17 @@ async def planner_chat(
     user.onboarding = prev
     user.updated_at = datetime.utcnow()
     await db.flush()
+    # Persist the plan update before the best-effort regen so a regen DB error
+    # can't roll it back (see db.best_effort).
+    await db.commit()
 
     # Propagate to live schedules + coach context, same as save_onboarding.
-    try:
+    async def _regen():
         from services.schedule_runtime import regenerate_active_schedules
         from services.user_context_service import invalidate as _invalidate_ctx
         _invalidate_ctx(str(user_uuid))
         await regenerate_active_schedules(user_id=str(user_uuid), db=db, reason="planner_chat")
-    except Exception as e:
-        logger.warning("planner_chat schedule regen failed (non-fatal): %s", e)
-
-    await db.commit()
+    await best_effort(db, "planner_chat schedule regen", _regen)
 
     return {
         "message": "Plan updated",
