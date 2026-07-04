@@ -3737,6 +3737,39 @@ _BROAD_DOMAINS = [
 ]
 
 
+async def _domain_concern_already_known(user_id: str, specific_re: "re.Pattern", db: AsyncSession) -> bool:
+    """True if we ALREADY know the user's concern/goal for this domain — either
+    they named it earlier in the recent conversation (ChatHistory) or it's a
+    durable known fact (user_facts, populated from chat/onboarding/scans). Lets
+    the clarifier skip a question the app already has the answer to, so context
+    carries across turns AND across the whole app instead of re-asking."""
+    try:
+        # 1) Recent conversation: did the user name a specific for this domain in
+        #    a prior turn? (the "I already said acne" case, same or recent chat)
+        rows = (await db.execute(
+            select(ChatHistory.content)
+            .where(ChatHistory.user_id == UUID(user_id), ChatHistory.role == "user")
+            .order_by(ChatHistory.created_at.desc())
+            .limit(14)
+        )).scalars().all()
+        for content in rows:
+            if content and specific_re.search(content.lower()):
+                return True
+        # 2) Durable known facts (spans chats + app surfaces): a stored concern /
+        #    type / goal string for this domain.
+        from services.user_context_service import get_context
+        from services.user_facts_service import FACTS_KEY
+        ctx = await get_context(user_id, db)
+        facts = (ctx.get(FACTS_KEY) or {}) if isinstance(ctx, dict) else {}
+        blob = " ".join(str(v) for v in facts.values() if isinstance(v, str)).lower()
+        if blob and specific_re.search(blob):
+            return True
+    except Exception:
+        # Best-effort: on any error, fall through to asking (the safe default).
+        pass
+    return False
+
+
 async def _broad_question_mcq(
     user_id: str,
     message_text: str,
@@ -3744,7 +3777,8 @@ async def _broad_question_mcq(
 ) -> Optional[Tuple[str, list[str], bool]]:
     """Return (text, choices, multi) for a broad personal-rec opener that
     names no specific (so its goal/concern is genuinely missing), else None.
-    Deterministic — guarantees chips for the broad cases the LLM is flaky on."""
+    Deterministic — guarantees chips for the broad cases the LLM is flaky on.
+    Skips the ask when the per-user context layer already knows the concern."""
     msg = (message_text or "").strip().lower()
     if not msg or len(msg) > 160:
         return None
@@ -3768,6 +3802,11 @@ async def _broad_question_mcq(
 
     for domain_re, specific_re, q, choices, multi in _BROAD_DOMAINS:
         if domain_re.search(msg) and not specific_re.search(msg):
+            # Only ask if we don't ALREADY know the concern from prior turns or
+            # durable user facts — otherwise let the agent answer directly with
+            # what the app already knows (no redundant re-ask).
+            if await _domain_concern_already_known(user_id, specific_re, db):
+                return None
             return (q, list(choices), multi)
     return None
 
