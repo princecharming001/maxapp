@@ -53,6 +53,14 @@ import ScanOnlyNavigator from './ScanOnlyNavigator';
 import { userHasSignupPhone } from '../utils/userPhone';
 import OnboardingV2Screen from '../screens/onboarding/OnboardingV2Screen';
 import RevealV2Screen from '../screens/onboarding/RevealV2Screen';
+import CreatorFeedScreen from '../screens/creator/CreatorFeedScreen';
+import CreatorPaywallScreen from '../screens/creator/CreatorPaywallScreen';
+import StudioHomeScreen from '../screens/creator/StudioHomeScreen';
+import ComposerScreen from '../screens/creator/ComposerScreen';
+import PostCommentsManagerScreen from '../screens/creator/PostCommentsManagerScreen';
+import CourseEditorScreen from '../screens/creator/CourseEditorScreen';
+import CreatorSettingsScreen from '../screens/creator/CreatorSettingsScreen';
+import CreatorsBrowseScreen from '../screens/creator/CreatorsBrowseScreen';
 import WeeklyReviewScreen from '../screens/review/WeeklyReviewScreen';
 import DaySetupScreen from '../screens/you/DaySetupScreen';
 import { useFlag } from '../constants/featureFlags';
@@ -207,6 +215,15 @@ export function RootNavigator() {
                     <Stack.Screen name="MaxxDetail" component={MaxxDetailScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="MaxDetail" component={MaxDetailScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="CreatorApply" component={CreatorApplyScreen} options={{ headerShown: false }} />
+                    {/* Creator platform — feed/paywall (any subscriber) + studio (creators). */}
+                    <Stack.Screen name="CreatorFeed" component={CreatorFeedScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="CreatorPaywall" component={CreatorPaywallScreen} options={{ headerShown: false, presentation: 'modal' }} />
+                    <Stack.Screen name="CreatorStudio" component={StudioHomeScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="CreatorComposer" component={ComposerScreen} options={{ headerShown: false, presentation: 'modal' }} />
+                    <Stack.Screen name="CreatorPostComments" component={PostCommentsManagerScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="CreatorCourseEditor" component={CourseEditorScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="CreatorSettings" component={CreatorSettingsScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="CreatorsBrowse" component={CreatorsBrowseScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxPlan" component={FitmaxPlanScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxWorkoutTracker" component={FitmaxWorkoutTrackerScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxCalorieLog" component={FitmaxCalorieLogScreen} options={{ headerShown: false }} />
