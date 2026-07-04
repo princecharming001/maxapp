@@ -1,0 +1,59 @@
+appId: com.cannon.mobile
+---
+# Funnel V4 smoke: Landing → age → gender → goals → motivation → scan capture
+# hand-off. Auto-advance steps need only the option tap. Stops at the camera
+# (simulator has no camera feed; humans use the library-picker path).
+- launchApp
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn:
+          text: "Continue"
+          optional: true
+- runFlow:
+    when:
+      visible: "Fast refresh"
+    commands:
+      - tapOn:
+          point: "50%,12%"
+          optional: true
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Get started"
+    timeout: 30000
+- tapOn: "Get started"
+- extendedWaitUntil:
+    visible: "How old.*"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Don’t Allow"
+    commands:
+      - tapOn:
+          text: "Don’t Allow"
+          optional: true
+- takeScreenshot: v4_01_age
+- tapOn: "18–24"
+- extendedWaitUntil:
+    visible: "You are…"
+    timeout: 6000
+- takeScreenshot: v4_02_gender
+- tapOn: "Male"
+- extendedWaitUntil:
+    visible: "What are we.*"
+    timeout: 6000
+- takeScreenshot: v4_03_goals
+- tapOn: "Bonemax"
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "What's pulling.*"
+    timeout: 6000
+- takeScreenshot: v4_04_motivation
+- tapOn: "I just want to mog"
+# Intro phase ends → FaceScan capture (camera permission alert may appear).
+- extendedWaitUntil:
+    visible: ".*(Front|Camera|profile).*"
+    timeout: 15000
+- takeScreenshot: v4_05_scan_handoff

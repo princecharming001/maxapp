@@ -50,7 +50,7 @@ const MAXX_THUMBS: Record<string, any> = {
     heightmax: require('../../assets/maxxThumbs/cut/heightmax.png'),
     bonemax: require('../../assets/maxxThumbs/cut/bonemax.png'),
 };
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
     Easing, Extrapolation, interpolate, useAnimatedStyle,
@@ -70,8 +70,11 @@ import {
 // Stable per-step keys for funnel analytics (title → slug), so step drop-off
 // is queryable regardless of copy edits. Keep in sync with the step titles.
 const STEP_KEYS: Record<string, string> = {
+    'How old\nare you?': 'age',
+    'You are…': 'gender',
     'What are we\nworking on?': 'goals',
     "What's pulling\nyou here?": 'motivation',
+    'How hard do you\nwant to go?': 'effort',
     'The shape of\nyour day': 'day_shape',
     'Work or\nschool?': 'work',
     'Where do\nyou work?': 'work_location',
@@ -159,6 +162,23 @@ const MAXX_TILES = [
     { id: 'hairmax', token: 'hair', label: 'Hairmax', tagline: 'fuller, healthier hair', icon: 'cut-outline' },
     { id: 'heightmax', token: 'height', label: 'Heightmax', tagline: 'posture and presence', icon: 'resize-outline' },
     { id: 'bonemax', token: 'face_structure', label: 'Bonemax', tagline: 'a sharper jaw and frame', icon: 'body-outline' },
+] as const;
+
+// Identity brackets (funnel V4). Multiple choice — a slider begs for lies;
+// brackets are one honest tap.
+const AGE_BANDS = ['Under 18', '18–24', '25–34', '35+'] as const;
+
+const GENDERS = [
+    { id: 'male', label: 'Male' },
+    { id: 'female', label: 'Female' },
+] as const;
+
+// How hard they want to go — sets expectations before the paywall and feeds
+// the scheduler's daily load.
+const EFFORTS = [
+    { id: 'light', label: 'Light touch', sub: 'about 10 minutes a day' },
+    { id: 'steady', label: 'Steady', sub: '20–30 minutes a day' },
+    { id: 'all_in', label: 'All in', sub: 'whatever it takes' },
 ] as const;
 
 const MOTIVATIONS = [
@@ -526,13 +546,24 @@ function Slider({
     );
 }
 
+// Funnel V4 phases. The wizard is split around the scan + paywall:
+//   intro    — age, gender, goals, motivation → hands off to FaceScan
+//   effort   — one question while the scan analyzes → ScanResultsGate
+//   schedule — day-shape/work/meals/… after purchase + account → finish → Main
+export type OnboardingPhase = 'intro' | 'effort' | 'schedule';
+
 export default function OnboardingV2Screen() {
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
     const insets = useSafeAreaInsets();
-    const { refreshUser } = useAuth();
+    const { user, refreshUser } = useAuth();
 
     const [step, setStep] = useState(0);
     const [dir, setDir] = useState(1); // +1 forward, -1 back — drives slide direction
+    const [phase, setPhase] = useState<OnboardingPhase>(route?.params?.phase ?? 'intro');
+    const [ageBand, setAgeBand] = useState<string | null>(null);
+    const [gender, setGender] = useState<string | null>(null);
+    const [effort, setEffort] = useState<string | null>(null);
     const [goals, setGoals] = useState<string[]>([]);
     const [motivation, setMotivation] = useState<string | null>(null);
     // Free-text reason when motivation === 'other' (the custom answer path).
@@ -574,6 +605,9 @@ export default function OnboardingV2Screen() {
             .then((d) => {
                 if (cancelled || !d) return;
                 const a = d.answers || {};
+                if (typeof a.ageBand === 'string') setAgeBand(a.ageBand);
+                if (typeof a.gender === 'string') setGender(a.gender);
+                if (typeof a.effort === 'string') setEffort(a.effort);
                 if (Array.isArray(a.goals)) setGoals(a.goals);
                 if (a.motivation === null || typeof a.motivation === 'string') setMotivation(a.motivation);
                 if (typeof a.motivationOther === 'string') setMotivationOther(a.motivationOther);
@@ -598,6 +632,11 @@ export default function OnboardingV2Screen() {
                 if (typeof a.workoutMin === 'number') setWorkoutMin(a.workoutMin);
                 if (typeof a.weekendShift === 'boolean') setWeekendShift(a.weekendShift);
                 if (typeof d.step === 'number' && d.step >= 0) setStep(d.step);
+                // Resume into the phase the user left — unless the navigator
+                // explicitly routed here with a phase param (hand-off wins).
+                if (!route?.params?.phase && (d.phase === 'intro' || d.phase === 'effort' || d.phase === 'schedule')) {
+                    setPhase(d.phase);
+                }
             })
             .catch(() => undefined)
             .finally(() => {
@@ -614,17 +653,31 @@ export default function OnboardingV2Screen() {
     useEffect(() => {
         if (!draftLoaded) return;
         void saveOnboardingDraft(step, {
+            ageBand, gender, effort,
             goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
             workStartMin, workEndMin, workLocation, commuteMin, chronotype,
             breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
             showerTime, workoutMin, weekendShift,
-        });
+        }, phase);
     }, [
-        draftLoaded, step, goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
+        draftLoaded, step, phase, ageBand, gender, effort,
+        goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
         workStartMin, workEndMin, workLocation, commuteMin, chronotype,
         breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
         showerTime, workoutMin, weekendShift,
     ]);
+
+    // Hand-offs back into the wizard (FaceScan → effort, CreateAccount →
+    // schedule) arrive as a route-param change on the already-mounted screen.
+    useEffect(() => {
+        const p = route?.params?.phase;
+        if ((p === 'intro' || p === 'effort' || p === 'schedule') && p !== phase) {
+            setDir(1);
+            setPhase(p);
+            setStep(0);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [route?.params?.phase]);
 
     // Wheel picker — `picker` holds the field currently being edited. A bumping
     // key forces a fresh sheet (correct initial scroll) every time one opens.
@@ -669,6 +722,21 @@ export default function OnboardingV2Screen() {
     const onGrStart = (v: number) => { const s = clampGr(v); setGrStart(s); setGrEnd(clampGr(s + GR_DUR)); };
     const onWdStart = (v: number) => { const se = clampWdEve(v); setWdStart(fromEve(se)); setWdEnd(fromEve(Math.min(WD_HI, se + WD_DUR))); };
 
+    // Funnel V4: everything before the scan hand-off, persisted early so the
+    // scan analysis + paywall personalization can read it (fire-and-forget —
+    // a transient failure must never block the funnel; finish() re-sends it all).
+    const introPayload = () => ({
+        goals,
+        priority_order: goals
+            .map((id) => MAXX_TILES.find((t) => t.id === id)?.token)
+            .filter(Boolean) as string[],
+        motivation,
+        motivation_other: motivation === 'other' ? motivationOther.trim() : null,
+        age_band: ageBand,
+        gender,
+        completed: false,
+    });
+
     const finish = async () => {
         setSaving(true);
         setError(null);
@@ -676,6 +744,9 @@ export default function OnboardingV2Screen() {
             .map((id) => MAXX_TILES.find((t) => t.id === id)?.token)
             .filter(Boolean) as string[];
         const payload = {
+                age_band: ageBand,
+                gender,
+                effort_level: effort,
                 goals,
                 priority_order: tokens,
                 motivation,
@@ -708,34 +779,35 @@ export default function OnboardingV2Screen() {
                 workout_time: hhmm(workoutMin),
                 weekend_shift: weekendShift,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-                completed: false,
+                // V4: the schedule questions are the LAST funnel step (post-pay,
+                // post-account), so finishing them completes onboarding outright —
+                // the navigator remounts onto Main. No reveal step.
+                completed: true,
             };
-        const goReveal = () => {
+        const goHome = () => {
             track('onboarding_step', {
                 step: 'completed',
                 goals,
                 motivation,
                 has_work: works,
             });
-            // Onboarding is effectively done — drop the resume draft so a later
-            // relaunch doesn't drag the user back into the wizard.
+            // Onboarding is done — drop the resume draft so a later relaunch
+            // doesn't drag the user back into the wizard.
             void clearOnboardingDraft();
-            // Navigate FIRST (with the answers as params so the reveal does
-            // not depend on a user refetch), THEN refresh auth state — a
-            // refresh that swaps the root stack would eat the navigation.
-            navigation.navigate('RoutineReveal', { ob: payload });
+            // The refresh flips onboarding.completed → treatAsFull → the
+            // navigator remounts onto Main.
             refreshUser().catch(() => {});
         };
         try {
             await api.saveOnboarding(payload as any);
-            goReveal();
+            goHome();
         } catch (e: any) {
             // On the computer/web dev build, don't trap the user behind a save
             // failure (e.g. no local backend) — proceed with the answers in
             // hand, exactly as a successful save would. Native/prod still
             // surfaces the real error so a genuine failure isn't hidden.
             if (Platform.OS === 'web' && __DEV__) {
-                goReveal();
+                goHome();
             } else {
                 setError("Couldn't save. Check your connection and try again.");
             }
@@ -763,10 +835,70 @@ export default function OnboardingV2Screen() {
         { icon: 'moon-outline', label: 'Wind down', value: fmt12(wdStart), sort: wdStart },
     ].sort((a, b) => a.sort - b.sort);
 
+    // Single-choice steps auto-advance ~a beat after the tap (the back chevron
+    // is always there if they mis-tap). goNext is defined below the steps
+    // array, so route the call through a ref to dodge the ordering.
+    const goNextRef = useRef<() => void>(() => {});
+    const autoNext = () => setTimeout(() => goNextRef.current(), 240);
+
     // One idea per screen. The "Where you work" step only exists when the user
     // works — it's spread in conditionally; the progress bar adapts to length.
-    const steps = [
-        // 1 — goals
+    const allSteps = [
+        // 0 — age (identity bracket)
+        {
+            title: 'How old\nare you?',
+            sub: 'Your plan is calibrated to where you are.',
+            canNext: !!ageBand,
+            auto: true,
+            body: (
+                <View style={{ gap: 10 }}>
+                    {AGE_BANDS.map((a) => {
+                        const active = ageBand === a;
+                        return (
+                            <TouchableOpacity
+                                key={a}
+                                style={[styles.tile, active && styles.tileActive]}
+                                onPress={() => { setAgeBand(a); autoNext(); }}
+                                activeOpacity={0.85}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: active }}
+                                accessibilityLabel={a}
+                            >
+                                <Text style={[styles.tileLabel, styles.tileLabelCenter, active && styles.tileLabelActive]}>{a}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            ),
+        },
+        // 1 — gender
+        {
+            title: 'You are…',
+            sub: 'Facial analysis differs by bone structure.',
+            canNext: !!gender,
+            auto: true,
+            body: (
+                <View style={{ gap: 10 }}>
+                    {GENDERS.map((g) => {
+                        const active = gender === g.id;
+                        return (
+                            <TouchableOpacity
+                                key={g.id}
+                                style={[styles.tile, active && styles.tileActive]}
+                                onPress={() => { setGender(g.id); autoNext(); }}
+                                activeOpacity={0.85}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: active }}
+                                accessibilityLabel={g.label}
+                            >
+                                <Text style={[styles.tileLabel, styles.tileLabelCenter, active && styles.tileLabelActive]}>{g.label}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            ),
+        },
+        // 2 — goals
         {
             title: 'What are we\nworking on?',
             sub: 'Pick up to 3.',
@@ -814,6 +946,9 @@ export default function OnboardingV2Screen() {
             sub: 'It helps Max talk to you straight.',
             // When "Something else" is picked, require a non-empty typed reason.
             canNext: !!motivation && (motivation !== 'other' || motivationOther.trim().length > 0),
+            // Auto-advance on a bucket tap; "Something else" needs the text box
+            // + an explicit Continue.
+            auto: motivation !== 'other',
             body: (
                 <View style={{ gap: 10 }}>
                     {MOTIVATIONS.map((m) => {
@@ -822,7 +957,7 @@ export default function OnboardingV2Screen() {
                             <TouchableOpacity
                                 key={m.id}
                                 style={[styles.tile, active && styles.tileActive]}
-                                onPress={() => setMotivation(m.id)}
+                                onPress={() => { setMotivation(m.id); if (m.id !== 'other') autoNext(); }}
                                 activeOpacity={0.85}
                                 accessibilityRole="button"
                                 accessibilityState={{ selected: active }}
@@ -848,7 +983,37 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 3 — day shape
+        // 4 — effort (asked while the scan analyzes in the background)
+        {
+            title: 'How hard do you\nwant to go?',
+            sub: 'The plan flexes to match — you can change this later.',
+            canNext: !!effort,
+            auto: true,
+            body: (
+                <View style={{ gap: 10 }}>
+                    {EFFORTS.map((e) => {
+                        const active = effort === e.id;
+                        return (
+                            <TouchableOpacity
+                                key={e.id}
+                                style={[styles.tile, active && styles.tileActive]}
+                                onPress={() => { setEffort(e.id); autoNext(); }}
+                                activeOpacity={0.85}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: active }}
+                                accessibilityLabel={e.label}
+                            >
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.tileLabel, active && styles.tileLabelActive]}>{e.label}</Text>
+                                    <Text style={[styles.tileTag, active && styles.tileTagActive]}>{e.sub}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            ),
+        },
+        // 5 — day shape
         {
             title: 'The shape of\nyour day',
             sub: 'Max builds around your real hours, not over them.',
@@ -953,6 +1118,7 @@ export default function OnboardingV2Screen() {
             title: 'When are you\nsharpest?',
             sub: "Hard things land when you've got the most in the tank.",
             canNext: true,
+            auto: true,
             body: (
                 <View style={{ gap: 10 }}>
                     {CHRONOTYPES.map(([id, label, icon]) => (
@@ -961,7 +1127,7 @@ export default function OnboardingV2Screen() {
                             icon={icon}
                             label={label}
                             active={chronotype === id}
-                            onPress={() => setChronotype(id)}
+                            onPress={() => { setChronotype(id); autoNext(); }}
                         />
                     ))}
                 </View>
@@ -1047,6 +1213,7 @@ export default function OnboardingV2Screen() {
             title: 'When do you\nusually shower?',
             sub: 'So Max anchors your skin and hygiene routines at the right time.',
             canNext: !!showerTime,
+            auto: true,
             body: (
                 <View style={{ gap: 10 }}>
                     {SHOWER_TIMES.map((s) => (
@@ -1055,7 +1222,7 @@ export default function OnboardingV2Screen() {
                             icon={s.icon}
                             label={s.label}
                             active={showerTime === s.id}
-                            onPress={() => setShowerTime(s.id)}
+                            onPress={() => { setShowerTime(s.id); autoNext(); }}
                         />
                     ))}
                 </View>
@@ -1085,9 +1252,17 @@ export default function OnboardingV2Screen() {
         },
     ];
 
-    // Show motivation ("What's pulling you here?") before goals ("What are we
-    // working on?") — swap the first two onboarding questions.
-    [steps[0], steps[1]] = [steps[1], steps[0]];
+    // Funnel V4 phase slices over the single ordered list above:
+    //   intro    = age, gender, goals, motivation   → FaceScan hand-off
+    //   effort   = the one mid-analysis question    → ScanResultsGate
+    //   schedule = day-shape … recap                → finish() → Main
+    // The conditional work-location step lives in `schedule`, so slice from the
+    // END for that phase and by fixed index for the fixed-size front.
+    const INTRO_LEN = 4;
+    const steps =
+        phase === 'intro' ? allSteps.slice(0, INTRO_LEN)
+        : phase === 'effort' ? allSteps.slice(INTRO_LEN, INTRO_LEN + 1)
+        : allSteps.slice(INTRO_LEN + 1);
 
     // A step removed beneath the current index (e.g. toggling work off while
     // past the Work step) would leave `step` dangling — clamp it so we never
@@ -1096,17 +1271,44 @@ export default function OnboardingV2Screen() {
     const current = steps[safeStep];
     const isLast = safeStep === steps.length - 1;
 
+    // Continuous funnel progress across phases + the screens between them
+    // (scan, results, paywall, account), so the bar never jumps backwards.
+    const PHASE_OFFSET = { intro: 0, effort: INTRO_LEN + 1, schedule: INTRO_LEN + 4 } as const;
+    const FUNNEL_TOTAL = allSteps.length + 4;
+    const progressIndex = PHASE_OFFSET[phase] + safeStep;
+
     const goNext = () => {
         if (Platform.OS !== 'web') {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         }
-        if (isLast) { finish(); return; }
+        if (isLast) {
+            if (phase === 'intro') {
+                // Persist identity + goals now so the scan analysis and the
+                // paywall personalization can read them (best-effort).
+                void api.saveOnboarding(introPayload() as any).catch(() => {});
+                track('onboarding_step', { step: 'intro_done' });
+                if (user?.first_scan_completed) {
+                    // Already scanned (resume path) — skip re-capture.
+                    setDir(1); setPhase('effort'); setStep(0);
+                } else {
+                    navigation.navigate('FaceScan', { funnelV4: true });
+                }
+                return;
+            }
+            if (phase === 'effort') {
+                navigation.navigate('ScanResultsGate');
+                return;
+            }
+            finish();
+            return;
+        }
         // Dismiss any open wheel sheet before the step transition so a picker
         // <Modal> can never leak across steps and block taps on the next screen.
         if (picker) setPicker(null);
         setDir(1);
         setStep(safeStep + 1);
     };
+    goNextRef.current = goNext;
     const goBack = () => {
         if (Platform.OS !== 'web') {
             Haptics.selectionAsync().catch(() => {});
@@ -1171,7 +1373,7 @@ export default function OnboardingV2Screen() {
                     ) : (
                         <View style={styles.backBtnSpacer} />
                     )}
-                    <ProgressBar index={safeStep} total={steps.length} />
+                    <ProgressBar index={progressIndex} total={FUNNEL_TOTAL} />
                 </View>
 
                 <ScrollView
@@ -1191,12 +1393,18 @@ export default function OnboardingV2Screen() {
                 </ScrollView>
 
                 <View style={{ paddingBottom: insets.bottom + 16 }}>
-                    <PrimaryButton
-                        label={isLast ? 'Build my day' : 'Continue'}
-                        loading={saving}
-                        disabled={!current.canNext}
-                        onPress={goNext}
-                    />
+                    {/* Single-choice steps auto-advance on tap — no Continue button
+                        (the tap IS the continue). Multi-select / compound steps keep it. */}
+                    {(current as any).auto ? (
+                        <View style={{ height: 52 }} />
+                    ) : (
+                        <PrimaryButton
+                            label={isLast && phase === 'schedule' ? 'Build my day' : 'Continue'}
+                            loading={saving}
+                            disabled={!current.canNext}
+                            onPress={goNext}
+                        />
+                    )}
                 </View>
             </View>
 

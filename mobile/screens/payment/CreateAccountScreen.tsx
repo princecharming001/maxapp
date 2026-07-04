@@ -5,7 +5,7 @@
  * then routes to ReferralCode. A returning user who lands here gets a clear "email
  * already registered" error (they sign in from Landing instead).
  */
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
     KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image,
@@ -66,30 +66,41 @@ export default function CreateAccountScreen() {
 
     const canSubmit = name.trim().length > 0 && /\S+@\S+\.\S+/.test(email.trim()) && password.length >= 8 && !busy;
 
+    // Funnel V4 resume-guard: this screen now sits AFTER the paywall, and the
+    // account may already be claimed (relaunch mid-funnel, or an existing user).
+    // A non-anonymous arrival has nothing to claim — continue straight to the
+    // schedule questions. Checked once on mount so the claim-in-progress flip
+    // (anon → real) never re-triggers it mid-flow.
+    useEffect(() => {
+        if (user && !String(user.email || '').endsWith('@anon.trymax.app')) {
+            nav.replace('Onboarding', { phase: 'schedule' });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // After a successful claim (password OR Google), continue the funnel to the
-    // referral/paywall step. Unlike the guest Login/Signup screens — which live in
-    // the unauthenticated stack, so signing in there flips isAuthenticated and the
-    // navigator remounts onto the funnel automatically — the anon user is ALREADY
-    // authenticated here, so claiming changes no stack and we must navigate explicitly.
+    // schedule questions (funnel V4: paywall → account → schedule → Main).
+    // Unlike the guest Login/Signup screens — which live in the unauthenticated
+    // stack, so signing in there flips isAuthenticated and the navigator
+    // remounts automatically — the anon user is ALREADY authenticated here, so
+    // claiming changes no stack and we must navigate explicitly.
     const goForward = (method: 'email' | 'google' = 'email') => {
         track('onboarding_step', { step: 'account_created', method });
-        nav.navigate('ReferralCode', route?.params);
+        nav.navigate('Onboarding', { phase: 'schedule' });
     };
 
     // A Google sign-in either CLAIMED the anon account (same user id — the normal
     // save-your-results path) or matched an EXISTING account and switched the
     // session to it. The two must route differently: a claim continues the funnel;
-    // an existing account resumes wherever THAT account left off — never a fake
-    // "account created" + ReferralCode push (which shoved even paid users back
-    // toward the paywall and let onboarding-incomplete accounts skip onboarding).
+    // an existing account resumes wherever THAT account left off.
     const onGoogleSuccess = (u?: { id: string; is_paid?: boolean; onboarding?: { completed?: boolean } }) => {
         if (!u || u.id === anonIdRef.current) { goForward('google'); return; }
         track('onboarding_step', { step: 'signed_in_existing', method: 'google' });
         // Paid account: treatAsFull flips, the navigator remounts onto Main — any
         // manual navigate here would race the remount. Do nothing.
         if (u.is_paid) return;
-        // Unpaid, onboarding done: continue to the paywall step.
-        if (u.onboarding?.completed === true) { nav.navigate('ReferralCode', route?.params); return; }
+        // Unpaid but onboarded (legacy account): straight to the paywall.
+        if (u.onboarding?.completed === true) { nav.navigate('Payment'); return; }
         // Unpaid, onboarding NOT done: run onboarding — clear the anon funnel
         // history so back-swipes can't resurface another account's scan results.
         nav.reset({ index: 0, routes: [{ name: 'Onboarding' }] });

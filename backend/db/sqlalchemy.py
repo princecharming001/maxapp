@@ -444,6 +444,20 @@ async def _run_column_migrations():
         "CREATE INDEX IF NOT EXISTS idx_scans_user_status ON scans (user_id, processing_status)",
         "CREATE INDEX IF NOT EXISTS idx_user_memories_user_status ON user_memories (user_id, status)",
         "CREATE INDEX IF NOT EXISTS idx_user_schedules_user_active ON user_schedules (user_id, is_active, created_at DESC)",
+        # Single-plan pivot (2026-07): Chad Lite is retired — every paying Lite
+        # subscriber is grandfathered INTO Chad (they keep their old Apple price;
+        # apple_iap_service.tier_for_product_id maps the basic SKU to premium so
+        # renewals never downgrade them back). The one-time upgrade also flags
+        # profile.chad_upgrade_notice, which the app shows as a thank-you popup
+        # and clears via POST /users/ack-chad-upgrade. Idempotent: after the
+        # first run no rows match.
+        """
+        UPDATE app_users
+        SET subscription_tier = 'premium',
+            profile = (COALESCE(profile, '{}'::json)::jsonb || '{"chad_upgrade_notice": true}'::jsonb)::json,
+            updated_at = NOW()
+        WHERE is_paid IS TRUE AND lower(COALESCE(subscription_tier, '')) = 'basic'
+        """,
     ]
     applied = 0
     for sql in migrations:

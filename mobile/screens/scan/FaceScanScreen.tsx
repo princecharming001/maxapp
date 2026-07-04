@@ -13,7 +13,7 @@ import {
 import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
+import { CommonActions, useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -70,6 +70,7 @@ const STEPS = [
 
 export default function FaceScanScreen() {
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
     const insets = useSafeAreaInsets();
     const { user, isPaid, isPremium, isScanUser, refreshUser } = useAuth();
     const [permission, requestPermission] = useCameraPermissions();
@@ -89,6 +90,18 @@ export default function FaceScanScreen() {
     const uploadActiveRef = useRef(false);
 
     const navigateToResults = useCallback(() => {
+        // Funnel V4: the capture sits mid-quiz (intro → scan → effort →
+        // ScanResultsGate). The analysis keeps processing server-side while the
+        // user answers the effort question — hand back to the wizard, not the
+        // full results screen.
+        if (route?.params?.funnelV4) {
+            // The results screen normally clears the submit-recovery flags on
+            // mount; this path skips it, so clear them here (upload succeeded).
+            void clearPendingFaceScanSubmit().catch(() => undefined);
+            void clearFaceScanDraft().catch(() => undefined);
+            navigation.navigate('Onboarding', { phase: 'effort' });
+            return;
+        }
         // `justSubmitted` tells the results screen this is the genuine
         // post-upload hand-off — only then should it clear the captured-photo
         // draft + pending flag. Post-pay redirects into FaceScanResults (from

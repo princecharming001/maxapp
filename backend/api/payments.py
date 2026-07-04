@@ -507,7 +507,8 @@ async def apple_verify(
         client_pid = (body.product_id or "").strip()
         tier = apple.tier_for_product_id(client_pid) if client_pid else None
         if not tier:
-            tier = "premium" if "premium" in client_pid.lower() else "basic" if client_pid else "basic"
+            # Single-plan pivot: everything grants Chad (premium) now.
+            tier = "premium"
 
         await _activate_user(
             str(current_user["id"]),

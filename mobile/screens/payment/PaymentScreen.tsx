@@ -36,7 +36,7 @@ import { track } from '../../lib/analytics';
 import { useAuth } from '../../context/AuthContext';
 import { useStripeSubscription } from '../../hooks/useStripeSubscription';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
-import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
+import { APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
 import { useFlag } from '../../constants/featureFlags';
 
 /* ── Palette ── light cream paywall (ink + blue, matches maxx clay icons) ─ */
@@ -68,19 +68,8 @@ const CHAD_FEATURES_NO_SCAN: Feature[] = [
     { icon: 'book-outline',       title: 'Full Course Library', sub: 'Every creator course and piece of content'    },
     { icon: 'ribbon-outline',     title: 'Priority Support',    sub: 'Faster responses and dedicated help'          },
 ];
-const CHAD_LITE_FEATURES: Feature[] = [
-    { icon: 'chatbubble-outline', title: 'Max Chat',            sub: 'AI coaching for your looksmaxxing journey'    },
-    { icon: 'grid-outline',       title: '2 Active Routines',   sub: 'Run up to 2 programs at once'                 },
-    { icon: 'scan-outline',       title: 'Weekly Face Scan',    sub: 'AI face analysis once per week'               },
-    { icon: 'library-outline',    title: 'Selected Courses',    sub: 'Access to free creator content'               },
-    { icon: 'people-outline',     title: 'Community Support',   sub: 'Help from the Max community'                  },
-];
-const CHAD_LITE_FEATURES_NO_SCAN: Feature[] = [
-    { icon: 'chatbubble-outline', title: 'Max Chat',            sub: 'AI coaching for your looksmaxxing journey'    },
-    { icon: 'grid-outline',       title: '2 Active Routines',   sub: 'Run up to 2 programs at once'                 },
-    { icon: 'library-outline',    title: 'Selected Courses',    sub: 'Access to free creator content'               },
-    { icon: 'people-outline',     title: 'Community Support',   sub: 'Help from the Max community'                  },
-];
+// Chad Lite is retired (funnel V4): one plan, one price, 3-day free trial.
+// Existing Lite subscribers are grandfathered INTO Chad server-side.
 
 /* ── Price helpers ─────────────────────────────────────────────────────── */
 function parseAmount(s: string): { sym: string; n: number } | null {
@@ -104,19 +93,17 @@ export default function PaymentScreen() {
     const insets     = useSafeAreaInsets();
     const { user, refreshUser, isAnonymous, isFreeTier, chooseFreeTier } = useAuth();
 
-    // Guest gate (belt-and-suspenders): an unclaimed anon guest must claim an
-    // account before paying — ReferralCode gates first, this catches direct paths.
-    useEffect(() => {
-        if (isAnonymous) navigation.replace('CreateAccount');
-    }, [isAnonymous]);
+    // Funnel V4: the paywall comes BEFORE account creation — anonymous users
+    // purchase (Apple IAP is Apple-ID-scoped; the entitlement attaches to this
+    // authed anon account) and claim the account on the next screen.
+    const onboardingCompleted = user?.onboarding?.completed === true;
 
     useEffect(() => {
-        if (!isAnonymous) track('paywall_view');
+        track('paywall_view');
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const faceScanEnabled = useFlag('faceScan');
-    const chadFeatures      = faceScanEnabled ? CHAD_FEATURES      : CHAD_FEATURES_NO_SCAN;
-    const chadLiteFeatures  = faceScanEnabled ? CHAD_LITE_FEATURES : CHAD_LITE_FEATURES_NO_SCAN;
+    const chadFeatures = faceScanEnabled ? CHAD_FEATURES : CHAD_FEATURES_NO_SCAN;
 
     const stripe = useStripeSubscription();
     const apple  = useAppleSubscription();
@@ -132,24 +119,27 @@ export default function PaymentScreen() {
         return (p?.displayPrice || p?.localizedPrice || fallback) as string;
     };
     const premiumPrice = priceFor(APPLE_IAP_PREMIUM_SKU, '$5.99');
-    const basicPrice   = priceFor(APPLE_IAP_BASIC_SKU,   '$3.99');
     const perDay       = perDayLabel(premiumPrice);
-    const perDayBasic  = perDayLabel(basicPrice);
 
-    // Selected plan — default to chad (premium)
-    const [selected, setSelected] = useState<'basic' | 'premium'>('premium');
+    // Where a successful purchase goes. Mid-funnel (onboarding incomplete) the
+    // next step is claiming the account ("Save your results"); a completed user
+    // hitting this as an in-app gate rides the paid-stack remount instead.
+    const afterPurchase = () => {
+        if (!onboardingCompleted) {
+            navigation.navigate('CreateAccount');
+        } else if (navigation.canGoBack()) {
+            navigation.goBack();
+        }
+    };
 
-    const [devBusy, setDevBusy] = useState<'basic' | 'premium' | null>(null);
-    const devBypass = async (tier: 'basic' | 'premium') => {
+    const [devBusy, setDevBusy] = useState<'premium' | null>(null);
+    const devBypass = async () => {
         if (devBusy) return;
-        setDevBusy(tier);
+        setDevBusy('premium');
         try {
-            await api.testActivateSubscription(tier);
+            await api.testActivateSubscription('premium');
             await refreshUser();
-            // Real purchases reach the results via a stack remount + HomeScreen
-            // redirect. The dev bypass doesn't trigger that (we're already in the
-            // paid stack), so route to the post-pay results view explicitly.
-            navigation.navigate('FaceScanResults', { postPay: true });
+            afterPurchase();
         } catch (e: any) {
             Alert.alert('Dev bypass failed', String(e?.message || e || 'Could not activate.'));
         } finally {
@@ -168,36 +158,32 @@ export default function PaymentScreen() {
     };
 
     const handleSubscribe = async () => {
-        // In any dev build (__DEV__) the primary CTA activates the selected plan
-        // directly — the same effect the old "Skip → Chad / Chad Lite" dev buttons
-        // had. This works on web and on a simulator/device where real Apple IAP
-        // can't complete. Production builds (__DEV__ false) always run the real
-        // Stripe / Apple IAP purchase flow below, unchanged.
-        track('purchase_started', { plan: selected });
+        // In any dev build (__DEV__) the primary CTA activates the plan directly.
+        // Production builds run the real Apple IAP purchase — the 3-day free
+        // trial is Apple's introductory offer on the Chad SKU, so "subscribe
+        // free now, auto-converts to paid" needs no second opt-in from the user.
+        track('purchase_started', { plan: 'premium' });
         if (SHOW_DEV_BYPASS) {
-            await devBypass(selected);
+            await devBypass();
             return;
         }
         try {
-            await (selected === 'basic' ? sub.subscribeBasic() : sub.subscribePremium());
-            track('purchase_success', { plan: selected });
+            await sub.subscribePremium();
+            track('purchase_success', { plan: 'premium' });
+            afterPurchase();
         } catch (e: any) {
-            track('purchase_failed', { plan: selected, error: String(e?.message ?? 'unknown') });
+            track('purchase_failed', { plan: 'premium', error: String(e?.message ?? 'unknown') });
             throw e;
         }
     };
 
     const ctaBusy = busy || devBusy !== null;
-    const ctaLabel = ctaBusy
-        ? 'Processing…'
-        : selected === 'premium'
-        ? `Upgrade to Chad · ${premiumPrice}/wk`
-        : `Get Chad Lite · ${basicPrice}/wk`;
+    const ctaLabel = ctaBusy ? 'Processing…' : 'Start my 3-day free trial';
 
-    // "Continue with the free plan" — browse-only access. First time (funnel):
-    // persists the choice, which flips the navigator onto the Main stack. When
-    // the paywall was PUSHED as an in-app gate (already free tier, canGoBack),
-    // it simply dismisses back to where the user was.
+    // "Continue with the free plan" — browse-only access. Mid-funnel it records
+    // the choice and continues to the account step (the funnel still finishes);
+    // when the paywall was PUSHED as an in-app gate (already free tier,
+    // canGoBack), it simply dismisses back to where the user was.
     const onContinueFree = async () => {
         if (ctaBusy) return;
         track('paywall_view', { action: 'continue_free' });
@@ -206,6 +192,7 @@ export default function PaymentScreen() {
             return;
         }
         await chooseFreeTier();
+        if (!onboardingCompleted) navigation.navigate('CreateAccount');
     };
 
     return (
@@ -261,7 +248,7 @@ export default function PaymentScreen() {
                     over the dust gradient (its contrast is what makes the glass
                     read). LiquidGlass owns the blur, speculars, rim and float. */}
                 <LiquidGlass radius={30} intensity={IS_IOS ? 46 : 16} spec={1.15} style={s.featureCard} contentStyle={s.featureCardContent}>
-                    {(selected === 'premium' ? chadFeatures : chadLiteFeatures).map((f) => (
+                    {chadFeatures.map((f) => (
                         <View key={f.title} style={s.featureRow}>
                             <View style={s.featureIconWrap}>
                                 <Ionicons name={f.icon} size={22} color={INK} />
@@ -274,26 +261,15 @@ export default function PaymentScreen() {
                     ))}
                 </LiquidGlass>
 
-                {/* Plan picker — single container, Grok-style */}
+                {/* One plan — the trial terms, stated plainly. Nothing is charged
+                    today; Apple's intro offer converts to the weekly price after
+                    3 days unless they cancel. */}
                 <View style={s.planContainer}>
-                    <TouchableOpacity
-                        style={[s.planOption, selected === 'basic' && s.planOptionSel]}
-                        onPress={() => { setSelected('basic'); track('plan_selected', { plan: 'basic' }); }}
-                        activeOpacity={0.85}
-                    >
-                        <Text style={s.planName}>Chad Lite</Text>
-                        <Text style={s.planPrice}>{basicPrice}<Text style={s.planPer}>/wk</Text></Text>
-                        {perDayBasic ? <Text style={s.planNote}>{perDayBasic}</Text> : null}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[s.planOption, selected === 'premium' && s.planOptionSel]}
-                        onPress={() => { setSelected('premium'); track('plan_selected', { plan: 'premium' }); }}
-                        activeOpacity={0.85}
-                    >
-                        <Text style={s.planName}>Chad</Text>
-                        <Text style={s.planPrice}>{premiumPrice}<Text style={s.planPer}>/wk</Text></Text>
-                        {perDay ? <Text style={s.planNote}>{perDay}</Text> : null}
-                    </TouchableOpacity>
+                    <View style={[s.planOption, s.planOptionSel, s.planOptionFull]}>
+                        <Text style={s.planName}>Chad · 3 days free</Text>
+                        <Text style={s.planPrice}>{premiumPrice}<Text style={s.planPer}>/wk after</Text></Text>
+                        <Text style={s.planNote}>{perDay ? `${perDay} · ` : ''}cancel anytime before the trial ends</Text>
+                    </View>
                 </View>
 
                 {/* CTA — dark liquid glass (float shadow on the outer wrapper so the
@@ -491,6 +467,10 @@ const s = StyleSheet.create({
         ...(Platform.OS === 'ios'
             ? { shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }
             : { elevation: 3 }),
+    },
+    // Single-plan (V4): the one card spans the container, centered.
+    planOptionFull: {
+        alignItems: 'center',
     },
     planName: {
         fontFamily: 'Matter-Medium',

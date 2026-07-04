@@ -17,6 +17,7 @@ import FeaturesIntroScreen from '../screens/onboarding/FeaturesIntroScreen';
 import RoutineRevealScreen from '../screens/onboarding/RoutineRevealScreen';
 import FaceScanScreen from '../screens/scan/FaceScanScreen';
 import FaceScanResultsScreen from '../screens/scan/FaceScanResultsScreen';
+import ScanResultsGateScreen from '../screens/scan/ScanResultsGateScreen';
 import GoogleCalendarConnectScreen from '../screens/integrations/GoogleCalendarConnectScreen';
 import ScanDetailScreen from '../screens/scan/ScanDetailScreen';
 import PaymentScreen from '../screens/payment/PaymentScreen';
@@ -99,10 +100,13 @@ export function RootNavigator() {
     // Paid users get the full stack. A user who explicitly chose "Continue with
     // the free plan" on the paywall (isFreeTier) ALSO enters the Main stack — but
     // browse-only: every real action (start a plan, chat send, …) is bounced back
-    // to Payment by usePaywallGate, and paid content stays server-gated. Free
-    // tier still requires completed onboarding; mid-funnel users stay in the
-    // funnel stack.
-    const treatAsFull = isPaid || (isFreeTier && onboardingCompleted);
+    // to Payment by usePaywallGate, and paid content stays server-gated.
+    // Funnel V4: payment happens MID-funnel (before the account + schedule
+    // steps), so being paid isn't enough — onboarding must also be complete, or
+    // a user who quit right after purchasing would land on Main with the
+    // schedule questions unanswered. Existing paid users all have
+    // onboarding.completed, so this changes nothing for them.
+    const treatAsFull = (isPaid || isFreeTier) && onboardingCompleted;
 
     const initialRoute = !isAuthenticated
         // New users land on the Landing 'Get started' funnel (which mints the
@@ -169,6 +173,8 @@ export function RootNavigator() {
                         into a state where the user could circumvent the paywall. */}
                     <Stack.Screen name="FaceScan" component={FaceScanScreen} options={{ gestureEnabled: false }} />
                     <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} options={{ gestureEnabled: false }} />
+                    {/* Funnel V4: locked potential+appeal gate between the scan and the paywall. */}
+                    <Stack.Screen name="ScanResultsGate" component={ScanResultsGateScreen} options={{ gestureEnabled: false }} />
                     <Stack.Screen name="ScanDetail" component={ScanDetailScreen} />
                     {/* Account-after-scan: claim the anon account before the paywall. */}
                     <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />

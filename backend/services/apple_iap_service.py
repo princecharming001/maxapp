@@ -113,7 +113,12 @@ def tier_for_product_id(product_id: str) -> Optional[str]:
     if pid == premium:
         return "premium"
     if pid == basic:
-        return "basic"
+        # Chad Lite is RETIRED (single-plan pivot, 2026-07): legacy Lite
+        # subscribers are grandfathered into Chad at their old price. Mapping
+        # the basic SKU to premium here means every entitlement path — ASN
+        # webhooks, verify, the reconciliation job — converges Lite renewals to
+        # the premium tier instead of downgrading them back on the next event.
+        return "premium"
     return None
 
 

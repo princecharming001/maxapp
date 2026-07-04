@@ -11,9 +11,15 @@ import { STORAGE_KEYS } from './resilienceKeys';
  * crashes a restore — missing fields just fall back to the screen's defaults.
  * Cleared on successful submit and on logout (AuthContext).
  */
-const DRAFT_VERSION = 1;
+// v2 (funnel V4): adds `phase` (intro | effort | schedule) + ageBand/gender/
+// effort answers. Version bump deliberately discards v1 drafts — the step
+// order changed, so an old step index would resume into the wrong question.
+const DRAFT_VERSION = 2;
 
 export type OnboardingAnswers = {
+    ageBand: string | null;
+    gender: string | null;
+    effort: string | null;
     goals: string[];
     motivation: string | null;
     // Free-text "other reason" the user types when motivation === 'other'.
@@ -46,6 +52,8 @@ export type OnboardingAnswers = {
 export type OnboardingDraft = {
     v: number;
     step: number;
+    /** Which funnel phase the wizard was in (intro | effort | schedule). */
+    phase?: string;
     answers: Partial<OnboardingAnswers>;
     ts: number;
 };
@@ -53,9 +61,10 @@ export type OnboardingDraft = {
 export async function saveOnboardingDraft(
     step: number,
     answers: Partial<OnboardingAnswers>,
+    phase?: string,
 ): Promise<void> {
     try {
-        const draft: OnboardingDraft = { v: DRAFT_VERSION, step, answers, ts: Date.now() };
+        const draft: OnboardingDraft = { v: DRAFT_VERSION, step, phase, answers, ts: Date.now() };
         await AsyncStorage.setItem(STORAGE_KEYS.onboardingDraft, JSON.stringify(draft));
     } catch {
         /* best-effort — a failed draft write must never break the wizard */

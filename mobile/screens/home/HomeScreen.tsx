@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    Animated, ActivityIndicator, RefreshControl,
+    Animated, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { useNavigation, useFocusEffect, CommonActions } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -247,6 +247,22 @@ export default function HomeScreen() {
     const schedulesQuery = useActiveSchedulesFullQuery();
 
     const taskToggleInFlightRef = useRef(new Set<string>());
+
+    // One-time "welcome to Chad" popup for grandfathered Chad-Lite subscribers
+    // (the single-plan pivot upgraded them server-side; the migration sets
+    // profile.chad_upgrade_notice, cleared by the ack call so it never re-shows).
+    const chadNoticeShown = useRef(false);
+    useEffect(() => {
+        if (chadNoticeShown.current) return;
+        if (!(user?.profile as any)?.chad_upgrade_notice) return;
+        chadNoticeShown.current = true;
+        Alert.alert(
+            'You’ve been upgraded to Chad',
+            'Everything Chad has — unlimited coaching, 3 active routines, daily scans, the full library — is now yours, at no extra cost. Thanks for being one of our loyal customers.',
+            [{ text: 'Let’s go', style: 'default' }],
+        );
+        void api.ackChadUpgrade().catch(() => undefined);
+    }, [user]);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(18)).current;

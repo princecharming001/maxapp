@@ -1095,6 +1095,12 @@ class ApiService {
         return response.data;
     }
 
+    /** Clear the one-time Chad-Lite→Chad grandfather-upgrade popup flag. */
+    async ackChadUpgrade() {
+        const response = await this.client.post('users/ack-chad-upgrade');
+        return response.data;
+    }
+
     /**
      * DEBUG: bulk-reset user flags so a single account can replay
      * onboarding / scan / paywall flows. Backend 404s when DEBUG=false.

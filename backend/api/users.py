@@ -459,6 +459,24 @@ async def complete_main_app_tour(
     return {"message": "ok"}
 
 
+@router.post("/ack-chad-upgrade")
+async def ack_chad_upgrade(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Clear the one-time "you've been upgraded to Chad" popup flag set by the
+    Chad-Lite grandfather migration. Idempotent."""
+    user = await db.get(User, UUID(current_user["id"]))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    prof = dict(user.profile or {})
+    if prof.pop("chad_upgrade_notice", None) is not None:
+        user.profile = prof
+        user.updated_at = datetime.utcnow()
+        await db.commit()
+    return {"message": "ok"}
+
+
 @router.post("/dev/reset")
 async def dev_reset_state(
     body: dict,
