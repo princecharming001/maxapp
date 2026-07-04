@@ -120,7 +120,13 @@ export function RootNavigator() {
                     ? !onboardingCompleted
                         ? wizardFinished
                             ? 'RoutineReveal'
-                            : 'Onboarding'
+                            // Funnel V4: the scan capture is the FIRST thing after
+                            // "Get started" — the whole question run then doubles as
+                            // loading time for the analysis. Once the scan exists
+                            // (resume paths), the wizard picks up from its draft.
+                            : onboardingV2 && faceScan && !firstScanDone
+                                ? 'FaceScan'
+                                : 'Onboarding'
                         : !faceScan
                             ? 'ReferralCode'
                             : firstScanDone

@@ -73,6 +73,12 @@ export default function FaceScanScreen() {
     const route = useRoute<any>();
     const insets = useSafeAreaInsets();
     const { user, isPaid, isPremium, isScanUser, refreshUser } = useAuth();
+    // Funnel V4: the capture is the FIRST screen after "Get started", mounted
+    // as the navigator's initial route (no params) — so infer funnel mode for
+    // any not-yet-onboarded user, not just explicit funnelV4 pushes. Scan-only
+    // accounts keep their own flow.
+    const funnelV4 = !!route?.params?.funnelV4
+        || (!isScanUser && user?.onboarding?.completed !== true);
     const [permission, requestPermission] = useCameraPermissions();
     const cameraRef = useRef<CameraView>(null);
 
@@ -90,16 +96,15 @@ export default function FaceScanScreen() {
     const uploadActiveRef = useRef(false);
 
     const navigateToResults = useCallback(() => {
-        // Funnel V4: the capture sits mid-quiz (intro → scan → effort →
-        // ScanResultsGate). The analysis keeps processing server-side while the
-        // user answers the effort question — hand back to the wizard, not the
-        // full results screen.
-        if (route?.params?.funnelV4) {
+        // Funnel V4: the capture is the funnel's FIRST screen; the analysis
+        // keeps processing server-side while the user answers the question run
+        // — hand off to the wizard, not the full results screen.
+        if (funnelV4) {
             // The results screen normally clears the submit-recovery flags on
             // mount; this path skips it, so clear them here (upload succeeded).
             void clearPendingFaceScanSubmit().catch(() => undefined);
             void clearFaceScanDraft().catch(() => undefined);
-            navigation.navigate('Onboarding', { phase: 'effort' });
+            navigation.navigate('Onboarding', { phase: 'intro' });
             return;
         }
         // `justSubmitted` tells the results screen this is the genuine
@@ -129,7 +134,7 @@ export default function FaceScanScreen() {
                 routes: [{ name: 'FeaturesIntro' }, resultsRoute],
             }),
         );
-    }, [navigation, isScanUser, user?.first_scan_completed]);
+    }, [navigation, isScanUser, user?.first_scan_completed, funnelV4]);
 
     const runAnalyzingRecovery = useCallback(
         async (fromForeground: boolean) => {
@@ -435,7 +440,7 @@ export default function FaceScanScreen() {
         // ScanResultsGate polls until the analysis lands. The crash-recovery
         // flags stay SET until the background upload succeeds, so a kill/crash
         // mid-upload still restores the photos for a resubmit.
-        if (route?.params?.funnelV4) {
+        if (funnelV4) {
             if (user?.id) {
                 try { await setPendingFaceScanSubmit(user.id); } catch (e) { console.warn('pending submit flag', e); }
             }
@@ -464,7 +469,7 @@ export default function FaceScanScreen() {
                     console.warn('background scan upload failed', err);
                 }
             })();
-            navigation.navigate('Onboarding', { phase: 'effort' });
+            navigation.navigate('Onboarding', { phase: 'intro' });
             return;
         }
         setAnalyzing(true);

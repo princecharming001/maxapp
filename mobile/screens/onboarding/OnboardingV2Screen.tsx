@@ -546,11 +546,13 @@ function Slider({
     );
 }
 
-// Funnel V4 phases. The wizard is split around the scan + paywall:
-//   intro    — age, gender, goals, motivation → hands off to FaceScan
-//   effort   — one question while the scan analyzes → ScanResultsGate
+// Funnel V4 phases. The scan capture is the FIRST thing after "Get started"
+// (RootNavigator boots new users into FaceScan), so the whole question run
+// doubles as loading time for the analysis:
+//   intro    — age, gender, goals, motivation, effort (scan analyzes behind
+//              them) → results gate → paywall → account
 //   schedule — day-shape/work/meals/… after purchase + account → finish → Main
-export type OnboardingPhase = 'intro' | 'effort' | 'schedule';
+export type OnboardingPhase = 'intro' | 'schedule';
 
 export default function OnboardingV2Screen() {
     const navigation = useNavigation<any>();
@@ -634,7 +636,7 @@ export default function OnboardingV2Screen() {
                 if (typeof d.step === 'number' && d.step >= 0) setStep(d.step);
                 // Resume into the phase the user left — unless the navigator
                 // explicitly routed here with a phase param (hand-off wins).
-                if (!route?.params?.phase && (d.phase === 'intro' || d.phase === 'effort' || d.phase === 'schedule')) {
+                if (!route?.params?.phase && (d.phase === 'intro' || d.phase === 'schedule')) {
                     setPhase(d.phase);
                 }
             })
@@ -671,7 +673,7 @@ export default function OnboardingV2Screen() {
     // schedule) arrive as a route-param change on the already-mounted screen.
     useEffect(() => {
         const p = route?.params?.phase;
-        if ((p === 'intro' || p === 'effort' || p === 'schedule') && p !== phase) {
+        if ((p === 'intro' || p === 'schedule') && p !== phase) {
             setDir(1);
             setPhase(p);
             setStep(0);
@@ -1252,17 +1254,15 @@ export default function OnboardingV2Screen() {
         },
     ];
 
-    // Funnel V4 phase slices over the single ordered list above:
-    //   intro    = age, gender, goals, motivation   → FaceScan hand-off
-    //   effort   = the one mid-analysis question    → ScanResultsGate
-    //   schedule = day-shape … recap                → finish() → Main
+    // Funnel V4 phase slices over the single ordered list above. The scan
+    // capture ran BEFORE the wizard, so the whole intro run (incl. effort) is
+    // background-loading time for the analysis:
+    //   intro    = age, gender, goals, motivation, effort → results gate
+    //   schedule = day-shape … recap                      → finish() → Main
     // The conditional work-location step lives in `schedule`, so slice from the
     // END for that phase and by fixed index for the fixed-size front.
-    const INTRO_LEN = 4;
-    const steps =
-        phase === 'intro' ? allSteps.slice(0, INTRO_LEN)
-        : phase === 'effort' ? allSteps.slice(INTRO_LEN, INTRO_LEN + 1)
-        : allSteps.slice(INTRO_LEN + 1);
+    const INTRO_LEN = 5;
+    const steps = phase === 'intro' ? allSteps.slice(0, INTRO_LEN) : allSteps.slice(INTRO_LEN);
 
     // A step removed beneath the current index (e.g. toggling work off while
     // past the Work step) would leave `step` dangling — clamp it so we never
@@ -1272,8 +1272,9 @@ export default function OnboardingV2Screen() {
     const isLast = safeStep === steps.length - 1;
 
     // Continuous funnel progress across phases + the screens between them
-    // (scan, results, paywall, account), so the bar never jumps backwards.
-    const PHASE_OFFSET = { intro: 0, effort: INTRO_LEN + 1, schedule: INTRO_LEN + 4 } as const;
+    // (scan first, then results/paywall/account between the phases), so the
+    // bar never jumps backwards.
+    const PHASE_OFFSET = { intro: 1, schedule: INTRO_LEN + 4 } as const;
     const FUNNEL_TOTAL = allSteps.length + 4;
     const progressIndex = PHASE_OFFSET[phase] + safeStep;
 
@@ -1283,22 +1284,12 @@ export default function OnboardingV2Screen() {
         }
         if (isLast) {
             if (phase === 'intro') {
-                // Persist identity + goals now so the scan analysis and the
-                // paywall personalization can read them (best-effort).
+                // Persist identity + goals now so the paywall personalization can
+                // read them (best-effort), then on to the results gate — the
+                // classic results page reduced to its hero. It shows the
+                // processing loader if the background analysis hasn't landed.
                 void api.saveOnboarding(introPayload() as any).catch(() => {});
                 track('onboarding_step', { step: 'intro_done' });
-                if (user?.first_scan_completed) {
-                    // Already scanned (resume path) — skip re-capture.
-                    setDir(1); setPhase('effort'); setStep(0);
-                } else {
-                    navigation.navigate('FaceScan', { funnelV4: true });
-                }
-                return;
-            }
-            if (phase === 'effort') {
-                // The classic results page in gate mode: hero + the three teaser
-                // rings only, CTA → paywall. It shows the processing loader if
-                // the background analysis hasn't landed yet.
                 navigation.navigate('FaceScanResults', { gateV4: true });
                 return;
             }
