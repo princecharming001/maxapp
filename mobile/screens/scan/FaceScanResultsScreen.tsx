@@ -817,10 +817,16 @@ export default function FaceScanResultsScreen() {
     const route = useRoute<any>();
     const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
     const insets = useSafeAreaInsets();
-    const { isPaid, isScanUser, refreshUser, user } = useAuth() as any;
+    const { isPaid, isScanUser, isFreeTier, refreshUser, user } = useAuth() as any;
     const personalizedUI = useFlag('personalizedUI');
     const postPayParam = !!(route.params as RouteParams)?.postPay;
     const scanIdParam = (route.params as any)?.scanId as string | undefined;
+    // Funnel V4 results gate: the SAME page, reduced to its hero — the scan
+    // photo + the three headline rings with their teaser values VISIBLE
+    // (rating / appeal / potential are in the redacted payload by design) and
+    // a single unlock CTA into the paywall. Everything below the fold is
+    // paid-only and hidden here.
+    const gateV4 = !!(route.params as any)?.gateV4;
     const viewingHistory = !!scanIdParam;
     const postSubscriptionOnboarding = !!(user?.onboarding as any)?.post_subscription_onboarding;
 
@@ -872,6 +878,16 @@ export default function FaceScanResultsScreen() {
     }, [postPayParam, refreshUser, scanIdParam]);
 
     useEffect(() => { bootstrap(); }, [bootstrap]);
+
+    // Funnel V4: the user can arrive here BEFORE the background upload from the
+    // capture step has landed (they were answering the effort question while it
+    // ran) — there's no scan row yet. Keep re-fetching until it appears; the
+    // regular processing poll takes over from there.
+    useEffect(() => {
+        if (!gateV4 || hydrating || scan) return;
+        const t = setTimeout(() => { void bootstrap(); }, 3000);
+        return () => clearTimeout(t);
+    }, [gateV4, hydrating, scan, bootstrap]);
 
     useEffect(() => {
         if (hydrating) return;
@@ -1003,7 +1019,16 @@ export default function FaceScanResultsScreen() {
     // Account-after-scan: an unclaimed (anon) user creates their account first;
     // a claimed user goes straight to the referral/paywall step.
     const isAnon = !!user?.email && String(user.email).endsWith('@anon.trymax.app');
-    const goPayment = () => navigation.navigate(isAnon ? 'CreateAccount' : 'ReferralCode');
+    // V4 gate: the paywall is the next step (account comes after purchase) —
+    // unless this is a resumed already-paid/free-tier user, who skips straight
+    // to the account step. Legacy locked-results paths keep their old routing.
+    const goPayment = () => {
+        if (gateV4) {
+            navigation.navigate(isPaid || isFreeTier ? 'CreateAccount' : 'Payment');
+            return;
+        }
+        navigation.navigate(isAnon ? 'CreateAccount' : 'ReferralCode');
+    };
 
     const onPrimaryCta = async () => {
         if (isScanUser) { navigation.reset({ index: 0, routes: [{ name: 'FaceScan' }] }); return; }
@@ -1116,7 +1141,9 @@ export default function FaceScanResultsScreen() {
 
     // ── Early exit states ──────────────────────────────────────────────────────
 
-    if (scan?.processing_status === 'processing') {
+    // gateV4 + no scan row yet = the background upload is still in flight —
+    // show the same processing view (the poll above picks the row up).
+    if (scan?.processing_status === 'processing' || (gateV4 && !hydrating && !scan)) {
         return <ScanProcessingView onRetry={bootstrap} onBack={headerBack} />;
     }
     if ((hydrating && !scan) || (advancing && !scan)) {
@@ -1262,6 +1289,7 @@ export default function FaceScanResultsScreen() {
                 style={{ flex: 1 }}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 0 }}
+                scrollEnabled={!gateV4}
             >
                 {/* Hero section — transparent, full screen height. Before any
                     scroll the only things over the photo are the face-frame
@@ -1320,7 +1348,7 @@ export default function FaceScanResultsScreen() {
                                 >
                                     <View style={s.ringWrap}>
                                         <MetricRing
-                                            score={locked ? 0 : m.score}
+                                            score={locked && !gateV4 ? 0 : m.score}
                                             outOf={10}
                                             delay={i * 180}
                                             gradient={m.gradient}
@@ -1328,7 +1356,7 @@ export default function FaceScanResultsScreen() {
                                             size={72}
                                         />
                                         <View style={s.ringCenter} pointerEvents="none">
-                                            {locked ? (
+                                            {locked && !gateV4 ? (
                                                 <Ionicons name="lock-closed" size={18} color="rgba(255,255,255,0.6)" />
                                             ) : isProcessing ? (
                                                 <ActivityIndicator color="#FFFFFF" size="small" />
@@ -1343,11 +1371,16 @@ export default function FaceScanResultsScreen() {
                         ))}
                     </View>
 
-                    {/* Minimal animated scroll cue in the white space */}
-                    <ScrollCue onPress={() => scrollRef.current?.scrollTo({ y: SCREEN_H - 60, animated: true })} />
+                    {/* Minimal animated scroll cue in the white space (the V4 gate
+                        has nothing below the fold — the CTA overlays the hero). */}
+                    {!gateV4 ? (
+                        <ScrollCue onPress={() => scrollRef.current?.scrollTo({ y: SCREEN_H - 60, animated: true })} />
+                    ) : null}
                 </View>
 
-                {/* ── Stats section ──────────────────────────────────────── */}
+                {/* ── Stats section (hidden in the V4 gate — the three rings above
+                    ARE the teaser; everything here is paid-only) ─────────────── */}
+                {!gateV4 ? (
                 <View ref={analysisRef} collapsable={false} style={[s.statsSection, { paddingBottom: Math.max(insets.bottom, 24) + 24 }]}>
 
                     {/* Export-only "max" watermark for the analysis capture (white). */}
@@ -1537,7 +1570,18 @@ export default function FaceScanResultsScreen() {
                         </>
                     ) : null}
                 </View>
+                ) : null}
             </ScrollView>
+
+            {/* ── V4 gate CTA — overlays the hero (nothing below the fold) ── */}
+            {gateV4 ? (
+                <View style={[s.gateCtaWrap, { bottom: Math.max(insets.bottom, 20) + 10 }]} pointerEvents="box-none">
+                    <TouchableOpacity style={s.cta} onPress={goPayment} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Unlock full results">
+                        <Text style={s.ctaText}>Unlock full results</Text>
+                        <Ionicons name="lock-open-outline" size={17} color="#FFFFFF" />
+                    </TouchableOpacity>
+                </View>
+            ) : null}
 
             {/* ── Expanded metric overlay ───────────────────────────────── */}
             {expandedIdx !== null ? (
@@ -1548,7 +1592,7 @@ export default function FaceScanResultsScreen() {
                     <BlurView intensity={70} tint="dark" style={StyleSheet.absoluteFill} />
                     <Pressable style={s.expandedCard} onPress={() => {}}>
                         <MetricRing
-                            score={locked ? 0 : METRICS[expandedIdx].score}
+                            score={locked && !gateV4 ? 0 : METRICS[expandedIdx].score}
                             outOf={10}
                             delay={0}
                             gradient={METRICS[expandedIdx].gradient}
@@ -1556,7 +1600,7 @@ export default function FaceScanResultsScreen() {
                             size={160}
                         />
                         <View style={s.expandedCenter} pointerEvents="none">
-                            {locked ? (
+                            {locked && !gateV4 ? (
                                 <Ionicons name="lock-closed" size={38} color="rgba(255,255,255,0.85)" />
                             ) : (
                                 <View style={s.expandedScoreRow}>
@@ -1567,7 +1611,7 @@ export default function FaceScanResultsScreen() {
                         </View>
                         <Text style={s.expandedLabel}>{METRICS[expandedIdx].label}</Text>
                         <Text style={s.expandedDesc}>
-                            {locked
+                            {locked && !gateV4
                                 ? 'Unlock your full results to reveal this score.'
                                 : METRICS[expandedIdx].desc}
                         </Text>
@@ -1833,6 +1877,8 @@ const s = StyleSheet.create({
         backgroundColor: colors.foreground, paddingVertical: 16, borderRadius: borderRadius.full,
     },
     ctaText: { fontSize: 14, fontWeight: '600', color: colors.background, letterSpacing: 0.3 },
+    /* V4 gate: the CTA floats over the hero (below the rings). */
+    gateCtaWrap: { position: 'absolute', left: 24, right: 24, zIndex: 10 },
     skipBtn: { alignItems: 'center', paddingVertical: 14 },
     skipText: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
 

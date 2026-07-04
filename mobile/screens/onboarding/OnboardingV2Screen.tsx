@@ -1296,7 +1296,10 @@ export default function OnboardingV2Screen() {
                 return;
             }
             if (phase === 'effort') {
-                navigation.navigate('ScanResultsGate');
+                // The classic results page in gate mode: hero + the three teaser
+                // rings only, CTA → paywall. It shows the processing loader if
+                // the background analysis hasn't landed yet.
+                navigation.navigate('FaceScanResults', { gateV4: true });
                 return;
             }
             finish();
