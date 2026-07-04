@@ -444,6 +444,22 @@ async def build_agent_system_prompt(
     )
 
     context_str = user_context.get("coaching_context", "") if user_context else ""
+    # Unified per-user brief injection: what Max already knows (so it never
+    # re-asks) + facts it's UNCERTAIN about (so it confirms rather than silently
+    # acting on stale info). Populated by the chat handler from assemble_user_brief.
+    if user_context:
+        _known = (user_context.get("known_summary") or "").strip()
+        if _known:
+            context_str += f"\nKNOWN ABOUT THIS USER (do not re-ask): {_known}"
+        _confirm = user_context.get("confirm_facts") or []
+        if _confirm:
+            _cf = "; ".join(str(c) for c in _confirm[:4])
+            context_str += ("\nUNCERTAIN — briefly confirm with the user before relying on these "
+                            "(e.g. \"still true that …?\"), don't assume: " + _cf)
+        _recall = user_context.get("recall") or []
+        if _recall:
+            _rc = " | ".join(str(r) for r in _recall[:3])
+            context_str += ("\nFROM EARLIER CHATS (recall naturally, don't make them repeat): " + _rc)
     if not context_str and user_context:
         if user_context.get("latest_scan"):
             scan = user_context["latest_scan"]

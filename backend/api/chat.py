@@ -2563,6 +2563,35 @@ async def process_chat_message(
     except Exception:
         pass
 
+    # Unified per-user brief → the agent gets a compact "known about you" summary
+    # (so it doesn't re-ask) + any low-confidence facts to CONFIRM (so it never
+    # silently acts on stale info). Best-effort; degrades to no injection.
+    try:
+        from services.user_brief import assemble_user_brief
+        _brief = await assemble_user_brief(user_id, db)
+        _known_bits = [f"{k.replace('_', ' ')}: {v}" for k, v in (_brief.known or {}).items()]
+        if _brief.plan_summary:
+            _known_bits.append(_brief.plan_summary)
+        if _known_bits:
+            user_context["known_summary"] = " | ".join(_known_bits)
+        if _brief.low_confidence:
+            user_context["confirm_facts"] = [
+                (lc.get("text") or lc.get("key") or "").strip()
+                for lc in _brief.low_confidence if (lc.get("text") or lc.get("key"))
+            ]
+    except Exception:
+        pass
+
+    # Cross-conversation recall — relevant things the user said in EARLIER chats
+    # (outside the live window), so the agent doesn't make them repeat themselves.
+    try:
+        from services.chat_memory import recall_relevant_turns
+        _recall = await recall_relevant_turns(user_id, message_text, db)
+        if _recall:
+            user_context["recall"] = _recall
+    except Exception:
+        pass
+
     if user and _looks_like_completed_tasks_question(message_text):
         response_text = await _reply_today_completed_tasks_summary(user_id, onboarding, db)
         if _persist_chat_history(channel):
@@ -5271,6 +5300,35 @@ async def trigger_check_in(
     await db.commit()
 
     return {"message": msg_text, "check_in_type": check_in_type}
+
+
+@router.get("/nudge")
+async def get_chat_nudge(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """A proactive coaching nudge to open the chat with (or null). The client
+    shows it as the first assistant bubble on chat open, then POSTs .../seen."""
+    from services.proactive import get_proactive_nudge
+    return {"nudge": await get_proactive_nudge(current_user["id"], db)}
+
+
+@router.post("/nudge/{insight_id}/seen")
+async def mark_chat_nudge_seen(
+    insight_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark a proactive nudge shown so it never re-surfaces."""
+    try:
+        from services.learner import mark_insight_seen
+        user = await db.get(User, UUID(current_user["id"]))
+        if user is not None:
+            await mark_insight_seen(user, db, insight_id)
+            await db.commit()
+    except Exception:
+        await db.rollback()
+    return {"ok": True}
 
 
 @router.get("/history")

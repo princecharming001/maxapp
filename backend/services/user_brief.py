@@ -22,6 +22,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from sqlalchemy import select
@@ -31,7 +32,13 @@ logger = logging.getLogger(__name__)
 
 _TTL_SECONDS = 30.0
 _CACHE: dict[str, tuple[float, "UserBrief"]] = {}
-_LOW_CONFIDENCE = 0.5  # UserMemory.confidence below this is "worth re-confirming"
+# A fact is "worth re-confirming" when it's shaky AND stale — inferred/onairos
+# facts (conf ~0.5-0.6) the user hasn't restated in a while — or very low
+# confidence regardless of age. Explicit chat/onboarding facts (0.85-0.9) never
+# qualify. This is what feeds the "still true that …?" confirmations.
+_CONFIRM_CONF = 0.7
+_VERY_LOW_CONF = 0.5
+_STALE_DAYS = 30
 
 # Canonical slots we try to fill, mapped from user_facts / onboarding keys.
 _SLOT_SOURCES = {
@@ -160,7 +167,15 @@ async def assemble_user_brief(
                 if txt:
                     mem_texts.append(txt)
                 conf = float(getattr(m, "confidence", 0.8) or 0.8)
-                if conf < _LOW_CONFIDENCE:
+                stale = False
+                ls = getattr(m, "last_seen_at", None)
+                if ls is not None:
+                    try:
+                        ls = ls if ls.tzinfo else ls.replace(tzinfo=timezone.utc)
+                        stale = (datetime.now(timezone.utc) - ls).days > _STALE_DAYS
+                    except Exception:
+                        stale = False
+                if conf <= _VERY_LOW_CONF or (conf < _CONFIRM_CONF and stale):
                     brief.low_confidence.append({
                         "key": getattr(m, "key", None),
                         "text": txt,
