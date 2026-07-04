@@ -697,6 +697,20 @@ class ApiService {
         return response.data;
     }
 
+    /** A proactive coaching nudge to open the chat with (or null). */
+    async getChatNudge(): Promise<{ id: string; text: string; kind?: string; choices?: string[] } | null> {
+        try {
+            const response = await this.client.get('chat/nudge');
+            return response.data?.nudge ?? null;
+        } catch {
+            return null; // best-effort — a missing nudge never blocks chat
+        }
+    }
+    /** Mark a proactive nudge shown so it doesn't re-surface. */
+    async markChatNudgeSeen(insightId: string): Promise<void> {
+        try { await this.client.post(`chat/nudge/${encodeURIComponent(insightId)}/seen`); } catch { /* best-effort */ }
+    }
+
     /** Record that the native App Store review sheet was requested (throttle). */
     async markReviewOpened(): Promise<{ review_request_count: number; last_review_request_date: string } | null> {
         try {

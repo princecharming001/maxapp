@@ -493,6 +493,7 @@ export default function MaxChatScreen() {
     // created per send; tapping Stop aborts it (axios throws a cancel error,
     // which the catch treats as a clean stop, not a failure).
     const abortRef = useRef<AbortController | null>(null);
+    const nudgeTriedRef = useRef(false);
     const [serverChoices, setServerChoices] = useState<string[]>([]);
     /** When true, the chip row renders multi-select w/ a Submit button. */
     const [multiChoice, setMultiChoice] = useState<boolean>(false);
@@ -557,6 +558,23 @@ export default function MaxChatScreen() {
         setHistoryReady(true);
         if (!activeConversationId && resolvedId) {
             setActiveConversationId(resolvedId);
+        }
+
+        // Proactive opener: on an empty thread, if Max noticed something worth
+        // raising (a learner insight), open with it — once. Additive + guarded:
+        // never fires on a thread that already has messages.
+        if (msgs.length === 0 && !nudgeTriedRef.current) {
+            nudgeTriedRef.current = true;
+            void (async () => {
+                const nudge = await api.getChatNudge();
+                if (nudge?.text) {
+                    setMessages([{ role: 'assistant', content: nudge.text, justArrived: true }]);
+                    if (Array.isArray(nudge.choices) && nudge.choices.length > 0) {
+                        setServerChoices(nudge.choices);
+                    }
+                    void api.markChatNudgeSeen(nudge.id);
+                }
+            })();
         }
 
         // Re-render the chip / slider widget for any in-flight onboarding
