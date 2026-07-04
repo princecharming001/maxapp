@@ -37,6 +37,7 @@ import { CachedImage } from '../../components/CachedImage';
 import { userHasSignupPhone } from '../../utils/userPhone';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
 import MosaicGrid, { type MosaicTile } from '../../components/scan/MosaicGrid';
+import AnalyzingScreen from './AnalyzingScreen';
 import { track } from '../../lib/analytics';
 
 function formatSuggestedModuleTitle(id: string): string {
@@ -1141,9 +1142,12 @@ export default function FaceScanResultsScreen() {
 
     // ── Early exit states ──────────────────────────────────────────────────────
 
-    // gateV4 + no scan row yet = the background upload is still in flight —
-    // show the same processing view (the poll above picks the row up).
+    // gateV4 + no scan row yet = the background upload is still in flight.
+    // The gate waits on the classic rotating-bust AnalyzingScreen (step 1 while
+    // the upload lands, step 2 once the analysis is processing); other paths
+    // keep the plain processing view with its retry affordance.
     if (scan?.processing_status === 'processing' || (gateV4 && !hydrating && !scan)) {
+        if (gateV4) return <AnalyzingScreen currentStep={scan ? 2 : 1} />;
         return <ScanProcessingView onRetry={bootstrap} onBack={headerBack} />;
     }
     if ((hydrating && !scan) || (advancing && !scan)) {
