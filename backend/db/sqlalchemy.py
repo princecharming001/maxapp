@@ -69,10 +69,13 @@ def _supabase_connect_args() -> dict:
     if not through_pooler:
         server_settings["search_path"] = "public,extensions"
 
+    # A local Postgres (localhost dev / CI) usually isn't configured for TLS, so
+    # requiring SSL there fails the connection. Supabase always needs it.
+    is_local = host in {"", "localhost", "127.0.0.1", "::1"}
     args: dict = {
         "timeout": 10,
         "command_timeout": 15,
-        "ssl": "require",
+        "ssl": False if is_local else "require",
         "server_settings": server_settings,
     }
     if through_pooler:
@@ -238,6 +241,10 @@ async def _run_app_users_column_migrations():
         # request that loads a user (login, /me, chat, scans — the whole app).
         "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS referred_by_code_id UUID",
         "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS referral_source VARCHAR",
+        # Creator platform: gates the Creator Studio. SELECTed on every user load
+        # via _user_dict, so a missing column would 500 the whole app — always
+        # ship the ALTER when adding a User column (schema-drift rule).
+        "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS is_creator BOOLEAN DEFAULT FALSE",
     ]
     try:
         async with engine.begin() as conn:

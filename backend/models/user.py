@@ -359,6 +359,10 @@ class UserResponse(BaseModel):
     first_scan_completed: bool = False
     is_admin: bool = False
     is_scan_user: bool = False
+    is_creator: bool = Field(
+        default=False,
+        description="True for an approved+provisioned creator (unlocks the Creator Studio).",
+    )
     phone_number: Optional[str] = None
     has_apns_token: bool = Field(
         default=False,

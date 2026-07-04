@@ -69,6 +69,10 @@ _CATEGORY_ROUTE: dict[str, str] = {
     CAT_MILESTONE: "Achievements",
     CAT_BROADCAST: "Home",
     CAT_TIP: "Home",
+    # Creator platform: a "new update" push opens Home (the subscribed-creator
+    # feed is reachable from there; per-max deep-linking would need a params
+    # column on ScheduledNotification, deferred).
+    "creator_update": "Home",
 }
 
 # --- taste bar (review item 9: wit, never shame / fear-of-loss) --------------

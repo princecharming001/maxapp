@@ -31,6 +31,7 @@ from api import (
     google_router,
     referral_router,
     creator_applications_router,
+    creators_router,
     config_router,
 )
 
@@ -62,6 +63,15 @@ async def lifespan(app: FastAPI):
     # Warm in parallel — both are independent disk/DB reads.
     import asyncio as _asyncio
     await _asyncio.gather(warm_indexes(), warm_catalog(), return_exceptions=True)
+    # Register DB-backed creator maxes into the catalog (after the .md docs load).
+    try:
+        from db.sqlalchemy import AsyncSessionLocal as _Session
+        from services.creator_service import warm_creator_catalog
+        async with _Session() as _cdb:
+            await warm_creator_catalog(_cdb)
+    except Exception:
+        logging_mod = __import__("logging")
+        logging_mod.getLogger("creator").warning("creator catalog warm skipped", exc_info=True)
     # Start background scheduler for notifications
     from services.scheduler_job import start_scheduler, stop_scheduler
     from services.apns_service import apns_configured
@@ -225,6 +235,7 @@ app.include_router(analytics_router, prefix="/api")
 app.include_router(google_router, prefix="/api")
 app.include_router(referral_router, prefix="/api")
 app.include_router(creator_applications_router, prefix="/api")
+app.include_router(creators_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
 
 # Mount uploads directory

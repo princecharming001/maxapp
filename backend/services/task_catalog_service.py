@@ -98,6 +98,32 @@ def all_tasks(maxx_id: str) -> list[TaskDef]:
     return list(e.by_id.values()) if e else []
 
 
+def register_doc(doc: MaxDoc) -> None:
+    """Inject a dynamically-provisioned max into the in-memory catalog.
+
+    Creator maxes are DB-backed (not .md files on disk), so they're registered
+    here at provision time + on startup rather than parsed by warm_catalog. Safe
+    to call repeatedly — it overwrites the entry. Never raises (a bad creator doc
+    must not take down the catalog)."""
+    try:
+        try:
+            info_schema = compile_info_schema(doc)
+        except Exception:
+            logger.exception("task_catalog: compile_info_schema failed for creator doc %s", doc.maxx_id)
+            info_schema = None
+        _CACHE[doc.maxx_id] = _Entry(
+            doc=doc,
+            by_id={t.id: t for t in doc.tasks},
+            info_schema=info_schema,
+        )
+    except Exception:
+        logger.exception("task_catalog: register_doc failed for %s", getattr(doc, "maxx_id", "?"))
+
+
+def has_doc(maxx_id: str) -> bool:
+    return maxx_id in _CACHE
+
+
 # Tag → user-facing focus-area label. Generic across maxes; the first tag that
 # maps wins, else we title-case the task's first tag, else "Other".
 _AREA_BY_TAG: dict[str, str] = {

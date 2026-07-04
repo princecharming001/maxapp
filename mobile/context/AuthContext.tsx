@@ -85,6 +85,8 @@ interface User {
     first_scan_completed: boolean;
     is_admin: boolean;
     is_scan_user: boolean;
+    /** True for an approved+provisioned creator (unlocks the Creator Studio tab). */
+    is_creator?: boolean;
     /** Bot tone preference. Drawer surfaces this as hardcore/mediumcore/softcore. */
     coaching_tone?: 'default' | 'hardcore' | 'gentle' | 'influencer';
     /** Server has an APNs token on file (iOS push). */
@@ -98,6 +100,8 @@ interface AuthContextType {
     isPaid: boolean;
     isPremium: boolean;
     isScanUser: boolean;
+    /** True for an approved creator — unlocks the Creator Studio. */
+    isCreator: boolean;
     /** True for an unclaimed anonymous "guest" account — must claim an account before the paywall/app. */
     isAnonymous: boolean;
     /**
@@ -493,6 +497,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             isPaid: user?.is_paid ?? false,
             isPremium: user?.is_admin || (user?.is_paid && subscriptionTier === 'premium') || false,
             isScanUser: user?.is_scan_user ?? false,
+            isCreator: user?.is_creator ?? false,
             isAnonymous: !!user?.email && String(user.email).endsWith('@anon.trymax.app'),
             // Never "free tier" once actually paid — paying supersedes the choice.
             isFreeTier: freeTierChosen && !(user?.is_paid ?? false),

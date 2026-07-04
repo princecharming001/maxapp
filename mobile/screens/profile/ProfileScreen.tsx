@@ -265,7 +265,7 @@ export default function ProfileScreen() {
     const insets = useSafeAreaInsets();
     const { width: winWidth } = useWindowDimensions();
     const imageModalWidth = getImageModalWidth(winWidth);
-    const { user, refreshUser, isPaid, isPremium } = useAuth();
+    const { user, refreshUser, isPaid, isPremium, isCreator } = useAuth();
     // Face-scan kill switch: hides the FACE SCORE card / scan entry points.
     const maxxesQuery = useMaxxesQuery();
     const schedulesFullQuery = useActiveSchedulesFullQuery();
@@ -753,6 +753,47 @@ export default function ProfileScreen() {
                             </TouchableOpacity>
                         )}
                     </View>
+
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('CreatorsBrowse')}
+                        activeOpacity={0.85}
+                        style={{
+                            flexDirection: 'row', alignItems: 'center', gap: 12,
+                            marginHorizontal: spacing.lg, marginTop: spacing.md,
+                            backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16,
+                            borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.08)',
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Discover creators"
+                    >
+                        <Ionicons name="sparkles-outline" size={20} color="#B8860B" />
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ fontFamily: fonts.sansSemiBold, fontSize: 15.5, color: '#111113' }}>Discover creators</Text>
+                            <Text style={{ fontFamily: fonts.sans, fontSize: 12.5, color: '#6B6B6B', marginTop: 2 }}>Subscribe to your favorite creators' maxes</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color="#9A9A9A" />
+                    </TouchableOpacity>
+
+                    {isCreator ? (
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('CreatorStudio')}
+                            activeOpacity={0.85}
+                            style={{
+                                flexDirection: 'row', alignItems: 'center', gap: 12,
+                                marginHorizontal: spacing.lg, marginTop: spacing.md,
+                                backgroundColor: '#111113', borderRadius: 18, padding: 16,
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Open Creator Studio"
+                        >
+                            <Ionicons name="star" size={20} color="#B8860B" />
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontFamily: fonts.sansSemiBold, fontSize: 15.5, color: '#FFFFFF' }}>Creator Studio</Text>
+                                <Text style={{ fontFamily: fonts.sans, fontSize: 12.5, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>Post updates, edit your course, see your subs</Text>
+                            </View>
+                            <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
+                        </TouchableOpacity>
+                    ) : null}
 
                     <View style={{ height: 40 }} />
                 </Animated.ScrollView>

@@ -2197,6 +2197,155 @@ class ApiService {
     async notificationActivity(): Promise<void> {
         try { await this.client.post('notifications/activity'); } catch { /* best-effort */ }
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  Creator platform
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** Studio: my creator profile (private view). */
+    async getMyCreator(): Promise<any> {
+        const response = await this.client.get('creators/me');
+        return response.data;
+    }
+    async updateMyCreator(patch: Record<string, unknown>): Promise<any> {
+        const response = await this.client.patch('creators/me', patch);
+        return response.data;
+    }
+    async getMyCreatorPosts(): Promise<{ posts: any[] }> {
+        const response = await this.client.get('creators/me/posts');
+        return response.data;
+    }
+    async getMyCreatorStats(): Promise<any> {
+        const response = await this.client.get('creators/me/stats');
+        return response.data;
+    }
+
+    /** Create an update. Video is a local file uri (multipart, background upload).
+     *  A text post sends no video. Mirrors uploadProgressPhoto's boundary handling. */
+    async createCreatorPost(input: {
+        type: 'video' | 'text';
+        body: string;
+        videoUri?: string | null;
+        posterUri?: string | null;
+        durationS?: number | null;
+    }): Promise<any> {
+        const formData = new FormData();
+        formData.append('type', input.type);
+        formData.append('body', input.body ?? '');
+        if (input.durationS != null) formData.append('duration_s', String(Math.round(input.durationS)));
+        const appendFile = (field: string, uri: string, name: string, type: string) => {
+            if (Platform.OS === 'web') {
+                return fetch(uri).then((r) => r.blob()).then((b) => formData.append(field, b, name));
+            }
+            // @ts-ignore RN FormData file shape
+            formData.append(field, { uri, name, type });
+            return Promise.resolve();
+        };
+        if (input.videoUri) await appendFile('video', input.videoUri, 'update.mp4', 'video/mp4');
+        if (input.posterUri) await appendFile('poster', input.posterUri, 'poster.jpg', 'image/jpeg');
+        const response = await this.client.post('creators/me/posts', formData, {
+            timeout: 120_000, // large video upload
+            transformRequest: [(data: unknown, headers?: Record<string, string>) => {
+                if (headers) delete headers['Content-Type'];
+                return data;
+            }],
+        });
+        return response.data;
+    }
+    async editCreatorPost(postId: string, patch: { body?: string; pinned?: boolean }): Promise<any> {
+        const response = await this.client.patch(`creators/me/posts/${postId}`, patch);
+        return response.data;
+    }
+    async deleteCreatorPost(postId: string): Promise<void> {
+        await this.client.delete(`creators/me/posts/${postId}`);
+    }
+    async getPostCommentsForManage(postId: string): Promise<{ comments: any[] }> {
+        const response = await this.client.get(`creators/me/posts/${postId}/comments`);
+        return response.data;
+    }
+    async pinCreatorComment(commentId: string): Promise<void> {
+        await this.client.post(`creators/comments/${commentId}/pin`);
+    }
+    async blockCreatorUser(userId: string): Promise<void> {
+        await this.client.post('creators/me/blocks', { user_id: userId });
+    }
+    async unblockCreatorUser(userId: string): Promise<void> {
+        await this.client.delete(`creators/me/blocks/${userId}`);
+    }
+
+    // Course editing
+    async getMyCreatorLessons(): Promise<{ lessons: any[]; course_version: number }> {
+        const response = await this.client.get('creators/me/course/lessons');
+        return response.data;
+    }
+    async upsertCreatorLesson(lesson: Record<string, unknown>): Promise<any> {
+        const response = await this.client.put('creators/me/course/lessons', lesson);
+        return response.data;
+    }
+    async deleteCreatorLesson(lessonId: string): Promise<void> {
+        await this.client.delete(`creators/me/course/lessons/${lessonId}`);
+    }
+
+    // ── User side ──
+    async browseCreators(): Promise<{ creators: any[] }> {
+        const response = await this.client.get('creators/browse');
+        return response.data;
+    }
+    async getCreatorByMaxx(maxxId: string): Promise<any> {
+        const response = await this.client.get(`creators/by-maxx/${maxxId}`);
+        return response.data;
+    }
+    async getCreatorFeed(maxxId: string, opts?: { limit?: number; offset?: number }): Promise<{
+        posts: any[]; total: number; has_access: boolean; creator: any;
+    }> {
+        const response = await this.client.get(`creators/by-maxx/${maxxId}/posts`, {
+            params: { limit: opts?.limit ?? 20, offset: opts?.offset ?? 0 },
+        });
+        return response.data;
+    }
+    async likeCreatorPost(postId: string): Promise<{ like_count: number }> {
+        const response = await this.client.post(`creators/posts/${postId}/like`);
+        return response.data;
+    }
+    async unlikeCreatorPost(postId: string): Promise<{ like_count: number }> {
+        const response = await this.client.delete(`creators/posts/${postId}/like`);
+        return response.data;
+    }
+    async getCreatorPostComments(postId: string, opts?: { limit?: number; offset?: number }): Promise<{
+        comments: any[]; total: number;
+    }> {
+        const response = await this.client.get(`creators/posts/${postId}/comments`, {
+            params: { limit: opts?.limit ?? 40, offset: opts?.offset ?? 0 },
+        });
+        return response.data;
+    }
+    async addCreatorComment(postId: string, body: string): Promise<any> {
+        const response = await this.client.post(`creators/posts/${postId}/comments`, { body });
+        return response.data;
+    }
+    async deleteCreatorComment(commentId: string): Promise<void> {
+        await this.client.delete(`creators/comments/${commentId}`);
+    }
+    async reportCreatorComment(commentId: string, reason?: string): Promise<{ message: string }> {
+        const response = await this.client.post(`creators/comments/${commentId}/report`, { reason: reason ?? '' });
+        return response.data;
+    }
+    async getMyCreatorSubscriptions(): Promise<{ subscriptions: any[] }> {
+        const response = await this.client.get('creators/subscriptions');
+        return response.data;
+    }
+    async verifyCreatorSubscription(maxxId: string, transactionId: string, productId?: string): Promise<{ status: string }> {
+        const response = await this.client.post(`creators/subscribe/${maxxId}/verify`, {
+            transaction_id: transactionId, product_id: productId,
+        });
+        return response.data;
+    }
+    /** DEV-only: activate a creator sub without Apple (sim testing). */
+    async devActivateCreatorSubscription(maxxId: string): Promise<{ status: string }> {
+        if (!__DEV__) throw new Error('dev-activate is unavailable in production builds.');
+        const response = await this.client.post(`creators/subscribe/${maxxId}/dev-activate`);
+        return response.data;
+    }
 }
 
 export const api = new ApiService();
