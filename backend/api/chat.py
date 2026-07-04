@@ -3737,37 +3737,7 @@ _BROAD_DOMAINS = [
 ]
 
 
-async def _domain_concern_already_known(user_id: str, specific_re: "re.Pattern", db: AsyncSession) -> bool:
-    """True if we ALREADY know the user's concern/goal for this domain — either
-    they named it earlier in the recent conversation (ChatHistory) or it's a
-    durable known fact (user_facts, populated from chat/onboarding/scans). Lets
-    the clarifier skip a question the app already has the answer to, so context
-    carries across turns AND across the whole app instead of re-asking."""
-    try:
-        # 1) Recent conversation: did the user name a specific for this domain in
-        #    a prior turn? (the "I already said acne" case, same or recent chat)
-        rows = (await db.execute(
-            select(ChatHistory.content)
-            .where(ChatHistory.user_id == UUID(user_id), ChatHistory.role == "user")
-            .order_by(ChatHistory.created_at.desc())
-            .limit(14)
-        )).scalars().all()
-        for content in rows:
-            if content and specific_re.search(content.lower()):
-                return True
-        # 2) Durable known facts (spans chats + app surfaces): a stored concern /
-        #    type / goal string for this domain.
-        from services.user_context_service import get_context
-        from services.user_facts_service import FACTS_KEY
-        ctx = await get_context(user_id, db)
-        facts = (ctx.get(FACTS_KEY) or {}) if isinstance(ctx, dict) else {}
-        blob = " ".join(str(v) for v in facts.values() if isinstance(v, str)).lower()
-        if blob and specific_re.search(blob):
-            return True
-    except Exception:
-        # Best-effort: on any error, fall through to asking (the safe default).
-        pass
-    return False
+_SKIN_SPECIFIC_RE = _BROAD_DOMAINS[0][1]  # the skincare domain's "specific concern" regex
 
 
 async def _broad_question_mcq(
@@ -3778,22 +3748,45 @@ async def _broad_question_mcq(
     """Return (text, choices, multi) for a broad personal-rec opener that
     names no specific (so its goal/concern is genuinely missing), else None.
     Deterministic — guarantees chips for the broad cases the LLM is flaky on.
-    Skips the ask when the per-user context layer already knows the concern."""
+
+    FACT-FIRST: every clarifier here first consults the unified per-user context
+    layer (assemble_user_brief — recent turns + user_facts + durable memory +
+    onboarding) and SKIPS the question when the answer is already known, so no
+    clarifier re-asks what another chat / onboarding / a scan already told us."""
     msg = (message_text or "").strip().lower()
     if not msg or len(msg) > 160:
         return None
 
-    # Explicit "skin type" / "hair type" question — closed MCQ, NO custom option.
-    # (Demonstrates closed-question semantics; always returns chips.)
+    # Assemble the per-user brief lazily (cached) — only when this turn actually
+    # looks like it might warrant a clarifier.
+    brief = None
+    async def _brief():
+        nonlocal brief
+        if brief is None:
+            try:
+                from services.user_brief import assemble_user_brief
+                brief = await assemble_user_brief(user_id, db)
+            except Exception:
+                from services.user_brief import UserBrief
+                brief = UserBrief(user_id=user_id)
+        return brief
+
+    # Explicit "skin type" / "hair type" question — skip if already on file.
     if re.search(r"\bskin\s*type\b", msg):
+        if (await _brief()).known.get("skin_type"):
+            return None
         return ("got it -- what's your skin type?",
                 ["oily", "dry", "combination", "sensitive", "not sure"], False)
     if re.search(r"\bhair\s*type\b", msg):
+        if (await _brief()).known.get("hair_type"):
+            return None
         return ("what's your hair type?",
                 ["straight", "wavy", "curly", "coily", "not sure"], False)
-    # "what's bothering you about your skin" — open concern MCQ, custom warranted.
+    # "what's bothering you about your skin" — skip if the concern is already known.
     if re.search(r"\b(bothering|bugging|wrong with|main concern|biggest concern)\b", msg) and \
        re.search(r"\bskin\b", msg):
+        if (await _brief()).knows(_SKIN_SPECIFIC_RE):
+            return None
         return ("what's bugging you most about your skin?",
                 ["acne", "dryness", "oiliness", "redness", "texture", "Something else"], True)
 
@@ -3802,10 +3795,9 @@ async def _broad_question_mcq(
 
     for domain_re, specific_re, q, choices, multi in _BROAD_DOMAINS:
         if domain_re.search(msg) and not specific_re.search(msg):
-            # Only ask if we don't ALREADY know the concern from prior turns or
-            # durable user facts — otherwise let the agent answer directly with
-            # what the app already knows (no redundant re-ask).
-            if await _domain_concern_already_known(user_id, specific_re, db):
+            # Skip the ask when the brief already names a specific for this domain
+            # (across chats + onboarding + scans) — the agent answers directly.
+            if (await _brief()).knows(specific_re):
                 return None
             return (q, list(choices), multi)
     return None
