@@ -55,6 +55,11 @@ function toScore(v: unknown): number | null {
  *  concrete. Labels mirror the full results screen. */
 const LOCKED_ROWS = ['Overall rating', 'Jawline', 'Skin quality', 'Masculinity', 'Symmetry', 'Your glow-up plan'];
 
+// The capture happened one quiz question ago, so the analysis is usually in
+// within seconds. Past this window something went wrong with the background
+// upload (dead network, crash) — offer a retry instead of polling forever.
+const STALL_TIMEOUT_MS = 75_000;
+
 export default function ScanResultsGateScreen() {
     const nav = useNavigation<any>();
     const insets = useSafeAreaInsets();
@@ -62,6 +67,7 @@ export default function ScanResultsGateScreen() {
     const [potential, setPotential] = useState<number | null>(null);
     const [appeal, setAppeal] = useState<number | null>(null);
     const [ready, setReady] = useState(false);
+    const [stalled, setStalled] = useState(false);
 
     // Poll the latest scan until the analysis lands. The capture happened one
     // quiz question ago, so this is usually already done — the loader is the
@@ -91,15 +97,30 @@ export default function ScanResultsGateScreen() {
     useEffect(() => {
         track('onboarding_step', { step: 'results_view' });
         stopped.current = false;
+        setStalled(false);
+        const startedAt = Date.now();
         let timer: ReturnType<typeof setTimeout>;
         const tick = async () => {
             if (stopped.current) return;
             const done = await load();
-            if (!done && !stopped.current) timer = setTimeout(tick, 2500);
+            if (done || stopped.current) return;
+            if (Date.now() - startedAt > STALL_TIMEOUT_MS) {
+                setStalled(true);
+                return;
+            }
+            timer = setTimeout(tick, 2500);
         };
         void tick();
         return () => { stopped.current = true; clearTimeout(timer); };
     }, [load]);
+
+    // Retry after a stall: the capture screen restores the photos from the
+    // recovery draft (the background upload leaves it set on failure), so the
+    // user resubmits without re-shooting.
+    const retryScan = () => {
+        track('onboarding_step', { step: 'results_stall_retry' });
+        nav.navigate('FaceScan', { funnelV4: true });
+    };
 
     const unlock = () => {
         track('onboarding_step', { step: 'results_unlock_tapped' });
@@ -112,7 +133,18 @@ export default function ScanResultsGateScreen() {
     return (
         <View style={[styles.root, { paddingTop: insets.top + 24 }]}>
             <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
-                {!ready ? (
+                {stalled && !ready ? (
+                    <View style={styles.analyzing}>
+                        <Ionicons name="cloud-offline-outline" size={34} color={INK} />
+                        <Text style={styles.analyzingTitle}>That took too long.</Text>
+                        <Text style={styles.analyzingSub}>
+                            Your photos are saved — check your connection and resubmit the scan.
+                        </Text>
+                        <TouchableOpacity style={[styles.cta, { alignSelf: 'stretch' }]} onPress={retryScan} activeOpacity={0.9} accessibilityRole="button">
+                            <Text style={styles.ctaText}>Try again</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : !ready ? (
                     <Analyzing />
                 ) : (
                     <>

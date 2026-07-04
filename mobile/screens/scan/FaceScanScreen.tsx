@@ -429,6 +429,44 @@ export default function FaceScanScreen() {
             Alert.alert('Missing photos', 'Capture all three angles first.');
             return;
         }
+        // ── Funnel V4: never block on the upload. The moment the last photo is
+        // captured the user moves on to the next quiz question ("How hard do
+        // you want to go?") and the upload + analysis run invisibly behind it —
+        // ScanResultsGate polls until the analysis lands. The crash-recovery
+        // flags stay SET until the background upload succeeds, so a kill/crash
+        // mid-upload still restores the photos for a resubmit.
+        if (route?.params?.funnelV4) {
+            if (user?.id) {
+                try { await setPendingFaceScanSubmit(user.id); } catch (e) { console.warn('pending submit flag', e); }
+            }
+            void (async () => {
+                try {
+                    const scanRes = (await api.uploadScanTriple(f, l, r)) as { analysis?: { overall_score?: number } };
+                    const os = scanRes?.analysis?.overall_score;
+                    const rating =
+                        typeof os === 'number' && Number.isFinite(os) ? Math.round(os * 10) / 10 : undefined;
+                    void api.uploadProgressPhoto(f, { faceRating: rating }).catch((pe) => {
+                        console.warn('Progress photo from face scan', pe);
+                    });
+                    void refreshUser().catch((re) => {
+                        console.warn('refreshUser after scan', re);
+                    });
+                    void queryClient.invalidateQueries({
+                        queryKey: queryKeys.schedulesActiveFull,
+                        refetchType: 'all',
+                    });
+                    // Upload landed — safe to drop the recovery flags now.
+                    void clearPendingFaceScanSubmit().catch(() => undefined);
+                    void clearFaceScanDraft().catch(() => undefined);
+                } catch (err) {
+                    // Leave the recovery flags set: the results gate times out into
+                    // a retry that reopens this screen with the photos restored.
+                    console.warn('background scan upload failed', err);
+                }
+            })();
+            navigation.navigate('Onboarding', { phase: 'effort' });
+            return;
+        }
         setAnalyzing(true);
         setAnalysisStep(0);
         uploadActiveRef.current = true;
