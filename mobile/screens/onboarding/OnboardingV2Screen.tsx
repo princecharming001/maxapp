@@ -563,6 +563,9 @@ export default function OnboardingV2Screen() {
     const [step, setStep] = useState(0);
     const [dir, setDir] = useState(1); // +1 forward, -1 back — drives slide direction
     const [phase, setPhase] = useState<OnboardingPhase>(route?.params?.phase ?? 'intro');
+    // Set when the user declined the scan at the offer screen — the intro run
+    // then ends at the paywall instead of the (scan-less) results gate.
+    const [scanSkipped, setScanSkipped] = useState<boolean>(!!route?.params?.scanSkipped);
     const [ageBand, setAgeBand] = useState<string | null>(null);
     const [gender, setGender] = useState<string | null>(null);
     const [effort, setEffort] = useState<string | null>(null);
@@ -607,6 +610,7 @@ export default function OnboardingV2Screen() {
             .then((d) => {
                 if (cancelled || !d) return;
                 const a = d.answers || {};
+                if (typeof a.scanSkipped === 'boolean' && !route?.params?.scanSkipped) setScanSkipped(a.scanSkipped);
                 if (typeof a.ageBand === 'string') setAgeBand(a.ageBand);
                 if (typeof a.gender === 'string') setGender(a.gender);
                 if (typeof a.effort === 'string') setEffort(a.effort);
@@ -655,14 +659,14 @@ export default function OnboardingV2Screen() {
     useEffect(() => {
         if (!draftLoaded) return;
         void saveOnboardingDraft(step, {
-            ageBand, gender, effort,
+            scanSkipped, ageBand, gender, effort,
             goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
             workStartMin, workEndMin, workLocation, commuteMin, chronotype,
             breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
             showerTime, workoutMin, weekendShift,
         }, phase);
     }, [
-        draftLoaded, step, phase, ageBand, gender, effort,
+        draftLoaded, step, phase, scanSkipped, ageBand, gender, effort,
         goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
         workStartMin, workEndMin, workLocation, commuteMin, chronotype,
         breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
@@ -1290,7 +1294,9 @@ export default function OnboardingV2Screen() {
                 // processing loader if the background analysis hasn't landed.
                 void api.saveOnboarding(introPayload() as any).catch(() => {});
                 track('onboarding_step', { step: 'intro_done' });
-                navigation.navigate('FaceScanResults', { gateV4: true });
+                // Skipped the scan → nothing to gate on; straight to the paywall.
+                if (scanSkipped) navigation.navigate('Payment');
+                else navigation.navigate('FaceScanResults', { gateV4: true });
                 return;
             }
             finish();

@@ -17,6 +17,8 @@ import { STORAGE_KEYS } from './resilienceKeys';
 const DRAFT_VERSION = 2;
 
 export type OnboardingAnswers = {
+    /** User declined the scan at the funnel's scan offer (results gate skipped). */
+    scanSkipped: boolean;
     ageBand: string | null;
     gender: string | null;
     effort: string | null;

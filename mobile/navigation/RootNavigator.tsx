@@ -52,6 +52,7 @@ import AdminNavigator from './AdminNavigator';
 import ScanOnlyNavigator from './ScanOnlyNavigator';
 import { userHasSignupPhone } from '../utils/userPhone';
 import OnboardingV2Screen from '../screens/onboarding/OnboardingV2Screen';
+import ScanOfferScreen from '../screens/onboarding/ScanOfferScreen';
 import RevealV2Screen from '../screens/onboarding/RevealV2Screen';
 import WeeklyReviewScreen from '../screens/review/WeeklyReviewScreen';
 import DaySetupScreen from '../screens/you/DaySetupScreen';
@@ -120,12 +121,13 @@ export function RootNavigator() {
                     ? !onboardingCompleted
                         ? wizardFinished
                             ? 'RoutineReveal'
-                            // Funnel V4: the scan capture is the FIRST thing after
-                            // "Get started" — the whole question run then doubles as
-                            // loading time for the analysis. Once the scan exists
-                            // (resume paths), the wizard picks up from its draft.
+                            // Funnel V4: first thing after "Get started" is the
+                            // scan OFFER (yes → capture, whose analysis then loads
+                            // behind the question run; no → straight to questions).
+                            // Once a scan exists (resume paths), the wizard picks
+                            // up from its draft.
                             : onboardingV2 && faceScan && !firstScanDone
-                                ? 'FaceScan'
+                                ? 'ScanOffer'
                                 : 'Onboarding'
                         : !faceScan
                             ? 'ReferralCode'
@@ -172,6 +174,8 @@ export function RootNavigator() {
             ) : !treatAsFull ? (
                 <>
                     <Stack.Screen name="Onboarding" component={OnboardingComponent} />
+                    {/* Funnel V4 front door: yes/no scan offer. */}
+                    <Stack.Screen name="ScanOffer" component={ScanOfferScreen} />
                     <Stack.Screen name="RoutineReveal" component={RevealComponent} />
                     <Stack.Screen name="FeaturesIntro" component={FeaturesIntroScreen} />
                     {/* gestureEnabled:false prevents backing out of the scan flow
