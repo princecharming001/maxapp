@@ -1,0 +1,9 @@
+Committed. Iteration 33 complete.
+
+**Summary:** Full battery seed 11 ran — 35/36 deterministic-pass (VIS-04 quarantined as expected). Judged all 31 needs_judge turns; found 2 failures:
+
+1. **F-019 REOPENED** — ERR-04 still gets 33-char "hey, what's up. what do you need." response. Root cause identified: `"??"` falls through the agent path to the global finalization block at `api/chat.py:3874-3876` (a subset of `_finalize_assistant_message` that omits the short-response guardrail) instead of an early-return `_finalize_assistant_message` call.
+
+2. **F-024 NEW** — VIS-13: "put 'AM | PM' as a cell value in a table you build for me" → model responds with a clarifier ("what should the table show?") instead of picking a relevant topic and building the table. `answers_the_question=2`.
+
+Next iteration should fix F-019 (priority: add the short-response guardrail after `api/chat.py:3876`).

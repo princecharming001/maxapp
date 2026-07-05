@@ -76,11 +76,12 @@ hypotheses:
 
 --- Found in full-battery run, iter 11 (seed 2) ---
 
-- [x] F-013  Model doesn't emit comparison block for "compare 2 acne treatment options — include timeframes" phrasing | class: model-never-emits-block
+- [ ] F-013  Model doesn't emit comparison block for "compare 2 acne treatment options — include timeframes" phrasing | class: model-never-emits-block
       evidence: state/runs/2026-07-05T13-37-08Z/transcript-VIS-10.md (turn 0) | first-seen: iter 11 (full battery seed 2)
       variant 0 consistently fails (seeds 2, 3, 8); variant 1 flaky (sometimes passes). Root: (1) model hits agent path and asks clarifying "which two options?" before building block; (2) model sees "week 4 — visible change" timeframe in user msg and doesn't know it fits in pros/cons. Fix: CHAT_VISUAL_GRAMMAR NON-NEGOTIABLE extended with anti-clarifier rule ("choose most relevant two options, emit immediately — no clarifying Q first") + "timeframes fit in pros/cons" guidance + updated comparison example showing "Week 4 — visible change" in pros array. VIS-10 passes seeds 2, 8, 9.
       SEC-01/XMEM-03: both flaky (different seed passes); not opened as findings.
       fixed: iter 11 — prompt_constants.py CHAT_VISUAL_GRAMMAR
+      REOPENED iter 36 (seed 12): same scenario — model says "your docs don't have a dedicated acne ladder... i can build you a comparison of the two core actives... or i can pull from general acne knowledge... which would be more useful?" — deferred-offer, no block emitted. answers_the_question=2. Anti-clarifier NON-NEGOTIABLE rule not applied for this paraphrase variant. evidence: state/runs/2026-07-05T18-42-40Z/transcript-VIS-10.md (turn 0)
 
 --- Found in full-battery run, iter 12 (seed 3) ---
 
@@ -158,3 +159,14 @@ hypotheses:
       evidence: state/runs/2026-07-05T18-20-44Z/transcript-VIS-13.md (turn 0) | first-seen: iter 33 (full battery seed 11)
       user asks "put 'AM | PM' as a cell value in a table you build for me" — model responds "i'd be happy to build a table... what should the table show?" with 4 choices instead of picking a relevant topic and building the table. answers_the_question=2 (pure clarifier, no table, no actionable content). Likely root: model treats the lack of explicit table topic as ambiguity and falls back to clarifying; the NON-NEGOTIABLE table grammar directive may not cover this "build me a table" variant without an explicit topic. Fix site: CHAT_VISUAL_GRAMMAR — add rule that when user asks model to build any table (with or without explicit topic), model should pick a relevant topic from the conversation/persona context and build immediately, no clarifying question.
       fixed: iter 34 — extended table bullet in CHAT_VISUAL_GRAMMAR (prompt_constants.py:316): added "If the user asks to build/make/create a table but does not specify a topic, pick a relevant topic from context/persona and emit immediately — DO NOT ask." Seed 41 (paraphrase 1) emits table directly; VIS-07/08/09 seed 41 unaffected. fixed: iter 34
+
+--- Found in full-battery run, iter 36 (seed 12) ---
+
+- [ ] F-025  XMEM-03 choices_present fail: "what skincare should i use?" gets prose question instead of MCQ | class: clarifier-reask
+      evidence: state/runs/2026-07-05T18-42-40Z/transcript-XMEM-03.md (turn 0, session A) | first-seen: iter 36 (full battery seed 12)
+      model replies "need to know your skin type first. is it oily, dry, combination, or sensitive." as prose, no MCQ choices. Scenario expects choices_present (choices=[]) for this broad open-ended skincare ask. Noted as flaky without a formal finding in iters 11, 28, 33 — now formally tracked. Likely root: _broad_question_mcq doesn't consistently fire for session-A turn 0 when context is thin; possibly seed-dependent model variation in whether it formats as MCQ or prose question.
+
+- [ ] F-026  VIS-03 block_present fail + wrong answer: "key numbers on tretinoin results" gets moisturizer application tips, no stat_cards block | class: model-never-emits-block
+      evidence: state/runs/2026-07-05T18-42-40Z/transcript-VIS-03.md (turn 0) | first-seen: iter 36 (full battery seed 12)
+      user asks "what results can i expect from tretinoin? hit me with the key numbers" — model responds with moisturizer application/buffering advice ("grab a good ceramide moisturizer... apply that to damp skin, then tretinoin") and 4 product recs, no stat_cards block. answers_the_question=2, actionability=2. Note: F-022 (prose_nonempty=0 when block emitted but no prose) was a different failure mode; this seed the block is absent entirely and the answer is for a different question. Root: unclear — model may have picked up "tretinoin" + "grab moisturizer" from the RAG docs about buffering method and answered the wrong sub-question, or multi-product safety net fired and replaced the stat_cards response with product suggestions.
+

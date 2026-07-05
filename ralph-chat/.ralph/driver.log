@@ -175,3 +175,17 @@ Done. F-023 is fixed and F-021 confirmed stable. No open findings remain (F-007 
 
 **Summary:** Fixed F-023 (allergen name in turn-12 acne routine response) with two changes: (1) strengthened the ABSOLUTE RULES prompt in `fast_rag_answer.py` and `lc_agent.py` to prohibit naming allergens anywhere in the response; (2) added a deterministic post-processing scrub in `process_chat_message` that regex-replaces any allergen name (full phrase + first word abbreviation) with "that ingredient" before the response is returned. Also confirmed F-021 was model-temperature flakiness — seeds 10/17/24 all pass without code changes.
 ===== ralph-chat iteration 20  2026-07-05T18:19:29Z =====
+Committed. Iteration 33 complete.
+
+**Summary:** Full battery seed 11 ran — 35/36 deterministic-pass (VIS-04 quarantined as expected). Judged all 31 needs_judge turns; found 2 failures:
+
+1. **F-019 REOPENED** — ERR-04 still gets 33-char "hey, what's up. what do you need." response. Root cause identified: `"??"` falls through the agent path to the global finalization block at `api/chat.py:3874-3876` (a subset of `_finalize_assistant_message` that omits the short-response guardrail) instead of an early-return `_finalize_assistant_message` call.
+
+2. **F-024 NEW** — VIS-13: "put 'AM | PM' as a cell value in a table you build for me" → model responds with a clarifier ("what should the table show?") instead of picking a relevant topic and building the table. `answers_the_question=2`.
+
+Next iteration should fix F-019 (priority: add the short-response guardrail after `api/chat.py:3876`).
+===== ralph-chat iteration 21  2026-07-05T18:30:45Z =====
+Done. F-024 is fixed: extended the table bullet in `CHAT_VISUAL_GRAMMAR` to instruct the model to pick a relevant topic from context rather than asking a clarifying question when no table topic is specified. VIS-13 seeds 34 and 41 both pass; VIS-07/08/09 unaffected. Also corrected F-019's marker to `[ ]` (it was REOPENED in iter 33 but the marker wasn't updated). Next: fix F-019 (agent-path short-response guardrail miss at `api/chat.py:3874-3876`).
+===== ralph-chat iteration 22  2026-07-05T18:36:48Z =====
+Done. F-019 fixed: the agent path at `api/chat.py:3876` was missing the `len < 40` short-response guardrail that `_finalize_assistant_message` applies. Added it inline after the existing three transforms. ERR-04 seed 42 passes; no new test failures. Next iteration should run the full battery (no open findings remain — F-007 quarantined).
+===== ralph-chat iteration 23  2026-07-05T18:41:17Z =====

@@ -1,0 +1,1 @@
+Done. F-019 fixed: the agent path at `api/chat.py:3876` was missing the `len < 40` short-response guardrail that `_finalize_assistant_message` applies. Added it inline after the existing three transforms. ERR-04 seed 42 passes; no new test failures. Next iteration should run the full battery (no open findings remain — F-007 quarantined).

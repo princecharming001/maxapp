@@ -1,3 +1,10 @@
+### 2026-07-05T18-50Z — iter 36 — FULL BATTERY seed 12, 3 failures
+- found/did: battery seed 12 — 33/36 deterministic-pass. Judged all 31 needs_judge turns; all non-failing dims score ≥4. Three failures: (1) XMEM-03 turn0 choices_present FAIL — "what skincare should i use?" gets prose question ("is it oily, dry, combination, or sensitive") instead of MCQ choices; flaky, never formally tracked — NEW F-025. (2) VIS-03 turn0 block_present FAIL + answers_the_question=2, actionability=2 — user asks "key numbers on tretinoin results", model responds with moisturizer buffering tips and 4 product cards, no stat_cards block emitted — NEW F-026. (3) VIS-10 turn0 block_present FAIL + answers_the_question=2 — user asks to compare 2 acne treatment options with timeframes; model gives deferred-offer ("which would be more useful?"), no comparison block — REGRESSION of F-013 (reopened).
+- battery: FULL seed 12: 33/36 deterministic-pass; judge failures: VIS-03 (F-026 new), VIS-10 (F-013 reopened); deterministic-only: XMEM-03 (F-025 new); quarantined: VIS-04 (F-007)
+- files: ralph-chat/FINDINGS.md, ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md, ralph-chat/state/runs/2026-07-05T18-42-40Z/
+- tests: no code changed, no new pytest
+- next: fix F-013 REGRESSION (VIS-10 deferred-offer instead of comparison block; class: model-never-emits-block, priority 2), then F-026 (VIS-03 stat_cards not emitted), then F-025 (XMEM-03 choices_present flaky)
+
 ### 2026-07-05T18-40Z — iter 35 — F-019 agent-path short-response guardrail
 - found/did: root at api/chat.py:3874-3876 — agent path runs normalize_list_formatting + strip_amazon_links + keep_bold.lower() but never calls _finalize_assistant_message, so the len<40 short-response guardrail (added in iter 21) is never applied on the agent path. Fix: added identical guardrail (`if response_text and len(response_text) < 40 and not response_text.endswith("?"): append " — what are you working on?"`) immediately after line 3876.
 - battery: ERR-04 seed 42 pass; ERR-01 seed 42 pass (no regression)
