@@ -38,6 +38,12 @@ _COMPARISON_REQUEST_RE = re.compile(
     re.IGNORECASE,
 )
 
+_PRODUCT_LINK_REQUEST_RE = re.compile(
+    r"\b(amazon|google\s+shopping|where\s+to\s+buy|buy.*online|external\s+link"
+    r"|shop(?:ping)?\s+link|purchase\s+link|link[s]?\s+(?:to|for|where))\b",
+    re.IGNORECASE,
+)
+
 # Patterns that each name a distinct visual block type. Used to count how many
 # distinct block types the user explicitly requests in one message.
 _BLOCK_TYPE_PATTERNS: list[re.Pattern] = [
@@ -586,6 +592,7 @@ async def answer_from_chunks(
     is_explicit_block_request = bool(_EXPLICIT_BLOCK_RE.search(message or ""))
     is_comparison_request = bool(_COMPARISON_REQUEST_RE.search(message or ""))
     is_stat_cards_request = bool(_STAT_CARDS_REQUEST_RE.search(message or ""))
+    is_product_link_request = bool(_PRODUCT_LINK_REQUEST_RE.search(message or ""))
     _distinct_block_types = _count_distinct_block_types(message or "")
     is_multi_block_request = _distinct_block_types >= 2
     if is_multi_block_request:
@@ -625,7 +632,13 @@ CRITICAL: Do NOT ask the user if they want the structured visual, and do NOT off
 - Do not include citations or source labels in the final answer.
 """
     else:
-        grounding_suffix = """
+        _product_link_extra = ""
+        if is_product_link_request:
+            _product_link_extra = """
+## PRODUCT LINK RULE
+The user asked for external product links (Amazon, Google Shopping, etc.). You cannot provide those — external URLs are not available. Do NOT defer with "if you want product recs, ask" or "let me know if you want recommendations." Instead: immediately recommend the most relevant product(s) by name and explain why they fit the user's situation. Pivot directly: briefly note you don't have external links, then go straight into the recommendation. Deferring when product recommendations are available is a failure.
+"""
+        grounding_suffix = _product_link_extra + """
 
 ## EVIDENCE-ONLY MODE (strict)
 - You must answer using only the provided Evidence from module docs for prose content.
