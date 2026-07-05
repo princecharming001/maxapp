@@ -1,3 +1,10 @@
+### 2026-07-05T14-52Z — iter 16 — F-017 within-thread-memory-miss fixed
+- found/did: root at fast_rag_answer.py grounding_suffix (~line 559) — EVIDENCE-ONLY MODE said "use only docs for prose content" with no exception for user-stated personal facts present in the RECENT CONVERSATION block. Model treated the 6am workout timing as "outside knowledge" and gave generic post-workout timing advice. Fix: added EXCEPTION clause to grounding_suffix explicitly permitting — and requiring — use of user-established context (workout time, schedule, dietary restrictions) to personalize timing/scheduling answers.
+- battery: MEM-01 seeds 12, 23 pass (turn 2 references 6am); XMEM-01/XMEM-02/CLAR-01/CLAR-02 seed 24 — all 4 pass
+- files: backend/services/fast_rag_answer.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (grounding_suffix is code-only prompt text, not extraction logic); baseline: 16 pre-existing failures, no new failures (763 pass)
+- next: F-016 (cross-chat-memory-miss: XMEM-03 oily skin context ignored) or F-015 (model-incomplete-response truncation)
+
 ### 2026-07-05T14-03Z — iter 12 — FULL BATTERY (seed 3), new F-014
 - found/did: battery seed 3 — 33/36 deterministic-pass. VIS-04 quarantined (F-007, expected). XMEM-03 flaky (known). VIS-03 flaky (passes seeds 1,2,11; fails seed 3 block_present and seed 5 prose_nonempty — same variant, inconsistent model output, not opened). Judged all needs_judge turns: all pass except ERR-01 (answers_the_question=2, actionability=2) — model fires skin-only clarifier MCQ for "12-week plan covering skin, hair and gym", ignoring hair+gym entirely. Opened F-014 (class: clarifier-reask). clean_streak → 0.
 - battery: FULL seed 3: 33/36 deterministic-pass; judge failures: ERR-01 (F-014 new); flaky: VIS-03, XMEM-03; quarantined: VIS-04

@@ -97,9 +97,10 @@ hypotheses:
       evidence: state/runs/2026-07-05T14-35-41Z/transcript-XMEM-03.md (turn 0 of second session) | first-seen: iter 15 (full battery seed 5)
       uses_user_context=2 — prior session established "oily" skin (turn 1 choices confirmed); current-session moisturizer recommendation says "ceramides + panthenol" with no mention of oily/lightweight/non-comedogenic formulation. Cross-conv recall did not surface the skin type.
 
-- [ ] F-017  MEM-01-turn2 judge fail: 6am workout timing ignored in follow-up "when to eat" response | class: within-thread-memory-miss
+- [x] F-017  MEM-01-turn2 judge fail: 6am workout timing ignored in follow-up "when to eat" response | class: within-thread-memory-miss
       evidence: state/runs/2026-07-05T14-35-41Z/transcript-MEM-01.md (turn 2) | first-seen: iter 15 (full battery seed 5)
       uses_user_context=2 — user stated "i work out at 6am before work" in turn 0; turn 1 references the 6am correctly; turn 2 "and when should i eat it?" gets generic "post-workout is solid" with no reference to the stated 6am time. The concrete answer (eat ~6:30-7am before work) was available in context.
+      fixed: iter 16 — root: fast_rag_answer.py grounding_suffix EVIDENCE-ONLY MODE had no exception for user-stated personal facts (conversation context); model treated the 6am timing as "outside knowledge" and fell back to generic docs-based answer. Added explicit EXCEPTION clause for user-established context in RECENT CONVERSATION.
 
 - [ ] F-018  VIS-08 judge fail: stat_cards only covers sleep target, no muscle-growth numbers | class: answer-incomplete-rag-gap
       evidence: state/runs/2026-07-05T14-35-41Z/transcript-VIS-08.md (turn 0) | first-seen: iter 15 (full battery seed 5)
