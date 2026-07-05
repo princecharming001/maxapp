@@ -634,6 +634,9 @@ def _extract_visual_blocks(text: str) -> tuple[str, list[dict]]:
         except Exception:
             continue  # malformed marker → skip it, keep prose clean
     clean = _VISUAL_BLOCK_RE.sub("", text)
+    # Remove any unclosed/truncated [visual_block] markers (no closing tag — truncated output).
+    # Everything from an unclosed marker to end-of-string is garbage JSON, so strip it.
+    clean = re.sub(r"\[visual_block\].*", "", clean, flags=re.IGNORECASE | re.DOTALL)
     clean = re.sub(r"\n{3,}", "\n\n", clean).strip()
     return clean, blocks[:6]
 

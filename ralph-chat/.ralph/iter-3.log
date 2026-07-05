@@ -1,0 +1,1 @@
+Done. F-001 is fixed — the root cause was that `answer_from_chunks` (the main RAG path) never included `CHAT_VISUAL_GRAMMAR` in its system prompt, only the native-knowledge fallback path did. Added it to the RAG path and strengthened the comparison directive to NON-NEGOTIABLE. All three findings are now fixed; the next iteration should run the full battery.

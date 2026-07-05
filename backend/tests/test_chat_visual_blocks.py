@@ -110,6 +110,28 @@ def test_markdown_table_converted_and_removed():
     assert len(b["data"]["rows"]) == 2
 
 
+def test_unclosed_marker_stripped_not_leaked():
+    # Model output truncated mid-JSON — no closing [/VISUAL_BLOCK] tag.
+    # The raw marker must not appear in the clean text.
+    text = 'here is your guide.\n\n[visual_block]{"type":"stat_cards","data":{"cards":[{"value":"0.05'
+    clean, blocks = _extract_visual_blocks(text)
+    assert "[visual_block]" not in clean.lower()
+    assert "visual_block" not in clean.lower()
+    assert blocks == []  # truncated block yields nothing
+    assert "here is your guide" in clean
+
+
+def test_unclosed_marker_after_valid_block():
+    # A valid closed block followed by a truncated unclosed one — valid extracted, unclosed stripped.
+    valid = '[VISUAL_BLOCK]{"type":"checklist","data":{"items":["a"]}}[/VISUAL_BLOCK]'
+    truncated = '[visual_block]{"type":"stat_cards","data":{"cards":[{"value":"99%"'
+    text = f"intro.\n{valid}\nmiddle.\n{truncated}"
+    clean, blocks = _extract_visual_blocks(text)
+    assert len(blocks) == 1 and blocks[0]["type"] == "checklist"
+    assert "[visual_block]" not in clean.lower()
+    assert "intro" in clean and "middle" in clean
+
+
 def test_prose_pipes_are_not_a_table():
     text = "use a|b as a separator, it's fine."
     clean, blocks = _extract_markdown_tables(text)

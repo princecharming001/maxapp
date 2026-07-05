@@ -1,0 +1,3 @@
+Done. F-003 is fixed. The root cause was `_run_onboarding_questioner_impl` at the re-ask branch (~chat.py:4700) — it unconditionally returned "didn't quite catch that" when `coerce_answer()` failed, with no way for a genuine off-topic question to escape to the agent. The fix adds `_looks_like_onboarding_interrupt()`: if the message contains `?` or starts with a question word, return `None` to fall through to the agent. Pending onboarding state is preserved, so intake resumes correctly on the next turn.
+
+Next iteration should fix F-001 (model-never-emits-block / comparison visual block).

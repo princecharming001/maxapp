@@ -1,0 +1,22 @@
+{
+  "run_id": "2026-07-05T12-07-51Z",
+  "started": "2026-07-05T12-07-51Z",
+  "scenarios": {
+    "CLAR-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": false
+    },
+    "CLAR-03": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "CLAR-02": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    }
+  },
+  "deterministic_clean": true
+}

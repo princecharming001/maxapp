@@ -1,0 +1,11 @@
+Done. Here's the summary:
+
+**F-002 fixed** — the clarifier was re-asking "what are you trying to fix?" even when the user had just said "my main skin concern is acne breakouts" in the previous turn.
+
+**Root cause** (`api/chat.py:2638`): `assemble_user_brief` is called and **cached** during turn 0 processing, *before* the user message is committed to the DB. When turn 1 arrives within 30s, `_broad_question_mcq` gets the stale cached brief (no "acne" in `searchable`), so `knows(_SKIN_SPECIFIC_RE)` returns False and the clarifier fires.
+
+**Fix**: Three `invalidate_brief(user_id)` calls added to `_send_message_locked` — one after each DB commit path (driver, broad_mcq, process_chat_message). This clears the cache so the next turn always queries DB fresh and finds the prior turn's user messages.
+
+**Tests**: 3 new tests in `test_chat_mcq_products.py` — 18/18 pass, no new baseline failures. CLAR-01/02/03 all pass at seed 8.
+
+Next: F-003 (onboarding intake ignores mid-flow interruption) or F-001 (model doesn't emit comparison blocks).

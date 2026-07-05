@@ -1,0 +1,14 @@
+{
+  "run_id": "2026-07-05T12-11-24Z",
+  "started": "2026-07-05T12-11-24Z",
+  "scenarios": {
+    "ONB-02": {
+      "status": "fail",
+      "failed_checks": [
+        "turn1:includes_any"
+      ],
+      "needs_judge": true
+    }
+  },
+  "deterministic_clean": false
+}

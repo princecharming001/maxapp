@@ -1,3 +1,10 @@
+### 2026-07-05T12-32Z — iter 4 — FULL BATTERY + F-004 marker-leak fix
+- found/did: ran full battery (seed 1); 27/36 clean. Also fixed F-004 in same pass: unclosed [visual_block] markers (truncated LLM output, no closing tag) leaked into prose — fixed at api/chat.py:636 by adding a fallback strip regex after _VISUAL_BLOCK_RE.sub(). New findings: F-005 (empty response in MEM-01), F-006 (concurrency empty reply in ERR-02), F-007–F-010 (block_present failures for timeline/checklist/table/stat_cards), F-011–F-012 (cross-chat memory misses).
+- battery: 27/36 pass seed 1. Failures: VIS-04,VIS-05,VIS-07,VIS-08,VIS-12(fixed),XMEM-01,XMEM-02,MEM-01,ERR-02
+- files: backend/api/chat.py, backend/tests/test_chat_visual_blocks.py, ralph-chat/FINDINGS.md
+- tests: 2 new tests (test_unclosed_marker_stripped_not_leaked, test_unclosed_marker_after_valid_block) — 14/14 pass; baseline: 16 pre-existing failures, no new failures (749 pass)
+- next: F-005 (empty response, class: empty-response — highest priority after marker-leak)
+
 ### 2026-07-05T12-24Z — iter 3 — F-001 model-never-emits-comparison-block
 - found/did: root cause at fast_rag_answer.py:602 — `answer_from_chunks` system prompt never included `CHAT_VISUAL_GRAMMAR`; the native-knowledge fallback path (line 457) already had it but the main RAG path didn't. Also strengthened grammar's `comparison` directive to NON-NEGOTIABLE (prompt_constants.py:296-302).
 - battery: VIS-01 passes seeds 3 and 13; VIS-03 passes seed 3; VIS-08 pre-existing failure (stat_cards, no numbers in docs), not caused by this change.

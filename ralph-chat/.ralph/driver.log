@@ -1,0 +1,20 @@
+ralph-chat loop starting (max 60 iterations). Kill anytime: touch /Users/home/maxapp/ralph-chat/.ralph/STOP
+===== ralph-chat iteration 1  2026-07-05T12:00:43Z =====
+Done. Here's the summary:
+
+**F-002 fixed** — the clarifier was re-asking "what are you trying to fix?" even when the user had just said "my main skin concern is acne breakouts" in the previous turn.
+
+**Root cause** (`api/chat.py:2638`): `assemble_user_brief` is called and **cached** during turn 0 processing, *before* the user message is committed to the DB. When turn 1 arrives within 30s, `_broad_question_mcq` gets the stale cached brief (no "acne" in `searchable`), so `knows(_SKIN_SPECIFIC_RE)` returns False and the clarifier fires.
+
+**Fix**: Three `invalidate_brief(user_id)` calls added to `_send_message_locked` — one after each DB commit path (driver, broad_mcq, process_chat_message). This clears the cache so the next turn always queries DB fresh and finds the prior turn's user messages.
+
+**Tests**: 3 new tests in `test_chat_mcq_products.py` — 18/18 pass, no new baseline failures. CLAR-01/02/03 all pass at seed 8.
+
+Next: F-003 (onboarding intake ignores mid-flow interruption) or F-001 (model doesn't emit comparison blocks).
+===== ralph-chat iteration 2  2026-07-05T12:10:10Z =====
+Done. F-003 is fixed. The root cause was `_run_onboarding_questioner_impl` at the re-ask branch (~chat.py:4700) — it unconditionally returned "didn't quite catch that" when `coerce_answer()` failed, with no way for a genuine off-topic question to escape to the agent. The fix adds `_looks_like_onboarding_interrupt()`: if the message contains `?` or starts with a question word, return `None` to fall through to the agent. Pending onboarding state is preserved, so intake resumes correctly on the next turn.
+
+Next iteration should fix F-001 (model-never-emits-block / comparison visual block).
+===== ralph-chat iteration 3  2026-07-05T12:16:07Z =====
+Done. F-001 is fixed — the root cause was that `answer_from_chunks` (the main RAG path) never included `CHAT_VISUAL_GRAMMAR` in its system prompt, only the native-knowledge fallback path did. Added it to the RAG path and strengthened the comparison directive to NON-NEGOTIABLE. All three findings are now fixed; the next iteration should run the full battery.
+===== ralph-chat iteration 4  2026-07-05T12:24:39Z =====
