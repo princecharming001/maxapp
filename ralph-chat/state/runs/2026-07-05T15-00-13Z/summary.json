@@ -1,0 +1,14 @@
+{
+  "run_id": "2026-07-05T15-00-13Z",
+  "started": "2026-07-05T15-00-13Z",
+  "scenarios": {
+    "XMEM-03": {
+      "status": "fail",
+      "failed_checks": [
+        "turn0:choices_present"
+      ],
+      "needs_judge": true
+    }
+  },
+  "deterministic_clean": false
+}

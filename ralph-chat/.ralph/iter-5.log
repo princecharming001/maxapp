@@ -1,1 +1,8 @@
 Done. F-005 is fixed. Root cause: `AgentExecutor` returns empty `output` for statement-type messages (like "quick heads up: i'm vegetarian") when the LLM fires tool calls (`remember_about_user`) but emits no final text response. Fix is two-layer: (1) `lc_agent.py` — retry with a plain ack LLM call if output is empty; (2) `api/chat.py` — last-resort `>= 40 char` fallback if the ack call also fails. Next iteration should tackle F-006 (concurrency-empty-reply, same class).
+Done. F-015 is fixed and committed.
+
+**What changed:** Added `_PLAN_REQUEST_RE` to `fast_rag_answer.py:_effective_response_length` — requests mentioning N-week plans, weekly tables, or week-by-week schedules now resolve to a `"plan"` length key with `max_tokens=1800` instead of the default 700. This gives the model room to emit a complete weekly table rather than truncating mid-section.
+
+**Verified:** Seed 25 produces a complete 6-row × 5-col `table` visual block covering all three domains (skin/hair/gym + diet). 8 new unit tests for the plan-detection logic all pass; no new pytest regressions.
+
+**Next:** F-018 (VIS-08 judge fail — stat_cards covers only sleep with no muscle-growth numbers; root is a RAG doc gap).

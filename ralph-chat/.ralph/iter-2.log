@@ -1,3 +1,11 @@
 Done. F-003 is fixed. The root cause was `_run_onboarding_questioner_impl` at the re-ask branch (~chat.py:4700) — it unconditionally returned "didn't quite catch that" when `coerce_answer()` failed, with no way for a genuine off-topic question to escape to the agent. The fix adds `_looks_like_onboarding_interrupt()`: if the message contains `?` or starts with a question word, return `None` to fall through to the agent. Pending onboarding state is preserved, so intake resumes correctly on the next turn.
 
 Next iteration should fix F-001 (model-never-emits-block / comparison visual block).
+Done. Full battery seed 5 ran 35/36 deterministic-pass (VIS-04 is the expected quarantined F-007). Four new judge failures were found and triaged as F-015 through F-018:
+
+- **F-016** (priority): XMEM-03 cross-chat miss — oily skin from prior session ignored in moisturizer rec (`uses_user_context=2`)
+- **F-017**: MEM-01-turn2 within-thread miss — 6am workout time ignored in "when to eat" follow-up
+- **F-015**: ERR-01 truncated — table section empty, response cuts off at "deadl[ift]" (seed-specific)
+- **F-018**: VIS-08 RAG gap — stat_cards only has sleep numbers, no hypertrophy metrics
+
+Next iteration should fix F-016 (cross-chat-memory-miss, highest priority among open findings).

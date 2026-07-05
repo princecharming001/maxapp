@@ -1,1 +1,6 @@
 Done. F-001 is fixed — the root cause was that `answer_from_chunks` (the main RAG path) never included `CHAT_VISUAL_GRAMMAR` in its system prompt, only the native-knowledge fallback path did. Added it to the RAG path and strengthened the comparison directive to NON-NEGOTIABLE. All three findings are now fixed; the next iteration should run the full battery.
+Done. F-017 fixed and committed.
+
+**What changed:** `fast_rag_answer.py:559` — the `EVIDENCE-ONLY MODE` grounding suffix now has an explicit `EXCEPTION` clause: user-stated facts in the RECENT CONVERSATION (workout time, dietary restrictions, schedule) are personal context, not "outside knowledge", and the model MUST incorporate them when directly relevant. Previously the "use only docs for prose" directive suppressed the model's use of the known 6am timing when answering "and when should i eat it?", causing flaky generic responses.
+
+**Next:** F-016 (cross-chat-memory-miss — oily skin context ignored in moisturizer rec) or F-015 (model-incomplete-response truncation mid-sentence).

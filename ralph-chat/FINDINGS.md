@@ -108,3 +108,13 @@ hypotheses:
       evidence: state/runs/2026-07-05T14-35-41Z/transcript-VIS-08.md (turn 0) | first-seen: iter 15 (full battery seed 5)
       answers_the_question=3 — user asked for "numbers on sleep AND muscle growth"; model emits 2 stat cards covering only sleep (7-9 hrs target, 60 min wind-down) and explicitly states "the evidence doesn't break down specific growth metrics." RAG docs lack hypertrophy-stat content. Passes seed 4 with different paraphrase.
       fixed: iter 19 — added "Key Numbers" section to muscle_growth.md (gain rate, MPS window, MPS peak timing, protein-per-meal, weekly-volume range) and sleep stats section to recovery_lifestyle.md (70-80% GH in slow-wave, 10-15% testosterone drop from <6hr, room temp, wind-down). Re-ingested into Supabase rag_documents. Seeds 25 and 18 now emit 5-9 stat_cards covering both sleep and muscle-growth stats; answers_the_question=5.
+
+--- Found in full-battery run, iter 20 (seed 6) ---
+
+- [ ] F-019  ERR-04 prose_nonempty fail: "??" gets 33-char response, below 40-char threshold | class: answer-quality
+      evidence: state/runs/2026-07-05T15-22-30Z/transcript-ERR-04.md (turn 0) | first-seen: iter 20 (full battery seed 6)
+      model replied "hey, what's up. what do you need." (33 chars) to degenerate "??" input — pass bar requires ≥40 chars. Turn 1 ("🙂🙂🙂") passes with 96 chars. Likely root: model gives a minimal ack to near-empty input; a slightly more substantive redirect (40+ chars) would pass.
+
+- [ ] F-020  ERR-01 judge fail (seed 6): no weekly table block emitted — framework prose only | class: model-never-emits-block
+      evidence: state/runs/2026-07-05T15-22-30Z/transcript-ERR-01.md (turn 0) | first-seen: iter 20 (full battery seed 6)
+      answers_the_question=3 — user asked "build me a complete 12-week plan covering skin, hair and gym, with a weekly table"; model gives a framework (skin/hair/gym bullets + diet anchor) with no visual_blocks at all. Seeds 14, 21, 25 pass (table block emitted); seed 6 gives only prose framework. Root: CHAT_VISUAL_GRAMMAR NON-NEGOTIABLE for plan+table doesn't consistently win over this paraphrase variant's routing path.

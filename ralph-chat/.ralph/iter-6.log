@@ -9,3 +9,6 @@ Done. Here's the summary of this iteration:
 Both failed. The model correctly uses general knowledge for its prose answer but consistently refuses to emit a `[VISUAL_BLOCK]` marker. Root cause: the Supabase-loaded `rag_answer_system` prompt has strong evidence-only conditioning that overrides all text appended after it. **Human action needed**: inspect and relax the `rag_answer_system` Supabase row to permit structured block emission even when docs lack the specific content.
 
 **Next**: F-008 (checklist — different root: clarifier MCQ fires instead of answering with a checklist).
+F-018 fixed. The RAG gap was real — `muscle_growth.md` and `recovery_lifestyle.md` had no quantitative stats, so the model correctly told users "the evidence doesn't break down specific growth metrics." Added a "Key Numbers" section to each file (GH pulse %, testosterone drop from sleep deprivation, MPS timing windows, muscle gain rates), re-ingested to Supabase. VIS-08 now emits 5-9 stat_cards covering both sleep and muscle growth at answers_the_question=5.
+
+No open findings remain — next iteration should run the full battery.

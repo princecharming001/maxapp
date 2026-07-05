@@ -1,3 +1,10 @@
+### 2026-07-05T15-22Z — iter 20 — FULL BATTERY (seed 6), new F-019/F-020
+- found/did: battery seed 6 — 33/36 deterministic-pass. VIS-04 quarantined (F-007). XMEM-03 flaky (known). ERR-04 failed prose_nonempty (len=33 for "??" response — new F-019). Judged all needs_judge turns: all pass except ERR-01 (answers_the_question=3, seed 6 — model gives prose framework, no weekly table block emitted — new F-020). All other judge dimensions score ≥4. clean_streak → 0.
+- battery: FULL seed 6: 33/36 deterministic-pass; judge failures: ERR-01 (F-020 new); deterministic failures: ERR-04 (F-019 new), VIS-04 (quarantined F-007), XMEM-03 (flaky, known)
+- files: ralph-chat/FINDINGS.md, ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md
+- tests: no code changed, no new pytest
+- next: fix F-019 (ERR-04 — degenerate "??" input gets 33-char response, class: answer-quality)
+
 ### 2026-07-05T15-20Z — iter 19 — F-018 VIS-08 rag-gap fixed
 - found/did: root at backend/rag_content/fitmax/muscle_growth.md + recovery_lifestyle.md — no quantitative hypertrophy or sleep-mechanism stats; model correctly said "docs don't have specific growth metrics." Added "Key Numbers" section to muscle_growth.md and sleep-key-stats section to recovery_lifestyle.md with specific numbers (GH% in slow-wave, testosterone drop from <6hr sleep, MPS window/peak, muscle gain rate). Re-ingested to Supabase via ingest_rag_content.py --maxx fitmax.
 - battery: VIS-08 seeds 25 and 18 — both pass; model emits 5-9 stat_cards covering sleep AND muscle growth (answers_the_question=5)

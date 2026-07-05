@@ -1,3 +1,6 @@
 Committed. Iteration 4 complete.
 
 **Summary:** Ran the first full battery (27/36 pass). Fixed F-004 (unclosed `[visual_block]` marker leak from truncated LLM output) in the same pass — added a fallback strip regex at `api/chat.py:636` plus 2 new pytests. Opened F-005–F-012 covering: empty responses (MEM-01), concurrency empty reply (ERR-02), block elicitation failures (VIS-04/05/07/08), and cross-chat memory misses (XMEM-01/02). Next iteration should tackle F-005 (empty prose response — highest priority).
+Done. F-016 is fixed. The root cause was that the EVIDENCE-ONLY MODE `EXCEPTION` clause in `fast_rag_answer.py:566` only mentioned "RECENT CONVERSATION" facts, leaving the `FROM EARLIER CHATS` cross-conv recall block unprotected. The model inconsistently applied oily skin context (seed 16 used it, seed 5 ignored it). The fix extends the EXCEPTION to explicitly cover the user profile and earlier-chat recall data. XMEM-01/XMEM-02/MEM-01 all pass unaffected; baseline remains 16 pre-existing failures.
+
+Next iteration should address F-015 (ERR-01 model-incomplete-response truncation) or F-018 (VIS-08 RAG gap).
