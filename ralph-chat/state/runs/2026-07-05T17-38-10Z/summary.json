@@ -1,0 +1,191 @@
+{
+  "run_id": "2026-07-05T17-38-10Z",
+  "started": "2026-07-05T17-38-10Z",
+  "scenarios": {
+    "KNO-02": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "KNO-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "ONB-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": false
+    },
+    "VIS-02": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "ONB-02": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-11": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "XMEM-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-12": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VOX-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-05": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "KNO-04": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "SEC-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "XMEM-03": {
+      "status": "fail",
+      "failed_checks": [
+        "turn0:choices_present"
+      ],
+      "needs_judge": true
+    },
+    "VIS-03": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "XMEM-02": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "CLAR-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": false
+    },
+    "KNO-03": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-08": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "MEM-02": {
+      "status": "fail",
+      "failed_checks": [
+        "turn11:excludes"
+      ],
+      "needs_judge": true
+    },
+    "VIS-06": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-13": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-07": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "ERR-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "CLAR-02": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-04": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "ERR-04": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": false
+    },
+    "VIS-10": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "PROD-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "PD-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "KNO-05": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-09": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "CLAR-03": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "MEM-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "ERR-02": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": false
+    },
+    "ERR-03": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": false
+    }
+  },
+  "deterministic_clean": false
+}

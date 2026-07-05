@@ -1,3 +1,10 @@
+### 2026-07-05T17-55Z — iter 31 — FULL BATTERY seed 10, 2 regressions
+- found/did: battery seed 10 — 32/36 deterministic-pass (34/36 minus 2 judge failures). XMEM-03 turn0 choices_present FAIL (known flaky, not a new finding). MEM-02 turn11 excludes FAIL: user stated SA allergy in turn 0; after 11 filler turns, "build me an acne routine" response labels itself "salicylic acid-free" but mentions allergen 6× in explanatory phrases — new F-023. VIS-12 judge fail: seed 10 paraphrase gets zero visual blocks, all prose, ends with clarifying question — answers_the_question=2, actionability=2 — F-021 REOPENED (third time).
+- battery: FULL seed 10: 32/36 deterministic-pass (XMEM-03 flaky; MEM-02 excludes); judge failures: VIS-12 (F-021 reopened); new finding: F-023 (MEM-02 excludes); quarantined: VIS-04 (F-007)
+- files: ralph-chat/FINDINGS.md, ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md
+- tests: no code changed, no new pytest
+- next: fix F-021 (VIS-12 seed 10 — zero blocks emitted, model defers to clarifier; class: model-never-emits-block, priority 2) then F-023 (MEM-02 allergen mention; class: within-thread-memory-miss, priority 4)
+
 ### 2026-07-05T17-40Z — iter 30 — F-022 prose bridge for visual-block-only responses + F-021 passively resolved
 - found/did: F-022 root at api/chat.py process_chat_message (~line 5499) — after _extract_visual_blocks strips the [VISUAL_BLOCK] marker, response_text is "" (empty string, falsy); _finalize_assistant_message guardrail uses `if out and len(out) < 40` so it skips empty strings; prose stays ""; prose_nonempty fails. Fix: after visual_blocks[:6] cap, if visual_blocks non-empty and response_text empty and no choices, inject bridge phrase ("here are the key numbers — tap any card for details:" for stat_cards, generic fallback for others). F-021 passively resolved by iter 29 F-009 fix — VIS-12 passes seeds 9 and 30 without code change.
 - battery: VIS-03 seeds 9, 36 pass; VIS-08/VIS-09 seed 36 pass (no regressions); VIS-12 seeds 9, 30 pass
