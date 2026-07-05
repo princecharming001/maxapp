@@ -549,10 +549,10 @@ export default function DayEditorSheet({
                 </TouchableOpacity>
               ) : null}
 
-              <View style={{ height: 12 }} />
+              <View style={{ height: 2 }} />
             </ScrollView>
 
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 14 }]}>
               <View style={styles.applyRow}>
                 <Text style={styles.applyLabel}>Applies to</Text>
                 <Tabs
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     marginTop: 2,
   },
-  content: { paddingBottom: spacing.md, paddingTop: 4 },
+  content: { paddingBottom: 6, paddingTop: 4 },
 
   // White soft-shadow card per section — the onboarding shapeCard.
   card: {
@@ -690,11 +690,11 @@ const styles = StyleSheet.create({
   },
   resetText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: WT.SUB, letterSpacing: 0.1 },
   footer: {
-    paddingTop: spacing.md,
+    paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: WT.HAIR,
   },
-  applyRow: { marginBottom: 14 },
+  applyRow: { marginBottom: 16 },
   applyLabel: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 13,

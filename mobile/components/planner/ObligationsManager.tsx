@@ -323,7 +323,7 @@ const ObligationsManager = forwardRef<
               <View style={{ height: 12 }} />
             </ScrollView>
 
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 14 }]}>
               <View style={styles.footerSummary}>
                 <Text style={styles.summaryText} numberOfLines={1}>
                   {canSave
