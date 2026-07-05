@@ -3759,6 +3759,55 @@ Ask ONE question at a time. Your very first response must ask the concern questi
                         logger.warning("[plan-table safety net] secondary LLM did not emit table block; keeping original")
                 except Exception as _e:
                     logger.warning("plan-table safety net failed (non-fatal): %s", _e)
+
+            # Timing follow-up safety net: "when/how soon should i eat/take it?"
+            # The agent often calls recommend_product instead of answering with
+            # the user's stated schedule facts (e.g. 6am workout → eat by 7am).
+            # Detect: short "when should I" question + agent response is product-
+            # centric (products but no time-of-day words) → re-answer with a
+            # lightweight LLM call that has the full conversation context.
+            if _is_timing_followup(message_text):
+                _timing_words_re = re.compile(
+                    r"\b(\d{1,2}(?::\d{2})?\s*(?:am|pm)|by\s+\d|within\s+\d|after\s+\d|minute|hour|morning|evening|night|window)\b",
+                    re.IGNORECASE,
+                )
+                if not _timing_words_re.search(response_text or ""):
+                    try:
+                        from services.lc_providers import get_chat_llm_with_fallback
+                        from langchain_core.messages import HumanMessage, SystemMessage
+                        _timing_llm = get_chat_llm_with_fallback(max_tokens=200, temperature=0.2)
+                        # Build a compact conversation summary for the LLM
+                        _conv_turns = []
+                        for _h in history[-6:]:
+                            _role = _h.get("role", "")
+                            _content = _h.get("content", "")[:300]
+                            if _role in ("user", "assistant"):
+                                _conv_turns.append(f"{_role}: {_content}")
+                        _conv_block = "\n".join(_conv_turns)
+                        _uf_summary = ""
+                        if user_facts:
+                            _uf_summary = f"\nKNOWN USER FACTS: {json.dumps({k: v for k, v in user_facts.items() if k != 'raw'})}"
+                        _timing_system = (
+                            "You are a looksmaxxing coach. The user asked a timing follow-up "
+                            "question. Answer ONLY the timing — give a specific time or window "
+                            "based on facts the user stated in the conversation. 2-3 sentences max. "
+                            "No product names. No markdown. Lowercase casual voice."
+                        )
+                        _timing_human = (
+                            f"RECENT CONVERSATION:\n{_conv_block}{_uf_summary}\n\n"
+                            f"User's follow-up question: {message_text}\n\n"
+                            "Answer the timing question specifically using the user's stated schedule."
+                        )
+                        _timing_resp = await _timing_llm.ainvoke(
+                            [SystemMessage(content=_timing_system), HumanMessage(content=_timing_human)]
+                        )
+                        _timing_text = (getattr(_timing_resp, "content", "") or "").strip()
+                        if _timing_text and len(_timing_text) > 20:
+                            response_text = _timing_text
+                            logger.warning("[timing safety net] replaced product-only answer with timing answer for %r", message_text[:60])
+                    except Exception as _te:
+                        logger.warning("timing safety net failed (non-fatal): %s", _te)
+
         except Exception as llm_err:
             logger.exception("run_chat_agent failed for user %s: %s", user_id, llm_err)
             if _persist_chat_history(channel):
@@ -5052,6 +5101,19 @@ _PLAN_REQ_DOMAIN_RE = re.compile(
 _PLAN_REQ_TIMEFRAME_RE = re.compile(
     r"\b(\d+[-\s]?week|monthly|weekly\s+table|plan|program|schedule|routine)\b", re.IGNORECASE
 )
+
+
+_TIMING_QUESTION_RE = re.compile(
+    r"^\s*(and\s+)?(when|how\s+soon|what\s+time|how\s+long\s+after|how\s+quickly)\s+should\s+i",
+    re.IGNORECASE,
+)
+
+
+def _is_timing_followup(msg: str) -> bool:
+    """True when the message is a short timing follow-up ('when should i eat it?',
+    'how soon should i take it?').  These are routinely misrouted to recommend_product
+    instead of being answered with the user's stated schedule facts."""
+    return bool(msg) and bool(_TIMING_QUESTION_RE.search(msg)) and len(msg.strip()) < 80
 
 
 def _is_explicit_plan_request(msg: str) -> bool:

@@ -1,3 +1,10 @@
+### 2026-07-05T17-10Z — iter 27 — F-017 timing follow-up uses 6am context
+- found/did: root at api/chat.py agent path — "and when should i eat it?" has no RAG keywords → fast_rag returns "" → agent fires recommend_product with no timing; EXCEPTION clause in fast_rag_answer.py grounding_suffix never reached. Added `_is_timing_followup()` (matches "when/how soon/what time should i", <80 chars) + timing safety net in process_chat_message: if response has no time-of-day words, make secondary 200-token LLM call with conversation history + user facts to answer the timing question specifically.
+- battery: MEM-01 seeds 8, 17, 24 — turn 2 correctly references "6am workout" and "by 7am"; XMEM-01, XMEM-02 seed 24 unaffected
+- files: backend/api/chat.py
+- tests: no new pytest (routing safety net, not extraction/normalization logic); baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: run full battery (no open findings remain — F-007 quarantined)
+
 ### 2026-07-05T16-57Z — iter 26 — F-021 multi-block request delivers all requested block types
 - found/did: root at services/fast_rag_answer.py + services/prompt_constants.py. CHAT_VISUAL_GRAMMAR said "At most one block per reply" with no exception for explicit multi-block requests; grounding_suffix said "emit the appropriate marker" (singular); max_tokens=560 was insufficient for 4 blocks. Fix: added `_count_distinct_block_types()` + `_BLOCK_TYPE_PATTERNS` to fast_rag_answer.py (~line 30); when ≥2 distinct block types detected, inject "MULTIPLE BLOCKS REQUIRED" grounding_suffix and set max_tokens=1800; updated CHAT_VISUAL_GRAMMAR to remove the "at most one" hard cap with a multi-block exception + NON-NEGOTIABLE directive.
 - battery: VIS-12 seeds 32 and 39 — both emit all 4 requested block types (table, timeline, checklist, stat_cards); VIS-08/VIS-09 seed 26 — unaffected; VIS-03 seed 26 — pre-existing flakiness (known, not a regression)
