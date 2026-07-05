@@ -558,7 +558,7 @@ export default function OnboardingV2Screen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const insets = useSafeAreaInsets();
-    const { user, isPaid, isFreeTier, refreshUser } = useAuth();
+    const { user, isPaid, isFreeTier, chooseFreeTier, refreshUser } = useAuth();
 
     const [step, setStep] = useState(0);
     const [dir, setDir] = useState(1); // +1 forward, -1 back — drives slide direction
@@ -801,13 +801,17 @@ export default function OnboardingV2Screen() {
             // doesn't drag the user back into the wizard.
             void clearOnboardingDraft();
             // Flipping onboarding.completed makes treatAsFull true → the
-            // navigator remounts onto Main. AWAIT the refresh (retry once on a
-            // transient blip) so a paid/free-tier user reliably lands home even
-            // if getMe hiccups. treatAsFull ALSO requires paid||free-tier: a
-            // user who finished the schedule questions but is neither (a dev
-            // "claim account" jump, or a funnel edge) would otherwise be frozen
-            // on this completed screen with no error — route them to the paywall
-            // (the funnel's real post-onboarding step for an unpaid user).
+            // navigator remounts onto Main (Home). AWAIT the refresh (retry once
+            // on a transient blip) so a paid user reliably lands home even if
+            // getMe hiccups. treatAsFull ALSO requires paid||free-tier — but the
+            // schedule questions are the LAST funnel step (V4: paywall → account
+            // → schedule → Main), so anyone finishing here is already PAST the
+            // hard paywall. A user who reaches this point yet is neither paid nor
+            // free-tier (a dev bypass, or a funnel edge) must NOT be bounced
+            // BACKWARD into Payment → "Save your results" (they already did the
+            // account step) — grant browse-only free-tier so treatAsFull flips
+            // and the navigator remounts straight onto Home. Paid features stay
+            // gated at point-of-use by usePaywallGate.
             let fresh: any = null;
             for (let i = 0; i < 2 && !fresh; i++) {
                 fresh = await refreshUser().catch(() => null);
@@ -816,7 +820,7 @@ export default function OnboardingV2Screen() {
             const willBeFull =
                 ((fresh?.is_paid ?? user?.is_paid ?? isPaid) === true) || isFreeTier;
             if (!willBeFull) {
-                navigation.navigate('Payment');
+                await chooseFreeTier().catch(() => {});
             }
         };
         try {
