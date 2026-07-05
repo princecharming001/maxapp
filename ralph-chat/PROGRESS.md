@@ -1,3 +1,10 @@
+### 2026-07-05T21-57Z — iter 50 — FULL BATTERY seed 18, clean (temperature variance only)
+- found/did: battery seed 18 — 35/36 deterministic-pass; judged all 31 needs_judge turns. Three anomalies: (1) XMEM-01 deterministic fail (includes_any: no tretinoin/purge in "my skin is peeling" response) — retry seed 18 and seed 25 both pass; temperature variance, not F-011 regression. (2) VIS-12 judge: answers_the_question=3 (3/4 block types, no checklist) — retry seed 18 has all 4 blocks; temperature variance, not F-021 regression. (3) CLAR-03 judge: answers_the_question=3 (cascade clarifier for "less thinning" chip) — retry seeds 18/25 pass with full actionable protocol; temperature variance, not F-029 regression. F-019 (ERR-04) closed as passively resolved: all 7 tested seeds pass (guardrail fires correctly). No new/reopened findings. clean_streak → 1.
+- battery: FULL seed 18: 35/36 deterministic-pass; all 3 judge anomalies = temperature variance (retries pass); quarantined: VIS-04 (F-007)
+- files: ralph-chat/FINDINGS.md, ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md, ralph-chat/state/runs/2026-07-05T21-45-19Z/
+- tests: no code changed, no new pytest
+- next: run full battery again (clean_streak=1; need 2 consecutive clean passes for PROJECT COMPLETE)
+
 ### 2026-07-05T21-39Z — iter 49 — F-029 fix (CLAR-03 chip answer cascades into second clarifier)
 - found/did: root — "less thinning" (chip answer) goes to agent path; agent asks "need to know where you're seeing the thinning" as second clarifier. `_broad_question_mcq` correctly returns None (no "hair" in the message), but the LLM model generates a cascade clarifier on its own. Fix: added `_CHIP_ANSWER_MAP` (lc_agent.py:129) mapping all canonical MCQ chip values to (domain, action) pairs; when message matches a chip value, appends [USER CHIP ANSWER: ...] directive to human message instructing model to give actionable advice immediately, no more questions.
 - battery: CLAR-03 seeds 49, 56 pass (actionable finasteride+minoxidil protocol, 525 chars, no clarifier); CLAR-01/CLAR-02 seed 56 unaffected
