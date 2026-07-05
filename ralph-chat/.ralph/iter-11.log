@@ -1,0 +1,12 @@
+Done. Here's what happened this iteration:
+
+**FULL BATTERY (seed 2):** 31/36 passed. 5 failures triaged:
+- **VIS-10** → New **F-013** (real, consistent failure): `comparison` block not emitted for "compare 2 acne treatment options — include timeframes" — **FIXED this pass**
+- **VIS-07, SEC-01, XMEM-03** → Flaky; pass on other seeds, not opened as findings
+- **VIS-04** → Quarantined F-007 (expected)
+
+**Root cause of F-013**: Model routes "compare 2 acne treatment options" to the agent path and asks a clarifier before building the block. Also didn't know "week 4 — visible change" timeframe notes fit inside comparison `pros`/`cons` arrays.
+
+**Fix**: Extended `CHAT_VISUAL_GRAMMAR` comparison NON-NEGOTIABLE to ban pre-block clarifying questions and explicitly show timeframes in the example.
+
+**Next**: Run full battery again (all findings closed/quarantined — need two consecutive clean passes to complete).

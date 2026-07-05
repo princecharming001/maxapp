@@ -188,3 +188,893 @@ APNs not configured — push notifications will be silently skipped. Set APNS_AU
 [lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
 [lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
 [lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[chat] empty agent output for user=06addb45-48a6-4726-95ca-500a8a608997 msg=quick heads up: i'm vegetarian and i work out at 6am before work; using fallback
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+Traceback (most recent call last):
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/Users/home/.pyenv/versions/3.11.7/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/main.py", line 147, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 29, in __call__
+    await responder(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 46, in __call__
+    await self.app(scope, receive, self.send_with_compression)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/api/users.py", line 185, in get_profile
+    return UserResponse(
+           ^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for UserResponse
+email
+  value is not a valid email address: The part after the @-sign is a special-use or reserved name that cannot be used with email. [type=value_error, input_value='admin.dev@maxapp.test', input_type=str]
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 421, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 56, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/applications.py", line 1159, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/Users/home/.pyenv/versions/3.11.7/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/main.py", line 147, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 29, in __call__
+    await responder(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 46, in __call__
+    await self.app(scope, receive, self.send_with_compression)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/api/users.py", line 185, in get_profile
+    return UserResponse(
+           ^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for UserResponse
+email
+  value is not a valid email address: The part after the @-sign is a special-use or reserved name that cannot be used with email. [type=value_error, input_value='admin.dev@maxapp.test', input_type=str]
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+Traceback (most recent call last):
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/Users/home/.pyenv/versions/3.11.7/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/main.py", line 147, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 29, in __call__
+    await responder(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 130, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 46, in __call__
+    await self.app(scope, receive, self.send_with_compression)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/api/users.py", line 185, in get_profile
+    return UserResponse(
+           ^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for UserResponse
+email
+  value is not a valid email address: The part after the @-sign is a special-use or reserved name that cannot be used with email. [type=value_error, input_value='admin.dev@maxapp.test', input_type=str]
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 421, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 56, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/applications.py", line 1159, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/Users/home/.pyenv/versions/3.11.7/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/main.py", line 147, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 29, in __call__
+    await responder(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 130, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 46, in __call__
+    await self.app(scope, receive, self.send_with_compression)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/api/users.py", line 185, in get_profile
+    return UserResponse(
+           ^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for UserResponse
+email
+  value is not a valid email address: The part after the @-sign is a special-use or reserved name that cannot be used with email. [type=value_error, input_value='admin.dev@maxapp.test', input_type=str]
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+Traceback (most recent call last):
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/Users/home/.pyenv/versions/3.11.7/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/main.py", line 147, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 29, in __call__
+    await responder(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 130, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 46, in __call__
+    await self.app(scope, receive, self.send_with_compression)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/api/users.py", line 185, in get_profile
+    return UserResponse(
+           ^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for UserResponse
+email
+  value is not a valid email address: The part after the @-sign is a special-use or reserved name that cannot be used with email. [type=value_error, input_value='admin.dev@maxapp.test', input_type=str]
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 421, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 56, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/applications.py", line 1159, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/Users/home/.pyenv/versions/3.11.7/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/main.py", line 147, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 29, in __call__
+    await responder(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 130, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 46, in __call__
+    await self.app(scope, receive, self.send_with_compression)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/api/users.py", line 185, in get_profile
+    return UserResponse(
+           ^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for UserResponse
+email
+  value is not a valid email address: The part after the @-sign is a special-use or reserved name that cannot be used with email. [type=value_error, input_value='admin.dev@maxapp.test', input_type=str]
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set

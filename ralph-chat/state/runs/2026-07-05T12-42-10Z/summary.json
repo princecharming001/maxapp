@@ -1,0 +1,14 @@
+{
+  "run_id": "2026-07-05T12-42-10Z",
+  "started": "2026-07-05T12-42-10Z",
+  "scenarios": {
+    "MEM-01": {
+      "status": "fail",
+      "failed_checks": [
+        "turn0:prose_nonempty"
+      ],
+      "needs_judge": true
+    }
+  },
+  "deterministic_clean": false
+}

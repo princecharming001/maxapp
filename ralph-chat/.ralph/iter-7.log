@@ -1,0 +1,5 @@
+Done. F-011 and F-012 fixed and committed.
+
+**What changed:** `recall_relevant_turns` in `chat_memory.py` had two bugs: (1) a fixed `rows[6:]` skip that silently discarded all prior-conversation messages for users with few conversations (since they'd have fewer than 6 total user turns), replaced with a proper `WHERE conversation_id != current` DB filter; (2) pure token-overlap scoring misses semantic links like "peeling/red" → "tretinoin" — added a recency fallback that always surfaces up to 2 most recent prior-conversation turns when a conversation_id is provided. Also stitched the recall block into the fast-RAG `user_profile` so that path sees cross-conversation memory too.
+
+**Next:** F-008 (model doesn't emit checklist block for explicit checklist asks) — same `model-never-emits-block` class as quarantined F-007, may need human review of Supabase `rag_answer_system` prompt.

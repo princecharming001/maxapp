@@ -1,3 +1,10 @@
+### 2026-07-05T14-03Z — iter 12 — FULL BATTERY (seed 3), new F-014
+- found/did: battery seed 3 — 33/36 deterministic-pass. VIS-04 quarantined (F-007, expected). XMEM-03 flaky (known). VIS-03 flaky (passes seeds 1,2,11; fails seed 3 block_present and seed 5 prose_nonempty — same variant, inconsistent model output, not opened). Judged all needs_judge turns: all pass except ERR-01 (answers_the_question=2, actionability=2) — model fires skin-only clarifier MCQ for "12-week plan covering skin, hair and gym", ignoring hair+gym entirely. Opened F-014 (class: clarifier-reask). clean_streak → 0.
+- battery: FULL seed 3: 33/36 deterministic-pass; judge failures: ERR-01 (F-014 new); flaky: VIS-03, XMEM-03; quarantined: VIS-04
+- files: ralph-chat/FINDINGS.md, ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md
+- tests: no code changed, no new pytest
+- next: fix F-014 (ERR-01 — clarifier fires for multi-domain plan request instead of building the plan)
+
 ### 2026-07-05T13-53Z — iter 11 — FULL BATTERY (seed 2) + F-013 comparison-block-with-timeframes fixed
 - found/did: full battery seed 2 found 5 failures: VIS-10 (new F-013, variant 0 consistently fails), SEC-01/XMEM-03 (flaky, pass on different seeds — not opened), VIS-07 (flaky regress seed 2, passes seed 5 — not a real regression), VIS-04 (quarantined F-007). Fixed F-013: root cause — model hits AGENT path for "compare 2 acne treatment options" and asks clarifying question before emitting block; also didn't know timeframe notes ("week 4 — visible change") fit in comparison pros/cons arrays. Fix: extended CHAT_VISUAL_GRAMMAR comparison NON-NEGOTIABLE rule at prompt_constants.py to add anti-clarifier directive + timeframes-in-pros-example. VIS-10 passes seeds 2, 8, 9 post-fix. clean_streak → 0.
 - battery: FULL seed 2: 31/36 pass; failures: VIS-10 (F-013, fixed this pass), VIS-04 (quarantined F-007), SEC-01/XMEM-03/VIS-07 (flaky, pass on other seeds)

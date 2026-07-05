@@ -1,0 +1,3 @@
+Committed. Iteration 4 complete.
+
+**Summary:** Ran the first full battery (27/36 pass). Fixed F-004 (unclosed `[visual_block]` marker leak from truncated LLM output) in the same pass — added a fallback strip regex at `api/chat.py:636` plus 2 new pytests. Opened F-005–F-012 covering: empty responses (MEM-01), concurrency empty reply (ERR-02), block elicitation failures (VIS-04/05/07/08), and cross-chat memory misses (XMEM-01/02). Next iteration should tackle F-005 (empty prose response — highest priority).

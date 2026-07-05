@@ -1,0 +1,11 @@
+Done. Here's the summary of this iteration:
+
+**F-006 (concurrency-empty-reply)**: Closed — ERR-02 passes on seeds 6 and 13 without any new code. The concurrent-empty bug was the same empty-agent-output issue fixed by F-005's ack-retry.
+
+**F-007 (timeline block not emitted)**: Quarantined as `[!]` after two genuinely different failed attempts:
+1. Prompt-only: added `NON-NEGOTIABLE` timeline/stat_cards directives to `CHAT_VISUAL_GRAMMAR`
+2. Code-level: added `_EXPLICIT_BLOCK_RE` detection in `fast_rag_answer.py` with a conditional grounding_suffix that drops the evidence-only restriction for explicit block requests
+
+Both failed. The model correctly uses general knowledge for its prose answer but consistently refuses to emit a `[VISUAL_BLOCK]` marker. Root cause: the Supabase-loaded `rag_answer_system` prompt has strong evidence-only conditioning that overrides all text appended after it. **Human action needed**: inspect and relax the `rag_answer_system` Supabase row to permit structured block emission even when docs lack the specific content.
+
+**Next**: F-008 (checklist — different root: clarifier MCQ fires instead of answering with a checklist).

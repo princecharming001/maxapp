@@ -1,0 +1,12 @@
+{
+  "run_id": "2026-07-05T12-49-06Z",
+  "started": "2026-07-05T12-49-06Z",
+  "scenarios": {
+    "ERR-02": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": false
+    }
+  },
+  "deterministic_clean": true
+}

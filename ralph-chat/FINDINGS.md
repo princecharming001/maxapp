@@ -79,3 +79,9 @@ hypotheses:
       variant 0 consistently fails (seeds 2, 3, 8); variant 1 flaky (sometimes passes). Root: (1) model hits agent path and asks clarifying "which two options?" before building block; (2) model sees "week 4 — visible change" timeframe in user msg and doesn't know it fits in pros/cons. Fix: CHAT_VISUAL_GRAMMAR NON-NEGOTIABLE extended with anti-clarifier rule ("choose most relevant two options, emit immediately — no clarifying Q first") + "timeframes fit in pros/cons" guidance + updated comparison example showing "Week 4 — visible change" in pros array. VIS-10 passes seeds 2, 8, 9.
       SEC-01/XMEM-03: both flaky (different seed passes); not opened as findings.
       fixed: iter 11 — prompt_constants.py CHAT_VISUAL_GRAMMAR
+
+--- Found in full-battery run, iter 12 (seed 3) ---
+
+- [ ] F-014  ERR-01 judge fail: model fires skin-only clarifier MCQ instead of building the 12-week multi-domain plan | class: clarifier-reask
+      evidence: state/runs/2026-07-05T13-55-49Z/transcript-ERR-01.md (turn 0) | first-seen: iter 12 (full battery seed 3)
+      answers_the_question=2 (ignores hair+gym entirely, only asks about skin goals); actionability=2 (pure clarifier, no plan or any actionable content). VIS-03 flaky (passes seeds 1,2,11 — block_present and prose_nonempty fail on different seeds, not opened); XMEM-03 flaky (known from iter 11, not opened).
