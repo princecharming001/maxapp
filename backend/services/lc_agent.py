@@ -125,6 +125,34 @@ from services.token_budget import count_tokens, trim_context_blob, trim_text_blo
 
 logger = logging.getLogger(__name__)
 
+# Map canonical MCQ chip values → (domain label, action verb) for chip-answer detection.
+# When a user message exactly matches one of these (stripped, lowercased), it is a
+# chip answer to the previous turn's clarifying question — the model must NOT ask
+# another clarifying question; it should give actionable advice immediately.
+_CHIP_ANSWER_MAP: dict[str, tuple[str, str]] = {
+    # hair goal chips
+    "less thinning":    ("hair thinning", "provide hair-thinning advice"),
+    "more growth":      ("hair growth", "provide hair-growth advice"),
+    "dandruff/scalp":   ("scalp / dandruff", "provide scalp and dandruff advice"),
+    "styling":          ("hair styling", "provide hair-styling advice"),
+    "general health":   ("general hair health", "provide general hair-health advice"),
+    # skin goal chips
+    "clearer skin":     ("skin clarity", "provide a clear-skin routine"),
+    "less acne":        ("acne", "provide an acne-fighting routine"),
+    "anti-aging":       ("anti-aging", "provide an anti-aging skincare routine"),
+    "even texture":     ("skin texture", "provide a skin-texture routine"),
+    "hydration":        ("skin hydration", "provide a hydration routine"),
+    # workout goal chips
+    "build muscle":     ("muscle building", "provide a muscle-building plan"),
+    "lose fat":         ("fat loss", "provide a fat-loss plan"),
+    "get stronger":     ("strength", "provide a strength training plan"),
+    "general fitness":  ("general fitness", "provide a general fitness plan"),
+    # nutrition goal chips
+    "fat loss":         ("fat loss nutrition", "provide fat-loss nutrition advice"),
+    "muscle gain":      ("muscle gain nutrition", "provide muscle-gain nutrition advice"),
+    "more energy":      ("energy / nutrition", "provide energy-boosting nutrition advice"),
+}
+
 # Per-request surface for a schedule-change proposal created during this turn.
 # api/chat.py calls reset_proposed_change() at turn start, then the
 # propose_schedule_change tool MUTATES the shared dict (NOT a .set() — langchain
@@ -2522,20 +2550,34 @@ async def run_chat_agent(
             "The block must appear in your reply text — not promised for later.]"
         )
 
+    # Chip-answer reminder: when the user sends a bare chip value from the previous
+    # turn's clarifying MCQ, the model must not cascade into another clarifier.
+    # Inject a terse directive immediately after the message so the model knows to
+    # give actionable advice right now.
+    _chip_reminder = ""
+    _msg_stripped = (message or "").strip().lower()
+    if _msg_stripped in _CHIP_ANSWER_MAP and not _table_reminder:
+        _domain, _action = _CHIP_ANSWER_MAP[_msg_stripped]
+        _chip_reminder = (
+            f" [USER CHIP ANSWER: the user just picked '{_msg_stripped}' from a menu to "
+            f"state their {_domain} goal. {_action.capitalize()} right now — "
+            f"DO NOT ask another clarifying question. Give concrete, actionable content.]"
+        )
+
     # Image: inject as multimodal content part in the human message
     if image_data:
         import base64
 
         mime = _detect_image_mime(image_data)
         b64 = base64.b64encode(image_data).decode()
-        _msg_with_reminder = (message or "") + _table_reminder
+        _msg_with_reminder = (message or "") + _table_reminder + _chip_reminder
         _prefix = (rules_reminder + " " if rules_reminder else "")
         input_content: str | list = [
             {"type": "text", "text": (_prefix + _msg_with_reminder)},
             {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
         ]
     else:
-        _msg_with_reminder = (message or "") + _table_reminder
+        _msg_with_reminder = (message or "") + _table_reminder + _chip_reminder
         input_content = (rules_reminder + " " if rules_reminder else "") + _msg_with_reminder
 
     prompt = ChatPromptTemplate.from_messages([

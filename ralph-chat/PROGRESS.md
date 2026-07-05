@@ -1,3 +1,10 @@
+### 2026-07-05T21-39Z — iter 49 — F-029 fix (CLAR-03 chip answer cascades into second clarifier)
+- found/did: root — "less thinning" (chip answer) goes to agent path; agent asks "need to know where you're seeing the thinning" as second clarifier. `_broad_question_mcq` correctly returns None (no "hair" in the message), but the LLM model generates a cascade clarifier on its own. Fix: added `_CHIP_ANSWER_MAP` (lc_agent.py:129) mapping all canonical MCQ chip values to (domain, action) pairs; when message matches a chip value, appends [USER CHIP ANSWER: ...] directive to human message instructing model to give actionable advice immediately, no more questions.
+- battery: CLAR-03 seeds 49, 56 pass (actionable finasteride+minoxidil protocol, 525 chars, no clarifier); CLAR-01/CLAR-02 seed 56 unaffected
+- files: backend/services/lc_agent.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (agent human-message injection, not extraction/normalization logic); baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: fix F-019 (ERR-04 — "??" 33-char response; class: answer-quality)
+
 ### 2026-07-05T21-21Z — iter 48 — F-028 fix (VIS-02 workout table not emitted)
 - found/did: root — model routes through fast_rag (fitmax maxx_hints via "gym"), TABLE BLOCK RULE grounding suffix fires, but model occasionally produces prose-only (temp variance). Fix: added fast-rag table safety net in process_chat_message (api/chat.py ~line 2939): when _TABLE_REQUEST_RE matches and no table block in fast_response, secondary LLM call emits ONLY the [VISUAL_BLOCK] table marker and appends it to the prose.
 - battery: VIS-02 seeds 17, 48, 55, 62, 3, 70, 77 — all 7 pass; VIS-07/08/09 seed 55 unaffected
