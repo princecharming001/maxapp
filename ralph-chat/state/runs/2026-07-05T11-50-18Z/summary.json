@@ -1,0 +1,27 @@
+{
+  "run_id": "2026-07-05T11-50-18Z",
+  "started": "2026-07-05T11-50-18Z",
+  "scenarios": {
+    "ERR-04": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": false
+    },
+    "CLAR-02": {
+      "status": "fail",
+      "failed_checks": [
+        "turn1:choices_absent",
+        "turn1:includes_any"
+      ],
+      "needs_judge": true
+    },
+    "VIS-01": {
+      "status": "fail",
+      "failed_checks": [
+        "turn0:block_present"
+      ],
+      "needs_judge": true
+    }
+  },
+  "deterministic_clean": false
+}

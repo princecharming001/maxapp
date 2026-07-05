@@ -1,0 +1,761 @@
+............................................................F........... [  9%]
+........................................................................ [ 19%]
+..................FF.................F....F............................. [ 29%]
+..................................................F..................... [ 38%]
+........................................................................ [ 48%]
+.....................FF................................................. [ 58%]
+..........................
+PERSONA-MATRIX SCHEDULE SCORECARD
+========================================================================
+
+Maya — 9-5 fixed + commute (skin/hair/fit)
+  within_waking            PASS         ok
+  no_clock_stack           PASS         ok
+  no_empty_days            PASS         ok
+  under_cap                PASS         ok
+  no_time_collisions       PASS         ok
+  respects_busy            PASS         ok
+  load_ramp                PASS         n/a (full-load start: advanced/sweatmode/intermediate)
+  priority_respected       PASS         top=skinmax kept-optionals[skinmax=28, hairmax=26, fitmax=18]
+  retinoid_pm              PASS         n/a (no retinoid for this skin profile)
+  spf_am                   PASS         n/a (no spf task)
+  exfoliation_spacing      PASS         ok
+  beginner_retinoid_ramp   PASS         n/a
+
+Sam — early flexible shift, student (fit/skin)
+  within_waking            PASS         ok
+  no_clock_stack           PASS         ok
+  no_empty_days            PASS         ok
+  under_cap                PASS         ok
+  no_time_collisions       PASS         ok
+  respects_busy            PASS         ok
+  load_ramp                PASS         fitmax early(d0-2)=0.67 late(d-7:)=5.14 need early<=0.8*late
+  priority_respected       PASS         top=fitmax kept-optionals[fitmax=21, skinmax=18]
+  retinoid_pm              PASS         n/a (no retinoid for this skin profile)
+  spf_am                   PASS         n/a (no spf task)
+  exfoliation_spacing      PASS         ok
+  beginner_retinoid_ramp   PASS         n/a
+
+Leo — night shift, overnight rhythm (skin)
+  within_waking            PASS         ok
+  no_clock_stack           PASS         ok
+  no_empty_days            PASS         ok
+  under_cap                PASS         ok
+  no_time_collisions       PASS         ok
+  respects_busy            PASS         ok
+  load_ramp                PASS         n/a (full-load start: advanced/sweatmode/intermediate)
+  priority_respected       PASS         n/a (single maxx)
+  retinoid_pm              PASS         n/a (no retinoid for this skin profile)
+  spf_am                   PASS         n/a (no spf task)
+  exfoliation_spacing      PASS         ok
+  beginner_retinoid_ramp   PASS         n/a
+
+Ravi — 3-maxx beginner, chill (skin/hair/fit)
+  within_waking            PASS         ok
+  no_clock_stack           PASS         ok
+  no_empty_days            PASS         ok
+  under_cap                PASS         ok
+  no_time_collisions       PASS         ok
+  respects_busy            PASS         n/a (no declared commitments)
+  load_ramp                PASS         skinmax early(d0-2)=2.00 late(d-7:)=6.71 need early<=0.8*late
+  priority_respected       PASS         top=skinmax kept-optionals[skinmax=19, hairmax=5, fitmax=13]
+  retinoid_pm              PASS         n/a (no retinoid for this skin profile)
+  spf_am                   PASS         n/a (no spf task)
+  exfoliation_spacing      PASS         ok
+  beginner_retinoid_ramp   PASS         n/a
+
+Alex — advanced, sweatmode, skin-first (skin/hair/fit)
+  within_waking            PASS         ok
+  no_clock_stack           PASS         ok
+  no_empty_days            PASS         ok
+  under_cap                PASS         ok
+  no_time_collisions       PASS         ok
+  respects_busy            PASS         n/a (no declared commitments)
+  load_ramp                PASS         n/a (full-load start: advanced/sweatmode/intermediate)
+  priority_respected       PASS         top=skinmax kept-optionals[skinmax=28, hairmax=26, fitmax=14]
+  retinoid_pm              PASS         n/a (no retinoid for this skin profile)
+  spf_am                   PASS         n/a (no spf task)
+  exfoliation_spacing      PASS         ok
+  beginner_retinoid_ramp   PASS         n/a
+
+========================================================================
+GAP = known shortfall the noted slice will fix (xfail today).
+.............................................. [ 67%]
+........................................................................ [ 77%]
+........................................................................ [ 87%]
+........................................................................ [ 97%]
+........F.F..F.F..FFFF                                                   [100%]
+=================================== FAILURES ===================================
+____ test_process_chat_message_routes_knowledge_away_from_context_and_agent ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10ffe58d0>
+
+    @pytest.mark.asyncio
+    async def test_process_chat_message_routes_knowledge_away_from_context_and_agent(monkeypatch):
+        fake_db = _FakeDB()
+    
+        async def _no_schedule(*_args, **_kwargs):
+            return None
+    
+        async def _should_not_build_context(*_args, **_kwargs):
+            raise AssertionError("build_full_context should not run for strict knowledge turns")
+    
+        async def _fake_answer_from_rag(**_kwargs):
+            return (
+                "use the PM routine from the docs. [source: rag_docs/skinmax/routines.md > PM routine]",
+                [{"id": "routines:0:abc123", "content": "PM routine", "metadata": {"source": "rag_docs/skinmax/routines.md", "section": "PM routine"}}],
+            )
+    
+        monkeypatch.setattr(schedule_service_mod.schedule_service, "get_current_schedule", _no_schedule)
+        monkeypatch.setattr(schedule_service_mod.schedule_service, "get_maxx_schedule", _no_schedule)
+        monkeypatch.setattr(chat_api.coaching_service, "build_full_context", _should_not_build_context)
+        monkeypatch.setattr(chat_api, "answer_from_rag", _fake_answer_from_rag)
+        monkeypatch.setattr(chat_api, "run_chat_agent", _should_not_build_context)
+    
+        text, choices = await chat_api.process_chat_message(
+            user_id="00000000-0000-0000-0000-000000000000",
+            message_text="what should i do for acne at night",
+            db=fake_db,
+            rds_db=None,
+            channel="app",
+        )
+    
+        assert choices == []
+>       assert "source:" in text
+E       AssertionError: assert 'source:' in 'i hit a temporary chat-thread error. retry once and i should be back.'
+
+tests/test_chat_routing.py:83: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  api.chat:chat.py:2490 [chat] could not resolve conversation for user=00000000: '_FakeResult' object has no attribute 'scalar_one_or_none'
+_______________ test_auto_hide_at_threshold_hides_and_decrements _______________
+
+    def test_auto_hide_at_threshold_hides_and_decrements():
+        post = CreatorPost(comment_count=3)
+        c = CreatorPostComment(body="x", status="visible", report_count=cs.AUTO_HIDE_REPORTS)
+        c.post_id = None
+>       hidden = asyncio.get_event_loop().run_until_complete(cs.maybe_auto_hide_comment(c, _FakeDB(post)))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_creator_platform.py:111: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <asyncio.unix_events._UnixDefaultEventLoopPolicy object at 0x10efd1090>
+
+    def get_event_loop(self):
+        """Get the event loop for the current context.
+    
+        Returns an instance of EventLoop or raises an exception.
+        """
+        if (self._local._loop is None and
+                not self._local._set_called and
+                threading.current_thread() is threading.main_thread()):
+            self.set_event_loop(self.new_event_loop())
+    
+        if self._local._loop is None:
+>           raise RuntimeError('There is no current event loop in thread %r.'
+                               % threading.current_thread().name)
+E           RuntimeError: There is no current event loop in thread 'MainThread'.
+
+../../.pyenv/versions/3.11.7/lib/python3.11/asyncio/events.py:677: RuntimeError
+______________________ test_no_auto_hide_below_threshold _______________________
+
+    def test_no_auto_hide_below_threshold():
+        c = CreatorPostComment(body="x", status="visible", report_count=cs.AUTO_HIDE_REPORTS - 1)
+        c.post_id = None
+>       hidden = asyncio.get_event_loop().run_until_complete(cs.maybe_auto_hide_comment(c, _FakeDB(None)))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_creator_platform.py:119: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <asyncio.unix_events._UnixDefaultEventLoopPolicy object at 0x10efd1090>
+
+    def get_event_loop(self):
+        """Get the event loop for the current context.
+    
+        Returns an instance of EventLoop or raises an exception.
+        """
+        if (self._local._loop is None and
+                not self._local._set_called and
+                threading.current_thread() is threading.main_thread()):
+            self.set_event_loop(self.new_event_loop())
+    
+        if self._local._loop is None:
+>           raise RuntimeError('There is no current event loop in thread %r.'
+                               % threading.current_thread().name)
+E           RuntimeError: There is no current event loop in thread 'MainThread'.
+
+../../.pyenv/versions/3.11.7/lib/python3.11/asyncio/events.py:677: RuntimeError
+_________ TestSubscriptionExpiry.test_expired_subscription_raises_402 __________
+
+self = <test_entitlement_regression.TestSubscriptionExpiry object at 0x10f928890>
+
+    def test_expired_subscription_raises_402(self):
+        """require_paid_user raises 402 if subscription is past end_date."""
+        from fastapi import HTTPException
+        import asyncio
+    
+        expired_user = _paid_user()
+        expired_user["subscription_end_date"] = datetime.utcnow() - timedelta(days=1)
+    
+        async def _run():
+            from middleware.auth_middleware import require_paid_user as _dep
+    
+            # Directly call the dependency with the expired user already resolved
+            # by simulating what would happen after get_current_user returns it.
+            from fastapi import status
+    
+            if not expired_user.get("is_paid"):
+                raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED)
+            if _subscription_expired(expired_user.get("subscription_end_date")):
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail="Subscription has expired",
+                )
+            return expired_user
+    
+        with pytest.raises(HTTPException) as exc_info:
+>           asyncio.get_event_loop().run_until_complete(_run())
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_entitlement_regression.py:301: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <asyncio.unix_events._UnixDefaultEventLoopPolicy object at 0x10efd1090>
+
+    def get_event_loop(self):
+        """Get the event loop for the current context.
+    
+        Returns an instance of EventLoop or raises an exception.
+        """
+        if (self._local._loop is None and
+                not self._local._set_called and
+                threading.current_thread() is threading.main_thread()):
+            self.set_event_loop(self.new_event_loop())
+    
+        if self._local._loop is None:
+>           raise RuntimeError('There is no current event loop in thread %r.'
+                               % threading.current_thread().name)
+E           RuntimeError: There is no current event loop in thread 'MainThread'.
+
+../../.pyenv/versions/3.11.7/lib/python3.11/asyncio/events.py:677: RuntimeError
+______________ test_answer_from_chunks_preserves_clean_citations _______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x12a447e50>
+
+    @pytest.mark.asyncio
+    async def test_answer_from_chunks_preserves_clean_citations(monkeypatch):
+        _install_fake_docs(monkeypatch)
+        monkeypatch.setattr(fast_rag, "get_chat_llm_with_fallback", lambda **_kwargs: _FakeLLM())
+        retrieved = await fast_rag.gather_rag_evidence(
+            message="what should i do for acne at night",
+            maxx_hints=["skinmax"],
+        )
+        assert retrieved
+        answer = await fast_rag.answer_from_chunks(
+            message="what should i do for acne at night",
+            retrieved=retrieved,
+        )
+>       assert "[source:" in answer
+E       AssertionError: assert '[source:' in 'Use sunscreen ([Beauty of Joseon](https://www.amazon.com/Beauty-Of-Joseon-Relief-Sun-Rice-+-Probiotic-SPF-50+-Pa++++/dp/B0G4Z5G1NT)) at night only if your docs say so.'
+
+tests/test_fast_rag_and_retriever.py:83: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    sqlalchemy.pool.impl.AsyncAdaptedQueuePool:base.py:377 Exception terminating connection <AdaptedConnection <asyncpg.connection.Connection object at 0x1650e4130>>
+Traceback (most recent call last):
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/pool/base.py", line 373, in _close_connection
+    self._dialect.do_terminate(connection)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1127, in do_terminate
+    dbapi_connection.terminate()
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/connectors/asyncio.py", line 402, in terminate
+    self.await_(asyncio.shield(self._terminate_graceful_close()))  # type: ignore[attr-defined] # noqa: E501
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 912, in _terminate_graceful_close
+    await self._connection.close(timeout=2)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/asyncpg/connection.py", line 1513, in close
+    await self._protocol.close(timeout)
+  File "asyncpg/protocol/protocol.pyx", line 617, in close
+  File "asyncpg/protocol/protocol.pyx", line 650, in asyncpg.protocol.protocol.BaseProtocol._request_cancel
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/asyncpg/connection.py", line 1682, in _cancel_current_command
+    self._cancellations.add(self._loop.create_task(self._cancel(waiter)))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/.pyenv/versions/3.11.7/lib/python3.11/asyncio/base_events.py", line 434, in create_task
+    self._check_closed()
+  File "/Users/home/.pyenv/versions/3.11.7/lib/python3.11/asyncio/base_events.py", line 519, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+WARNING  services.rag_service:rag_service.py:498 RAG vector search failed (maxx=skinmax): Event loop is closed
+__________________ test_validator_fixes_collisions_and_titles __________________
+
+    def test_validator_fixes_collisions_and_titles():
+        from services.task_catalog_service import warm_catalog
+        from services.schedule_validator import validate_and_fix
+        asyncio.run(warm_catalog())
+    
+        days = [{
+            "tasks": [
+                {"catalog_id": "skin.cleanse_am", "time": "06:45",
+                 "title": "this title is way too long for the calendar grid",
+                 "description": "ok"},
+                {"catalog_id": "skin.spf", "time": "06:45", "title": "spf"},  # collision
+                {"catalog_id": "skin.moisturize_am", "time": "06:46", "title": "moist"},  # collision
+            ]
+        }]
+        clean, errs, fixed = validate_and_fix(
+            maxx_id="skinmax", days=days, wake_time="06:30", sleep_time="23:00",
+            user_ctx={"skin_concern": "acne", "barrier_state": "stable", "skin_type": "oily"},
+            expected_day_count=1, daily_task_budget=(2, 6),
+        )
+        assert clean, [e.message for e in errs if e.severity == "hard"]
+        times = [t["time"] for t in fixed[0]["tasks"]]
+        assert len(set(times)) == 3, f"collisions not separated: {times}"
+        titles = [t["title"] for t in fixed[0]["tasks"]]
+>       assert all(len(t) <= 28 for t in titles), titles
+E       AssertionError: ['this title is way too long for the…', 'moist', 'SPF']
+E       assert False
+E        +  where False = all(<generator object test_validator_fixes_collisions_and_titles.<locals>.<genexpr> at 0x106eb34c0>)
+
+tests/test_max_doc_pipeline.py:219: AssertionError
+__________ TestScanUserBypass.test_scan_user_skips_require_paid_user ___________
+
+self = <test_p0_security.TestScanUserBypass object at 0x10fa89fd0>
+
+    def test_scan_user_skips_require_paid_user(self):
+        """require_paid_user must return the user for is_scan_user=True
+        even when is_paid=False — scan users are a separate entitlement class.
+        This tests the documented bypass is intentional, not accidental."""
+        import asyncio
+        from fastapi import HTTPException
+        from middleware.auth_middleware import _subscription_expired
+    
+        scan_user = {
+            "is_paid": False,
+            "is_admin": False,
+            "is_scan_user": True,
+            "subscription_end_date": None,
+        }
+    
+        async def _simulate_require_paid(user: dict) -> dict:
+            if user.get("is_admin") or user.get("is_scan_user"):
+                return user
+            if not user.get("is_paid"):
+                raise HTTPException(status_code=402, detail="Payment required")
+            if _subscription_expired(user.get("subscription_end_date")):
+                raise HTTPException(status_code=402, detail="Subscription expired")
+            return user
+    
+>       result = asyncio.get_event_loop().run_until_complete(_simulate_require_paid(scan_user))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_p0_security.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <asyncio.unix_events._UnixDefaultEventLoopPolicy object at 0x10efd1090>
+
+    def get_event_loop(self):
+        """Get the event loop for the current context.
+    
+        Returns an instance of EventLoop or raises an exception.
+        """
+        if (self._local._loop is None and
+                not self._local._set_called and
+                threading.current_thread() is threading.main_thread()):
+            self.set_event_loop(self.new_event_loop())
+    
+        if self._local._loop is None:
+>           raise RuntimeError('There is no current event loop in thread %r.'
+                               % threading.current_thread().name)
+E           RuntimeError: There is no current event loop in thread 'MainThread'.
+
+../../.pyenv/versions/3.11.7/lib/python3.11/asyncio/events.py:677: RuntimeError
+___________ TestScanUserBypass.test_non_paid_non_scan_user_gets_402 ____________
+
+self = <test_p0_security.TestScanUserBypass object at 0x10fa8a310>
+
+    def test_non_paid_non_scan_user_gets_402(self):
+        import asyncio
+        from fastapi import HTTPException
+        from middleware.auth_middleware import _subscription_expired
+    
+        regular_user = {
+            "is_paid": False,
+            "is_admin": False,
+            "is_scan_user": False,
+            "subscription_end_date": None,
+        }
+    
+        async def _simulate_require_paid(user: dict) -> dict:
+            if user.get("is_admin") or user.get("is_scan_user"):
+                return user
+            if not user.get("is_paid"):
+                raise HTTPException(status_code=402)
+            if _subscription_expired(user.get("subscription_end_date")):
+                raise HTTPException(status_code=402)
+            return user
+    
+        with pytest.raises(HTTPException) as exc:
+>           asyncio.get_event_loop().run_until_complete(_simulate_require_paid(regular_user))
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_p0_security.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <asyncio.unix_events._UnixDefaultEventLoopPolicy object at 0x10efd1090>
+
+    def get_event_loop(self):
+        """Get the event loop for the current context.
+    
+        Returns an instance of EventLoop or raises an exception.
+        """
+        if (self._local._loop is None and
+                not self._local._set_called and
+                threading.current_thread() is threading.main_thread()):
+            self.set_event_loop(self.new_event_loop())
+    
+        if self._local._loop is None:
+>           raise RuntimeError('There is no current event loop in thread %r.'
+                               % threading.current_thread().name)
+E           RuntimeError: There is no current event loop in thread 'MainThread'.
+
+../../.pyenv/versions/3.11.7/lib/python3.11/asyncio/events.py:677: RuntimeError
+_____________________ test_agent_system_prompt_is_bounded ______________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1652856d0>
+
+    @pytest.mark.asyncio
+    async def test_agent_system_prompt_is_bounded(monkeypatch):
+        from services import lc_agent
+    
+        async def _fake_resolve(*_args, **_kwargs):
+            return "BASE SYSTEM PROMPT"
+    
+        # asyncio.to_thread(resolve_prompt, ...) → short-circuit
+        monkeypatch.setattr(
+            lc_agent, "resolve_prompt", lambda *_args, **_kwargs: "BASE SYSTEM PROMPT"
+        )
+    
+        # Oversize coaching_context — must be clamped before the final budget check.
+        huge_context = "COACHING CONTEXT START " + ("blabber " * 40000) + " COACHING CONTEXT END"
+    
+        prompt = await lc_agent.build_agent_system_prompt(
+            user_context={"coaching_context": huge_context},
+            delivery_channel="app",
+        )
+    
+        tokens = count_tokens(prompt)
+        # Must stay within the hard system-prompt budget (default 3200).
+>       assert tokens <= 3300, f"system prompt exceeded budget: {tokens}"
+E       AssertionError: system prompt exceeded budget: 3981
+E       assert 3981 <= 3300
+
+tests/test_token_budgets.py:91: AssertionError
+____________________ test_orphans_from_spec_are_now_offered ____________________
+
+    def test_orphans_from_spec_are_now_offered():
+        # ids the spec called out as orphans (scheduled but never a chip before) that
+        # ARE on this acne/pigmentation plan must now be offered.
+        offered_ids = {o["id"] for o in build_offered_habits("skinmax", _days())}
+        for cid in ("skin.spf_reapply", "skin.monthly_review",
+                    "skin.derm_consult", "skin.zinc_supp"):
+>           assert cid in offered_ids, f"{cid} scheduled but not offered (orphan)"
+E           AssertionError: skin.monthly_review scheduled but not offered (orphan)
+E           assert 'skin.monthly_review' in {'skin.am_routine', 'skin.diet_anti_inflammatory', 'skin.facial_massage', 'skin.hydration_water', 'skin.pillowcase_change', 'skin.pm_routine', ...}
+
+tests/test_tune_offered_set.py:79: AssertionError
+_______________ test_deselect_specific_tasks_removes_only_those ________________
+
+    def test_deselect_specific_tasks_removes_only_those():
+        days = _days()
+        offered_ids = {o["id"] for o in build_offered_habits("skinmax", days)}
+        drop = {"skin.spf_reapply", "skin.monthly_review"}
+>       assert drop <= offered_ids, "deselected ids must be real offered tasks"
+E       AssertionError: deselected ids must be real offered tasks
+E       assert {'skin.monthl....spf_reapply'} <= {'skin.am_rou...routine', ...}
+E         
+E         Extra items in the left set:
+E         'skin.monthly_review'
+
+tests/test_tune_offered_set.py:109: AssertionError
+__________________ test_extra_ids_keeps_avoided_tasks_offered __________________
+
+    def test_extra_ids_keeps_avoided_tasks_offered():
+        # SC4: after deselect+save the task is dropped from the schedule, but the
+        # tune sheet must still OFFER it (unselected) so it's re-addable. The
+        # tune-later path passes the avoided ids as extra_ids.
+        days = _days()
+        scheduled = _distinct_ids(days)
+        dropped = "skin.derm_consult"
+>       assert dropped in scheduled
+E       AssertionError: assert 'skin.derm_consult' in {'skin.am_routine', 'skin.diet_anti_inflammatory', 'skin.facial_massage', 'skin.hydration_water', 'skin.pillowcase_change', 'skin.pm_routine', ...}
+
+tests/test_tune_offered_set.py:127: AssertionError
+_____________ test_committed_write_survives_a_failing_side_effect ______________
+
+    def test_committed_write_survives_a_failing_side_effect():
+        db = FakeTxSession()
+        # The handler now commits the critical onboarding write FIRST.
+        db.stage("completed", True)
+>       _run(db.commit())
+
+tests/test_tx_best_effort.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_tx_best_effort.py:44: in _run
+    return asyncio.get_event_loop().run_until_complete(coro)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <asyncio.unix_events._UnixDefaultEventLoopPolicy object at 0x10efd1090>
+
+    def get_event_loop(self):
+        """Get the event loop for the current context.
+    
+        Returns an instance of EventLoop or raises an exception.
+        """
+        if (self._local._loop is None and
+                not self._local._set_called and
+                threading.current_thread() is threading.main_thread()):
+            self.set_event_loop(self.new_event_loop())
+    
+        if self._local._loop is None:
+>           raise RuntimeError('There is no current event loop in thread %r.'
+                               % threading.current_thread().name)
+E           RuntimeError: There is no current event loop in thread 'MainThread'.
+
+../../.pyenv/versions/3.11.7/lib/python3.11/asyncio/events.py:677: RuntimeError
+_____________________ test_successful_side_effect_commits ______________________
+
+    def test_successful_side_effect_commits():
+        db = FakeTxSession()
+    
+        async def ok_step():
+            db.stage("ctx", "x")
+    
+>       ok = _run(best_effort(db, "sync", ok_step))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_tx_best_effort.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_tx_best_effort.py:44: in _run
+    return asyncio.get_event_loop().run_until_complete(coro)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <asyncio.unix_events._UnixDefaultEventLoopPolicy object at 0x10efd1090>
+
+    def get_event_loop(self):
+        """Get the event loop for the current context.
+    
+        Returns an instance of EventLoop or raises an exception.
+        """
+        if (self._local._loop is None and
+                not self._local._set_called and
+                threading.current_thread() is threading.main_thread()):
+            self.set_event_loop(self.new_event_loop())
+    
+        if self._local._loop is None:
+>           raise RuntimeError('There is no current event loop in thread %r.'
+                               % threading.current_thread().name)
+E           RuntimeError: There is no current event loop in thread 'MainThread'.
+
+../../.pyenv/versions/3.11.7/lib/python3.11/asyncio/events.py:677: RuntimeError
+_________________________ test_never_raises_on_failure _________________________
+
+    def test_never_raises_on_failure():
+        db = FakeTxSession()
+    
+        async def boom():
+            raise ValueError("boom")
+    
+        # Must swallow the error (best-effort contract) rather than 500 the request.
+>       assert _run(best_effort(db, "x", boom)) is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_tx_best_effort.py:87: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_tx_best_effort.py:44: in _run
+    return asyncio.get_event_loop().run_until_complete(coro)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <asyncio.unix_events._UnixDefaultEventLoopPolicy object at 0x10efd1090>
+
+    def get_event_loop(self):
+        """Get the event loop for the current context.
+    
+        Returns an instance of EventLoop or raises an exception.
+        """
+        if (self._local._loop is None and
+                not self._local._set_called and
+                threading.current_thread() is threading.main_thread()):
+            self.set_event_loop(self.new_event_loop())
+    
+        if self._local._loop is None:
+>           raise RuntimeError('There is no current event loop in thread %r.'
+                               % threading.current_thread().name)
+E           RuntimeError: There is no current event loop in thread 'MainThread'.
+
+../../.pyenv/versions/3.11.7/lib/python3.11/asyncio/events.py:677: RuntimeError
+________________ test_one_failure_does_not_poison_the_next_step ________________
+
+    def test_one_failure_does_not_poison_the_next_step():
+        """The 3-side-effect onboarding path: an early failure must not block a later
+        step from committing (before the fix, the aborted txn poisoned everything)."""
+        db = FakeTxSession()
+        db.stage("completed", True)
+>       _run(db.commit())
+
+tests/test_tx_best_effort.py:95: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_tx_best_effort.py:44: in _run
+    return asyncio.get_event_loop().run_until_complete(coro)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <asyncio.unix_events._UnixDefaultEventLoopPolicy object at 0x10efd1090>
+
+    def get_event_loop(self):
+        """Get the event loop for the current context.
+    
+        Returns an instance of EventLoop or raises an exception.
+        """
+        if (self._local._loop is None and
+                not self._local._set_called and
+                threading.current_thread() is threading.main_thread()):
+            self.set_event_loop(self.new_event_loop())
+    
+        if self._local._loop is None:
+>           raise RuntimeError('There is no current event loop in thread %r.'
+                               % threading.current_thread().name)
+E           RuntimeError: There is no current event loop in thread 'MainThread'.
+
+../../.pyenv/versions/3.11.7/lib/python3.11/asyncio/events.py:677: RuntimeError
+=============================== warnings summary ===============================
+config.py:18
+  /Users/home/maxapp/backend/config.py:18: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class Settings(BaseSettings):
+
+models/user.py:291
+  /Users/home/maxapp/backend/models/user.py:291: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class UserCreate(BaseModel):
+
+models/user.py:343
+  /Users/home/maxapp/backend/models/user.py:343: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class UserResponse(BaseModel):
+
+models/scan.py:654
+  /Users/home/maxapp/backend/models/scan.py:654: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class ScanResponse(BaseModel):
+
+models/payment.py:102
+  /Users/home/maxapp/backend/models/payment.py:102: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class PaymentResponse(BaseModel):
+
+models/schedule.py:95
+  /Users/home/maxapp/backend/models/schedule.py:95: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class ScheduleResponse(BaseModel):
+
+models/course.py:77
+  /Users/home/maxapp/backend/models/course.py:77: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class CourseResponse(BaseModel):
+
+models/course.py:109
+  /Users/home/maxapp/backend/models/course.py:109: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class CourseProgress(BaseModel):
+
+models/event.py:20
+  /Users/home/maxapp/backend/models/event.py:20: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class EventResponse(BaseModel):
+
+models/forum.py:22
+  /Users/home/maxapp/backend/models/forum.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class ChannelResponse(BaseModel):
+
+models/forum.py:67
+  /Users/home/maxapp/backend/models/forum.py:67: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class MessageResponse(BaseModel):
+
+models/sqlalchemy_models.py:37
+  /Users/home/maxapp/backend/models/sqlalchemy_models.py:37: MovedIn20Warning: The ``declarative_base()`` function is now available as sqlalchemy.orm.declarative_base(). (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    Base = declarative_base()
+
+models/rds_models.py:24
+  /Users/home/maxapp/backend/models/rds_models.py:24: MovedIn20Warning: The ``declarative_base()`` function is now available as sqlalchemy.orm.declarative_base(). (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    Base = declarative_base()
+
+../.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47
+  /Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+  
+  All support for the `google.generativeai` package has ended. It will no longer be receiving 
+  updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+  See README for more details:
+  
+  https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+  
+    from google.generativeai.caching import CachedContent  # type: ignore[import]
+
+api/onairos.py:32
+  /Users/home/maxapp/backend/api/onairos.py:32: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class OnairosConnectBody(BaseModel):
+
+tests/test_fast_rag_and_retriever.py::test_answer_from_chunks_preserves_clean_citations
+  /Users/home/.pyenv/versions/3.11.7/lib/python3.11/ast.py:50: RuntimeWarning: coroutine 'Connection._cancel' was never awaited
+    return compile(source, filename, mode, flags,
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_onboarding_gap.py::test_send_message_locked_no_500_on_driver_fault
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/_pytest/unraisableexception.py:33: RuntimeWarning: coroutine 'FakeTxSession.commit' was never awaited
+  gc.collect()
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/_pytest/unraisableexception.py:33: RuntimeWarning: coroutine 'best_effort' was never awaited
+  gc.collect()
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+  /Users/home/maxapp/.venv/lib/python3.11/site-packages/yaml/scanner.py:599: RuntimeWarning: coroutine 'Connection._cancel' was never awaited
+    self.tokens.append(ValueToken(start_mark, end_mark))
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_p1_integration.py::TestAdminEndpointGuard::test_admin_stats_rejects_regular_user
+  /Users/home/.pyenv/versions/3.11.7/lib/python3.11/asyncio/mixins.py:16: RuntimeWarning: coroutine 'Connection._cancel' was never awaited
+    with _global_lock:
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_p1_integration.py::TestEndpointValidation::test_chat_conversations_create_with_valid_body_passes_auth
+  /Users/home/.pyenv/versions/3.11.7/lib/python3.11/threading.py:1020: RuntimeWarning: coroutine 'Connection._cancel' was never awaited
+    self._tstate_lock = _set_sentinel()
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_schedule_quality_regressions.py::test_overnight_user_has_no_clock_stack
+  /Users/home/maxapp/.venv/lib/python3.11/site-packages/yaml/scanner.py:286: RuntimeWarning: coroutine 'Connection._cancel' was never awaited
+    for level in list(self.possible_simple_keys):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_chat_routing.py::test_process_chat_message_routes_knowledge_away_from_context_and_agent
+FAILED tests/test_creator_platform.py::test_auto_hide_at_threshold_hides_and_decrements
+FAILED tests/test_creator_platform.py::test_no_auto_hide_below_threshold - Ru...
+FAILED tests/test_entitlement_regression.py::TestSubscriptionExpiry::test_expired_subscription_raises_402
+FAILED tests/test_fast_rag_and_retriever.py::test_answer_from_chunks_preserves_clean_citations
+FAILED tests/test_max_doc_pipeline.py::test_validator_fixes_collisions_and_titles
+FAILED tests/test_p0_security.py::TestScanUserBypass::test_scan_user_skips_require_paid_user
+FAILED tests/test_p0_security.py::TestScanUserBypass::test_non_paid_non_scan_user_gets_402
+FAILED tests/test_token_budgets.py::test_agent_system_prompt_is_bounded - Ass...
+FAILED tests/test_tune_offered_set.py::test_orphans_from_spec_are_now_offered
+FAILED tests/test_tune_offered_set.py::test_deselect_specific_tasks_removes_only_those
+FAILED tests/test_tune_offered_set.py::test_extra_ids_keeps_avoided_tasks_offered
+FAILED tests/test_tx_best_effort.py::test_committed_write_survives_a_failing_side_effect
+FAILED tests/test_tx_best_effort.py::test_successful_side_effect_commits - Ru...
+FAILED tests/test_tx_best_effort.py::test_never_raises_on_failure - RuntimeEr...
+FAILED tests/test_tx_best_effort.py::test_one_failure_does_not_poison_the_next_step
+16 failed, 726 passed, 20 warnings in 22.49s
+sys:1: RuntimeWarning: coroutine 'FakeTxSession.commit' was never awaited

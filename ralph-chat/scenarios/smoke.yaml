@@ -1,0 +1,15 @@
+# smoke.yaml — the single preflight scenario. Not part of the battery; used
+# only by preflight.py to prove the backend + real LLM are answering.
+- id: SMOKE-01
+  title: real LLM answer sanity check
+  user: skip
+  new_conversation: true
+  turns:
+    - send:
+        message:
+          - "In one short sentence, why does sunscreen matter?"
+      expect:
+        deterministic:
+          - prose_nonempty
+          - no_friendly_error
+          - latency_lt: 60
