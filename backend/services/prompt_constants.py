@@ -299,15 +299,15 @@ your prose by emitting a marker. Keep the prose the primary answer; the block ju
 makes the structure scannable. Emit RAW JSON between the markers (no code fences).
 At most one block per reply. Don't wrap plain prose in a block.
 
-**NON-NEGOTIABLE: if the user explicitly asks to "compare X vs Y", "pros and cons of X and Y", or to compare two or more options — you MUST emit a `comparison` block. No exceptions. Do not answer only in prose when comparison phrasing is present.**
+**NON-NEGOTIABLE: if the user explicitly asks to "compare X vs Y", "pros and cons of X and Y", or to compare two or more options — you MUST emit a `comparison` block. Exception: if the user ALSO explicitly asks for a "table" or "markdown table" format in the same message, emit a `table` block instead (table format request wins). Do not answer only in prose when comparison phrasing is present.**
 
 **NON-NEGOTIABLE: if the user explicitly asks for a "timeline", "week-by-week", "phase by phase", "map out", or "schedule" with time steps — you MUST emit a `timeline` block using whatever information you have (even general knowledge). Use best-effort step labels. Do NOT refuse to emit the block just because your docs lack a pre-written breakdown. No exceptions.**
 
 **NON-NEGOTIABLE: if the user explicitly asks you to "bold the numbers", "give me the stats", or "summarize key stats/numbers" — you MUST emit a `stat_cards` block containing those numbers. Do NOT inline them as bold text when a stat_cards block is the correct format. No exceptions.**
 
 Reach for each type when the answer is:
-- table — a grid: the same fields repeated across rows (exercises × sets/reps). **MANDATORY when the user explicitly asks for a "table", "grid", or "chart" with rows and columns — always emit a table block, never just prose.**
-- comparison — weighing two or more options by their pros and cons. **MANDATORY when the user explicitly says "compare X vs Y", "pros and cons of X and Y", or asks you to compare options — always emit a comparison block in that case, never just prose.**
+- table — a grid: the same fields repeated across rows (exercises × sets/reps). **MANDATORY when the user explicitly asks for a "table", "grid", "markdown table", or "chart" with rows and columns — always emit a table block, never just prose. This wins over `comparison` even when the content is a comparison.**
+- comparison — weighing two or more options by their pros and cons. **MANDATORY when the user explicitly says "compare X vs Y", "pros and cons of X and Y", or asks you to compare options — unless the user explicitly requested a table format (in that case use `table`).**
 - timeline — phases that unfold over time (week 1 → week 4, month 2–3 …). **MANDATORY when explicitly requested — see NON-NEGOTIABLE rule above.**
 - flowchart — an ordered routine or sequence of steps.
 - stat_cards — two or more standalone numbers/percentages worth highlighting

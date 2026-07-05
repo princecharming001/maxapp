@@ -548,6 +548,8 @@ async def answer_from_chunks(
 ## STRUCTURED VISUAL — REQUIRED
 The user explicitly asked for a structured visual format (timeline, table, checklist, etc.). You MUST emit the appropriate [VISUAL_BLOCK]...[/VISUAL_BLOCK] marker as shown in the STRUCTURED VISUALS grammar below. Use docs evidence where available; fill gaps with general knowledge. Emit the block AFTER a brief prose intro — do NOT replace the block with a numbered list.
 
+CRITICAL: Do NOT ask the user if they want the structured visual, and do NOT offer to build it later. Build and emit it NOW, in this response. Deferring ("let me know if you want...") when a block was explicitly requested is a failure.
+
 ## EVIDENCE MODE (relaxed for explicit block requests)
 - Base your prose on the provided Evidence. State if the docs lack full detail.
 - You MAY use general knowledge to fill in the requested block structure.

@@ -56,6 +56,13 @@
 - confirmed chat findings (seeded to FINDINGS.md as F-001/F-002/F-003): VIS-01 doesn't reliably emit a comparison block on explicit compare-asks; CLAR-02 reproduces the user's exact complaint (states a concern, gets re-asked with chips ~5s later); ONB-02 shows onboarding intake ignoring a genuine interruption question entirely.
 - next: launch `./ralph-chat/ralph.sh` — iteration 1 will preflight, then either run the full battery (FINDINGS has 3 open items, so instead it fixes F-001 first per the crash>leak>memory>quality priority... actually none of the 3 seeded findings are crash-class, so priority order is marker-leak/invalid-shape > memory/re-ask > quality — F-002 (clarifier re-ask, a memory/context-loss class) and F-003 (onboarding-intake) rank above F-001 (quality/model-emission) — iteration 1 should pick F-002 or F-003 first).
 
+### 2026-07-05T13-32Z — iter 9 — F-009 table-block-not-emitted
+- found/did: model emitted `comparison` block for "compare X vs Y in a markdown table" instead of `table` block. Two-part fix: (1) prompt_constants.py CHAT_VISUAL_GRAMMAR — table type wins over comparison when user explicitly requests "table" format; (2) fast_rag_answer.py explicit-block grounding suffix — added CRITICAL anti-defer rule: "Do NOT ask the user if they want the structured visual... Build and emit it NOW" to stop the model offering the block instead of emitting it.
+- battery: VIS-07 seeds 9 and 16 pass; VIS-01, VIS-05 unaffected (still pass seed 16)
+- files: backend/services/prompt_constants.py, backend/services/fast_rag_answer.py
+- tests: no extraction logic changed; baseline: 16 pre-existing failures, no new failures (760 pass)
+- next: F-010 (stat_cards block)
+
 ### 2026-07-05T13-24Z — iter 8 — F-008 checklist-block-not-emitted
 - found/did: root cause at api/chat.py `_broad_question_mcq` — "give me a morning skincare checklist" matched `_REC_INTENT_RE` ("give me a") and the skincare domain regex but NOT the specific_re (which has no "checklist" term), so the broad clarifier fired ("what are you trying to fix?") instead of the RAG path ever running. Fix: added explicit-format guard — if message contains "checklist" or "step-by-step", return None immediately before any domain check. Also added NON-NEGOTIABLE checklist directive to CHAT_VISUAL_GRAMMAR.
 - battery: VIS-05 passes seeds 4 and 15 (seed 4 was the failing seed)
