@@ -1,3 +1,10 @@
+### 2026-07-05T12-24Z — iter 3 — F-001 model-never-emits-comparison-block
+- found/did: root cause at fast_rag_answer.py:602 — `answer_from_chunks` system prompt never included `CHAT_VISUAL_GRAMMAR`; the native-knowledge fallback path (line 457) already had it but the main RAG path didn't. Also strengthened grammar's `comparison` directive to NON-NEGOTIABLE (prompt_constants.py:296-302).
+- battery: VIS-01 passes seeds 3 and 13; VIS-03 passes seed 3; VIS-08 pre-existing failure (stat_cards, no numbers in docs), not caused by this change.
+- files: backend/services/prompt_constants.py, backend/services/fast_rag_answer.py
+- tests: no new pytest added (grammar injection, not extraction logic); baseline: 16 pre-existing failures, no new failures (747 pass)
+- next: run full battery (all 3 findings now fixed)
+
 ### 2026-07-05T12-16Z — iter 2 — F-003 onboarding-intake-degrades
 - found/did: root cause at api/chat.py (pre-edit ~line 4700) — `_run_onboarding_questioner_impl`'s re-ask branch fired unconditionally when `coerce_answer()` returned None; a genuine question ("does minoxidil have side effects?") can't coerce as an enum answer, so the user got "didn't quite catch that" instead of a real answer. Fix: added `_looks_like_onboarding_interrupt(msg)` check — if the message contains `?` or starts with a question word (does/what/how/etc.), return None to fall through to the agent. Pending onboarding state is left intact, so the next turn resumes intake correctly.
 - battery: ONB-02 passes seeds 2 and 9 (turn 1 now answered minoxidil question, turn 2 confirms pending_question present, turn 2b resumed intake correctly); judge answers_the_question = 5.

@@ -293,16 +293,17 @@ USER_ONBOARDING_JSON:
 # JSON schemas here MUST match the mobile MessageBlocks renderer.
 CHAT_VISUAL_GRAMMAR = """
 
-## STRUCTURED VISUALS (optional — a supplement to your prose, never a replacement)
+## STRUCTURED VISUALS
 When the answer naturally contains one of the shapes below, add ONE block AFTER
 your prose by emitting a marker. Keep the prose the primary answer; the block just
 makes the structure scannable. Emit RAW JSON between the markers (no code fences).
-At most one block per reply. Don't wrap plain prose in a block, and don't force a
-shape that isn't there — but when the shape IS there, do surface it.
+At most one block per reply. Don't wrap plain prose in a block.
+
+**NON-NEGOTIABLE: if the user explicitly asks to "compare X vs Y", "pros and cons of X and Y", or to compare two or more options — you MUST emit a `comparison` block. No exceptions. Do not answer only in prose when comparison phrasing is present.**
 
 Reach for each type when the answer is:
 - table — a grid: the same fields repeated across rows (exercises × sets/reps).
-- comparison — weighing two or more options by their pros and cons.
+- comparison — weighing two or more options by their pros and cons. **MANDATORY when the user explicitly says "compare X vs Y", "pros and cons of X and Y", or asks you to compare options — always emit a comparison block in that case, never just prose.**
 - timeline — phases that unfold over time (week 1 → week 4, month 2–3 …).
 - flowchart — an ordered routine or sequence of steps.
 - stat_cards — two or more standalone numbers/percentages worth highlighting

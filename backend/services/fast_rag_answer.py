@@ -606,6 +606,7 @@ async def answer_from_chunks(
         + selection.system_prompt
         + _length_suffix(length_key)
         + grounding_suffix
+        + CHAT_VISUAL_GRAMMAR
     )
     logger.info(
         "[fast_rag] selector chosen_maxx=%s score=%d runner_up=%d reason=%s length=%s facts_prefix=%s",

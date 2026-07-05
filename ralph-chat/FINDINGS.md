@@ -10,9 +10,10 @@ Seeded from hand-validating the harness (iteration 0, before the loop's first
 autonomous pass) — these three are already-confirmed reproductions, not
 hypotheses:
 
-- [ ] F-001  Model doesn't reliably emit a `comparison` visual block on an explicit "compare X vs Y" ask | class: model-never-emits-block
+- [x] F-001  Model doesn't reliably emit a `comparison` visual block on an explicit "compare X vs Y" ask | class: model-never-emits-block
       evidence: state/runs/2026-07-05T11-50-18Z/transcript-VIS-01.md (turn 0) | first-seen: iter 0 (hand-validation)
       likely site: CHAT_VISUAL_GRAMMAR (services/prompt_constants.py) + injection sites (fast_rag_answer.py, lc_agent.py)
+      fixed: iter 3 — root: CHAT_VISUAL_GRAMMAR was missing from answer_from_chunks system prompt (fast_rag_answer.py:602); added it there. Also strengthened the grammar's comparison directive to NON-NEGOTIABLE. VIS-01 passes seeds 3 and 13.
 
 - [x] F-002  Fact-first clarifier re-asks a concern stated ~5s earlier in the same thread | class: clarifier-reask
       evidence: state/runs/2026-07-05T11-50-18Z/transcript-CLAR-02.md (turn 1) | first-seen: iter 0 (hand-validation)
