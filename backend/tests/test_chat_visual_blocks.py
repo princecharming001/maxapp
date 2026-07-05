@@ -187,3 +187,43 @@ def test_multi_choices_block_stripped_single_choices_also_stripped():
     # Options come from the first found (CHOICES_MULTI wins as it's checked first)
     assert set(opts) == {"straight", "wavy", "curly", "coily"}
     assert multi is True
+
+
+# ── multi-block detection (_count_distinct_block_types) ──────────────────────
+from services.fast_rag_answer import _count_distinct_block_types
+
+
+def test_multi_block_four_types_detected():
+    msg = "give me the complete guide: table of products, weekly timeline, checklist, and key stats"
+    assert _count_distinct_block_types(msg) >= 4
+
+
+def test_multi_block_two_types_detected():
+    msg = "build me a timeline and a checklist for starting skincare"
+    assert _count_distinct_block_types(msg) == 2
+
+
+def test_multi_block_single_type_not_triggered():
+    msg = "give me a table of the best sunscreens"
+    assert _count_distinct_block_types(msg) == 1
+
+
+def test_multi_block_generic_message_zero():
+    msg = "what's the best moisturizer for oily skin?"
+    assert _count_distinct_block_types(msg) == 0
+
+
+def test_multi_block_extraction_all_types():
+    # All 4 requested block types extracted from a single response.
+    text = (
+        "here's your guide.\n"
+        '[VISUAL_BLOCK]{"type":"table","title":"products","data":{"columns":["step","product"],"rows":[["1","cleanser"]]}}[/VISUAL_BLOCK]\n'
+        '[VISUAL_BLOCK]{"type":"timeline","title":"weeks","data":{"steps":[{"label":"Week 1","detail":"barrier"}]}}[/VISUAL_BLOCK]\n'
+        '[VISUAL_BLOCK]{"type":"checklist","data":{"items":["cleanse am","spf daily"]}}[/VISUAL_BLOCK]\n'
+        '[VISUAL_BLOCK]{"type":"stat_cards","data":{"cards":[{"value":"14 days","label":"first change"}]}}[/VISUAL_BLOCK]'
+    )
+    clean, blocks = _extract_visual_blocks(text)
+    assert len(blocks) == 4
+    types = {b["type"] for b in blocks}
+    assert types == {"table", "timeline", "checklist", "stat_cards"}
+    assert "[VISUAL_BLOCK]" not in clean.upper()

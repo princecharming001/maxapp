@@ -26,6 +26,22 @@ _EXPLICIT_BLOCK_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Patterns that each name a distinct visual block type. Used to count how many
+# distinct block types the user explicitly requests in one message.
+_BLOCK_TYPE_PATTERNS: list[re.Pattern] = [
+    re.compile(r"\b(table|grid|chart|markdown\s+table)\b", re.IGNORECASE),
+    re.compile(r"\b(timeline|week[\s-]by[\s-]week|phase\s+by\s+phase|schedule)\b", re.IGNORECASE),
+    re.compile(r"\b(checklist|action\s+list|step[\s-]by[\s-]step)\b", re.IGNORECASE),
+    re.compile(r"\b(stat[s_]?[\s_]?card[s]?|key\s+stats?|numbers?|metrics?|bold\s+the\s+numbers?)\b", re.IGNORECASE),
+    re.compile(r"\b(comparison|compare|pros?\s+and\s+cons?)\b", re.IGNORECASE),
+    re.compile(r"\b(flowchart|routine|sequence)\b", re.IGNORECASE),
+]
+
+
+def _count_distinct_block_types(message: str) -> int:
+    """Return how many distinct visual block types are explicitly named in `message`."""
+    return sum(1 for p in _BLOCK_TYPE_PATTERNS if p.search(message or ""))
+
 logger = logging.getLogger(__name__)
 
 
@@ -556,7 +572,22 @@ async def answer_from_chunks(
     )
     length_key = _effective_response_length(message, response_length)
     is_explicit_block_request = bool(_EXPLICIT_BLOCK_RE.search(message or ""))
-    if is_explicit_block_request:
+    _distinct_block_types = _count_distinct_block_types(message or "")
+    is_multi_block_request = _distinct_block_types >= 2
+    if is_multi_block_request:
+        grounding_suffix = f"""
+
+## STRUCTURED VISUALS — MULTIPLE BLOCKS REQUIRED
+The user explicitly requested {_distinct_block_types} different block types in this message. You MUST emit EACH requested block type as its own [VISUAL_BLOCK]...[/VISUAL_BLOCK] marker (in the order the user listed them). Do NOT collapse them into one block or skip any. Capped at 6 blocks total.
+
+CRITICAL: Do NOT ask the user if they want the blocks, and do NOT offer to build them later. Build and emit ALL of them NOW, in this response.
+
+## EVIDENCE MODE (relaxed for explicit block requests)
+- Base your prose on the provided Evidence. State if the docs lack full detail.
+- You MAY use general knowledge to fill in the requested block structures.
+- Do not include citations or source labels in the final answer.
+"""
+    elif is_explicit_block_request:
         grounding_suffix = """
 
 ## STRUCTURED VISUAL — REQUIRED
@@ -655,6 +686,7 @@ CRITICAL: Do NOT ask the user if they want the structured visual, and do NOT off
     max_tokens = (
         160 if length_key == "concise"
         else 1800 if length_key == "plan"
+        else 1800 if is_multi_block_request  # each block ~300-400 tokens; 4 blocks needs headroom
         else 900 if length_key == "detailed"
         else 560
     )

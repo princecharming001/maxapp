@@ -117,10 +117,10 @@ hypotheses:
       model replied "hey, what's up. what do you need." (33 chars) to degenerate "??" input — pass bar requires ≥40 chars. Turn 1 ("🙂🙂🙂") passes with 96 chars. Likely root: model gives a minimal ack to near-empty input; a slightly more substantive redirect (40+ chars) would pass.
       fixed: iter 21 — added short-response guardrail at end of _finalize_assistant_message (api/chat.py): if len(out) < 40 and not out.endswith("?"), strip trailing punct and append " — what are you working on?". ERR-04 seeds 6, 13, 20 all pass.
 
-- [ ] F-021  VIS-12 judge fail: multi-block "complete guide" request delivers only 1 of 4 requested block types | class: model-never-emits-block
+- [x] F-021  VIS-12 judge fail: multi-block "complete guide" request delivers only 1 of 4 requested block types | class: model-never-emits-block
       evidence: state/runs/2026-07-05T16-00-14Z/transcript-VIS-12.md (turn 0) | first-seen: iter 24 (full battery seed 8)
       user asked for "table of products, weekly timeline, checklist, and key stats for starting skincare from zero" — model emits one product table block only; no timeline, no checklist, no stat_cards. answers_the_question=3, actionability=3.
-      likely site: CHAT_VISUAL_GRAMMAR lacks a directive for emitting multiple block types in response to explicit multi-component requests; fast_rag_answer.py grounding_suffix only prompts for ONE explicit block, not multiple.
+      fixed: iter 26 — root: (1) CHAT_VISUAL_GRAMMAR said "At most one block per reply" with no exception for explicit multi-block requests; (2) fast_rag_answer.py grounding_suffix only said "emit the appropriate marker" (singular); (3) no token budget for multi-block. Fix: (a) added `_count_distinct_block_types()` + `_BLOCK_TYPE_PATTERNS` to fast_rag_answer.py; (b) when ≥2 distinct block types detected, emit "MULTIPLE BLOCKS REQUIRED" grounding_suffix and set max_tokens=1800; (c) updated CHAT_VISUAL_GRAMMAR to allow multiple blocks per reply when explicitly requested, with NON-NEGOTIABLE to emit ALL requested types. VIS-12 seeds 32 and 39 — both emit all 4 requested block types. VIS-08/VIS-09 unaffected (seed 26). Pytest: 5 new tests in test_chat_visual_blocks.py — 23/23 pass; baseline: 16 pre-existing failures, no new failures (778 pass).
 
 - [x] F-020  ERR-01 judge fail (seed 6): no weekly table block emitted — framework prose only | class: model-never-emits-block
       evidence: state/runs/2026-07-05T15-22-30Z/transcript-ERR-01.md (turn 0) | first-seen: iter 20 (full battery seed 6)

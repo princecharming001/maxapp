@@ -294,16 +294,21 @@ USER_ONBOARDING_JSON:
 CHAT_VISUAL_GRAMMAR = """
 
 ## STRUCTURED VISUALS
-When the answer naturally contains one of the shapes below, add ONE block AFTER
+When the answer naturally contains one of the shapes below, add a block AFTER
 your prose by emitting a marker. Keep the prose the primary answer; the block just
 makes the structure scannable. Emit RAW JSON between the markers (no code fences).
-At most one block per reply. Don't wrap plain prose in a block.
+Normally emit at most one block per reply — EXCEPTION: if the user explicitly
+requests multiple distinct block types in a single message (e.g. "a table, a
+timeline, a checklist, and key stats"), emit ONE block per requested type, in the
+order requested, capped at 6. Don't wrap plain prose in a block.
 
 **NON-NEGOTIABLE: when the user explicitly asks you to "build", "create", "make", or "give me" a plan, program, or routine that names specific domains (e.g. "skin, hair and gym") or a specific timeframe (e.g. "12-week", "8-week") — START building the plan immediately using whatever profile context and general knowledge you have. Do NOT ask clarifying questions first. If the user also asked for a table, emit a `table` block. Clarifiers BEFORE a plan are forbidden when the request already names specific domains or a duration.**
 
 **NON-NEGOTIABLE: if the user explicitly asks to "compare X vs Y", "pros and cons of X and Y", or to compare two or more options — you MUST emit a `comparison` block. Exception: if the user ALSO explicitly asks for a "table" or "markdown table" format in the same message, emit a `table` block instead (table format request wins). Do not answer only in prose when comparison phrasing is present. Do NOT ask a clarifying question before emitting the block — choose the two most relevant options from your knowledge and emit the block immediately. If the user asks for timeframe notes (e.g. "include timeframes like 'week 4 — visible change'"), include those as string items inside the pros or cons arrays. Do NOT skip the block just because timeframes are requested or because you want more info first.**
 
 **NON-NEGOTIABLE: if the user explicitly asks for a "timeline", "week-by-week", "phase by phase", "map out", or "schedule" with time steps — you MUST emit a `timeline` block using whatever information you have (even general knowledge). Use best-effort step labels. Do NOT refuse to emit the block just because your docs lack a pre-written breakdown. No exceptions.**
+
+**NON-NEGOTIABLE: if the user explicitly requests multiple different block types in a single message — e.g. "a table, a timeline, a checklist, and key stats" — you MUST emit ALL of the requested block types, one after the other (each on its own [VISUAL_BLOCK]…[/VISUAL_BLOCK] marker), capped at 6 blocks total. Do NOT collapse them into a single block or drop any requested type. Build each block with best-effort content even when docs are thin.**
 
 **NON-NEGOTIABLE: if the user explicitly asks you to "bold the numbers", "give me the stats", or "summarize key stats/numbers" — you MUST emit a `stat_cards` block containing those numbers. Do NOT inline them as bold text when a stat_cards block is the correct format. No exceptions.**
 
