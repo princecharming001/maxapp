@@ -64,6 +64,13 @@ const NOTIFICATION_DEEP_LINK_ROUTES = new Set<string>([
     'Achievements',
     'Profile',
     'ProgressArchive',
+    // Creator platform: a "new update" push opens that creator's feed; an
+    // application decision opens the studio; community/course pushes open the
+    // member home. Params still come only from the payload's params object and
+    // route names stay allow-listed.
+    'CreatorFeed',
+    'CreatorStudio',
+    'CreatorMaxxHome',
 ]);
 
 function AppNavigator() {

@@ -178,12 +178,29 @@ async def init_db():
 
         from models.sqlalchemy_models import Base
         tables_to_create = list(Base.metadata.sorted_tables)
-        async with engine.begin() as conn:
-            await conn.execute(text("SET search_path TO public, extensions"))
-            await conn.run_sync(
-                lambda sync_conn: Base.metadata.create_all(sync_conn, tables=tables_to_create)
-            )
-        print("[OK] Supabase tables created/verified")
+        # create_all runs one statement batch — a single failing table (e.g.
+        # rag_documents needs pgvector, absent on local Postgres) used to abort
+        # the WHOLE init, silently skipping every column migration below. Fall
+        # back to per-table creation so one bad table can't starve the rest.
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text("SET search_path TO public, extensions"))
+                await conn.run_sync(
+                    lambda sync_conn: Base.metadata.create_all(sync_conn, tables=tables_to_create)
+                )
+            print("[OK] Supabase tables created/verified")
+        except Exception as batch_err:
+            print(f"[WARNING] Batch create_all failed ({batch_err}); retrying per-table")
+            for table in tables_to_create:
+                try:
+                    async with engine.begin() as conn:
+                        await conn.execute(text("SET search_path TO public, extensions"))
+                        await conn.run_sync(
+                            lambda sync_conn, t=table: Base.metadata.create_all(sync_conn, tables=[t])
+                        )
+                except Exception as te:
+                    print(f"[WARNING] Could not create table {table.name}: {te}")
+            print("[OK] Supabase tables created/verified (per-table fallback)")
 
         # app_users alters in their own transaction so a lock failure on other tables
         # cannot roll back critical columns (e.g. last_username_change).
@@ -443,6 +460,17 @@ async def _run_column_migrations():
         # creator_applications.social_stats added after the table shipped — the
         # column won't exist on a DB created from the first version of the table.
         "ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS social_stats JSONB DEFAULT '{}'",
+        # Creator maxxes as first-class maxxes: lesson paywall fields, module
+        # titles, marketplace art, habit versioning, price snapshot, and push
+        # deep-link params. (creator_habits is a NEW table — create_all makes it.)
+        "ALTER TABLE creator_course_lessons ADD COLUMN IF NOT EXISTS is_free_preview BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE creator_course_lessons ADD COLUMN IF NOT EXISTS duration_minutes INTEGER",
+        "ALTER TABLE creators ADD COLUMN IF NOT EXISTS course_modules JSON DEFAULT '{}'",
+        "ALTER TABLE creators ADD COLUMN IF NOT EXISTS art_url VARCHAR",
+        "ALTER TABLE creators ADD COLUMN IF NOT EXISTS art_status VARCHAR DEFAULT 'none'",
+        "ALTER TABLE creators ADD COLUMN IF NOT EXISTS habits_version INTEGER DEFAULT 1",
+        "ALTER TABLE creator_subscriptions ADD COLUMN IF NOT EXISTS price_cents_at_purchase INTEGER",
+        "ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS deep_link_params JSON",
         # Weekly-reset idempotency marker (see scheduler_job.send_weekly_resets).
         "ALTER TABLE user_coaching_state ADD COLUMN IF NOT EXISTS last_weekly_reset_iso_week VARCHAR",
         # Composite indexes — create_all() never retro-adds indexes to existing

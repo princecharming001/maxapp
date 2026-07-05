@@ -711,8 +711,14 @@ async def _handle_creator_asn(
             user_id=user_id, creator=creator, product_id=product_id,
             original_transaction_id=original_id or txn_id, provider="apple",
             expires_at=expires, db=db,
+            # Renewal-preference notifications must not overwrite a user's
+            # auto-renew-OFF choice; only true (re)subscribes force it on.
+            auto_renew=(True if ntype in ("SUBSCRIBED", "DID_RENEW", "INITIAL_BUY") else None),
         )
         await db.commit()
+        # Entitlement committed — put the creator's habits on their schedule
+        # (idempotent: renewals no-op because an active schedule already exists).
+        await creator_service.ensure_creator_schedule(user_id, creator.maxx_id, db)
         return
 
     if ntype == "DID_FAIL_TO_RENEW":

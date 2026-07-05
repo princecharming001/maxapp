@@ -96,18 +96,66 @@ export interface MarketplaceItem {
     icon: string;
     color: string;
     price_cents: number;
-    price_model: 'weekly' | 'flat';
+    price_model: 'weekly' | 'flat' | 'monthly' | 'included';
     price_label: string;
-    weeks?: number;
+    weeks?: number | null;
     creator: { name: string; handle: string; verified: boolean; avatar?: string | null };
     native: boolean;
     entered: boolean;
-    category?: string;
-    rating?: number;
+    category?: string | null;
+    rating?: number | null;
     participants?: number;
-    completion_rate?: number;
-    image_url?: string;
+    completion_rate?: number | null;
+    image_url?: string | null;
     detail?: MarketplaceItemDetail;
+    // ── Creator-maxx card fields (first-class creator programs) ──
+    /** True when this card is a live creator maxx (id = the creator's maxx_id). */
+    creator_maxx?: boolean;
+    art_status?: string;
+    apple_product_id?: string;
+    price_tier?: string;
+    published_lesson_count?: number;
+    habit_count?: number;
+}
+
+/** Card-shape discriminator: is this marketplace item a first-class creator maxx? */
+export function isCreatorMaxx(item: { creator_maxx?: boolean } | null | undefined): boolean {
+    return !!item?.creator_maxx;
+}
+
+/** One habit row of a creator maxx's daily program (marketplace detail). */
+export interface CreatorHabit {
+    title: string;
+    description?: string;
+    duration_minutes?: number;
+    frequency?: { type: 'daily' | 'n_per_week'; n?: number };
+    window?: 'morning' | 'evening' | 'any' | string;
+    icon?: string;
+}
+
+/** Studio habit row (GET /creators/me/habits) — identity + ordering included. */
+export interface CreatorHabitRow {
+    id: string;
+    slug: string;
+    title: string;
+    description: string;
+    duration_minutes: number;
+    frequency: { type: 'daily' | 'n_per_week'; n?: number };
+    window: 'morning' | 'evening' | 'any';
+    icon?: string | null;
+    sort: number;
+}
+
+/** PUT /creators/me/habits input row — id omitted for new habits (server mints
+ *  slugs); rows omitted from the list are archived server-side. */
+export interface CreatorHabitInput {
+    id?: string;
+    title: string;
+    description?: string;
+    duration_minutes: number;
+    frequency: { type: 'daily' | 'n_per_week'; n?: number };
+    window: 'morning' | 'evening' | 'any';
+    icon?: string;
 }
 
 export interface MarketplaceItemDetail {
@@ -123,6 +171,16 @@ export interface MarketplaceItemDetail {
     gallery?: string[];
     video_url?: string;
     inside_video?: string;
+    // ── Creator-maxx detail (GET /marketplace/item/{maxx_id}) ──
+    /** The creator's daily program rows ("THE DAILY PROGRAM" card). */
+    habits?: CreatorHabit[];
+    socials?: Record<string, any>;
+    subscription?: {
+        price_cents: number;
+        price_label: string;
+        apple_product_id?: string;
+        price_tier?: string;
+    };
 }
 
 export interface SocialProfile {
@@ -1390,6 +1448,11 @@ class ApiService {
         item_id: string;
         kind?: string;
         checkout_url?: string;
+        /** Creator maxx with a paid sub: 'creator_subscription' → open CreatorPaywall. */
+        requires?: string;
+        apple_product_id?: string;
+        price_cents?: number;
+        price_label?: string;
     }> {
         const response = await this.client.post(`marketplace/enter/${itemId}`);
         return response.data;
@@ -2333,7 +2396,7 @@ class ApiService {
     }
 
     // Course editing
-    async getMyCreatorLessons(): Promise<{ lessons: any[]; course_version: number }> {
+    async getMyCreatorLessons(): Promise<{ lessons: any[]; course_version: number; course_modules: Record<string, { title?: string }> }> {
         const response = await this.client.get('creators/me/course/lessons');
         return response.data;
     }
@@ -2343,6 +2406,41 @@ class ApiService {
     }
     async deleteCreatorLesson(lessonId: string): Promise<void> {
         await this.client.delete(`creators/me/course/lessons/${lessonId}`);
+    }
+    /** Batch move/reorder — one course_version bump server-side. */
+    async reorderCreatorLessons(items: { id: string; module_number: number; sort: number }[]): Promise<{ course_version: number }> {
+        const response = await this.client.post('creators/me/course/reorder', { items });
+        return response.data;
+    }
+    /** Name a module ("Foundations"); empty title clears it. */
+    async setCreatorModuleTitle(moduleNumber: number, title: string): Promise<{ course_modules: Record<string, { title?: string }> }> {
+        const response = await this.client.patch('creators/me/course/modules', { module_number: moduleNumber, title });
+        return response.data;
+    }
+    /** Server-computed go-live checklist (shares rules with the go_live gate). */
+    async getCreatorChecklist(): Promise<{
+        items: { key: string; label: string; done: boolean; required: boolean }[];
+        can_go_live: boolean; done_count: number; total_count: number; is_live: boolean;
+    }> {
+        const response = await this.client.get('creators/me/checklist');
+        return response.data;
+    }
+    /** AI course assist. mode 'outline' → {modules:[{title,lessons:[{title,subtitle}]}]};
+     *  mode 'lesson' → {subtitle, body_md}. 503 = assist unavailable on this build. */
+    async creatorCourseAssist(body: {
+        mode: 'outline' | 'lesson'; topic?: string; notes?: string;
+        module_count?: number; lesson_title?: string;
+    }): Promise<any> {
+        const response = await this.client.post('creators/me/course/assist', body, { timeout: 90000 });
+        return response.data;
+    }
+    async uploadCreatorAvatar(uri: string): Promise<any> {
+        const form = new FormData();
+        form.append('image', { uri, name: 'avatar.jpg', type: 'image/jpeg' } as any);
+        const response = await this.client.post('creators/me/avatar', form, {
+            headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000,
+        });
+        return response.data;
     }
 
     // ── User side ──
@@ -2361,6 +2459,22 @@ class ApiService {
             params: { limit: opts?.limit ?? 20, offset: opts?.offset ?? 0 },
         });
         return response.data;
+    }
+    /** The subscriber-facing course: published lessons grouped into modules.
+     *  Non-subscribers get the outline with content redacted server-side
+     *  (free-preview lessons stay readable). */
+    async getCreatorCourse(maxxId: string): Promise<{
+        creator: any;
+        modules: { module_number: number; title: string; lessons: any[] }[];
+        course_version: number; has_access: boolean;
+        lesson_count: number; free_preview_count: number;
+    }> {
+        const response = await this.client.get(`creators/by-maxx/${maxxId}/course`);
+        return response.data;
+    }
+    /** Debounced feed impression (fire-and-forget; once per post per session). */
+    async recordCreatorPostView(postId: string): Promise<void> {
+        await this.client.post(`creators/posts/${postId}/view`);
     }
     async likeCreatorPost(postId: string): Promise<{ like_count: number }> {
         const response = await this.client.post(`creators/posts/${postId}/like`);
@@ -2393,16 +2507,71 @@ class ApiService {
         const response = await this.client.get('creators/subscriptions');
         return response.data;
     }
-    async verifyCreatorSubscription(maxxId: string, transactionId: string, productId?: string): Promise<{ status: string }> {
+    async verifyCreatorSubscription(maxxId: string, transactionId: string, productId?: string): Promise<{ status: string; schedule_created?: boolean; schedule_blocked?: string | null }> {
         const response = await this.client.post(`creators/subscribe/${maxxId}/verify`, {
             transaction_id: transactionId, product_id: productId,
         });
         return response.data;
     }
     /** DEV-only: activate a creator sub without Apple (sim testing). */
-    async devActivateCreatorSubscription(maxxId: string): Promise<{ status: string }> {
+    async devActivateCreatorSubscription(maxxId: string): Promise<{ status: string; schedule_created?: boolean; schedule_blocked?: string | null }> {
         if (!__DEV__) throw new Error('dev-activate is unavailable in production builds.');
         const response = await this.client.post(`creators/subscribe/${maxxId}/dev-activate`);
+        return response.data;
+    }
+
+    // ── Community channels (member side) ──
+    /** A creator maxx's channels. 403 {detail:'Subscribe to join the community.'}
+     *  for non-members; defaults (#announcements + #general) self-heal server-side. */
+    async getCreatorChannels(maxxId: string): Promise<{ forums: any[]; total: number }> {
+        const response = await this.client.get('forums', { params: { maxx_id: maxxId } });
+        return response.data;
+    }
+    /** Delete a channel message — author, admin, or the owning creator. */
+    async deleteChannelMessage(channelId: string, messageId: string): Promise<void> {
+        await this.client.delete(`forums/${channelId}/messages/${messageId}`);
+    }
+
+    // ── Studio: channels CRUD ──
+    async getMyCreatorChannels(): Promise<{ channels: any[] }> {
+        const response = await this.client.get('creators/me/channels');
+        return response.data;
+    }
+    /** 409 = duplicate name, 422 = cap (8 channels). */
+    async createCreatorChannel(body: {
+        name: string;
+        description?: string;
+        who_can_post?: 'creator' | 'members';
+        allow_replies?: boolean;
+        icon?: string;
+    }): Promise<any> {
+        const response = await this.client.post('creators/me/channels', body);
+        return response.data;
+    }
+    async updateCreatorChannel(channelId: string, patch: Record<string, unknown>): Promise<any> {
+        const response = await this.client.patch(`creators/me/channels/${channelId}`, patch);
+        return response.data;
+    }
+    async reorderCreatorChannels(ids: string[]): Promise<any> {
+        const response = await this.client.post('creators/me/channels/reorder', { order: ids });
+        return response.data;
+    }
+    /** Archive (soft-delete). 422 when it's the creator's last channel. */
+    async archiveCreatorChannel(channelId: string): Promise<any> {
+        const response = await this.client.delete(`creators/me/channels/${channelId}`);
+        return response.data;
+    }
+
+    // ── Studio: daily-program habits ──
+    async getMyCreatorHabits(): Promise<{ habits: CreatorHabitRow[]; habits_version: number }> {
+        const response = await this.client.get('creators/me/habits');
+        return response.data;
+    }
+    /** Whole-list save: server archives omitted rows, mints slugs for new ones,
+     *  re-registers the catalog and regenerates subscriber schedules. 422 when a
+     *  live max would leave the 2-8 habit range. */
+    async putMyCreatorHabits(habits: CreatorHabitInput[]): Promise<{ habits: CreatorHabitRow[]; habits_version: number }> {
+        const response = await this.client.put('creators/me/habits', { habits }, { timeout: 60_000 });
         return response.data;
     }
 }

@@ -16,15 +16,18 @@ not wired here so the marketplace is runnable end-to-end first.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
 from middleware.auth_middleware import get_current_user
+
+logger = logging.getLogger(__name__)
 from models.sqlalchemy_models import User
 from models.sqlalchemy_models import UserSchedule as _PurchaseProbe
 from services.maxx_guidelines import get_maxx_guideline
@@ -476,8 +479,91 @@ def _price_label(price_cents: int, price_model: str, weeks: int | None) -> str:
     dollars = price_cents / 100
     if price_model == "weekly":
         return f"${dollars:.2f} / week"
+    if price_model == "monthly":
+        return f"${dollars:.2f} / mo"
     wk = f" · {weeks} wks" if weeks else ""
     return f"${dollars:.2f}{wk}"
+
+
+def _creator_card(
+    c, entered: set[str], *, lesson_count: int = 0, habit_count: int = 0
+) -> dict[str, Any]:
+    """A live Creator row as a marketplace card. Ships inside `courses` with
+    creator_maxx=true (the client's discriminator) so existing renderers keep
+    working; price is the per-creator MONTHLY sub, entry runs through the
+    creator-subscription flow (never Stripe/slots)."""
+    from services import creator_service as _cs
+    return {
+        "type": "course",
+        "creator_maxx": True,
+        "id": c.maxx_id,
+        "title": c.display_name,
+        "tagline": c.tagline or "",
+        "category": None,
+        "icon": c.icon or "star-outline",
+        "color": c.accent_color or "#BC7A3C",
+        "creator": {
+            "name": c.display_name,
+            "handle": c.handle,
+            "verified": bool(c.verified),
+            "avatar": c.avatar_url,
+        },
+        "price_cents": int(c.price_cents or 0),
+        "price_model": "monthly",
+        "weeks": None,
+        "price_label": _price_label(int(c.price_cents or 0), "monthly", None),
+        "rating": None,
+        "participants": int(c.subscriber_count or 0),
+        "completion_rate": None,
+        "native": False,
+        "entered": c.maxx_id in entered,
+        "image_url": c.art_url or c.avatar_url,
+        "art_status": c.art_status or "none",
+        "apple_product_id": c.apple_product_id or _cs.apple_product_id_for(c.maxx_id),
+        "price_tier": c.price_tier,
+        "published_lesson_count": lesson_count,
+        "habit_count": habit_count,
+    }
+
+
+async def _live_creator_cards(db: AsyncSession, entered: set[str]) -> list[dict[str, Any]]:
+    """All live creator maxxes as cards — lesson/habit counts via two grouped
+    IN-queries (no N+1). Dedupes against seed/native ids so a future Clay
+    migration can't double-list coloringmax."""
+    from models.sqlalchemy_models import (
+        Creator as _Creator,
+        CreatorCourseLesson as _CCL,
+        CreatorHabit as _CH,
+    )
+    reserved = set(_MAXX_DISPLAY) | {c["id"] for c in _SEED_COURSES}
+    rows = (await db.execute(
+        select(_Creator).where(_Creator.status == "live")
+        .order_by(_Creator.subscriber_count.desc())
+    )).scalars().all()
+    rows = [r for r in rows if r.maxx_id not in reserved]
+    if not rows:
+        return []
+    ids = [r.id for r in rows]
+    lrows = (await db.execute(
+        select(_CCL.creator_id, func.count()).where(
+            (_CCL.creator_id.in_(ids)) & (_CCL.status == "published")
+        ).group_by(_CCL.creator_id)
+    )).all()
+    hrows = (await db.execute(
+        select(_CH.creator_id, func.count()).where(
+            (_CH.creator_id.in_(ids)) & (_CH.status == "active")
+        ).group_by(_CH.creator_id)
+    )).all()
+    lcount = {str(k): int(n) for k, n in lrows}
+    hcount = {str(k): int(n) for k, n in hrows}
+    return [
+        _creator_card(
+            r, entered,
+            lesson_count=lcount.get(str(r.id), 0),
+            habit_count=hcount.get(str(r.id), 0),
+        )
+        for r in rows
+    ]
 
 
 def _maxx_card(maxx_id: str, entered: set[str]) -> dict[str, Any]:
@@ -538,8 +624,10 @@ async def _load_entered(db: AsyncSession, uid: UUID) -> tuple[User, set[str]]:
 @router.get("")
 async def browse(
     current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Browse the marketplace: native maxes + creator courses, with prices and
+    """Browse the marketplace: native maxes + seeded courses + LIVE creator
+    maxxes (first-class programs, `creator_maxx: true`), with prices and
     whether the user has already entered each. Open to any logged-in user.
 
     current_user already carries the full onboarding blob from get_current_user,
@@ -556,9 +644,15 @@ async def browse(
         card["locked_until"] = lu.isoformat() if lu else None
         return card
 
+    try:
+        creator_cards = await _live_creator_cards(db, entered)
+    except Exception:  # browse must never 500 because the creator join hiccuped
+        logger.exception("marketplace: live creator cards failed")
+        creator_cards = []
+
     return {
         "maxxes": [_maxx(mid) for mid in _MAXX_DISPLAY],
-        "courses": [_course_card(c, entered) for c in _SEED_COURSES],
+        "courses": [_course_card(c, entered) for c in _SEED_COURSES] + creator_cards,
         # Plan benefit: how many native-max slots are used / available.
         "slots": {
             "used": used,
@@ -591,6 +685,59 @@ async def get_item(
     for c in _SEED_COURSES:
         if c["id"] == item_id:
             return {**_course_card(c, entered), "detail": {**_detail_for(item_id), **_detail_media(item_id, True)}}
+
+    # Creator maxx: a live Creator row is a first-class marketplace item. The
+    # detail sells the actual program — curriculum TITLES (bodies stay redacted
+    # for non-subscribers, same rule as /creators/by-maxx/{id}/course) + the
+    # daily habits that will land on the subscriber's schedule.
+    from services import creator_service as _cs
+    from models.sqlalchemy_models import CreatorCourseLesson as _CCL
+    creator = await _cs.get_creator_by_maxx(item_id, db)
+    if creator is not None and creator.status == "live":
+        habits = await _cs.load_creator_habits(creator.id, db)
+        lessons = (await db.execute(
+            select(_CCL).where(
+                (_CCL.creator_id == creator.id) & (_CCL.status == "published")
+            ).order_by(_CCL.module_number, _CCL.sort)
+        )).scalars().all()
+        mods = _cs.group_lessons_into_modules(list(lessons), creator.course_modules, has_access=False)
+        curriculum = [
+            {
+                "title": m["title"] or f"Module {m['module_number']}",
+                "lessons": [l["title"] for l in m["lessons"]],
+            }
+            for m in mods
+        ]
+        card = _creator_card(creator, entered, lesson_count=len(lessons), habit_count=len(habits))
+        return {
+            **card,
+            "detail": {
+                "long_description": creator.bio or "",
+                "curriculum": curriculum,
+                "habits": [
+                    {
+                        "title": h.title,
+                        "description": h.description or "",
+                        "duration_minutes": int(h.duration_minutes or 10),
+                        "frequency": {"type": h.frequency_type or "daily", "n": int(h.frequency_n or 1)},
+                        "window": h.window or "any",
+                        "icon": h.icon,
+                    }
+                    for h in habits
+                ],
+                "bio": creator.bio or "",
+                "socials": creator.socials or {},
+                "reviews": [],
+                "faqs": [],
+                "gallery": [u for u in [creator.art_url] if u],
+                "subscription": {
+                    "price_cents": int(creator.price_cents or 0),
+                    "price_label": _price_label(int(creator.price_cents or 0), "monthly", None),
+                    "apple_product_id": card["apple_product_id"],
+                    "price_tier": creator.price_tier,
+                },
+            },
+        }
     raise HTTPException(status_code=404, detail="Item not found")
 
 
@@ -899,6 +1046,53 @@ async def enter(
     row so the marketplace stays runnable end-to-end."""
     from config import settings
 
+    # ── Creator maxx: entry is owned by the per-creator SUBSCRIPTION, never
+    # Stripe/slots. Free tier activates directly (CreatorSubscription is the
+    # single ledger — no Purchase row); paid tiers hand off to the existing
+    # paywall → StoreKit → /creators/subscribe/{maxx}/verify (or dev-activate).
+    if item_id not in _MAXX_DISPLAY and not any(c["id"] == item_id for c in _SEED_COURSES):
+        from services import creator_service as _cs
+        creator = await _cs.get_creator_by_maxx(item_id, db)
+        if creator is not None and creator.status == "live":
+            uid = _uid(current_user)
+            user, entered = await _load_entered(db, uid)
+            if item_id in entered:
+                # Retry-heal: an already-subscribed user whose schedule never
+                # landed (e.g. hit the 5-active cap at purchase time) gets
+                # another attempt on every enter tap — ensure is idempotent
+                # (fast-exits True when an active schedule exists).
+                scheduled = await _cs.ensure_creator_schedule(str(uid), item_id, db)
+                return {
+                    "entered": True, "item_id": item_id, "kind": "creator_maxx",
+                    "schedule_created": scheduled is True,
+                    "schedule_blocked": "active_limit" if scheduled == "limit" else None,
+                }
+            # Server-side base-plan gate (mirrors dev-activate + the client's
+            # start_plan gate): creator subs are an add-on to the base plan.
+            if not current_user.get("is_paid", False):
+                raise HTTPException(status_code=402, detail="A Chad subscription is required first.")
+            if creator.price_tier == "free" or int(creator.price_cents or 0) <= 0:
+                await _cs.activate_creator_subscription(
+                    user_id=str(uid), creator=creator, product_id=None,
+                    original_transaction_id=None, provider="free",
+                    expires_at=None, db=db,
+                )
+                await db.commit()
+                scheduled = await _cs.ensure_creator_schedule(str(uid), item_id, db)
+                return {
+                    "entered": True, "item_id": item_id, "kind": "creator_maxx",
+                    "schedule_created": scheduled is True,
+                    "schedule_blocked": "active_limit" if scheduled == "limit" else None,
+                }
+            return {
+                "entered": False,
+                "requires": "creator_subscription",
+                "item_id": item_id,
+                "apple_product_id": creator.apple_product_id or _cs.apple_product_id_for(item_id),
+                "price_cents": int(creator.price_cents or 0),
+                "price_label": _price_label(int(creator.price_cents or 0), "monthly", None),
+            }
+
     is_course, price_cents, price_model, weeks, title = _item_meta(item_id)
     uid = _uid(current_user)
     user, entered = await _load_entered(db, uid)
@@ -1014,6 +1208,40 @@ async def cancel(
     pause = bool((payload or {}).get("pause"))
     uid = _uid(current_user)
     user, _ = await _load_entered(db, uid)
+
+    # ── Creator maxx: _item_meta would 404 (creator ids aren't native/seed),
+    # which left NO leave path at all — free subs were permanent. Free/dev subs
+    # cancel immediately (deactivate revokes enrollment + schedule); Apple subs
+    # can only be wound down in iOS Settings — flag auto_renew off and say so.
+    if item_id not in _MAXX_DISPLAY and not any(c["id"] == item_id for c in _SEED_COURSES):
+        from services import creator_service as _cs
+        from models.sqlalchemy_models import CreatorSubscription as _CSub
+        creator = await _cs.get_creator_by_maxx(item_id, db)
+        if creator is not None:
+            sub = (await db.execute(
+                select(_CSub).where(
+                    (_CSub.user_id == uid) & (_CSub.creator_id == creator.id)
+                )
+            )).scalar_one_or_none()
+            if sub is None:
+                raise HTTPException(status_code=404, detail="You're not subscribed to this max.")
+            if (sub.billing_provider or "apple") in ("free", "dev", "stripe"):
+                await _cs.deactivate_creator_subscription(
+                    user_id=str(uid), creator=creator, db=db, status="canceled",
+                )
+                await db.commit()
+                return {"status": "removed", "item_id": item_id, "kind": "creator_maxx"}
+            # Apple-billed: we can't cancel on Apple's behalf.
+            sub.auto_renew = False
+            sub.updated_at = datetime.utcnow()
+            await db.commit()
+            return {
+                "status": "manage_in_settings",
+                "item_id": item_id,
+                "kind": "creator_maxx",
+                "detail": "Cancel this subscription in iOS Settings › Subscriptions. Access continues until the period ends.",
+            }
+
     is_course = _item_meta(item_id)[0]
 
     # Native max: enforce the weekly swap-lock, then just remove it (it's free —

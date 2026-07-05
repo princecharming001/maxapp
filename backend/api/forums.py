@@ -36,6 +36,26 @@ def _normalize_channel_message_text(content: str | None, has_attachment: bool) -
     return text
 
 
+async def _creator_channel_guard(
+    channel: Forum, current_user: dict, db: AsyncSession
+) -> tuple[bool, bool]:
+    """Shared gate for EVERY read/write touching a channel: archived channels
+    404 for everyone (archive = retired from the member surface; history is
+    retained in the DB), and creator channels 403 non-members. Returns
+    (has_access, is_owner) for creator channels, (True, False) for global."""
+    if channel.is_archived:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    if not channel.maxx_id:
+        return True, False
+    from services import creator_channels
+    has_access, is_owner, _cr = await creator_channels.channel_access(
+        channel, current_user["id"], db
+    )
+    if not has_access and not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Subscribe to join the community.")
+    return has_access, is_owner
+
+
 def _blocked_user_ids_for_viewer(viewer: User | None) -> set[str]:
     if not viewer or not viewer.profile:
         return set()
@@ -66,6 +86,7 @@ async def upload_chat_file(
 @router.get("")
 async def list_channels(
     q: str = None,
+    maxx_id: str = None,
     limit: int = 200,
     offset: int = 0,
     current_user: dict = Depends(require_paid_user),
@@ -75,22 +96,37 @@ async def list_channels(
     limit = min(max(limit, 1), 500)
     offset = max(offset, 0)
 
-    filters = None
+    if maxx_id:
+        # Creator-maxx channels: members-only. Gate BEFORE listing — the list
+        # itself (names/descriptions) is part of the paid surface.
+        from services import creator_service, creator_channels
+        creator = await creator_service.get_creator_by_maxx(maxx_id, db)
+        if creator is None:
+            raise HTTPException(status_code=404, detail="Not a creator max")
+        is_owner = str(creator.user_id) == current_user["id"]
+        if not is_owner and not current_user.get("is_admin"):
+            if not await creator_service.has_creator_access(current_user["id"], creator, db):
+                raise HTTPException(status_code=403, detail="Subscribe to join the community.")
+        # Self-heal: creators provisioned before channels existed get defaults.
+        await creator_channels.ensure_default_creator_channels(creator, rds_db)
+        base = (Forum.maxx_id == maxx_id) & (Forum.is_archived.isnot(True))
+    else:
+        # GLOBAL list: creator channels must never leak here — they're paid,
+        # per-maxx surfaces (this filter is a paywall boundary, not cosmetics).
+        base = Forum.maxx_id.is_(None) & (Forum.is_archived.isnot(True))
+
+    filters = base
     if q:
-        filters = (
+        filters = base & (
             (Forum.name.ilike(f"%{q}%")) |
             (Forum.description.ilike(f"%{q}%")) |
             (Forum.slug.ilike(f"%{q}%"))
         )
-    count_q = select(func.count()).select_from(Forum)
-    if filters is not None:
-        count_q = count_q.where(filters)
+    count_q = select(func.count()).select_from(Forum).where(filters)
     count_result = await rds_db.execute(count_q)
     total = int(count_result.scalar() or 0)
 
-    query = select(Forum)
-    if filters is not None:
-        query = query.where(filters)
+    query = select(Forum).where(filters)
     query = query.order_by(Forum.order).offset(offset).limit(limit)
     result = await rds_db.execute(query)
     channels = result.scalars().all()
@@ -125,6 +161,10 @@ async def list_channels(
             "category": ch.category,
             "tags": ch.tags or [],
             "is_admin_only": ch.is_admin_only,
+            # Creator-channel fields (null/defaults for global channels).
+            "maxx_id": ch.maxx_id,
+            "who_can_post": ch.who_can_post or "members",
+            "allow_replies": bool(ch.allow_replies) if ch.allow_replies is not None else True,
             "message_count": message_count_map.get(str(ch.id), 0),
             "created_by": str(ch.created_by) if ch.created_by else None,
             "created_by_username": creator.username if creator else None,
@@ -154,6 +194,10 @@ async def get_messages(
     channel = channel_result.scalar_one_or_none()
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
+
+    # Archived channels 404; creator channels are members-only (owner/admin
+    # exempt) — same 403 as the list so the client's locked state is consistent.
+    _, _is_owner = await _creator_channel_guard(channel, current_user, db)
 
     msg_query = select(ChannelMessage).where(ChannelMessage.channel_id == channel_uuid)
 
@@ -209,6 +253,15 @@ async def get_messages(
             "reactions": msg.reactions or {}
         })
 
+    # Server-driven composer state: who may start top-level threads here.
+    if channel.maxx_id:
+        from services.creator_channels import can_post_top_level
+        _can_post = can_post_top_level(
+            channel, is_owner=_is_owner, is_admin=bool(current_user.get("is_admin"))
+        )
+    else:
+        _can_post = (not channel.is_admin_only) or bool(current_user.get("is_admin"))
+
     return {
         "messages": payload,
         "has_more": has_more,
@@ -216,7 +269,11 @@ async def get_messages(
         "channel_description": channel.description,
         "channel_category": channel.category,
         "channel_tags": channel.tags or [],
-        "is_admin_only": channel.is_admin_only
+        "is_admin_only": channel.is_admin_only,
+        "maxx_id": channel.maxx_id,
+        "who_can_post": channel.who_can_post or "members",
+        "allow_replies": bool(channel.allow_replies) if channel.allow_replies is not None else True,
+        "can_post": _can_post,
     }
 
 
@@ -242,6 +299,51 @@ async def send_message(
     # Check admin-only permission for TOP-LEVEL messages only
     if channel.is_admin_only and not current_user.get("is_admin") and not data.parent_id:
         raise HTTPException(status_code=403, detail="Only admins can post announcements. You can still comment on them!")
+
+    # Archived 404 + creator-channel membership gate.
+    await _creator_channel_guard(channel, current_user, db)
+
+    # parent_id must be a real message IN THIS CHANNEL — an unvalidated parent
+    # id let anyone bypass announcement-only ("reply" to a fabricated uuid) and
+    # thread onto messages in other channels. Applies to ALL channels (also
+    # closes the legacy is_admin_only variant of the same hole).
+    if data.parent_id:
+        try:
+            parent_uuid = UUID(str(data.parent_id))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid parent message ID")
+        parent = await rds_db.get(ChannelMessage, parent_uuid)
+        if parent is None or parent.channel_id != channel_uuid:
+            raise HTTPException(status_code=404, detail="Parent message not found")
+
+    # Creator channels: announcement-only + reply + block gates.
+    if channel.maxx_id:
+        from services import creator_channels
+        _has, is_owner, cr = await creator_channels.channel_access(
+            channel, current_user["id"], db
+        )
+        if data.parent_id:
+            if channel.allow_replies is False:
+                raise HTTPException(status_code=403, detail="Replies are off in this channel.")
+        elif not creator_channels.can_post_top_level(
+            channel, is_owner=is_owner, is_admin=bool(current_user.get("is_admin"))
+        ):
+            name = cr.display_name if cr else "the creator"
+            raise HTTPException(
+                status_code=403,
+                detail=f"Only {name} posts here. You can reply to their posts.",
+            )
+        # A creator block silences the user across the maxx (comments AND chat).
+        if cr is not None and not is_owner:
+            from models.sqlalchemy_models import CreatorBlock
+            blocked = (await db.execute(
+                select(CreatorBlock.id).where(
+                    (CreatorBlock.creator_id == cr.id)
+                    & (CreatorBlock.blocked_user_id == UUID(current_user["id"]))
+                )
+            )).first()
+            if blocked:
+                raise HTTPException(status_code=403, detail="You can't post in this community.")
 
     has_attachment = bool(data.attachment_url and str(data.attachment_url).strip())
     normalized_content = _normalize_channel_message_text(data.content, has_attachment)
@@ -289,6 +391,7 @@ async def toggle_reaction(
     emoji: str,
     current_user: dict = Depends(require_paid_user),
     rds_db: AsyncSession = Depends(get_rds_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Add or remove an emoji reaction to a message"""
     UPVOTE = "⬆️"
@@ -297,12 +400,22 @@ async def toggle_reaction(
     LEGACY_DOWNVOTE = "â¬‡ï¸"
     user_id = current_user["id"]
     try:
+        channel_uuid = UUID(channel_id)
         message_uuid = UUID(message_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid message ID format")
 
+    # The path channel was previously IGNORED — any paid user could react to a
+    # members-only message by uuid. Load it, bind the message to it, gate it.
+    channel = (await rds_db.execute(
+        select(Forum).where(Forum.id == channel_uuid)
+    )).scalar_one_or_none()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    await _creator_channel_guard(channel, current_user, db)
+
     message = await rds_db.get(ChannelMessage, message_uuid)
-    if not message:
+    if not message or message.channel_id != channel_uuid:
         raise HTTPException(status_code=404, detail="Message not found")
 
     reactions = message.reactions or {}
@@ -358,8 +471,12 @@ async def report_channel_message(
         raise HTTPException(status_code=400, detail="Invalid ID format")
 
     channel_result = await rds_db.execute(select(Forum).where(Forum.id == channel_uuid))
-    if not channel_result.scalar_one_or_none():
+    report_channel = channel_result.scalar_one_or_none()
+    if not report_channel:
         raise HTTPException(status_code=404, detail="Channel not found")
+    # Members-only channels: non-members can't see messages, so they can't
+    # report them either (prevents blind report-bombing by uuid).
+    await _creator_channel_guard(report_channel, current_user, db)
 
     message = await rds_db.get(ChannelMessage, message_uuid)
     if not message or message.channel_id != channel_uuid:
@@ -424,6 +541,50 @@ async def create_channel(
     return {"channel_id": str(channel.id)}
 
 
+@router.delete("/{channel_id}/messages/{message_id}")
+async def delete_channel_message(
+    channel_id: str,
+    message_id: str,
+    current_user: dict = Depends(require_paid_user),
+    rds_db: AsyncSession = Depends(get_rds_db),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a message: the AUTHOR, an admin, or — in a creator channel — the
+    owning creator (their room, their moderation). Broadcasts a removal event
+    so open clients drop it live."""
+    try:
+        channel_uuid = UUID(channel_id)
+        message_uuid = UUID(message_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid id format")
+    channel = (await rds_db.execute(
+        select(Forum).where(Forum.id == channel_uuid)
+    )).scalar_one_or_none()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    message = await rds_db.get(ChannelMessage, message_uuid)
+    if not message or message.channel_id != channel_uuid:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    is_author = str(message.user_id) == current_user["id"]
+    is_admin = bool(current_user.get("is_admin"))
+    is_owning_creator = False
+    if channel.maxx_id and not (is_author or is_admin):
+        from services import creator_channels
+        _has, is_owning_creator, _cr = await creator_channels.channel_access(
+            channel, current_user["id"], db
+        )
+    if not (is_author or is_admin or is_owning_creator):
+        raise HTTPException(status_code=403, detail="You can't delete this message.")
+
+    await rds_db.delete(message)
+    await rds_db.commit()
+    await forum_channel_broker.broadcast(
+        channel_id, {"type": "message_deleted", "message_id": message_id}
+    )
+    return {"ok": True}
+
+
 @router.websocket("/ws/channel/{channel_id}")
 async def forum_channel_websocket(
     websocket: WebSocket,
@@ -454,9 +615,21 @@ async def forum_channel_websocket(
         return
 
     channel_result = await rds_db.execute(select(Forum).where(Forum.id == channel_uuid))
-    if not channel_result.scalar_one_or_none():
+    ws_channel = channel_result.scalar_one_or_none()
+    if not ws_channel or ws_channel.is_archived:
         await websocket.close(code=1008)
         return
+
+    # Creator channels: the WS stream is the same paid surface as the message
+    # list — without this gate any paid user could stream a members-only room.
+    if ws_channel.maxx_id and not user.get("is_admin"):
+        from services import creator_channels
+        has_access, _o, _c = await creator_channels.channel_access(
+            ws_channel, user["id"], db
+        )
+        if not has_access:
+            await websocket.close(code=1008)
+            return
 
     await forum_channel_broker.connect(channel_id, websocket)
     try:

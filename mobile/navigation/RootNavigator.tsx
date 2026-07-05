@@ -58,12 +58,16 @@ import ScanOfferScreen from '../screens/onboarding/ScanOfferScreen';
 import RevealV2Screen from '../screens/onboarding/RevealV2Screen';
 import CreatorFeedScreen from '../screens/creator/CreatorFeedScreen';
 import CreatorPaywallScreen from '../screens/creator/CreatorPaywallScreen';
+import CreatorCourseScreen from '../screens/creator/CreatorCourseScreen';
+import CreatorMaxxHomeScreen from '../screens/creator/CreatorMaxxHomeScreen';
 import StudioHomeScreen from '../screens/creator/StudioHomeScreen';
 import ComposerScreen from '../screens/creator/ComposerScreen';
 import PostCommentsManagerScreen from '../screens/creator/PostCommentsManagerScreen';
 import CourseEditorScreen from '../screens/creator/CourseEditorScreen';
 import CreatorSettingsScreen from '../screens/creator/CreatorSettingsScreen';
-import CreatorsBrowseScreen from '../screens/creator/CreatorsBrowseScreen';
+import HabitsEditorScreen from '../screens/creator/HabitsEditorScreen';
+import ChannelsManagerScreen from '../screens/creator/ChannelsManagerScreen';
+import ChannelChatScreen from '../screens/forums/ChannelChatScreen';
 import WeeklyReviewScreen from '../screens/review/WeeklyReviewScreen';
 import DaySetupScreen from '../screens/you/DaySetupScreen';
 import { useFlag } from '../constants/featureFlags';
@@ -235,12 +239,18 @@ export function RootNavigator() {
                     {/* Creator platform — feed/paywall (any subscriber) + studio (creators). */}
                     <Stack.Screen name="CreatorFeed" component={CreatorFeedScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="CreatorPaywall" component={CreatorPaywallScreen} options={{ headerShown: false, presentation: 'modal' }} />
+                    <Stack.Screen name="CreatorCourse" component={CreatorCourseScreen} options={{ headerShown: false }} />
+                    {/* Member home for a creator maxx (Updates | Course | Community). */}
+                    <Stack.Screen name="CreatorMaxxHome" component={CreatorMaxxHomeScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="CreatorStudio" component={StudioHomeScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="CreatorComposer" component={ComposerScreen} options={{ headerShown: false, presentation: 'modal' }} />
                     <Stack.Screen name="CreatorPostComments" component={PostCommentsManagerScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="CreatorCourseEditor" component={CourseEditorScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="CreatorSettings" component={CreatorSettingsScreen} options={{ headerShown: false }} />
-                    <Stack.Screen name="CreatorsBrowse" component={CreatorsBrowseScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="CreatorHabitsEditor" component={HabitsEditorScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="CreatorChannelsManager" component={ChannelsManagerScreen} options={{ headerShown: false }} />
+                    {/* Community channel chat (shared with AdminNavigator's copy). */}
+                    <Stack.Screen name="ChannelChat" component={ChannelChatScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxPlan" component={FitmaxPlanScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxWorkoutTracker" component={FitmaxWorkoutTrackerScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="FitmaxCalorieLog" component={FitmaxCalorieLogScreen} options={{ headerShown: false }} />

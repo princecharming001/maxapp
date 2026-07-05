@@ -10,6 +10,7 @@ import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { CachedImage } from '../../components/CachedImage';
 import { colors, spacing, borderRadius } from '../../theme/dark';
+import { hexA } from '../../utils/scheduleAggregation';
 import SearchBar from '../../components/ui/SearchBar';
 
 interface Message {
@@ -59,7 +60,17 @@ export default function ChannelChatScreen() {
     const params = route.params ?? {};
     const channelId = params.channelId as string | undefined;
     const channelName = (params.channelName as string | undefined) ?? 'Channel';
+    // Creator-maxx context (optional, additive): accent tints the channel icons,
+    // maxxId powers the "Members only" → CreatorPaywall path on a 403.
+    const accent = params.accent as string | undefined;
+    const maxxId = params.maxxId as string | undefined;
     const [isAdminOnly, setIsAdminOnly] = useState(!!params.isAdminOnly);
+    // Server-authoritative gates from GET /forums/{id}/messages (creator
+    // channels). null = not received yet → fall back to the local admin logic.
+    const [serverCanPost, setServerCanPost] = useState<boolean | null>(null);
+    const [allowReplies, setAllowReplies] = useState<boolean | null>(null);
+    // 403 on load — non-member of a creator community.
+    const [membersOnly, setMembersOnly] = useState(false);
     const { user } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(true);
@@ -78,7 +89,10 @@ export default function ChannelChatScreen() {
     const appStateRef = useRef(AppState.currentState);
     const isAdmin = user?.is_admin || false;
     const currentUserId = user?.id;
-    const canPostTopLevel = !isAdminOnly || isAdmin;
+    // Prefer the server's can_post (creator channels compute creator/member/admin
+    // rights authoritatively); fall back to the local admin-only rule.
+    const canPostTopLevel = serverCanPost !== null ? serverCanPost : (!isAdminOnly || isAdmin);
+    const repliesAllowed = allowReplies !== false;
     const UPVOTE = '\u2B06\uFE0F';
     const DOWNVOTE = '\u2B07\uFE0F';
     const LEGACY_UPVOTE = 'â¬†ï¸';
@@ -98,7 +112,7 @@ export default function ChannelChatScreen() {
     const connectRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
-        if (!channelId || isSearching) {
+        if (!channelId || isSearching || membersOnly) {
             wsConnectedRef.current = false;
             return;
         }
@@ -126,6 +140,10 @@ export default function ChannelChatScreen() {
                     setMessages((prev) =>
                         prev.map((msg) => (msg.id === mid ? { ...msg, reactions: rx } : msg)),
                     );
+                } else if (data.type === 'message_deleted' && data.message_id) {
+                    // Author/admin/creator deletions broadcast on the channel WS.
+                    const mid = data.message_id;
+                    setMessages((prev) => prev.filter((msg) => msg.id !== mid));
                 }
             } catch {
                 /* ignore malformed */
@@ -189,7 +207,7 @@ export default function ChannelChatScreen() {
             }
             forumWsRef.current = null;
         };
-    }, [channelId, isSearching]);
+    }, [channelId, isSearching, membersOnly]);
 
     // On foreground resume: reconnect WebSocket immediately and reload messages
     // to catch anything missed while the app was backgrounded.
@@ -210,7 +228,7 @@ export default function ChannelChatScreen() {
     }, []);
 
     useFocusEffect(useCallback(() => {
-        if (!channelId) return;
+        if (!channelId || membersOnly) return;
         void loadMessages();
         if (isSearching) return undefined;
         const interval = setInterval(() => {
@@ -219,7 +237,7 @@ export default function ChannelChatScreen() {
             void loadMessages();
         }, 12000);
         return () => clearInterval(interval);
-    }, [channelId, searchQuery, isSearching]));
+    }, [channelId, searchQuery, isSearching, membersOnly]));
 
     const parseTimestamp = (dateString: string) => {
         if (!dateString) return 0;
@@ -263,8 +281,16 @@ export default function ChannelChatScreen() {
             if (data.channel_description !== undefined) setChannelDescription(data.channel_description);
             if (data.channel_category !== undefined) setChannelCategory(data.channel_category);
             if (data.channel_tags !== undefined) setChannelTags(data.channel_tags || []);
+            // Creator channels: server-computed posting rights + reply policy.
+            if (data.can_post !== undefined) setServerCanPost(!!data.can_post);
+            if (data.allow_replies !== undefined) setAllowReplies(!!data.allow_replies);
+            if (data.who_can_post === 'creator') setIsAdminOnly(true);
         }
-        catch (e) { console.error(e); } finally { setLoading(false); loadMessagesInFlight.current = false; }
+        catch (e: any) {
+            // 403 = not a member of this creator community → locked state.
+            if (e?.response?.status === 403) setMembersOnly(true);
+            else console.error(e);
+        } finally { setLoading(false); loadMessagesInFlight.current = false; }
     };
 
     // "Load earlier": page BACKWARD from the oldest loaded message and PREPEND.
@@ -291,7 +317,8 @@ export default function ChannelChatScreen() {
     const handleSendMessage = async () => {
         if (!channelId) return;
         if ((!messageText.trim() && !selectedImage) || sending) return;
-        if (isAdminOnly && !isAdmin && !replyingTo) return;
+        if (!canPostTopLevel && !replyingTo) return;
+        if (replyingTo && !repliesAllowed) return;
         setSending(true); let attachmentUrl = undefined; let attachmentType = undefined;
         try {
             if (selectedImage) {
@@ -491,9 +518,11 @@ export default function ChannelChatScreen() {
                         <TouchableOpacity onPress={() => handleToggleReaction(item.id, DOWNVOTE)} style={styles.actionBtn} activeOpacity={0.6}>
                             <Ionicons name="arrow-down" size={14} color={colors.textMuted} />
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setReplyingTo(item)} style={styles.actionBtn} activeOpacity={0.6}>
-                            <Ionicons name="arrow-undo" size={14} color={colors.textMuted} />
-                        </TouchableOpacity>
+                        {repliesAllowed ? (
+                            <TouchableOpacity onPress={() => setReplyingTo(item)} style={styles.actionBtn} activeOpacity={0.6}>
+                                <Ionicons name="arrow-undo" size={14} color={colors.textMuted} />
+                            </TouchableOpacity>
+                        ) : null}
                         {item.user_id !== currentUserId && (
                             <TouchableOpacity onPress={() => handleToggleReaction(item.id, '\uD83D\uDD25')} style={styles.actionBtn} activeOpacity={0.6}>
                                 <Ionicons name="flash" size={14} color={colors.textMuted} />
@@ -549,11 +578,34 @@ export default function ChannelChatScreen() {
         );
     }
 
+    // Non-member of a creator community (403 on load) — one clear path in.
+    if (membersOnly) {
+        return (
+            <View style={[styles.container, styles.center]}>
+                <View style={styles.errorCard}>
+                    <Ionicons name="lock-closed" size={40} color={colors.textMuted} />
+                    <Text style={styles.errorTitle}>Members only</Text>
+                    <Text style={styles.errorSubtitle}>Subscribe to join this community.</Text>
+                    <TouchableOpacity
+                        onPress={() => {
+                            if (maxxId) (navigation as any).navigate('CreatorPaywall', { maxxId });
+                            else navigation.goBack();
+                        }}
+                        style={styles.errorBackBtn}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={styles.errorBackText}>{maxxId ? 'Subscribe' : 'Go back'}</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
+
     if (loading && messages.length === 0) return <View style={[styles.container, styles.center]}><ActivityIndicator size="large" color={colors.foreground} /></View>;
 
     const placeholderText = replyingTo
         ? `Replying to ${getDisplayName(replyingTo)}`
-        : isAdminOnly && !isAdmin
+        : !canPostTopLevel
         ? 'Only admins can start announcements'
         : `Message #${channelName} (press Enter to send)`;
 
@@ -566,11 +618,17 @@ export default function ChannelChatScreen() {
                     </TouchableOpacity>
                     {!isSearching ? (
                         <>
-                            <View style={[styles.headerChannelIcon, isAdminOnly ? styles.headerChannelIconOfficial : styles.headerChannelIconCommunity]}>
+                            <View
+                                style={[
+                                    styles.headerChannelIcon,
+                                    isAdminOnly ? styles.headerChannelIconOfficial : styles.headerChannelIconCommunity,
+                                    accent ? { backgroundColor: hexA(accent, 0.12) } : null,
+                                ]}
+                            >
                                 <Ionicons
                                     name={isAdminOnly ? 'megaphone-outline' : 'chatbubbles-outline'}
                                     size={20}
-                                    color={isAdminOnly ? colors.info : colors.textSecondary}
+                                    color={accent || (isAdminOnly ? colors.info : colors.textSecondary)}
                                 />
                             </View>
                             <View style={styles.headerCenter}>
@@ -627,11 +685,17 @@ export default function ChannelChatScreen() {
                                     </TouchableOpacity>
                                 )}
                                 <View style={styles.threadHeaderHero}>
-                                    <View style={[styles.threadIconWrap, isAdminOnly ? styles.threadIconOfficial : styles.threadIconCommunity]}>
+                                    <View
+                                        style={[
+                                            styles.threadIconWrap,
+                                            isAdminOnly ? styles.threadIconOfficial : styles.threadIconCommunity,
+                                            accent ? { backgroundColor: hexA(accent, 0.12) } : null,
+                                        ]}
+                                    >
                                         <Ionicons
                                             name={isAdminOnly ? 'megaphone-outline' : 'chatbubbles-outline'}
                                             size={22}
-                                            color={isAdminOnly ? colors.info : colors.textSecondary}
+                                            color={accent || (isAdminOnly ? colors.info : colors.textSecondary)}
                                         />
                                     </View>
                                     <View style={styles.threadHeaderTextBlock}>
@@ -685,14 +749,26 @@ export default function ChannelChatScreen() {
                     </View>
                 } />
 
-                {isAdminOnly && !isAdmin && !replyingTo && !isSearching && (
-                    <View style={styles.restrictedInfo}>
-                        <Ionicons name="information-circle-outline" size={20} color={colors.info} />
-                        <Text style={styles.restrictedInfoText}>Only admins can post new topics here. You can still reply to existing messages.</Text>
-                    </View>
+                {!canPostTopLevel && !replyingTo && !isSearching && (
+                    serverCanPost === false ? (
+                        /* Creator announcement channel — the composer collapses to a
+                           quiet bar; replies stay available when allow_replies. */
+                        <View style={styles.restrictedInfo}>
+                            <Ionicons name="megaphone-outline" size={20} color={colors.info} />
+                            <Text style={styles.restrictedInfoText}>
+                                Announcements — only the creator posts here.
+                                {repliesAllowed ? ' You can reply to existing messages.' : ''}
+                            </Text>
+                        </View>
+                    ) : (
+                        <View style={styles.restrictedInfo}>
+                            <Ionicons name="information-circle-outline" size={20} color={colors.info} />
+                            <Text style={styles.restrictedInfoText}>Only admins can post new topics here. You can still reply to existing messages.</Text>
+                        </View>
+                    )
                 )}
 
-                {!isSearching && (isAdmin || !isAdminOnly || replyingTo) && (
+                {!isSearching && (canPostTopLevel || (!!replyingTo && repliesAllowed)) && (
                     <View style={[styles.inputWrapper, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
                         {replyingTo && (
                             <View style={styles.replyPreview}>

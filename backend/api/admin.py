@@ -2,15 +2,15 @@
 Admin API - Administrative management endpoints
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, File, Form, Query, UploadFile
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone as dt_timezone
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
 
-from db import get_db, get_rds_db
+from db import get_db, get_rds_db, get_rds_db_optional
 from middleware.auth_middleware import get_current_admin_user
 from models.user import UserResponse, OnboardingData, UserProfile
 from models.sqlalchemy_models import User, ChatHistory, ChannelMessageReport, PartnerRule
@@ -478,6 +478,7 @@ async def admin_approve_creator_application(
     body: _ApproveBody,
     admin: dict = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
+    rds_db: "AsyncSession | None" = Depends(get_rds_db_optional),
 ):
     """Approve → provision: mint the max, create the Creator, flip is_creator,
     register the catalog doc. Idempotent."""
@@ -490,7 +491,25 @@ async def admin_approve_creator_application(
     creator = await _creator_service.provision_creator_from_application(app_row, db, tier=tier)
     app_row.status = "approved"
     app_row.updated_at = datetime.utcnow()
+    # Tell the applicant — approval used to be silent; they only found out by
+    # reopening the app and noticing the Studio tab.
+    from models.sqlalchemy_models import ScheduledNotification
+    db.add(ScheduledNotification(
+        user_id=app_row.user_id,
+        scheduled_for=datetime.now(dt_timezone.utc),
+        message=f"You're approved — \"{app_row.max_name}\" is yours. Set up your studio and publish your first lesson.",
+        category_id="creator_application_decision",
+        status="pending",
+    ))
     await db.commit()
+    # Provision the community's default channels (#announcements + #general).
+    # Best-effort — RDS may be unconfigured in some environments, and the
+    # member list self-heals lazily anyway.
+    try:
+        from services.creator_channels import ensure_default_creator_channels
+        await ensure_default_creator_channels(creator, rds_db)
+    except Exception:
+        pass
     return {"ok": True, "creator": _creator_service.creator_private_dict(creator)}
 
 
@@ -513,6 +532,79 @@ async def admin_reject_creator_application(
     app_row.status = "rejected"
     app_row.review_notes = body.notes
     app_row.updated_at = datetime.utcnow()
+    from models.sqlalchemy_models import ScheduledNotification
+    db.add(ScheduledNotification(
+        user_id=app_row.user_id,
+        scheduled_for=datetime.now(dt_timezone.utc),
+        message="Your creator application was reviewed — open the Creator tab for the decision.",
+        category_id="creator_application_decision",
+        status="pending",
+    ))
+    await db.commit()
+    return {"ok": True}
+
+
+@router.post("/creators/{creator_id}/art")
+async def admin_set_creator_art(
+    creator_id: str,
+    art_url: Optional[str] = Form(None),
+    art_status: Optional[str] = Form(None),  # none | pending | ready
+    image: "UploadFile | None" = File(None),
+    admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Attach marketplace card art (Higgsfield-generated, house 3D style) to a
+    creator maxx. Multipart throughout: an `image` file, an `art_url` field, or
+    an `art_status` transition. Manual-first pipeline; server-side auto-gen
+    lives behind creator_art_autogen_enabled (stub in services/creator_art.py)."""
+    creator = (await db.execute(
+        select(_Creator).where(_Creator.id == UUID(creator_id))
+    )).scalar_one_or_none()
+    if creator is None:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    if image is not None:
+        data = await image.read()
+        if not data:
+            raise HTTPException(status_code=422, detail="Empty upload")
+        if len(data) > 12 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Image too large (max 12 MB)")
+        from services.storage_service import storage_service
+        url = await storage_service.upload_image(data, str(creator.user_id), image_type="creator")
+        if not url:
+            raise HTTPException(status_code=502, detail="Upload failed")
+        creator.art_url = url
+        creator.art_status = "ready"
+    elif art_url:
+        creator.art_url = art_url.strip()
+        creator.art_status = "ready"
+    elif art_status in ("none", "pending", "ready"):
+        creator.art_status = art_status
+        if art_status == "pending":
+            from config import settings as _settings
+            if getattr(_settings, "creator_art_autogen_enabled", False):
+                from services.creator_art import request_art_generation
+                await request_art_generation(creator)
+    else:
+        raise HTTPException(status_code=422, detail="Provide art_url, an image file, or art_status.")
+    creator.updated_at = datetime.utcnow()
+    await db.commit()
+    return _creator_service.creator_private_dict(creator)
+
+
+@router.delete("/creators/{creator_id}/art")
+async def admin_clear_creator_art(
+    creator_id: str,
+    admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    creator = (await db.execute(
+        select(_Creator).where(_Creator.id == UUID(creator_id))
+    )).scalar_one_or_none()
+    if creator is None:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    creator.art_url = None
+    creator.art_status = "none"
+    creator.updated_at = datetime.utcnow()
     await db.commit()
     return {"ok": True}
 

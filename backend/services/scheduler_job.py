@@ -821,6 +821,47 @@ async def send_coaching_check_ins():
         logger.error(f"Coaching check-ins job error: {e}", exc_info=True)
 
 
+async def reconcile_lapsed_creator_subs():
+    """Hourly sweep: creator subscriptions whose expires_at passed WITHOUT an
+    ASN EXPIRED webhook (missed/delayed webhooks happen) stay status='active'
+    forever — the read paths treat them as inactive (_sub_active checks the
+    timestamp), but enrollment + the habit UserSchedule were only revoked by
+    the webhook path. Run the same deactivation so the paid program actually
+    leaves Home/Planner when the money stops."""
+    from datetime import timezone as _tz
+    from models.sqlalchemy_models import Creator, CreatorSubscription
+    from services import creator_service
+    from db.sqlalchemy import AsyncSessionLocal as _S
+    try:
+        async with _S() as db:
+            rows = (await db.execute(
+                select(CreatorSubscription, Creator)
+                .join(Creator, Creator.id == CreatorSubscription.creator_id)
+                .where(
+                    (CreatorSubscription.status == "active")
+                    & (CreatorSubscription.expires_at.isnot(None))
+                    & (CreatorSubscription.expires_at < datetime.now(_tz.utc))
+                )
+                .limit(200)
+            )).all()
+            for sub, creator in rows:
+                try:
+                    await creator_service.deactivate_creator_subscription(
+                        user_id=str(sub.user_id), creator=creator, db=db, status="expired",
+                    )
+                    await db.commit()
+                except Exception:
+                    logger.exception(
+                        "lapsed creator sub reconcile failed user=%s maxx=%s",
+                        sub.user_id, creator.maxx_id,
+                    )
+                    await db.rollback()
+            if rows:
+                logger.info("reconciled %d lapsed creator subs", len(rows))
+    except Exception:
+        logger.exception("reconcile_lapsed_creator_subs sweep failed")
+
+
 async def send_weekly_resets():
     """Weekly coaching reset — runs once per week. AI generates message dynamically."""
     try:
@@ -1177,7 +1218,15 @@ async def send_queued_notifications():
                     if last is not None and (now_min - last) < cfg.min_interval_min:
                         continue
                     route = _CATEGORY_ROUTE.get(category, "Home")
-                    custom = build_push_custom(category, route, {"category": category})
+                    params: dict = {"category": category}
+                    dlp = getattr(row, "deep_link_params", None)
+                    if isinstance(dlp, dict) and dlp:
+                        params.update(dlp)
+                    # A feed deep-link is useless without its maxxId (the screen
+                    # can't render) — degrade old/paramless rows to Home.
+                    if route == "CreatorFeed" and not params.get("maxxId"):
+                        route = "Home"
+                    custom = build_push_custom(category, route, params)
                     name = ((user.profile or {}).get("identity") or {}).get("name")
                     title = "from max" if not name else f"from max, {name}"
                     ok, http_status = await send_apns_alert(
@@ -1312,6 +1361,13 @@ def start_scheduler(app):
             "interval",
             minutes=30,
             id="google_calendar_poll",
+            **job_defaults,
+        )
+        scheduler.add_job(
+            reconcile_lapsed_creator_subs,
+            "interval",
+            minutes=60,
+            id="creator_sub_reconcile",
             **job_defaults,
         )
         scheduler.add_job(

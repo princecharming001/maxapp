@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text,
+    ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Text,
     TouchableOpacity, View,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -15,6 +15,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { queryClient, queryKeys } from '../../lib/queryClient';
 import { fonts } from '../../theme/dark';
 import { hexA } from '../../utils/scheduleAggregation';
 
@@ -38,15 +39,72 @@ export default function CreatorPaywallScreen() {
     const maxxId: string = route.params?.maxxId;
 
     const [creator, setCreator] = useState<any>(null);
+    const [course, setCourse] = useState<any>(null);
     const [busy, setBusy] = useState(false);
+    const [restoring, setRestoring] = useState(false);
 
     const load = useCallback(async () => {
         try { setCreator(await api.getCreatorByMaxx(maxxId)); } catch { /* ignore */ }
+        // Course outline for "What's inside" — the locked (redacted) shape is fine.
+        try { setCourse(await api.getCreatorCourse(maxxId)); } catch { /* optional */ }
     }, [maxxId]);
     useEffect(() => { void load(); }, [load]);
 
     const accent = creator?.accent_color || '#BC7A3C';
     const price = creator ? `$${((creator.price_cents || 0) / 100).toFixed(2)}` : '';
+
+    // "{n} lessons · {n} updates · {n} members" — zero parts drop out; the
+    // member count only shows once it's social proof (>= 10), not embarrassment.
+    const metaParts: string[] = [];
+    if (creator) {
+        const lessons = Number(creator.published_lesson_count || 0);
+        const posts = Number(creator.post_count || 0);
+        const subs = Number(creator.subscriber_count || 0);
+        if (lessons > 0) metaParts.push(`${lessons} lesson${lessons === 1 ? '' : 's'}`);
+        if (posts > 0) metaParts.push(`${posts} update${posts === 1 ? '' : 's'}`);
+        if (subs >= 10) metaParts.push(`${subs} members`);
+    }
+
+    // "What's inside" outline: up to 2 modules × up to 4 lessons each.
+    const insideModules: { module_number: number; title: string; lessons: any[] }[] =
+        (course?.modules || []).slice(0, 2).map((m: any) => ({ ...m, lessons: (m.lessons || []).slice(0, 4) }));
+    const shownCount = insideModules.reduce((n, m) => n + m.lessons.length, 0);
+    const moreCount = Math.max(0, Number(course?.lesson_count || 0) - shownCount);
+
+    /**
+     * Restore (Apple 3.1.2). PaymentScreen's restore lives inside the heavy
+     * useIAP()-backed hook (store connection + purchase listeners), which this
+     * screen deliberately avoids — the purchase path here dynamic-imports
+     * react-native-iap only at buy time (see useCreatorPurchase). Mirror that:
+     * look for THIS creator's SKU among the Apple ID's purchases and re-verify
+     * with the backend; if nothing is found (or off-iOS/dev), fall through to
+     * Apple's own subscription manager.
+     */
+    const restore = async () => {
+        if (restoring) return;
+        setRestoring(true);
+        try {
+            if (Platform.OS === 'ios' && !SHOW_DEV && creator?.apple_product_id) {
+                const iap: any = await import('react-native-iap');
+                const purchases: any[] = (await iap.getAvailablePurchases()) ?? [];
+                const match = purchases.find((p: any) => (p?.productId ?? p?.id) === creator.apple_product_id);
+                const tid = match ? String(match.transactionId ?? match.id ?? '').trim() : '';
+                if (tid) {
+                    await api.verifyCreatorSubscription(maxxId, tid, creator.apple_product_id);
+                    await refreshUser();
+                    // Verify also creates the 14-day schedule server-side.
+                    await queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull, refetchType: 'all' });
+                    Alert.alert('Purchases restored', 'Your subscription to this creator is active.');
+                    return;
+                }
+            }
+            await Linking.openURL('https://apps.apple.com/account/subscriptions');
+        } catch (e: any) {
+            Alert.alert('Restore failed', e?.response?.data?.detail || e?.message || 'Try again.');
+        } finally {
+            setRestoring(false);
+        }
+    };
 
     const subscribe = async () => {
         if (busy || !creator) return;
@@ -60,17 +118,34 @@ export default function CreatorPaywallScreen() {
         }
         setBusy(true);
         try {
+            let res: any;
             if (SHOW_DEV) {
-                await api.devActivateCreatorSubscription(maxxId);
+                res = await api.devActivateCreatorSubscription(maxxId);
             } else {
                 // Production: run the real IAP purchase against creator.apple_product_id,
                 // then verify. The per-creator SKU must exist in App Store Connect.
                 const { subscribeToCreatorProduct } = await import('../../hooks/useCreatorPurchase');
                 const tid = await subscribeToCreatorProduct(creator.apple_product_id, user?.id ?? '');
-                await api.verifyCreatorSubscription(maxxId, tid, creator.apple_product_id);
+                res = await api.verifyCreatorSubscription(maxxId, tid, creator.apple_product_id);
             }
             await refreshUser();
-            nav.replace('CreatorFeed', { maxxId });
+            // dev-activate / IAP verify create the schedule server-side too —
+            // refetch active schedules AND the by-maxx profile (its `subscribed`
+            // drives the member home's lock card) so landing there is unlocked.
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull, refetchType: 'all' }),
+                queryClient.invalidateQueries({ queryKey: ['creator', 'by-maxx', maxxId], refetchType: 'all' }),
+            ]);
+            nav.replace('CreatorMaxxHome', { maxxId });
+            // Billed-but-blocked MUST be surfaced: at the 5-program cap the sub
+            // is active but the habits can't land until a slot frees up. The
+            // member home's "Add to your day" pill retries once one does.
+            if (res?.schedule_blocked === 'active_limit') {
+                Alert.alert(
+                    'Your schedule is full',
+                    "You're subscribed, but you already have 5 active programs. Pause or cancel one, then tap “Add to your day” on this max.",
+                );
+            }
         } catch (e: any) {
             Alert.alert('Could not subscribe', e?.response?.data?.detail || e?.message || 'Try again.');
         } finally {
@@ -96,6 +171,7 @@ export default function CreatorPaywallScreen() {
                 </View>
                 <Text style={s.title}>{creator?.display_name || 'Creator'}</Text>
                 {creator?.tagline ? <Text style={s.tagline}>{creator.tagline}</Text> : null}
+                {metaParts.length > 0 ? <Text style={s.metaLine}>{metaParts.join(' · ')}</Text> : null}
 
                 <View style={s.benefits}>
                     {BENEFITS.map((b) => (
@@ -108,6 +184,45 @@ export default function CreatorPaywallScreen() {
                     ))}
                 </View>
 
+                {shownCount > 0 ? (
+                    <View style={s.insideWrap}>
+                        <Text style={s.insideKicker}>WHAT&apos;S INSIDE</Text>
+                        <View style={s.insideCard}>
+                            {insideModules.map((m, mi) => (
+                                <View key={m.module_number}>
+                                    {mi > 0 ? <View style={s.insideSep} /> : null}
+                                    {m.lessons.map((l: any) => (
+                                        <View key={l.id} style={s.insideRow}>
+                                            <View style={[s.insideDisc, { backgroundColor: hexA(accent, 0.14) }]}>
+                                                <Ionicons name={(l.icon || 'document-text-outline') as any} size={14} color={accent} />
+                                            </View>
+                                            <Text style={s.insideTitle} numberOfLines={1}>{l.title}</Text>
+                                            {l.is_free_preview ? (
+                                                <View style={s.freeChip}><Text style={s.freeChipText}>FREE</Text></View>
+                                            ) : (
+                                                <Ionicons name="lock-closed" size={14} color={MUTE} />
+                                            )}
+                                        </View>
+                                    ))}
+                                </View>
+                            ))}
+                            {moreCount > 0 ? <Text style={s.insideMore}>+{moreCount} more lessons</Text> : null}
+                            {Number(course?.free_preview_count || 0) > 0 ? (
+                                <TouchableOpacity
+                                    style={s.tryRow}
+                                    onPress={() => nav.navigate('CreatorCourse', { maxxId })}
+                                    activeOpacity={0.8}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Try a free lesson"
+                                >
+                                    <Text style={[s.tryText, { color: accent }]}>Try a free lesson</Text>
+                                    <Ionicons name="arrow-forward" size={15} color={accent} />
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
+                    </View>
+                ) : null}
+
                 <View style={s.priceCard}>
                     <Text style={s.priceValue}>{price}<Text style={s.pricePer}>/month</Text></Text>
                     <Text style={s.priceNote}>Cancel anytime · billed on top of Chad</Text>
@@ -117,6 +232,28 @@ export default function CreatorPaywallScreen() {
                     {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.ctaText}>Start subscription</Text>}
                 </TouchableOpacity>
                 {SHOW_DEV ? <Text style={s.devNote}>DEV: activates instantly (no Apple)</Text> : null}
+
+                {/* Apple 3.1.2 — subscription terms + Terms / Privacy / Restore. */}
+                {creator ? (
+                    <View style={s.legalWrap}>
+                        <Text style={s.legalText}>
+                            {price}/month · auto-renews until canceled · cancel anytime in Settings
+                        </Text>
+                        <View style={s.legalLinks}>
+                            <TouchableOpacity onPress={() => nav.navigate('LegalDocument', { document: 'terms' })} hitSlop={8} activeOpacity={0.7}>
+                                <Text style={s.legalLink}>Terms</Text>
+                            </TouchableOpacity>
+                            <Text style={s.legalDot}>·</Text>
+                            <TouchableOpacity onPress={() => nav.navigate('LegalDocument', { document: 'privacy' })} hitSlop={8} activeOpacity={0.7}>
+                                <Text style={s.legalLink}>Privacy</Text>
+                            </TouchableOpacity>
+                            <Text style={s.legalDot}>·</Text>
+                            <TouchableOpacity onPress={restore} disabled={restoring} hitSlop={8} activeOpacity={0.7}>
+                                <Text style={s.legalLink}>{restoring ? 'Restoring…' : 'Restore'}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                ) : null}
             </ScrollView>
         </View>
     );
@@ -129,6 +266,7 @@ const s = StyleSheet.create({
     avatar: { width: '100%', height: '100%', borderRadius: 40 },
     title: { fontFamily: fonts.serif, fontSize: 28, color: INK, marginTop: 14 },
     tagline: { fontFamily: fonts.sans, fontSize: 15, color: MUTE, marginTop: 8, textAlign: 'center' },
+    metaLine: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: MUTE, marginTop: 8, textAlign: 'center' },
     benefits: { alignSelf: 'stretch', gap: 14, marginTop: 26 },
     benefitRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     benefitIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
@@ -141,4 +279,32 @@ const s = StyleSheet.create({
         ...(Platform.OS === 'ios' ? { shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } } : { elevation: 5 }) },
     ctaText: { fontFamily: fonts.sansSemiBold, fontSize: 16.5, color: '#FFFFFF' },
     devNote: { fontFamily: fonts.sans, fontSize: 11.5, color: MUTE, marginTop: 10 },
+
+    // "What's inside" course outline
+    insideWrap: { alignSelf: 'stretch', marginTop: 26 },
+    insideKicker: { fontFamily: fonts.sansSemiBold, fontSize: 11, letterSpacing: 1.2, color: MUTE, marginBottom: 10 },
+    insideCard: {
+        backgroundColor: '#FFFFFF', borderRadius: 18, borderCurve: 'continuous',
+        paddingHorizontal: 14, paddingVertical: 6,
+        borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.07)',
+    },
+    insideRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 },
+    insideDisc: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+    insideTitle: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 14, color: INK },
+    insideSep: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(0,0,0,0.06)', marginVertical: 4 },
+    insideMore: { fontFamily: fonts.sans, fontSize: 12.5, color: MUTE, paddingVertical: 9, paddingLeft: 38 },
+    tryRow: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12,
+        borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(0,0,0,0.06)',
+    },
+    tryText: { fontFamily: fonts.sansSemiBold, fontSize: 13.5 },
+    freeChip: { backgroundColor: hexA('#B8860B', 0.14), borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
+    freeChipText: { fontFamily: fonts.sansSemiBold, fontSize: 10.5, color: '#8A6D2E', letterSpacing: 0.4 },
+
+    // Apple 3.1.2 footer
+    legalWrap: { alignItems: 'center', marginTop: 18, alignSelf: 'stretch', paddingHorizontal: 8 },
+    legalText: { fontFamily: fonts.sans, fontSize: 11.5, color: MUTE, textAlign: 'center', lineHeight: 17 },
+    legalLinks: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+    legalLink: { fontFamily: fonts.sansMedium, fontSize: 11.5, color: MUTE, textDecorationLine: 'underline' },
+    legalDot: { fontFamily: fonts.sans, fontSize: 11.5, color: MUTE },
 });

@@ -14,6 +14,7 @@ from sqlalchemy import (
     Index,
     UniqueConstraint,
     JSON,
+    func,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
@@ -80,24 +81,46 @@ class Course(Base):
 
 
 class Forum(Base):
-    """Community channels (forums)"""
+    """Community channels (forums).
+
+    Two kinds share this table:
+      • GLOBAL channels (maxx_id IS NULL) — the app-wide community list.
+      • CREATOR channels (maxx_id set) — per-creator-maxx members-only rooms,
+        gated by an active CreatorSubscription (checked against the MAIN db).
+
+    Name/slug uniqueness is intentionally PARTIAL: globally unique for global
+    channels, per-maxx unique for creator channels (every creator gets their
+    own #general). Declared as partial indexes, not unique=True columns —
+    plain unique would 500 the second creator's defaults."""
     __tablename__ = "forums"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String, nullable=False, unique=True)
-    slug = Column(String, nullable=False, unique=True)
+    name = Column(String, nullable=False)
+    slug = Column(String, nullable=False)
     description = Column(Text)
     icon = Column(Text)
     category = Column(String)
     tags = Column(JSON, default=list)
     order = Column(Integer, default=0)
     is_admin_only = Column(Boolean, default=False)
+    # Creator-channel fields (NULL for global channels).
+    maxx_id = Column(String, nullable=True)
+    creator_id = Column(UUID(as_uuid=True), nullable=True)  # main-DB creators.id; no cross-DB FK
+    who_can_post = Column(String, default="members")        # creator | members
+    allow_replies = Column(Boolean, default=True)
+    is_archived = Column(Boolean, default=False)            # archive keeps message history
     created_by = Column(UUID(as_uuid=True))
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     __table_args__ = (
         Index("idx_forums_order", order),
         Index("idx_forums_admin_only", is_admin_only),
+        Index("idx_forums_maxx", maxx_id, postgresql_where=maxx_id.isnot(None)),
+        # Partial uniqueness (see docstring).
+        Index("uq_forums_global_name", name, unique=True, postgresql_where=maxx_id.is_(None)),
+        Index("uq_forums_global_slug", slug, unique=True, postgresql_where=maxx_id.is_(None)),
+        Index("uq_forums_maxx_name", maxx_id, func.lower(name), unique=True,
+              postgresql_where=maxx_id.isnot(None)),
     )
 
 

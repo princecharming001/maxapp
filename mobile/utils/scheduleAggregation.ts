@@ -56,16 +56,40 @@ const DEFAULT_MAXX_ICONS: Record<string, string> = {
 };
 
 /**
+ * Runtime-registered metadata for dynamic maxxes (creator maxxes arrive from
+ * the marketplace payload, not the static tables above). Consulted BEFORE the
+ * DEFAULT_ tables so Home/Planner/Profile chips tint a creator program with
+ * its real accent/icon/label; the rest of the fallback chain is unchanged.
+ */
+const RUNTIME_MAXX_META: Record<string, { color?: string; icon?: string; label?: string }> = {};
+
+/** Merge (never clobber with empties) runtime meta for a maxx id. */
+export function registerMaxMeta(
+  id: unknown,
+  meta: { color?: string; icon?: string; label?: string },
+): void {
+  const key = normalizeMaxxId(id);
+  if (!key) return;
+  const prev = RUNTIME_MAXX_META[key] || {};
+  RUNTIME_MAXX_META[key] = {
+    color: meta.color || prev.color,
+    icon: meta.icon || prev.icon,
+    label: meta.label || prev.label,
+  };
+}
+
+/**
  * One-import color-pocket metadata for a maxx id. The canonical color/icon/label
  * the whole UI should pull from so every screen tints from the same source.
  */
 export function maxMeta(raw: unknown): { id: string; color: string; icon: string; label: string } {
   const id = normalizeMaxxId(raw);
+  const rt = RUNTIME_MAXX_META[id];
   return {
     id,
-    color: DEFAULT_MAXX_COLORS[id] || fallbackColor(id || 'x'),
-    icon: DEFAULT_MAXX_ICONS[id] || 'ellipse-outline',
-    label: DEFAULT_MAXX_LABELS[id] || (id ? id.charAt(0).toUpperCase() + id.slice(1) : 'Max'),
+    color: rt?.color || DEFAULT_MAXX_COLORS[id] || fallbackColor(id || 'x'),
+    icon: rt?.icon || DEFAULT_MAXX_ICONS[id] || 'ellipse-outline',
+    label: rt?.label || DEFAULT_MAXX_LABELS[id] || (id ? id.charAt(0).toUpperCase() + id.slice(1) : 'Max'),
   };
 }
 
@@ -297,15 +321,16 @@ export function mergeSchedules(
 
   for (const s of schedules || []) {
     const mid = normalizeMaxxId(s.maxx_id);
+    const rt = mid ? RUNTIME_MAXX_META[mid] : undefined;
     const label = normalizeMaxxNameSuffix(
       String(
         mid
-          ? maxxLabels[mid] || DEFAULT_MAXX_LABELS[mid] || s.maxx_id || mid
+          ? maxxLabels[mid] || rt?.label || DEFAULT_MAXX_LABELS[mid] || s.maxx_id || mid
           : s.course_title || s.maxx_id || 'Program',
       ),
     );
     const color = mid
-      ? maxxColors[mid] || DEFAULT_MAXX_COLORS[mid] || fallbackColor(mid)
+      ? maxxColors[mid] || rt?.color || DEFAULT_MAXX_COLORS[mid] || fallbackColor(mid)
       : fallbackColor(String(s.course_title || s.maxx_id || 'program').toLowerCase());
     legendMap.set(s.id, { label, color });
 
@@ -359,7 +384,7 @@ export function moduleColorForSchedule(
   if (!schedule) return FALLBACK_MODULE_COLORS[0];
   const mid = normalizeMaxxId(schedule.maxx_id);
   if (mid) {
-    return maxxColors[mid] || DEFAULT_MAXX_COLORS[mid] || fallbackColor(mid);
+    return maxxColors[mid] || RUNTIME_MAXX_META[mid]?.color || DEFAULT_MAXX_COLORS[mid] || fallbackColor(mid);
   }
   return fallbackColor(String(schedule.course_title || schedule.maxx_id || 'x').toLowerCase());
 }
@@ -372,7 +397,7 @@ export function moduleLabelForSchedule(
   const mid = normalizeMaxxId(schedule.maxx_id);
   if (mid) {
     return normalizeMaxxNameSuffix(
-      String(maxxLabels[mid] || DEFAULT_MAXX_LABELS[mid] || schedule.maxx_id || mid),
+      String(maxxLabels[mid] || RUNTIME_MAXX_META[mid]?.label || DEFAULT_MAXX_LABELS[mid] || schedule.maxx_id || mid),
     );
   }
   return normalizeMaxxNameSuffix(String(schedule.course_title || schedule.maxx_id || 'Program'));

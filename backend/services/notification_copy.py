@@ -58,7 +58,8 @@ OPTIONAL_CATEGORIES = frozenset(
 # Deep-link route per category. Mirrors mobile/App.tsx NOTIFICATION_DEEP_LINK_ROUTES.
 # Each push opens the SPECIFIC thing it is about (review item 11).
 DEEP_LINK_ROUTES = frozenset(
-    {"Home", "TaskGuide", "Achievements", "Profile", "ProgressArchive"}
+    {"Home", "TaskGuide", "Achievements", "Profile", "ProgressArchive",
+     "CreatorFeed", "CreatorStudio"}
 )
 _CATEGORY_ROUTE: dict[str, str] = {
     CAT_TASK_DUE: "TaskGuide",        # the specific task's guide/detail
@@ -69,10 +70,11 @@ _CATEGORY_ROUTE: dict[str, str] = {
     CAT_MILESTONE: "Achievements",
     CAT_BROADCAST: "Home",
     CAT_TIP: "Home",
-    # Creator platform: a "new update" push opens Home (the subscribed-creator
-    # feed is reachable from there; per-max deep-linking would need a params
-    # column on ScheduledNotification, deferred).
-    "creator_update": "Home",
+    # Creator platform: a "new update" opens THAT creator's feed (maxxId rides
+    # in ScheduledNotification.deep_link_params); an application decision opens
+    # the studio (approved creators land in their new home).
+    "creator_update": "CreatorFeed",
+    "creator_application_decision": "CreatorStudio",
 }
 
 # --- taste bar (review item 9: wit, never shame / fear-of-loss) --------------

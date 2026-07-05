@@ -225,6 +225,8 @@ async def my_application(
             "instagram_url": row.instagram_url,
             "tiktok_url": row.tiktok_url,
             "social_stats": row.social_stats or {},
+            # Surfaced so a rejected applicant sees WHY (was write-only before).
+            "review_notes": row.review_notes or None,
             "created_at": row.created_at.isoformat() if row.created_at else None,
         }
     }

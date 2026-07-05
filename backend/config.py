@@ -190,6 +190,10 @@ class Settings(BaseSettings):
     referrals_enabled: bool = Field(default=True)
     referral_discounts_enabled: bool = Field(default=False)
     referral_rewards_enabled: bool = Field(default=False)
+    # Creator-maxx card art: server-side Higgsfield auto-generation at approval.
+    # OFF by default — art is attached manually via POST /admin/creators/{id}/art
+    # (see services/creator_art.py for the intended pipeline).
+    creator_art_autogen_enabled: bool = Field(default=False)
     chat_max_context_tokens: int = Field(
         default=8000,
         description="Hard ceiling for history + retrieved chunks tokens in the agent prompt.",

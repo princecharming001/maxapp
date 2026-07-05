@@ -411,6 +411,10 @@ class ScheduledNotification(Base):
     # Optional action buttons surfaced in the push -- APNs `category` must be registered on device.
     buttons = Column(ARRAY(String), nullable=True)
     category_id = Column(String, nullable=True)
+    # Optional deep-link params merged into the push payload's `params` (e.g.
+    # {"maxxId": "..."} so a creator_update opens THAT creator's feed). Route
+    # still comes from the category map — never from user-supplied data.
+    deep_link_params = Column(JSON, nullable=True)
     status = Column(String, default="pending")  # pending | sent | failed | cancelled
     sent_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -1102,6 +1106,17 @@ class Creator(Base):
     subscriber_count = Column(Integer, default=0)
     post_count = Column(Integer, default=0)
     course_version = Column(Integer, default=1)         # bump on lesson publish → clients refetch
+    # Module metadata keyed by str(module_number): {"1": {"title": "Foundations"}}.
+    # Lessons carry only the number; titles live here so renaming a module never
+    # rewrites lesson rows. Reassign the whole dict on write (JSON-flush pattern).
+    course_modules = Column(JSON, default=dict)
+    # Marketplace card art (Higgsfield-generated 3D, house style). Manual-first:
+    # set via the admin art endpoint; autogen stub behind a settings flag.
+    art_url = Column(String, nullable=True)
+    art_status = Column(String, default="none")         # none | pending | ready
+    # Bumped whenever the creator's HABITS change (course_version twin) — lets
+    # clients/schedules detect a stale program.
+    habits_version = Column(Integer, default=1)
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -1230,6 +1245,9 @@ class CreatorSubscription(Base):
     status = Column(String, default="active", nullable=False)  # active | expired | canceled | past_due
     expires_at = Column(DateTime(timezone=True), nullable=True)
     auto_renew = Column(Boolean, default=True)
+    # Price snapshot at (re)activation — creators can be re-tiered, so an
+    # earnings ledger is only computable from what was actually charged.
+    price_cents_at_purchase = Column(Integer, nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -1262,10 +1280,50 @@ class CreatorCourseLesson(Base):
     poster_url = Column(String, nullable=True)
     icon = Column(String, default="book-outline")
     status = Column(String, default="draft", nullable=False)  # draft | published
+    # Paywall teaser: a free-preview lesson is readable by non-subscribers, so
+    # the paywall can prove the course's quality with one real lesson.
+    is_free_preview = Column(Boolean, default=False, nullable=False)
+    duration_minutes = Column(Integer, nullable=True)   # est. read/watch time
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     __table_args__ = (
         Index("idx_creator_lessons_maxx", maxx_id, status, module_number, sort),
+    )
+
+
+class CreatorHabit(Base):
+    """A creator-defined daily/weekly habit for their maxx. These become real
+    catalog TaskDefs (id = "{maxx_id}.{slug}") + a synthesized schedule skeleton,
+    which is what makes a creator maxx a FIRST-CLASS maxx: subscribing generates
+    a UserSchedule whose tasks land in Home/Planner like any native maxx.
+
+    `slug` is minted once and never rewritten on edit — regeneration diffs by
+    (day_index, catalog_id) and per-user wanted/avoided prefs reference catalog
+    ids, so habit identity must be stable across renames. Rows are ARCHIVED,
+    never deleted (old schedules still reference their catalog_ids)."""
+    __tablename__ = "creator_habits"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    creator_id = Column(UUID(as_uuid=True), ForeignKey("creators.id", ondelete="CASCADE"), nullable=False, index=True)
+    maxx_id = Column(String, nullable=False, index=True)  # denormalized like CreatorCourseLesson
+
+    slug = Column(String, nullable=False)               # stable; catalog_id = "{maxx_id}.{slug}"
+    title = Column(String, nullable=False)              # <= 60 chars (API-enforced)
+    description = Column(Text, default="")              # <= 300 chars (API-enforced)
+    duration_minutes = Column(Integer, default=10)      # clamp 2..90
+    frequency_type = Column(String, default="daily")    # daily | n_per_week
+    frequency_n = Column(Integer, default=1)            # 1..7 (used when n_per_week)
+    window = Column(String, default="any")              # morning | evening | any
+    icon = Column(String, nullable=True)                # Ionicons name (UI only)
+    sort = Column(Integer, default=0)
+    status = Column(String, default="active", nullable=False)  # active | archived
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("creator_id", "slug", name="uq_creator_habit_slug"),
+        Index("idx_creator_habits_maxx", maxx_id, status, sort),
     )

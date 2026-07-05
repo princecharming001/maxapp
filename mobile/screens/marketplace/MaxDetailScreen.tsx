@@ -25,6 +25,7 @@ import {
     Easing,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Alert } from '../../components/InAppAlert';
 import { LiquidGlassFill } from '../../components/glass/LiquidGlass';
 import Svg, { Defs, RadialGradient, Stop, Rect, Ellipse } from 'react-native-svg';
@@ -32,7 +33,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
-import api, { type MarketplaceItem } from '../../services/api';
+import api, { isCreatorMaxx, type CreatorHabit, type MarketplaceItem } from '../../services/api';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { fetchChatHistory } from '../../hooks/useAppQueries';
 import { getCourseForMaxx, isCreatorCourse } from '../../data/courseContent';
@@ -269,15 +270,60 @@ function JellyHero({ item, base, scrollY }: { item: MarketplaceItem; base: strin
     );
 }
 
+/**
+ * Full-bleed creator art hero — parallax like the jelly hero, with a soft
+ * bottom fade into the page background so the art melts into the header.
+ */
+function CreatorArtHero({ uri, scrollY }: { uri: string; scrollY: Animated.Value }) {
+    const translateY = scrollY.interpolate({ inputRange: [-300, 0, 300], outputRange: [-120, 0, 96], extrapolate: 'clamp' });
+    const scale = scrollY.interpolate({ inputRange: [-300, 0], outputRange: [1.35, 1], extrapolateRight: 'clamp' });
+    return (
+        <View style={styles.artHero}>
+            <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateY }, { scale }] }]}>
+                <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={260} />
+            </Animated.View>
+            <LinearGradient
+                colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.65)', CANVAS]}
+                locations={[0.55, 0.84, 1]}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+            />
+        </View>
+    );
+}
+
+/** "12m · daily · morning" — the right-hand meta line for a daily-program row. */
+function habitMetaLine(h: CreatorHabit): string {
+    const parts: string[] = [];
+    if (h.duration_minutes) parts.push(`${h.duration_minutes}m`);
+    const f = h.frequency;
+    parts.push(f?.type === 'n_per_week' && f.n ? `${f.n}×/wk` : 'daily');
+    if (h.window && h.window !== 'any') parts.push(h.window);
+    return parts.join(' · ');
+}
+
 /** Real, catalog-derived program stats (SC6 — ss2 stats grid). No fabrication:
  *  routines = curated habit count; areas = distinct focus areas; cadence/length
- *  reflect how the max actually schedules. Courses show weeks/lessons instead. */
-function StatsGrid({ item, isCourse }: { item: MarketplaceItem; isCourse: boolean }) {
+ *  reflect how the max actually schedules. Courses show weeks/lessons instead.
+ *  Creator maxxes show lessons / updates / members-or-habits. */
+function StatsGrid({ item, isCourse, creatorMaxx, postCount }: {
+    item: MarketplaceItem; isCourse: boolean; creatorMaxx?: boolean; postCount?: number | null;
+}) {
     const habits = HABIT_CATALOG[String(item.id || '').toLowerCase()] || [];
     const areas = new Set(habits.map((h) => h.area)).size;
     const d = item.detail || {};
     let stats: { value: string; label: string }[];
-    if (isCourse) {
+    if (creatorMaxx) {
+        const lessons = item.published_lesson_count ?? 0;
+        const members = item.participants ?? 0;
+        stats = [
+            { value: lessons ? String(lessons) : '—', label: 'Lessons' },
+            { value: postCount != null ? String(postCount) : '—', label: 'Updates' },
+            members >= 10
+                ? { value: fmtK(members) || '—', label: 'Members' }
+                : { value: item.habit_count ? String(item.habit_count) : '—', label: 'Daily habits' },
+        ];
+    } else if (isCourse) {
         const weeks = item.weeks || (d.curriculum?.length ?? 0);
         const lessons = (d.curriculum || []).reduce((n, w) => n + (w.lessons?.length || 0), 0);
         stats = [
@@ -439,6 +485,17 @@ export default function MaxDetailScreen() {
         return () => { alive = false; };
     }, [itemId]);
 
+    // Creator maxx: light creator lookup for post_count + is_owner (drives the
+    // "Open Studio" CTA). Only fires for creator-maxx cards.
+    const creatorMaxx = isCreatorMaxx(item ?? passed);
+    const byMaxxQ = useQuery({
+        queryKey: ['creator', 'by-maxx', itemId],
+        queryFn: () => api.getCreatorByMaxx(String(itemId)),
+        enabled: !!itemId && creatorMaxx,
+        staleTime: 60_000,
+        retry: 1,
+    });
+
     if (!item) {
         return (
             <View style={[styles.root, styles.center]}>
@@ -450,6 +507,10 @@ export default function MaxDetailScreen() {
     const d = item.detail || {};
     const isCourse = !item.native;
     const base = item.color || GOLD;
+    const byMaxx: any = byMaxxQ.data;
+    const isOwner = !!byMaxx?.is_owner;
+    const creatorArt = creatorMaxx && item.image_url ? api.resolveAttachmentUrl(item.image_url) : undefined;
+    const creatorAvatar = item.creator?.avatar ? api.resolveAttachmentUrl(item.creator.avatar) : undefined;
     // Brief, looksmax-native description of what this max actually is. Honest —
     // describes the real target areas in the community's own vocabulary. Falls
     // back to the item's own copy for courses / unknown maxes.
@@ -499,6 +560,54 @@ export default function MaxDetailScreen() {
     };
 
     const onCta = async () => {
+        // ── Creator maxx: its own state machine. NEVER falls through to the
+        // native/Stripe handling — entry is subscription-gated server-side.
+        if (creatorMaxx) {
+            if (item.entered) {
+                if (isOwner) navigation.navigate('CreatorStudio');
+                else navigation.navigate('CreatorMaxxHome', { maxxId: item.id });
+                return;
+            }
+            // Free tier: starting a creator program is still a plan action.
+            if (gate('start_plan')) return;
+            if (busy) return;
+            setBusy(true);
+            try {
+                const res = await api.enterMarketplaceItem(item.id);
+                if (res.entered) {
+                    // Free tier / already-subscribed: the server created the
+                    // subscription + 14-day schedule — refresh and go home.
+                    track('enter', { item: item.id, kind: 'creator_maxx' });
+                    await Promise.all([
+                        queryClient.invalidateQueries({
+                            queryKey: queryKeys.schedulesActiveFull,
+                            refetchType: 'all',
+                        }),
+                        // The member home keys its lock state off this query —
+                        // without invalidating it, a fresh subscriber lands on
+                        // a stale "Members only" card (subscribed:false cache).
+                        queryClient.invalidateQueries({
+                            queryKey: ['creator', 'by-maxx', item.id],
+                            refetchType: 'all',
+                        }),
+                    ]);
+                    setItem({ ...item, entered: true });
+                    navigation.navigate('CreatorMaxxHome', { maxxId: item.id });
+                } else if (res.requires === 'creator_subscription') {
+                    navigation.navigate('CreatorPaywall', { maxxId: item.id });
+                }
+            } catch (e: any) {
+                const detail = e?.response?.data?.detail;
+                const msg = typeof detail === 'string' && detail
+                    ? detail
+                    : "Couldn't start this program right now. Please try again.";
+                Alert.alert('Creator max', msg);
+            } finally {
+                setBusy(false);
+            }
+            return;
+        }
+
         // Free tier: starting a plan / enrolling is a PAID action — bounce to
         // the paywall. (Browsing this detail page stays free.)
         if (!item.entered && gate('start_plan')) return;
@@ -549,13 +658,19 @@ export default function MaxDetailScreen() {
                 scrollEventThrottle={16}
                 onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
             >
-                <JellyHero item={item} base={base} scrollY={scrollY} />
+                {creatorMaxx && creatorArt ? (
+                    <CreatorArtHero uri={creatorArt} scrollY={scrollY} />
+                ) : (
+                    <JellyHero item={item} base={base} scrollY={scrollY} />
+                )}
 
                 {/* Header — type-led, no templated icon chip. */}
                 <View style={styles.header}>
                     <View style={styles.kickerRow}>
                         <View style={[styles.kickerDot, { backgroundColor: base }]} />
-                        <Text style={styles.kicker}>{(item.category || (isCourse ? 'Course' : 'Max')).toUpperCase()}</Text>
+                        <Text style={styles.kicker}>
+                            {(item.category || (creatorMaxx ? 'Creator max' : isCourse ? 'Course' : 'Max')).toUpperCase()}
+                        </Text>
                     </View>
                     <Text style={styles.heroTitle}>{item.title}</Text>
                     <View style={[styles.heroRule, { backgroundColor: base }]} />
@@ -565,8 +680,26 @@ export default function MaxDetailScreen() {
                 {/* Brief, looksmax-native description of what this max is. */}
                 {maxBlurb ? <Text style={styles.lead}>{maxBlurb}</Text> : null}
 
-                {/* Creator — courses only. */}
-                {isCourse ? (
+                {/* Identity — creator maxxes get the real avatar in an accent ring. */}
+                {creatorMaxx ? (
+                    <View style={styles.creatorRow}>
+                        <View style={[styles.idAvatarRing, { borderColor: base }]}>
+                            {creatorAvatar ? (
+                                <Image source={{ uri: creatorAvatar }} style={styles.idAvatar} contentFit="cover" transition={150} />
+                            ) : (
+                                <Monogram name={item.creator.name} color={base} size={44} />
+                            )}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <View style={styles.idNameRow}>
+                                <Text style={styles.creatorName} numberOfLines={1}>{item.creator.name}</Text>
+                                {item.creator.verified ? <Ionicons name="checkmark-circle" size={15} color={base} /> : null}
+                            </View>
+                            <Text style={styles.creatorHandle}>@{item.creator.handle}</Text>
+                            {item.tagline ? <Text style={styles.idTagline} numberOfLines={2}>{item.tagline}</Text> : null}
+                        </View>
+                    </View>
+                ) : isCourse ? (
                     <View style={styles.creatorRow}>
                         <Monogram name={item.creator.name} color={base} size={42} />
                         <View style={{ flex: 1 }}>
@@ -579,6 +712,63 @@ export default function MaxDetailScreen() {
                                 <Text style={styles.ratingSub}>{item.rating.toFixed(1)} · {fmtK(item.participants)} members</Text>
                             </View>
                         ) : null}
+                    </View>
+                ) : null}
+
+                {/* Creator maxx — real program stats. */}
+                {creatorMaxx ? (
+                    <View style={styles.block}>
+                        <StatsGrid item={item} isCourse creatorMaxx postCount={byMaxx?.post_count ?? null} />
+                    </View>
+                ) : null}
+
+                {/* Creator maxx — the daily program (the feasibility-proof sibling). */}
+                {creatorMaxx && d.habits?.length ? (
+                    <View style={styles.block}>
+                        <Text style={styles.sectionLabel}>The daily program</Text>
+                        <View style={[styles.card, { gap: 14 }]}>
+                            {d.habits.map((h, i) => (
+                                <View key={i} style={styles.habitRow}>
+                                    <View style={[styles.habitDisc, { backgroundColor: hexA(base, 0.14) }]}>
+                                        <Ionicons name={(h.icon || 'repeat-outline') as any} size={16} color={base} />
+                                    </View>
+                                    <Text style={styles.habitTitle} numberOfLines={1}>{h.title}</Text>
+                                    <Text style={styles.habitMeta}>{habitMetaLine(h)}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                ) : null}
+
+                {/* Creator maxx — curriculum (module accordions, locked rows). */}
+                {creatorMaxx && d.curriculum?.length ? (
+                    <View style={styles.block}>
+                        <Text style={styles.sectionLabel}>What's inside</Text>
+                        <View style={styles.cardHair}>
+                            {d.curriculum.map((w, i) => (
+                                <Accordion
+                                    key={i}
+                                    title={w.title}
+                                    open={openWeek === i}
+                                    onToggle={() => setOpenWeek(openWeek === i ? -1 : i)}
+                                >
+                                    {w.lessons.map((l, j) => (
+                                        <View key={j} style={styles.lessonRow}>
+                                            <Ionicons name="lock-closed-outline" size={14} color={MUTE} />
+                                            <Text style={styles.lessonText}>{l}</Text>
+                                        </View>
+                                    ))}
+                                </Accordion>
+                            ))}
+                        </View>
+                    </View>
+                ) : null}
+
+                {/* Creator maxx — bio (identity row above owns name/handle). */}
+                {creatorMaxx && d.bio ? (
+                    <View style={styles.block}>
+                        <Text style={styles.sectionLabel}>About {item.creator.name}</Text>
+                        <Text style={[styles.bioText, { marginTop: 0 }]}>{d.bio}</Text>
                     </View>
                 ) : null}
 
@@ -612,7 +802,7 @@ export default function MaxDetailScreen() {
                     </View>
                 ) : null}
 
-                {isCourse && d.curriculum?.length ? (
+                {isCourse && !creatorMaxx && d.curriculum?.length ? (
                     <View style={styles.block}>
                         <Text style={styles.sectionLabel}>What's inside</Text>
                         {readerCourseId ? (
@@ -647,7 +837,7 @@ export default function MaxDetailScreen() {
                     </View>
                 ) : null}
 
-                {isCourse && d.bio ? (
+                {isCourse && !creatorMaxx && d.bio ? (
                     <View style={styles.block}>
                         <Text style={styles.sectionLabel}>Your instructor</Text>
                         <View style={styles.creatorRowInline}>
@@ -727,7 +917,13 @@ export default function MaxDetailScreen() {
                             <ActivityIndicator color={INK} />
                         ) : (
                             <Text style={styles.ctaGlassText} numberOfLines={1}>
-                                {item.entered ? 'Open' : readerCourseId ? 'Add to schedule' : isCourse ? 'Enroll' : 'Start my plan'}
+                                {creatorMaxx
+                                    ? item.entered
+                                        ? (isOwner ? 'Open Studio' : 'Open')
+                                        : item.price_cents > 0
+                                            ? `Subscribe · ${item.price_label}`
+                                            : 'Start free'
+                                    : item.entered ? 'Open' : readerCourseId ? 'Add to schedule' : isCourse ? 'Enroll' : 'Start my plan'}
                             </Text>
                         )}
                     </TouchableOpacity>
@@ -762,6 +958,24 @@ const styles = StyleSheet.create({
         width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
         backgroundColor: 'rgba(255,255,255,0.86)',
     },
+
+    // Creator art hero (full-bleed, fades into the page)
+    artHero: { width: '100%', height: 300, overflow: 'hidden', backgroundColor: CANVAS },
+
+    // Creator identity row
+    idAvatarRing: {
+        width: 52, height: 52, borderRadius: 26, borderWidth: 2, padding: 2,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    idAvatar: { width: '100%', height: '100%', borderRadius: 22 },
+    idNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    idTagline: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: SUB, marginTop: 3, lineHeight: 17 },
+
+    // Creator daily-program rows
+    habitRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+    habitDisc: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    habitTitle: { flex: 1, fontFamily: 'Matter-Medium', fontSize: 14.5, color: INK },
+    habitMeta: { fontFamily: 'Matter-Regular', fontSize: 12, color: MUTE },
 
     // Jelly-icon hero (photo-free)
     hero: { width: '100%', height: 312, backgroundColor: CANVAS, alignItems: 'center', justifyContent: 'center' },

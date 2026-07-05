@@ -32,13 +32,13 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import api, { type MarketplaceItem } from '../../services/api';
-import { maxMeta } from '../../utils/scheduleAggregation';
+import api, { isCreatorMaxx, type MarketplaceItem } from '../../services/api';
+import { maxMeta, hexA, registerMaxMeta } from '../../utils/scheduleAggregation';
 import { useFlag } from '../../constants/featureFlags';
 import { usePersonalization } from '../../hooks/usePersonalization';
 import { rankByGoals } from '../../lib/personalization';
 
-const CACHE_KEY = 'marketplace_cache_v1';
+const CACHE_KEY = 'marketplace_cache_v2';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 async function readCache(): Promise<{ maxxes: MarketplaceItem[]; courses: MarketplaceItem[] } | null> {
@@ -57,6 +57,16 @@ async function writeCache(data: { maxxes: MarketplaceItem[]; courses: Marketplac
     try {
         await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
     } catch {}
+}
+
+/** Register each creator maxx's accent/icon/label so Home/Planner/Profile
+ *  chips tint from the same source as the marketplace card. */
+function registerCreatorMeta(courses: MarketplaceItem[] | undefined) {
+    for (const c of courses || []) {
+        if (isCreatorMaxx(c)) {
+            registerMaxMeta(c.id, { color: c.color, icon: c.icon, label: c.title });
+        }
+    }
 }
 
 // Onboarding "Stoic" black-and-white palette (matches OnboardingV2Screen).
@@ -197,12 +207,14 @@ export default function MarketplaceScreen() {
                 if (cached) {
                     setMaxxes(cached.maxxes || []);
                     setCourses(cached.courses || []);
+                    registerCreatorMeta(cached.courses);
                     setLoading(false);
                 }
             }
             const data = await api.getMarketplace();
             setMaxxes(data.maxxes || []);
             setCourses(data.courses || []);
+            registerCreatorMeta(data.courses);
             void writeCache(data);
         } catch (e: any) {
             const status = e?.response?.status;
@@ -290,7 +302,13 @@ export default function MarketplaceScreen() {
 
     // Refetch entitlements on return (a completed purchase shows entered).
     useEffect(() => {
-        const unsub = navigation.addListener?.('focus', () => { if (!loading) void load(); void loadMine(); void loadMyApp(); });
+        const unsub = navigation.addListener?.('focus', () => {
+            // load() also refreshes the creator cards' entered/Subscribed state
+            // after a subscribe round-trip (they ride the marketplace payload).
+            if (!loading) void load();
+            void loadMine();
+            void loadMyApp();
+        });
         return unsub;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [navigation, loading]);
@@ -319,13 +337,18 @@ export default function MarketplaceScreen() {
     const fMaxxes = useMemo(() => maxxes.filter(matches), [maxxes, matches]);
     const fCourses = useMemo(() => courses.filter(matches), [courses, matches]);
 
-    // Creator courses are temporarily disabled. The Creator tab shows a
-    // "coming soon" state and courses are excluded from All — native maxes
-    // only. (fCourses is still computed so re-enabling is a one-line change.)
-    const baseCombined = useMemo<MarketplaceItem[]>(
-        () => (tab === 'creator' || tab === 'mine' ? [] : fMaxxes),
-        [tab, fMaxxes],
-    );
+    // Creator maxxes ride the marketplace payload (courses[] with
+    // creator_maxx=true) — they render as first-class cards on the Creator tab
+    // AND appended to All. Legacy seed "courses" stay excluded from All —
+    // natives only, exactly as before.
+    const creatorCards = useMemo(() => fCourses.filter(isCreatorMaxx), [fCourses]);
+    const hasCreatorCards = useMemo(() => courses.some(isCreatorMaxx), [courses]);
+    const baseCombined = useMemo<MarketplaceItem[]>(() => {
+        if (tab === 'mine') return [];
+        if (tab === 'creator') return creatorCards;
+        if (tab === 'native') return fMaxxes;
+        return [...fMaxxes, ...creatorCards];
+    }, [tab, fMaxxes, creatorCards]);
     // Quietly float the maxes that match the user's goals to the top — reorder
     // only, never hide. Off / no-goals → original order (cold-start identical).
     const personalizedUI = useFlag('personalizedUI');
@@ -338,15 +361,19 @@ export default function MarketplaceScreen() {
         [personalizedUI, goalIds, baseCombined],
     );
     const suggested = useMemo(() => combined.slice(0, 5), [combined]);
-    const emptyMsg = tab !== 'creator' && tab !== 'mine' && combined.length === 0
-        ? (q ? `No matches for “${query.trim()}”.` : 'Nothing here yet.')
-        : null;
+    // Creator tab with NO live creators keeps the "coming soon" block as its
+    // genuine empty state (below) — the search empty-message only applies once
+    // creator cards actually exist.
+    const emptyMsg =
+        tab !== 'mine' && combined.length === 0 && !(tab === 'creator' && !hasCreatorCards)
+            ? (q ? `No matches for “${query.trim()}”.` : 'Nothing here yet.')
+            : null;
 
     const open = (item: MarketplaceItem) => navigation.push('MaxDetail', { item });
 
     const featureW = Math.min(320, width - GUTTER * 2 - 36);
     const gridW = (width - GUTTER * 2 - 14) / 2;
-    const gridLabel = tab === 'native' ? 'All maxes' : tab === 'creator' ? 'All courses' : 'All';
+    const gridLabel = tab === 'native' ? 'All maxes' : tab === 'creator' ? 'Creators' : 'All';
 
     // Search slides from a 42px circle (right) to the full content width,
     // fading the title out underneath it.
@@ -464,9 +491,10 @@ export default function MarketplaceScreen() {
                     )
                 ) : null}
 
-                {/* Creator tab — "coming soon" plus a call for creators to apply
-                    to host their own max (first come, first served). */}
-                {tab === 'creator' ? (
+                {/* Creator tab — creator maxxes render in the shared poster grid
+                    below (from the marketplace payload). When none are live yet,
+                    the "coming soon" block is the genuine empty state. */}
+                {tab === 'creator' && !hasCreatorCards ? (
                     <View style={[styles.gutter, styles.comingSoon]}>
                         <View style={styles.creatorIconWrap}>
                             <CreatorMorphIcon size={92} />
@@ -549,6 +577,42 @@ export default function MarketplaceScreen() {
                         </View>
                     </>
                 ) : null}
+
+                {/* Creator tab keeps "Host your own max" below the grid. */}
+                {tab === 'creator' && hasCreatorCards ? (
+                    <View style={[styles.gutter, styles.creatorListApply]}>
+                        {myApp ? (
+                            <View style={styles.appliedPill}>
+                                <Ionicons name="checkmark-circle" size={16} color={INK} />
+                                <Text style={styles.appliedText}>
+                                    {myApp.status === 'approved'
+                                        ? `“${myApp.max_name}” approved — we'll be in touch`
+                                        : myApp.status === 'rejected'
+                                            ? 'Application reviewed — check your email'
+                                            : `“${myApp.max_name}” is under review`}
+                                </Text>
+                            </View>
+                        ) : (
+                            <>
+                                <TouchableOpacity
+                                    style={styles.applyBtnWrap}
+                                    onPress={() => navigation.navigate('CreatorApply')}
+                                    activeOpacity={0.85}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Apply to host your own max"
+                                >
+                                    <LiquidGlass radius={25} contentStyle={styles.applyBtnContent}>
+                                        <Text style={styles.applyBtnText}>Host your own max</Text>
+                                        <Ionicons name="arrow-forward" size={17} color={INK} />
+                                    </LiquidGlass>
+                                </TouchableOpacity>
+                                <Text style={styles.applyHint}>
+                                    First come, first served.
+                                </Text>
+                            </>
+                        )}
+                    </View>
+                ) : null}
             </ScrollView>
 
             {/* SC4 — Tune habits sheet for an onboarded max, pre-filled with current prefs. */}
@@ -620,16 +684,23 @@ function MyMaxCard({ mx, onPress, onTune }: { mx: MyMax; onPress: () => void; on
     );
 }
 
-/** Cover image + dark scrim + serif title — the shared poster look. */
+/** Cover image + dark scrim + serif title — the shared poster look. Cards with
+ *  no art get an accent-tinted field with a large serif monogram instead of a
+ *  bare color slab (the scrim + title + @handle overlay still sit on top). */
 function PosterContent({ item }: { item: MarketplaceItem }) {
     const base = item.color || GOLD;
     const isCreator = !item.native;
+    const cover = item.image_url ? api.resolveAttachmentUrl(item.image_url) : undefined;
     return (
         <>
-            {item.image_url ? (
-                <Image source={{ uri: item.image_url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+            {cover ? (
+                <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
             ) : (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: base }]} />
+                <View style={[StyleSheet.absoluteFill, styles.monogramField, { backgroundColor: hexA(base, 0.16) }]}>
+                    <Text style={[styles.monogramGlyph, { color: base }]}>
+                        {((item.title || '?').trim().charAt(0) || '?').toUpperCase()}
+                    </Text>
+                </View>
             )}
             <LinearGradient
                 colors={['rgba(20,18,23,0)', 'rgba(20,18,23,0.35)', 'rgba(20,18,23,0.88)']}
@@ -643,6 +714,16 @@ function PosterContent({ item }: { item: MarketplaceItem }) {
                 </View>
             ) : null}
         </>
+    );
+}
+
+/** "Subscribed" mini-pill — replaces the price on entered creator-maxx cards. */
+function SubscribedPill() {
+    return (
+        <View style={styles.subscribedPill}>
+            <Ionicons name="checkmark-circle" size={12} color={CREAM} />
+            <Text style={styles.subscribedPillText}>Subscribed</Text>
+        </View>
     );
 }
 
@@ -673,7 +754,11 @@ function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: n
             <View style={styles.featureBody}>
                 <Text style={styles.featureTitle} numberOfLines={1}>{item.title}</Text>
                 <Text style={styles.featureSub} numberOfLines={2}>{item.tagline}</Text>
-                <View style={styles.pricePill}><Text style={styles.pricePillText}>{item.price_label}</Text></View>
+                {item.entered && isCreatorMaxx(item) ? (
+                    <View style={{ marginTop: 12 }}><SubscribedPill /></View>
+                ) : (
+                    <View style={styles.pricePill}><Text style={styles.pricePillText}>{item.price_label}</Text></View>
+                )}
             </View>
         </TouchableOpacity>
     );
@@ -698,7 +783,11 @@ function GridCard({ item, width, onPress }: { item: MarketplaceItem; width: numb
             <PosterContent item={item} />
             <View style={styles.gridBody}>
                 <Text style={styles.gridTitle} numberOfLines={2}>{item.title}</Text>
-                <Text style={styles.gridSub} numberOfLines={1}>{item.price_label}</Text>
+                {item.entered && isCreatorMaxx(item) ? (
+                    <View style={{ marginTop: 6 }}><SubscribedPill /></View>
+                ) : (
+                    <Text style={styles.gridSub} numberOfLines={1}>{item.price_label}</Text>
+                )}
             </View>
         </TouchableOpacity>
     );
@@ -825,4 +914,18 @@ const styles = StyleSheet.create({
         borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5,
     },
     nativePricePillText: { fontFamily: 'Matter-SemiBold', fontSize: 12, color: ON_INK, letterSpacing: 0.2 },
+
+    creatorListApply: { alignItems: 'center', marginTop: 16 },
+
+    // Art-less poster fallback: accent-tinted field + large serif monogram.
+    monogramField: { alignItems: 'center', justifyContent: 'center' },
+    monogramGlyph: { fontFamily: SERIF, fontSize: 64, letterSpacing: -1, marginBottom: 18 },
+
+    // "Subscribed" mini-pill (entered creator maxxes) — ink pill, cream text.
+    subscribedPill: {
+        flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+        backgroundColor: '#111113', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
+        borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.4)',
+    },
+    subscribedPillText: { fontFamily: 'Matter-SemiBold', fontSize: 11.5, color: CREAM, letterSpacing: 0.2 },
 });
