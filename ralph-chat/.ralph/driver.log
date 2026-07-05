@@ -124,3 +124,5 @@ Done. F-019 is fixed — added a guardrail at the end of `_finalize_assistant_me
 ===== ralph-chat iteration 9  2026-07-05T15:39:13Z =====
 F-020 fixed. The anti-clarifier safety net detects when the agent fires a `[CHOICES]` MCQ for an explicit multi-domain plan request and retries with a PLAN-BUILD OVERRIDE that forces the model to build the plan with default assumptions instead. ERR-01 seeds 6 and 13 now pass; CLAR-01/CLAR-02 unaffected. No open findings remain (F-007 quarantined). Next iteration should run the full battery.
 ===== ralph-chat iteration 10  2026-07-05T15:51:04Z =====
+Full battery seed 7 ran clean: 35/36 deterministic pass (VIS-04 quarantined F-007 only), all judge dimensions ≥4/5. clean_streak is now 1 — need one more consecutive clean pass to reach PROJECT COMPLETE. The next iteration should run the full battery again with seed 8.
+===== ralph-chat iteration 11  2026-07-05T15:58:55Z =====

@@ -1,1 +1,2 @@
 F-010 is closed. All 12 findings are now resolved (10 fixed, 1 quarantined F-007, 1 passively fixed). Next iteration will run the full battery — no open findings remain.
+Full battery seed 7 ran clean: 35/36 deterministic pass (VIS-04 quarantined F-007 only), all judge dimensions ≥4/5. clean_streak is now 1 — need one more consecutive clean pass to reach PROJECT COMPLETE. The next iteration should run the full battery again with seed 8.

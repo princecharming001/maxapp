@@ -1,3 +1,10 @@
+### 2026-07-05T16-00Z — iter 24 — FULL BATTERY (seed 8), 3 judge failures
+- found/did: 33/36 deterministic-pass (VIS-04 quarantined F-007; XMEM-03 and VIS-03 known flaky). Judged all 31 needs_judge transcripts. Three judge failures: (1) ERR-01 answers_the_question=3/actionability=3 — model ends response with "here's your 12-week progression:" but emits no table block; anti-clarifier retry didn't trigger (no [CHOICES] in response); REGRESSION of F-020. (2) MEM-01 turn2 uses_user_context=3 — "and when should i eat it?" answered with product recommendation + vague "post-workout window" without referencing stated 6am timing; REGRESSION of F-017. (3) VIS-12 answers_the_question=3/actionability=3 — user asked for 4 block types (table, timeline, checklist, stats), only product table delivered; NEW finding F-021. Reopened F-020 and F-017; opened F-021. clean_streak → 0.
+- battery: FULL seed 8: 33/36 deterministic-pass; judge failures: ERR-01 (F-020 reopened), MEM-01-turn2 (F-017 reopened), VIS-12 (F-021 new); quarantined: VIS-04 (F-007)
+- files: ralph-chat/FINDINGS.md, ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md, ralph-chat/state/runs/2026-07-05T16-00-14Z/
+- tests: no code changed, no new pytest
+- next: fix F-020 (ERR-01 regression — plan block missing when no [CHOICES] fired, class: model-never-emits-block, priority 2) or F-017 (MEM-01 regression — 6am timing still not used in turn 2, class: within-thread-memory-miss, priority 3)
+
 ### 2026-07-05T15-52Z — iter 23 — FULL BATTERY (seed 7) — clean
 - found/did: 35/36 deterministic-pass (VIS-04 quarantined F-007, expected). Judged all needs_judge turns across all transcripts — all dimensions ≥4/5. No new or reopened findings. clean_streak → 1.
 - battery: FULL seed 7: 35/36 deterministic-pass; judge: all dims ≥4 (ERR-01 answers_the_question=5/actionability=5; VIS-08 answers_the_question=5; MEM-01 uses_user_context=5; XMEM-03 uses_user_context=5; MEM-02/CLAR-02/CLAR-03/XMEM-01/XMEM-02 all ≥4). Quarantined: VIS-04 (F-007).

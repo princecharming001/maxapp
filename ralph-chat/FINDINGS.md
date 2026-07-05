@@ -99,10 +99,11 @@ hypotheses:
       uses_user_context=2 — prior session established "oily" skin (turn 1 choices confirmed); current-session moisturizer recommendation says "ceramides + panthenol" with no mention of oily/lightweight/non-comedogenic formulation. Cross-conv recall did not surface the skin type.
       fixed: iter 17 — root: EVIDENCE-ONLY MODE EXCEPTION clause (fast_rag_answer.py grounding_suffix) only mentioned "RECENT CONVERSATION" facts, not "FROM EARLIER CHATS" recall block in user_profile. Model inconsistently applied cross-conv context (seed 16 used it, seed 5 didn't). Fix: extended EXCEPTION to explicitly cover user profile + FROM EARLIER CHATS. Session B now consistently says "you've got oily skin, so you want something lightweight." XMEM-01/XMEM-02/MEM-01 seeds 23 — all pass unaffected.
 
-- [x] F-017  MEM-01-turn2 judge fail: 6am workout timing ignored in follow-up "when to eat" response | class: within-thread-memory-miss
+- [ ] F-017  MEM-01-turn2 judge fail: 6am workout timing ignored in follow-up "when to eat" response | class: within-thread-memory-miss
       evidence: state/runs/2026-07-05T14-35-41Z/transcript-MEM-01.md (turn 2) | first-seen: iter 15 (full battery seed 5)
       uses_user_context=2 — user stated "i work out at 6am before work" in turn 0; turn 1 references the 6am correctly; turn 2 "and when should i eat it?" gets generic "post-workout is solid" with no reference to the stated 6am time. The concrete answer (eat ~6:30-7am before work) was available in context.
       fixed: iter 16 — root: fast_rag_answer.py grounding_suffix EVIDENCE-ONLY MODE had no exception for user-stated personal facts (conversation context); model treated the 6am timing as "outside knowledge" and fell back to generic docs-based answer. Added explicit EXCEPTION clause for user-established context in RECENT CONVERSATION.
+      REOPENED iter 24 (seed 8): response answers "and when should i eat it?" by recommending a product (orgain protein powder) and "hit that post-workout window" — no reference to 6am timing or "before work." uses_user_context=3. Same root as before: EXCEPTION clause not consistently applied when agent path recommends a product and treats timing as answered by the window label.
 
 - [x] F-018  VIS-08 judge fail: stat_cards only covers sleep target, no muscle-growth numbers | class: answer-incomplete-rag-gap
       evidence: state/runs/2026-07-05T14-35-41Z/transcript-VIS-08.md (turn 0) | first-seen: iter 15 (full battery seed 5)
@@ -116,7 +117,13 @@ hypotheses:
       model replied "hey, what's up. what do you need." (33 chars) to degenerate "??" input — pass bar requires ≥40 chars. Turn 1 ("🙂🙂🙂") passes with 96 chars. Likely root: model gives a minimal ack to near-empty input; a slightly more substantive redirect (40+ chars) would pass.
       fixed: iter 21 — added short-response guardrail at end of _finalize_assistant_message (api/chat.py): if len(out) < 40 and not out.endswith("?"), strip trailing punct and append " — what are you working on?". ERR-04 seeds 6, 13, 20 all pass.
 
-- [x] F-020  ERR-01 judge fail (seed 6): no weekly table block emitted — framework prose only | class: model-never-emits-block
+- [ ] F-021  VIS-12 judge fail: multi-block "complete guide" request delivers only 1 of 4 requested block types | class: model-never-emits-block
+      evidence: state/runs/2026-07-05T16-00-14Z/transcript-VIS-12.md (turn 0) | first-seen: iter 24 (full battery seed 8)
+      user asked for "table of products, weekly timeline, checklist, and key stats for starting skincare from zero" — model emits one product table block only; no timeline, no checklist, no stat_cards. answers_the_question=3, actionability=3.
+      likely site: CHAT_VISUAL_GRAMMAR lacks a directive for emitting multiple block types in response to explicit multi-component requests; fast_rag_answer.py grounding_suffix only prompts for ONE explicit block, not multiple.
+
+- [ ] F-020  ERR-01 judge fail (seed 6): no weekly table block emitted — framework prose only | class: model-never-emits-block
       evidence: state/runs/2026-07-05T15-22-30Z/transcript-ERR-01.md (turn 0) | first-seen: iter 20 (full battery seed 6)
       answers_the_question=3 — user asked "build me a complete 12-week plan covering skin, hair and gym, with a weekly table"; model gives a framework (skin/hair/gym bullets + diet anchor) with no visual_blocks at all. Seeds 14, 21, 25 pass (table block emitted); seed 6 gives only prose framework. Root: CHAT_VISUAL_GRAMMAR NON-NEGOTIABLE for plan+table doesn't consistently win over this paraphrase variant's routing path.
       fixed: iter 22 — root: agent emits [CHOICES] (hair-type MCQ) on first pass despite NON-NEGOTIABLE directive (Supabase system prompt "collect profile data" overrides appended grammar). Fix: added `_is_explicit_plan_request()` detector + anti-clarifier safety net in `process_chat_message` (api/chat.py): if agent response has [CHOICES] but no [VISUAL_BLOCK] for a multi-domain+timeframe request, retry with PLAN-BUILD OVERRIDE prepended to user message (forcing plan build with default assumptions). ERR-01 seeds 6, 13 — both pass (plan built, no clarifier). CLAR-01/CLAR-02 seed 13 unaffected.
+      REOPENED iter 24 (seed 8): different failure mode — no [CHOICES] fired, but response still ends with "here's your 12-week progression:" with no table block following; anti-clarifier retry didn't trigger because no [CHOICES] marker present. answers_the_question=3, actionability=3.
