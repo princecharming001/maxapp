@@ -286,3 +286,10 @@
 - files: backend/api/auth.py, ralph-chat/FINDINGS.md
 - tests: no extraction logic changed; baseline: 16 pre-existing failures, no new failures (778 pass)
 - next: run full battery (all findings now closed — F-007 quarantined [!], all others [x])
+
+### 2026-07-05T19-40Z — iter 40 — F-009/F-010: table-vs-comparison + stat_cards inline-bold fixes
+- found/did: F-009 root: comparison NON-NEGOTIABLE in CHAT_VISUAL_GRAMMAR didn't explicitly list "side by side in a table" as a table-format trigger, so "put X and Y side by side in a table" still fired comparison path. F-010 root: "give me the numbers... bold each stat" → model formatted stats as inline bold prose (**7-9 hours**) instead of stat_cards block; fast_rag grounding suffix didn't explicitly forbid inline bold. Fixes: (1) prompt_constants.py comparison NON-NEGOTIABLE + table bullet — added "side by side in a table", "in a table", "as a table" as explicit table-wins triggers; (2) CHAT_VISUAL_GRAMMAR stat_cards NON-NEGOTIABLE — added "give me the numbers", "bold each stat", "bold the stats" to trigger list + CRITICAL callout forbidding inline bold stats; (3) fast_rag_answer.py stat_cards grounding suffix — explicitly forbid inline bold number formatting, require stat_cards block.
+- battery: VIS-07 seeds 13+20 pass; VIS-08 seeds 13+20 pass; VIS-07/VIS-08/VIS-09 seed 20 all pass
+- files: backend/services/prompt_constants.py, backend/services/fast_rag_answer.py, ralph-chat/FINDINGS.md
+- tests: no extraction logic changed; baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: fix F-021 (VIS-12 multi-block only emits 2/4 types) then F-024 (VIS-13 clarifier instead of table)

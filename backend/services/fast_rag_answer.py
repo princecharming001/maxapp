@@ -610,7 +610,7 @@ COMPARISON BLOCK RULE: The user asked to compare options. You MUST emit a `compa
         _stat_cards_extra = ""
         if is_stat_cards_request:
             _stat_cards_extra = """
-STAT CARDS BLOCK RULE: The user asked for numbers/stats/metrics. You MUST emit a `stat_cards` [VISUAL_BLOCK] containing the key quantitative data points (e.g. percentages, timeframes, dosages, rates). Do NOT answer with a routine recommendation or product suggestions — answer the numbers question directly. Do NOT say "the docs don't have those stats" as a reason to skip the block — use your general clinical knowledge to fill the cards. Saying "I don't see those numbers in the docs" while failing to emit any stat_cards block is a failure. Emit the stat_cards block NOW with ≥3 cards using general knowledge.
+STAT CARDS BLOCK RULE: The user asked for numbers/stats/metrics with emphasis ("bold the numbers", "key stats", etc.). You MUST emit a `stat_cards` [VISUAL_BLOCK] containing the key quantitative data points (e.g. percentages, timeframes, dosages, rates). CRITICAL: do NOT format those stats as inline bold text (e.g. **7-9 hours** or **70-80%**) inside prose — that is the wrong format when a stat_cards block was requested. Every bold number or percentage belongs inside the stat_cards block, not in prose. Do NOT answer with a routine recommendation — answer the numbers question directly. Do NOT say "the docs don't have those stats" — use your general clinical knowledge to fill the cards. Emit the stat_cards block NOW with ≥3 cards using general knowledge.
 """
         grounding_suffix = f"""
 
