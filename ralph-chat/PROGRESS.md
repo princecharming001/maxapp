@@ -1,3 +1,10 @@
+### 2026-07-05T18-35Z — iter 34 — F-024 build-table clarifier guardrail
+- found/did: root at CHAT_VISUAL_GRAMMAR table bullet (prompt_constants.py:316) — MANDATORY rule covered explicit "table" requests but not "build/make/create a table" without a specified topic; model defaulted to clarifying question. Fix: extended table bullet to say "if no topic specified, pick a relevant topic from context/persona and emit immediately — DO NOT ask."
+- battery: VIS-13 seeds 34, 41 pass (paraphrase 1 now emits table directly); VIS-07/08/09 seed 41 pass (no regressions)
+- files: backend/services/prompt_constants.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (prompt-only change, not extraction/normalization logic); baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: fix F-019 REGRESSION (ERR-04 — agent path misses short-response guardrail; marker corrected to [ ] this iter; root: agent-path finalization at api/chat.py:3874-3876 omits _finalize_assistant_message short-response check)
+
 ### 2026-07-05T18-32Z — iter 33 — FULL BATTERY seed 11, 2 regressions
 - found/did: battery seed 11 — 35/36 deterministic-pass (VIS-04 quarantined F-007, expected). Judged all 31 needs_judge turns. Two failures: (1) ERR-04 turn0 prose_nonempty FAIL (len=33) — REGRESSION of F-019; root: "??" takes agent path that falls through to lines 3874-3876 global finalization (normalize+strip_amazon+keep_bold.lower()) instead of an early-return _finalize_assistant_message call, so the short-response guardrail never fires (api/chat.py:3874-3876 vs :559-561); (2) VIS-13 turn0 answers_the_question=2 — NEW FINDING F-024; user says "put 'AM | PM' as a cell value in a table you build for me"; model asks "what should the table show?" with 4 options instead of picking a topic and building; pure clarifier, no table emitted.
 - battery: FULL seed 11: 35/36 deterministic-pass; judge failures: ERR-04 (F-019 reopened), VIS-13 (F-024 new); quarantined: VIS-04 (F-007)
