@@ -158,3 +158,55 @@ async def test_specific_question_passes_through():
               "what skincare should i use for acne"):
         out = await _broad_question_mcq("u1", q, _FakeDB())
         assert out is None, q
+
+
+# ---------------------------------------------------------------------------
+# Fact-first guard: broad MCQ skips when the brief's searchable already
+# names a specific concern — the CLAR-02 regression guard.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_fact_first_skips_when_concern_known(monkeypatch):
+    """If the brief already contains 'acne breakouts', the broad skincare MCQ
+    must return None (not re-ask what we already know)."""
+    from services.user_brief import UserBrief
+
+    known_brief = UserBrief(
+        user_id="u1",
+        searchable="my main skin concern is acne breakouts",
+    )
+
+    async def _fake_brief(user_id, db, **kw):
+        return known_brief
+
+    monkeypatch.setattr("services.user_brief.assemble_user_brief", _fake_brief)
+    out = await _broad_question_mcq("u1", "give me a skincare routine", _FakeDB())
+    assert out is None, "MCQ should be suppressed when concern is already in brief"
+
+
+@pytest.mark.asyncio
+async def test_fact_first_fires_when_concern_unknown(monkeypatch):
+    """Confirm the gate still fires for a truly unknown concern."""
+    from services.user_brief import UserBrief
+
+    empty_brief = UserBrief(user_id="u1", searchable="")
+
+    async def _fake_brief(user_id, db, **kw):
+        return empty_brief
+
+    monkeypatch.setattr("services.user_brief.assemble_user_brief", _fake_brief)
+    out = await _broad_question_mcq("u1", "give me a skincare routine", _FakeDB())
+    assert out is not None, "MCQ should fire when concern is not in brief"
+
+
+def test_invalidate_brief_clears_cache():
+    """invalidate_brief must remove the cache entry so the next call re-queries."""
+    import time
+    from services.user_brief import _CACHE, invalidate_brief, UserBrief
+
+    uid = "test-invalidate-u99"
+    _CACHE[uid] = (time.time(), UserBrief(user_id=uid, searchable="old data"))
+    assert uid in _CACHE
+
+    invalidate_brief(uid)
+    assert uid not in _CACHE

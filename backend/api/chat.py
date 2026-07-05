@@ -5105,6 +5105,12 @@ async def _send_message_locked(
             await db.commit()
         except Exception:
             await db.rollback()
+        # Flush the brief cache so the NEXT turn sees the message just stored.
+        try:
+            from services.user_brief import invalidate_brief as _invalidate_brief
+            _invalidate_brief(user_id)
+        except Exception:
+            pass
     elif broad_mcq is not None:
         response_text, choices, _broad_multi = broad_mcq
         try:
@@ -5114,6 +5120,12 @@ async def _send_message_locked(
             await db.commit()
         except Exception:
             await db.rollback()
+        # Flush the brief cache so the NEXT turn sees the message just stored.
+        try:
+            from services.user_brief import invalidate_brief as _invalidate_brief
+            _invalidate_brief(user_id)
+        except Exception:
+            pass
         # Short-circuit: skip bg fact-extraction-affecting paths below is fine;
         # return directly with the canonical multi flag so chips render right.
         conv_id = data.conversation_id
@@ -5158,6 +5170,13 @@ async def _send_message_locked(
                 conversation_id=data.conversation_id,
                 reply_to_message_id=data.reply_to_message_id,
             )
+            # Flush the brief cache so the NEXT turn's broad-question gate
+            # sees this turn's user message (stored inside process_chat_message).
+            try:
+                from services.user_brief import invalidate_brief as _invalidate_brief
+                _invalidate_brief(user_id)
+            except Exception:
+                pass
 
     conv_id = data.conversation_id
     if not conv_id:

@@ -1,3 +1,10 @@
+### 2026-07-05T12-10Z — iter 1 — F-002 clarifier re-asks known concern
+- found/did: root cause at api/chat.py:2638 — `assemble_user_brief` is called and cached BEFORE turn 0's user message is committed to DB; when turn 1 runs `_broad_question_mcq` within 30s, the stale cache hit makes `knows(_SKIN_SPECIFIC_RE)` return False → clarifier fires. Fix: call `invalidate_brief(user_id)` after each DB commit in `_send_message_locked` (driver path line 5105, broad_mcq path line 5114, process_chat_message path line 5160).
+- battery: CLAR-01, CLAR-02, CLAR-03 all pass (seed 8). CLAR-02 passed with different seed (8 vs original 1).
+- files: backend/api/chat.py, backend/tests/test_chat_mcq_products.py
+- tests: 3 new tests added to test_chat_mcq_products.py (fact_first_skips_when_concern_known, fact_first_fires_when_concern_unknown, invalidate_brief_clears_cache) — 18/18 pass; baseline: 16 pre-existing failures, no new failures (729 pass)
+- next: fix F-003 (onboarding-intake-degrades) or F-001 (model-never-emits-block)
+
 ### 2026-07-05T11-55Z — iter 0 — HARNESS BUILT
 - found/did: built the full ralph-chat harness (client.py, preflight.py, validator.py, checks.py, scenarios.py, runner.py) + the 36-scenario battery + RUBRIC.md + RALPH_PROMPT.md + ralph.sh + report.py. Hand-validated all 5 scenario `kind`s against the live backend (:8002, LLM_PROVIDER=claude).
 - battery: not yet run in full — hand-ran 8 scenarios (VIS-01, CLAR-02, ERR-04, ERR-02, ERR-03, XMEM-03, ONB-02, SMOKE-01) across all 5 kinds to shake out harness bugs before trusting it.
