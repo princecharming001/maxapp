@@ -2068,6 +2068,67 @@ class ApiService {
         return response.data;
     }
 
+    // Admin: creator applications (approve / reject / provision)
+    async getAdminCreatorApplications(
+        statusFilter: 'pending' | 'approved' | 'rejected' = 'pending',
+        skip: number = 0,
+        limit: number = 100,
+    ) {
+        const response = await this.client.get('admin/creator-applications', {
+            params: { status_filter: statusFilter, skip, limit },
+        });
+        return response.data as {
+            applications: Array<{
+                id: string;
+                user_id: string;
+                user_email: string | null;
+                applicant_name: string;
+                max_name: string;
+                max_description: string;
+                instagram_handle: string | null;
+                tiktok_handle: string | null;
+                social_stats: Record<string, any>;
+                status: string;
+                created_at: string | null;
+            }>;
+            skip: number;
+            limit: number;
+        };
+    }
+
+    /** Approve → provisions the Creator (status "onboarding"), flips is_creator. */
+    async approveCreatorApplication(applicationId: string, tier: string) {
+        const response = await this.client.post(
+            `admin/creator-applications/${applicationId}/approve`,
+            { tier },
+        );
+        return response.data as { ok: boolean; creator: any };
+    }
+
+    async rejectCreatorApplication(applicationId: string, notes?: string) {
+        const response = await this.client.post(
+            `admin/creator-applications/${applicationId}/reject`,
+            { notes: notes ?? null },
+        );
+        return response.data as { ok: boolean };
+    }
+
+    /** Force a creator live / paused / taken-down. "live" also approves the Apple SKU. */
+    async setAdminCreatorStatus(creatorId: string, status: 'live' | 'paused' | 'takedown' | 'onboarding') {
+        const response = await this.client.post(`admin/creators/${creatorId}/status`, { status });
+        return response.data as { ok: boolean; creator: any };
+    }
+
+    /** Attach marketplace card art by URL (the manual-first art pipeline). */
+    async setAdminCreatorArt(creatorId: string, artUrl: string) {
+        const form = new FormData();
+        form.append('art_url', artUrl);
+        const response = await this.client.post(`admin/creators/${creatorId}/art`, form, {
+            headers: { 'Content-Type': 'multipart/form-data' }, timeout: 30000,
+        });
+        return response.data;
+    }
+
     async sendAdminDirect(userId: string, content: string) {
         const response = await this.client.post('admin/direct', { user_id: userId, content });
         return response.data;

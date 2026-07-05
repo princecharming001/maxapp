@@ -11,6 +11,7 @@ import ForumManageScreen from '../screens/admin/ForumManageScreen';
 import LeaderboardManageScreen from '../screens/admin/LeaderboardManageScreen';
 import AdminSupportScreen from '../screens/admin/AdminSupportScreen';
 import AdminChannelReportsScreen from '../screens/admin/AdminChannelReportsScreen';
+import AdminCreatorApprovalsScreen from '../screens/admin/AdminCreatorApprovalsScreen';
 import AdminUserChatScreen from '../screens/admin/AdminUserChatScreen';
 import ChannelChatScreen from '../screens/forums/ChannelChatScreen';
 
@@ -79,6 +80,11 @@ export default function AdminNavigator() {
         >
             <Drawer.Screen name="Dashboard" component={AdminDashboard} options={{ drawerIcon: ({ color }) => <Ionicons name="grid-outline" size={22} color={color} /> }} />
             <Drawer.Screen name="Users" component={UserManageScreen} options={{ drawerIcon: ({ color }) => <Ionicons name="people-outline" size={22} color={color} /> }} />
+            <Drawer.Screen
+                name="CreatorApprovals"
+                component={AdminCreatorApprovalsScreen}
+                options={{ title: 'Creator approvals', drawerIcon: ({ color }) => <Ionicons name="ribbon-outline" size={22} color={color} /> }}
+            />
             <Drawer.Screen name="Forums" component={ForumManageScreen} options={{ drawerIcon: ({ color }) => <Ionicons name="chatbubbles-outline" size={22} color={color} /> }} />
             <Drawer.Screen
                 name="ChannelReports"
