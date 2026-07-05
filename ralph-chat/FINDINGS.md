@@ -76,12 +76,13 @@ hypotheses:
 
 --- Found in full-battery run, iter 11 (seed 2) ---
 
-- [ ] F-013  Model doesn't emit comparison block for "compare 2 acne treatment options — include timeframes" phrasing | class: model-never-emits-block
+- [x] F-013  Model doesn't emit comparison block for "compare 2 acne treatment options — include timeframes" phrasing | class: model-never-emits-block
       evidence: state/runs/2026-07-05T13-37-08Z/transcript-VIS-10.md (turn 0) | first-seen: iter 11 (full battery seed 2)
       variant 0 consistently fails (seeds 2, 3, 8); variant 1 flaky (sometimes passes). Root: (1) model hits agent path and asks clarifying "which two options?" before building block; (2) model sees "week 4 — visible change" timeframe in user msg and doesn't know it fits in pros/cons. Fix: CHAT_VISUAL_GRAMMAR NON-NEGOTIABLE extended with anti-clarifier rule ("choose most relevant two options, emit immediately — no clarifying Q first") + "timeframes fit in pros/cons" guidance + updated comparison example showing "Week 4 — visible change" in pros array. VIS-10 passes seeds 2, 8, 9.
       SEC-01/XMEM-03: both flaky (different seed passes); not opened as findings.
       fixed: iter 11 — prompt_constants.py CHAT_VISUAL_GRAMMAR
       REOPENED iter 36 (seed 12): same scenario — model says "your docs don't have a dedicated acne ladder... i can build you a comparison of the two core actives... or i can pull from general acne knowledge... which would be more useful?" — deferred-offer, no block emitted. answers_the_question=2. Anti-clarifier NON-NEGOTIABLE rule not applied for this paraphrase variant. evidence: state/runs/2026-07-05T18-42-40Z/transcript-VIS-10.md (turn 0)
+      fixed: iter 37 — root: `_EXPLICIT_BLOCK_RE` matched "week 4" so grounding_suffix was "STRUCTURED VISUAL — REQUIRED", but it didn't name comparison blocks specifically and Supabase rag_answer_system's skin-profiling instinct still fired. Fix: added `_COMPARISON_REQUEST_RE` to fast_rag_answer.py; when the message contains "compare"/"comparison"/"side-by-side", inject an additional COMPARISON BLOCK RULE paragraph into the grounding_suffix that explicitly forbids asking for skin type and instructs the model to pick the two most relevant options itself. VIS-10 passes seeds 36, 43, 50; VIS-01 seed 50 unaffected.
 
 --- Found in full-battery run, iter 12 (seed 3) ---
 

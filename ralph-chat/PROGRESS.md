@@ -1,3 +1,10 @@
+### 2026-07-05T18-57Z — iter 37 — F-013 REGRESSION fix (VIS-10 comparison block)
+- found/did: root at fast_rag_answer.py — `_EXPLICIT_BLOCK_RE` matched "week 4" so grounding_suffix was STRUCTURED VISUAL REQUIRED, but no comparison-specific anti-clarifier language, so Supabase rag_answer_system's skin-profiling instinct still fired. Fix: added `_COMPARISON_REQUEST_RE` (matches "compare/comparison/side-by-side") at line ~28; when detected, inject COMPARISON BLOCK RULE paragraph into grounding_suffix forbidding skin-type clarifier and instructing model to pick options itself (fast_rag_answer.py ~602–618).
+- battery: VIS-10 seeds 36, 43, 50 — all pass; VIS-01 seed 50 — pass (no regression)
+- files: backend/services/fast_rag_answer.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (grounding_suffix routing change, not extraction/normalization logic); baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: fix F-026 (VIS-03 block_present missing — stat_cards not emitted; class: model-never-emits-block), then F-025 (XMEM-03 choices_present flaky)
+
 ### 2026-07-05T18-50Z — iter 36 — FULL BATTERY seed 12, 3 failures
 - found/did: battery seed 12 — 33/36 deterministic-pass. Judged all 31 needs_judge turns; all non-failing dims score ≥4. Three failures: (1) XMEM-03 turn0 choices_present FAIL — "what skincare should i use?" gets prose question ("is it oily, dry, combination, or sensitive") instead of MCQ choices; flaky, never formally tracked — NEW F-025. (2) VIS-03 turn0 block_present FAIL + answers_the_question=2, actionability=2 — user asks "key numbers on tretinoin results", model responds with moisturizer buffering tips and 4 product cards, no stat_cards block emitted — NEW F-026. (3) VIS-10 turn0 block_present FAIL + answers_the_question=2 — user asks to compare 2 acne treatment options with timeframes; model gives deferred-offer ("which would be more useful?"), no comparison block — REGRESSION of F-013 (reopened).
 - battery: FULL seed 12: 33/36 deterministic-pass; judge failures: VIS-03 (F-026 new), VIS-10 (F-013 reopened); deterministic-only: XMEM-03 (F-025 new); quarantined: VIS-04 (F-007)

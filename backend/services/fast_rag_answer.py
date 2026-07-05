@@ -26,6 +26,11 @@ _EXPLICIT_BLOCK_RE = re.compile(
     re.IGNORECASE,
 )
 
+_COMPARISON_REQUEST_RE = re.compile(
+    r"\b(compare|comparison|pros?\s+and\s+cons?|side[\s-]by[\s-]side)\b",
+    re.IGNORECASE,
+)
+
 # Patterns that each name a distinct visual block type. Used to count how many
 # distinct block types the user explicitly requests in one message.
 _BLOCK_TYPE_PATTERNS: list[re.Pattern] = [
@@ -572,6 +577,7 @@ async def answer_from_chunks(
     )
     length_key = _effective_response_length(message, response_length)
     is_explicit_block_request = bool(_EXPLICIT_BLOCK_RE.search(message or ""))
+    is_comparison_request = bool(_COMPARISON_REQUEST_RE.search(message or ""))
     _distinct_block_types = _count_distinct_block_types(message or "")
     is_multi_block_request = _distinct_block_types >= 2
     if is_multi_block_request:
@@ -587,12 +593,17 @@ CRITICAL: Do NOT ask the user if they want the blocks, and do NOT offer to build
 - You MAY use general knowledge to fill in the requested block structures.
 - Do not include citations or source labels in the final answer.
 """
-    elif is_explicit_block_request:
-        grounding_suffix = """
+    elif is_explicit_block_request or is_comparison_request:
+        _comparison_extra = ""
+        if is_comparison_request:
+            _comparison_extra = """
+COMPARISON BLOCK RULE: The user asked to compare options. You MUST emit a `comparison` [VISUAL_BLOCK] immediately. Do NOT ask what skin type the user has, do NOT ask which two options they mean, do NOT ask for any clarification — choose the two most clinically relevant options (e.g. benzoyl peroxide vs salicylic acid, retinoids vs AHAs, etc.) using your general skincare knowledge. Pick them yourself and emit the block now. Asking ANY clarifying question before the block is a failure.
+"""
+        grounding_suffix = f"""
 
 ## STRUCTURED VISUAL — REQUIRED
-The user explicitly asked for a structured visual format (timeline, table, checklist, etc.). You MUST emit the appropriate [VISUAL_BLOCK]...[/VISUAL_BLOCK] marker as shown in the STRUCTURED VISUALS grammar below. Use docs evidence where available; fill gaps with general knowledge. Emit the block AFTER a brief prose intro — do NOT replace the block with a numbered list.
-
+The user explicitly asked for a structured visual format (timeline, table, checklist, comparison, etc.). You MUST emit the appropriate [VISUAL_BLOCK]...[/VISUAL_BLOCK] marker as shown in the STRUCTURED VISUALS grammar below. Use docs evidence where available; fill gaps with general knowledge. Emit the block AFTER a brief prose intro — do NOT replace the block with a numbered list.
+{_comparison_extra}
 CRITICAL: Do NOT ask the user if they want the structured visual, and do NOT offer to build it later. Build and emit it NOW, in this response. Deferring ("let me know if you want...") when a block was explicitly requested is a failure.
 
 ## EVIDENCE MODE (relaxed for explicit block requests)
