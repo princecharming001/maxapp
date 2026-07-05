@@ -2585,6 +2585,32 @@ async def run_chat_agent(
         _raw_out = " ".join(p for p in _parts if p)
     response_text = (str(_raw_out) if _raw_out else "").strip()
 
+    # When the tool-calling executor issues tool calls but produces no final
+    # text (empty output), fire a plain single-shot call so the turn never
+    # returns a blank. This happens for statement-type messages ("quick heads
+    # up: i'm vegetarian") where the agent calls remember_about_user but
+    # forgets to emit a closing response.
+    if not response_text:
+        try:
+            from services.lc_providers import get_chat_llm_with_fallback as _gcllm
+            from langchain_core.messages import HumanMessage, SystemMessage
+            _ack_llm = _gcllm(max_tokens=80)
+            _ack_resp = await _ack_llm.ainvoke([
+                SystemMessage(content=(
+                    "You are Max, a concise looksmaxxing coach. "
+                    "The user just shared a personal detail or heads-up. "
+                    "Acknowledge it briefly (1-2 sentences, no lists, no headings). "
+                    "Keep Max's lowercase, direct voice."
+                )),
+                HumanMessage(content=message or ""),
+            ])
+            _ack_text = (getattr(_ack_resp, "content", None) or "").strip()
+            if _ack_text:
+                response_text = _ack_text
+                logger.info("[AGENT] empty output recovered via ack call for msg=%.60s", message)
+        except Exception as _ack_err:
+            logger.warning("[AGENT] ack recovery failed: %s", _ack_err)
+
     # Hard-constraint validator: post-check the agent's final answer
     # against user_facts. If the agent recommended chicken to a
     # vegetarian (or any other constraint violation), regen ONCE with a

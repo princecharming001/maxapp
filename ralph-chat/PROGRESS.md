@@ -1,3 +1,10 @@
+### 2026-07-05T12-44Z — iter 5 — F-005 empty-response fix
+- found/did: root at lc_agent.py:2586 — AgentExecutor returns empty output when LLM fires tool calls (remember_about_user) for statement-type messages but emits no final text. Two-layer fix: (1) lc_agent.py — retry once with a plain ack LLM call if output empty; (2) api/chat.py — last-resort fallback "got it — noted..." (>=40 chars) if ack also fails.
+- battery: MEM-01 passes seeds 12 and 1; XMEM-01 seed 12 unaffected
+- files: backend/services/lc_agent.py, backend/api/chat.py, backend/tests/test_empty_response_guard.py (new)
+- tests: 3 new tests in test_empty_response_guard.py — all pass; baseline: 16 pre-existing failures, no new failures (752 pass)
+- next: F-006 (concurrency-empty-reply) — same class (empty-response under lock)
+
 ### 2026-07-05T12-32Z — iter 4 — FULL BATTERY + F-004 marker-leak fix
 - found/did: ran full battery (seed 1); 27/36 clean. Also fixed F-004 in same pass: unclosed [visual_block] markers (truncated LLM output, no closing tag) leaked into prose — fixed at api/chat.py:636 by adding a fallback strip regex after _VISUAL_BLOCK_RE.sub(). New findings: F-005 (empty response in MEM-01), F-006 (concurrency empty reply in ERR-02), F-007–F-010 (block_present failures for timeline/checklist/table/stat_cards), F-011–F-012 (cross-chat memory misses).
 - battery: 27/36 pass seed 1. Failures: VIS-04,VIS-05,VIS-07,VIS-08,VIS-12(fixed),XMEM-01,XMEM-02,MEM-01,ERR-02

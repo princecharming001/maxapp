@@ -32,9 +32,10 @@ hypotheses:
       likely site: _extract_visual_blocks (api/chat.py:636) — _VISUAL_BLOCK_RE requires closing tag; truncated output lacks it so sub() doesn't strip the raw marker
       fixed: iter 4 — added `re.sub(r'\[visual_block\].*', '', clean, flags=IGNORECASE|DOTALL)` after _VISUAL_BLOCK_RE.sub(); strips any unclosed marker + its trailing garbage. VIS-12 passes seed 8; VIS-11, VIS-13 unaffected.
 
-- [ ] F-005  Empty (len=0) prose response — turn returns status=200 but assistant field is blank | class: empty-response
+- [x] F-005  Empty (len=0) prose response — turn returns status=200 but assistant field is blank | class: empty-response
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-MEM-01.md (turn 0 and turn 2) | first-seen: iter 4 (full battery)
       likely site: answer path returns early without setting response text; possibly fast-RAG path returning empty when no chunks match; or per-user lock serialization eating the response body
+      fixed: iter 5 — root: AgentExecutor returns empty output for statement-type messages (e.g. "quick heads up: i'm vegetarian") when the LLM fires tool calls (remember_about_user) but emits no final text. Two-layer fix: (1) lc_agent.py after line 2586 — if response_text is empty, retry once with a plain ack LLM call; (2) process_chat_message guard in api/chat.py — if still empty after agent, substitute a >=40-char fallback. MEM-01 passes seeds 12 and 1.
 
 - [ ] F-006  Concurrent requests: one of two simultaneous responses is empty | class: concurrency-empty-reply
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-ERR-02.md (turn 0 and turn 1) | first-seen: iter 4 (full battery)

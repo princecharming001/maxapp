@@ -3710,6 +3710,13 @@ Ask ONE question at a time. Your very first response must ask the concern questi
             logger.warning("schedule mutation guard overridden despite forced adaptation flag")
 
 
+    # Guard: the LLM agent occasionally returns an empty string for
+    # statement-type messages (no question asked). Never send an empty
+    # response — acknowledge so the turn isn't a blank.
+    if not (response_text or "").strip():
+        response_text = "got it — noted. feel free to ask me anything or let me know what to work on."
+        logger.warning("[chat] empty agent output for user=%s msg=%.80s; using fallback", user_id, message_text)
+
     # --- Numbered-list+bold normalization, strip inline amazon links
     #     (cards carry them), keep **bold**, lowercase to Max voice ---
     response_text = _normalize_list_formatting(response_text)
