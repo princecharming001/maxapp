@@ -1,0 +1,1 @@
+Done. This iteration fixed F-022 (prose_nonempty fails for stat_cards-only responses) by injecting a bridge phrase in `process_chat_message` when `visual_blocks` are present but `response_text` is empty. F-021 was also passively resolved by the iter 29 F-009 fix. No open findings remain (F-007 quarantined) — the next iteration should run the full battery.

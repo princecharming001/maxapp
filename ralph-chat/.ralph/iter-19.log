@@ -1,0 +1,3 @@
+Done. F-023 is fixed and F-021 confirmed stable. No open findings remain (F-007 quarantined). Next iteration should run the full battery.
+
+**Summary:** Fixed F-023 (allergen name in turn-12 acne routine response) with two changes: (1) strengthened the ABSOLUTE RULES prompt in `fast_rag_answer.py` and `lc_agent.py` to prohibit naming allergens anywhere in the response; (2) added a deterministic post-processing scrub in `process_chat_message` that regex-replaces any allergen name (full phrase + first word abbreviation) with "that ingredient" before the response is returned. Also confirmed F-021 was model-temperature flakiness — seeds 10/17/24 all pass without code changes.

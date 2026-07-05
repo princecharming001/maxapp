@@ -10,3 +10,10 @@ Done. Here's what happened this iteration:
 **Fix**: Extended `CHAT_VISUAL_GRAMMAR` comparison NON-NEGOTIABLE to ban pre-block clarifying questions and explicitly show timeframes in the example.
 
 **Next**: Run full battery again (all findings closed/quarantined — need two consecutive clean passes to complete).
+Iteration complete. Seed 8 battery: 33/36 deterministic-pass (known flaky: VIS-03, XMEM-03; quarantined: VIS-04). Three judge failures surfaced:
+
+- **F-020 reopened** (regression): ERR-01 — 12-week plan request gets framework prose ending in "here's your 12-week progression:" with no table block emitted. Prior anti-clarifier fix only catches `[CHOICES]` responses; this variant has no choices but also no block.
+- **F-017 reopened** (regression): MEM-01 turn 2 — "and when should i eat it?" gets a product recommendation + vague "post-workout window" without referencing the stated 6am workout timing.
+- **F-021 new**: VIS-12 — user asked for 4 block types (table, timeline, checklist, stats); only the product table was emitted.
+
+Clean streak reset to 0. Next iteration should fix F-020 (highest priority: model-never-emits-block class for the plan request).

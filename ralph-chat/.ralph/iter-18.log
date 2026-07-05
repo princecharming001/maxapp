@@ -1,0 +1,6 @@
+Iteration 31 complete. Battery seed 10 ran 32/36 deterministic-pass. Two regressions found and recorded:
+
+- **F-021 REOPENED** — VIS-12 seed 10: model emits zero visual blocks for the multi-block "complete guide" request, responds with all-prose and a clarifying question (answers_the_question=2, actionability=2). This is the third recurrence with a different paraphrase variant each time.
+- **F-023 NEW** — MEM-02 turn 11: user's salicylic acid allergy stated in turn 0 is remembered (model labels the routine "salicylic acid-free") but the allergen word appears 6× in explanatory context ("without the irritation you get from salicylic acid"), failing the `excludes: ["salicylic"]` deterministic check. Root: `fast_rag_answer.py:634` says "never suggest" but not "never mention."
+
+Next iteration should fix F-021 (priority 2, model-never-emits-block) before F-023 (priority 4, memory quality).

@@ -2870,3 +2870,1020 @@ APNs not configured — push notifications will be silently skipped. Set APNS_AU
 [lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
 [lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
 [lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+plan-table safety net failed (non-fatal): cannot access local variable '_facts_blob' where it is not associated with a value
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] table block injected (had_choices=False)
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] table block injected (had_choices=False)
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] secondary LLM raw output (first 200): '[VISUAL_BLOCK]{"type":"table","title":"12-Week Looksmaxxing Plan","data":{"columns":["Week","Skin","Hair","Gym","Notes"],"rows":[["1-2","Establish cleanser routine","Get quality haircut","Upper body f'
+[plan-table safety net] table block injected (had_choices=False)
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[extract-debug] after extraction: 0 blocks, types=[]
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] secondary LLM raw output (first 200): '[VISUAL_BLOCK]{"type":"table","title":"12-Week Looksmaxxing Plan","data":{"columns":["Week","Skin","Hair","Gym","Notes"],"rows":[["1-2","Establish cleanse routine","Get quality haircut","Start strengt'
+[plan-table safety net] table block injected (had_choices=False)
+[extract-debug] response_text has [visual_block] marker; choices=[] confirm=False
+[extract-debug] response tail: 'treatment","full body compound lifts","visible muscle gains"],["9-10","address hyperpigmentation","maintain hair routine","increase training volume","skin clarity improving"],["11-12","advanced skincare stack","style & grooming polish","peak strength phase","final refinement push"]]}}[/visual_block]'
+[extract-debug] after extraction: 0 blocks, types=[]
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[extract-debug] after extraction: 0 blocks, types=[]
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] secondary LLM raw output (first 200): '[VISUAL_BLOCK]{"type":"table","title":"12-Week Looksmaxxing Plan","data":{"columns":["Week","Skin","Hair","Gym","Notes"],"rows":[["1-2","Establish routine, cleanse twice daily","Get quality haircut, a'
+[plan-table safety net] table block injected (had_choices=False)
+[extract-debug] response_text has [visual_block] marker; choices=[] confirm=False
+[extract-debug] response tail: '"hair growth accelerates"],["9-10","optimize hydration layers","maintain length, style practice","peak strength phase, 5x/week","compound gains visible"],["11-12","assess and adjust routine","final trim, style refinement","maintain gains, reduce volume","evaluate 12-week progress"]]}}[/visual_block]'
+[extract-debug] JSON parse failed for block, type='?' err=Invalid control character at: line 1 column 1925 (char 1924) raw_preview='{"type":"table","title":"12-week looksmaxxing plan","data":{"columns":["week","skin focus","hair foc'
+[extract-debug] after extraction: 0 blocks, types=[]
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[extract-debug] after extraction: 0 blocks, types=[]
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] secondary LLM raw output (first 200): '[VISUAL_BLOCK]{"type":"table","title":"12-Week Looksmaxxing Plan","data":{"columns":["Week","Skin","Hair","Gym","Notes"],"rows":[["1-2","Establish routine, cleanser","Get quality haircut","Upper body '
+[plan-table safety net] table block injected (had_choices=False)
+[extract-debug] response_text has [visual_block] marker; choices=[] confirm=False
+[extract-debug] response tail: '","full body split","visible progress"],["7-8","sunscreen daily","hair growth oils","increase intensity","skin glowing"],["9-10","exfoliate 2x weekly","trim maintenance","strength peak","muscle definition"],["11-12","hydration masks","style refinement","deload week","final polish"]]}}[/visual_block]'
+[extract-debug] after extraction: 2 blocks, types=['table', 'table']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+get_maxx_schedule tool failed: This session is provisioning a new connection; concurrent operations are not permitted (Background on this error at: https://sqlalche.me/e/20/isce)
+Traceback (most recent call last):
+  File "/Users/home/maxapp/backend/services/lc_agent.py", line 1407, in get_maxx_schedule
+    sch = await schedule_service.get_maxx_schedule(user_id, mid, db=db)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/services/schedule_service.py", line 3313, in get_maxx_schedule
+    result = await db.execute(
+             ^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 449, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 190, in greenlet_spawn
+    result = context.switch(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2239, in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2108, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/orm/state_changes.py", line 101, in _go
+    self._raise_for_prerequisite_state(fn.__name__, current_state)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 988, in _raise_for_prerequisite_state
+    raise sa_exc.InvalidRequestError(
+sqlalchemy.exc.InvalidRequestError: This session is provisioning a new connection; concurrent operations are not permitted (Background on this error at: https://sqlalche.me/e/20/isce)
+get_maxx_schedule tool failed: This session is provisioning a new connection; concurrent operations are not permitted (Background on this error at: https://sqlalche.me/e/20/isce)
+Traceback (most recent call last):
+  File "/Users/home/maxapp/backend/services/lc_agent.py", line 1407, in get_maxx_schedule
+    sch = await schedule_service.get_maxx_schedule(user_id, mid, db=db)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/services/schedule_service.py", line 3313, in get_maxx_schedule
+    result = await db.execute(
+             ^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 449, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 190, in greenlet_spawn
+    result = context.switch(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2239, in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2108, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/orm/state_changes.py", line 101, in _go
+    self._raise_for_prerequisite_state(fn.__name__, current_state)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 988, in _raise_for_prerequisite_state
+    raise sa_exc.InvalidRequestError(
+sqlalchemy.exc.InvalidRequestError: This session is provisioning a new connection; concurrent operations are not permitted (Background on this error at: https://sqlalche.me/e/20/isce)
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] secondary LLM raw output (first 200): '[VISUAL_BLOCK]{"type":"table","title":"12-Week Looksmaxxing Plan","data":{"columns":["Week","Skin","Hair","Gym","Notes"],"rows":[["1-2","Establish routine, cleanser","Get quality haircut","Upper body '
+[plan-table safety net] table block injected (had_choices=False)
+[extract-debug] response_text has [visual_block] marker; choices=[] confirm=False
+[extract-debug] response tail: '","chemical exfoliation","protein deep condition","hypertrophy phase","skin clarity peak"],["9-10","eye cream, hydration","styling product test","strength training","muscle definition"],["11-12","maintenance protocol","final hair optimization","deload week","results consolidation"]]}}[/visual_block]'
+[extract-debug] after extraction: 1 blocks, types=['table']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[extract-debug] after extraction: 0 blocks, types=[]
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[extract-debug] after extraction: 0 blocks, types=[]
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[extract-debug] after extraction: 0 blocks, types=[]
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] table block injected (had_choices=False)
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] table block injected (had_choices=False)
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] table block injected (had_choices=True)
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] table block injected (had_choices=False)
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+Traceback (most recent call last):
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/Users/home/.pyenv/versions/3.11.7/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/main.py", line 147, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 29, in __call__
+    await responder(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 130, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 46, in __call__
+    await self.app(scope, receive, self.send_with_compression)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/api/chat.py", line 5183, in send_message
+    return await _send_message_locked(data, background_tasks, current_user, db, rds_db)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/api/chat.py", line 5512, in _send_message_locked
+    _allergens = (user_facts or {}).get("allergies") or []
+                  ^^^^^^^^^^
+NameError: name 'user_facts' is not defined
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 421, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 56, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/applications.py", line 1159, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "/Users/home/.pyenv/versions/3.11.7/lib/python3.11/contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/main.py", line 147, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 29, in __call__
+    await responder(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 130, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/gzip.py", line 46, in __call__
+    await self.app(scope, receive, self.send_with_compression)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/.venv/lib/python3.11/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/api/chat.py", line 5183, in send_message
+    return await _send_message_locked(data, background_tasks, current_user, db, rds_db)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/home/maxapp/backend/api/chat.py", line 5512, in _send_message_locked
+    _allergens = (user_facts or {}).get("allergies") or []
+                  ^^^^^^^^^^
+NameError: name 'user_facts' is not defined
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+/Users/home/maxapp/.venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:47: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  from google.generativeai.caching import CachedContent  # type: ignore[import]
+APNs not configured — push notifications will be silently skipped. Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push.
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[facts-validator] UNRESOLVED violations after 1 attempts: ['salicylic acid']
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[plan-table safety net] table block injected (had_choices=False)
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set
+[lc_providers] build failed for provider=gemini: GEMINI_API_KEY is not set

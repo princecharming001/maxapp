@@ -1,0 +1,14 @@
+{
+  "run_id": "2026-07-05T17-32-46Z",
+  "started": "2026-07-05T17-32-46Z",
+  "scenarios": {
+    "VIS-03": {
+      "status": "fail",
+      "failed_checks": [
+        "turn0:prose_nonempty"
+      ],
+      "needs_judge": true
+    }
+  },
+  "deterministic_clean": false
+}

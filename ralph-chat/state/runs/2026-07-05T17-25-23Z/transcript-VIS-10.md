@@ -1,0 +1,57 @@
+# VIS-10
+## turn 0 ("give me a comparison of 2 acne treatments, with a timeframe note like 'week 4 — visible change' for each")
+**user:** give me a comparison of 2 acne treatments, with a timeframe note like 'week 4 — visible change' for each
+**assistant:** you're asking about acne specifically, but your docs don't have a dedicated acne protocol with timeframes. i've got rosacea + hyperpigmentation repair phases that both touch inflammation and azelaic acid, but neither is labeled "acne treatment comparison." here's what i can build from what's there: **azelaic acid** (the anti-inflammatory route) vs **tretinoin** (the turnover route). both show up in your evidence for inflammation + pigment, which is acne's aftermath. azelaic is the gentler entry point; tretinoin is the heavier hitter once barrier is stable.  real talk: if your skin is inflamed or barrier is compromised, start with azelaic + barrier repair (centella, ceramides, panthenol) for 2–4 weeks, then layer tretinoin. if your barrier is solid, tretinoin alone is faster. azelaic is the safer first move.
+- visual_blocks:
+```json
+[
+  {
+    "type": "comparison",
+    "title": "acne treatment comparison",
+    "data": {
+      "options": [
+        {
+          "name": "azelaic acid 10\u201320%",
+          "pros": [
+            "week 1\u20132 \u2014 reduces redness and bacteria",
+            "week 3\u20134, visible acne improvement",
+            "gentle, can layer with other actives",
+            "fixes post-acne marks (PIH) too"
+          ],
+          "cons": [
+            "slower than retinoid",
+            "needs 2\u20133\u00d7/week minimum to work",
+            "avoid if barrier already damaged"
+          ]
+        },
+        {
+          "name": "tretinoin 0.05%",
+          "pros": [
+            "week 4\u20136, noticeable cell turnover",
+            "week 8+, significant texture + acne clearance",
+            "gold standard for acne + prevention",
+            "fixes scars and pigment simultaneously"
+          ],
+          "cons": [
+            "requires stable barrier first (2\u20134 weeks repair phase)",
+            "irritation risk if rushed",
+            "can't use same night as other actives"
+          ]
+        }
+      ]
+    }
+  }
+]
+```
+- products: 2 item(s)
+- status=200 latency=12.48s error=None
+- checks:
+  - [PASS] no_marker_leak: clean
+  - [PASS] no_leaked_json: clean
+  - [PASS] blocks_schema_valid: clean
+  - [PASS] no_tech_leak: clean
+  - [PASS] prose_nonempty: len=818
+  - [PASS] latency_lt: 12.5s (ceiling 60s)
+  - [PASS] block_present: types present: ['comparison']
+- needs_judge: ['answers_the_question']
+

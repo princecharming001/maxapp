@@ -1,3 +1,14 @@
 Committed. Iteration complete.
 
 **Iter 12 summary:** Ran full battery (seed 3), 33/36 deterministic-pass. Judged all `needs_judge` turns — all pass except ERR-01, where the model fires a skin-only clarifier MCQ for "build me a 12-week plan covering skin, hair and gym," ignoring hair and gym entirely (answers_the_question=2, actionability=2). Opened **F-014** (class: clarifier-reask). VIS-03 and XMEM-03 noted as flaky (not opened). Next iteration: fix F-014.
+Done. F-020 is fixed. Here's the summary:
+
+**F-020 fixed (iter 25)** — `backend/api/chat.py` + `backend/tests/test_chat_visual_blocks.py`
+
+**Root causes found:**
+1. The plan-table safety net only triggered on `[CHOICES]` responses — missed the case where the agent emits a prose plan with no `[CHOICES]` and no `[VISUAL_BLOCK]`. Fixed by checking for missing `type=table` block specifically.
+2. The secondary LLM called to generate the table emitted literal `\n` newlines inside JSON string values (invalid JSON) → `json.loads` failed silently → table block dropped. Fixed by adding a JSON repair step in `_extract_visual_blocks`.
+
+**Verified:** ERR-01 seeds 8 and 15 both produce `visual_blocks: ['table']`. CLAR-01/02/03 unaffected. 18/18 pytest pass, no new failures.
+
+**Next:** Fix F-017 (MEM-01-turn2: 6am workout timing still not referenced in protein timing answer when agent recommends a product) or F-021 (VIS-12: multi-block request delivers only product table, no timeline/checklist/stat_cards).

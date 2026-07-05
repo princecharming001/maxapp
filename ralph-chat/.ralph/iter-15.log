@@ -1,0 +1,7 @@
+Done. Full battery seed 9 ran 34/36 deterministic-pass with all judge dimensions ≥4 except VIS-12. Three findings opened/reopened:
+
+- **F-009 REOPENED** — VIS-07: model emits comparison block instead of table for a "side by side in a table" ask
+- **F-021 REOPENED** — VIS-12: multi-block request gets only 2/4 block types (table+timeline; checklist+stat_cards missing), answers_the_question=3
+- **F-022 NEW** — VIS-03: stat_cards-only response with prose=0 chars fails `prose_nonempty`; short-response guardrail doesn't fire when prose is entirely empty vs just short
+
+Next iteration should fix F-009 (highest priority by alphabetical order among the three; all are class `model-never-emits-block`).
