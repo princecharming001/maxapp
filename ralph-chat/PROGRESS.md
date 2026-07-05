@@ -1,3 +1,10 @@
+### 2026-07-05T15-14Z — iter 18 — F-015 model-incomplete-response fixed
+- found/did: root at fast_rag_answer.py — _effective_response_length returned "" for 12-week plan asks, giving max_tokens=700; table body couldn't materialize before truncation. Fix: added _PLAN_REQUEST_RE at line 208 (detects N-week/monthly/weekly-table/week-by-week) → "plan" key → max_tokens=1800 at all three sizing sites (lines ~484, ~659, ~866).
+- battery: ERR-01 seed 25 passes (complete 6-row × 5-col table block, judge=5/5); ERR-01 seed 5 fires clarifier (skip-user accumulated profile state flakiness — pre-existing); CLAR-01 seed 25 passes unaffected.
+- files: backend/services/fast_rag_answer.py, backend/tests/test_chat_tone_length_prompt.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: 8 new tests in test_chat_tone_length_prompt.py (plan detection, concise override, non-plan passthrough) — 18/18 pass; baseline: 16 pre-existing failures, no new failures (772 pass)
+- next: F-018 (VIS-08 rag-gap — stat_cards covers only sleep, no muscle-growth numbers)
+
 ### 2026-07-05T15-04Z — iter 17 — F-016 cross-chat-memory-miss fixed
 - found/did: root at fast_rag_answer.py grounding_suffix line 566 — EVIDENCE-ONLY MODE EXCEPTION only exempted "RECENT CONVERSATION" facts; "FROM EARLIER CHATS" recall block (in user_profile) was not covered, so model inconsistently applied cross-conv context (oily skin). Fix: extended EXCEPTION to explicitly cover user profile + FROM EARLIER CHATS data.
 - battery: XMEM-03 session B consistently returns "oily skin, lightweight" (seeds 5, 16, 23); XMEM-01/XMEM-02/MEM-01 seed 23 — all pass unaffected. XMEM-03 session A turn 0 `choices_present` is pre-existing flakiness (skip user accumulates oily context; correct CLAR-02 skip behavior).

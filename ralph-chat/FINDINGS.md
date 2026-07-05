@@ -89,9 +89,10 @@ hypotheses:
 
 --- Found in full-battery run, iter 15 (seed 5) ---
 
-- [ ] F-015  ERR-01 judge fail (seed 5): model builds plan framework but weekly table section is empty and response truncates mid-sentence | class: model-incomplete-response
+- [x] F-015  ERR-01 judge fail (seed 5): model builds plan framework but weekly table section is empty and response truncates mid-sentence | class: model-incomplete-response
       evidence: state/runs/2026-07-05T14-35-41Z/transcript-ERR-01.md (turn 0) | first-seen: iter 15 (full battery seed 5)
       answers_the_question=3, actionability=3 (framework + intro present, "### weekly breakdown table" header with no content, response cut at "deadl[ift]"). Passes seeds 14, 21. Root: model initiates long-form output but table body never materializes; likely hitting token/length limits on the RAG path for a 12-week multi-domain table ask.
+      fixed: iter 18 — root: fast_rag_answer.py max_tokens=700 for default length key; a 12-week weekly table needs ~3× that. Fix: added _PLAN_REQUEST_RE (detects N-week/monthly/weekly-table/week-by-week asks) to _effective_response_length → returns "plan" key → max_tokens=1800 at all three sizing sites (lines 484, 659, 866). Seed 25 now emits complete 6-row × 5-col table block; judge answers_the_question=5, actionability=5.
 
 - [x] F-016  XMEM-03 judge fail: cross-chat oily skin context ignored in moisturizer recommendation | class: cross-chat-memory-miss
       evidence: state/runs/2026-07-05T14-35-41Z/transcript-XMEM-03.md (turn 0 of second session) | first-seen: iter 15 (full battery seed 5)

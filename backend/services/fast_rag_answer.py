@@ -205,6 +205,12 @@ def _normalize_inline_citations(text: str, retrieved: list[dict]) -> str:
     return _CITATION_RE.sub(_replace, text)
 
 
+_PLAN_REQUEST_RE = re.compile(
+    r"\b(\d+[-\s]?week|\d+[-\s]?month|full[- ]?plan|complete[- ]?plan|weekly\s+table|week[-\s]?by[-\s]?week)\b",
+    re.IGNORECASE,
+)
+
+
 def _effective_response_length(message: str, response_length: Optional[str]) -> str:
     """Resolve turn-level brevity requests, including common typo variants."""
     base = (response_length or "").strip().lower()
@@ -224,6 +230,9 @@ def _effective_response_length(message: str, response_length: Optional[str]) -> 
     )
     if any(marker in msg for marker in concise_markers):
         return "concise"
+    # Long-form plan requests need a much larger token budget to avoid truncation.
+    if _PLAN_REQUEST_RE.search(msg) and base != "concise":
+        return "plan"
     return base
 
 
@@ -470,7 +479,12 @@ async def _answer_without_evidence(
 
     length_key = _effective_response_length(message, response_length)
     # Generous budget — native answers naturally expand without citation tax.
-    max_tokens = 180 if length_key == "concise" else 1000 if length_key == "detailed" else 700
+    max_tokens = (
+        180 if length_key == "concise"
+        else 1800 if length_key == "plan"
+        else 1000 if length_key == "detailed"
+        else 700
+    )
     llm = get_chat_llm_with_fallback(max_tokens=max_tokens, temperature=0.3)
     from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -638,7 +652,12 @@ CRITICAL: Do NOT ask the user if they want the structured visual, and do NOT off
         bool(facts_prefix),
     )
 
-    max_tokens = 160 if length_key == "concise" else 900 if length_key == "detailed" else 560
+    max_tokens = (
+        160 if length_key == "concise"
+        else 1800 if length_key == "plan"
+        else 900 if length_key == "detailed"
+        else 560
+    )
     llm = get_chat_llm_with_fallback(max_tokens=max_tokens, temperature=0.2)
     from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -842,7 +861,12 @@ ANSWER QUALITY:
     )
 
     length_key = _effective_response_length(message, response_length)
-    max_tokens = 180 if length_key == "concise" else 1000 if length_key == "detailed" else 700
+    max_tokens = (
+        180 if length_key == "concise"
+        else 1800 if length_key == "plan"
+        else 1000 if length_key == "detailed"
+        else 700
+    )
     llm = get_chat_llm_with_fallback(max_tokens=max_tokens, temperature=0.3)
     from langchain_core.messages import HumanMessage, SystemMessage
 

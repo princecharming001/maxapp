@@ -16,6 +16,7 @@ import pytest
 
 from services.persona_prompts import tone_preamble, TONE_PROMPTS
 from services.lc_agent import build_agent_system_prompt
+from services.fast_rag_answer import _effective_response_length
 
 # The exact enum values the mobile UI PATCHes to the backend.
 UI_TONES = ("gentle", "default", "hardcore")
@@ -77,3 +78,31 @@ def test_length_blocks_do_not_leak_across_values():
     # the concise prompt must not carry the detailed rule and vice-versa
     assert "PREFERENCE: DETAILED" not in pc
     assert "PREFERENCE: CONCISE" not in pd
+
+
+@pytest.mark.parametrize("msg", [
+    "build me a complete 12-week plan covering skin, hair and gym, with a weekly table",
+    "give me a 8-week plan for skincare",
+    "i want a full plan with a weekly table",
+    "create a week-by-week hair growth schedule",
+    "complete plan over 3 months",
+])
+def test_plan_request_detects_as_plan_length_key(msg):
+    # Long-form plan requests must resolve to "plan" to get an elevated token budget
+    # (preventing truncation mid-response for 12-week weekly tables).
+    assert _effective_response_length(msg, None) == "plan"
+
+
+@pytest.mark.parametrize("msg", [
+    "what is tretinoin briefly",
+    "in brief, what does niacinamide do",
+    "tldr on collagen supplements",
+])
+def test_concise_marker_overrides_plan_detection(msg):
+    # Explicit concise request wins even if the message happens to mention a plan.
+    assert _effective_response_length(msg, None) == "concise"
+
+
+def test_non_plan_message_keeps_base_length():
+    assert _effective_response_length("what does retinol do?", None) == ""
+    assert _effective_response_length("how often should i wash my hair?", "detailed") == "detailed"
