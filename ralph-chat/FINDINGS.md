@@ -37,13 +37,15 @@ hypotheses:
       likely site: answer path returns early without setting response text; possibly fast-RAG path returning empty when no chunks match; or per-user lock serialization eating the response body
       fixed: iter 5 — root: AgentExecutor returns empty output for statement-type messages (e.g. "quick heads up: i'm vegetarian") when the LLM fires tool calls (remember_about_user) but emits no final text. Two-layer fix: (1) lc_agent.py after line 2586 — if response_text is empty, retry once with a plain ack LLM call; (2) process_chat_message guard in api/chat.py — if still empty after agent, substitute a >=40-char fallback. MEM-01 passes seeds 12 and 1.
 
-- [ ] F-006  Concurrent requests: one of two simultaneous responses is empty | class: concurrency-empty-reply
+- [x] F-006  Concurrent requests: one of two simultaneous responses is empty | class: concurrency-empty-reply
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-ERR-02.md (turn 0 and turn 1) | first-seen: iter 4 (full battery)
       likely site: _run_concurrency in runner.py fires both msgs in the same conversation simultaneously; per-user lock may serialize but first-locked response may return empty body while second gets both answers
+      fixed: iter 6 — resolved by F-005's ack-retry fix in lc_agent.py; ERR-02 passes seeds 6 and 13 without code changes (the concurrent empty was the same empty-agent-output bug).
 
-- [ ] F-007  Model doesn't emit timeline block for explicit week-by-week ask | class: model-never-emits-block
+- [!] F-007  Model doesn't emit timeline block for explicit week-by-week ask | class: model-never-emits-block
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-VIS-04.md (turn 0) | first-seen: iter 4 (full battery)
-      likely site: CHAT_VISUAL_GRAMMAR timeline directive not strong enough / model taking RAG path without visual grammar
+      attempt 1 (iter 6): added NON-NEGOTIABLE timeline directive to CHAT_VISUAL_GRAMMAR (prompt_constants.py) + EXCEPTION text in grounding_suffix (fast_rag_answer.py). FAILED — model still responded with prose offering to pull the timeline "if you want", ignoring both directives.
+      attempt 2 (iter 6): added _EXPLICIT_BLOCK_RE code detection; conditional grounding_suffix that removes evidence-only constraint for explicit block requests. FAILED — model used general knowledge in prose ("here's what i can give you based on general minoxidil protocol") but still did not emit [VISUAL_BLOCK] marker. Root analysis: Supabase-loaded rag_answer_system prompt has strong evidence-only conditioning that overrides additions appended after it; model knows the content but chooses prose or deferred-offer over block emission. Needs human review of Supabase rag_answer_system row or a model-level training signal.
 
 - [ ] F-008  Model doesn't emit checklist block for explicit checklist ask | class: model-never-emits-block
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-VIS-05.md (turn 0) | first-seen: iter 4 (full battery)

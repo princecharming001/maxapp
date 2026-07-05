@@ -1,3 +1,10 @@
+### 2026-07-05T13-00Z — iter 6 — F-006 closed (F-005 fix), F-007 quarantined [!]
+- found/did: F-006 (concurrency-empty-reply) resolved by F-005's ack-retry; ERR-02 passes seeds 6+13 without new code. F-007 (timeline block): two genuinely different attempts both failed. Attempt 1: added NON-NEGOTIABLE to CHAT_VISUAL_GRAMMAR + EXCEPTION to grounding_suffix. Attempt 2: code-level _EXPLICIT_BLOCK_RE detection → conditional relaxed grounding_suffix (evidence-only removed for explicit block requests). Both failed — model knows the content and uses general knowledge in prose but consistently refuses to emit [VISUAL_BLOCK] marker despite directives. Root: Supabase rag_answer_system prompt has strong evidence-only conditioning that overrides all appended instructions. Left attempt 2's code changes in place (harmless improvement for explicit block requests; grounding_suffix is now conditional at fast_rag_answer.py).
+- battery: ERR-02 seeds 6,13 pass; VIS-04 seeds 6,13 fail (quarantined)
+- files: backend/services/prompt_constants.py, backend/services/fast_rag_answer.py, ralph-chat/FINDINGS.md
+- tests: no new pytest (prompt fix path, extraction logic unchanged); baseline: 16 pre-existing failures, no new failures (752 pass)
+- next: F-008 (checklist — different root: clarifier MCQ fires instead of checklist) or F-009/F-010
+
 ### 2026-07-05T12-44Z — iter 5 — F-005 empty-response fix
 - found/did: root at lc_agent.py:2586 — AgentExecutor returns empty output when LLM fires tool calls (remember_about_user) for statement-type messages but emits no final text. Two-layer fix: (1) lc_agent.py — retry once with a plain ack LLM call if output empty; (2) api/chat.py — last-resort fallback "got it — noted..." (>=40 chars) if ack also fails.
 - battery: MEM-01 passes seeds 12 and 1; XMEM-01 seed 12 unaffected

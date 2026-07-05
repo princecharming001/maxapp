@@ -19,6 +19,13 @@ from services.rag_prompt_selector import _LEXICONS, select_rag_system_prompt
 from services.rag_service import retrieve_chunks, VALID_MAXX_IDS
 from services.token_budget import count_tokens
 
+_EXPLICIT_BLOCK_RE = re.compile(
+    r"\b(timeline|week[\s-]by[\s-]week|week\s+\d|map\s+it\s+out|phase\s+by\s+phase"
+    r"|checklist|step[\s-]by[\s-]step|in\s+a\s+table|as\s+a\s+table|markdown\s+table"
+    r"|bold\s+the\s+numbers?|key\s+stats|summarize.*stats)\b",
+    re.IGNORECASE,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -534,12 +541,25 @@ async def answer_from_chunks(
         message, maxx_hints=maxx_hints, active_maxx=active_maxx
     )
     length_key = _effective_response_length(message, response_length)
-    grounding_suffix = """
+    is_explicit_block_request = bool(_EXPLICIT_BLOCK_RE.search(message or ""))
+    if is_explicit_block_request:
+        grounding_suffix = """
+
+## STRUCTURED VISUAL — REQUIRED
+The user explicitly asked for a structured visual format (timeline, table, checklist, etc.). You MUST emit the appropriate [VISUAL_BLOCK]...[/VISUAL_BLOCK] marker as shown in the STRUCTURED VISUALS grammar below. Use docs evidence where available; fill gaps with general knowledge. Emit the block AFTER a brief prose intro — do NOT replace the block with a numbered list.
+
+## EVIDENCE MODE (relaxed for explicit block requests)
+- Base your prose on the provided Evidence. State if the docs lack full detail.
+- You MAY use general knowledge to fill in the requested block structure.
+- Do not include citations or source labels in the final answer.
+"""
+    else:
+        grounding_suffix = """
 
 ## EVIDENCE-ONLY MODE (strict)
-- You must answer using only the provided Evidence from module docs.
+- You must answer using only the provided Evidence from module docs for prose content.
 - If the evidence does not contain the requested detail, say you don't have that in the course material.
-- Do not use outside knowledge, assumptions, or speculation.
+- Do not use outside knowledge in prose — but you MAY use it to fill a structured block the user explicitly requested (per the STRUCTURED VISUALS grammar below).
 - Do not include citations or source labels in the final answer.
 
 ## FORMAT (overrides the length rule on structure, not length)
