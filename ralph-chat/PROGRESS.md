@@ -97,3 +97,10 @@
 - files: backend/api/chat.py, backend/services/prompt_constants.py, backend/tests/test_chat_visual_blocks.py
 - tests: 3 new tests (test_choices_marker_stripped_and_options_extracted, test_choices_lowercase_marker_stripped, test_multi_choices_block_stripped_single_choices_also_stripped) — 17/17 pass; baseline: 16 pre-existing failures, no new failures (763 pass)
 - next: run full battery (all findings now closed — F-007 quarantined [!], all others [x])
+
+### 2026-07-05T14-31Z — iter 14 — FULL BATTERY (seed 4), clean run 1/2
+- found/did: battery seed 4 — 33/36 deterministic-pass. VIS-04 quarantined (F-007, expected). XMEM-03 flaky (known — choices_present; model asks prose question instead of MCQ chips, not opened). VIS-07 flaky (includes_any 'CeraVe' fails when model says "both brands" in prose — visual block correctly emits table; passes other seeds). Judged all needs_judge turns across all 31 transcripts: all dimensions ≥4. No new findings opened. clean_streak → 1.
+- battery: FULL seed 4: 33/36 deterministic-pass; judge: all pass; flaky: VIS-03, XMEM-03, VIS-07; quarantined: VIS-04
+- files: ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md
+- tests: no code changed, no new pytest
+- next: run full battery seed 5 — if clean, streak hits 2 → PROJECT COMPLETE
