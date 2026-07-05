@@ -3874,6 +3874,10 @@ Ask ONE question at a time. Your very first response must ask the concern questi
     response_text = _normalize_list_formatting(response_text)
     response_text = _strip_amazon_links(response_text)
     response_text = _keep_bold_drop_stray_asterisks(response_text).lower()
+    # Mirror the short-response guardrail from _finalize_assistant_message so
+    # degenerate inputs (e.g. "??") always produce a usable ≥40-char response.
+    if response_text and len(response_text) < 40 and not response_text.endswith("?"):
+        response_text = response_text.rstrip(".!,") + " — what are you working on?"
 
     # --- Save messages (app only; SMS is not stored) ---
     if _persist_chat_history(channel):

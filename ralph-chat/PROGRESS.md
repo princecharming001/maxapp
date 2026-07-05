@@ -1,3 +1,10 @@
+### 2026-07-05T18-40Z — iter 35 — F-019 agent-path short-response guardrail
+- found/did: root at api/chat.py:3874-3876 — agent path runs normalize_list_formatting + strip_amazon_links + keep_bold.lower() but never calls _finalize_assistant_message, so the len<40 short-response guardrail (added in iter 21) is never applied on the agent path. Fix: added identical guardrail (`if response_text and len(response_text) < 40 and not response_text.endswith("?"): append " — what are you working on?"`) immediately after line 3876.
+- battery: ERR-04 seed 42 pass; ERR-01 seed 42 pass (no regression)
+- files: backend/api/chat.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (guardrail is not extraction/normalization logic); baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: run full battery (no open findings remain — F-007 quarantined)
+
 ### 2026-07-05T18-35Z — iter 34 — F-024 build-table clarifier guardrail
 - found/did: root at CHAT_VISUAL_GRAMMAR table bullet (prompt_constants.py:316) — MANDATORY rule covered explicit "table" requests but not "build/make/create a table" without a specified topic; model defaulted to clarifying question. Fix: extended table bullet to say "if no topic specified, pick a relevant topic from context/persona and emit immediately — DO NOT ask."
 - battery: VIS-13 seeds 34, 41 pass (paraphrase 1 now emits table directly); VIS-07/08/09 seed 41 pass (no regressions)
