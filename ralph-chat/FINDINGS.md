@@ -52,11 +52,12 @@ hypotheses:
       likely site: same as F-007 — grammar directive not compelling enough on RAG path
       fixed: iter 8 — root: _broad_question_mcq fired for "give me a ... checklist" because "checklist" wasn't in the skincare specific_re and _REC_INTENT_RE matched "give me a"; fix: added explicit-format guard in _broad_question_mcq (api/chat.py) — if message contains "checklist" or "step-by-step", return None immediately. Also added NON-NEGOTIABLE checklist directive to CHAT_VISUAL_GRAMMAR (prompt_constants.py). VIS-05 passes seeds 4 and 15.
 
-- [ ] F-009  Model doesn't emit table block for explicit markdown table ask | class: model-never-emits-block
+- [x] F-009  Model doesn't emit table block for explicit markdown table ask | class: model-never-emits-block
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-VIS-07.md (turn 0) | first-seen: iter 4 (full battery)
       likely site: markdown-table autoconvert path in _extract_markdown_tables may not be handling markdown output; or model prose path not emitting a table block
       fixed: iter 9 — two-part fix: (1) CHAT_VISUAL_GRAMMAR (prompt_constants.py) — table type now explicitly wins over comparison when user asks for a "table" format; comparison NON-NEGOTIABLE updated with "table-format exception"; (2) fast_rag_answer.py explicit block grounding suffix — added CRITICAL rule: "Do NOT ask the user if they want the structured visual... Build and emit it NOW" to prevent deferred-offer behavior. VIS-07 passes seeds 9 and 16.
       REOPENED iter 28 (seed 9): different failure mode — user says "put CeraVe and La Roche-Posay moisturizers side by side in a table"; model emits comparison block (not table block). The CHAT_VISUAL_GRAMMAR "table wins over comparison" rule not consistently applied when the product-comparison framing (two named brands) triggers the comparison path first.
+      fixed: iter 29 — root: `_count_distinct_block_types` in fast_rag_answer.py matched "compare" verb as a separate block type, so "compare X vs Y in a table" counted as 2 distinct types (comparison + table) → multi-block grounding suffix fired → model emitted comparison block instead of table (seed 9) or no block (seed 6, different paraphrase). Fix: removed "compare" verb from `_BLOCK_TYPE_PATTERNS`; only "comparison" noun and "pros and cons" still match the comparison slot. Single-block explicit path now fires for table-format requests. VIS-07 seeds 6, 9, 29 all pass; VIS-01/VIS-10/VIS-12/VIS-08/VIS-09 seed 29 unaffected.
 
 - [x] F-010  Model doesn't emit stat_cards block when bold-number stats requested | class: model-never-emits-block
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-VIS-08.md (turn 0) | first-seen: iter 4 (full battery)

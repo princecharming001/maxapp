@@ -1,3 +1,10 @@
+### 2026-07-05T17-35Z — iter 29 — F-009 table vs comparison regression fixed
+- found/did: root at fast_rag_answer.py `_BLOCK_TYPE_PATTERNS` — "compare" verb matched as a separate block type, so "compare X vs Y in a table" counted as 2 distinct types (comparison + table) → multi-block grounding suffix fired → model emitted comparison block only (seed 9) or no block at all (seed 6). Fix: removed "compare" from the comparison pattern in `_BLOCK_TYPE_PATTERNS`; only "comparison" noun and "pros and cons" still match.
+- battery: VIS-07 seeds 6, 9, 29 — all deterministic-pass; VIS-01/VIS-10/VIS-12/VIS-08/VIS-09 seed 29 — all pass (no regressions)
+- files: backend/services/fast_rag_answer.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (routing detection change, not extraction/normalization logic); baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: fix F-021 (VIS-12 reopened — multi-block delivers only table+timeline, missing checklist+stat_cards) or F-022 (VIS-03 reopened — prose_nonempty=0 for stat_cards-only response)
+
 ### 2026-07-05T17-30Z — iter 28 — FULL BATTERY seed 9, 3 regressions
 - found/did: battery seed 9 — 34/36 deterministic-pass. Judged all 31 needs_judge turns. Three findings: (1) F-009 REOPENED: VIS-07 seed 9 — model emits comparison block instead of table block for "put CeraVe and La Roche-Posay... side by side in a table"; (2) F-021 REOPENED: VIS-12 seed 9 — multi-block request for table+timeline+checklist+stat_cards; model emits only table+timeline (2/4 types), answers_the_question=3; (3) F-022 new: VIS-03 seed 9 — stat_cards-only response, prose=0 chars, prose_nonempty FAIL (historically flaky, now formally tracked).
 - battery: FULL seed 9: 34/36 deterministic-pass; judge failures: VIS-12 (answers_the_question=3); flaky: VIS-03 (prose_nonempty), VIS-07 (block_present:table); quarantined: VIS-04 (F-007, expected)
