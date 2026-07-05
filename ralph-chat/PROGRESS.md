@@ -1,3 +1,10 @@
+### 2026-07-05T15-04Z — iter 17 — F-016 cross-chat-memory-miss fixed
+- found/did: root at fast_rag_answer.py grounding_suffix line 566 — EVIDENCE-ONLY MODE EXCEPTION only exempted "RECENT CONVERSATION" facts; "FROM EARLIER CHATS" recall block (in user_profile) was not covered, so model inconsistently applied cross-conv context (oily skin). Fix: extended EXCEPTION to explicitly cover user profile + FROM EARLIER CHATS data.
+- battery: XMEM-03 session B consistently returns "oily skin, lightweight" (seeds 5, 16, 23); XMEM-01/XMEM-02/MEM-01 seed 23 — all pass unaffected. XMEM-03 session A turn 0 `choices_present` is pre-existing flakiness (skip user accumulates oily context; correct CLAR-02 skip behavior).
+- files: backend/services/fast_rag_answer.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (prompt-only change to grounding_suffix, no extraction logic); baseline: 16 pre-existing failures, no new failures (763 pass)
+- next: F-015 (ERR-01 model-incomplete-response truncation) or F-018 (VIS-08 rag-gap)
+
 ### 2026-07-05T14-52Z — iter 16 — F-017 within-thread-memory-miss fixed
 - found/did: root at fast_rag_answer.py grounding_suffix (~line 559) — EVIDENCE-ONLY MODE said "use only docs for prose content" with no exception for user-stated personal facts present in the RECENT CONVERSATION block. Model treated the 6am workout timing as "outside knowledge" and gave generic post-workout timing advice. Fix: added EXCEPTION clause to grounding_suffix explicitly permitting — and requiring — use of user-established context (workout time, schedule, dietary restrictions) to personalize timing/scheduling answers.
 - battery: MEM-01 seeds 12, 23 pass (turn 2 references 6am); XMEM-01/XMEM-02/CLAR-01/CLAR-02 seed 24 — all 4 pass

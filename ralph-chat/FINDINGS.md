@@ -93,9 +93,10 @@ hypotheses:
       evidence: state/runs/2026-07-05T14-35-41Z/transcript-ERR-01.md (turn 0) | first-seen: iter 15 (full battery seed 5)
       answers_the_question=3, actionability=3 (framework + intro present, "### weekly breakdown table" header with no content, response cut at "deadl[ift]"). Passes seeds 14, 21. Root: model initiates long-form output but table body never materializes; likely hitting token/length limits on the RAG path for a 12-week multi-domain table ask.
 
-- [ ] F-016  XMEM-03 judge fail: cross-chat oily skin context ignored in moisturizer recommendation | class: cross-chat-memory-miss
+- [x] F-016  XMEM-03 judge fail: cross-chat oily skin context ignored in moisturizer recommendation | class: cross-chat-memory-miss
       evidence: state/runs/2026-07-05T14-35-41Z/transcript-XMEM-03.md (turn 0 of second session) | first-seen: iter 15 (full battery seed 5)
       uses_user_context=2 — prior session established "oily" skin (turn 1 choices confirmed); current-session moisturizer recommendation says "ceramides + panthenol" with no mention of oily/lightweight/non-comedogenic formulation. Cross-conv recall did not surface the skin type.
+      fixed: iter 17 — root: EVIDENCE-ONLY MODE EXCEPTION clause (fast_rag_answer.py grounding_suffix) only mentioned "RECENT CONVERSATION" facts, not "FROM EARLIER CHATS" recall block in user_profile. Model inconsistently applied cross-conv context (seed 16 used it, seed 5 didn't). Fix: extended EXCEPTION to explicitly cover user profile + FROM EARLIER CHATS. Session B now consistently says "you've got oily skin, so you want something lightweight." XMEM-01/XMEM-02/MEM-01 seeds 23 — all pass unaffected.
 
 - [x] F-017  MEM-01-turn2 judge fail: 6am workout timing ignored in follow-up "when to eat" response | class: within-thread-memory-miss
       evidence: state/runs/2026-07-05T14-35-41Z/transcript-MEM-01.md (turn 2) | first-seen: iter 15 (full battery seed 5)
