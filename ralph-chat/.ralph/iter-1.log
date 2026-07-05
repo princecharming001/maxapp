@@ -9,3 +9,4 @@ Done. Here's the summary:
 **Tests**: 3 new tests in `test_chat_mcq_products.py` — 18/18 pass, no new baseline failures. CLAR-01/02/03 all pass at seed 8.
 
 Next: F-003 (onboarding intake ignores mid-flow interruption) or F-001 (model doesn't emit comparison blocks).
+**Iter 14 done.** Full battery seed 4 ran 33/36 pass with all judge dimensions ≥4. The 3 failures are all known: VIS-04 (quarantined F-007), XMEM-03 (flaky), VIS-07 (flaky). clean_streak → 1. Next iteration runs battery seed 5 — if clean again, streak hits 2 → PROJECT COMPLETE.

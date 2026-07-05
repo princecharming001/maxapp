@@ -1,0 +1,9 @@
+Done. Three-part fix for F-014:
+
+1. **`_broad_question_mcq` multi-domain guard** — when ≥2 domain regexes match (skin + hair + gym), skip the clarifier entirely; the user already stated their scope.
+
+2. **`CHAT_VISUAL_GRAMMAR` NON-NEGOTIABLE directive** — explicit "build me a plan" requests naming domains/duration must be built immediately, not deferred with clarifiers.
+
+3. **`_extract_inline_choices` always called** — the `if not choices:` guard was skipping marker extraction when `_quick_replies_from_response` had already set choices from heuristic text matching, leaving `[choices]...[/choices]` markers leaking into the response. Now markers are always stripped; only the extracted options are suppressed if choices was already set.
+
+ERR-01 passes seeds 14 and 21 and now returns a complete 12-week table covering skin, hair, and gym (judge: `answers_the_question=5`, `actionability=5`). All findings are now closed (F-007 quarantined). Next pass: run the full battery.

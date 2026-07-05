@@ -104,3 +104,10 @@
 - files: ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md
 - tests: no code changed, no new pytest
 - next: run full battery seed 5 — if clean, streak hits 2 → PROJECT COMPLETE
+
+### 2026-07-05T14-35Z — iter 15 — FULL BATTERY (seed 5), new F-015/F-016/F-017/F-018
+- found/did: battery seed 5 — 35/36 deterministic-pass. VIS-04 quarantined (F-007, expected). Judged all 31 needs_judge transcripts. Four judge failures: (1) ERR-01 answers_the_question=3/actionability=3 — model builds plan framework but "### weekly breakdown table" section is empty, response truncates at "deadl" (seed-specific, passes 14+21); (2) XMEM-03 uses_user_context=2 — moisturizer rec ignores oily skin from prior session; (3) MEM-01-turn2 uses_user_context=2 — "when to eat" ignores stated 6am workout time; (4) VIS-08 answers_the_question=3 — only sleep stats emitted, model explicitly admits no hypertrophy metrics in RAG docs. Opened F-015, F-016, F-017, F-018. clean_streak → 0.
+- battery: FULL seed 5: 35/36 deterministic-pass; judge failures: ERR-01 (F-015), XMEM-03 (F-016), MEM-01-turn2 (F-017), VIS-08 (F-018); quarantined: VIS-04
+- files: ralph-chat/FINDINGS.md, ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md
+- tests: no code changed, no new pytest
+- next: fix F-016 (XMEM-03 cross-chat oily skin miss, class: cross-chat-memory-miss, priority 3)

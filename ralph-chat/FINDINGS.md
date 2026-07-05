@@ -86,3 +86,21 @@ hypotheses:
       evidence: state/runs/2026-07-05T13-55-49Z/transcript-ERR-01.md (turn 0) | first-seen: iter 12 (full battery seed 3)
       answers_the_question=2 (ignores hair+gym entirely, only asks about skin goals); actionability=2 (pure clarifier, no plan or any actionable content). VIS-03 flaky (passes seeds 1,2,11 — block_present and prose_nonempty fail on different seeds, not opened); XMEM-03 flaky (known from iter 11, not opened).
       fixed: iter 13 — three-part fix: (1) api/chat.py _broad_question_mcq: skip when ≥2 domain regexes match (multi-domain message already names its scope); (2) services/prompt_constants.py CHAT_VISUAL_GRAMMAR: NON-NEGOTIABLE directive to build the plan immediately for explicit plan requests naming domains/duration; (3) api/chat.py line 5272: always call _extract_inline_choices to strip [CHOICES] markers from response_text (was skipped when _quick_replies_from_response already set choices, leaving markers in prose). ERR-01 passes seeds 14 and 21; judge: complete 12-week table emitted, answers_the_question=5, actionability=5.
+
+--- Found in full-battery run, iter 15 (seed 5) ---
+
+- [ ] F-015  ERR-01 judge fail (seed 5): model builds plan framework but weekly table section is empty and response truncates mid-sentence | class: model-incomplete-response
+      evidence: state/runs/2026-07-05T14-35-41Z/transcript-ERR-01.md (turn 0) | first-seen: iter 15 (full battery seed 5)
+      answers_the_question=3, actionability=3 (framework + intro present, "### weekly breakdown table" header with no content, response cut at "deadl[ift]"). Passes seeds 14, 21. Root: model initiates long-form output but table body never materializes; likely hitting token/length limits on the RAG path for a 12-week multi-domain table ask.
+
+- [ ] F-016  XMEM-03 judge fail: cross-chat oily skin context ignored in moisturizer recommendation | class: cross-chat-memory-miss
+      evidence: state/runs/2026-07-05T14-35-41Z/transcript-XMEM-03.md (turn 0 of second session) | first-seen: iter 15 (full battery seed 5)
+      uses_user_context=2 — prior session established "oily" skin (turn 1 choices confirmed); current-session moisturizer recommendation says "ceramides + panthenol" with no mention of oily/lightweight/non-comedogenic formulation. Cross-conv recall did not surface the skin type.
+
+- [ ] F-017  MEM-01-turn2 judge fail: 6am workout timing ignored in follow-up "when to eat" response | class: within-thread-memory-miss
+      evidence: state/runs/2026-07-05T14-35-41Z/transcript-MEM-01.md (turn 2) | first-seen: iter 15 (full battery seed 5)
+      uses_user_context=2 — user stated "i work out at 6am before work" in turn 0; turn 1 references the 6am correctly; turn 2 "and when should i eat it?" gets generic "post-workout is solid" with no reference to the stated 6am time. The concrete answer (eat ~6:30-7am before work) was available in context.
+
+- [ ] F-018  VIS-08 judge fail: stat_cards only covers sleep target, no muscle-growth numbers | class: answer-incomplete-rag-gap
+      evidence: state/runs/2026-07-05T14-35-41Z/transcript-VIS-08.md (turn 0) | first-seen: iter 15 (full battery seed 5)
+      answers_the_question=3 — user asked for "numbers on sleep AND muscle growth"; model emits 2 stat cards covering only sleep (7-9 hrs target, 60 min wind-down) and explicitly states "the evidence doesn't break down specific growth metrics." RAG docs lack hypertrophy-stat content. Passes seed 4 with different paraphrase.

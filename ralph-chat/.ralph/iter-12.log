@@ -1,0 +1,3 @@
+Committed. Iteration complete.
+
+**Iter 12 summary:** Ran full battery (seed 3), 33/36 deterministic-pass. Judged all `needs_judge` turns — all pass except ERR-01, where the model fires a skin-only clarifier MCQ for "build me a 12-week plan covering skin, hair and gym," ignoring hair and gym entirely (answers_the_question=2, actionability=2). Opened **F-014** (class: clarifier-reask). VIS-03 and XMEM-03 noted as flaky (not opened). Next iteration: fix F-014.
