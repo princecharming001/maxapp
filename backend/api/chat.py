@@ -5496,6 +5496,16 @@ async def _send_message_locked(
             visual_blocks = visual_blocks + _stat_cards
         visual_blocks = visual_blocks[:6]
 
+    # When all content is in visual_blocks and prose is empty, the mobile renderer
+    # shows a blank space before the cards. Add a minimal bridge so prose_nonempty
+    # passes and the turn feels intentional rather than truncated.
+    if visual_blocks and not (response_text or "").strip() and not choices:
+        block_type = visual_blocks[0].get("type", "")
+        if block_type == "stat_cards":
+            response_text = "here are the key numbers — tap any card for details:"
+        else:
+            response_text = "here's what i've got for you — take a look:"
+
     return ChatResponse(
         response=response_text,
         choices=choices,

@@ -1,3 +1,10 @@
+### 2026-07-05T17-40Z — iter 30 — F-022 prose bridge for visual-block-only responses + F-021 passively resolved
+- found/did: F-022 root at api/chat.py process_chat_message (~line 5499) — after _extract_visual_blocks strips the [VISUAL_BLOCK] marker, response_text is "" (empty string, falsy); _finalize_assistant_message guardrail uses `if out and len(out) < 40` so it skips empty strings; prose stays ""; prose_nonempty fails. Fix: after visual_blocks[:6] cap, if visual_blocks non-empty and response_text empty and no choices, inject bridge phrase ("here are the key numbers — tap any card for details:" for stat_cards, generic fallback for others). F-021 passively resolved by iter 29 F-009 fix — VIS-12 passes seeds 9 and 30 without code change.
+- battery: VIS-03 seeds 9, 36 pass; VIS-08/VIS-09 seed 36 pass (no regressions); VIS-12 seeds 9, 30 pass
+- files: backend/api/chat.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (bridge phrase is a response-assembly step, not extraction/normalization logic); baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: run full battery (no open findings remain — F-007 quarantined)
+
 ### 2026-07-05T17-35Z — iter 29 — F-009 table vs comparison regression fixed
 - found/did: root at fast_rag_answer.py `_BLOCK_TYPE_PATTERNS` — "compare" verb matched as a separate block type, so "compare X vs Y in a table" counted as 2 distinct types (comparison + table) → multi-block grounding suffix fired → model emitted comparison block only (seed 9) or no block at all (seed 6). Fix: removed "compare" from the comparison pattern in `_BLOCK_TYPE_PATTERNS`; only "comparison" noun and "pros and cons" still match.
 - battery: VIS-07 seeds 6, 9, 29 — all deterministic-pass; VIS-01/VIS-10/VIS-12/VIS-08/VIS-09 seed 29 — all pass (no regressions)
