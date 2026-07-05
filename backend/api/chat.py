@@ -3874,6 +3874,11 @@ async def _broad_question_mcq(
     if not msg or len(msg) > 160:
         return None
 
+    # Explicit format requests (checklist, step-by-step, routine) already encode
+    # the user's intent — clarifying their goal adds friction with no value.
+    if re.search(r"\b(checklist|step[\s\-]by[\s\-]step|step\.by\.step)\b", msg, re.IGNORECASE):
+        return None
+
     # Assemble the per-user brief lazily (cached) — only when this turn actually
     # looks like it might warrant a clarifier.
     brief = None

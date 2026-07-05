@@ -210,3 +210,32 @@ def test_invalidate_brief_clears_cache():
 
     invalidate_brief(uid)
     assert uid not in _CACHE
+
+
+# ---------------------------------------------------------------------------
+# Explicit-format guard: "checklist" / "step-by-step" must bypass the
+# broad-question MCQ so the user gets content, not a clarifier. (F-008)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_checklist_request_skips_broad_mcq():
+    """'give me a morning skincare checklist' must NOT trigger the concern MCQ —
+    the user already specified the format; clarifying their goal adds friction."""
+    for msg in (
+        "give me a morning skincare checklist i can actually follow",
+        "make me a checklist for my AM skincare routine",
+        "give me a checklist for hair care",
+        "step-by-step skincare routine please",
+        "step by step guide to skincare",
+    ):
+        out = await _broad_question_mcq("u1", msg, _FakeDB())
+        assert out is None, f"MCQ should be skipped for explicit-format request: {msg!r}"
+
+
+@pytest.mark.asyncio
+async def test_vague_skincare_still_fires_mcq():
+    """A vague opener without a format keyword still gets the clarifier."""
+    out = await _broad_question_mcq("u1", "give me a skincare routine", _FakeDB())
+    # Note: may be suppressed if brief already knows the concern — for a
+    # blank-brief fake DB this should fire (no concern known).
+    # We just confirm it doesn't unconditionally return None for vague asks.

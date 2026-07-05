@@ -47,9 +47,10 @@ hypotheses:
       attempt 1 (iter 6): added NON-NEGOTIABLE timeline directive to CHAT_VISUAL_GRAMMAR (prompt_constants.py) + EXCEPTION text in grounding_suffix (fast_rag_answer.py). FAILED — model still responded with prose offering to pull the timeline "if you want", ignoring both directives.
       attempt 2 (iter 6): added _EXPLICIT_BLOCK_RE code detection; conditional grounding_suffix that removes evidence-only constraint for explicit block requests. FAILED — model used general knowledge in prose ("here's what i can give you based on general minoxidil protocol") but still did not emit [VISUAL_BLOCK] marker. Root analysis: Supabase-loaded rag_answer_system prompt has strong evidence-only conditioning that overrides additions appended after it; model knows the content but chooses prose or deferred-offer over block emission. Needs human review of Supabase rag_answer_system row or a model-level training signal.
 
-- [ ] F-008  Model doesn't emit checklist block for explicit checklist ask | class: model-never-emits-block
+- [x] F-008  Model doesn't emit checklist block for explicit checklist ask | class: model-never-emits-block
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-VIS-05.md (turn 0) | first-seen: iter 4 (full battery)
       likely site: same as F-007 — grammar directive not compelling enough on RAG path
+      fixed: iter 8 — root: _broad_question_mcq fired for "give me a ... checklist" because "checklist" wasn't in the skincare specific_re and _REC_INTENT_RE matched "give me a"; fix: added explicit-format guard in _broad_question_mcq (api/chat.py) — if message contains "checklist" or "step-by-step", return None immediately. Also added NON-NEGOTIABLE checklist directive to CHAT_VISUAL_GRAMMAR (prompt_constants.py). VIS-05 passes seeds 4 and 15.
 
 - [ ] F-009  Model doesn't emit table block for explicit markdown table ask | class: model-never-emits-block
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-VIS-07.md (turn 0) | first-seen: iter 4 (full battery)

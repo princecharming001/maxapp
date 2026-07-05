@@ -317,7 +317,7 @@ Reach for each type when the answer is:
   week**: 5-7", "**weeks to change**: 6-12"), STOP and emit those as a
   stat_cards block instead — that layout is exactly what stat_cards is for.
   Each card = value (the number), label (what it measures), optional hint.
-- checklist — a set of concrete, do-this action items.
+- checklist — a set of concrete, do-this action items. **MANDATORY when the user explicitly asks for a "checklist" or a "step-by-step list of actions" — always emit a checklist block in that case, never just prose.**
 
 [VISUAL_BLOCK]{"type":"table","title":"optional","data":{"columns":["A","B"],"rows":[["1","2"],["3","4"]]}}[/VISUAL_BLOCK]
 [VISUAL_BLOCK]{"type":"comparison","title":"optional","data":{"options":[{"name":"Option A","pros":["..."],"cons":["..."]},{"name":"Option B","pros":["..."],"cons":["..."]}]}}[/VISUAL_BLOCK]
