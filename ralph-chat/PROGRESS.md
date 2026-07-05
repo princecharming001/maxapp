@@ -1,3 +1,10 @@
+### 2026-07-05T15-52Z — iter 23 — FULL BATTERY (seed 7) — clean
+- found/did: 35/36 deterministic-pass (VIS-04 quarantined F-007, expected). Judged all needs_judge turns across all transcripts — all dimensions ≥4/5. No new or reopened findings. clean_streak → 1.
+- battery: FULL seed 7: 35/36 deterministic-pass; judge: all dims ≥4 (ERR-01 answers_the_question=5/actionability=5; VIS-08 answers_the_question=5; MEM-01 uses_user_context=5; XMEM-03 uses_user_context=5; MEM-02/CLAR-02/CLAR-03/XMEM-01/XMEM-02 all ≥4). Quarantined: VIS-04 (F-007).
+- files: ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md, ralph-chat/state/runs/2026-07-05T15-52-28Z/
+- tests: no code changed, no new pytest
+- next: run full battery again for second consecutive clean pass (streak=1, need streak=2 for PROJECT COMPLETE)
+
 ### 2026-07-05T15-50Z — iter 22 — F-020 anti-clarifier safety net for plan requests
 - found/did: root at api/chat.py process_chat_message agent path — agent emits [CHOICES] MCQ (asking hair type) on first pass for "build me a 12-week plan covering skin, hair and gym" despite NON-NEGOTIABLE directive; Supabase max_chat_system "collect profile data" instruction overrides appended CHAT_VISUAL_GRAMMAR. Fix: added `_is_explicit_plan_request()` (≥2 domain keywords + timeframe/plan keyword) + anti-clarifier safety net at api/chat.py:~3676 — if first agent response has [CHOICES] but no [VISUAL_BLOCK], retry with PLAN-BUILD OVERRIDE prepended forcing plan build with default assumptions.
 - battery: ERR-01 seeds 6 and 13 — both pass (full plan built, no clarifier); CLAR-01/CLAR-02 seed 13 — both pass unaffected

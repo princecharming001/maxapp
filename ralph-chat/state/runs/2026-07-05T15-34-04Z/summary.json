@@ -1,0 +1,14 @@
+{
+  "run_id": "2026-07-05T15-34-04Z",
+  "started": "2026-07-05T15-34-04Z",
+  "scenarios": {
+    "ERR-04": {
+      "status": "fail",
+      "failed_checks": [
+        "turn0:prose_nonempty"
+      ],
+      "needs_judge": false
+    }
+  },
+  "deterministic_clean": false
+}
