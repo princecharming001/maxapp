@@ -52,17 +52,19 @@ hypotheses:
       likely site: same as F-007 — grammar directive not compelling enough on RAG path
       fixed: iter 8 — root: _broad_question_mcq fired for "give me a ... checklist" because "checklist" wasn't in the skincare specific_re and _REC_INTENT_RE matched "give me a"; fix: added explicit-format guard in _broad_question_mcq (api/chat.py) — if message contains "checklist" or "step-by-step", return None immediately. Also added NON-NEGOTIABLE checklist directive to CHAT_VISUAL_GRAMMAR (prompt_constants.py). VIS-05 passes seeds 4 and 15.
 
-- [x] F-009  Model doesn't emit table block for explicit markdown table ask | class: model-never-emits-block
+- [ ] F-009  Model doesn't emit table block for explicit markdown table ask | class: model-never-emits-block
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-VIS-07.md (turn 0) | first-seen: iter 4 (full battery)
       likely site: markdown-table autoconvert path in _extract_markdown_tables may not be handling markdown output; or model prose path not emitting a table block
       fixed: iter 9 — two-part fix: (1) CHAT_VISUAL_GRAMMAR (prompt_constants.py) — table type now explicitly wins over comparison when user asks for a "table" format; comparison NON-NEGOTIABLE updated with "table-format exception"; (2) fast_rag_answer.py explicit block grounding suffix — added CRITICAL rule: "Do NOT ask the user if they want the structured visual... Build and emit it NOW" to prevent deferred-offer behavior. VIS-07 passes seeds 9 and 16.
       REOPENED iter 28 (seed 9): different failure mode — user says "put CeraVe and La Roche-Posay moisturizers side by side in a table"; model emits comparison block (not table block). The CHAT_VISUAL_GRAMMAR "table wins over comparison" rule not consistently applied when the product-comparison framing (two named brands) triggers the comparison path first.
       fixed: iter 29 — root: `_count_distinct_block_types` in fast_rag_answer.py matched "compare" verb as a separate block type, so "compare X vs Y in a table" counted as 2 distinct types (comparison + table) → multi-block grounding suffix fired → model emitted comparison block instead of table (seed 9) or no block (seed 6, different paraphrase). Fix: removed "compare" verb from `_BLOCK_TYPE_PATTERNS`; only "comparison" noun and "pros and cons" still match the comparison slot. Single-block explicit path now fires for table-format requests. VIS-07 seeds 6, 9, 29 all pass; VIS-01/VIS-10/VIS-12/VIS-08/VIS-09 seed 29 unaffected.
+      REOPENED iter 39 (seed 13): "put CeraVe and La Roche-Posay moisturizers side by side in a table" — model emits comparison block (not table). Same failure mode as iter 28. The CHAT_VISUAL_GRAMMAR "table wins over comparison" directive not consistently applied when two named brands trigger comparison framing. evidence: state/runs/2026-07-05T19-23-17Z/transcript-VIS-07.md (turn 0)
 
-- [x] F-010  Model doesn't emit stat_cards block when bold-number stats requested | class: model-never-emits-block
+- [ ] F-010  Model doesn't emit stat_cards block when bold-number stats requested | class: model-never-emits-block
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-VIS-08.md (turn 0) | first-seen: iter 4 (full battery)
       note: mentioned as pre-existing in iter 3 notes ("VIS-08 pre-existing failure — no numbers in docs") but not formally tracked; now tracked.
       fixed: iter 10 — passively resolved by F-008/F-009 prompt enhancements (NON-NEGOTIABLE stat_cards directive in CHAT_VISUAL_GRAMMAR + explicit-block grounding suffix fix). VIS-08 passes seeds 1, 10, and 17; stat_cards emitted and answers_the_question scores 5.
+      REOPENED iter 39 (seed 13): "give me the numbers on sleep and muscle growth, bold each stat" — model gives detailed prose with bold stats but emits no stat_cards block. The prose content answers the question but the block is absent. evidence: state/runs/2026-07-05T19-23-17Z/transcript-VIS-08.md (turn 0)
 
 - [x] F-011  Cross-memory: follow-up about skin-peeling doesn't reference user's known tretinoin use | class: cross-chat-memory-miss
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-XMEM-01.md (turn 0) | first-seen: iter 4 (full battery)
@@ -124,7 +126,7 @@ hypotheses:
       REOPENED iter 33 (seed 11): same 33-char response "hey, what's up. what do you need." — "??" goes through agent path and falls through to lines 3874-3876 (normalize_list_formatting + strip_amazon_links + keep_bold_drop_stray_asterisks.lower()) instead of an early-return _finalize_assistant_message call, so the short-response guardrail is never applied. Root: agent-path global finalization at lines 3874-3876 is a subset of _finalize_assistant_message and omits the short-response guardrail.
       fixed: iter 35 — added short-response guardrail (len < 40 → append " — what are you working on?") immediately after line 3876 in the agent path. ERR-04 seed 42 passes; ERR-01 seed 42 unaffected. Pytest: 16 pre-existing failures, no new failures (778 pass).
 
-- [x] F-021  VIS-12 judge fail: multi-block "complete guide" request delivers only 1 of 4 requested block types | class: model-never-emits-block
+- [ ] F-021  VIS-12 judge fail: multi-block "complete guide" request delivers only 1 of 4 requested block types | class: model-never-emits-block
       evidence: state/runs/2026-07-05T16-00-14Z/transcript-VIS-12.md (turn 0) | first-seen: iter 24 (full battery seed 8)
       user asked for "table of products, weekly timeline, checklist, and key stats for starting skincare from zero" — model emits one product table block only; no timeline, no checklist, no stat_cards. answers_the_question=3, actionability=3.
       fixed: iter 26 — root: (1) CHAT_VISUAL_GRAMMAR said "At most one block per reply" with no exception for explicit multi-block requests; (2) fast_rag_answer.py grounding_suffix only said "emit the appropriate marker" (singular); (3) no token budget for multi-block. Fix: (a) added `_count_distinct_block_types()` + `_BLOCK_TYPE_PATTERNS` to fast_rag_answer.py; (b) when ≥2 distinct block types detected, emit "MULTIPLE BLOCKS REQUIRED" grounding_suffix and set max_tokens=1800; (c) updated CHAT_VISUAL_GRAMMAR to allow multiple blocks per reply when explicitly requested, with NON-NEGOTIABLE to emit ALL requested types. VIS-12 seeds 32 and 39 — both emit all 4 requested block types. VIS-08/VIS-09 unaffected (seed 26). Pytest: 5 new tests in test_chat_visual_blocks.py — 23/23 pass; baseline: 16 pre-existing failures, no new failures (778 pass).
@@ -132,6 +134,7 @@ hypotheses:
       fixed: iter 30 — passively resolved by F-009 iter 29 fix (removing "compare" verb from _BLOCK_TYPE_PATTERNS prevented multi-block grounding suffix from misfiring for single-type requests). VIS-12 passes seeds 9 and 30 without additional code changes.
       REOPENED iter 31 (seed 10): paraphrase "give me the complete guide: table of products, weekly timeline, checklist, and key stats for starting skincare from zero" — model emits zero visual blocks, only prose, and ends with a clarifying question ("want me to fill that in with general knowledge, or should I ask you to clarify which skin concern is your priority first?"). answers_the_question=2, actionability=2. Different failure mode from iter 28 — model doesn't attempt to build the blocks at all.
       fixed: iter 32 — seeds 10, 17, 24 all pass all four block types in targeted retests after iter 31 (no code change needed); iter 31 failure was model-temperature flakiness. Closing as resolved.
+      REOPENED iter 39 (seed 13): "build me a full skincare starter guide: a product table, a timeline, a checklist, and key stats" — model emits table + timeline only (2/4 types); no checklist, no stat_cards. answers_the_question=3. Same failure mode as iter 28. evidence: state/runs/2026-07-05T19-23-17Z/transcript-VIS-12.md (turn 0)
 
 - [x] F-020  ERR-01 judge fail (seed 6): no weekly table block emitted — framework prose only | class: model-never-emits-block
       evidence: state/runs/2026-07-05T15-22-30Z/transcript-ERR-01.md (turn 0) | first-seen: iter 20 (full battery seed 6)
@@ -156,10 +159,11 @@ hypotheses:
 
 --- Found in full-battery run, iter 33 (seed 11) ---
 
-- [x] F-024  VIS-13 judge fail: "build me a table" with a specified cell value gets a clarifier instead of a table | class: answer-quality
+- [ ] F-024  VIS-13 judge fail: "build me a table" with a specified cell value gets a clarifier instead of a table | class: answer-quality
       evidence: state/runs/2026-07-05T18-20-44Z/transcript-VIS-13.md (turn 0) | first-seen: iter 33 (full battery seed 11)
       user asks "put 'AM | PM' as a cell value in a table you build for me" — model responds "i'd be happy to build a table... what should the table show?" with 4 choices instead of picking a relevant topic and building the table. answers_the_question=2 (pure clarifier, no table, no actionable content). Likely root: model treats the lack of explicit table topic as ambiguity and falls back to clarifying; the NON-NEGOTIABLE table grammar directive may not cover this "build me a table" variant without an explicit topic. Fix site: CHAT_VISUAL_GRAMMAR — add rule that when user asks model to build any table (with or without explicit topic), model should pick a relevant topic from the conversation/persona context and build immediately, no clarifying question.
       fixed: iter 34 — extended table bullet in CHAT_VISUAL_GRAMMAR (prompt_constants.py:316): added "If the user asks to build/make/create a table but does not specify a topic, pick a relevant topic from context/persona and emit immediately — DO NOT ask." Seed 41 (paraphrase 1) emits table directly; VIS-07/08/09 seed 41 unaffected. fixed: iter 34
+      REOPENED iter 39 (seed 13): "put 'AM | PM' as a cell value in a table you build for me" — model responds "i need a bit more context to build a useful table for you. what should the table show?" — same clarifier pattern. answers_the_question=2. CHAT_VISUAL_GRAMMAR directive "DO NOT ask" not honored for this paraphrase variant. evidence: state/runs/2026-07-05T19-23-17Z/transcript-VIS-13.md (turn 0)
 
 --- Found in full-battery run, iter 36 (seed 12) ---
 
