@@ -2764,17 +2764,36 @@ class ScheduleService:
             schedule.updated_at = datetime.utcnow()
 
             # Award XP for completing a task ON TIME (its own day == local today).
-            # Best-effort: rides this commit, never blocks completion. Late
-            # backfill of a past day earns no XP (the "before day's end" rule).
+            # Hardened: paid at most once per (task, day) EVER via the profile
+            # ledger (so uncomplete→recomplete toggling farms nothing), amount
+            # normalized to the size of TODAY'S whole plan across every active
+            # schedule (so volume can't out-earn discipline), scaled by the
+            # streak multiplier. Best-effort: rides this commit, never blocks.
             try:
-                from services.gamification import award_xp, XP_TASK_ON_TIME
-                from services.schedule_streak import local_today_date
+                from services.gamification import award_task_xp
+                from services.schedule_streak import local_today_date, STREAK_KEY
                 user = await db.get(User, UUID(user_id))
                 if user is not None:
                     today_iso = local_today_date(user.onboarding).isoformat()
                     if task_day_date == today_iso:
+                        # Today's total planned tasks across ALL active schedules.
+                        n_today = 0
+                        try:
+                            rows = (await db.execute(
+                                select(UserSchedule.days).where(
+                                    UserSchedule.user_id == UUID(user_id),
+                                    UserSchedule.is_active.is_(True),
+                                )
+                            )).scalars().all()
+                            for sched_days in rows:
+                                for d in (sched_days or []):
+                                    if d.get("date") == today_iso:
+                                        n_today += len(d.get("tasks") or [])
+                        except Exception:
+                            n_today = 0
                         profile = dict(user.profile or {})
-                        award_xp(profile, XP_TASK_ON_TIME, today_iso)
+                        streak = int(profile.get(STREAK_KEY) or 0)
+                        award_task_xp(profile, task_id, n_today, streak, today_iso)
                         user.profile = profile
                         flag_modified(user, "profile")
             except Exception as _xp_e:  # pragma: no cover - non-fatal

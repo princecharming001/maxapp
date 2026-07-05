@@ -27,6 +27,8 @@ import SettingsScreen from '../screens/profile/SettingsScreen';
 import EditPersonalScreen from '../screens/profile/EditPersonalScreen';
 import PersonalizationScreen from '../screens/profile/PersonalizationScreen';
 import AchievementsScreen from '../screens/profile/AchievementsScreen';
+import RanksScreen from '../screens/profile/RanksScreen';
+import BlockPreviewScreen from '../screens/dev/BlockPreviewScreen';
 import AchievementCelebrationHost from '../components/achievements/AchievementCelebrationHost';
 import DayPlannerScreen from '../screens/profile/DayPlannerScreen';
 import MyProductsScreen from '../screens/profile/MyProductsScreen';
@@ -213,6 +215,8 @@ export function RootNavigator() {
                     <Stack.Screen name="EditPersonal" component={EditPersonalScreen} />
                     <Stack.Screen name="Personalization" component={PersonalizationScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="Achievements" component={AchievementsScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="Ranks" component={RanksScreen} options={{ headerShown: false }} />
+                    {__DEV__ ? <Stack.Screen name="BlockPreview" component={BlockPreviewScreen} options={{ headerShown: false }} /> : null}
                     <Stack.Screen name="DayPlanner" component={DayPlannerScreen} />
                     <Stack.Screen name="MyProducts" component={MyProductsScreen} />
                     <Stack.Screen name="ManageSubscription" component={ManageSubscriptionScreen} options={{ headerShown: false }} />

@@ -63,18 +63,42 @@ export default function CreateAccountScreen() {
     const [password, setPassword] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Chain the keyboard's Next/Go across the three fields.
+    const emailRef = useRef<TextInput>(null);
+    const passwordRef = useRef<TextInput>(null);
 
     const canSubmit = name.trim().length > 0 && /\S+@\S+\.\S+/.test(email.trim()) && password.length >= 8 && !busy;
 
-    // Funnel V4 resume-guard: this screen now sits AFTER the paywall, and the
-    // account may already be claimed (relaunch mid-funnel, or an existing user).
-    // A non-anonymous arrival has nothing to claim — continue straight to the
-    // schedule questions. Checked once on mount so the claim-in-progress flip
-    // (anon → real) never re-triggers it mid-flow.
-    useEffect(() => {
-        if (user && !String(user.email || '').endsWith('@anon.trymax.app')) {
-            nav.replace('Onboarding', { phase: 'schedule' });
+    // Continue to the schedule questions. This screen lives in TWO stacks: the
+    // funnel stack (which has 'Onboarding') and the main-app stack (reached when
+    // an already-full user opens it from "unlock scan results" — that stack has
+    // NO 'Onboarding' route). Navigating to a route the current navigator doesn't
+    // know throws the "action REPLACE/NAVIGATE was not handled" error, so guard on
+    // the registered route names and fall back to Main outside the funnel.
+    const continueToSchedule = (mode: 'navigate' | 'replace' = 'navigate') => {
+        const routeNames: string[] = ((nav.getState?.() as any)?.routeNames) ?? [];
+        if (routeNames.includes('Onboarding')) {
+            if (mode === 'replace') nav.replace('Onboarding', { phase: 'schedule' });
+            else nav.navigate('Onboarding', { phase: 'schedule' });
+        } else {
+            nav.navigate('Main');
         }
+    };
+
+    // Funnel V4 resume-guard: this screen sits AFTER the paywall, and the account
+    // may already be claimed on arrival — either a relaunch mid-funnel, OR (the
+    // bug this fixes) when onboarding COMPLETES and the navigator remounts onto
+    // the main stack carrying a stale CreateAccount route, which would show the
+    // account form a SECOND time after the schedule questions. Captured on the
+    // FIRST render so we can skip the form entirely (no flash) and redirect. A
+    // fresh anon claiming ON this screen is initialClaimed=false, so the legit
+    // first pass is untouched (its own goForward drives the hand-off).
+    const initialClaimed = useRef<boolean | null>(null);
+    if (initialClaimed.current === null) {
+        initialClaimed.current = !!user && !String(user.email || '').endsWith(ANON_EMAIL_SUFFIX);
+    }
+    useEffect(() => {
+        if (initialClaimed.current) continueToSchedule('replace');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -86,7 +110,7 @@ export default function CreateAccountScreen() {
     // claiming changes no stack and we must navigate explicitly.
     const goForward = (method: 'email' | 'google' = 'email') => {
         track('onboarding_step', { step: 'account_created', method });
-        nav.navigate('Onboarding', { phase: 'schedule' });
+        continueToSchedule('navigate');
     };
 
     // A Google sign-in either CLAIMED the anon account (same user id — the normal
@@ -153,6 +177,10 @@ export default function CreateAccountScreen() {
         setTimeout(() => { if (navigationRef.isReady()) navigationRef.navigate('Login' as never); }, 350);
     };
 
+    // Arrived already-claimed (post-onboarding remount / relaunch): never render
+    // the account form — the effect above is redirecting us onward.
+    if (initialClaimed.current) return null;
+
     return (
         <View style={[styles.root, { paddingTop: insets.top + 6 }]}>
             {/* Landing hero backdrop + soft cream scrim so the form stays legible. */}
@@ -176,17 +204,25 @@ export default function CreateAccountScreen() {
                         style={styles.input} value={name} onChangeText={setName}
                         placeholder="Your name" placeholderTextColor={SUB}
                         autoCapitalize="words" accessibilityLabel="Name"
+                        textContentType="name" autoComplete="name"
+                        returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} blurOnSubmit={false}
                     />
                     <TextInput
+                        ref={emailRef}
                         style={styles.input} value={email} onChangeText={setEmail}
                         placeholder="Email" placeholderTextColor={SUB}
                         autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
                         accessibilityLabel="Email"
+                        textContentType="emailAddress" autoComplete="email"
+                        returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} blurOnSubmit={false}
                     />
                     <TextInput
+                        ref={passwordRef}
                         style={styles.input} value={password} onChangeText={setPassword}
                         placeholder="Password (8+ characters)" placeholderTextColor={SUB}
                         secureTextEntry accessibilityLabel="Password"
+                        textContentType="newPassword" autoComplete="new-password"
+                        returnKeyType="go" onSubmitEditing={onSubmit}
                     />
 
                     {error ? <Text style={styles.err}>{error}</Text> : null}
@@ -224,6 +260,20 @@ export default function CreateAccountScreen() {
                     <TouchableOpacity style={styles.signin} onPress={onSignInInstead} hitSlop={8} accessibilityRole="button">
                         <Text style={styles.signinText}>Already have an account? <Text style={styles.signinStrong}>Sign in</Text></Text>
                     </TouchableOpacity>
+
+                    {/* Simulator-only: skip the account claim and continue the
+                        funnel (the anon account stays anon). Never ships — __DEV__. */}
+                    {__DEV__ ? (
+                        <TouchableOpacity
+                            style={styles.devSkip}
+                            onPress={() => goForward('email')}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel="Skip (dev)"
+                        >
+                            <Text style={styles.devSkipText}>DEV · Skip account →</Text>
+                        </TouchableOpacity>
+                    ) : null}
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -268,4 +318,9 @@ const styles = StyleSheet.create({
     signin: { marginTop: 18, alignItems: 'center' },
     signinText: { fontFamily: fonts.sans, fontSize: 14, color: SUB },
     signinStrong: { fontFamily: fonts.sansSemiBold, color: INK, textDecorationLine: 'underline' },
+    devSkip: {
+        marginTop: 14, alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 7,
+        borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.05)',
+    },
+    devSkipText: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: SUB, letterSpacing: 0.4 },
 });

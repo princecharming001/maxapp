@@ -84,6 +84,8 @@ export interface Gamification {
     xp_for_next_level: number;
     next_level_at: number;
     is_max_level: boolean;
+    /** Active streak multiplier on task XP (1.0 / 1.1 / 1.25 / 1.5). */
+    streak_multiplier?: number;
 }
 
 export interface MarketplaceItem {

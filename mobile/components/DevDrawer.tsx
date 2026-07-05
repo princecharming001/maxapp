@@ -150,6 +150,16 @@ function DevDrawerInner() {
                         <Pressable onPress={() => void goToCreateAccount()} style={s.actionBtn}>
                             <Text style={s.actionText}>→ Create account (claim)</Text>
                         </Pressable>
+                        <Pressable
+                            onPress={() => {
+                                setOpen(false);
+                                const { navigationRef } = require('../lib/navigationRef');
+                                if (navigationRef.isReady()) navigationRef.navigate('BlockPreview');
+                            }}
+                            style={s.actionBtn}
+                        >
+                            <Text style={s.actionText}>Chat visual blocks (preview)</Text>
+                        </Pressable>
                         <Pressable onPress={() => setOpen(false)} style={s.closeBtn}>
                             <Text style={s.closeText}>Close</Text>
                         </Pressable>

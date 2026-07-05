@@ -1,12 +1,17 @@
 /**
  * XpProgressCard — the primary XP + rank surface (Profile). Shows the earned
- * RANK, current level, a progress bar toward the next level, and today's XP.
- * Craft palette: cream card, ink text, muted-gold progress fill. Renders nothing
- * until the gamification block loads (cold-start invisible), matching the app's
- * quiet-reward taste (no confetti, no fawning).
+ * RANK (with its ivory-marble + gold 3D icon, gently floating), the current
+ * level, a progress bar toward the next level, and today's XP. Craft palette:
+ * cream card, ink text, muted-gold progress fill. Renders nothing until the
+ * gamification block loads (cold-start invisible).
  */
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { Image } from 'expo-image';
+import Animated, {
+    Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming,
+} from 'react-native-reanimated';
 import { fonts } from '../theme/dark';
 import type { Gamification } from '../services/api';
 
@@ -17,13 +22,43 @@ const CARD = '#F1F1EF';
 const TRACK = '#E4E3E0';
 const GOLD = '#C29A4E'; // muted editorial gold
 
+// The 3D rank icons (Higgsfield ivory-marble + gold, keyed to transparent).
+const RANK_ICONS: Record<string, any> = {
+    Mortal: require('../assets/ranks/mortal.webp'),
+    Aspirant: require('../assets/ranks/aspirant.webp'),
+    Champion: require('../assets/ranks/champion.webp'),
+    Hero: require('../assets/ranks/hero.webp'),
+    Demigod: require('../assets/ranks/demigod.webp'),
+    Titan: require('../assets/ranks/titan.webp'),
+    Olympian: require('../assets/ranks/olympian.webp'),
+};
+
 export default function XpProgressCard({ data }: { data: Gamification | null | undefined }) {
+    const nav = useNavigation<any>();
+    // A gentle "floating" idle: a soft vertical bob + slight tilt, looped.
+    const t = useSharedValue(0);
+    useEffect(() => {
+        t.value = withRepeat(
+            withTiming(1, { duration: 2800, easing: Easing.inOut(Easing.sin) }),
+            -1,
+            true,
+        );
+    }, [t]);
+    const floatStyle = useAnimatedStyle(() => ({
+        transform: [
+            { translateY: (t.value - 0.5) * 8 },
+            { rotateZ: `${(t.value - 0.5) * 5}deg` },
+        ],
+    }));
+
     if (!data) return null;
 
     const { current_level, rank, xp_into_level, xp_for_next_level, xp_earned_today, is_max_level } = data;
+    const mult = data.streak_multiplier ?? 1;
     const pct = is_max_level
         ? 1
         : Math.max(0, Math.min(1, xp_for_next_level > 0 ? xp_into_level / xp_for_next_level : 0));
+    const icon = RANK_ICONS[rank] ?? RANK_ICONS.Mortal;
 
     return (
         <View style={s.card}>
@@ -31,12 +66,25 @@ export default function XpProgressCard({ data }: { data: Gamification | null | u
                 <View style={{ flex: 1 }}>
                     <Text style={s.rank}>{rank}</Text>
                     <Text style={s.level}>Level {current_level}</Text>
+                    {xp_earned_today > 0 || mult > 1 ? (
+                        <Text style={s.today}>
+                            {xp_earned_today > 0 ? `+${xp_earned_today.toLocaleString()} XP today` : ''}
+                            {xp_earned_today > 0 && mult > 1 ? ' · ' : ''}
+                            {mult > 1 ? `×${mult} streak bonus` : ''}
+                        </Text>
+                    ) : null}
                 </View>
-                {xp_earned_today > 0 ? (
-                    <View style={s.todayPill}>
-                        <Text style={s.todayPillText}>+{xp_earned_today.toLocaleString()} XP today</Text>
-                    </View>
-                ) : null}
+                <TouchableOpacity
+                    onPress={() => nav.navigate('Ranks')}
+                    activeOpacity={0.8}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="See all ranks"
+                >
+                    <Animated.View style={[s.iconWrap, floatStyle]}>
+                        <Image source={icon} style={s.icon} contentFit="contain" transition={200} />
+                    </Animated.View>
+                </TouchableOpacity>
             </View>
 
             <View style={s.barTrack}>
@@ -61,16 +109,12 @@ const s = StyleSheet.create({
         paddingVertical: 18,
         marginBottom: 14,
     },
-    topRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
-    rank: { fontFamily: fonts.serif, fontSize: 24, color: INK, letterSpacing: -0.3 },
+    topRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+    rank: { fontFamily: fonts.serif, fontSize: 26, color: INK, letterSpacing: -0.3 },
     level: { fontFamily: fonts.sansMedium, fontSize: 13, color: SUB, marginTop: 3, letterSpacing: 0.2 },
-    todayPill: {
-        backgroundColor: 'rgba(194,154,78,0.14)',
-        borderRadius: 999,
-        paddingHorizontal: 11,
-        paddingVertical: 5,
-    },
-    todayPillText: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: '#8A6D2E' },
+    today: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: '#8A6D2E', marginTop: 6 },
+    iconWrap: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center' },
+    icon: { width: 72, height: 72 },
     barTrack: { height: 8, borderRadius: 4, backgroundColor: TRACK, overflow: 'hidden' },
     barFill: { height: '100%', borderRadius: 4, backgroundColor: GOLD },
     progressText: { fontFamily: fonts.sans, fontSize: 12.5, color: MUTE, marginTop: 9 },

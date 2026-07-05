@@ -1293,7 +1293,6 @@ export default function FaceScanResultsScreen() {
                 style={{ flex: 1 }}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 0 }}
-                scrollEnabled={!gateV4}
             >
                 {/* Hero section — transparent, full screen height. Before any
                     scroll the only things over the photo are the face-frame
@@ -1375,17 +1374,17 @@ export default function FaceScanResultsScreen() {
                         ))}
                     </View>
 
-                    {/* Minimal animated scroll cue in the white space (the V4 gate
-                        has nothing below the fold — the CTA overlays the hero). */}
-                    {!gateV4 ? (
-                        <ScrollCue onPress={() => scrollRef.current?.scrollTo({ y: SCREEN_H - 60, animated: true })} />
-                    ) : null}
+                    {/* Scroll cue — invites the user down into the locked breakdown
+                        (archetype + verdict) that sits below the teaser rings. */}
+                    <ScrollCue onPress={() => scrollRef.current?.scrollTo({ y: SCREEN_H - 60, animated: true })} />
                 </View>
 
-                {/* ── Stats section (hidden in the V4 gate — the three rings above
-                    ARE the teaser; everything here is paid-only) ─────────────── */}
-                {!gateV4 ? (
-                <View ref={analysisRef} collapsable={false} style={[s.statsSection, { paddingBottom: Math.max(insets.bottom, 24) + 24 }]}>
+                {/* ── Stats section — the analysis breakdown. In the V4 gate it
+                    renders too, fully LOCKED (archetype + verdict masked), so the
+                    teaser conveys everything the unlock buys — not just 3 rings.
+                    Extra bottom padding in the gate clears the floating CTA. ── */}
+                {(
+                <View ref={analysisRef} collapsable={false} style={[s.statsSection, { paddingBottom: Math.max(insets.bottom, 24) + (gateV4 ? 100 : 24) }]}>
 
                     {/* Export-only "max" watermark for the analysis capture (white). */}
                     {exportWatermark ? (
@@ -1556,8 +1555,9 @@ export default function FaceScanResultsScreen() {
 
                     <Text style={s.disclaimer}>For general wellness only. Not medical advice.</Text>
 
-                    {/* CTA */}
-                    {!viewingHistory ? (
+                    {/* CTA — hidden in the V4 gate (the floating gate CTA below is
+                        the single sticky "Unlock full results" there). */}
+                    {!viewingHistory && !gateV4 ? (
                         <>
                             <TouchableOpacity style={s.cta} onPress={onPrimaryCta} activeOpacity={0.85} accessibilityLabel="Unlock full results">
                                 <Text style={s.ctaText}>
@@ -1574,7 +1574,7 @@ export default function FaceScanResultsScreen() {
                         </>
                     ) : null}
                 </View>
-                ) : null}
+                )}
             </ScrollView>
 
             {/* ── V4 gate CTA — overlays the hero (nothing below the fold) ── */}

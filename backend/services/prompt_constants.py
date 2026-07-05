@@ -293,12 +293,26 @@ USER_ONBOARDING_JSON:
 # JSON schemas here MUST match the mobile MessageBlocks renderer.
 CHAT_VISUAL_GRAMMAR = """
 
-## STRUCTURED VISUALS (optional, use sparingly)
-When — and ONLY when — the answer is genuinely tabular, comparative, sequential,
-or a set of metrics, you MAY add ONE structured visual AFTER your prose by
-emitting a marker. Never wrap normal prose in a block. Keep the prose the primary
-answer; the block is a supplement. Emit RAW JSON between the markers (no code
-fences). If unsure, don't emit a block.
+## STRUCTURED VISUALS (optional — a supplement to your prose, never a replacement)
+When the answer naturally contains one of the shapes below, add ONE block AFTER
+your prose by emitting a marker. Keep the prose the primary answer; the block just
+makes the structure scannable. Emit RAW JSON between the markers (no code fences).
+At most one block per reply. Don't wrap plain prose in a block, and don't force a
+shape that isn't there — but when the shape IS there, do surface it.
+
+Reach for each type when the answer is:
+- table — a grid: the same fields repeated across rows (exercises × sets/reps).
+- comparison — weighing two or more options by their pros and cons.
+- timeline — phases that unfold over time (week 1 → week 4, month 2–3 …).
+- flowchart — an ordered routine or sequence of steps.
+- stat_cards — two or more standalone numbers/percentages worth highlighting
+  (e.g. "92% stick with AM+PM", "14 days to first visible change", "−30% acne
+  with 8h sleep"). IMPORTANT: whenever you catch yourself about to list a few
+  metrics as inline **bold labels** followed by a number (e.g. "**sessions per
+  week**: 5-7", "**weeks to change**: 6-12"), STOP and emit those as a
+  stat_cards block instead — that layout is exactly what stat_cards is for.
+  Each card = value (the number), label (what it measures), optional hint.
+- checklist — a set of concrete, do-this action items.
 
 [VISUAL_BLOCK]{"type":"table","title":"optional","data":{"columns":["A","B"],"rows":[["1","2"],["3","4"]]}}[/VISUAL_BLOCK]
 [VISUAL_BLOCK]{"type":"comparison","title":"optional","data":{"options":[{"name":"Option A","pros":["..."],"cons":["..."]},{"name":"Option B","pros":["..."],"cons":["..."]}]}}[/VISUAL_BLOCK]

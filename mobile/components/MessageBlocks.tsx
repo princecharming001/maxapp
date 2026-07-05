@@ -9,6 +9,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '../theme/dark';
+import LiquidGlass from './glass/LiquidGlass';
 import type { VisualBlock } from '../services/api';
 
 const INK = colors.foreground;      // #111113
@@ -18,6 +19,10 @@ const HAIR = 'rgba(0,0,0,0.08)';
 const CARD = '#FFFFFF';
 const GOLD = '#C29A4E';
 const GOOD = '#2F9E60';
+// Match the chat surface exactly: white ground, system font (no fontFamily),
+// so blocks read as part of the conversation rather than a foreign card.
+const CHAT_INK = '#0D0D0D';
+const CHAT_MUTE = '#8E8E93';
 
 function BlockTitle({ title }: { title?: string | null }) {
     if (!title) return null;
@@ -132,14 +137,20 @@ function FlowchartBlock({ block }: { block: VisualBlock }) {
 function StatCardsBlock({ block }: { block: VisualBlock }) {
     const cards: any[] = Array.isArray(block.data?.cards) ? block.data.cards : [];
     if (!cards.length) return null;
+    // Transparent stack of one-line liquid-glass pills: the number leads, the
+    // label trails on the same line, both in the chat's own system font. No
+    // opaque card — the glass floats on the white chat surface.
     return (
-        <View style={[s.card, s.statWrap]}>
+        <View style={s.statStack}>
             {cards.slice(0, 4).map((c, i) => (
-                <View key={i} style={s.statCard}>
-                    <Text style={s.statValue}>{c?.value ?? ''}</Text>
-                    <Text style={s.statLabel} numberOfLines={2}>{c?.label ?? ''}</Text>
-                    {c?.hint ? <Text style={s.statHint} numberOfLines={2}>{c.hint}</Text> : null}
-                </View>
+                <LiquidGlass key={i} radius={13} spec={0.85} style={s.statPill} contentStyle={s.statPillContent}>
+                    <View style={s.statLine}>
+                        <Text style={s.statValueLine} numberOfLines={1}>{c?.value ?? ''}</Text>
+                        <Text style={s.statLabelLine} numberOfLines={1}>
+                            {c?.label ?? ''}{c?.hint ? `  ·  ${c.hint}` : ''}
+                        </Text>
+                    </View>
+                </LiquidGlass>
             ))}
         </View>
     );
@@ -225,12 +236,14 @@ const s = StyleSheet.create({
     fcLabel: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: INK, textAlign: 'center' },
     fcNote: { fontFamily: fonts.sans, fontSize: 11.5, color: MUTE, textAlign: 'center', marginTop: 2 },
     fcArrow: { alignItems: 'center', paddingVertical: 2 },
-    // stat cards
-    statWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 8 },
-    statCard: { flexGrow: 1, minWidth: 88, backgroundColor: '#F6F5F2', borderRadius: 12, borderCurve: 'continuous', paddingVertical: 12, paddingHorizontal: 10, alignItems: 'center' },
-    statValue: { fontFamily: fonts.serif, fontSize: 22, color: INK },
-    statLabel: { fontFamily: fonts.sansMedium, fontSize: 11.5, color: SUB, marginTop: 3, textAlign: 'center' },
-    statHint: { fontFamily: fonts.sans, fontSize: 10.5, color: MUTE, marginTop: 1, textAlign: 'center' },
+    // stat cards — transparent stack of one-line liquid-glass pills
+    statStack: { gap: 7 },
+    statPill: { borderRadius: 13, borderCurve: 'continuous' },
+    statPillContent: { paddingVertical: 9, paddingHorizontal: 14 },
+    statLine: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+    // System font (no fontFamily) to match the chat's assistant text exactly.
+    statValueLine: { fontSize: 16, fontWeight: '700', color: CHAT_INK, letterSpacing: -0.2, fontVariant: ['tabular-nums'] },
+    statLabelLine: { flex: 1, fontSize: 14, color: CHAT_MUTE, letterSpacing: 0 },
     // checklist
     clRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 4 },
     clText: { flex: 1, fontFamily: fonts.sans, fontSize: 13, color: INK, lineHeight: 18 },

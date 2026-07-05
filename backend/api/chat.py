@@ -729,6 +729,73 @@ def _extract_markdown_tables(text: str) -> tuple[str, list[dict]]:
     return clean, blocks[:6]
 
 
+# A "**Label**: 5-7 days" metric line. The small chat model (Haiku) strongly
+# prefers this inline-bold layout over emitting a stat_cards marker, so we detect
+# a run of them and auto-convert — mirroring the markdown-table path above.
+_BOLD_METRIC_RE = re.compile(
+    r"^\s*[-*]?\s*\*\*\s*(?P<label>[^*\n]{1,44}?)\s*(?P<c1>:?)\s*\*\*\s*(?P<c2>:?)\s*(?P<value>.+?)\s*$"
+)
+# The value must LEAD with a number/range/percent (+ optional unit word), so a
+# bold line whose value is prose ("harder gum builds faster") is not a metric.
+_METRIC_VALUE_RE = re.compile(
+    r"^\s*(?P<num>[~<>≈]?\s*[+\-−]?\d[\d.,]*\s*(?:[–\-—]\s*\d[\d.,]*)?\s*%?(?:\s*[a-zA-Z%/]+)?)"
+)
+
+
+def _parse_bold_metric(line: str) -> "tuple[str, str] | None":
+    """(label, clean_value) for a `**label**: <number...>` line, else None."""
+    mm = _BOLD_METRIC_RE.match(line)
+    if not mm:
+        return None
+    if ":" not in (mm.group("c1") + mm.group("c2")):
+        return None  # require a colon — avoids matching bold lead-ins
+    label = mm.group("label").strip().rstrip(":").strip()
+    vm = _METRIC_VALUE_RE.match(mm.group("value").strip())
+    if not label or not vm:
+        return None
+    value = vm.group("num").strip().rstrip(".,").strip()
+    if not value or not any(c.isalpha() for c in label):
+        return None
+    return label, value
+
+
+def _extract_stat_cards_from_prose(text: str) -> tuple[str, list[dict]]:
+    """Convert a run of >=2 consecutive `**label**: <number>` bold-metric lines
+    (blank lines between allowed) into ONE native stat_cards block and strip them
+    from the prose. Conservative: a non-blank line that isn't a numeric metric
+    ends the run, so ordinary prose is never swept in. Returns (clean, [blocks])."""
+    if not text or "**" not in text:
+        return text, []
+    lines = text.split("\n")
+    groups: list[list[tuple[int, str, str]]] = []
+    cur: list[tuple[int, str, str]] = []
+    for idx, line in enumerate(lines):
+        parsed = _parse_bold_metric(line)
+        if parsed:
+            cur.append((idx, parsed[0], parsed[1]))
+        elif line.strip() == "":
+            continue  # blank line: keep the run open across paragraph breaks
+        else:
+            if cur:
+                groups.append(cur)
+                cur = []
+    if cur:
+        groups.append(cur)
+
+    committed = [g for g in groups if len(g) >= 2]
+    if not committed:
+        return text, []
+    drop = {idx for g in committed for (idx, _l, _v) in g}
+    cards: list[dict] = []
+    for g in committed:
+        for _idx, lbl, val in g:
+            cards.append({"value": val, "label": lbl})
+    out = [ln for i, ln in enumerate(lines) if i not in drop]
+    clean = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+    block = {"type": "stat_cards", "title": None, "data": {"cards": cards[:6]}}
+    return clean, [block]
+
+
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 FITMAX_REQUIRED_FIELDS = [
@@ -5165,7 +5232,14 @@ async def _send_message_locked(
         response_text, method_metadata = _extract_method_confidence(response_text)
         # Also convert any natural markdown tables into native table blocks.
         response_text, _md_tables = _extract_markdown_tables(response_text)
-        visual_blocks = (visual_blocks + _md_tables)[:6]
+        visual_blocks = visual_blocks + _md_tables
+        # Haiku tends to render a set of metrics as inline "**label**: 5-7 days"
+        # bold lines instead of a stat_cards marker — auto-convert those too, but
+        # only if the model didn't already emit its own stat_cards block.
+        if not any(b.get("type") == "stat_cards" for b in visual_blocks):
+            response_text, _stat_cards = _extract_stat_cards_from_prose(response_text)
+            visual_blocks = visual_blocks + _stat_cards
+        visual_blocks = visual_blocks[:6]
 
     return ChatResponse(
         response=response_text,

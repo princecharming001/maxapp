@@ -95,8 +95,7 @@ committed. List anything that had to be fixed.
    files swept in.
 
 Completion promise (emit verbatim only when all hold):
-> FUNNEL E2E COMPLETE — Get started → onboarding → scan → create account → referral → payment
-> verified on the sim, and the returning-user "Sign in instead" path works.
+> FUNNEL E2E COMPLETE - funnel verified on the sim and returning-user sign-in path works
 
 ## ITERATION LOG
 - (none yet)

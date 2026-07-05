@@ -30,6 +30,8 @@ const CONFETTI_COLORS = ['#C9A24E', '#E7CFA6', '#FBF6EE', '#D7B277', '#1C1A17', 
 const PIECES = 22;
 const GOLD = '#C9A24E';
 const CREAM = '#FBF6EE';
+// XP granted per achievement — mirrors backend XP_ACHIEVEMENT (services/gamification.py).
+const XP_PER_ACHIEVEMENT = 50;
 
 /**
  * CelebrationBadge — the achievement's matte-black clay 3D icon (the same
@@ -170,6 +172,9 @@ export default function CelebrationOverlay({
                         <Text style={styles.kicker}>ACHIEVEMENT UNLOCKED</Text>
                         <Text style={styles.title}>{current.title}</Text>
                         <Text style={styles.desc}>{current.description}</Text>
+                        <View style={styles.xpPill}>
+                            <Text style={styles.xpText}>+{XP_PER_ACHIEVEMENT} XP</Text>
+                        </View>
                         {queue.length > 1 ? (
                             <Text style={styles.count}>{i + 1} of {queue.length}</Text>
                         ) : null}
@@ -205,6 +210,12 @@ const styles = StyleSheet.create({
         fontFamily: fonts.sans, fontSize: 15, color: 'rgba(251,246,238,0.78)',
         lineHeight: 21, textAlign: 'center', marginTop: 8, maxWidth: 300,
     },
+    xpPill: {
+        marginTop: 14, backgroundColor: 'rgba(201,162,78,0.18)', borderRadius: borderRadius.full,
+        paddingHorizontal: 16, paddingVertical: 7,
+        borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(231,207,166,0.55)',
+    },
+    xpText: { fontFamily: fonts.sansSemiBold, fontSize: 13.5, color: '#E7CFA6', letterSpacing: 0.4 },
     count: { fontFamily: fonts.sansMedium, fontSize: 12, color: 'rgba(251,246,238,0.5)', marginTop: 14 },
     cta: {
         marginTop: spacing.xl, backgroundColor: '#FBF6EE',

@@ -31,25 +31,82 @@ LAST_AWARD_DATE_KEY = "xp_last_award_date"
 PERFECT_XP_DATE_KEY = "xp_perfect_awarded_date"  # guards the once/day perfect-day award
 
 # ── award amounts ────────────────────────────────────────────────────────────
-XP_TASK_ON_TIME = 15
+XP_TASK_ON_TIME = 15          # per-task ceiling (small plans)
+XP_TASK_FLOOR = 5             # per-task floor (very large plans)
+TASK_DAY_BUDGET = 90          # a fully-completed day is worth ~this much task XP
 XP_ACHIEVEMENT = 50
 XP_PERFECT_DAY = 25
 XP_STREAK_MILESTONE = 100
 STREAK_MILESTONE_EVERY = 7
+TASK_LEDGER_KEY = "xp_task_ledger"  # {"date": iso, "ids": [task ids already paid today]}
+
+# Streak multiplier on task XP — consistency is the top earner and can't be
+# farmed in a sitting. (0-2: ×1.0, 3-6: ×1.1, 7-29: ×1.25, 30+: ×1.5)
+_STREAK_MULT = [(30, 1.5), (7, 1.25), (3, 1.1)]
+
+
+def streak_multiplier(streak: int) -> float:
+    try:
+        streak = int(streak or 0)
+    except (TypeError, ValueError):
+        return 1.0
+    for min_days, mult in _STREAK_MULT:
+        if streak >= min_days:
+            return mult
+    return 1.0
+
+
+def task_xp_for_plan(n_tasks_today: int) -> int:
+    """Per-task XP normalized to the size of TODAY'S plan (the fair form of
+    diminishing returns): a fully-completed day earns ~TASK_DAY_BUDGET for
+    everyone, so a 12-task plan can't out-earn a 6-task plan by volume.
+    Clamped to [floor, ceiling] so tiny plans don't mint jackpots."""
+    try:
+        n = max(1, int(n_tasks_today or 1))
+    except (TypeError, ValueError):
+        n = 1
+    return max(XP_TASK_FLOOR, min(XP_TASK_ON_TIME, round(TASK_DAY_BUDGET / n)))
+
+
+def award_task_xp(
+    profile: dict, task_id: str, n_tasks_today: int, streak: int, today_iso: str
+) -> dict:
+    """Award XP for completing a task today — once per (task, day) EVER.
+    The ledger makes toggle-farming (uncomplete → recomplete) worthless: a task
+    id already paid today never pays again, and XP is additive-only so
+    un-checking refunds nothing. Amount = plan-normalized per-task XP × the
+    streak multiplier. Mutates profile in place, never commits, never raises."""
+    try:
+        ledger = profile.get(TASK_LEDGER_KEY) or {}
+        if ledger.get("date") != today_iso:
+            ledger = {"date": today_iso, "ids": []}
+        ids = list(ledger.get("ids") or [])
+        tid = str(task_id)
+        if tid in ids:
+            return award_xp(profile, 0, today_iso) | {"xp_awarded": 0, "already_paid": True}
+        ids.append(tid)
+        ledger["ids"] = ids[-200:]  # bound the ledger
+        profile[TASK_LEDGER_KEY] = ledger
+        amount = int(round(task_xp_for_plan(n_tasks_today) * streak_multiplier(streak)))
+        return award_xp(profile, amount, today_iso) | {"already_paid": False}
+    except Exception as e:  # pragma: no cover - never break task completion
+        logger.warning("award_task_xp no-op (non-fatal): %s", e)
+        return award_xp(profile, 0, today_iso) | {"xp_awarded": 0, "already_paid": False}
 
 MAX_LEVEL = 100
 _LEVEL_COEFF_NUM = 46  # cumulative XP to reach level n = 46*(n-1)**2 // 10  (== 4.6·(n-1)²)
 
 # Named ranks over the 1..100 ladder — themed to the app's disciplined,
 # self-improvement vibe. (min_level inclusive, ascending.)
+# Ascension ladder — the self-improvement arc from mortal to god.
 RANKS = [
-    (1, "Initiate"),
-    (10, "Disciplined"),
-    (25, "Forged"),
-    (40, "Relentless"),
-    (60, "Ascendant"),
-    (80, "Elite"),
-    (100, "Apex"),
+    (1, "Mortal"),
+    (10, "Aspirant"),
+    (25, "Champion"),
+    (40, "Hero"),
+    (60, "Demigod"),
+    (80, "Titan"),
+    (100, "Olympian"),
 ]
 
 
@@ -155,6 +212,9 @@ def gamification_payload(profile: dict, today_iso: str) -> dict:
         )
         cur_floor = xp_for_level(level)
         next_ceiling = xp_for_level(min(MAX_LEVEL, level + 1))
+        # Surface the active streak multiplier (read off the streak key the
+        # streak service maintains in this same profile blob).
+        mult = streak_multiplier(int(profile.get("master_schedule_streak") or 0))
         return {
             "current_xp": total,
             "current_level": level,
@@ -164,9 +224,10 @@ def gamification_payload(profile: dict, today_iso: str) -> dict:
             "xp_for_next_level": max(1, next_ceiling - cur_floor),
             "next_level_at": next_ceiling,
             "is_max_level": level >= MAX_LEVEL,
+            "streak_multiplier": mult,
         }
     except Exception:
         floor2 = xp_for_level(2)
         return {"current_xp": 0, "current_level": 1, "rank": RANKS[0][1],
                 "xp_earned_today": 0, "xp_into_level": 0, "xp_for_next_level": floor2,
-                "next_level_at": floor2, "is_max_level": False}
+                "next_level_at": floor2, "is_max_level": False, "streak_multiplier": 1.0}

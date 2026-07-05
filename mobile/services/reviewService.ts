@@ -16,6 +16,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import api from './api';
 
 const LOCAL_KEY = 'review_last_prompt_ms_v1';
@@ -27,18 +28,24 @@ const MAX_LIFETIME_REQUESTS = 3;
 // Linking fallback (native module unavailable) needs it; requestReview() doesn't.
 const APP_STORE_ID = '0000000000';
 
-async function loadStoreReview(): Promise<any | null> {
+function loadStoreReview(): any | null {
+    // Only load the JS wrapper if its NATIVE module is actually linked into this
+    // build. requireOptionalNativeModule() returns null (never throws, no dev
+    // redbox) when the native side is missing — unlike require('expo-store-review'),
+    // whose module init calls requireNativeModule() and throws at require-time,
+    // which the dev error overlay surfaces before our try/catch can swallow it.
+    if (!requireOptionalNativeModule('ExpoStoreReview')) return null;
     try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         return require('expo-store-review');
     } catch {
-        return null; // module not in this build → graceful no-op
+        return null; // module present but wrapper failed to load → graceful no-op
     }
 }
 
 async function requestNative(): Promise<boolean> {
     if (Platform.OS !== 'ios') return false;
-    const StoreReview = await loadStoreReview();
+    const StoreReview = loadStoreReview();
     if (!StoreReview) return false;
     try {
         const available = StoreReview.isAvailableAsync ? await StoreReview.isAvailableAsync() : true;

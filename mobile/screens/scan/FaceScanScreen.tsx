@@ -13,7 +13,7 @@ import {
 import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CommonActions, useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { CommonActions, useFocusEffect, useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -71,6 +71,7 @@ const STEPS = [
 export default function FaceScanScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
+    const isFocused = useIsFocused();
     const insets = useSafeAreaInsets();
     const { user, isPaid, isPremium, isScanUser, refreshUser } = useAuth();
     // Funnel V4: the capture is the FIRST screen after "Get started", mounted
@@ -265,6 +266,16 @@ export default function FaceScanScreen() {
 
     useLayoutEffect(() => {
         if (isScanUser) return;
+        // Only redirect when this screen is actually the active one. In the V4
+        // funnel, FaceScan stays MOUNTED underneath the question wizard after the
+        // capture hands off (navigation.navigate, not reset). When the background
+        // analysis lands, refreshUser() flips first_scan_completed in the shared
+        // auth context — and without this focus guard, that would fire here on the
+        // buried screen and reset the stack to FaceScanResults, yanking the user
+        // out of the questions mid-run (and skipping the gateV4 bust buffer). The
+        // proper reveal is driven by the wizard finishing its first question set
+        // (Onboarding intro → FaceScanResults{gateV4}), not by this screen.
+        if (!isFocused) return;
         if (user?.first_scan_completed && !isPaid) {
             navigation.dispatch(
                 CommonActions.reset({
@@ -273,7 +284,7 @@ export default function FaceScanScreen() {
                 }),
             );
         }
-    }, [user?.first_scan_completed, isPaid, isScanUser, navigation]);
+    }, [user?.first_scan_completed, isPaid, isScanUser, isFocused, navigation]);
 
     useEffect(() => {
         const run = async () => {

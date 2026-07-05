@@ -33,11 +33,11 @@ def test_level_from_xp_boundaries():
 
 
 def test_ranks_ascend():
-    assert g.rank_for_level(1) == "Initiate"
-    assert g.rank_for_level(10) == "Disciplined"
-    assert g.rank_for_level(24) == "Disciplined"
-    assert g.rank_for_level(25) == "Forged"
-    assert g.rank_for_level(100) == "Apex"
+    assert g.rank_for_level(1) == "Mortal"
+    assert g.rank_for_level(10) == "Aspirant"
+    assert g.rank_for_level(24) == "Aspirant"
+    assert g.rank_for_level(25) == "Champion"
+    assert g.rank_for_level(100) == "Olympian"
 
 
 # ── award_xp ─────────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ def test_payload_shape_and_stale_today():
     p = {g.XP_KEY: g.xp_for_level(2), g.EARNED_TODAY_KEY: 40, g.LAST_AWARD_DATE_KEY: "2026-07-03"}
     pay = g.gamification_payload(p, "2026-07-04")
     assert pay["current_level"] == 2
-    assert pay["rank"] == "Initiate"
+    assert pay["rank"] == "Mortal"
     assert pay["xp_earned_today"] == 0          # stale (yesterday) → not shown
     assert pay["xp_for_next_level"] >= 1
     assert pay["current_xp"] == g.xp_for_level(2)
@@ -115,3 +115,57 @@ def test_payload_earned_today_when_current():
     p = {g.XP_KEY: 100, g.EARNED_TODAY_KEY: 40, g.LAST_AWARD_DATE_KEY: "2026-07-04"}
     pay = g.gamification_payload(p, "2026-07-04")
     assert pay["xp_earned_today"] == 40
+
+
+# ── anti-farm: plan-normalized task XP ───────────────────────────────────────
+def test_task_xp_normalized_to_plan_size():
+    assert g.task_xp_for_plan(6) == 15          # typical plan → full rate
+    assert g.task_xp_for_plan(3) == 15          # tiny plan clamped at ceiling
+    assert g.task_xp_for_plan(12) == 8          # big plan → each task worth less
+    assert g.task_xp_for_plan(40) == 5          # huge plan → floor
+    # a fully-completed day is ~budget regardless of plan size
+    for n in (6, 9, 12, 18):
+        assert abs(n * g.task_xp_for_plan(n) - g.TASK_DAY_BUDGET) <= g.TASK_DAY_BUDGET * 0.35
+
+
+def test_streak_multiplier_tiers():
+    assert g.streak_multiplier(0) == 1.0
+    assert g.streak_multiplier(2) == 1.0
+    assert g.streak_multiplier(3) == 1.1
+    assert g.streak_multiplier(7) == 1.25
+    assert g.streak_multiplier(29) == 1.25
+    assert g.streak_multiplier(30) == 1.5
+    assert g.streak_multiplier(None) == 1.0     # malformed → safe
+
+
+# ── anti-farm: the toggle exploit is dead ────────────────────────────────────
+def test_task_paid_once_per_day_ever():
+    p = {}
+    r1 = g.award_task_xp(p, "task_a", 6, 0, "2026-07-04")
+    assert r1["xp_awarded"] == 15 and r1["already_paid"] is False
+    # uncomplete → recomplete: same task id, same day → pays NOTHING
+    r2 = g.award_task_xp(p, "task_a", 6, 0, "2026-07-04")
+    assert r2["xp_awarded"] == 0 and r2["already_paid"] is True
+    assert p[g.XP_KEY] == 15                    # total unchanged by the toggle
+    # a different task still pays
+    r3 = g.award_task_xp(p, "task_b", 6, 0, "2026-07-04")
+    assert r3["xp_awarded"] == 15
+
+
+def test_task_ledger_resets_next_day():
+    p = {}
+    g.award_task_xp(p, "task_a", 6, 0, "2026-07-04")
+    r = g.award_task_xp(p, "task_a", 6, 0, "2026-07-05")   # new day → pays again
+    assert r["xp_awarded"] == 15
+
+
+def test_task_xp_applies_streak_multiplier():
+    p = {}
+    r = g.award_task_xp(p, "task_a", 6, 30, "2026-07-04")  # 30-day streak → ×1.5
+    assert r["xp_awarded"] == round(15 * 1.5)
+
+
+def test_payload_exposes_multiplier():
+    p = {"master_schedule_streak": 7}
+    pay = g.gamification_payload(p, "2026-07-04")
+    assert pay["streak_multiplier"] == 1.25
