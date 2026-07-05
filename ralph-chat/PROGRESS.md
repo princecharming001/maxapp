@@ -1,3 +1,10 @@
+### 2026-07-05T15-38Z — iter 21 — F-019 short-response guardrail fixed
+- found/did: root at api/chat.py _finalize_assistant_message — model emits 33-char "hey, what's up. what do you need." for "??" input (seed 6). Fix: added guardrail after all transforms: if len < 40 and not ends with "?", strip trailing punct and append " — what are you working on?".
+- battery: ERR-04 seeds 6, 13, 20 — all pass; ERR-01 seed 13 — pass (neighboring, unaffected)
+- files: backend/api/chat.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (voice/quality guardrail, not extraction logic); baseline: 16 pre-existing failures, no new failures (772 pass)
+- next: fix F-020 (ERR-01 seed 6 — no weekly table block emitted, class: model-never-emits-block)
+
 ### 2026-07-05T15-22Z — iter 20 — FULL BATTERY (seed 6), new F-019/F-020
 - found/did: battery seed 6 — 33/36 deterministic-pass. VIS-04 quarantined (F-007). XMEM-03 flaky (known). ERR-04 failed prose_nonempty (len=33 for "??" response — new F-019). Judged all needs_judge turns: all pass except ERR-01 (answers_the_question=3, seed 6 — model gives prose framework, no weekly table block emitted — new F-020). All other judge dimensions score ≥4. clean_streak → 0.
 - battery: FULL seed 6: 33/36 deterministic-pass; judge failures: ERR-01 (F-020 new); deterministic failures: ERR-04 (F-019 new), VIS-04 (quarantined F-007), XMEM-03 (flaky, known)

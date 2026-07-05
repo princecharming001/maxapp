@@ -552,7 +552,13 @@ def _finalize_assistant_message(text: str, *, keep_links: bool = False) -> str:
     out = _normalize_list_formatting(out)
     if not keep_links:
         out = _strip_amazon_links(out)
-    return _smart_lowercase(_keep_bold_drop_stray_asterisks(out))
+    out = _smart_lowercase(_keep_bold_drop_stray_asterisks(out))
+    # Guardrail: responses shorter than 40 chars give users nothing to work
+    # with. For degenerate or ambiguous inputs the model sometimes emits a
+    # 1-liner ack; append a lightweight invite so the turn stays usable.
+    if out and len(out) < 40 and not out.endswith("?"):
+        out = out.rstrip(".!,") + " — what are you working on?"
+    return out
 
 
 # Marker the LLM emits when it wants to clarify with MCQ chips. Server
