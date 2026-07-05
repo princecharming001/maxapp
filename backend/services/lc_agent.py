@@ -118,6 +118,7 @@ from services.chat_telemetry import log_agent_run, log_prompt_budget
 from services.lc_memory import history_dicts_to_lc_messages
 from services.lc_providers import get_chat_llm_with_tools_and_fallback
 from services.prompt_constants import MAX_CHAT_SYSTEM_PROMPT, CHAT_VISUAL_GRAMMAR
+from services.fast_rag_answer import _TABLE_REQUEST_RE as _AGENT_TABLE_REQUEST_RE
 from services.prompt_loader import PromptKey, resolve_prompt
 from services.sms_reply_style import sms_chat_appendix
 from services.token_budget import count_tokens, trim_context_blob, trim_text_block
@@ -769,6 +770,11 @@ async def build_agent_system_prompt(
         "PROFILE already answers it, or it's a SPECIFIC or general-knowledge "
         "question ('what % niacinamide', 'is creatine safe', 'how much protein per "
         "day'), answer directly -- NO marker.\n"
+        "EXCEPTION — TABLE REQUESTS: if the user mentions 'table' or asks to put "
+        "values in a table, this is NOT a broad question requiring clarification. "
+        "See the TABLE BLOCK RULE in STRUCTURED VISUALS: build the table NOW with "
+        "a reasonable default topic (e.g. AM/PM skincare routine). Never ask "
+        "'what should the table show?'.\n"
     )
     chat_prompt += (
         "\n\n## WEB SEARCH FALLBACK\n"
@@ -2505,18 +2511,32 @@ async def run_chat_agent(
     except Exception:
         pass
 
+    # Table-block reminder: when the user asks for a table, append a terse
+    # directive RIGHT AFTER their message so the model reads it immediately
+    # before generating its response.
+    _table_reminder = ""
+    if _AGENT_TABLE_REQUEST_RE.search(message or ""):
+        _table_reminder = (
+            " [REQUIRED: output a table [VISUAL_BLOCK] NOW in this very response. "
+            "Do not write 'I will build' or any future-tense. Do not ask any questions. "
+            "The block must appear in your reply text — not promised for later.]"
+        )
+
     # Image: inject as multimodal content part in the human message
     if image_data:
         import base64
 
         mime = _detect_image_mime(image_data)
         b64 = base64.b64encode(image_data).decode()
+        _msg_with_reminder = (message or "") + _table_reminder
+        _prefix = (rules_reminder + " " if rules_reminder else "")
         input_content: str | list = [
-            {"type": "text", "text": ((rules_reminder + " " if rules_reminder else "") + (message or ""))},
+            {"type": "text", "text": (_prefix + _msg_with_reminder)},
             {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
         ]
     else:
-        input_content = (rules_reminder + " " if rules_reminder else "") + (message or "")
+        _msg_with_reminder = (message or "") + _table_reminder
+        input_content = (rules_reminder + " " if rules_reminder else "") + _msg_with_reminder
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", "{system_prompt}"),

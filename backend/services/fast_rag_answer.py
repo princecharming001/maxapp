@@ -38,6 +38,12 @@ _COMPARISON_REQUEST_RE = re.compile(
     re.IGNORECASE,
 )
 
+_TABLE_REQUEST_RE = re.compile(
+    r"\b(table|grid|markdown\s+table|in\s+a\s+table|as\s+a\s+table"
+    r"|make.*\btable\b|build.*\btable\b|create.*\btable\b|put.*\btable\b)\b",
+    re.IGNORECASE,
+)
+
 _PRODUCT_LINK_REQUEST_RE = re.compile(
     r"\b(amazon|google\s+shopping|where\s+to\s+buy|buy.*online|external\s+link"
     r"|shop(?:ping)?\s+link|purchase\s+link|link[s]?\s+(?:to|for|where))\b",
@@ -592,6 +598,7 @@ async def answer_from_chunks(
     is_explicit_block_request = bool(_EXPLICIT_BLOCK_RE.search(message or ""))
     is_comparison_request = bool(_COMPARISON_REQUEST_RE.search(message or ""))
     is_stat_cards_request = bool(_STAT_CARDS_REQUEST_RE.search(message or ""))
+    is_table_request = bool(_TABLE_REQUEST_RE.search(message or ""))
     is_product_link_request = bool(_PRODUCT_LINK_REQUEST_RE.search(message or ""))
     _distinct_block_types = _count_distinct_block_types(message or "")
     is_multi_block_request = _distinct_block_types >= 2
@@ -608,7 +615,7 @@ CRITICAL: Do NOT ask the user if they want the blocks, and do NOT offer to build
 - You MAY use general knowledge to fill in the requested block structures.
 - Do not include citations or source labels in the final answer.
 """
-    elif is_explicit_block_request or is_comparison_request or is_stat_cards_request:
+    elif is_explicit_block_request or is_comparison_request or is_stat_cards_request or is_table_request:
         _comparison_extra = ""
         if is_comparison_request:
             _comparison_extra = """
@@ -619,11 +626,16 @@ COMPARISON BLOCK RULE: The user asked to compare options. You MUST emit a `compa
             _stat_cards_extra = """
 STAT CARDS BLOCK RULE: The user asked for numbers/stats/metrics with emphasis ("bold the numbers", "key stats", etc.). You MUST emit a `stat_cards` [VISUAL_BLOCK] containing the key quantitative data points (e.g. percentages, timeframes, dosages, rates). CRITICAL: do NOT format those stats as inline bold text (e.g. **7-9 hours** or **70-80%**) inside prose — that is the wrong format when a stat_cards block was requested. Every bold number or percentage belongs inside the stat_cards block, not in prose. Do NOT answer with a routine recommendation — answer the numbers question directly. Do NOT say "the docs don't have those stats" — use your general clinical knowledge to fill the cards. Emit the stat_cards block NOW with ≥3 cards using general knowledge.
 """
+        _table_extra = ""
+        if is_table_request:
+            _table_extra = """
+TABLE BLOCK RULE: The user asked for a table. You MUST emit a `table` [VISUAL_BLOCK] immediately in this response — no clarifying questions, no topic menus, no "what should the table show?". PICK A TOPIC YOURSELF (use conversation context; default to a skincare routine table if nothing else is clear) and emit the table NOW. The table must have ≥2 columns and ≥2 rows. Presenting a bulleted menu of topic options instead of building the table is a failure. Asking any question before emitting the block is a failure.
+"""
         grounding_suffix = f"""
 
 ## STRUCTURED VISUAL — REQUIRED
 The user explicitly asked for a structured visual format (timeline, table, checklist, comparison, etc.). You MUST emit the appropriate [VISUAL_BLOCK]...[/VISUAL_BLOCK] marker as shown in the STRUCTURED VISUALS grammar below. Use docs evidence where available; fill gaps with general knowledge. Emit the block AFTER a brief prose intro — do NOT replace the block with a numbered list.
-{_comparison_extra}{_stat_cards_extra}
+{_comparison_extra}{_stat_cards_extra}{_table_extra}
 CRITICAL: Do NOT ask the user if they want the structured visual, and do NOT offer to build it later. Build and emit it NOW, in this response. Deferring ("let me know if you want...") when a block was explicitly requested is a failure.
 
 ## EVIDENCE MODE (relaxed for explicit block requests)

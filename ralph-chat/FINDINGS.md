@@ -168,13 +168,14 @@ hypotheses:
 
 --- Found in full-battery run, iter 33 (seed 11) ---
 
-- [ ] F-024  VIS-13 judge fail: "build me a table" with a specified cell value gets a clarifier instead of a table | class: answer-quality
+- [x] F-024  VIS-13 judge fail: "build me a table" with a specified cell value gets a clarifier instead of a table | class: answer-quality
       evidence: state/runs/2026-07-05T18-20-44Z/transcript-VIS-13.md (turn 0) | first-seen: iter 33 (full battery seed 11)
       user asks "put 'AM | PM' as a cell value in a table you build for me" — model responds "i'd be happy to build a table... what should the table show?" with 4 choices instead of picking a relevant topic and building the table. answers_the_question=2 (pure clarifier, no table, no actionable content). Likely root: model treats the lack of explicit table topic as ambiguity and falls back to clarifying; the NON-NEGOTIABLE table grammar directive may not cover this "build me a table" variant without an explicit topic. Fix site: CHAT_VISUAL_GRAMMAR — add rule that when user asks model to build any table (with or without explicit topic), model should pick a relevant topic from the conversation/persona context and build immediately, no clarifying question.
       fixed: iter 34 — extended table bullet in CHAT_VISUAL_GRAMMAR (prompt_constants.py:316): added "If the user asks to build/make/create a table but does not specify a topic, pick a relevant topic from context/persona and emit immediately — DO NOT ask." Seed 41 (paraphrase 1) emits table directly; VIS-07/08/09 seed 41 unaffected. fixed: iter 34
       REOPENED iter 39 (seed 13): "put 'AM | PM' as a cell value in a table you build for me" — model responds "i need a bit more context to build a useful table for you. what should the table show?" — same clarifier pattern. answers_the_question=2. CHAT_VISUAL_GRAMMAR directive "DO NOT ask" not honored for this paraphrase variant. evidence: state/runs/2026-07-05T19-23-17Z/transcript-VIS-13.md (turn 0)
       fixed: iter 41 — passively resolved by iter 40 CHAT_VISUAL_GRAMMAR prompt changes. VIS-13 passes seeds 13, 41 without code changes. Closing as resolved.
       REOPENED iter 43 (seed 15): "put 'AM | PM' as a cell value in a table you build for me" — model asks "i need a bit more context. what should the table show?" with 4 numbered options. answers_the_question=2. Same clarifier pattern. evidence: state/runs/2026-07-05T20-07-18Z/transcript-VIS-13.md (turn 0)
+      fixed: iter 44 — agent path fix: (1) added _TABLE_REQUEST_RE to fast_rag_answer.py + TABLE BLOCK RULE injection in grounding_suffix; (2) added _AGENT_TABLE_REQUEST_RE import + per-message _table_reminder appended to human message in run_chat_agent (lc_agent.py); (3) strengthened CHAT_VISUAL_GRAMMAR table bullet with explicit "DO NOT ask 'what should the table show?'" + "≥2 cols/rows, build immediately"; (4) added TABLE EXCEPTION to CLARIFY section in lc_agent.py; (5) extended bridge-text condition in chat.py to cover short prose (<40 chars) when visual_blocks present. Seeds 15+22 both emit table blocks and pass prose_nonempty.
 
 --- Found in full-battery run, iter 36 (seed 12) ---
 
