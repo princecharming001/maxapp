@@ -1,3 +1,10 @@
+### 2026-07-05T19-11Z — iter 38 — F-026 fix (VIS-03 stat_cards not emitted)
+- found/did: two-part root: (1) "tretinoin" missing from skinmax set in intent_classifier.py (~line 36) → maxx_hints=[] → fast_rag gate `(maxx_hints or active_hint)` false → agent path fires, calls recommend_product instead of RAG path; (2) "key numbers" phrasing not in _EXPLICIT_BLOCK_RE (fast_rag_answer.py:22) → even when fast_rag runs, no stat_cards-specific grounding suffix injected. Fix: added "tretinoin"/"retin-a"/"niacinamide"/"azelaic" to skinmax lexicon; added "key\s+numbers?" + "hit\s+me\s+with.*\bnumbers?\b" to _EXPLICIT_BLOCK_RE; added _STAT_CARDS_REQUEST_RE + STAT CARDS BLOCK RULE paragraph in grounding_suffix; strengthened CHAT_VISUAL_GRAMMAR NON-NEGOTIABLE for stat_cards to cover "hit me with the key numbers" and mandate general-knowledge fill.
+- battery: VIS-03 seeds 38 and 45 — both pass; VIS-08/09/01 seed 45 — pass (no regressions)
+- files: backend/services/intent_classifier.py, backend/services/fast_rag_answer.py, backend/services/prompt_constants.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (lexicon + routing + prompt changes, not extraction/normalization logic); baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: fix F-025 (XMEM-03 choices_present fail — "what skincare should i use?" gets prose question instead of MCQ; class: clarifier-reask)
+
 ### 2026-07-05T18-57Z — iter 37 — F-013 REGRESSION fix (VIS-10 comparison block)
 - found/did: root at fast_rag_answer.py — `_EXPLICIT_BLOCK_RE` matched "week 4" so grounding_suffix was STRUCTURED VISUAL REQUIRED, but no comparison-specific anti-clarifier language, so Supabase rag_answer_system's skin-profiling instinct still fired. Fix: added `_COMPARISON_REQUEST_RE` (matches "compare/comparison/side-by-side") at line ~28; when detected, inject COMPARISON BLOCK RULE paragraph into grounding_suffix forbidding skin-type clarifier and instructing model to pick options itself (fast_rag_answer.py ~602–618).
 - battery: VIS-10 seeds 36, 43, 50 — all pass; VIS-01 seed 50 — pass (no regression)

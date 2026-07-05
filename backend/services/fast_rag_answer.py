@@ -22,7 +22,14 @@ from services.token_budget import count_tokens
 _EXPLICIT_BLOCK_RE = re.compile(
     r"\b(timeline|week[\s-]by[\s-]week|week\s+\d|map\s+it\s+out|phase\s+by\s+phase"
     r"|checklist|step[\s-]by[\s-]step|in\s+a\s+table|as\s+a\s+table|markdown\s+table"
-    r"|bold\s+the\s+numbers?|key\s+stats|summarize.*stats)\b",
+    r"|bold\s+the\s+numbers?|key\s+stats?|key\s+numbers?|hit\s+me\s+with.*\bnumbers?\b"
+    r"|numbers?,\s+not\s+paragraphs|summarize.*stats)\b",
+    re.IGNORECASE,
+)
+
+_STAT_CARDS_REQUEST_RE = re.compile(
+    r"\b(key\s+(stats?|numbers?|metrics?)|hit\s+me\s+with.*\bnumbers?\b|numbers?,\s+not\s+paragraphs"
+    r"|bold\s+the\s+numbers?|stat[s_]?\s*card[s]?)\b",
     re.IGNORECASE,
 )
 
@@ -578,6 +585,7 @@ async def answer_from_chunks(
     length_key = _effective_response_length(message, response_length)
     is_explicit_block_request = bool(_EXPLICIT_BLOCK_RE.search(message or ""))
     is_comparison_request = bool(_COMPARISON_REQUEST_RE.search(message or ""))
+    is_stat_cards_request = bool(_STAT_CARDS_REQUEST_RE.search(message or ""))
     _distinct_block_types = _count_distinct_block_types(message or "")
     is_multi_block_request = _distinct_block_types >= 2
     if is_multi_block_request:
@@ -593,17 +601,22 @@ CRITICAL: Do NOT ask the user if they want the blocks, and do NOT offer to build
 - You MAY use general knowledge to fill in the requested block structures.
 - Do not include citations or source labels in the final answer.
 """
-    elif is_explicit_block_request or is_comparison_request:
+    elif is_explicit_block_request or is_comparison_request or is_stat_cards_request:
         _comparison_extra = ""
         if is_comparison_request:
             _comparison_extra = """
 COMPARISON BLOCK RULE: The user asked to compare options. You MUST emit a `comparison` [VISUAL_BLOCK] immediately. Do NOT ask what skin type the user has, do NOT ask which two options they mean, do NOT ask for any clarification — choose the two most clinically relevant options (e.g. benzoyl peroxide vs salicylic acid, retinoids vs AHAs, etc.) using your general skincare knowledge. Pick them yourself and emit the block now. Asking ANY clarifying question before the block is a failure.
 """
+        _stat_cards_extra = ""
+        if is_stat_cards_request:
+            _stat_cards_extra = """
+STAT CARDS BLOCK RULE: The user asked for numbers/stats/metrics. You MUST emit a `stat_cards` [VISUAL_BLOCK] containing the key quantitative data points (e.g. percentages, timeframes, dosages, rates). Do NOT answer with a routine recommendation or product suggestions — answer the numbers question directly. Do NOT say "the docs don't have those stats" as a reason to skip the block — use your general clinical knowledge to fill the cards. Saying "I don't see those numbers in the docs" while failing to emit any stat_cards block is a failure. Emit the stat_cards block NOW with ≥3 cards using general knowledge.
+"""
         grounding_suffix = f"""
 
 ## STRUCTURED VISUAL — REQUIRED
 The user explicitly asked for a structured visual format (timeline, table, checklist, comparison, etc.). You MUST emit the appropriate [VISUAL_BLOCK]...[/VISUAL_BLOCK] marker as shown in the STRUCTURED VISUALS grammar below. Use docs evidence where available; fill gaps with general knowledge. Emit the block AFTER a brief prose intro — do NOT replace the block with a numbered list.
-{_comparison_extra}
+{_comparison_extra}{_stat_cards_extra}
 CRITICAL: Do NOT ask the user if they want the structured visual, and do NOT offer to build it later. Build and emit it NOW, in this response. Deferring ("let me know if you want...") when a block was explicitly requested is a failure.
 
 ## EVIDENCE MODE (relaxed for explicit block requests)

@@ -34,7 +34,8 @@ class IntentResult(TypedDict):
 # Keyword lexicons. Ordered list so we can preserve match order for maxx_hints.
 _MAXX_KEYWORDS = [
     ("skinmax", {"skin", "acne", "pimple", "pore", "blackhead", "wrinkle", "sunscreen", "spf",
-                 "retinol", "retinoid", "moisturizer", "sebum", "glycolic", "salicylic",
+                 "retinol", "retinoid", "tretinoin", "retin-a", "niacinamide", "azelaic",
+                 "moisturizer", "sebum", "glycolic", "salicylic",
                  "debloat", "debloating", "bloat", "bloated", "puffy", "puffy face",
                  "dark spot", "hyperpigment", "ice roller", "glowmax", "glow up",
                  "skinmaxxing"}),
