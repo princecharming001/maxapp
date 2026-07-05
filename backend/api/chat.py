@@ -3916,6 +3916,31 @@ Ask ONE question at a time. Your very first response must ask the concern questi
     choices_out: list[str] = []
     if maxx_id and not existing_maxx:
         choices_out = _quick_replies_from_response(response_text)
+
+    # Scrub allergen names from response_text so the model can't inadvertently
+    # name a forbidden ingredient (e.g. "your salicylic replacement") even in
+    # educational comparisons. Only applies when user_facts has allergens.
+    _allergens = (user_facts or {}).get("allergies") or []
+    if _allergens and response_text:
+        import re as _re_scrub
+        for _allergen in _allergens:
+            if not isinstance(_allergen, str) or len(_allergen) < 4:
+                continue
+            # Scrub the full allergen phrase first, then the first word
+            # (models sometimes abbreviate "salicylic acid" to "salicylic").
+            _escaped = _re_scrub.escape(_allergen)
+            response_text = _re_scrub.sub(
+                _escaped, "that ingredient", response_text,
+                flags=_re_scrub.IGNORECASE,
+            )
+            _first_word = _allergen.split()[0]
+            if len(_first_word) >= 5:  # avoid scrubbing short common words
+                response_text = _re_scrub.sub(
+                    r'\b' + _re_scrub.escape(_first_word) + r'\b',
+                    "that ingredient", response_text,
+                    flags=_re_scrub.IGNORECASE,
+                )
+
     return response_text, choices_out
 
 
