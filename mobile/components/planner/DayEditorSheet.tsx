@@ -1,16 +1,15 @@
 /**
  * DayEditorSheet — a bottom sheet for shaping ONE scope (all days, or a single
- * weekday). Everything is visual: drag the sliders, tap the segmented controls.
+ * weekday). It speaks the SAME language as the onboarding day-shape flow that
+ * first set these times: white soft-shadow cards on a soft canvas, tappable
+ * time rows, and the drum-wheel picker (WheelTime) — not a bespoke rail — so a
+ * user never feels dropped into a different app.
  *
  * Wake & sleep each offer a Range / Exact toggle:
- *   • Range  → a dual-thumb slider; the day's plan floats between the two times.
- *   • Exact  → a single thumb; one precise time.
- * Get-ready is an optional single time (Auto lets the coach decide). The Workout
- * is an optional [start, end] WINDOW the scheduler slots training into. Every
- * field is edited per day (the planner is per-day now — there is no "All days" view).
- *
- * Obligations (work, classes, commutes…) are NOT edited here — they're a global,
- * day-scoped list managed on the planner screen.
+ *   • Range  → a start + end the plan floats between.
+ *   • Exact  → one precise time.
+ * Get-ready and the Workout are optional [start,end] WINDOWS (Auto lets the
+ * coach decide). Every field is edited per scope.
  *
  * "Done" hands the edited DayShape back to the orchestrator, which diffs it
  * against the base to store a minimal per-weekday override.
@@ -35,7 +34,7 @@ import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, spacing } from '../../theme/dark';
-import TimePicker from './TimePicker';
+import { WheelTimeOverlay, WheelTimeRow, WT, CARD_SOFT } from './WheelTime';
 import {
   DayShape,
   Scope,
@@ -55,16 +54,10 @@ const WAKE_MIN = 240; // 4 AM
 const WAKE_MAX = 780; // 1 PM
 const SLEEP_MIN = 1080; // 6 PM
 const SLEEP_MAX = 1680; // 4 AM (next day, evening-normalised)
-const WORKOUT_MIN = 300; // 5 AM
-const WORKOUT_MAX = 1320; // 10 PM
 const WORKOUT_MIN_SPAN = 30; // a workout window stays at least 30 min wide
-const READY_MIN = 240; // 4 AM
-const READY_MAX = 780; // 1 PM
-const READY_DEFAULT: [number, number] = [7 * 60, 7 * 60 + 30]; // 7:00–7:30
 const READY_DEFAULT_HHMM: [string, string] = ['07:00', '07:30'];
 
 const clampN = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
-const fmtAbs = (m: number) => fmt12Compact(minToHHMM(m));
 
 // When an arrow on the timeline is tapped, the sheet opens scoped to just that
 // one item rather than the whole day. `undefined` shows every control.
@@ -79,35 +72,40 @@ const FOCUS_TITLE: Record<ShapeFocus, string> = {
 
 type Mode = 'range' | 'exact';
 
-function Segmented<T extends string>({
+// Minimal underline tabs (active = ink text + 2px ink underline). The app's
+// segmented device everywhere except onboarding — quiet, no filled pills.
+function Tabs<T extends string>({
   options,
   value,
   onChange,
-  compact,
 }: {
   options: { key: T; label: string }[];
   value: T;
   onChange: (k: T) => void;
-  compact?: boolean;
 }) {
   return (
-    <View style={seg.wrap}>
+    <View style={tab.wrap}>
       {options.map((o) => {
         const on = o.key === value;
         return (
           <TouchableOpacity
             key={o.key}
-            style={[seg.item, compact && seg.itemCompact, on && seg.itemOn]}
+            style={[tab.item, on && tab.itemOn]}
             activeOpacity={0.8}
             onPress={() => onChange(o.key)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
           >
-            <Text style={[seg.text, on && seg.textOn]}>{o.label}</Text>
+            <Text style={[tab.text, on && tab.textOn]}>{o.label}</Text>
           </TouchableOpacity>
         );
       })}
     </View>
   );
 }
+
+// The field currently being picked (an in-sheet wheel overlay).
+type PickerState = { title: string; value: number; onConfirm: (v: number) => void };
 
 export default function DayEditorSheet({
   visible,
@@ -130,19 +128,14 @@ export default function DayEditorSheet({
 }) {
   const insets = useSafeAreaInsets();
   const { height: winH } = useWindowDimensions();
-  // Numeric cap so the sheet has a DEFINITE height — a percentage maxHeight is
-  // ignored when the parent has no fixed height, which let content overflow.
   const sheetMaxH = Math.round(winH * 0.9);
 
   const [d, setD] = useState<DayShape>(initial);
   const [wakeMode, setWakeMode] = useState<Mode>('range');
   const [sleepMode, setSleepMode] = useState<Mode>('range');
-  // Which days this edit applies to. Opening from "Your usual day" (scope='all')
-  // defaults to Every day; opening from a specific weekday defaults to that day.
   const [applyTo, setApplyTo] = useState<DayRecurrence>(scope === 'all' ? 'all' : [scope]);
-  // True once the user changes any value, so dismissing via backdrop / X /
-  // hardware back can warn before silently discarding edits.
   const [dirty, setDirty] = useState(false);
+  const [picker, setPicker] = useState<PickerState | null>(null);
   const markDirty = () => setDirty(true);
 
   // Re-seed the working copy each time the sheet opens (or the scope changes).
@@ -153,6 +146,7 @@ export default function DayEditorSheet({
     setSleepMode(isExact(initial.sleepWindow) ? 'exact' : 'range');
     setApplyTo(scope === 'all' ? 'all' : [scope]);
     setDirty(false);
+    setPicker(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, scope]);
 
@@ -162,16 +156,15 @@ export default function DayEditorSheet({
   // With a focus, render only that item's control; without one, the full day.
   const show = (k: ShapeFocus) => !focus || focus === k;
 
-  const wakeVal: [number, number] = [toMin(d.wakeWindow[0]), toMin(d.wakeWindow[1])];
-  const sleepVal: [number, number] = [eveMin(d.sleepWindow[0]), eveMin(d.sleepWindow[1])];
-
-  const setWake = (v: [number, number]) => {
+  // ── Wake (absolute minutes) ────────────────────────────────────────────────
+  const setWakeWin = (win: [string, string]) => {
     markDirty();
-    setD((p) => ({ ...p, wakeWindow: [minToHHMM(v[0]), minToHHMM(v[1])] }));
+    setD((p) => ({ ...p, wakeWindow: win }));
   };
-  const setSleep = (v: [number, number]) => {
-    markDirty();
-    setD((p) => ({ ...p, sleepWindow: [minToHHMM(v[0]), minToHHMM(v[1])] }));
+  const editWake = (idx: 0 | 1, wheelV: number) => {
+    const cur = [toMin(d.wakeWindow[0]), toMin(d.wakeWindow[1])] as [number, number];
+    if (idx === 0) setWakeWin([minToHHMM(wheelV), minToHHMM(Math.max(cur[1], wheelV + 15))]);
+    else setWakeWin([minToHHMM(Math.min(cur[0], wheelV - 15)), minToHHMM(wheelV)]);
   };
 
   const switchWakeMode = (m: Mode) => {
@@ -191,6 +184,18 @@ export default function DayEditorSheet({
     setWakeMode(m);
   };
 
+  // ── Sleep (evening-normalised minutes) ─────────────────────────────────────
+  const setSleepWin = (win: [string, string]) => {
+    markDirty();
+    setD((p) => ({ ...p, sleepWindow: win }));
+  };
+  const editSleep = (idx: 0 | 1, wheelV: number) => {
+    const ev = eveMin(minToHHMM(wheelV));
+    const cur = [eveMin(d.sleepWindow[0]), eveMin(d.sleepWindow[1])] as [number, number];
+    if (idx === 0) setSleepWin([minToHHMM(ev), minToHHMM(Math.max(cur[1], ev + 15))]);
+    else setSleepWin([minToHHMM(Math.min(cur[0], ev - 15)), minToHHMM(ev)]);
+  };
+
   const switchSleepMode = (m: Mode) => {
     if (m === sleepMode) return;
     markDirty();
@@ -208,6 +213,43 @@ export default function DayEditorSheet({
     setSleepMode(m);
   };
 
+  // ── Get-ready + Workout (optional absolute windows) ────────────────────────
+  const readyWin = d.getReadyWindow;
+  const setReadyWin = (win: [string, string]) => {
+    markDirty();
+    setD((p) => ({ ...p, getReadyWindow: win }));
+  };
+  const editReady = (idx: 0 | 1, wheelV: number) => {
+    const w = readyWin || READY_DEFAULT_HHMM;
+    const cur = [toMin(w[0]), toMin(w[1])] as [number, number];
+    if (idx === 0) setReadyWin([minToHHMM(wheelV), minToHHMM(Math.max(cur[1], wheelV + 15))]);
+    else setReadyWin([minToHHMM(Math.min(cur[0], wheelV - 15)), minToHHMM(wheelV)]);
+  };
+  const toggleReady = (on: boolean) => {
+    markDirty();
+    setD((p) => ({ ...p, getReadyWindow: on ? p.getReadyWindow || READY_DEFAULT_HHMM : null }));
+  };
+
+  const workoutWin = d.workoutWindow;
+  const setWorkoutWin = (win: [string, string]) => {
+    markDirty();
+    setD((p) => ({ ...p, workoutWindow: win }));
+  };
+  const editWorkout = (idx: 0 | 1, wheelV: number) => {
+    const w = workoutWin || ['17:00', '19:00'];
+    const cur = [toMin(w[0]), toMin(w[1])] as [number, number];
+    if (idx === 0) setWorkoutWin([minToHHMM(wheelV), minToHHMM(Math.max(cur[1], wheelV + WORKOUT_MIN_SPAN))]);
+    else setWorkoutWin([minToHHMM(Math.min(cur[0], wheelV - WORKOUT_MIN_SPAN)), minToHHMM(wheelV)]);
+  };
+  const toggleWorkout = (on: boolean) => {
+    markDirty();
+    setD((p) => ({ ...p, workoutWindow: on ? p.workoutWindow || ['17:00', '19:00'] : null }));
+  };
+
+  // Open the wheel overlay for one field. `value` is 0..1439 wheel space.
+  const openPicker = (title: string, value: number, onConfirm: (v: number) => void) =>
+    setPicker({ title, value, onConfirm });
+
   const wakeHint =
     wakeMode === 'exact'
       ? `Wake at ${fmt12(d.wakeWindow[0])}`
@@ -217,39 +259,11 @@ export default function DayEditorSheet({
       ? `Bed by ${fmt12(d.sleepWindow[0])} · no fixed routine window`
       : `Wind down ${fmt12Compact(d.sleepWindow[0])} – ${fmt12Compact(d.sleepWindow[1])} · bed by ${fmt12Compact(d.sleepWindow[1])}`;
 
-  // Get-ready is now a WINDOW (the AM routine spans it), not a single time.
-  const readyWin = d.getReadyWindow;
-  const readyVal: [number, number] = readyWin
-    ? [toMin(readyWin[0]), toMin(readyWin[1])]
-    : [READY_DEFAULT[0], READY_DEFAULT[1]];
-  const setReady = (v: [number, number]) => {
-    markDirty();
-    setD((p) => ({ ...p, getReadyWindow: [minToHHMM(v[0]), minToHHMM(v[1])] }));
-  };
-  const toggleReady = (on: boolean) => {
-    markDirty();
-    setD((p) => ({ ...p, getReadyWindow: on ? p.getReadyWindow || READY_DEFAULT_HHMM : null }));
-  };
-
-  // Workout is an optional [start,end] window (default-level only). Reject any
-  // drag that would shrink it below the minimum span so it never collapses.
-  const setWorkout = (v: [number, number]) => {
-    if (v[1] - v[0] < WORKOUT_MIN_SPAN) return;
-    markDirty();
-    setD((p) => ({ ...p, workoutWindow: [minToHHMM(v[0]), minToHHMM(v[1])] }));
-  };
-  const toggleWorkout = (on: boolean) => {
-    markDirty();
-    setD((p) => ({ ...p, workoutWindow: on ? p.workoutWindow || ['17:00', '19:00'] : null }));
-  };
-
   const done = () => {
     onCommit(applyTo, d);
     onClose();
   };
 
-  // "Apply to" options depend on where the sheet was opened from. Value is a
-  // DayRecurrence; equality is by daysKey so the selected chip lights up.
   const applyOptions: { label: string; value: DayRecurrence }[] =
     scope === 'all'
       ? [
@@ -273,6 +287,7 @@ export default function DayEditorSheet({
   // Dismiss via backdrop tap, the X, or Android hardware back. Edits only
   // commit on "Done", so warn before throwing away unsaved changes.
   const requestClose = () => {
+    if (picker) { setPicker(null); return; }
     if (!dirty) {
       onClose();
       return;
@@ -284,25 +299,48 @@ export default function DayEditorSheet({
         { text: 'Cancel', style: 'cancel' },
         // Defer the parent-sheet dismissal a tick: the alert lives in a nested
         // <Modal> stacked on THIS sheet's <Modal>. Dismissing both in the same
-        // frame is the iOS two-modal deadlock (the JS thread stops registering
-        // taps app-wide → needs a restart). Let the alert modal finish tearing
-        // down first, then close the sheet.
+        // frame is the iOS two-modal deadlock. Let the alert modal finish
+        // tearing down first, then close the sheet.
         { text: 'Discard', style: 'destructive', onPress: () => setTimeout(onClose, 0) },
       ],
       { cancelable: true },
     );
   };
 
-
-  // Swipe the sheet down (from the grabber/header) to dismiss — routes through
-  // requestClose so a dirty sheet still confirms before discarding.
+  // Swipe the sheet down (from the grabber/header) to dismiss.
   const { gesture, animatedStyle } = useSwipeDownDismiss(requestClose);
+
+  // A titled white card wrapping a section's head (title + mode tabs) and body.
+  const Card = ({
+    icon,
+    title,
+    tabs,
+    children,
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    title: string;
+    tabs: React.ReactNode;
+    children: React.ReactNode;
+  }) => (
+    <View style={styles.card}>
+      <View style={[styles.cardHead, focus && styles.cardHeadFocused]}>
+        {!focus ? (
+          <View style={styles.titleWrap}>
+            <Ionicons name={icon} size={15} color={WT.INK} />
+            <Text style={styles.cardTitle}>{title}</Text>
+          </View>
+        ) : null}
+        {tabs}
+      </View>
+      {children}
+    </View>
+  );
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={requestClose}>
       {/* RN Modal renders in a SEPARATE native root outside the app's root
           GestureHandlerRootView, so gestures inside it get no touches until we
-          mount our own root here. Without this the drag-to-dismiss does nothing. */}
+          mount our own root here. */}
       <GestureHandlerRootView style={styles.ghRoot}>
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={requestClose} />
@@ -316,7 +354,7 @@ export default function DayEditorSheet({
                 <View style={styles.grabber} />
                 <View style={styles.header}>
                   <TouchableOpacity onPress={requestClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="close" size={22} color={colors.textMuted} />
+                    <Ionicons name="close" size={22} color={WT.MUTE} />
                   </TouchableOpacity>
                   <View style={styles.headerCenter}>
                     <Text style={styles.headerTitle}>{focus ? FOCUS_TITLE[focus] : scopeLong}</Text>
@@ -335,161 +373,178 @@ export default function DayEditorSheet({
             >
               {/* Wake */}
               {show('wake') ? (
-                <View style={styles.section}>
-                  <View style={[styles.sectionHead, focus && styles.sectionHeadFocused]}>
-                    {!focus ? (
-                      <View style={styles.sectionTitleWrap}>
-                        <Ionicons name="sunny-outline" size={16} color={colors.foreground} />
-                        <Text style={styles.sectionTitle}>Wake up</Text>
-                      </View>
-                    ) : null}
-                    <Segmented
-                      compact
-                      options={[
-                        { key: 'range', label: 'Range' },
-                        { key: 'exact', label: 'Exact' },
-                      ]}
-                      value={wakeMode}
-                      onChange={(k) => switchWakeMode(k as Mode)}
-                    />
-                  </View>
-                  <TimePicker
-                    single={wakeMode === 'exact'}
-                    min={WAKE_MIN}
-                    max={WAKE_MAX}
-                    value={wakeVal}
-                    onChange={setWake}
-                    format={fmtAbs}
-                    accent={colors.foreground}
-                  />
+                <>
+                  <Card
+                    icon="sunny-outline"
+                    title="Wake up"
+                    tabs={
+                      <Tabs
+                        options={[{ key: 'range', label: 'Range' }, { key: 'exact', label: 'Exact' }]}
+                        value={wakeMode}
+                        onChange={(k) => switchWakeMode(k as Mode)}
+                      />
+                    }
+                  >
+                    <View style={styles.hair} />
+                    {wakeMode === 'exact' ? (
+                      <WheelTimeRow
+                        label="Wake at"
+                        display={fmt12(d.wakeWindow[0])}
+                        onPress={() => openPicker('Wake up', toMin(d.wakeWindow[0]), (v) => setWakeWin([minToHHMM(v), minToHHMM(v)]))}
+                      />
+                    ) : (
+                      <>
+                        <WheelTimeRow
+                          label="Earliest"
+                          display={fmt12(d.wakeWindow[0])}
+                          onPress={() => openPicker('Earliest wake', toMin(d.wakeWindow[0]), (v) => editWake(0, v))}
+                        />
+                        <View style={styles.hair} />
+                        <WheelTimeRow
+                          label="Latest"
+                          display={fmt12(d.wakeWindow[1])}
+                          onPress={() => openPicker('Latest wake', toMin(d.wakeWindow[1]), (v) => editWake(1, v))}
+                        />
+                      </>
+                    )}
+                  </Card>
                   <Text style={styles.hint}>{wakeHint}</Text>
-                </View>
+                </>
               ) : null}
 
               {/* Sleep */}
               {show('sleep') ? (
-                <View style={styles.section}>
-                  <View style={[styles.sectionHead, focus && styles.sectionHeadFocused]}>
-                    {!focus ? (
-                      <View style={styles.sectionTitleWrap}>
-                        <Ionicons name="moon-outline" size={16} color={colors.foreground} />
-                        <Text style={styles.sectionTitle}>Wind down</Text>
-                      </View>
-                    ) : null}
-                    <Segmented
-                      compact
-                      options={[
-                        { key: 'range', label: 'Window' },
-                        { key: 'exact', label: 'Bedtime' },
-                      ]}
-                      value={sleepMode}
-                      onChange={(k) => switchSleepMode(k as Mode)}
-                    />
-                  </View>
-                  <TimePicker
-                    single={sleepMode === 'exact'}
-                    min={SLEEP_MIN}
-                    max={SLEEP_MAX}
-                    value={sleepVal}
-                    onChange={setSleep}
-                    format={fmtAbs}
-                    accent={colors.foreground}
-                  />
+                <>
+                  <Card
+                    icon="moon-outline"
+                    title="Wind down"
+                    tabs={
+                      <Tabs
+                        options={[{ key: 'range', label: 'Window' }, { key: 'exact', label: 'Bedtime' }]}
+                        value={sleepMode}
+                        onChange={(k) => switchSleepMode(k as Mode)}
+                      />
+                    }
+                  >
+                    <View style={styles.hair} />
+                    {sleepMode === 'exact' ? (
+                      <WheelTimeRow
+                        label="Bed by"
+                        display={fmt12(d.sleepWindow[0])}
+                        onPress={() => openPicker('Bedtime', toMin(d.sleepWindow[0]), (v) => {
+                          const hh = minToHHMM(v);
+                          setSleepWin([hh, hh]);
+                        })}
+                      />
+                    ) : (
+                      <>
+                        <WheelTimeRow
+                          label="Wind down from"
+                          display={fmt12(d.sleepWindow[0])}
+                          onPress={() => openPicker('Wind down from', toMin(d.sleepWindow[0]), (v) => editSleep(0, v))}
+                        />
+                        <View style={styles.hair} />
+                        <WheelTimeRow
+                          label="Bed by"
+                          display={fmt12(d.sleepWindow[1])}
+                          onPress={() => openPicker('Bed by', toMin(d.sleepWindow[1]), (v) => editSleep(1, v))}
+                        />
+                      </>
+                    )}
+                  </Card>
                   <Text style={styles.hint}>{sleepHint}</Text>
-                </View>
+                </>
               ) : null}
-
-              {!focus ? <View style={styles.divider} /> : null}
 
               {/* Get ready — the morning routine WINDOW (skincare, shower, hair). */}
               {show('ready') ? (
-                <View style={styles.section}>
-                <View style={[styles.sectionHead, focus && styles.sectionHeadFocused]}>
-                  {!focus ? (
-                    <View style={styles.sectionTitleWrap}>
-                      <Ionicons name="water-outline" size={16} color={colors.foreground} />
-                      <Text style={styles.sectionTitle}>Get ready</Text>
-                    </View>
-                  ) : null}
-                  <Segmented
-                    compact
-                    options={[
-                      { key: 'auto', label: 'Auto' },
-                      { key: 'set', label: 'Set window' },
-                    ]}
-                    value={readyWin ? 'set' : 'auto'}
-                    onChange={(k) => toggleReady(k === 'set')}
-                  />
-                </View>
-                {readyWin ? (
-                  <>
-                    <TimePicker
-                      min={READY_MIN}
-                      max={READY_MAX}
-                      value={readyVal}
-                      onChange={setReady}
-                      format={fmtAbs}
-                      accent="#5A5A62"
-                    />
+                <>
+                  <Card
+                    icon="water-outline"
+                    title="Get ready"
+                    tabs={
+                      <Tabs
+                        options={[{ key: 'auto', label: 'Auto' }, { key: 'set', label: 'Set window' }]}
+                        value={readyWin ? 'set' : 'auto'}
+                        onChange={(k) => toggleReady(k === 'set')}
+                      />
+                    }
+                  >
+                    {readyWin ? (
+                      <>
+                        <View style={styles.hair} />
+                        <WheelTimeRow
+                          label="Starts"
+                          display={fmt12(readyWin[0])}
+                          onPress={() => openPicker('Get ready starts', toMin(readyWin[0]), (v) => editReady(0, v))}
+                        />
+                        <View style={styles.hair} />
+                        <WheelTimeRow
+                          label="Ends"
+                          display={fmt12(readyWin[1])}
+                          onPress={() => openPicker('Get ready ends', toMin(readyWin[1]), (v) => editReady(1, v))}
+                        />
+                      </>
+                    ) : (
+                      <Text style={styles.autoInCard}>
+                        Max anchors your AM skincare, hair & routine just after you wake.
+                      </Text>
+                    )}
+                  </Card>
+                  {readyWin ? (
                     <Text style={styles.hint}>
                       Your AM routine runs {fmt12Compact(readyWin[0])} – {fmt12Compact(readyWin[1])}.
                     </Text>
-                  </>
-                ) : (
-                  <Text style={styles.autoHint}>
-                    Max anchors your AM skincare, hair & routine just after you wake.
-                  </Text>
-                )}
-                </View>
+                  ) : null}
+                </>
               ) : null}
 
-              {/* Workout window — editable per day, like wake / wind-down / get-ready. */}
+              {/* Workout window */}
               {show('workout') ? (
-                <View style={styles.section}>
-                  <View style={[styles.sectionHead, focus && styles.sectionHeadFocused]}>
-                    {!focus ? (
-                      <View style={styles.sectionTitleWrap}>
-                        <Ionicons name="barbell-outline" size={16} color={colors.foreground} />
-                        <Text style={styles.sectionTitle}>Workout window</Text>
-                      </View>
-                    ) : null}
-                    <Segmented
-                      compact
-                      options={[
-                        { key: 'auto', label: 'Auto' },
-                        { key: 'set', label: 'Set window' },
-                      ]}
-                      value={d.workoutWindow ? 'set' : 'auto'}
-                      onChange={(k) => toggleWorkout(k === 'set')}
-                    />
-                  </View>
-                  {d.workoutWindow ? (
-                    <>
-                      <TimePicker
-                        min={WORKOUT_MIN}
-                        max={WORKOUT_MAX}
-                        value={[toMin(d.workoutWindow[0]), toMin(d.workoutWindow[1])]}
-                        onChange={setWorkout}
-                        format={fmtAbs}
-                        accent="#2F6B4E"
-                        minSpan={WORKOUT_MIN_SPAN}
+                <>
+                  <Card
+                    icon="barbell-outline"
+                    title="Workout window"
+                    tabs={
+                      <Tabs
+                        options={[{ key: 'auto', label: 'Auto' }, { key: 'set', label: 'Set window' }]}
+                        value={workoutWin ? 'set' : 'auto'}
+                        onChange={(k) => toggleWorkout(k === 'set')}
                       />
-                      <Text style={styles.hint}>
-                        Max fits your workout between {fmt12Compact(d.workoutWindow[0])} and{' '}
-                        {fmt12Compact(d.workoutWindow[1])}.
+                    }
+                  >
+                    {workoutWin ? (
+                      <>
+                        <View style={styles.hair} />
+                        <WheelTimeRow
+                          label="From"
+                          display={fmt12(workoutWin[0])}
+                          onPress={() => openPicker('Workout from', toMin(workoutWin[0]), (v) => editWorkout(0, v))}
+                        />
+                        <View style={styles.hair} />
+                        <WheelTimeRow
+                          label="To"
+                          display={fmt12(workoutWin[1])}
+                          onPress={() => openPicker('Workout to', toMin(workoutWin[1]), (v) => editWorkout(1, v))}
+                        />
+                      </>
+                    ) : (
+                      <Text style={styles.autoInCard}>
+                        Max slots lifts, stretches & post-workout fuel into a free part of your day.
                       </Text>
-                    </>
-                  ) : (
-                    <Text style={styles.autoHint}>
-                      Max slots lifts, stretches & post-workout fuel into a free part of your day.
+                    )}
+                  </Card>
+                  {workoutWin ? (
+                    <Text style={styles.hint}>
+                      Max fits your workout between {fmt12Compact(workoutWin[0])} and {fmt12Compact(workoutWin[1])}.
                     </Text>
-                  )}
-                </View>
+                  ) : null}
+                </>
               ) : null}
 
               {!focus && scope !== 'all' && overridden ? (
                 <TouchableOpacity style={styles.resetBtn} onPress={reset} activeOpacity={0.7}>
-                  <Ionicons name="refresh" size={15} color={colors.textSecondary} />
+                  <Ionicons name="refresh" size={15} color={WT.SUB} />
                   <Text style={styles.resetText}>Reset {scopeLong} to base rhythm</Text>
                 </TouchableOpacity>
               ) : null}
@@ -498,11 +553,9 @@ export default function DayEditorSheet({
             </ScrollView>
 
             <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
-              {/* Applies to — which days this edit recurs on (underline tabs,
-                  the same segmented device as the Range/Exact toggles). */}
               <View style={styles.applyRow}>
                 <Text style={styles.applyLabel}>Applies to</Text>
-                <Segmented
+                <Tabs
                   options={applyOptions.map((o) => ({ key: daysKey(o.value), label: o.label }))}
                   value={applyKey}
                   onChange={(k) => {
@@ -519,10 +572,20 @@ export default function DayEditorSheet({
             </View>
           </Animated.View>
         </KeyboardAvoidingView>
-        {/* A host mounted INSIDE this sheet's Modal so the "Discard changes?"
-            confirm renders ABOVE the sheet. Without it the alert routes to the
-            root host, which iOS presents BEHIND this modal — making it invisible,
-            so the X and swipe-down appeared to do nothing on a dirty sheet. */}
+
+        {/* Drum-wheel picker — an in-sheet overlay within THIS modal (never a
+            second <Modal>, which would trip the two-modals-at-once iOS freeze). */}
+        {picker ? (
+          <WheelTimeOverlay
+            title={picker.title}
+            value={picker.value}
+            onClose={() => setPicker(null)}
+            onConfirm={(v) => { picker.onConfirm(v); setPicker(null); }}
+          />
+        ) : null}
+
+        {/* Alert host mounted INSIDE this sheet's Modal so the "Discard changes?"
+            confirm renders ABOVE the sheet. */}
         <InAppAlertHost />
       </View>
       </GestureHandlerRootView>
@@ -530,22 +593,12 @@ export default function DayEditorSheet({
   );
 }
 
-const seg = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    flexWrap: 'wrap',
-    rowGap: 8,
-  },
-  item: {
-    paddingBottom: 6,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  itemCompact: {},
-  itemOn: { borderBottomColor: colors.foreground },
-  text: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.textMuted, letterSpacing: 0.1 },
-  textOn: { fontFamily: fonts.sansSemiBold, color: colors.foreground },
+const tab = StyleSheet.create({
+  wrap: { flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap', rowGap: 8 },
+  item: { paddingBottom: 6, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  itemOn: { borderBottomColor: WT.INK },
+  text: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: WT.MUTE, letterSpacing: 0.1 },
+  textOn: { fontFamily: fonts.sansSemiBold, color: WT.INK },
 });
 
 const styles = StyleSheet.create({
@@ -554,19 +607,20 @@ const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheetWrap: { justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    backgroundColor: WT.BG,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderCurve: 'continuous',
     paddingHorizontal: spacing.lg,
     paddingTop: 10,
   },
   grabber: {
     alignSelf: 'center',
     width: 38,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-    marginBottom: 8,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.12)',
+    marginBottom: 10,
   },
   header: {
     flexDirection: 'row',
@@ -577,47 +631,54 @@ const styles = StyleSheet.create({
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: {
     fontFamily: fonts.serif,
-    fontSize: 21,
-    color: colors.foreground,
-    letterSpacing: -0.3,
+    fontSize: 24,
+    color: WT.INK,
+    letterSpacing: -0.4,
   },
   headerSub: {
     fontFamily: fonts.sansMedium,
     fontSize: 12,
-    color: colors.textMuted,
-    letterSpacing: 0.3,
+    color: WT.MUTE,
+    letterSpacing: 0.2,
     marginTop: 2,
   },
-  content: { paddingBottom: spacing.md },
-  section: { marginTop: spacing.lg },
-  sectionHead: {
+  content: { paddingBottom: spacing.md, paddingTop: 4 },
+
+  // White soft-shadow card per section — the onboarding shapeCard.
+  card: {
+    backgroundColor: WT.CARD,
+    borderRadius: 22,
+    borderCurve: 'continuous',
+    paddingHorizontal: 18,
+    paddingBottom: 4,
+    marginTop: spacing.md,
+    ...CARD_SOFT,
+  },
+  cardHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    paddingTop: 16,
     flexWrap: 'wrap',
-    rowGap: 10,
+    rowGap: 8,
   },
-  sectionHeadFocused: { justifyContent: 'flex-end', marginBottom: spacing.sm },
-  sectionTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 1, paddingRight: 8 },
-  sectionTitle: {
+  cardHeadFocused: { justifyContent: 'flex-end', paddingTop: 14 },
+  titleWrap: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 1, paddingRight: 8 },
+  cardTitle: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 15,
-    color: colors.foreground,
+    color: WT.INK,
     letterSpacing: 0.1,
   },
-  hint: { fontSize: 12.5, color: colors.textSecondary, letterSpacing: 0.1, marginTop: 2 },
-  autoHint: {
-    fontSize: 12.5,
-    color: colors.textMuted,
-    lineHeight: 17,
+  hair: { height: StyleSheet.hairlineWidth, backgroundColor: WT.HAIR },
+  hint: { fontSize: 12.5, color: WT.SUB, letterSpacing: 0.1, marginTop: 8, marginLeft: 4 },
+  autoInCard: {
+    fontSize: 13,
+    color: WT.MUTE,
+    lineHeight: 19,
     letterSpacing: 0.1,
-    marginTop: 2,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.borderLight,
-    marginTop: spacing.lg,
+    paddingTop: 12,
+    paddingBottom: 14,
   },
   resetBtn: {
     flexDirection: 'row',
@@ -627,33 +688,32 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
     paddingVertical: 10,
   },
-  resetText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.textSecondary, letterSpacing: 0.1 },
+  resetText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: WT.SUB, letterSpacing: 0.1 },
   footer: {
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderLight,
+    borderTopColor: WT.HAIR,
   },
-  applyRow: {
-    marginBottom: 14,
-  },
-  // Sentence-case, quiet — never ALL-CAPS letter-spaced gray.
+  applyRow: { marginBottom: 14 },
   applyLabel: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 13,
-    color: colors.foreground,
+    color: WT.INK,
     letterSpacing: 0.1,
     marginBottom: 10,
   },
   doneBtn: {
-    backgroundColor: colors.foreground,
-    borderRadius: 13,
-    paddingVertical: 14,
+    backgroundColor: WT.INK,
+    borderRadius: 999,
+    borderCurve: 'continuous',
+    paddingVertical: 16,
     alignItems: 'center',
+    ...CARD_SOFT,
   },
   doneText: {
     fontFamily: fonts.sansSemiBold,
-    fontSize: 14.5,
-    color: colors.background,
-    letterSpacing: 0.1,
+    fontSize: 15.5,
+    color: WT.ON_INK,
+    letterSpacing: 0.2,
   },
 });

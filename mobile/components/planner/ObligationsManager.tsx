@@ -7,12 +7,10 @@
  * this component owns only the editor sheet, driven via ref (openAdd/openEdit)
  * so one always-mounted instance serves every entry point.
  *
- * Editorial sheet, matching DayEditorSheet one-to-one: white sheet, serif
- * title, hairline-defined fields (no filled gray boxes), the shared horizontal
- * TimePicker rails as the planner's ONE way to change a time (never the stock
- * iOS drum wheel), sentence-case labels, underline recurrence tabs, an
- * understated destructive text action, and a footer of live summary +
- * right-sized save.
+ * Speaks the SAME language as the day editor + onboarding day-shape flow: a soft
+ * canvas, a white soft-shadow card, tappable Starts/Ends rows opening the shared
+ * drum-wheel picker (WheelTime), sentence-case labels, underline recurrence
+ * tabs, hairline day toggles, and a footer of live summary + right-sized save.
  */
 import React, { forwardRef, useImperativeHandle, useState } from 'react';
 import {
@@ -31,8 +29,8 @@ import {
 import { Alert, InAppAlertHost } from '../InAppAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, spacing } from '../../theme/dark';
-import TimePicker from './TimePicker';
+import { fonts, spacing } from '../../theme/dark';
+import { WheelTimeOverlay, WheelTimeRow, WT, CARD_SOFT } from './WheelTime';
 import {
   Obligation,
   DayRecurrence,
@@ -41,20 +39,13 @@ import {
   WEEKDAY_KEYS,
   normDays,
   daysLabel,
-  fmt12Compact,
+  fmt12,
   minToHHMM,
   toMin,
 } from './plannerModel';
 
-const fmtAbs = (m: number) => fmt12Compact(minToHHMM(m));
-
 const MF: Weekday[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 const SS: Weekday[] = ['saturday', 'sunday'];
-
-// Commitments live on the same clock as everything else in the planner.
-const OB_MIN = 240;   // 4:00 AM — earliest start
-const OB_MAX = 1425;  // 11:45 PM — latest end
-const OB_STEP = 15;
 
 function setEq(a: Set<Weekday>, b: Weekday[]): boolean {
   return a.size === b.length && b.every((d) => a.has(d));
@@ -69,9 +60,8 @@ function daysToSet(days: DayRecurrence): Set<Weekday> {
 
 type Quick = 'all' | 'weekdays' | 'weekends';
 
-// Minimal underline tabs — the same segmented device DayEditorSheet uses
-// (active = ink text + 2px ink underline; inactive = muted), instead of the
-// filled-pill segmented control.
+// Minimal underline tabs — the app's segmented device (active = ink text + 2px
+// ink underline), matching DayEditorSheet.
 function Tabs<T extends string>({
   options,
   value,
@@ -109,6 +99,8 @@ export type ObligationsManagerHandle = {
   openAdd: (initial?: { start: number; end: number }) => void;
 };
 
+type PickerTarget = 'from' | 'to' | null;
+
 const ObligationsManager = forwardRef<
   ObligationsManagerHandle,
   {
@@ -125,17 +117,14 @@ const ObligationsManager = forwardRef<
   const [label, setLabel] = useState('');
   const [range, setRange] = useState<[number, number]>([540, 1020]); // 9 AM–5 PM
   const [dayset, setDayset] = useState<Set<Weekday>>(() => new Set(MF));
-
-  const clampRange = (r: [number, number]): [number, number] => [
-    Math.max(OB_MIN, Math.min(r[0], OB_MAX - OB_STEP)),
-    Math.max(OB_MIN + OB_STEP, Math.min(r[1], OB_MAX)),
-  ];
+  const [picker, setPicker] = useState<PickerTarget>(null);
 
   const openAdd = (initial?: { start: number; end: number }) => {
     setEditIndex(null);
     setLabel('');
-    setRange(clampRange(initial ? [initial.start, initial.end] : [540, 1020]));
+    setRange(initial ? [initial.start, initial.end] : [540, 1020]);
     setDayset(new Set(MF));
+    setPicker(null);
     setEditorOpen(true);
   };
 
@@ -144,8 +133,9 @@ const ObligationsManager = forwardRef<
     if (!o) return;
     setEditIndex(idx);
     setLabel(o.label);
-    setRange(clampRange([toMin(o.start), toMin(o.end)]));
+    setRange([toMin(o.start), toMin(o.end)]);
     setDayset(daysToSet(o.days));
+    setPicker(null);
     setEditorOpen(true);
   };
 
@@ -154,20 +144,16 @@ const ObligationsManager = forwardRef<
 
   const remove = (idx: number) => onChange(obligations.filter((_, i) => i !== idx));
 
-  // Confirm before deleting so a stray tap on "Remove" never wipes a
-  // commitment instantly. Runs `after` (e.g. close the editor) once removed.
+  // Confirm before deleting so a stray tap never wipes a commitment instantly.
   // Alert.alert's button callbacks don't fire on react-native-web, so fall back
-  // to window.confirm there — otherwise removal silently does nothing on web.
+  // to window.confirm there.
   const confirmRemove = (idx: number, after?: () => void) => {
     const name = obligations[idx]?.label || 'this commitment';
     const doRemove = (deferAfter: boolean) => {
       remove(idx);
-      // `after` (e.g. () => setEditorOpen(false)) dismisses the editor <Modal>.
-      // When the confirm comes from the native path it lives in a nested <Modal>
-      // stacked on the editor; closing both in the same frame is the iOS
-      // two-modal deadlock (taps freeze app-wide → restart). Defer a tick so the
-      // alert modal tears down first. The web path has no nested RN Modal, so it
-      // runs `after` synchronously.
+      // `after` dismisses the editor <Modal>. From the native path the confirm
+      // is a nested <Modal>; closing both in one frame is the iOS two-modal
+      // deadlock — defer a tick so the alert tears down first.
       if (after) deferAfter ? setTimeout(after, 0) : after();
     };
     if (Platform.OS === 'web') {
@@ -203,6 +189,14 @@ const ObligationsManager = forwardRef<
     else setDayset(new Set(SS));
   };
 
+  // Confirm a wheel pick, keeping start < end (15-min min span).
+  const confirmTime = (target: Exclude<PickerTarget, null>, v: number) => {
+    setRange((r) => (target === 'from'
+      ? [v, v + 15 > r[1] ? Math.min(1425, v + 15) : r[1]]
+      : [v - 15 < r[0] ? Math.max(0, v - 15) : r[0], v]));
+    setPicker(null);
+  };
+
   const canSave = range[1] > range[0] && dayset.size > 0;
 
   const save = () => {
@@ -229,15 +223,20 @@ const ObligationsManager = forwardRef<
         ? 'weekends'
         : null;
 
+  const closeSheet = () => {
+    if (picker) { setPicker(null); return; }
+    setEditorOpen(false);
+  };
+
   return (
     <Modal
       visible={editorOpen}
       transparent
       animationType="slide"
-      onRequestClose={() => setEditorOpen(false)}
+      onRequestClose={closeSheet}
     >
       <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={() => setEditorOpen(false)} />
+        <Pressable style={styles.backdrop} onPress={closeSheet} />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.sheetWrap}
@@ -254,32 +253,34 @@ const ObligationsManager = forwardRef<
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {/* What — one borderless field over a hairline. */}
-              <TextInput
-                style={styles.labelInput}
-                value={label}
-                onChangeText={setLabel}
-                placeholder="Work, class, commute…"
-                placeholderTextColor={colors.textMuted}
-                returnKeyType="done"
-                maxLength={40}
-              />
-              <View style={styles.hairline} />
-
-              {/* When — the shared From/To rails. */}
-              <Text style={styles.sectionLabel}>When</Text>
-              <TimePicker
-                min={OB_MIN}
-                max={OB_MAX}
-                step={OB_STEP}
-                value={range}
-                onChange={(v) => setRange(v)}
-                format={fmtAbs}
-                accent={colors.foreground}
-              />
+              {/* What + when — one white card: a borderless label field over a
+                  hairline, then the two tappable time rows. */}
+              <View style={styles.card}>
+                <TextInput
+                  style={styles.labelInput}
+                  value={label}
+                  onChangeText={setLabel}
+                  placeholder="Work, class, commute…"
+                  placeholderTextColor={WT.MUTE}
+                  returnKeyType="done"
+                  maxLength={40}
+                />
+                <View style={styles.hair} />
+                <WheelTimeRow
+                  label="Starts"
+                  display={fmt12(minToHHMM(range[0]))}
+                  onPress={() => setPicker('from')}
+                />
+                <View style={styles.hair} />
+                <WheelTimeRow
+                  label="Ends"
+                  display={fmt12(minToHHMM(range[1]))}
+                  onPress={() => setPicker('to')}
+                />
+              </View>
 
               {/* Which days — underline tabs over an exact 7-day set. */}
-              <Text style={[styles.sectionLabel, { marginTop: spacing.lg }]}>Which days</Text>
+              <Text style={styles.sectionLabel}>Which days</Text>
               <Tabs
                 options={[
                   { key: 'all', label: 'Every day' },
@@ -314,7 +315,7 @@ const ObligationsManager = forwardRef<
                   onPress={() => confirmRemove(editIndex, () => setEditorOpen(false))}
                   activeOpacity={0.6}
                 >
-                  <Ionicons name="trash-outline" size={14} color={colors.error} />
+                  <Ionicons name="trash-outline" size={14} color="#C0452C" />
                   <Text style={styles.removeText}>Remove commitment</Text>
                 </TouchableOpacity>
               ) : null}
@@ -326,8 +327,8 @@ const ObligationsManager = forwardRef<
               <View style={styles.footerSummary}>
                 <Text style={styles.summaryText} numberOfLines={1}>
                   {canSave
-                    ? `${fmtAbs(range[0])} – ${fmtAbs(range[1])}`
-                    : 'Pick a start, end and at least one day'}
+                    ? `${fmt12(minToHHMM(range[0]))} – ${fmt12(minToHHMM(range[1]))}`
+                    : 'Pick a start, end and a day'}
                 </Text>
                 {canSave ? (
                   <Text style={styles.summaryDays} numberOfLines={1}>
@@ -349,9 +350,19 @@ const ObligationsManager = forwardRef<
           </View>
         </KeyboardAvoidingView>
 
+        {/* Drum-wheel picker — in-sheet overlay within THIS modal (never a
+            second <Modal> → avoids the two-modals-at-once iOS freeze). */}
+        {picker ? (
+          <WheelTimeOverlay
+            title={picker === 'from' ? 'Starts' : 'Ends'}
+            value={picker === 'from' ? range[0] : range[1]}
+            onClose={() => setPicker(null)}
+            onConfirm={(v) => confirmTime(picker, v)}
+          />
+        ) : null}
+
         {/* Host inside this editor Modal so the "Remove commitment?" confirm
-            renders ABOVE the sheet (iOS won't present the root host's modal
-            over this one), so Remove actually works from the open editor. */}
+            renders ABOVE the sheet. */}
         <InAppAlertHost />
       </View>
     </Modal>
@@ -363,119 +374,125 @@ export default ObligationsManager;
 const tabs = StyleSheet.create({
   wrap: { flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap', rowGap: 8 },
   item: { paddingBottom: 6, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  itemOn: { borderBottomColor: colors.foreground },
-  text: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.textMuted, letterSpacing: 0.1 },
-  textOn: { fontFamily: fonts.sansSemiBold, color: colors.foreground },
+  itemOn: { borderBottomColor: WT.INK },
+  text: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: WT.MUTE, letterSpacing: 0.1 },
+  textOn: { fontFamily: fonts.sansSemiBold, color: WT.INK },
 });
 
 const styles = StyleSheet.create({
-  // ── Editor sheet — editorial (white, serif title, hairline fields) ──
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheetWrap: { justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    backgroundColor: WT.BG,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderCurve: 'continuous',
     paddingHorizontal: spacing.lg,
-    paddingTop: 10,
+    paddingTop: 12,
   },
   grabber: {
     alignSelf: 'center',
     width: 38,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-    marginBottom: 14,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.12)',
+    marginBottom: 12,
   },
   sheetTitle: {
     fontFamily: fonts.serif,
-    fontSize: 22,
-    color: colors.foreground,
+    fontSize: 24,
+    color: WT.INK,
     letterSpacing: -0.4,
-    marginBottom: 6,
+    textAlign: 'center',
+    marginBottom: 16,
   },
 
-  // Sentence-case section labels — never ALL-CAPS letter-spaced gray.
+  // White soft-shadow card holding the label + the two time rows.
+  card: {
+    backgroundColor: WT.CARD,
+    borderRadius: 22,
+    borderCurve: 'continuous',
+    paddingHorizontal: 18,
+    ...CARD_SOFT,
+  },
+  hair: { height: StyleSheet.hairlineWidth, backgroundColor: WT.HAIR },
+  labelInput: {
+    paddingVertical: 17,
+    paddingHorizontal: 0,
+    color: WT.INK,
+    fontSize: 17,
+    fontFamily: fonts.sansSemiBold,
+  },
+
   sectionLabel: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 13,
-    color: colors.foreground,
+    color: WT.INK,
     letterSpacing: 0.1,
-    marginTop: spacing.lg,
-    marginBottom: 2,
+    marginTop: 26,
+    marginBottom: 12,
+    marginLeft: 4,
   },
-
-  // Borderless label field over a hairline (no filled gray box).
-  labelInput: {
-    paddingTop: 14,
-    paddingBottom: 12,
-    paddingHorizontal: 0,
-    color: colors.foreground,
-    fontSize: 17,
-    fontFamily: fonts.sansSemiBold,
-    letterSpacing: -0.2,
-  },
-  hairline: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
 
   // Exact 7-day toggles — quiet hairline circles, ink fill when selected.
   dayRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: spacing.md,
+    marginTop: 4,
     paddingHorizontal: 2,
   },
   dayDot: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.14)',
   },
-  dayDotOn: { backgroundColor: colors.foreground, borderColor: colors.foreground },
-  dayDotText: { fontSize: 13.5, fontFamily: fonts.sansMedium, color: colors.textSecondary },
-  dayDotTextOn: { color: colors.background, fontFamily: fonts.sansSemiBold },
+  dayDotOn: { backgroundColor: WT.INK, borderColor: WT.INK },
+  dayDotText: { fontSize: 14, fontFamily: fonts.sansMedium, color: WT.SUB },
+  dayDotTextOn: { color: WT.ON_INK, fontFamily: fonts.sansSemiBold },
 
-  // Understated destructive text action — no pink box, no red slab.
   removeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     marginTop: spacing.xl,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
-  removeText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.error, letterSpacing: 0.1 },
+  removeText: { fontFamily: fonts.sansMedium, fontSize: 14, color: '#C0452C', letterSpacing: 0.1 },
 
-  // Footer — live summary beside a right-sized save.
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.borderLight,
+    borderTopColor: WT.HAIR,
   },
   footerSummary: { flex: 1, minWidth: 0 },
   summaryText: {
     fontFamily: fonts.serif,
-    fontSize: 16,
-    color: colors.foreground,
-    letterSpacing: -0.2,
+    fontSize: 17,
+    color: WT.INK,
+    letterSpacing: -0.3,
     fontVariant: ['tabular-nums'],
   },
-  summaryDays: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, marginTop: 2, letterSpacing: 0.1 },
+  summaryDays: { fontFamily: fonts.sans, fontSize: 12.5, color: WT.MUTE, marginTop: 2, letterSpacing: 0.1 },
   saveBtn: {
-    backgroundColor: colors.foreground,
-    borderRadius: 13,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    minWidth: 96,
+    backgroundColor: WT.INK,
+    borderRadius: 999,
+    borderCurve: 'continuous',
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    minWidth: 104,
     alignItems: 'center',
+    ...CARD_SOFT,
   },
-  saveBtnOff: { backgroundColor: colors.surface },
-  saveText: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.background, letterSpacing: 0.1 },
-  saveTextOff: { color: colors.textMuted },
+  saveBtnOff: { backgroundColor: '#DAD9D6', shadowOpacity: 0 },
+  saveText: { fontFamily: fonts.sansSemiBold, fontSize: 15.5, color: WT.ON_INK, letterSpacing: 0.2 },
+  saveTextOff: { color: '#8A8A86' },
 });
