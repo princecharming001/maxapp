@@ -133,6 +133,23 @@ def test_unclosed_marker_after_valid_block():
     assert "intro" in clean and "middle" in clean
 
 
+def test_control_chars_in_json_are_repaired():
+    # LLMs sometimes emit literal newlines inside JSON string values (invalid JSON).
+    # _extract_visual_blocks must repair them and still extract the block.
+    row_with_newline = '["1-2","establish\\nroutine","wash 2x","upper body","foundation"]'
+    # Build a block JSON where one cell has a literal newline (not escaped)
+    json_with_literal_newline = (
+        '{"type":"table","title":"12-week plan","data":{"columns":["week","skin","hair","gym","notes"],'
+        '"rows":[["1-2","cleanser\nroutine","wash 2x/week","upper body focus","foundation"]]}}'
+    )
+    text = f'intro.\n[VISUAL_BLOCK]{json_with_literal_newline}[/VISUAL_BLOCK]'
+    clean, blocks = _extract_visual_blocks(text)
+    assert len(blocks) == 1
+    assert blocks[0]["type"] == "table"
+    assert "[visual_block]" not in clean.lower()
+    assert clean.strip() == "intro."
+
+
 def test_prose_pipes_are_not_a_table():
     text = "use a|b as a separator, it's fine."
     clean, blocks = _extract_markdown_tables(text)

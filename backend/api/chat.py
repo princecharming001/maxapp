@@ -630,6 +630,17 @@ def _extract_visual_blocks(text: str) -> tuple[str, list[dict]]:
         raw = (m.group(1) or "").strip()
         try:
             obj = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            # LLMs sometimes embed literal control chars (newline, tab) inside
+            # JSON strings instead of using \n / \t escape sequences.
+            # Replace any unescaped control char with a space and retry.
+            raw_fixed = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", " ", raw)
+            raw_fixed = raw_fixed.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+            try:
+                obj = json.loads(raw_fixed)
+            except Exception:
+                continue  # malformed marker → skip it, keep prose clean
+        try:
             btype = str(obj.get("type") or "").strip().lower()
             if btype in _ALLOWED_BLOCK_TYPES and isinstance(obj.get("data"), (dict, list)):
                 blocks.append({
@@ -3674,41 +3685,80 @@ Ask ONE question at a time. Your very first response must ask the concern questi
                 except Exception as _e:
                     logger.info("web search safety net failed (non-fatal): %s", _e)
 
-            # Anti-clarifier safety net for explicit multi-domain plan requests.
-            # The agent occasionally emits [CHOICES] (asking for profile details)
-            # instead of building the plan immediately, despite the NON-NEGOTIABLE
-            # directive. Detected by: plan request + [CHOICES] in response + no
-            # [VISUAL_BLOCK]. Re-run once with a hard override injected into the
-            # message so the model cannot fire clarifiers again.
+            # Anti-clarifier / missing-table safety net for explicit plan requests.
+            # Two failure modes caught here:
+            # (1) Agent emits [CHOICES] clarifier instead of building the plan.
+            # (2) Agent emits prose plan framework but omits the required visual_block table.
+            # Approach: secondary minimal LLM call to generate ONLY the table block, then
+            # append it to whatever prose the agent produced (stripping any trailing
+            # "here's your plan:" / "weekly breakdown:" teaser that the agent left hanging).
+            _rt_lower = (response_text or "").lower()
+            _has_table_block = "type=table" in _rt_lower or '"type": "table"' in _rt_lower
             if (
                 _is_explicit_plan_request(message_text)
-                and "[choices]" in (response_text or "").lower()
-                and "[visual_block]" not in (response_text or "").lower()
+                and not _has_table_block
             ):
                 try:
-                    forced_plan_msg = (
-                        "PLAN-BUILD OVERRIDE: The user has requested a complete multi-domain "
-                        "plan. You MUST build and return the plan RIGHT NOW using assumptions "
-                        "for any missing profile details (e.g. assume beginner level, mixed skin "
-                        "type, no equipment unless stated). Do NOT emit [CHOICES] or any "
-                        "clarifying questions. Emit the table block NOW.\n\n"
-                        f"{message_text}"
+                    from services.lc_providers import get_chat_llm_with_fallback
+                    from langchain_core.messages import HumanMessage, SystemMessage
+                    _table_llm = get_chat_llm_with_fallback(max_tokens=800, temperature=0.2)
+                    # Summarise what we know about the user so the table is personalised
+                    _uf = user_facts or {}
+                    _profile_summary = (
+                        f"User profile: {json.dumps({k: v for k, v in _uf.items() if k != 'raw'})}"
+                        if _uf else "User profile: not available — use sensible defaults"
                     )
-                    response_text2, _ = await run_chat_agent(
-                        message=forced_plan_msg,
-                        lc_history=lc_history,
-                        user_context=user_context,
-                        image_data=image_data,
-                        delivery_channel=channel,
-                        tools=tools,
-                        db=db,
-                        maxx_id=maxx_id,
+                    _table_system = (
+                        "You are a looksmaxxing coach. Emit ONLY a [VISUAL_BLOCK] type=table "
+                        "JSON marker — nothing else. No prose, no preamble, no explanation. "
+                        "The marker format is: "
+                        '[VISUAL_BLOCK]{"type":"table","title":"12-Week Plan","data":{"columns":["Week","Skin","Hair","Gym","Notes"],'
+                        '"rows":[["1-2","...","...","...","..."],["3-4","...","...","...","..."],'
+                        '["5-6","...","...","...","..."],["7-8","...","...","...","..."],'
+                        '["9-10","...","...","...","..."],["11-12","...","...","...","..."]]}}[/VISUAL_BLOCK] '
+                        "Fill each cell with 2-5 word summaries of what the user should do that fortnight. "
+                        f"{_profile_summary}"
                     )
-                    if response_text2 and "[choices]" not in response_text2.lower():
-                        response_text = response_text2
-                        logger.info("[anti-clarifier] retry succeeded for plan request")
+                    _table_human = (
+                        f"Build the weekly breakdown table for this request: {message_text}. "
+                        "Emit ONLY the [VISUAL_BLOCK] marker. Start your response with [VISUAL_BLOCK]."
+                    )
+                    _table_resp = await _table_llm.ainvoke(
+                        [SystemMessage(content=_table_system), HumanMessage(content=_table_human)]
+                    )
+                    _table_text = getattr(_table_resp, "content", "") or ""
+                    # Strip any MCQ choices markers the secondary LLM might have emitted
+                    _table_text = re.sub(
+                        r'\[choices(?:_multi)?\].*?\[/choices(?:_multi)?\]',
+                        '',
+                        _table_text,
+                        flags=re.IGNORECASE | re.DOTALL,
+                    ).strip()
+                    if "[visual_block]" in _table_text.lower() and ("type=table" in _table_text.lower() or '"type":"table"' in _table_text.lower() or '"type": "table"' in _table_text.lower()):
+                        # Strip dangling trailing teaser lines from the prose plan
+                        # (e.g. "here's your 12-week progression:" with no content after it)
+                        _prose = (response_text or "").rstrip()
+                        _prose = re.sub(
+                            r"[\n\r]+(#{1,3}\s+)?(here.?s|now|and here.?s|below)[\s\S]{0,80}:\s*$",
+                            "",
+                            _prose,
+                            flags=re.IGNORECASE,
+                        ).rstrip()
+                        _has_choices = "[choices]" in _rt_lower
+                        if _has_choices:
+                            # Agent fired a clarifier — replace it entirely with table + brief intro
+                            response_text = (
+                                "here's your 12-week breakdown — building from your profile with "
+                                "default assumptions for anything not yet set.\n\n" + _table_text.strip()
+                            )
+                        else:
+                            # Agent built prose plan but omitted the table — append the table
+                            response_text = _prose + "\n\n" + _table_text.strip()
+                        logger.warning("[plan-table safety net] table block injected (had_choices=%s)", _has_choices)
+                    else:
+                        logger.warning("[plan-table safety net] secondary LLM did not emit table block; keeping original")
                 except Exception as _e:
-                    logger.info("anti-clarifier safety net failed (non-fatal): %s", _e)
+                    logger.warning("plan-table safety net failed (non-fatal): %s", _e)
         except Exception as llm_err:
             logger.exception("run_chat_agent failed for user %s: %s", user_id, llm_err)
             if _persist_chat_history(channel):
