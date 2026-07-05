@@ -2984,6 +2984,59 @@ async def process_chat_message(
                         logger.warning("[fast-rag table safety net] secondary LLM did not emit table block")
             except Exception as _te:
                 logger.warning("fast-rag table safety net failed (non-fatal): %s", _te)
+
+            # Multi-block safety net: if user requested ≥2 distinct block types but
+            # fewer were emitted, make a secondary call for the missing blocks.
+            try:
+                from services.fast_rag_answer import _count_distinct_block_types, _BLOCK_TYPE_PATTERNS
+                # Canonical type names parallel to _BLOCK_TYPE_PATTERNS order
+                _BLOCK_TYPE_NAMES = [
+                    "table", "timeline", "checklist", "stat_cards", "comparison", "flowchart"
+                ]
+                _n_requested = _count_distinct_block_types(message_text or "")
+                if _n_requested >= 2:
+                    _emitted_types = set(
+                        m.group(1).lower()
+                        for m in re.finditer(
+                            r'"type"\s*:\s*"(\w+)"', fast_response or "", re.IGNORECASE
+                        )
+                    )
+                    _n_emitted = len(_emitted_types)
+                    if _n_emitted < _n_requested:
+                        _requested_names = [
+                            _BLOCK_TYPE_NAMES[i]
+                            for i, p in enumerate(_BLOCK_TYPE_PATTERNS)
+                            if p.search(message_text or "")
+                        ]
+                        _missing = [t for t in _requested_names if t not in _emitted_types]
+                        if _missing:
+                            from services.lc_providers import get_chat_llm_with_fallback
+                            from langchain_core.messages import HumanMessage, SystemMessage
+                            _mb_llm = get_chat_llm_with_fallback(max_tokens=1200, temperature=0.2)
+                            _mb_system = (
+                                "You are a looksmaxxing coach. The user's answer was cut short. "
+                                "Emit ONLY the missing [VISUAL_BLOCK] markers (one per missing type) — no prose, no preamble. "
+                                "Each block: [VISUAL_BLOCK]{...}[/VISUAL_BLOCK]. Start immediately with [VISUAL_BLOCK]."
+                            )
+                            _mb_human = (
+                                f"User asked: {message_text}\n\n"
+                                f"The response already has these block types: {list(_emitted_types)}.\n"
+                                f"Missing block types: {_missing}.\n"
+                                f"Existing response for context:\n{fast_response}\n\n"
+                                f"Emit ONLY the missing block(s) as [VISUAL_BLOCK] markers. No other text."
+                            )
+                            _mb_resp = await _mb_llm.ainvoke(
+                                [SystemMessage(content=_mb_system), HumanMessage(content=_mb_human)]
+                            )
+                            _mb_text = getattr(_mb_resp, "content", "") or ""
+                            if "[visual_block]" in _mb_text.lower():
+                                fast_response = (fast_response or "").rstrip() + "\n\n" + _mb_text.strip()
+                                logger.warning("[fast-rag multi-block safety net] appended missing blocks: %s", _missing)
+                            else:
+                                logger.warning("[fast-rag multi-block safety net] secondary LLM emitted no blocks for: %s", _missing)
+            except Exception as _mbe:
+                logger.warning("fast-rag multi-block safety net failed (non-fatal): %s", _mbe)
+
             return _finalize_assistant_message(fast_response), []
 
     if maxx_id and maxx_id != "fitmax" and user:

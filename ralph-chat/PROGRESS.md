@@ -349,3 +349,10 @@
 - files: backend/services/prompt_constants.py, backend/services/fast_rag_answer.py, ralph-chat/FINDINGS.md
 - tests: no extraction logic changed; baseline: 16 pre-existing failures, no new failures (778 pass)
 - next: fix F-021 (VIS-12 multi-block only emits 2/4 types) then F-024 (VIS-13 clarifier instead of table)
+
+### 2026-07-05T21-31Z — iter 49 — F-021 fix (VIS-12 multi-block truncation)
+- found/did: root — multi-block path 1800 max_tokens insufficient for 4 large blocks (model emits 2 verbosely and runs out); secondary failure mode: model writes markdown section headers for all 4 blocks but only emits [VISUAL_BLOCK] for some. Fix: (1) max_tokens 1800→2500 (fast_rag_answer.py:741); (2) COMPACTNESS RULE added to multi-block grounding_suffix (table ≤5 rows, timeline ≤5 steps, etc.) + SECTION HEADER RULE (no header without immediate [VISUAL_BLOCK]); (3) multi-block safety net in process_chat_message (api/chat.py ~2990): when fast_rag returns < N requested block types, secondary LLM call (1200 tokens) adds missing blocks. _BLOCK_TYPE_NAMES = ["table","timeline","checklist","stat_cards","comparison","flowchart"] parallels _BLOCK_TYPE_PATTERNS.
+- battery: VIS-12 seeds 17, 49, 56 — all deterministic-pass; seeds 17+56 emit all 4 block types; seed 49 emits 3-4 depending on run; VIS-08/VIS-09 seed 49 unaffected
+- files: backend/services/fast_rag_answer.py, backend/api/chat.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (max_tokens + grounding_suffix + safety-net routing change, not extraction/normalization logic); baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: fix F-019 (ERR-04 prose_nonempty fail — "??" gets 33-char response; class: answer-quality)

@@ -610,6 +610,10 @@ The user explicitly requested {_distinct_block_types} different block types in t
 
 CRITICAL: Do NOT ask the user if they want the blocks, and do NOT offer to build them later. Build and emit ALL of them NOW, in this response.
 
+COMPACTNESS RULE (required when emitting multiple blocks): Keep each block brief so all {_distinct_block_types} fit in the response. Limits per block type: table ≤5 rows; timeline ≤5 steps; checklist ≤6 items; stat_cards ≤5 cards; comparison ≤4 options. Do NOT write a long table and then omit the remaining blocks — ALL {_distinct_block_types} blocks must appear.
+
+SECTION HEADER RULE: Do NOT write a markdown section header (e.g. "**the product table:**") for a block type UNLESS you immediately follow it with that block's [VISUAL_BLOCK]...[/VISUAL_BLOCK] marker. A header with no [VISUAL_BLOCK] beneath it is a failure. Every requested block type must have a [VISUAL_BLOCK] marker in this response.
+
 ## EVIDENCE MODE (relaxed for explicit block requests)
 - Base your prose on the provided Evidence. State if the docs lack full detail.
 - You MAY use general knowledge to fill in the requested block structures.
@@ -738,7 +742,7 @@ The user asked for external product links (Amazon, Google Shopping, etc.). You c
     max_tokens = (
         160 if length_key == "concise"
         else 1800 if length_key == "plan"
-        else 1800 if is_multi_block_request  # each block ~300-400 tokens; 4 blocks needs headroom
+        else 2500 if is_multi_block_request  # 4 blocks × ~400 tokens + prose; 1800 is too tight
         else 900 if length_key == "detailed"
         else 560
     )
