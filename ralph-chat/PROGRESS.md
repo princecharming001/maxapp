@@ -1,3 +1,10 @@
+### 2026-07-05T17-30Z — iter 28 — FULL BATTERY seed 9, 3 regressions
+- found/did: battery seed 9 — 34/36 deterministic-pass. Judged all 31 needs_judge turns. Three findings: (1) F-009 REOPENED: VIS-07 seed 9 — model emits comparison block instead of table block for "put CeraVe and La Roche-Posay... side by side in a table"; (2) F-021 REOPENED: VIS-12 seed 9 — multi-block request for table+timeline+checklist+stat_cards; model emits only table+timeline (2/4 types), answers_the_question=3; (3) F-022 new: VIS-03 seed 9 — stat_cards-only response, prose=0 chars, prose_nonempty FAIL (historically flaky, now formally tracked).
+- battery: FULL seed 9: 34/36 deterministic-pass; judge failures: VIS-12 (answers_the_question=3); flaky: VIS-03 (prose_nonempty), VIS-07 (block_present:table); quarantined: VIS-04 (F-007, expected)
+- files: ralph-chat/FINDINGS.md, ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md
+- tests: no code changed, no new pytest
+- next: fix F-009 (VIS-07 table vs comparison regression, class: model-never-emits-block, priority 4)
+
 ### 2026-07-05T17-10Z — iter 27 — F-017 timing follow-up uses 6am context
 - found/did: root at api/chat.py agent path — "and when should i eat it?" has no RAG keywords → fast_rag returns "" → agent fires recommend_product with no timing; EXCEPTION clause in fast_rag_answer.py grounding_suffix never reached. Added `_is_timing_followup()` (matches "when/how soon/what time should i", <80 chars) + timing safety net in process_chat_message: if response has no time-of-day words, make secondary 200-token LLM call with conversation history + user facts to answer the timing question specifically.
 - battery: MEM-01 seeds 8, 17, 24 — turn 2 correctly references "6am workout" and "by 7am"; XMEM-01, XMEM-02 seed 24 unaffected
