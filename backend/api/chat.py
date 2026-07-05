@@ -3693,7 +3693,11 @@ Ask ONE question at a time. Your very first response must ask the concern questi
             # append it to whatever prose the agent produced (stripping any trailing
             # "here's your plan:" / "weekly breakdown:" teaser that the agent left hanging).
             _rt_lower = (response_text or "").lower()
-            _has_table_block = "type=table" in _rt_lower or '"type": "table"' in _rt_lower
+            _has_table_block = (
+                "type=table" in _rt_lower
+                or '"type": "table"' in _rt_lower
+                or '"type":"table"' in _rt_lower
+            )
             if (
                 _is_explicit_plan_request(message_text)
                 and not _has_table_block
@@ -5511,8 +5515,12 @@ async def _send_message_locked(
     # Suppressed when chips/confirm own the turn (visuals don't belong there).
     visual_blocks: list = []
     method_metadata = None
+    # Always strip [visual_block] markers so they never leak into prose,
+    # even on MCQ turns where we don't surface the blocks to the client.
+    response_text, _stripped_vblocks = _extract_visual_blocks(response_text)
     if not choices and not confirm_out:
-        response_text, visual_blocks = _extract_visual_blocks(response_text)
+        visual_blocks = _stripped_vblocks
+    if not choices and not confirm_out:
         response_text, method_metadata = _extract_method_confidence(response_text)
         # Also convert any natural markdown tables into native table blocks.
         response_text, _md_tables = _extract_markdown_tables(response_text)

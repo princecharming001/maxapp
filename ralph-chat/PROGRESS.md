@@ -1,3 +1,10 @@
+### 2026-07-05T21-06Z — iter 46 — F-020 fix (ERR-01 marker leak + missing table)
+- found/did: two-part root: (1) `_has_table_block` at chat.py:3696 checked `'"type": "table"'` (space) but not `'"type":"table"'` (no space) — safety net incorrectly fired when model embedded a valid table, clobbering it with a secondary LLM call; (2) `_extract_visual_blocks` gated `if not choices` (chat.py:5514) — when model emitted both [CHOICES] MCQ and [visual_block] simultaneously, choices were extracted but visual_block markers were never stripped → marker leak. Fixes: (a) added `'"type":"table"'` to `_has_table_block` check; (b) call `_extract_visual_blocks` unconditionally to strip markers, only surface resulting blocks when choices/confirm absent.
+- battery: ERR-01 seeds 16, 46, 53 pass (no marker leak, table block or prose plan present); ERR-02/03/04 seed 46 pass (no regressions)
+- files: backend/api/chat.py
+- tests: no new pytest (routing/extraction-guard change, not block-parsing logic); baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: run full battery (no open findings remain — F-007 quarantined)
+
 ### 2026-07-05T20-57Z — iter 45 — FULL BATTERY seed 16, 1 judge failure
 - found/did: battery seed 16 — 36/36 deterministic-pass. Judged all 31 needs_judge turns. One failure: ERR-01 answers_the_question=3 — "build me a complete 12-week plan covering skin, hair and gym, with a weekly table" → response covers all 3 domains in prose with per-phase detail but ends with "## weekly schedule table" header emitting NO table block at all; no visual_blocks in response. The iter 25 plan-table safety net (detect missing TYPE=TABLE → secondary LLM call) apparently did not fire for this seed. REGRESSION of F-020 (reopened).
 - battery: FULL seed 16: 36/36 deterministic-pass; judge failure: ERR-01 (F-020 REGRESSION)
