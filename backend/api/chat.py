@@ -4482,6 +4482,27 @@ async def _generate_after_intake(
         )
 
 
+_INTERRUPT_QUESTION_RE = re.compile(
+    r"\?"  # any question mark anywhere
+    r"|^(?:wait|hold on|actually|quick question|side question|sorry|excuse me)\b",
+    re.IGNORECASE,
+)
+_INTERRUPT_QW_RE = re.compile(
+    r"^(?:what|how|why|when|where|who|which|does|do|is|are|can|will|have|has|should|would|could|did|was|were)\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_onboarding_interrupt(msg: str) -> bool:
+    """True if the message looks like an off-topic question mid-intake rather
+    than a failed answer attempt. Used to fall through to the agent instead of
+    re-asking the intake question."""
+    s = (msg or "").strip()
+    if not s:
+        return False
+    return bool(_INTERRUPT_QUESTION_RE.search(s) or _INTERRUPT_QW_RE.match(s))
+
+
 async def _run_onboarding_questioner(
     user_id: str,
     message_text: str,
@@ -4677,6 +4698,11 @@ async def _run_onboarding_questioner_impl(
             )
             return _finish_onboarding_turn(text, payload)
 
+        # If the message looks like a genuine off-topic question (has "?",
+        # starts with a question word, etc.) let the agent answer it. The
+        # pending state is left intact so onboarding resumes on the next turn.
+        if _looks_like_onboarding_interrupt(msg):
+            return None
         # Re-ask, but keep state as-is.
         payload = field_to_question_payload(last_field)
         return _finish_onboarding_turn(

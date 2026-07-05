@@ -19,6 +19,7 @@ hypotheses:
       likely site: user_brief.py 30s TTL cache / fact-extraction timing; _broad_question_mcq (backend/api/chat.py:3839-3899)
       fixed: iter 1 — root: brief cached at line 2638 during turn 0 before user msg committed; next turn gets stale cache hit; fix: call invalidate_brief(user_id) after each commit in _send_message_locked (api/chat.py:5105+, 5114+, 5160+)
 
-- [ ] F-003  Onboarding mid-intake interruption gets no real answer — repeats the same rigid question with "didn't quite catch that" instead of answering | class: onboarding-intake-degrades
+- [x] F-003  Onboarding mid-intake interruption gets no real answer — repeats the same rigid question with "didn't quite catch that" instead of answering | class: onboarding-intake-degrades
       evidence: state/runs/2026-07-05T11-54-17Z/transcript-ONB-02.md (turn 1) | first-seen: iter 0 (hand-validation)
       likely site: services/onboarding_questioner.py; backend/api/chat.py:5071-5107
+      fixed: iter 2 — root: _run_onboarding_questioner_impl at chat.py:4700 unconditionally re-asked when coerce_answer returned None; fix: add _looks_like_onboarding_interrupt() gate — if msg has "?" or starts with a question word, return None to let the agent answer; pending state preserved so onboarding resumes on the next turn.
