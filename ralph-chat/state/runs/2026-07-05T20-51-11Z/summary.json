@@ -1,0 +1,15 @@
+{
+  "run_id": "2026-07-05T20-51-11Z",
+  "started": "2026-07-05T20-51-11Z",
+  "scenarios": {
+    "ERR-01": {
+      "status": "fail",
+      "failed_checks": [
+        "turn0:no_marker_leak",
+        "turn0:no_leaked_json"
+      ],
+      "needs_judge": true
+    }
+  },
+  "deterministic_clean": false
+}

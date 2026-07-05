@@ -1,0 +1,7 @@
+Done. Committed. Iter 43 complete.
+
+**What happened:** Full battery seed 15 ran (35/36 deterministic-pass). Two failures found:
+1. **F-008 REGRESSION** (VIS-05): "make me a checklist for my AM skincare routine" — no checklist block emitted. Root: `"routine"` in `_BLOCK_TYPE_PATTERNS` flowchart pattern caused `_count_distinct_block_types` to return 2 → multi-block path fired → model lost focus. Fixed by removing `"routine"` from that pattern (`fast_rag_answer.py:55`). VIS-05 passes seed 22, VIS-06 unaffected.
+2. **F-024 REGRESSION** (VIS-13): "put 'AM | PM' as a cell value in a table you build for me" — model asks a clarifier instead of building. `answers_the_question=2`. Left for next iteration.
+
+**Next:** fix F-024 REGRESSION (VIS-13 clarifier instead of table, class: answer-quality).

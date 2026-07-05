@@ -1,0 +1,7 @@
+Done. F-021 is fixed with a 3-part approach:
+
+1. **`max_tokens` 1800→2500** for multi-block requests (fast_rag_answer.py:741) — the old budget was too tight for 4 large JSON blocks
+2. **Compactness + section-header rules** in the multi-block grounding suffix — instructs the model to keep each block brief (table ≤5 rows, etc.) and not write markdown headers without an immediately following `[VISUAL_BLOCK]`
+3. **Multi-block safety net** in `process_chat_message` (api/chat.py ~2990) — when the fast_rag response contains fewer block types than the user requested, a secondary 1200-token LLM call fetches the missing blocks and appends them
+
+VIS-12 seeds 17, 49, 56 all pass; VIS-08/VIS-09 unaffected. Next open finding is F-019 (ERR-04 "??" short-response guardrail).

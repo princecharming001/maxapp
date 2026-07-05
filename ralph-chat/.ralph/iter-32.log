@@ -1,0 +1,12 @@
+F-024 is fixed. Here's what was done this iteration:
+
+**Root cause**: "make me a table" / "put X as a cell value in a table" requests go through the **agent path** (no maxx keywords → no fast_rag gate). The agent model was calling `recommend_product`, then emitting only a 35-char intro sentence ("here's your skincare routine table:") without any VISUAL_BLOCK.
+
+**Fix (5 parts)**:
+1. `fast_rag_answer.py` — added `_TABLE_REQUEST_RE` + TABLE BLOCK RULE injection in grounding_suffix (mirrors COMPARISON/STAT_CARDS patterns)
+2. `lc_agent.py` — per-message `_table_reminder` appended to human message so the model reads the rule immediately before generating its response
+3. `prompt_constants.py` — strengthened CHAT_VISUAL_GRAMMAR table bullet: "DO NOT ask 'what should the table show?'", "≥2 cols/rows, build immediately"
+4. `lc_agent.py` — added TABLE EXCEPTION to CLARIFY section preventing the clarifier code path
+5. `chat.py:5531` — extended bridge-text condition to replace short prose (<40 chars) when visual_blocks are present, fixing `prose_nonempty` for model responses that generate only a brief intro
+
+Both paraphrases (seeds 15 and 22) now pass; VIS-07/08/09 unaffected. Next iteration: run full battery (no open findings remain — F-007 quarantined).

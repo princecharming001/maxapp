@@ -1,0 +1,7 @@
+Done. Two root causes fixed in `backend/api/chat.py`:
+
+1. **`_has_table_block` (line 3696)** — added `'"type":"table"'` (no space after colon) to the check. The model's JSON often uses compact format; the old check only matched the spaced variant, causing the safety net to fire unnecessarily and clobber valid table blocks.
+
+2. **`_extract_visual_blocks` gate (line 5514)** — now always called unconditionally to strip markers from prose. Previously skipped when `choices` were present, leaving `[visual_block]...[/visual_block]` markers in the client response whenever the model emitted both an MCQ and a table block simultaneously.
+
+ERR-01 passes seeds 16, 46, and 53. No new pytest failures. Next: run full battery.

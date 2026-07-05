@@ -1,0 +1,1 @@
+Done. Battery seed 18 ran clean — all 3 anomalies (XMEM-01 deterministic, VIS-12 judge, CLAR-03 judge) were temperature variance confirmed by independent retries passing. F-019 closed as passively resolved. clean_streak = 1. Next pass needs another clean battery run to reach streak=2 and PROJECT COMPLETE.

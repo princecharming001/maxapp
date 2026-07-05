@@ -1,0 +1,8 @@
+Full battery run complete. 34/36 deterministic-pass; 4 issues found and recorded:
+
+- **F-019 REOPENED** (ERR-04): "??" → 33-char response, prose_nonempty fail for the third time
+- **F-021 REOPENED** (VIS-12): multi-block request delivers table + timeline only (2/4 block types), recurring seed-variance truncation
+- **F-028 NEW** (VIS-02): "make me a table: 3-day beginner workout split" → prose with correct content but no table block emitted
+- **F-029 NEW** (CLAR-03): "less thinning" chip → model asks WHERE they're thinning instead of giving a real answer
+
+Next iteration should fix F-028 (VIS-02 workout table not emitted — highest priority: class model-never-emits-block, priority 2).
