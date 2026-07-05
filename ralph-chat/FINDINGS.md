@@ -71,3 +71,11 @@ hypotheses:
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-XMEM-02.md (turn 0) | first-seen: iter 4 (full battery)
       likely site: same as F-011 — cross-conversation recall not surfacing existing usage
       fixed: iter 7 — resolved by same fix as F-011 (conversation_id filter + recency fallback). XMEM-02 passes seed 8.
+
+--- Found in full-battery run, iter 11 (seed 2) ---
+
+- [x] F-013  Model doesn't emit comparison block for "compare 2 acne treatment options — include timeframes" phrasing | class: model-never-emits-block
+      evidence: state/runs/2026-07-05T13-37-08Z/transcript-VIS-10.md (turn 0) | first-seen: iter 11 (full battery seed 2)
+      variant 0 consistently fails (seeds 2, 3, 8); variant 1 flaky (sometimes passes). Root: (1) model hits agent path and asks clarifying "which two options?" before building block; (2) model sees "week 4 — visible change" timeframe in user msg and doesn't know it fits in pros/cons. Fix: CHAT_VISUAL_GRAMMAR NON-NEGOTIABLE extended with anti-clarifier rule ("choose most relevant two options, emit immediately — no clarifying Q first") + "timeframes fit in pros/cons" guidance + updated comparison example showing "Week 4 — visible change" in pros array. VIS-10 passes seeds 2, 8, 9.
+      SEC-01/XMEM-03: both flaky (different seed passes); not opened as findings.
+      fixed: iter 11 — prompt_constants.py CHAT_VISUAL_GRAMMAR

@@ -1,3 +1,10 @@
+### 2026-07-05T13-53Z — iter 11 — FULL BATTERY (seed 2) + F-013 comparison-block-with-timeframes fixed
+- found/did: full battery seed 2 found 5 failures: VIS-10 (new F-013, variant 0 consistently fails), SEC-01/XMEM-03 (flaky, pass on different seeds — not opened), VIS-07 (flaky regress seed 2, passes seed 5 — not a real regression), VIS-04 (quarantined F-007). Fixed F-013: root cause — model hits AGENT path for "compare 2 acne treatment options" and asks clarifying question before emitting block; also didn't know timeframe notes ("week 4 — visible change") fit in comparison pros/cons arrays. Fix: extended CHAT_VISUAL_GRAMMAR comparison NON-NEGOTIABLE rule at prompt_constants.py to add anti-clarifier directive + timeframes-in-pros-example. VIS-10 passes seeds 2, 8, 9 post-fix. clean_streak → 0.
+- battery: FULL seed 2: 31/36 pass; failures: VIS-10 (F-013, fixed this pass), VIS-04 (quarantined F-007), SEC-01/XMEM-03/VIS-07 (flaky, pass on other seeds)
+- files: backend/services/prompt_constants.py, ralph-chat/FINDINGS.md, ralph-chat/.ralph/clean_streak
+- tests: no new pytest (prompt-only fix, CHAT_VISUAL_GRAMMAR is code-only); baseline: 16 pre-existing failures, no new failures (760 pass)
+- next: run full battery (all findings closed except quarantined F-007)
+
 ### 2026-07-05T13-35Z — iter 10 — F-010 stat_cards-block passively fixed
 - found/did: VIS-08 passes seeds 1, 10, 17 — stat_cards block now emitted and answers_the_question=5 across all variants. No code changes needed; F-008/F-009's NON-NEGOTIABLE stat_cards directive (CHAT_VISUAL_GRAMMAR) + explicit-block grounding suffix (fast_rag_answer.py) resolved this passively.
 - battery: VIS-08 seeds 1, 10, 17 — all pass; stat_cards present
