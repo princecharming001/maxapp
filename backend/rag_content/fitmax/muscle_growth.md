@@ -47,6 +47,15 @@ Each muscle responds to being trained 1–3 times per week:
 - 2×/week: the sweet spot for most people
 - 3×/week: useful for lagging muscles or skill-heavy lifts (squat, bench)
 
+## Key Numbers
+
+- **Natural muscle gain rate**: ~0.25–0.5 lb/week (0.5–2 lb/month) for intermediate lifters; beginners can hit 1–2 lb/month in the first year
+- **Muscle protein synthesis window**: elevated for ~24–48 h post-training; peaks ~4–6 h after a session
+- **Protein per meal**: ~25–40 g of high-quality protein maximizes per-meal MPS (leucine threshold ~2–3 g)
+- **Weekly volume sweet spot**: 10–20 hard sets per muscle group; growth drops off past ~20 sets for most people
+- **Strength progress rate**: ~1–3% per week early training; ~0.5–1% per week intermediate; plateaus are normal after ~2 years
+- **Overtraining signal**: strength dropping on a key lift for 2+ consecutive sessions despite adequate sleep and food
+
 ## Recovery Inputs
 
 You can't grow what you can't recover.

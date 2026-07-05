@@ -1,3 +1,10 @@
+### 2026-07-05T15-20Z — iter 19 — F-018 VIS-08 rag-gap fixed
+- found/did: root at backend/rag_content/fitmax/muscle_growth.md + recovery_lifestyle.md — no quantitative hypertrophy or sleep-mechanism stats; model correctly said "docs don't have specific growth metrics." Added "Key Numbers" section to muscle_growth.md and sleep-key-stats section to recovery_lifestyle.md with specific numbers (GH% in slow-wave, testosterone drop from <6hr sleep, MPS window/peak, muscle gain rate). Re-ingested to Supabase via ingest_rag_content.py --maxx fitmax.
+- battery: VIS-08 seeds 25 and 18 — both pass; model emits 5-9 stat_cards covering sleep AND muscle growth (answers_the_question=5)
+- files: backend/rag_content/fitmax/muscle_growth.md, backend/rag_content/fitmax/recovery_lifestyle.md, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (RAG content change, not extraction logic); baseline: 16 pre-existing failures, no new failures (772 pass)
+- next: run full battery (no open findings remain)
+
 ### 2026-07-05T15-14Z — iter 18 — F-015 model-incomplete-response fixed
 - found/did: root at fast_rag_answer.py — _effective_response_length returned "" for 12-week plan asks, giving max_tokens=700; table body couldn't materialize before truncation. Fix: added _PLAN_REQUEST_RE at line 208 (detects N-week/monthly/weekly-table/week-by-week) → "plan" key → max_tokens=1800 at all three sizing sites (lines ~484, ~659, ~866).
 - battery: ERR-01 seed 25 passes (complete 6-row × 5-col table block, judge=5/5); ERR-01 seed 5 fires clarifier (skip-user accumulated profile state flakiness — pre-existing); CLAR-01 seed 25 passes unaffected.

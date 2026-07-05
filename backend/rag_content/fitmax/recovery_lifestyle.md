@@ -26,6 +26,13 @@ Sleep affects every output:
 - Recovery between sessions
 - How your face reads
 
+Key sleep stats:
+- **7–9 hours** is the evidence-based target for optimal recovery and hypertrophy
+- **~70–80% of daily growth hormone (GH)** is released during slow-wave sleep (within the first 2 hours of sleep)
+- **Sleep deprivation (< 6 hr/night)**: reduces testosterone by **10–15%** within a week; suppresses GH pulse amplitude
+- **60-minute sleep wind-down**: cutting stimulation 60 min before bed measurably improves slow-wave sleep quality
+- **Room temperature 65–68°F (18–20°C)**: linked to better deep-sleep architecture
+
 Targets:
 - 7–9 hours, consistent window (±30 min)
 - Dark, cool (65–68°F / 18–20°C), quiet room
