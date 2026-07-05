@@ -57,9 +57,10 @@ hypotheses:
       likely site: markdown-table autoconvert path in _extract_markdown_tables may not be handling markdown output; or model prose path not emitting a table block
       fixed: iter 9 — two-part fix: (1) CHAT_VISUAL_GRAMMAR (prompt_constants.py) — table type now explicitly wins over comparison when user asks for a "table" format; comparison NON-NEGOTIABLE updated with "table-format exception"; (2) fast_rag_answer.py explicit block grounding suffix — added CRITICAL rule: "Do NOT ask the user if they want the structured visual... Build and emit it NOW" to prevent deferred-offer behavior. VIS-07 passes seeds 9 and 16.
 
-- [ ] F-010  Model doesn't emit stat_cards block when bold-number stats requested | class: model-never-emits-block
+- [x] F-010  Model doesn't emit stat_cards block when bold-number stats requested | class: model-never-emits-block
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-VIS-08.md (turn 0) | first-seen: iter 4 (full battery)
       note: mentioned as pre-existing in iter 3 notes ("VIS-08 pre-existing failure — no numbers in docs") but not formally tracked; now tracked.
+      fixed: iter 10 — passively resolved by F-008/F-009 prompt enhancements (NON-NEGOTIABLE stat_cards directive in CHAT_VISUAL_GRAMMAR + explicit-block grounding suffix fix). VIS-08 passes seeds 1, 10, and 17; stat_cards emitted and answers_the_question scores 5.
 
 - [x] F-011  Cross-memory: follow-up about skin-peeling doesn't reference user's known tretinoin use | class: cross-chat-memory-miss
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-XMEM-01.md (turn 0) | first-seen: iter 4 (full battery)

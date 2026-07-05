@@ -1,3 +1,10 @@
+### 2026-07-05T13-35Z — iter 10 — F-010 stat_cards-block passively fixed
+- found/did: VIS-08 passes seeds 1, 10, 17 — stat_cards block now emitted and answers_the_question=5 across all variants. No code changes needed; F-008/F-009's NON-NEGOTIABLE stat_cards directive (CHAT_VISUAL_GRAMMAR) + explicit-block grounding suffix (fast_rag_answer.py) resolved this passively.
+- battery: VIS-08 seeds 1, 10, 17 — all pass; stat_cards present
+- files: ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (no extraction/normalization logic changed); baseline: no new failures
+- next: run full battery (all findings now closed — no open F-NNN remain)
+
 ### 2026-07-05T13-14Z — iter 7 — F-011/F-012 cross-chat-memory-miss fixed
 - found/did: root at chat_memory.py — (1) fixed rows[6:] that silently discarded ALL messages for new users (few prior convs); replaced with WHERE conversation_id != current_conversation_id filter so only current-thread rows are excluded; (2) added recency fallback in recall_relevant_turns — when conv_id known, also surface up to 2 most recent prior-conv turns regardless of token overlap (token-only scoring misses semantic links like "peeling"→"tretinoin"); (3) api/chat.py:2846 — stitched recall block into _rag_user_profile so fast-rag path sees cross-conv memory
 - battery: XMEM-01 seeds 1+8 pass; XMEM-02 seed 8 passes
