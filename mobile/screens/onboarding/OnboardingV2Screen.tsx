@@ -558,7 +558,7 @@ export default function OnboardingV2Screen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const insets = useSafeAreaInsets();
-    const { user, refreshUser } = useAuth();
+    const { user, isPaid, isFreeTier, refreshUser } = useAuth();
 
     const [step, setStep] = useState(0);
     const [dir, setDir] = useState(1); // +1 forward, -1 back — drives slide direction
@@ -790,7 +790,7 @@ export default function OnboardingV2Screen() {
                 // the navigator remounts onto Main. No reveal step.
                 completed: true,
             };
-        const goHome = () => {
+        const goHome = async () => {
             track('onboarding_step', {
                 step: 'completed',
                 goals,
@@ -800,9 +800,24 @@ export default function OnboardingV2Screen() {
             // Onboarding is done — drop the resume draft so a later relaunch
             // doesn't drag the user back into the wizard.
             void clearOnboardingDraft();
-            // The refresh flips onboarding.completed → treatAsFull → the
-            // navigator remounts onto Main.
-            refreshUser().catch(() => {});
+            // Flipping onboarding.completed makes treatAsFull true → the
+            // navigator remounts onto Main. AWAIT the refresh (retry once on a
+            // transient blip) so a paid/free-tier user reliably lands home even
+            // if getMe hiccups. treatAsFull ALSO requires paid||free-tier: a
+            // user who finished the schedule questions but is neither (a dev
+            // "claim account" jump, or a funnel edge) would otherwise be frozen
+            // on this completed screen with no error — route them to the paywall
+            // (the funnel's real post-onboarding step for an unpaid user).
+            let fresh: any = null;
+            for (let i = 0; i < 2 && !fresh; i++) {
+                fresh = await refreshUser().catch(() => null);
+                if (!fresh && i === 0) await new Promise((r) => setTimeout(r, 600));
+            }
+            const willBeFull =
+                ((fresh?.is_paid ?? user?.is_paid ?? isPaid) === true) || isFreeTier;
+            if (!willBeFull) {
+                navigation.navigate('Payment');
+            }
         };
         try {
             await api.saveOnboarding(payload as any);
