@@ -12,9 +12,8 @@
  *   • On today only: a live "now" line + dot, and past events are dimmed.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LiquidGlassFill } from '../glass/LiquidGlass';
 import { colors, fonts } from '../../theme/dark';
 import type { ShapeFocus } from './DayEditorSheet';
 import {
@@ -250,13 +249,15 @@ function inCompressedGap(segs: Seg[], min: number): boolean {
 }
 
 export default function ScheduleGrid({
-  day, obligations, scope, onEditShape, onEditObligation, isToday = false, calendarEvents = [],
+  day, obligations, scope, onEditShape, onEditObligation, onAddAt, isToday = false, calendarEvents = [],
 }: {
   day: DayShape;
   obligations: Obligation[];
   scope: Scope;
   onEditShape: (focus: ShapeFocus) => void;
   onEditObligation?: (index: number) => void;
+  /** Tap an EMPTY slot on the grid → add a commitment starting around there. */
+  onAddAt?: (startMin: number) => void;
   isToday?: boolean;
   calendarEvents?: CalendarEventRow[];
 }) {
@@ -317,9 +318,37 @@ export default function ScheduleGrid({
 
   const showNow = isToday && now >= gridStart && now <= gridEnd;
 
+  // Inverse of yOf — a tapped y back to minutes, for tap-empty-space-to-add.
+  const minAtY = (y: number): number => {
+    const first = segs[0];
+    const last = segs[segs.length - 1];
+    if (y <= first.y0) return first.s;
+    if (y >= last.y1) return last.e;
+    for (const sg of segs) {
+      if (y <= sg.y1) {
+        const h = sg.y1 - sg.y0 || 1;
+        return sg.s + ((y - sg.y0) / h) * (sg.e - sg.s);
+      }
+    }
+    return last.e;
+  };
+
   return (
     <View style={styles.wrap}>
       <View style={[styles.grid, { height: gridHeight }]}>
+        {/* Bottom layer: tapping empty space adds a commitment at that time.
+            Event cards sit above and win their own touches; hour labels and
+            the now-line are pointerEvents:none, so only true gaps land here. */}
+        {onAddAt ? (
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            accessible={false}
+            onPress={(e) => {
+              const m = Math.round(minAtY(e.nativeEvent.locationY) / 30) * 30;
+              onAddAt(Math.max(gridStart, Math.min(m, gridEnd - 60)));
+            }}
+          />
+        ) : null}
         {/* Hour lines + labels — every visible hour, so the first is anchored. */}
         {Array.from({ length: endHour - startHour + 1 }).map((_, i) => {
           const h = startHour + i;
@@ -367,11 +396,8 @@ export default function ScheduleGrid({
                   accessibilityRole={e.onPress ? 'button' : undefined}
                   accessibilityLabel={`${e.label}, ${fmt12Compact(min2hhmm(e.start))}`}
                 >
-                  {/* Canonical liquid-glass optics (native frosted material +
-                      corner specular + luminous rim) blurring the timeline
-                      behind. Tiny cards skip the svg specular for perf. Colored
-                      events keep an accent wash on top to tint the pane. */}
-                  <LiquidGlassFill idSuffix={`evt${idx}`} spec={tiny ? 0 : 0.85} />
+                  {/* Flat Craft card — the workout keeps a whisper of its
+                      accent as a wash; everything else stays warm white. */}
                   {e.accent === WORKOUT_ACCENT ? (
                     <View pointerEvents="none" style={styles.cardAccentWash} />
                   ) : null}
@@ -439,26 +465,25 @@ const styles = StyleSheet.create({
   },
 
   lane: { position: 'absolute', left: GUTTER, right: 0, top: 0, bottom: 0 },
-  // Frosted-glass card — a bright, airy translucent pane with crisp, less-rounded
-  // corners and a rim of light. A real BlurView fills it (added in the JSX); the
-  // layers below set the brightness, a faint cool tint, and the top edge.
+  // Flat Craft card — warm white on the cream canvas, hairline edge, soft
+  // shadow. No glass/blur: restraint reads designed here, translucency reads busy.
   card: {
     flex: 1, height: '100%', flexDirection: 'row', overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.52)', // bright glass base (shows if blur is unsupported)
-    borderRadius: 11, borderCurve: 'continuous',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12, borderCurve: 'continuous',
     marginRight: 6, marginBottom: 5,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.6)',
-    shadowColor: '#1E2840', shadowOpacity: 0.13, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 3,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.07)',
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   cardPast: { opacity: 0.42 },
-  // Workout (and other colored events) tint the glass pane in their accent.
-  cardAccentWash: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(47,107,78,0.14)' },
+  // The workout keeps a whisper of its accent.
+  cardAccentWash: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(47,107,78,0.07)' },
   tick: { width: 3, marginVertical: 7, borderRadius: 2 },
   cardBody: { flex: 1, paddingHorizontal: 11, paddingVertical: 7, justifyContent: 'center' },
   cardBodyTiny: { justifyContent: 'center', paddingVertical: 4 },
-  cardTitle: { fontFamily: fonts.serif, fontSize: 15, color: '#1B2430', letterSpacing: -0.2 },
+  cardTitle: { fontFamily: fonts.serif, fontSize: 15, color: colors.foreground, letterSpacing: -0.2 },
   cardTitleNarrow: { fontSize: 13.5 },
-  cardTime: { fontFamily: fonts.sans, fontSize: 11.5, color: '#6B7480', marginTop: 3, fontVariant: ['tabular-nums'] },
+  cardTime: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.textMuted, marginTop: 3, fontVariant: ['tabular-nums'] },
 
   nowRow: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center' },
   nowDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: NOW_ACCENT, marginLeft: GUTTER - 7 },

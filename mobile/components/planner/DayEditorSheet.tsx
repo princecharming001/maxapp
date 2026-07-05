@@ -498,32 +498,20 @@ export default function DayEditorSheet({
             </ScrollView>
 
             <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 6 }]}>
-              {/* Apply to — which days this edit recurs on. */}
+              {/* Applies to — which days this edit recurs on (underline tabs,
+                  the same segmented device as the Range/Exact toggles). */}
               <View style={styles.applyRow}>
-                <Text style={styles.applyLabel}>Apply to</Text>
-                <View style={styles.applyChips}>
-                  {applyOptions.map((opt) => {
-                    const sel = daysKey(opt.value) === applyKey;
-                    return (
-                      <TouchableOpacity
-                        key={opt.label}
-                        style={[styles.applyChip, sel && styles.applyChipSel]}
-                        onPress={() => {
-                          markDirty();
-                          setApplyTo(opt.value);
-                        }}
-                        activeOpacity={0.8}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: sel }}
-                        accessibilityLabel={`Apply to ${opt.label}`}
-                      >
-                        <Text style={[styles.applyChipText, sel && styles.applyChipTextSel]}>
-                          {opt.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                <Text style={styles.applyLabel}>Applies to</Text>
+                <Segmented
+                  options={applyOptions.map((o) => ({ key: daysKey(o.value), label: o.label }))}
+                  value={applyKey}
+                  onChange={(k) => {
+                    const opt = applyOptions.find((o) => daysKey(o.value) === k);
+                    if (!opt) return;
+                    markDirty();
+                    setApplyTo(opt.value);
+                  }}
+                />
               </View>
               <TouchableOpacity style={styles.doneBtn} onPress={done} activeOpacity={0.9}>
                 <Text style={styles.doneText}>Done</Text>
@@ -546,6 +534,8 @@ const seg = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     gap: spacing.md,
+    flexWrap: 'wrap',
+    rowGap: 8,
   },
   item: {
     paddingBottom: 6,
@@ -644,40 +634,15 @@ const styles = StyleSheet.create({
     borderTopColor: colors.borderLight,
   },
   applyRow: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
+  // Sentence-case, quiet — never ALL-CAPS letter-spaced gray.
   applyLabel: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 11,
-    color: colors.textMuted,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  applyChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  applyChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderLight,
-  },
-  applyChipSel: {
-    backgroundColor: colors.foreground,
-    borderColor: colors.foreground,
-  },
-  applyChipText: {
-    fontFamily: fonts.sansMedium,
+    fontFamily: fonts.sansSemiBold,
     fontSize: 13,
     color: colors.foreground,
-  },
-  applyChipTextSel: {
-    color: colors.background,
+    letterSpacing: 0.1,
+    marginBottom: 10,
   },
   doneBtn: {
     backgroundColor: colors.foreground,

@@ -16,7 +16,7 @@
  * surface family used across the rest of the app. One restrained green accent marks
  * the workout, today's ring, and the assistant; everything else is monochrome ink.
  */
-import React, { useId, useMemo, useRef, useState, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -35,7 +35,6 @@ import {
 import { Alert } from '../../components/InAppAlert';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LiquidGlassFill, LiquidGlass } from '../../components/glass/LiquidGlass';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Path, Rect } from 'react-native-svg';
 import api from '../../services/api';
@@ -165,9 +164,8 @@ function suggestionsForTier(tier: 'beginner' | 'intermediate' | 'advanced' | 'un
   return SUGGESTIONS;
 }
 
-// Frosted-glass top-bar button — a blurred translucent pane with a bright rim,
-// a top sheen, and a soft shadow (the shadow rides the un-clipped outer wrapper
-// so overflow:hidden on the clip doesn't mask it).
+// Flat top-bar chip — a warm-white circle/pill with a hairline edge and a soft
+// shadow, matching the Craft card family (no glass/blur on the cream canvas).
 function GlassButton({
   onPress,
   children,
@@ -181,7 +179,6 @@ function GlassButton({
   accessibilityLabel?: string;
   hitSlop?: { top: number; bottom: number; left: number; right: number };
 }) {
-  const glassId = useId().replace(/:/g, '');
   return (
     <View style={[styles.glassShadow, pill ? styles.glassShadowPill : styles.glassShadowCircle]}>
       <TouchableOpacity
@@ -192,9 +189,6 @@ function GlassButton({
         hitSlop={hitSlop}
         style={[styles.glassClip, pill ? styles.glassClipPill : styles.glassClipCircle]}
       >
-        {/* Canonical liquid-glass optics — the clip + glassShadow own the
-            rounded shape and the float. */}
-        <LiquidGlassFill idSuffix={`dayplanner${glassId}`} />
         {children}
       </TouchableOpacity>
     </View>
@@ -683,8 +677,18 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             isToday={selectedIso === todayIso}
             onEditShape={(focus) => openEditor(scope, focus)}
             onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
+            onAddAt={(startMin) => {
+              // Prefill a one-hour commitment at the tapped slot, clamped to
+              // the editor's rails.
+              const start = Math.min(Math.max(startMin, 240), 1365);
+              obligationsRef.current?.openAdd({ start, end: start + 60 });
+            }}
             calendarEvents={calendarEvents}
           />
+
+          <Text style={styles.gridHint}>
+            Tap a block to adjust it · tap empty space to add a commitment
+          </Text>
 
           <View style={{ height: 96 + insets.bottom }} />
         </ScrollView>
@@ -770,12 +774,11 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         </View>
       </Modal>
 
-      {/* Always-mounted, headless commitments editor — driven by ref from the day
+      {/* Always-mounted commitments editor — driven by ref from the day
           timeline and the commitments sheet so its add/edit flow works whether or
           not the sheet is open. */}
       <ObligationsManager
         ref={obligationsRef}
-        headless
         obligations={obligations}
         onChange={changeObligations}
       />
@@ -901,22 +904,17 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                 </View>
 
                 {googleStatusQ.data?.needs_resync ? (
-                  <LiquidGlass
-                    radius={26}
-                    style={[styles.calConnectGlass, { marginBottom: 10 }, calResyncing && { opacity: 0.6 }]}
-                    contentStyle={styles.calConnectContent}
+                  <TouchableOpacity
+                    style={[styles.calPrimaryBtn, { marginBottom: 10 }, calResyncing && { opacity: 0.6 }]}
+                    activeOpacity={0.85}
+                    onPress={handleCalResync}
+                    disabled={calResyncing}
+                    accessibilityRole="button"
                   >
-                    <TouchableOpacity
-                      style={StyleSheet.absoluteFill}
-                      activeOpacity={0.75}
-                      onPress={handleCalResync}
-                      disabled={calResyncing}
-                      accessibilityRole="button"
-                    />
                     {calResyncing
-                      ? <ActivityIndicator size="small" color="#1C1A17" />
-                      : <Text style={styles.calConnectText}>Sync next 2 months</Text>}
-                  </LiquidGlass>
+                      ? <ActivityIndicator size="small" color="#FFFFFF" />
+                      : <Text style={styles.calPrimaryText}>Sync next 2 months</Text>}
+                  </TouchableOpacity>
                 ) : null}
 
                 <TouchableOpacity
@@ -936,28 +934,23 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                   Read-only access to your primary calendar (next 60 days). Syncs every 30 minutes. Data stays on Max servers.
                 </Text>
 
-                <LiquidGlass
-                  radius={26}
-                  style={[styles.calConnectGlass, calConnecting && { opacity: 0.6 }]}
-                  contentStyle={styles.calConnectContent}
+                <TouchableOpacity
+                  style={[styles.calPrimaryBtn, calConnecting && { opacity: 0.6 }]}
+                  activeOpacity={0.85}
+                  onPress={handleCalConnect}
+                  disabled={calConnecting}
+                  accessibilityRole="button"
+                  accessibilityLabel="Connect Google Calendar"
                 >
-                  <TouchableOpacity
-                    style={StyleSheet.absoluteFill}
-                    activeOpacity={0.75}
-                    onPress={handleCalConnect}
-                    disabled={calConnecting}
-                    accessibilityRole="button"
-                    accessibilityLabel="Connect Google Calendar"
-                  />
                   {calConnecting ? (
-                    <ActivityIndicator size="small" color="#1C1A17" />
+                    <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
                     <>
-                      <Ionicons name="logo-google" size={15} color="#1C1A17" style={{ marginRight: 8 }} />
-                      <Text style={styles.calConnectText}>Connect Google Calendar</Text>
+                      <Ionicons name="logo-google" size={15} color="#FFFFFF" style={{ marginRight: 8 }} />
+                      <Text style={styles.calPrimaryText}>Connect Google Calendar</Text>
                     </>
                   )}
-                </LiquidGlass>
+                </TouchableOpacity>
 
                 {calConnecting ? (
                   <Text style={styles.calWaiting}>
@@ -1031,14 +1024,14 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     backgroundColor: BG,
   },
-  // Top-bar controls — frosted-glass buttons. Shadow on the outer wrapper; the
-  // blur/tint/rim live on the clipped inner so overflow:hidden keeps clean corners.
+  // Top-bar controls — flat warm-white chips (shadow on the outer wrapper so
+  // overflow:hidden on the clip keeps clean corners).
   glassShadow: {
-    shadowColor: '#3A352B',
-    shadowOpacity: 0.13,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   glassShadowCircle: { width: 40, height: 40, borderRadius: 20 },
   glassShadowPill: { borderRadius: 999 },
@@ -1047,8 +1040,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.7)',
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderColor: 'rgba(0,0,0,0.06)',
+    backgroundColor: '#FFFFFF',
   },
   glassClipCircle: { width: 40, height: 40, borderRadius: 20 },
   glassClipPill: { flexDirection: 'row', height: 40, paddingHorizontal: 18, borderRadius: 999 },
@@ -1126,6 +1119,15 @@ const styles = StyleSheet.create({
   resetRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', marginTop: 10, marginBottom: 2 },
   // Pushes the day's timeline down so it doesn't crowd the weekday strip.
   scheduleGap: { height: 18 },
+  // Quiet caption under the grid teaching both tap targets.
+  gridHint: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 14,
+    letterSpacing: 0.05,
+  },
   // Corner marker for a day whose shape differs from the baseline.
   dayEditedDot: {
     position: 'absolute',
@@ -1456,20 +1458,21 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     letterSpacing: 0.05,
   },
-  calConnectGlass: {
-    marginTop: 4,
-  },
-  calConnectContent: {
+  calPrimaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 4,
     paddingVertical: 16,
     paddingHorizontal: 20,
+    borderRadius: 999,
+    borderCurve: 'continuous',
+    backgroundColor: colors.foreground,
   },
-  calConnectText: {
+  calPrimaryText: {
     fontFamily: fonts.sansSemiBold,
     fontSize: 14.5,
-    color: '#1C1A17',
+    color: '#FFFFFF',
     letterSpacing: 0.1,
   },
   calWaiting: {
