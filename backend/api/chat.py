@@ -3673,6 +3673,42 @@ Ask ONE question at a time. Your very first response must ask the concern questi
                             response_text = response_text2
                 except Exception as _e:
                     logger.info("web search safety net failed (non-fatal): %s", _e)
+
+            # Anti-clarifier safety net for explicit multi-domain plan requests.
+            # The agent occasionally emits [CHOICES] (asking for profile details)
+            # instead of building the plan immediately, despite the NON-NEGOTIABLE
+            # directive. Detected by: plan request + [CHOICES] in response + no
+            # [VISUAL_BLOCK]. Re-run once with a hard override injected into the
+            # message so the model cannot fire clarifiers again.
+            if (
+                _is_explicit_plan_request(message_text)
+                and "[choices]" in (response_text or "").lower()
+                and "[visual_block]" not in (response_text or "").lower()
+            ):
+                try:
+                    forced_plan_msg = (
+                        "PLAN-BUILD OVERRIDE: The user has requested a complete multi-domain "
+                        "plan. You MUST build and return the plan RIGHT NOW using assumptions "
+                        "for any missing profile details (e.g. assume beginner level, mixed skin "
+                        "type, no equipment unless stated). Do NOT emit [CHOICES] or any "
+                        "clarifying questions. Emit the table block NOW.\n\n"
+                        f"{message_text}"
+                    )
+                    response_text2, _ = await run_chat_agent(
+                        message=forced_plan_msg,
+                        lc_history=lc_history,
+                        user_context=user_context,
+                        image_data=image_data,
+                        delivery_channel=channel,
+                        tools=tools,
+                        db=db,
+                        maxx_id=maxx_id,
+                    )
+                    if response_text2 and "[choices]" not in response_text2.lower():
+                        response_text = response_text2
+                        logger.info("[anti-clarifier] retry succeeded for plan request")
+                except Exception as _e:
+                    logger.info("anti-clarifier safety net failed (non-fatal): %s", _e)
         except Exception as llm_err:
             logger.exception("run_chat_agent failed for user %s: %s", user_id, llm_err)
             if _persist_chat_history(channel):
@@ -4958,6 +4994,23 @@ def _question_is_personal(message: str) -> bool:
     if re.search(r"\b(my schedule|my routine|my plan|today's tasks|what should i do today)\b", message, re.IGNORECASE):
         return True
     return False
+
+
+_PLAN_REQ_DOMAIN_RE = re.compile(
+    r"\b(skin|hair|gym|fitness|muscle|diet|sleep|nutrition)\b", re.IGNORECASE
+)
+_PLAN_REQ_TIMEFRAME_RE = re.compile(
+    r"\b(\d+[-\s]?week|monthly|weekly\s+table|plan|program|schedule|routine)\b", re.IGNORECASE
+)
+
+
+def _is_explicit_plan_request(msg: str) -> bool:
+    """True when the message names ≥2 distinct maxxing domains AND a timeframe/plan keyword.
+    Used to detect false clarifiers: model asks for profile data instead of building the plan."""
+    if not msg:
+        return False
+    domains = {d.lower() for d in _PLAN_REQ_DOMAIN_RE.findall(msg)}
+    return len(domains) >= 2 and bool(_PLAN_REQ_TIMEFRAME_RE.search(msg))
 
 
 def _compress_query_for_search(message: str) -> str:

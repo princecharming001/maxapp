@@ -1,3 +1,10 @@
+### 2026-07-05T15-50Z — iter 22 — F-020 anti-clarifier safety net for plan requests
+- found/did: root at api/chat.py process_chat_message agent path — agent emits [CHOICES] MCQ (asking hair type) on first pass for "build me a 12-week plan covering skin, hair and gym" despite NON-NEGOTIABLE directive; Supabase max_chat_system "collect profile data" instruction overrides appended CHAT_VISUAL_GRAMMAR. Fix: added `_is_explicit_plan_request()` (≥2 domain keywords + timeframe/plan keyword) + anti-clarifier safety net at api/chat.py:~3676 — if first agent response has [CHOICES] but no [VISUAL_BLOCK], retry with PLAN-BUILD OVERRIDE prepended forcing plan build with default assumptions.
+- battery: ERR-01 seeds 6 and 13 — both pass (full plan built, no clarifier); CLAR-01/CLAR-02 seed 13 — both pass unaffected
+- files: backend/api/chat.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (routing safety net, not extraction/normalization logic); baseline: 16 pre-existing failures, no new failures (772 pass)
+- next: run full battery (no open findings remain — F-007 quarantined)
+
 ### 2026-07-05T15-38Z — iter 21 — F-019 short-response guardrail fixed
 - found/did: root at api/chat.py _finalize_assistant_message — model emits 33-char "hey, what's up. what do you need." for "??" input (seed 6). Fix: added guardrail after all transforms: if len < 40 and not ends with "?", strip trailing punct and append " — what are you working on?".
 - battery: ERR-04 seeds 6, 13, 20 — all pass; ERR-01 seed 13 — pass (neighboring, unaffected)
