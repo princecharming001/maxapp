@@ -59,10 +59,12 @@ hypotheses:
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-VIS-08.md (turn 0) | first-seen: iter 4 (full battery)
       note: mentioned as pre-existing in iter 3 notes ("VIS-08 pre-existing failure — no numbers in docs") but not formally tracked; now tracked.
 
-- [ ] F-011  Cross-memory: follow-up about skin-peeling doesn't reference user's known tretinoin use | class: cross-chat-memory-miss
+- [x] F-011  Cross-memory: follow-up about skin-peeling doesn't reference user's known tretinoin use | class: cross-chat-memory-miss
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-XMEM-01.md (turn 0) | first-seen: iter 4 (full battery)
       likely site: recall_relevant_turns in chat_memory.py — may not be surfacing the tretinoin fact from a prior conversation
+      fixed: iter 7 — two-part fix: (1) chat_memory.py: pass current_conversation_id to WHERE clause to exclude current conv messages (instead of fixed rows[6:] skip that silently discarded all messages for new users); (2) add recency fallback — when current_conversation_id is given, always surface up to 2 most recent prior-conv turns even without token overlap (token-overlap alone misses semantic links like "peeling"→"tretinoin"); (3) api/chat.py: stitch recall block into _rag_user_profile so fast-rag path sees it. XMEM-01 passes seeds 1 and 8; XMEM-02 passes seed 8.
 
-- [ ] F-012  Cross-memory: retinoid safety question ignores prior conversation that user is already using it | class: cross-chat-memory-miss
+- [x] F-012  Cross-memory: retinoid safety question ignores prior conversation that user is already using it | class: cross-chat-memory-miss
       evidence: state/runs/2026-07-05T12-25-51Z/transcript-XMEM-02.md (turn 0) | first-seen: iter 4 (full battery)
       likely site: same as F-011 — cross-conversation recall not surfacing existing usage
+      fixed: iter 7 — resolved by same fix as F-011 (conversation_id filter + recency fallback). XMEM-02 passes seed 8.

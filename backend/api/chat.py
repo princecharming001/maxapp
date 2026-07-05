@@ -2656,7 +2656,10 @@ async def process_chat_message(
     # (outside the live window), so the agent doesn't make them repeat themselves.
     try:
         from services.chat_memory import recall_relevant_turns
-        _recall = await recall_relevant_turns(user_id, message_text, db)
+        _recall = await recall_relevant_turns(
+            user_id, message_text, db,
+            current_conversation_id=conversation_id,
+        )
         if _recall:
             user_context["recall"] = _recall
     except Exception:
@@ -2840,6 +2843,14 @@ async def process_chat_message(
             logger.info("[chat] memory builder skipped: %s", _memerr)
             _memctx = None
 
+        # Stitch cross-conversation recall into user_profile so the RAG path
+        # sees it (answer_from_rag doesn't accept a separate recall param).
+        _rag_user_profile = (_memctx.user_profile if _memctx else None) or ""
+        _recall_items = user_context.get("recall") or []
+        if _recall_items:
+            _recall_block = "FROM EARLIER CHATS: " + " | ".join(str(r) for r in _recall_items[:3])
+            _rag_user_profile = (_rag_user_profile + "\n" + _recall_block).strip()
+
         fast_response, fast_chunks = await answer_from_rag(
             message=message_text,
             maxx_hints=turn_intent.get("maxx_hints") or [],
@@ -2847,7 +2858,7 @@ async def process_chat_message(
             response_length=str(onboarding.get("response_length") or "").strip().lower() or None,
             user_facts=_facts_blob,
             recent_turns=(_memctx.recent_turns if _memctx else None),
-            user_profile=(_memctx.user_profile if _memctx else None),
+            user_profile=_rag_user_profile or None,
             coaching_tone=(getattr(user, "coaching_tone", None) if user else None),
         )
         if fast_response:

@@ -1,3 +1,10 @@
+### 2026-07-05T13-14Z — iter 7 — F-011/F-012 cross-chat-memory-miss fixed
+- found/did: root at chat_memory.py — (1) fixed rows[6:] that silently discarded ALL messages for new users (few prior convs); replaced with WHERE conversation_id != current_conversation_id filter so only current-thread rows are excluded; (2) added recency fallback in recall_relevant_turns — when conv_id known, also surface up to 2 most recent prior-conv turns regardless of token overlap (token-only scoring misses semantic links like "peeling"→"tretinoin"); (3) api/chat.py:2846 — stitched recall block into _rag_user_profile so fast-rag path sees cross-conv memory
+- battery: XMEM-01 seeds 1+8 pass; XMEM-02 seed 8 passes
+- files: backend/services/chat_memory.py, backend/api/chat.py, backend/tests/test_chat_memory_recall.py (new)
+- tests: 6 new tests in test_chat_memory_recall.py — all pass; baseline: 16 pre-existing failures, no new failures (758 pass)
+- next: F-008 (checklist block not emitted) or F-009/F-010 (table/stat_cards)
+
 ### 2026-07-05T13-00Z — iter 6 — F-006 closed (F-005 fix), F-007 quarantined [!]
 - found/did: F-006 (concurrency-empty-reply) resolved by F-005's ack-retry; ERR-02 passes seeds 6+13 without new code. F-007 (timeline block): two genuinely different attempts both failed. Attempt 1: added NON-NEGOTIABLE to CHAT_VISUAL_GRAMMAR + EXCEPTION to grounding_suffix. Attempt 2: code-level _EXPLICIT_BLOCK_RE detection → conditional relaxed grounding_suffix (evidence-only removed for explicit block requests). Both failed — model knows the content and uses general knowledge in prose but consistently refuses to emit [VISUAL_BLOCK] marker despite directives. Root: Supabase rag_answer_system prompt has strong evidence-only conditioning that overrides all appended instructions. Left attempt 2's code changes in place (harmless improvement for explicit block requests; grounding_suffix is now conditional at fast_rag_answer.py).
 - battery: ERR-02 seeds 6,13 pass; VIS-04 seeds 6,13 fail (quarantined)

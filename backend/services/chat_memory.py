@@ -40,24 +40,37 @@ def _significant_tokens(text: str) -> set[str]:
 
 
 async def recall_relevant_turns(
-    user_id: str, query: str, db: AsyncSession, *, k: int = 3, scan: int = 200
+    user_id: str, query: str, db: AsyncSession, *,
+    k: int = 3, scan: int = 200,
+    current_conversation_id: str | None = None,
 ) -> list[str]:
     """Up to `k` past USER turns most relevant to `query`, across every
-    conversation, ranked by significant-token overlap. Excludes the trivially
-    recent (the current-thread window already carries those). Never raises."""
+    conversation, ranked by significant-token overlap. Excludes turns from
+    the current conversation (already in the live window). Never raises."""
     try:
         q_tokens = _significant_tokens(query)
         if not q_tokens:
             return []
         from models.sqlalchemy_models import ChatHistory
-        rows = (await db.execute(
+        stmt = (
             select(ChatHistory.content)
             .where(ChatHistory.user_id == UUID(str(user_id)), ChatHistory.role == "user")
             .order_by(ChatHistory.created_at.desc())
             .limit(scan)
-        )).scalars().all()
-        # Skip the newest few (they're in the live window already).
-        candidates = rows[6:]
+        )
+        if current_conversation_id:
+            try:
+                from uuid import UUID as _UUID
+                stmt = stmt.where(
+                    ChatHistory.conversation_id != _UUID(str(current_conversation_id))
+                )
+            except Exception:
+                pass
+        rows = (await db.execute(stmt)).scalars().all()
+        # Fallback: if no conversation_id filter was applied (legacy rows or
+        # no conv id provided), skip the 6 most recent to avoid re-surfacing
+        # content that's already in the live window.
+        candidates = rows if current_conversation_id else rows[6:]
         scored: list[tuple[int, str]] = []
         for c in candidates:
             if not c:
@@ -82,6 +95,24 @@ async def recall_relevant_turns(
             out.append(c if len(c) <= 160 else c[:157] + "…")
             if len(out) >= k:
                 break
+        # Recency fallback: token-overlap misses semantic connections (e.g.
+        # "peeling and red" doesn't share tokens with "i started tretinoin").
+        # When we know which conversation is current (DB already excluded it),
+        # also surface the most recent 2 prior-conversation turns so the model
+        # knows what the user mentioned lately, even without lexical match.
+        # Only applies when current_conversation_id was given — otherwise
+        # `candidates` may still include live-window rows (rows[6:] fallback).
+        if current_conversation_id:
+            recency_added = 0
+            for c in candidates[:5]:  # look at the 5 most recent prior-conv turns
+                if not c or recency_added >= 2:
+                    break
+                key = c.lower()[:80]
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(c if len(c) <= 160 else c[:157] + "…")
+                recency_added += 1
         return out
     except Exception as e:
         logger.debug("recall_relevant_turns skipped: %s", e)
