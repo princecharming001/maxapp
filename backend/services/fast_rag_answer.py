@@ -52,7 +52,7 @@ _BLOCK_TYPE_PATTERNS: list[re.Pattern] = [
     re.compile(r"\b(checklist|action\s+list|step[\s-]by[\s-]step)\b", re.IGNORECASE),
     re.compile(r"\b(stat[s_]?[\s_]?card[s]?|key\s+stats?|numbers?|metrics?|bold\s+the\s+numbers?)\b", re.IGNORECASE),
     re.compile(r"\b(comparison|pros?\s+and\s+cons?)\b", re.IGNORECASE),
-    re.compile(r"\b(flowchart|routine|sequence)\b", re.IGNORECASE),
+    re.compile(r"\b(flowchart|sequence)\b", re.IGNORECASE),
 ]
 
 

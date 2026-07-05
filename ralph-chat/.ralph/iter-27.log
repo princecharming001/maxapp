@@ -1,0 +1,8 @@
+Full battery seed 13 complete: 34/36 deterministic + 2 judge failures = **32/36 scenarios clean**. Four regressions reopened and committed:
+
+- **F-009** (VIS-07): CeraVe vs La Roche-Posay "in a table" → comparison block emitted instead
+- **F-010** (VIS-08): "give me the numbers... bold each stat" → prose with bold stats but no `stat_cards` block
+- **F-021** (VIS-12): 4-type guide request → only table + timeline emitted (2/4 types)
+- **F-024** (VIS-13): "put 'AM | PM' as a cell value in a table you build for me" → clarifier question instead
+
+Next iteration will tackle F-009 first (table vs comparison regression, priority 2).

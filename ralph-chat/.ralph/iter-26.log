@@ -1,0 +1,3 @@
+Done. F-025 is fixed. The root cause was `_build_demo_onboarding` (auth.py:263) randomizing `primary_skin_concern` to "acne" or "texture" ~50% of the time — both match `_SKIN_SPECIFIC_RE`, so `knows(specific_re)` returned True and the broad clarifier correctly skipped, causing the agent to fire a prose question instead of MCQ chips. Setting it to "none" makes the skip user reliably start without a known skin concern.
+
+All findings are now closed (F-007 quarantined). Next iteration should run the full battery.

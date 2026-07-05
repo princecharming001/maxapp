@@ -1,0 +1,1 @@
+Done. Iter 36 ran the full battery (seed 12) and found 3 failures: F-013 reopened (VIS-10 — deferred-offer instead of comparison block), F-025 new (XMEM-03 choices_present flaky), F-026 new (VIS-03 — model gave moisturizer tips instead of stat_cards). clean_streak reset to 0. Next iteration should fix F-013 (REGRESSION, priority 2).

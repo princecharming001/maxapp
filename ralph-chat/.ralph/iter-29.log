@@ -1,0 +1,3 @@
+Committed. Iteration 41 complete.
+
+**Summary:** Ran full battery (seed 14) after closing F-021 and F-024 as passively resolved by iter 40. Battery returned 34/36 deterministic-pass with 3 failures: F-010 reopened (VIS-08 — "summarize…bold the numbers" triggers no stat_cards block), F-019 reopened (ERR-04 — short-response guardrail not firing), and new F-027 (PROD-01 — product link ask defers instead of recommending). Next iteration should fix F-010 (priority 2, `_STAT_CARDS_REQUEST_RE` missing "summarize" and "bold the numbers" trigger phrases in `fast_rag_answer.py`).

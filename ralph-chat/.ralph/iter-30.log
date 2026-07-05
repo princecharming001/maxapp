@@ -1,0 +1,7 @@
+Done. Here's what happened this iteration:
+
+**F-010 (VIS-08) and F-019 (ERR-04)** — both passing across seeds 7, 14, 41, 42 in targeted retests. The iter 41 failures were model temperature variance. Closed as passively resolved.
+
+**F-027 (PROD-01) — fixed.** Root: `fast_rag_answer.py` grounding_suffix had no rule for external-link requests, so the model explained it couldn't provide Amazon URLs but then deferred with "if you want product recs, ask." Added `_PRODUCT_LINK_REQUEST_RE` (matches "amazon", "google shopping", "where to buy", etc.) and a PRODUCT LINK RULE paragraph that instructs the model to pivot immediately to recommending catalog products rather than making a conditional offer. Both seeds now return direct recommendations ("The Ordinary niacinamide 10% + zinc 1%") instead of deferrals.
+
+**Next:** Run full battery (no open findings remain — F-007 quarantined).

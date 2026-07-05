@@ -1,0 +1,34 @@
+{
+  "run_id": "2026-07-05T19-37-24Z",
+  "started": "2026-07-05T19-37-24Z",
+  "scenarios": {
+    "VIS-01": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-07": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-09": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    },
+    "VIS-08": {
+      "status": "fail",
+      "failed_checks": [
+        "turn0:block_present"
+      ],
+      "needs_judge": true
+    },
+    "VIS-10": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    }
+  },
+  "deterministic_clean": false
+}

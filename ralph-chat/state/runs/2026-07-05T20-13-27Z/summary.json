@@ -1,0 +1,12 @@
+{
+  "run_id": "2026-07-05T20-13-27Z",
+  "started": "2026-07-05T20-13-27Z",
+  "scenarios": {
+    "VIS-06": {
+      "status": "pass",
+      "failed_checks": [],
+      "needs_judge": true
+    }
+  },
+  "deterministic_clean": true
+}
