@@ -1,3 +1,10 @@
+### 2026-07-05T21-21Z — iter 48 — F-028 fix (VIS-02 workout table not emitted)
+- found/did: root — model routes through fast_rag (fitmax maxx_hints via "gym"), TABLE BLOCK RULE grounding suffix fires, but model occasionally produces prose-only (temp variance). Fix: added fast-rag table safety net in process_chat_message (api/chat.py ~line 2939): when _TABLE_REQUEST_RE matches and no table block in fast_response, secondary LLM call emits ONLY the [VISUAL_BLOCK] table marker and appends it to the prose.
+- battery: VIS-02 seeds 17, 48, 55, 62, 3, 70, 77 — all 7 pass; VIS-07/08/09 seed 55 unaffected
+- files: backend/api/chat.py, ralph-chat/FINDINGS.md, ralph-chat/PROGRESS.md
+- tests: no new pytest (routing/safety-net change, not extraction/normalization logic); baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: fix F-019 (ERR-04 — "??" short response guardrail; class: answer-quality)
+
 ### 2026-07-05T21-13Z — iter 47 — FULL BATTERY seed 17, 4 failures
 - found/did: battery seed 17 — 34/36 deterministic-pass. Judged all 31 needs_judge turns; 27 score ≥4. Four failures: (1) F-019 REOPENED: ERR-04 — "??" gets 33-char "hey, what's up. what do you need?" — prose_nonempty FAIL; third recurrence of same guardrail bypass. (2) F-021 REOPENED: VIS-12 — "build me a full skincare starter guide: a product table, a timeline, a checklist, and key stats" emits table + timeline only (2/4 types); answers_the_question=3; recurring seed-variance truncation. (3) F-028 NEW: VIS-02 — "make me a table: 3-day beginner workout split, exercises/sets/reps" emits prose (412 chars, correct content) but no table block; class: model-never-emits-block. (4) F-029 NEW: CLAR-03 — user picks "less thinning" chip but gets "need to know where you're seeing the thinning" instead of a real answer; answers_the_question=2; class: clarifier-reask.
 - battery: FULL seed 17: 34/36 deterministic-pass; judge failures: VIS-12 (F-021 reopened), CLAR-03 (F-029 new); deterministic: ERR-04 (F-019 reopened), VIS-02 (F-028 new); quarantined: VIS-04 (F-007)

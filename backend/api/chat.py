@@ -2936,6 +2936,54 @@ async def process_chat_message(
                 turn_intent.get("maxx_hints"),
                 len(fast_chunks),
             )
+            # Table-block safety net: if user explicitly asked for a table but
+            # the fast_rag response has no [VISUAL_BLOCK] table, make a secondary
+            # LLM call to generate just the table and append it.
+            try:
+                from services.fast_rag_answer import _TABLE_REQUEST_RE as _tbl_re
+                _fr_lower = (fast_response or "").lower()
+                _has_tbl = (
+                    '"type": "table"' in _fr_lower
+                    or '"type":"table"' in _fr_lower
+                    or "type=table" in _fr_lower
+                )
+                if _tbl_re.search(message_text or "") and not _has_tbl:
+                    from services.lc_providers import get_chat_llm_with_fallback
+                    from langchain_core.messages import HumanMessage, SystemMessage
+                    _tbl_llm = get_chat_llm_with_fallback(max_tokens=800, temperature=0.2)
+                    _tbl_system = (
+                        "You are a looksmaxxing coach. The user asked for a table. "
+                        "Emit ONLY a [VISUAL_BLOCK] type=table JSON marker — nothing else. "
+                        "No prose, no preamble, no explanation. "
+                        "Format: [VISUAL_BLOCK]{\"type\":\"table\",\"title\":\"...\","
+                        "\"data\":{\"columns\":[...],\"rows\":[[...],[...]]}}[/VISUAL_BLOCK]. "
+                        "The table must have ≥2 columns and ≥3 rows. "
+                        "Start your response with [VISUAL_BLOCK]."
+                    )
+                    _tbl_human = (
+                        f"Build the table for this request: {message_text}. "
+                        "Use the prose answer as context for what content to put in the table. "
+                        f"Prose context:\n{fast_response}\n\n"
+                        "Emit ONLY the [VISUAL_BLOCK] marker."
+                    )
+                    _tbl_resp = await _tbl_llm.ainvoke(
+                        [SystemMessage(content=_tbl_system), HumanMessage(content=_tbl_human)]
+                    )
+                    _tbl_text = getattr(_tbl_resp, "content", "") or ""
+                    _tbl_text = re.sub(
+                        r'\[choices(?:_multi)?\].*?\[/choices(?:_multi)?\]',
+                        '', _tbl_text, flags=re.IGNORECASE | re.DOTALL,
+                    ).strip()
+                    if "[visual_block]" in _tbl_text.lower() and (
+                        '"type":"table"' in _tbl_text.lower()
+                        or '"type": "table"' in _tbl_text.lower()
+                    ):
+                        fast_response = (fast_response or "").rstrip() + "\n\n" + _tbl_text.strip()
+                        logger.warning("[fast-rag table safety net] table block injected")
+                    else:
+                        logger.warning("[fast-rag table safety net] secondary LLM did not emit table block")
+            except Exception as _te:
+                logger.warning("fast-rag table safety net failed (non-fatal): %s", _te)
             return _finalize_assistant_message(fast_response), []
 
     if maxx_id and maxx_id != "fitmax" and user:

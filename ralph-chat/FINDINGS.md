@@ -202,9 +202,10 @@ hypotheses:
 
 --- Found in full-battery run, iter 47 (seed 17) ---
 
-- [ ] F-028  VIS-02 block_present fail: "make me a table: 3-day beginner workout split, exercises/sets/reps" gets prose only, no table block | class: model-never-emits-block
+- [x] F-028  VIS-02 block_present fail: "make me a table: 3-day beginner workout split, exercises/sets/reps" gets prose only, no table block | class: model-never-emits-block
       evidence: state/runs/2026-07-05T21-01-06Z/transcript-VIS-02.md (turn 0) | first-seen: iter 47 (full battery seed 17)
       user explicitly asks for a workout split as a table; model responds with prose (412 chars, well-formed, covers sets/reps) but emits no visual_blocks. The "make me a table" phrasing should trigger the table block path via _TABLE_REQUEST_RE in fast_rag_answer.py or CHAT_VISUAL_GRAMMAR. Likely root: VIS-02 uses a fitmax (gym) user context, not skinmax — the intent_classifier may route this to agent path; also "beginner workout split" may not match the current table regex triggers which are skincare-focused.
+      fixed: iter 48 — root: model routes through fast_rag (fitmax maxx_hints), TABLE BLOCK RULE grounding suffix fires, but model occasionally produces prose-only response (model temp variance). Fix: added fast-rag table safety net in process_chat_message (api/chat.py after fast_response line ~2939): when _TABLE_REQUEST_RE matches and no table block in fast_response, secondary LLM call emits ONLY the [VISUAL_BLOCK] table marker and appends it to the prose. VIS-02 passes seeds 17, 48, 55, 62, 3, 70, 77 (7/7). VIS-07/08/09 seed 55 unaffected.
 
 - [ ] F-029  CLAR-03 judge fail: user picks "less thinning" chip but gets another clarifying question instead of a real answer | class: clarifier-reask
       evidence: state/runs/2026-07-05T21-01-06Z/transcript-CLAR-03.md (turn 1) | first-seen: iter 47 (full battery seed 17)
