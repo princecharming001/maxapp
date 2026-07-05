@@ -82,6 +82,7 @@ hypotheses:
 
 --- Found in full-battery run, iter 12 (seed 3) ---
 
-- [ ] F-014  ERR-01 judge fail: model fires skin-only clarifier MCQ instead of building the 12-week multi-domain plan | class: clarifier-reask
+- [x] F-014  ERR-01 judge fail: model fires skin-only clarifier MCQ instead of building the 12-week multi-domain plan | class: clarifier-reask
       evidence: state/runs/2026-07-05T13-55-49Z/transcript-ERR-01.md (turn 0) | first-seen: iter 12 (full battery seed 3)
       answers_the_question=2 (ignores hair+gym entirely, only asks about skin goals); actionability=2 (pure clarifier, no plan or any actionable content). VIS-03 flaky (passes seeds 1,2,11 — block_present and prose_nonempty fail on different seeds, not opened); XMEM-03 flaky (known from iter 11, not opened).
+      fixed: iter 13 — three-part fix: (1) api/chat.py _broad_question_mcq: skip when ≥2 domain regexes match (multi-domain message already names its scope); (2) services/prompt_constants.py CHAT_VISUAL_GRAMMAR: NON-NEGOTIABLE directive to build the plan immediately for explicit plan requests naming domains/duration; (3) api/chat.py line 5272: always call _extract_inline_choices to strip [CHOICES] markers from response_text (was skipped when _quick_replies_from_response already set choices, leaving markers in prose). ERR-01 passes seeds 14 and 21; judge: complete 12-week table emitted, answers_the_question=5, actionability=5.

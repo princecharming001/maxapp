@@ -3879,6 +3879,11 @@ async def _broad_question_mcq(
     if re.search(r"\b(checklist|step[\s\-]by[\s\-]step|step\.by\.step)\b", msg, re.IGNORECASE):
         return None
 
+    # Multi-domain requests ("skin, hair and gym plan") name their own scope —
+    # a single-domain clarifier would be wrong and misleading.
+    if sum(1 for d_re, _, _, _, _ in _BROAD_DOMAINS if d_re.search(msg)) >= 2:
+        return None
+
     # Assemble the per-user brief lazily (cached) — only when this turn actually
     # looks like it might warrant a clarifier.
     brief = None
@@ -5265,12 +5270,20 @@ async def _send_message_locked(
     # fields; carry that straight through (its choices are already populated,
     # so the inline-MCQ extraction below is skipped).
     multi_choice = driver_multi
-    if not choices:
-        cleaned_text, mcq_choices, multi_flag = _extract_inline_choices(response_text or "")
-        if mcq_choices:
-            response_text = cleaned_text
+    # Always strip [CHOICES]...[/CHOICES] markers from response_text to prevent
+    # marker leaks, even when an upstream path (e.g. _quick_replies_from_response)
+    # already populated choices.  Only adopt the extracted options when choices
+    # isn't set yet.
+    cleaned_text, mcq_choices, multi_flag = _extract_inline_choices(response_text or "")
+    if mcq_choices:
+        response_text = cleaned_text
+        if not choices:
             choices = mcq_choices
             multi_choice = multi_flag
+    elif cleaned_text != (response_text or ""):
+        # Markers were stripped but no options extracted (malformed block) — still
+        # use the cleaned text so nothing leaks.
+        response_text = cleaned_text
 
     # If a max's schedule was just generated this turn (and no upstream path
     # already attached a widget), offer the in-chat habit picker for it.

@@ -90,3 +90,10 @@
 - files: backend/api/chat.py, backend/services/prompt_constants.py, backend/tests/test_chat_mcq_products.py
 - tests: 2 new tests (test_checklist_request_skips_broad_mcq, test_vague_skincare_still_fires_mcq) — 20/20 pass; baseline: 16 pre-existing failures, no new failures (760 pass)
 - next: F-009 (table block) and F-010 (stat_cards block) — both passed on seed 8, may also be fixed; verify and potentially close them next pass
+
+### 2026-07-05T14-20Z — iter 13 — F-014 ERR-01 multi-domain plan clarifier fix
+- found/did: three-part fix: (1) api/chat.py _broad_question_mcq:3882 — skip when ≥2 domain_re patterns match (multi-domain scope already stated, single-domain clarifier is wrong); (2) prompt_constants.py CHAT_VISUAL_GRAMMAR — added NON-NEGOTIABLE directive to build plan immediately when user names specific domains+duration rather than asking clarifiers; (3) api/chat.py:5272 — always call _extract_inline_choices unconditionally so [CHOICES] markers are stripped even when _quick_replies_from_response already set choices (root of the no_marker_leak failure on seed 19/21)
+- battery: ERR-01 passes seeds 14 and 21; ERR-02, ERR-03 unaffected (both pass seed 21)
+- files: backend/api/chat.py, backend/services/prompt_constants.py, backend/tests/test_chat_visual_blocks.py
+- tests: 3 new tests (test_choices_marker_stripped_and_options_extracted, test_choices_lowercase_marker_stripped, test_multi_choices_block_stripped_single_choices_also_stripped) — 17/17 pass; baseline: 16 pre-existing failures, no new failures (763 pass)
+- next: run full battery (all findings now closed — F-007 quarantined [!], all others [x])

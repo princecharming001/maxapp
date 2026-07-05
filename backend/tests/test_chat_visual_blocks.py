@@ -10,6 +10,7 @@ from api.chat import (
     _extract_visual_blocks,
     _extract_method_confidence,
     _extract_markdown_tables,
+    _extract_inline_choices,
 )
 
 
@@ -136,3 +137,36 @@ def test_prose_pipes_are_not_a_table():
     text = "use a|b as a separator, it's fine."
     clean, blocks = _extract_markdown_tables(text)
     assert blocks == [] and clean == text
+
+
+# ── inline choices marker stripping ──────────────────────────────────────────
+def test_choices_marker_stripped_and_options_extracted():
+    text = "what's your goal?\n[CHOICES]muscle|fat loss|strength[/CHOICES]"
+    clean, opts, multi = _extract_inline_choices(text)
+    assert "choices" not in clean.lower()
+    assert opts == ["muscle", "fat loss", "strength"]
+    assert multi is False
+
+
+def test_choices_lowercase_marker_stripped():
+    # Model may emit lowercase [choices] — must be stripped regardless of case.
+    text = "pick one:\n[choices]option a|option b|option c[/choices]"
+    clean, opts, multi = _extract_inline_choices(text)
+    assert "[choices]" not in clean.lower()
+    assert len(opts) == 3
+
+
+def test_multi_choices_block_stripped_single_choices_also_stripped():
+    # When both [choices_multi] and [choices] appear, both must be stripped.
+    text = (
+        "tell me your hair type:\n"
+        "[choices]oily|dry|combo[/choices]\n"
+        "and texture:\n"
+        "[CHOICES_MULTI]straight|wavy|curly|coily[/CHOICES_MULTI]"
+    )
+    clean, opts, multi = _extract_inline_choices(text)
+    assert "[choices]" not in clean.lower()
+    assert "choices_multi" not in clean.lower()
+    # Options come from the first found (CHOICES_MULTI wins as it's checked first)
+    assert set(opts) == {"straight", "wavy", "curly", "coily"}
+    assert multi is True

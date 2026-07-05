@@ -31,3 +31,4 @@ do at actual deploy time that a local-only commit can't cover.
   "<old>" to "<new>" (test project). Apply the same UPDATE to the production
   Supabase project before/with the next OTA that ships this fix.
 -->
+- **F-014 ERR-01 multi-domain plan** — `CHAT_VISUAL_GRAMMAR` in `services/prompt_constants.py` is code-only (no Supabase row); no DB update needed. The multi-domain guard (`_broad_question_mcq` change) and marker-strip fix (`_extract_inline_choices` always called) are pure code changes and ship with the commit.
