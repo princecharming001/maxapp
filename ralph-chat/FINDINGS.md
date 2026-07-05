@@ -163,9 +163,10 @@ hypotheses:
 
 --- Found in full-battery run, iter 36 (seed 12) ---
 
-- [ ] F-025  XMEM-03 choices_present fail: "what skincare should i use?" gets prose question instead of MCQ | class: clarifier-reask
+- [x] F-025  XMEM-03 choices_present fail: "what skincare should i use?" gets prose question instead of MCQ | class: clarifier-reask
       evidence: state/runs/2026-07-05T18-42-40Z/transcript-XMEM-03.md (turn 0, session A) | first-seen: iter 36 (full battery seed 12)
       model replies "need to know your skin type first. is it oily, dry, combination, or sensitive." as prose, no MCQ choices. Scenario expects choices_present (choices=[]) for this broad open-ended skincare ask. Noted as flaky without a formal finding in iters 11, 28, 33 — now formally tracked. Likely root: _broad_question_mcq doesn't consistently fire for session-A turn 0 when context is thin; possibly seed-dependent model variation in whether it formats as MCQ or prose question.
+      fixed: iter 39 — root: _build_demo_onboarding (auth.py:263) set primary_skin_concern randomly to "acne"/"texture"/"dark_circles"/"none"; "acne" and "texture" both match _SKIN_SPECIFIC_RE in searchable → knows(specific_re)=True → clarifier correctly skips → agent fires prose question → choices_present fails ~50% of runs. Fix: set primary_skin_concern="none" deterministically so the skip user starts with no stated skin concern. XMEM-03 passes seeds 19 and 36; CLAR-01/CLAR-02 unaffected.
 
 - [x] F-026  VIS-03 block_present fail + wrong answer: "key numbers on tretinoin results" gets moisturizer application tips, no stat_cards block | class: model-never-emits-block
       evidence: state/runs/2026-07-05T18-42-40Z/transcript-VIS-03.md (turn 0) | first-seen: iter 36 (full battery seed 12)

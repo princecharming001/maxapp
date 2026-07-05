@@ -272,3 +272,10 @@
 - files: ralph-chat/FINDINGS.md, ralph-chat/.ralph/clean_streak, ralph-chat/PROGRESS.md
 - tests: no code changed, no new pytest
 - next: fix F-016 (XMEM-03 cross-chat oily skin miss, class: cross-chat-memory-miss, priority 3)
+
+### 2026-07-05T19-22Z — iter 39 — F-025 XMEM-03 choices_present flakiness fix
+- found/did: root at api/auth.py:263 — _build_demo_onboarding randomized primary_skin_concern to "acne"/"texture"/"dark_circles"/"none"; "acne" and "texture" both match _SKIN_SPECIFIC_RE, so knows(specific_re)=True → broad clarifier correctly skips → agent fires prose question → choices_present fails ~50% of runs. Fix: set primary_skin_concern="none" deterministically so skip user starts with no stated skin concern.
+- battery: XMEM-03 passes seeds 19 and 36; CLAR-01, CLAR-02 unaffected (pass seed 19)
+- files: backend/api/auth.py, ralph-chat/FINDINGS.md
+- tests: no extraction logic changed; baseline: 16 pre-existing failures, no new failures (778 pass)
+- next: run full battery (all findings now closed — F-007 quarantined [!], all others [x])

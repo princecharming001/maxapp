@@ -260,7 +260,7 @@ def _build_demo_onboarding() -> dict:
         "wake_time": "07:00",
         "sleep_time": "23:00",
         "screen_hours_daily": random.choice(["under_4", "4_6", "6_8"]),
-        "primary_skin_concern": random.choice(["acne", "texture", "dark_circles", "none"]),
+        "primary_skin_concern": "none",
         "secondary_skin_concern": "none",
         "skincare_routine_level": random.choice(["none", "basic", "moderate"]),
         "hair_family_history": random.choice(["yes", "no", "unsure"]),
