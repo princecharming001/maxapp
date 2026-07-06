@@ -15,9 +15,9 @@
  *   3. Day shape   — wake / get-ready / wind-down (wheel picker rows).
  *   4. Work hours  — set weekday hours (toggle + start/end wheel rows).
  *   5. Where       — office/hybrid/home + commute  (only when they work).
- *   6. Sharpest    — chronotype, icon cards (a day-one peak prior).
- *   7. Meals       — breakfast / lunch / dinner, each with a skip toggle.
- *   8. Rhythm      — workout window + weekends, icon cards.
+ *   6. Meals       — breakfast / lunch / dinner, each with a skip toggle.
+ *   7. Workout     — workout time (wheel picker row).
+ *   8. Weekends    — same rhythm or shift later, icon cards.
  *   9. Shower      — when they usually shower (AM / PM / both), icon cards.
  *  10. Your day    — a read-only recap of the day we just learned.
  *
@@ -78,9 +78,9 @@ const STEP_KEYS: Record<string, string> = {
     'The shape of\nyour day': 'day_shape',
     'Work or\nschool?': 'work',
     'Where do\nyou work?': 'work_location',
-    'When are you\nsharpest?': 'chronotype',
     'When do\nyou eat?': 'meals',
-    'Your rhythm': 'rhythm',
+    'When do you\nwork out?': 'workout',
+    'Weekends?': 'weekend_rhythm',
     'When do you\nusually shower?': 'shower',
     "Here's\nyour day": 'recap',
 };
@@ -199,12 +199,6 @@ const SHOWER_TIMES = [
     { id: 'morning', label: 'After I wake up', icon: 'sunny-outline' },
     { id: 'night', label: 'Before bed', icon: 'moon-outline' },
     { id: 'both', label: 'Both', icon: 'water-outline' },
-] as const;
-
-const CHRONOTYPES = [
-    ['morning', 'Mornings', 'sunny-outline'],
-    ['afternoon', 'Afternoons', 'partly-sunny-outline'],
-    ['evening', 'Evenings', 'moon-outline'],
 ] as const;
 
 const WEEKENDS = [
@@ -585,7 +579,6 @@ export default function OnboardingV2Screen() {
     const [workEndMin, setWorkEndMin] = useState(17 * 60);
     const [workLocation, setWorkLocation] = useState<string>('office');
     const [commuteMin, setCommuteMin] = useState<number>(30);
-    const [chronotype, setChronotype] = useState<string>('morning');
     const [breakfastMin, setBreakfastMin] = useState(8 * 60);
     const [lunchMin, setLunchMin] = useState(12 * 60 + 30);
     const [dinnerMin, setDinnerMin] = useState(19 * 60);
@@ -627,7 +620,6 @@ export default function OnboardingV2Screen() {
                 if (typeof a.workEndMin === 'number') setWorkEndMin(a.workEndMin);
                 if (typeof a.workLocation === 'string') setWorkLocation(a.workLocation);
                 if (typeof a.commuteMin === 'number') setCommuteMin(a.commuteMin);
-                if (typeof a.chronotype === 'string') setChronotype(a.chronotype);
                 if (typeof a.breakfastMin === 'number') setBreakfastMin(a.breakfastMin);
                 if (typeof a.lunchMin === 'number') setLunchMin(a.lunchMin);
                 if (typeof a.dinnerMin === 'number') setDinnerMin(a.dinnerMin);
@@ -661,14 +653,14 @@ export default function OnboardingV2Screen() {
         void saveOnboardingDraft(step, {
             scanSkipped, ageBand, gender, effort,
             goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
-            workStartMin, workEndMin, workLocation, commuteMin, chronotype,
+            workStartMin, workEndMin, workLocation, commuteMin,
             breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
             showerTime, workoutMin, weekendShift,
         }, phase);
     }, [
         draftLoaded, step, phase, scanSkipped, ageBand, gender, effort,
         goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
-        workStartMin, workEndMin, workLocation, commuteMin, chronotype,
+        workStartMin, workEndMin, workLocation, commuteMin,
         breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
         showerTime, workoutMin, weekendShift,
     ]);
@@ -772,7 +764,6 @@ export default function OnboardingV2Screen() {
                     : [],
                 work_location: works ? workLocation : 'home',
                 commute_minutes: hasCommute ? commuteMin : 0,
-                chronotype,
                 breakfast_time: skipBreakfast ? null : hhmm(breakfastMin),
                 lunch_time: skipLunch ? null : hhmm(lunchMin),
                 dinner_time: skipDinner ? null : hhmm(dinnerMin),
@@ -1138,27 +1129,7 @@ export default function OnboardingV2Screen() {
                 ),
             }]
             : []),
-        // 6 — sharpest (chronotype) — icon cards
-        {
-            title: 'When are you\nsharpest?',
-            sub: "Hard things land when you've got the most in the tank.",
-            canNext: true,
-            auto: true,
-            body: (
-                <View style={{ gap: 10 }}>
-                    {CHRONOTYPES.map(([id, label, icon]) => (
-                        <OptionCard
-                            key={id}
-                            icon={icon}
-                            label={label}
-                            active={chronotype === id}
-                            onPress={() => { setChronotype(id); autoNext(); }}
-                        />
-                    ))}
-                </View>
-            ),
-        },
-        // 7 — meals
+        // 6 — meals
         {
             title: 'When do\nyou eat?',
             sub: 'Max keeps your routines clear of the meals you keep.',
@@ -1196,40 +1167,45 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 8 — rhythm (workout time + weekends)
+        // 7 — workout time
         {
-            title: 'Your rhythm',
+            title: 'When do you\nwork out?',
             sub: 'So things land when they actually happen.',
             canNext: true,
             body: (
-                <View>
-                    <View style={styles.shapeCard}>
-                        <TouchableOpacity
-                            style={styles.timeRow}
-                            activeOpacity={0.7}
-                            onPress={() => openTime('When do you work out?', workoutMin, setWorkoutMin)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Workout time, ${fmt12(workoutMin)}`}
-                        >
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.timeRowLabel}>Workout</Text>
-                                <Text style={styles.timeRowValue}>{fmt12(workoutMin)}</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-
-                    <Text style={styles.groupLabel}>WEEKENDS?</Text>
-                    <View style={{ gap: 10 }}>
-                        {WEEKENDS.map(([val, label, icon]) => (
-                            <OptionCard
-                                key={label}
-                                icon={icon}
-                                label={label}
-                                active={weekendShift === val}
-                                onPress={() => setWeekendShift(val)}
-                            />
-                        ))}
-                    </View>
+                <View style={styles.shapeCard}>
+                    <TouchableOpacity
+                        style={styles.timeRow}
+                        activeOpacity={0.7}
+                        onPress={() => openTime('When do you work out?', workoutMin, setWorkoutMin)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Workout time, ${fmt12(workoutMin)}`}
+                    >
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.timeRowLabel}>Workout</Text>
+                            <Text style={styles.timeRowValue}>{fmt12(workoutMin)}</Text>
+                        </View>
+                    </TouchableOpacity>
+                </View>
+            ),
+        },
+        // 8 — weekend rhythm
+        {
+            title: 'Weekends?',
+            sub: 'Do you keep the same schedule, or shift things later?',
+            canNext: true,
+            auto: true,
+            body: (
+                <View style={{ gap: 10 }}>
+                    {WEEKENDS.map(([val, label, icon]) => (
+                        <OptionCard
+                            key={label}
+                            icon={icon}
+                            label={label}
+                            active={weekendShift === val}
+                            onPress={() => { setWeekendShift(val); autoNext(); }}
+                        />
+                    ))}
                 </View>
             ),
         },

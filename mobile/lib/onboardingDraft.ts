@@ -38,7 +38,6 @@ export type OnboardingAnswers = {
     workEndMin: number;
     workLocation: string;
     commuteMin: number;
-    chronotype: string;
     breakfastMin: number;
     lunchMin: number;
     dinnerMin: number;
