@@ -126,6 +126,52 @@ type MyMax = {
     offered?: OfferedHabit[];
 };
 
+// The caller's creator-application status on the Creator tab. Once APPROVED the
+// creator provisions their max in the Studio (habits/course/channels) — so this
+// must be a live door to CreatorStudio, not a dead "we'll be in touch" pill.
+// Gated on the application status (authoritative server state), NOT the client's
+// cached is_creator flag, which is stale until the next user refresh.
+function CreatorAppStatus({ myApp }: { myApp: { status: string; max_name: string } }) {
+    const navigation = useNavigation<any>();
+    if (myApp.status === 'approved') {
+        return (
+            <>
+                <View style={styles.appliedPill}>
+                    <Ionicons name="checkmark-circle" size={16} color={INK} />
+                    <Text style={styles.appliedText}>“{myApp.max_name}” is approved</Text>
+                </View>
+                <TouchableOpacity
+                    style={styles.applyBtnWrap}
+                    onPress={() => navigation.navigate('CreatorStudio')}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel="Set up your creator studio"
+                >
+                    <LiquidGlass radius={25} contentStyle={styles.applyBtnContent}>
+                        <Text style={styles.applyBtnText}>Set up your studio</Text>
+                        <Ionicons name="arrow-forward" size={17} color={INK} />
+                    </LiquidGlass>
+                </TouchableOpacity>
+                <Text style={styles.applyHint}>Add your habits, post an intro, publish your course.</Text>
+            </>
+        );
+    }
+    return (
+        <View style={styles.appliedPill}>
+            <Ionicons
+                name={myApp.status === 'rejected' ? 'information-circle' : 'time-outline'}
+                size={16}
+                color={INK}
+            />
+            <Text style={styles.appliedText}>
+                {myApp.status === 'rejected'
+                    ? 'Application reviewed — check your email'
+                    : `“${myApp.max_name}” is under review`}
+            </Text>
+        </View>
+    );
+}
+
 export default function MarketplaceScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
@@ -505,16 +551,7 @@ export default function MarketplaceScreen() {
                         </Text>
 
                         {myApp ? (
-                            <View style={styles.appliedPill}>
-                                <Ionicons name="checkmark-circle" size={16} color={INK} />
-                                <Text style={styles.appliedText}>
-                                    {myApp.status === 'approved'
-                                        ? `“${myApp.max_name}” approved — we'll be in touch`
-                                        : myApp.status === 'rejected'
-                                            ? 'Application reviewed — check your email'
-                                            : `“${myApp.max_name}” is under review`}
-                                </Text>
-                            </View>
+                            <CreatorAppStatus myApp={myApp} />
                         ) : (
                             <>
                                 <TouchableOpacity
@@ -582,16 +619,7 @@ export default function MarketplaceScreen() {
                 {tab === 'creator' && hasCreatorCards ? (
                     <View style={[styles.gutter, styles.creatorListApply]}>
                         {myApp ? (
-                            <View style={styles.appliedPill}>
-                                <Ionicons name="checkmark-circle" size={16} color={INK} />
-                                <Text style={styles.appliedText}>
-                                    {myApp.status === 'approved'
-                                        ? `“${myApp.max_name}” approved — we'll be in touch`
-                                        : myApp.status === 'rejected'
-                                            ? 'Application reviewed — check your email'
-                                            : `“${myApp.max_name}” is under review`}
-                                </Text>
-                            </View>
+                            <CreatorAppStatus myApp={myApp} />
                         ) : (
                             <>
                                 <TouchableOpacity
