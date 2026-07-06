@@ -723,6 +723,10 @@ export default function HomeScreen() {
                         </TouchableOpacity>
                     )}
 
+                    <Text style={s.wellnessNote}>
+                        General wellness only — not medical advice. Follow routines at your own risk.
+                    </Text>
+
                 </Animated.View>
             </ScrollView>
         </View>
@@ -736,6 +740,14 @@ const PAD = 24;
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: BW.bg },
     scroll: { paddingBottom: spacing.xxxl + 40 },
+    wellnessNote: {
+        fontSize: 11,
+        lineHeight: 15,
+        color: BW.mute,
+        textAlign: 'center',
+        marginTop: 28,
+        paddingHorizontal: PAD + 8,
+    },
 
     /* Top bar */
     topBar: {

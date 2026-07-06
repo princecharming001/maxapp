@@ -1259,20 +1259,25 @@ export default function OnboardingV2Screen() {
             sub: 'Max fits your routines into the gaps. You can drag any of this later in Plan.',
             canNext: true,
             body: (
-                <View style={styles.recapList}>
-                    {recap.map((r, i) => (
-                        <View key={r.label}>
-                            {i > 0 ? <View style={styles.hairline} /> : null}
-                            <View style={styles.recapRow}>
-                                <View style={styles.recapIcon}>
-                                    <Ionicons name={r.icon as any} size={17} color={MUTE} />
+                <>
+                    <View style={styles.recapList}>
+                        {recap.map((r, i) => (
+                            <View key={r.label}>
+                                {i > 0 ? <View style={styles.hairline} /> : null}
+                                <View style={styles.recapRow}>
+                                    <View style={styles.recapIcon}>
+                                        <Ionicons name={r.icon as any} size={17} color={MUTE} />
+                                    </View>
+                                    <Text style={styles.recapLabel}>{r.label}</Text>
+                                    <Text style={styles.recapValue}>{r.value}</Text>
                                 </View>
-                                <Text style={styles.recapLabel}>{r.label}</Text>
-                                <Text style={styles.recapValue}>{r.value}</Text>
                             </View>
-                        </View>
-                    ))}
-                </View>
+                        ))}
+                    </View>
+                    <Text style={styles.wellnessNote}>
+                        General wellness only — not medical advice. Follow routines at your own risk.
+                    </Text>
+                </>
             ),
         },
     ];
@@ -1569,6 +1574,15 @@ const styles = StyleSheet.create({
     recapIcon: { width: 24, alignItems: 'center', marginRight: 14, marginTop: 1 },
     recapLabel: { fontFamily: 'Matter-Regular', fontSize: 15.5, color: SUB, marginRight: 12 },
     recapValue: { fontFamily: 'Matter-Medium', fontSize: 15.5, color: INK, flex: 1, textAlign: 'right', lineHeight: 21 },
+    wellnessNote: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 11,
+        lineHeight: 15,
+        color: MUTE,
+        textAlign: 'center',
+        marginTop: 16,
+        paddingHorizontal: 16,
+    },
 
     // wheel time picker (bottom sheet)
     sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },

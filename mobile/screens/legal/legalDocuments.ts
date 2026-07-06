@@ -327,6 +327,11 @@ export const termsBlocks: LegalBlock[] = [
         text:
             'The Services are not medical devices and do not provide medical advice, diagnosis, or treatment. Always seek the advice of a qualified health provider with any questions about a medical condition. Never disregard professional advice because of something you read or see in Max.',
     },
+    {
+        type: 'p',
+        text:
+            'You are solely responsible for deciding whether any routine, plan, schedule, habit, exercise, workout, diet, supplement, product, or other recommendation offered or scheduled in Max is appropriate for you, and you follow it at your own risk. Consult a qualified health professional before starting or changing any routine, exercise program, diet, supplement, or skincare or hair regimen — especially if you are pregnant or nursing, under 18, have a medical condition or injury, or take medication. Stop and seek care if you experience pain, injury, an adverse reaction, or other concerning symptoms. You voluntarily assume all risks arising from your use of, or reliance on, the routines, plans, and recommendations in the Services.',
+    },
 
     { type: 'h2', text: '4. App Store and Play Store distribution' },
     {
@@ -420,6 +425,11 @@ export const termsBlocks: LegalBlock[] = [
         type: 'p',
         text:
             'TO THE MAXIMUM EXTENT PERMITTED BY LAW, MAX AND ITS AFFILIATES, OFFICERS, DIRECTORS, EMPLOYEES, AND AGENTS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, DATA, GOODWILL, OR OTHER INTANGIBLE LOSSES, ARISING FROM YOUR USE OF THE SERVICES. OUR AGGREGATE LIABILITY FOR CLAIMS RELATING TO THE SERVICES WILL NOT EXCEED THE GREATER OF (A) THE AMOUNTS YOU PAID TO MAX FOR THE SERVICES IN THE TWELVE MONTHS BEFORE THE CLAIM OR (B) ONE HUNDRED U.S. DOLLARS (US$100), EXCEPT WHERE PROHIBITED BY LAW.',
+    },
+    {
+        type: 'p',
+        text:
+            'TO THE MAXIMUM EXTENT PERMITTED BY LAW, MAX AND ITS AFFILIATES ARE NOT LIABLE FOR ANY PERSONAL INJURY, ILLNESS, ADVERSE REACTION, WORSENED CONDITION, DEATH, OR OTHER BODILY OR PSYCHOLOGICAL HARM ARISING FROM YOUR USE OF — OR RELIANCE ON — ANY ROUTINE, PLAN, SCHEDULE, HABIT, EXERCISE, DIET, SUPPLEMENT, PRODUCT, OR RECOMMENDATION PROVIDED, GENERATED, OR SCHEDULED THROUGH THE SERVICES. YOU VOLUNTARILY AND KNOWINGLY ASSUME ALL SUCH RISKS. NOTHING IN THESE TERMS LIMITS OR EXCLUDES LIABILITY THAT CANNOT BE LIMITED OR EXCLUDED UNDER APPLICABLE LAW — FOR EXAMPLE, LIABILITY FOR GROSS NEGLIGENCE, WILLFUL MISCONDUCT, OR FRAUD, OR CERTAIN NON-WAIVABLE CONSUMER OR STATUTORY RIGHTS.',
     },
 
     { type: 'h2', text: '14. Indemnity' },
