@@ -221,7 +221,22 @@ function SocialLinker({
 
 type CourseDoc = { filename: string; url: string; source?: string; size_bytes?: number };
 
-function DocUploader({ docs, onChange }: { docs: CourseDoc[]; onChange: (d: CourseDoc[]) => void }) {
+function normalizeDocUrl(raw: string): string {
+    let url = raw.trim();
+    if (!url) return url;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    return url;
+}
+
+function apiDetail(err: unknown): string {
+    const d = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    return typeof d === 'string' ? d : 'Request failed';
+}
+
+function DocUploader({ docs, onChange }: {
+    docs: CourseDoc[];
+    onChange: React.Dispatch<React.SetStateAction<CourseDoc[]>>;
+}) {
     const [driveUrl, setDriveUrl] = useState('');
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState<string | null>(null);
@@ -230,17 +245,26 @@ function DocUploader({ docs, onChange }: { docs: CourseDoc[]; onChange: (d: Cour
         setBusy(true); setErr(null);
         try {
             if (Platform.OS === 'web') {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,image/*';
-                input.onchange = async () => {
-                    const file = input.files?.[0];
-                    if (!file) { setBusy(false); return; }
-                    const data = await api.uploadCreatorDoc(file);
-                    onChange([...docs, data]);
-                    setBusy(false);
-                };
-                input.click();
+                await new Promise<void>((resolve) => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,image/*';
+                    input.onchange = async () => {
+                        try {
+                            const file = input.files?.[0];
+                            if (!file) return;
+                            const data = await api.uploadCreatorDoc(file);
+                            onChange((prev) => [...prev, data]);
+                        } catch (e) {
+                            setErr(apiDetail(e) || 'Could not upload that file.');
+                        } finally {
+                            resolve();
+                        }
+                    };
+                    // If the dialog closes without a selection, still unblock the UI.
+                    input.addEventListener('cancel', () => resolve(), { once: true });
+                    input.click();
+                });
                 return;
             }
             const picked = await DocumentPicker.getDocumentAsync({
@@ -254,24 +278,24 @@ function DocUploader({ docs, onChange }: { docs: CourseDoc[]; onChange: (d: Cour
                 name: asset.name || 'document',
                 type: asset.mimeType || 'application/octet-stream',
             });
-            onChange([...docs, data]);
-        } catch {
-            setErr('Could not upload that file.');
+            onChange((prev) => [...prev, data]);
+        } catch (e) {
+            setErr(apiDetail(e) || 'Could not upload that file.');
         } finally {
             setBusy(false);
         }
     };
 
     const addDrive = async () => {
-        const url = driveUrl.trim();
+        const url = normalizeDocUrl(driveUrl);
         if (!url) return;
         setBusy(true); setErr(null);
         try {
             const data = await api.linkCreatorDoc(url);
-            onChange([...docs, data]);
+            onChange((prev) => [...prev, data]);
             setDriveUrl('');
-        } catch {
-            setErr('Could not add that link.');
+        } catch (e) {
+            setErr(apiDetail(e) || 'Could not add that link.');
         } finally {
             setBusy(false);
         }
@@ -283,7 +307,7 @@ function DocUploader({ docs, onChange }: { docs: CourseDoc[]; onChange: (d: Cour
                 <View key={`${d.url}-${i}`} style={styles.docRow}>
                     <Ionicons name="document-text-outline" size={18} color={INK} />
                     <Text style={styles.docName} numberOfLines={1}>{d.filename}</Text>
-                    <TouchableOpacity onPress={() => onChange(docs.filter((_, j) => j !== i))}>
+                    <TouchableOpacity onPress={() => onChange((prev) => prev.filter((_, j) => j !== i))}>
                         <Ionicons name="close" size={18} color={MUTE} />
                     </TouchableOpacity>
                 </View>
@@ -300,6 +324,8 @@ function DocUploader({ docs, onChange }: { docs: CourseDoc[]; onChange: (d: Cour
                     placeholder="Paste Google Drive link"
                     placeholderTextColor={MUTE}
                     autoCapitalize="none"
+                    keyboardType="url"
+                    onSubmitEditing={() => void addDrive()}
                 />
                 <TouchableOpacity style={styles.linkBtn} onPress={addDrive} disabled={busy || !driveUrl.trim()}>
                     <Text style={styles.linkBtnText}>Add</Text>

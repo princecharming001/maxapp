@@ -43,6 +43,18 @@ const SOFT = {
 const STEP_KEYS = ['knowledge', 'reveal', 'voice_intro', 'voice_teach', 'habits', 'test_drive', 'pricing', 'media', 'launch'] as const;
 const HABIT_TAGS = ['All', 'Mewing', 'Chewing', 'Posture', 'Skin', 'Recovery', 'Protocol'];
 
+function normalizeDocUrl(raw: string): string {
+    let url = raw.trim();
+    if (!url) return url;
+    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    return url;
+}
+
+function apiDetail(err: unknown): string {
+    const d = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    return typeof d === 'string' ? d : 'Request failed';
+}
+
 function ProgressBar({ index, total }: { index: number; total: number }) {
     const p = useSharedValue((index + 1) / total);
     useEffect(() => {
@@ -139,6 +151,14 @@ export default function CreatorOnboardingScreen() {
     const [introUrl, setIntroUrl] = useState('');
     const [habitFilter, setHabitFilter] = useState('All');
     const [editingHabit, setEditingHabit] = useState<CreatorHabitTemplate | null>(null);
+    const [docErr, setDocErr] = useState<string | null>(null);
+
+    const appendKnowledgeDoc = useCallback((doc: { filename: string; url: string; source?: string }) => {
+        setState((prev) => prev ? {
+            ...prev,
+            knowledge_docs: [...(prev.knowledge_docs || []), doc],
+        } : prev);
+    }, []);
 
     const load = useCallback(async () => {
         try {
@@ -220,38 +240,58 @@ export default function CreatorOnboardingScreen() {
     };
 
     const pickDoc = async () => {
-        setBusy(true);
+        setBusy(true); setDocErr(null);
         try {
             if (Platform.OS === 'web') {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.onchange = async () => {
-                    const file = input.files?.[0];
-                    if (file) { await api.uploadCreatorOnboardingDoc(file); await load(); }
-                    setBusy(false);
-                };
-                input.click();
+                await new Promise<void>((resolve) => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,image/*';
+                    input.onchange = async () => {
+                        try {
+                            const file = input.files?.[0];
+                            if (!file) return;
+                            const data = await api.uploadCreatorOnboardingDoc(file);
+                            appendKnowledgeDoc(data);
+                        } catch (e) {
+                            setDocErr(apiDetail(e) || 'Upload failed.');
+                        } finally {
+                            resolve();
+                        }
+                    };
+                    input.addEventListener('cancel', () => resolve(), { once: true });
+                    input.click();
+                });
                 return;
             }
             const picked = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
             if (!picked.canceled && picked.assets?.[0]) {
                 const a = picked.assets[0];
-                await api.uploadCreatorOnboardingDoc({ uri: a.uri, name: a.name || 'doc', type: a.mimeType || undefined });
-                await load();
+                const data = await api.uploadCreatorOnboardingDoc({
+                    uri: a.uri, name: a.name || 'doc', type: a.mimeType || undefined,
+                });
+                appendKnowledgeDoc(data);
             }
-        } catch { setError('Upload failed.'); }
-        finally { setBusy(false); }
+        } catch (e) {
+            setDocErr(apiDetail(e) || 'Upload failed.');
+        } finally {
+            setBusy(false);
+        }
     };
 
     const addDrive = async () => {
-        if (!driveUrl.trim()) return;
-        setBusy(true);
+        const url = normalizeDocUrl(driveUrl);
+        if (!url) return;
+        setBusy(true); setDocErr(null);
         try {
-            await api.linkCreatorOnboardingDoc(driveUrl.trim());
+            const data = await api.linkCreatorOnboardingDoc(url);
+            appendKnowledgeDoc(data);
             setDriveUrl('');
-            await load();
-        } catch { setError('Could not add link.'); }
-        finally { setBusy(false); }
+        } catch (e) {
+            setDocErr(apiDetail(e) || 'Could not add that link.');
+        } finally {
+            setBusy(false);
+        }
     };
 
     const submitVoice = async () => {
@@ -340,6 +380,8 @@ export default function CreatorOnboardingScreen() {
                                 placeholder="Paste Google Drive link"
                                 placeholderTextColor={MUTE}
                                 autoCapitalize="none"
+                                keyboardType="url"
+                                onSubmitEditing={() => void addDrive()}
                             />
                             <TouchableOpacity
                                 style={[s.linkBtn, (!driveUrl.trim() || busy) && s.linkBtnOff]}
@@ -349,6 +391,7 @@ export default function CreatorOnboardingScreen() {
                                 <Text style={s.linkBtnText}>Add</Text>
                             </TouchableOpacity>
                         </View>
+                        {docErr ? <Text style={s.docErr}>{docErr}</Text> : null}
                     </View>
                 ),
             },
@@ -616,7 +659,7 @@ export default function CreatorOnboardingScreen() {
                 ),
             },
         ];
-    }, [state, maxLabel, habits, habitFilter, filteredHabits, voiceAnswer, correction, driveUrl, chatInput, welcomeMsg, introUrl, busy]);
+    }, [state, maxLabel, habits, habitFilter, filteredHabits, voiceAnswer, correction, driveUrl, chatInput, welcomeMsg, introUrl, busy, docErr]);
 
     const current = steps[Math.min(step, steps.length - 1)];
     const isLast = step === steps.length - 1;
@@ -736,6 +779,7 @@ const s = StyleSheet.create({
     linkBtn: { paddingHorizontal: 16, height: 40, borderRadius: 20, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: HAIR },
     linkBtnOff: { opacity: 0.45 },
     linkBtnText: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: INK },
+    docErr: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: DANGER, marginTop: 4 },
 
     glassPad: { padding: 20, gap: 14 },
     meterRow: { gap: 8 },

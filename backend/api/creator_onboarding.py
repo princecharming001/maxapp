@@ -10,6 +10,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
@@ -25,6 +26,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/creators/me/onboarding", tags=["CreatorOnboarding"])
 
 _MAX_DOC_BYTES = 25 * 1024 * 1024
+
+
+def _normalize_doc_url(raw: str) -> str:
+    url = (raw or "").strip()
+    if not url:
+        raise HTTPException(status_code=422, detail="Enter a valid URL.")
+    if not url.startswith(("http://", "https://")):
+        url = f"https://{url}"
+    return url
+
+
+def _append_knowledge_doc(creator, doc: dict) -> None:
+    docs = list(creator.knowledge_docs or [])
+    docs.append(doc)
+    creator.knowledge_docs = docs
+    flag_modified(creator, "knowledge_docs")
 
 
 async def _creator(current_user: dict, db: AsyncSession):
@@ -129,9 +146,7 @@ async def upload_doc(
         "source": "local",
         "size_bytes": len(data),
     }
-    docs = list(creator.knowledge_docs or [])
-    docs.append(doc)
-    creator.knowledge_docs = docs
+    _append_knowledge_doc(creator, doc)
     await db.commit()
     return doc
 
@@ -148,17 +163,13 @@ async def link_doc(
     db: AsyncSession = Depends(get_db),
 ):
     creator = await _creator(current_user, db)
-    url = body.url.strip()
-    if not url.startswith("http"):
-        raise HTTPException(status_code=422, detail="Enter a valid URL.")
+    url = _normalize_doc_url(body.url)
     doc = {
         "filename": (body.filename or "Google Drive link").strip()[:120],
         "url": url,
-        "source": "gdrive" if "drive.google" in url else "link",
+        "source": "gdrive" if "drive.google" in url or "docs.google" in url else "link",
     }
-    docs = list(creator.knowledge_docs or [])
-    docs.append(doc)
-    creator.knowledge_docs = docs
+    _append_knowledge_doc(creator, doc)
     await db.commit()
     return doc
 

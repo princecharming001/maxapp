@@ -307,6 +307,15 @@ async def availability(
 _MAX_DOC_BYTES = 25 * 1024 * 1024  # 25 MB per file
 
 
+def _normalize_doc_url(raw: str) -> str:
+    url = (raw or "").strip()
+    if not url:
+        raise HTTPException(status_code=422, detail="Enter a valid URL.")
+    if not url.startswith(("http://", "https://")):
+        url = f"https://{url}"
+    return url
+
+
 @router.post("/upload-doc")
 async def upload_course_doc(
     file: UploadFile = File(...),
@@ -342,12 +351,10 @@ async def link_course_doc(
     current_user: dict = Depends(get_current_user),
 ):
     """Attach a Google Drive (or other) share link as course material."""
-    url = (body.get("url") or "").strip()
-    if not url or not url.startswith("http"):
-        raise HTTPException(status_code=422, detail="Enter a valid URL.")
+    url = _normalize_doc_url(str(body.get("url") or ""))
     name = (body.get("filename") or "Google Drive link").strip()[:120]
     return {
         "filename": name,
         "url": url,
-        "source": "gdrive" if "drive.google" in url else "link",
+        "source": "gdrive" if "drive.google" in url or "docs.google" in url else "link",
     }
