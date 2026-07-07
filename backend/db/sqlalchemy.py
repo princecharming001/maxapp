@@ -460,6 +460,41 @@ async def _run_column_migrations():
         # creator_applications.social_stats added after the table shipped — the
         # column won't exist on a DB created from the first version of the table.
         "ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS social_stats JSONB DEFAULT '{}'",
+        # creator_social_connections — OAuth-verified IG/TikTok for creator apply.
+        """
+        CREATE TABLE IF NOT EXISTS creator_social_connections (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+            platform varchar(16) NOT NULL,
+            platform_user_id varchar(128),
+            handle varchar(128),
+            profile jsonb DEFAULT '{}',
+            access_token_encrypted bytea,
+            refresh_token_encrypted bytea,
+            token_expires_at timestamptz,
+            connected_at timestamptz,
+            revoked_at timestamptz,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            updated_at timestamptz NOT NULL DEFAULT now()
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_creator_social_user ON creator_social_connections (user_id, platform)",
+        "ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS max_differentiator TEXT",
+        "ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS brand_fit TEXT",
+        "ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS course_docs JSONB DEFAULT '[]'",
+        """
+        CREATE TABLE IF NOT EXISTS user_inbox_messages (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+            title varchar(120) NOT NULL,
+            body text NOT NULL,
+            sender_id uuid REFERENCES app_users(id) ON DELETE SET NULL,
+            read_at timestamptz,
+            created_at timestamptz NOT NULL DEFAULT now()
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_user_inbox_user_created ON user_inbox_messages (user_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_user_inbox_unread ON user_inbox_messages (user_id, read_at)",
         # Creator maxxes as first-class maxxes: lesson paywall fields, module
         # titles, marketplace art, habit versioning, price snapshot, and push
         # deep-link params. (creator_habits is a NEW table — create_all makes it.)

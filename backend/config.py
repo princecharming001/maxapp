@@ -50,6 +50,19 @@ class Settings(BaseSettings):
     rapidapi_ig_host: str = Field(default="instagram-scraper-api2.p.rapidapi.com")
     rapidapi_tt_host: str = Field(default="tiktok-scraper7.p.rapidapi.com")
 
+    # Creator social OAuth (Instagram / TikTok sign-in during application).
+    # When credentials are empty in dev, the flow uses a local mock consent page.
+    social_oauth_redirect_base: str = Field(
+        default="http://localhost:8000/api",
+        description="Base URL for OAuth callbacks, e.g. https://api.usemaxapp.com/api",
+    )
+    instagram_client_id: str = Field(default="")
+    instagram_client_secret: str = Field(default="")
+    instagram_scopes: str = Field(default="instagram_business_basic")
+    tiktok_client_key: str = Field(default="")
+    tiktok_client_secret: str = Field(default="")
+    tiktok_scopes: str = Field(default="user.info.basic,user.info.profile,user.info.stats")
+
     # AWS RDS (shared data)
     aws_rds_host: str = Field(default="localhost")
     aws_rds_port: int = Field(default=5432)

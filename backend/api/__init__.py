@@ -26,5 +26,7 @@ from .analytics import router as analytics_router
 from .google import router as google_router
 from .referral import router as referral_router
 from .creator_applications import router as creator_applications_router
+from .creator_social import router as creator_social_router
+from .user_inbox import router as user_inbox_router
 from .creators import router as creators_router
 from .config import router as config_router

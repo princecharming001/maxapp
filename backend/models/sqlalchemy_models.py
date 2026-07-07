@@ -1014,6 +1014,24 @@ class ScheduleChangeProposal(Base):
     )
 
 
+class UserInboxMessage(Base):
+    """Admin → user in-app message (bell inbox on home)."""
+    __tablename__ = "user_inbox_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(120), nullable=False)
+    body = Column(Text, nullable=False)
+    sender_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="SET NULL"), nullable=True)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_user_inbox_user_created", user_id, created_at.desc()),
+        Index("idx_user_inbox_unread", user_id, read_at),
+    )
+
+
 class CreatorApplication(Base):
     """A creator's application to own/host their own max on the marketplace.
 
@@ -1034,6 +1052,9 @@ class CreatorApplication(Base):
     max_name = Column(String, nullable=False)
     max_name_normalized = Column(String, nullable=False, index=True)
     max_description = Column(Text, nullable=False)
+    max_differentiator = Column(Text, nullable=True)
+    brand_fit = Column(Text, nullable=True)
+    course_docs = Column(JSON, default=list)
 
     # Socials — at least one required. Stored normalized + as a canonical URL.
     instagram_handle = Column(String, nullable=True)
@@ -1056,6 +1077,34 @@ class CreatorApplication(Base):
         Index("idx_creator_apps_status", status),
         # Fast lookup for the "is this max already claimed?" gate.
         Index("idx_creator_apps_maxnorm_status", max_name_normalized, status),
+    )
+
+
+class CreatorSocialConnection(Base):
+    """OAuth-verified Instagram/TikTok account for a creator applicant.
+
+    One row per (user, platform). Tokens are Fernet-encrypted at rest; profile
+    JSON holds the public signal (handle, avatar, followers) fetched at connect
+    time. revoked_at is set on disconnect — the row is kept for audit.
+    """
+    __tablename__ = "creator_social_connections"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_users.id", ondelete="CASCADE"), nullable=False)
+    platform = Column(String(16), nullable=False)  # instagram | tiktok
+    platform_user_id = Column(String(128), nullable=True)
+    handle = Column(String(128), nullable=True)
+    profile = Column(JSON, default=dict)
+    access_token_encrypted = Column(LargeBinary, nullable=True)
+    refresh_token_encrypted = Column(LargeBinary, nullable=True)
+    token_expires_at = Column(DateTime(timezone=True), nullable=True)
+    connected_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_creator_social_user", user_id, platform),
     )
 
 

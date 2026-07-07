@@ -4,11 +4,11 @@
  * Mirrors OnboardingV2Screen's flow: a thin top progress bar + back chevron, one
  * question per page with a staggered head/body transition, and a single bottom
  * "Continue" pill. Steps: intro → name → the max (with first-come availability
- * check) → what-it-is/why-you → link socials (live IG/TikTok lookup pulling
- * follower count + avatar) → review → submit. Success shows a confirmation page
- * ("we'll get back to you in 1–2 weeks") whose Done returns to the Creator tab.
+ * check) → what-it-is/why-you → sign in to Instagram/TikTok (OAuth) → review →
+ * submit. Success shows a confirmation page ("we'll get back to you in 1–2 weeks")
+ * whose Done returns to the Creator tab.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -19,6 +19,7 @@ import {
     ActivityIndicator,
     Platform,
     KeyboardAvoidingView,
+    AppState,
 } from 'react-native';
 import Animated, {
     Easing, Extrapolation, interpolate, useAnimatedStyle,
@@ -29,7 +30,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { api, type SocialProfile } from '../../services/api';
+import * as WebBrowser from 'expo-web-browser';
+import { api, type CreatorSocialConnection, type SocialProfile } from '../../services/api';
+import * as DocumentPicker from 'expo-document-picker';
+import { openCreatorSocialAuth } from '../../lib/creatorSocialConnect';
+
+WebBrowser.maybeCompleteAuthSession();
 
 // Onboarding "Stoic" palette (kept identical so the flow feels native to it).
 const INK = '#000000';
@@ -112,14 +118,33 @@ function Field({ value, onChangeText, placeholder, multiline, autoCapitalize, au
     );
 }
 
-/** One social platform: handle entry + live "Link" lookup → profile card. */
-function SocialLinker({ platform, handle, onChangeHandle, profile, onLinked, onClear }: {
+function connectionToProfile(conn: CreatorSocialConnection): SocialProfile {
+    return {
+        platform: conn.platform,
+        handle: conn.handle || '',
+        url: conn.platform === 'instagram'
+            ? `https://instagram.com/${conn.handle}`
+            : `https://www.tiktok.com/@${conn.handle}`,
+        followers: conn.followers,
+        avatar_url: conn.avatar_url,
+        full_name: conn.full_name,
+        verified: conn.verified,
+        found: true,
+        oauth_verified: true,
+    };
+}
+
+/** Link row — tap Link to open real Instagram/TikTok OAuth in browser. */
+function SocialLinker({
+    platform,
+    profile,
+    onClear,
+    onLinked,
+}: {
     platform: 'instagram' | 'tiktok';
-    handle: string;
-    onChangeHandle: (t: string) => void;
     profile: SocialProfile | null;
-    onLinked: (p: SocialProfile) => void;
     onClear: () => void;
+    onLinked: () => void;
 }) {
     const [loading, setLoading] = useState(false);
     const [err, setErr] = useState<string | null>(null);
@@ -128,24 +153,22 @@ function SocialLinker({ platform, handle, onChangeHandle, profile, onLinked, onC
         : { label: 'TikTok', icon: 'logo-tiktok' as const };
 
     const link = async () => {
-        const h = handle.trim();
-        if (!h) return;
         setLoading(true); setErr(null);
         Haptics.selectionAsync().catch(() => {});
         try {
-            const p = await api.lookupSocialProfile(platform, h);
-            if (p.found) {
-                onLinked(p);
-            } else {
-                // Handle is stored either way (you can still submit) — we just
-                // couldn't pull public stats (typo, private, or rate-limited).
-                setErr("Couldn't verify that handle — double-check it. You can still submit.");
-            }
+            await openCreatorSocialAuth(platform);
+            onLinked();
         } catch {
-            setErr("Couldn't reach the lookup right now. You can still submit the handle.");
+            setErr(`Couldn't open ${meta.label}. Check that OAuth is configured on the server.`);
         } finally {
             setLoading(false);
         }
+    };
+
+    const disconnect = async () => {
+        Haptics.selectionAsync().catch(() => {});
+        try { await api.disconnectCreatorSocial(platform); } catch { /* best-effort */ }
+        onClear();
     };
 
     if (profile) {
@@ -164,14 +187,13 @@ function SocialLinker({ platform, handle, onChangeHandle, profile, onLinked, onC
                         <Text style={styles.linkedName} numberOfLines={1}>
                             {profile.full_name || `@${profile.handle}`}
                         </Text>
-                        {profile.verified ? <Ionicons name="checkmark-circle" size={15} color={VERIFIED} /> : null}
+                        <View style={styles.oauthBadge}><Text style={styles.oauthBadgeText}>Linked</Text></View>
                     </View>
                     <Text style={styles.linkedMeta} numberOfLines={1}>
-                        {meta.label} · @{profile.handle}
-                        {followers ? `  ·  ${followers} followers` : ''}
+                        @{profile.handle}{followers ? ` · ${followers} followers` : ''}
                     </Text>
                 </View>
-                <TouchableOpacity onPress={onClear} hitSlop={10} accessibilityLabel={`Change ${meta.label}`}>
+                <TouchableOpacity onPress={disconnect} hitSlop={10}>
                     <Ionicons name="close-circle" size={22} color={MUTE} />
                 </TouchableOpacity>
             </View>
@@ -181,24 +203,106 @@ function SocialLinker({ platform, handle, onChangeHandle, profile, onLinked, onC
     return (
         <View style={styles.linkerBlock}>
             <View style={styles.linkerRow}>
-                <Ionicons name={meta.icon} size={20} color={SUB} style={{ marginRight: 8 }} />
-                <Text style={styles.linkerAt}>@</Text>
-                <TextInput
-                    style={styles.linkerInput}
-                    value={handle}
-                    onChangeText={(t) => { onChangeHandle(t); if (err) setErr(null); }}
-                    placeholder={meta.label === 'TikTok' ? 'tiktok handle' : 'instagram handle'}
-                    placeholderTextColor={MUTE}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                />
+                <Ionicons name={meta.icon} size={20} color={SUB} style={{ marginRight: 10 }} />
+                <Text style={styles.linkerLabel}>Link {meta.label}</Text>
                 <TouchableOpacity
-                    style={[styles.linkBtn, !handle.trim() && styles.linkBtnOff]}
+                    style={[styles.linkBtn, loading && styles.linkBtnOff]}
                     onPress={link}
-                    disabled={!handle.trim() || loading}
+                    disabled={loading}
                     activeOpacity={0.85}
                 >
                     {loading ? <ActivityIndicator size="small" color={INK} /> : <Text style={styles.linkBtnText}>Link</Text>}
+                </TouchableOpacity>
+            </View>
+            {err ? <Text style={styles.linkErr}>{err}</Text> : null}
+        </View>
+    );
+}
+
+type CourseDoc = { filename: string; url: string; source?: string; size_bytes?: number };
+
+function DocUploader({ docs, onChange }: { docs: CourseDoc[]; onChange: (d: CourseDoc[]) => void }) {
+    const [driveUrl, setDriveUrl] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState<string | null>(null);
+
+    const pickLocal = async () => {
+        setBusy(true); setErr(null);
+        try {
+            if (Platform.OS === 'web') {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,image/*';
+                input.onchange = async () => {
+                    const file = input.files?.[0];
+                    if (!file) { setBusy(false); return; }
+                    const data = await api.uploadCreatorDoc(file);
+                    onChange([...docs, data]);
+                    setBusy(false);
+                };
+                input.click();
+                return;
+            }
+            const picked = await DocumentPicker.getDocumentAsync({
+                copyToCacheDirectory: true,
+                multiple: false,
+            });
+            if (picked.canceled || !picked.assets?.[0]) return;
+            const asset = picked.assets[0];
+            const data = await api.uploadCreatorDoc({
+                uri: asset.uri,
+                name: asset.name || 'document',
+                type: asset.mimeType || 'application/octet-stream',
+            });
+            onChange([...docs, data]);
+        } catch {
+            setErr('Could not upload that file.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const addDrive = async () => {
+        const url = driveUrl.trim();
+        if (!url) return;
+        setBusy(true); setErr(null);
+        try {
+            const data = await api.linkCreatorDoc(url);
+            onChange([...docs, data]);
+            setDriveUrl('');
+        } catch {
+            setErr('Could not add that link.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <View style={{ gap: 12 }}>
+            {docs.map((d, i) => (
+                <View key={`${d.url}-${i}`} style={styles.docRow}>
+                    <Ionicons name="document-text-outline" size={18} color={INK} />
+                    <Text style={styles.docName} numberOfLines={1}>{d.filename}</Text>
+                    <TouchableOpacity onPress={() => onChange(docs.filter((_, j) => j !== i))}>
+                        <Ionicons name="close" size={18} color={MUTE} />
+                    </TouchableOpacity>
+                </View>
+            ))}
+            <TouchableOpacity style={styles.docBtn} onPress={pickLocal} disabled={busy}>
+                <Ionicons name="folder-open-outline" size={18} color={INK} />
+                <Text style={styles.docBtnText}>Add from device</Text>
+            </TouchableOpacity>
+            <View style={styles.driveRow}>
+                <TextInput
+                    style={styles.driveInput}
+                    value={driveUrl}
+                    onChangeText={setDriveUrl}
+                    placeholder="Paste Google Drive link"
+                    placeholderTextColor={MUTE}
+                    autoCapitalize="none"
+                />
+                <TouchableOpacity style={styles.linkBtn} onPress={addDrive} disabled={busy || !driveUrl.trim()}>
+                    <Text style={styles.linkBtnText}>Add</Text>
                 </TouchableOpacity>
             </View>
             {err ? <Text style={styles.linkErr}>{err}</Text> : null}
@@ -216,19 +320,42 @@ export default function CreatorApplyScreen() {
     const [name, setName] = useState('');
     const [maxName, setMaxName] = useState('');
     const [desc, setDesc] = useState('');
-    const [ig, setIg] = useState('');
-    const [tt, setTt] = useState('');
+    const [differentiator, setDifferentiator] = useState('');
+    const [brandFit, setBrandFit] = useState('');
+    const [courseDocs, setCourseDocs] = useState<CourseDoc[]>([]);
     const [igProfile, setIgProfile] = useState<SocialProfile | null>(null);
     const [ttProfile, setTtProfile] = useState<SocialProfile | null>(null);
+
+    const refreshSocialStatus = useCallback(async () => {
+        try {
+            const status = await api.getCreatorSocialStatus();
+            const igConn = status.connections.instagram;
+            const ttConn = status.connections.tiktok;
+            if (igConn?.handle) setIgProfile(connectionToProfile(igConn));
+            if (ttConn?.handle) setTtProfile(connectionToProfile(ttConn));
+        } catch {
+            /* status fetch is best-effort */
+        }
+    }, []);
+
+    useEffect(() => {
+        void refreshSocialStatus();
+    }, [refreshSocialStatus]);
+
+    // Re-fetch after OAuth sheet closes (native) or app returns to foreground (web popup).
+    useEffect(() => {
+        const sub = AppState.addEventListener('change', (state) => {
+            if (state === 'active') void refreshSocialStatus();
+        });
+        return () => sub.remove();
+    }, [refreshSocialStatus]);
 
     const [checkingMax, setCheckingMax] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [done, setDone] = useState(false);
 
-    const hasSocial =
-        (igProfile != null || ig.trim().length > 0) ||
-        (ttProfile != null || tt.trim().length > 0);
+    const hasSocial = igProfile != null || ttProfile != null;
 
     const steps = useMemo(() => [
         {
@@ -274,37 +401,43 @@ export default function CreatorApplyScreen() {
         },
         {
             key: 'desc',
-            title: 'What is it,\nand why you?',
-            sub: 'What the max teaches, and what makes you the one to lead it.',
+            title: 'What is\nyour max?',
+            sub: 'What does it teach? Who is it for?',
             canNext: desc.trim().length > 0,
-            body: <Field value={desc} onChangeText={setDesc} placeholder="The routine, the promise, your edge…" multiline autoFocus maxLength={1500} />,
+            body: <Field value={desc} onChangeText={setDesc} placeholder="The routine, the promise…" multiline autoFocus maxLength={1500} />,
+        },
+        {
+            key: 'different',
+            title: 'What makes it\ndifferent?',
+            sub: 'Why yours stands out from everything else out there.',
+            canNext: differentiator.trim().length > 0,
+            body: <Field value={differentiator} onChangeText={setDifferentiator} placeholder="Your edge, your method…" multiline autoFocus maxLength={1500} />,
+        },
+        {
+            key: 'brand',
+            title: 'Why it fits\nyour brand',
+            sub: 'How this max connects to what your audience already knows you for.',
+            canNext: brandFit.trim().length > 0,
+            body: <Field value={brandFit} onChangeText={setBrandFit} placeholder="Your brand, your audience, your lane…" multiline autoFocus maxLength={1500} />,
         },
         {
             key: 'social',
-            title: 'Link your\naudience',
-            sub: 'Connect at least one account so we can verify your reach.',
+            title: 'Link your\naccounts',
+            sub: 'Connect at least one so we can verify it\'s you.',
             canNext: hasSocial,
             body: (
                 <View style={{ gap: 14 }}>
-                    <SocialLinker
-                        platform="instagram"
-                        handle={ig}
-                        onChangeHandle={setIg}
-                        profile={igProfile}
-                        onLinked={(p) => { setIgProfile(p); setIg(p.handle); }}
-                        onClear={() => { setIgProfile(null); setIg(''); }}
-                    />
-                    <SocialLinker
-                        platform="tiktok"
-                        handle={tt}
-                        onChangeHandle={setTt}
-                        profile={ttProfile}
-                        onLinked={(p) => { setTtProfile(p); setTt(p.handle); }}
-                        onClear={() => { setTtProfile(null); setTt(''); }}
-                    />
-                    <Text style={styles.helpNote}>Tap Link to pull your follower count and photo. No login, public info only.</Text>
+                    <SocialLinker platform="instagram" profile={igProfile} onClear={() => setIgProfile(null)} onLinked={refreshSocialStatus} />
+                    <SocialLinker platform="tiktok" profile={ttProfile} onClear={() => setTtProfile(null)} onLinked={refreshSocialStatus} />
                 </View>
             ),
+        },
+        {
+            key: 'docs',
+            title: 'Course\nmaterials',
+            sub: 'Upload docs, PDFs, or paste Google Drive links for your max.',
+            canNext: true,
+            body: <DocUploader docs={courseDocs} onChange={setCourseDocs} />,
         },
         {
             key: 'review',
@@ -317,23 +450,33 @@ export default function CreatorApplyScreen() {
                     <View style={styles.reviewHair} />
                     <ReviewRow label="The max" value={maxName.trim()} />
                     <View style={styles.reviewHair} />
-                    <ReviewRow label="Pitch" value={desc.trim()} />
-                    {(igProfile || ig.trim()) ? (
+                    <ReviewRow label="About" value={desc.trim()} />
+                    <View style={styles.reviewHair} />
+                    <ReviewRow label="Different" value={differentiator.trim()} />
+                    <View style={styles.reviewHair} />
+                    <ReviewRow label="Brand fit" value={brandFit.trim()} />
+                    {igProfile ? (
                         <>
                             <View style={styles.reviewHair} />
-                            <ReviewRow label="Instagram" value={igProfile ? `@${igProfile.handle}${fmtFollowers(igProfile.followers) ? ` · ${fmtFollowers(igProfile.followers)}` : ''}` : `@${ig.trim()}`} />
+                            <ReviewRow label="Instagram" value={`@${igProfile.handle}`} />
                         </>
                     ) : null}
-                    {(ttProfile || tt.trim()) ? (
+                    {ttProfile ? (
                         <>
                             <View style={styles.reviewHair} />
-                            <ReviewRow label="TikTok" value={ttProfile ? `@${ttProfile.handle}${fmtFollowers(ttProfile.followers) ? ` · ${fmtFollowers(ttProfile.followers)}` : ''}` : `@${tt.trim()}`} />
+                            <ReviewRow label="TikTok" value={`@${ttProfile.handle}`} />
+                        </>
+                    ) : null}
+                    {courseDocs.length ? (
+                        <>
+                            <View style={styles.reviewHair} />
+                            <ReviewRow label="Docs" value={`${courseDocs.length} file(s)`} />
                         </>
                     ) : null}
                 </View>
             ),
         },
-    ], [name, maxName, desc, ig, tt, igProfile, ttProfile, hasSocial, error]);
+    ], [name, maxName, desc, differentiator, brandFit, courseDocs, igProfile, ttProfile, hasSocial, error, refreshSocialStatus]);
 
     const safeStep = Math.min(step, steps.length - 1);
     const current = steps[safeStep];
@@ -353,8 +496,9 @@ export default function CreatorApplyScreen() {
                 applicant_name: name.trim(),
                 max_name: maxName.trim(),
                 max_description: desc.trim(),
-                instagram: (igProfile?.handle || ig).trim() || undefined,
-                tiktok: (ttProfile?.handle || tt).trim() || undefined,
+                max_differentiator: differentiator.trim(),
+                brand_fit: brandFit.trim(),
+                course_docs: courseDocs,
             });
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
             setDone(true);
@@ -515,11 +659,21 @@ const styles = StyleSheet.create({
         backgroundColor: CARD, borderRadius: 16, paddingHorizontal: 14, height: 56, ...SOFT,
     },
     linkerAt: { fontFamily: 'Matter-Medium', fontSize: 16, color: SUB, marginRight: 2, marginLeft: 4 },
+    linkerLabel: { flex: 1, fontFamily: 'Matter-Medium', fontSize: 16, color: INK },
     linkerInput: { flex: 1, fontFamily: 'Matter-Medium', fontSize: 16, color: INK, padding: 0, marginRight: 4 },
     linkBtn: { paddingHorizontal: 16, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
     linkBtnOff: { opacity: 0.5 },
     linkBtnText: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: INK },
     linkErr: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: DANGER, marginTop: 8, marginLeft: 4 },
+
+    oauthBadge: { backgroundColor: '#DCFCE7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+    oauthBadgeText: { fontFamily: 'Matter-SemiBold', fontSize: 10, color: '#166534' },
+    docRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, padding: 12, ...SOFT },
+    docName: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 14, color: INK },
+    docBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: CARD, borderRadius: 14, paddingVertical: 14, ...SOFT },
+    docBtnText: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK },
+    driveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    driveInput: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 14, color: INK, backgroundColor: CARD, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, ...SOFT },
 
     linkedCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderRadius: 16, padding: 12, ...SOFT },
     linkedAvatarWrap: { width: 46, height: 46, borderRadius: 23, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },

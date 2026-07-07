@@ -13,6 +13,8 @@ import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
@@ -196,3 +198,43 @@ async def broadcast(
         "weekly_events_used": event_count + 1,
         "weekly_cap": weekly_cap,
     }
+
+
+class InboxSendBody(BaseModel):
+    title: str = Field(..., min_length=1, max_length=120)
+    body: str = Field(..., min_length=1, max_length=2000)
+    user_id: str | None = Field(default=None, description="Single user UUID; omit to send to all users")
+
+
+@router.post("/inbox")
+async def send_inbox_message(
+    payload: InboxSendBody,
+    admin: dict = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: deliver an in-app inbox message (bell on home) to one or all users."""
+    from models.sqlalchemy_models import UserInboxMessage
+
+    admin_id = admin.get("id")
+    sender = UUID(str(admin_id)) if admin_id else None
+
+    if payload.user_id:
+        try:
+            targets = [UUID(payload.user_id)]
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Bad user_id")
+    else:
+        res = await db.execute(select(User.id))
+        targets = [row[0] for row in res.all()]
+
+    for uid in targets:
+        db.add(
+            UserInboxMessage(
+                user_id=uid,
+                title=payload.title.strip(),
+                body=payload.body.strip(),
+                sender_id=sender,
+            )
+        )
+    await db.commit()
+    return {"ok": True, "sent": len(targets)}

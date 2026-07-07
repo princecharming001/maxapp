@@ -31,6 +31,8 @@ from api import (
     google_router,
     referral_router,
     creator_applications_router,
+    creator_social_router,
+    user_inbox_router,
     creators_router,
     config_router,
 )
@@ -235,6 +237,8 @@ app.include_router(analytics_router, prefix="/api")
 app.include_router(google_router, prefix="/api")
 app.include_router(referral_router, prefix="/api")
 app.include_router(creator_applications_router, prefix="/api")
+app.include_router(creator_social_router, prefix="/api")
+app.include_router(user_inbox_router, prefix="/api")
 app.include_router(creators_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
 

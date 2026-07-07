@@ -40,6 +40,7 @@ import ScheduleScreen from '../screens/courses/ScheduleScreen';
 import MaxxDetailScreen from '../screens/courses/MaxxDetailScreen';
 import MaxDetailScreen from '../screens/marketplace/MaxDetailScreen';
 import CreatorApplyScreen from '../screens/marketplace/CreatorApplyScreen';
+import InAppNotificationsScreen from '../screens/notifications/InAppNotificationsScreen';
 import FitmaxPlanScreen from '../screens/courses/FitmaxPlanScreen';
 import FitmaxWorkoutTrackerScreen from '../screens/courses/FitmaxWorkoutTrackerScreen';
 import FitmaxCalorieLogScreen from '../screens/courses/FitmaxCalorieLogScreen';
@@ -236,6 +237,7 @@ export function RootNavigator() {
                     <Stack.Screen name="MaxxDetail" component={MaxxDetailScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="MaxDetail" component={MaxDetailScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="CreatorApply" component={CreatorApplyScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="InAppNotifications" component={InAppNotificationsScreen} options={{ headerShown: false, presentation: 'fullScreenModal' }} />
                     {/* Creator platform — feed/paywall (any subscriber) + studio (creators). */}
                     <Stack.Screen name="CreatorFeed" component={CreatorFeedScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="CreatorPaywall" component={CreatorPaywallScreen} options={{ headerShown: false, presentation: 'modal' }} />

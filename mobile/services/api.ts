@@ -192,6 +192,32 @@ export interface SocialProfile {
     full_name: string | null;
     verified: boolean;
     found: boolean;
+    oauth_verified?: boolean;
+}
+
+export interface CreatorSocialConnection {
+    platform: 'instagram' | 'tiktok';
+    handle: string | null;
+    platform_user_id: string | null;
+    full_name: string | null;
+    avatar_url: string | null;
+    followers: number | null;
+    verified: boolean;
+    mock?: boolean;
+    connected_at: string | null;
+}
+
+export interface CreatorSocialStatus {
+    providers: Record<'instagram' | 'tiktok', { available: boolean }>;
+    connections: Record<'instagram' | 'tiktok', CreatorSocialConnection | null>;
+}
+
+export interface InboxMessage {
+    id: string;
+    title: string;
+    body: string;
+    read_at: string | null;
+    created_at: string | null;
 }
 
 export interface ReferralValidateResult {
@@ -1415,8 +1441,9 @@ class ApiService {
         applicant_name: string;
         max_name: string;
         max_description: string;
-        instagram?: string;
-        tiktok?: string;
+        max_differentiator: string;
+        brand_fit: string;
+        course_docs?: { filename: string; url: string; source?: string }[];
     }): Promise<{ id: string; status: string; max_name: string; instagram_url: string | null; tiktok_url: string | null }> {
         const response = await this.client.post('creator-applications', body);
         return response.data;
@@ -1440,6 +1467,75 @@ class ApiService {
         max_description: string; instagram_url: string | null; tiktok_url: string | null; created_at: string | null;
     } }> {
         const response = await this.client.get('creator-applications/mine');
+        return response.data;
+    }
+
+    /** OAuth status for Instagram/TikTok sign-in during creator application. */
+    async getCreatorSocialStatus(): Promise<CreatorSocialStatus> {
+        const response = await this.client.get('creator-social/status');
+        return response.data;
+    }
+
+    /** Start OAuth — returns the consent URL to open in the system browser. */
+    async getCreatorSocialConnectUrl(
+        platform: 'instagram' | 'tiktok',
+        returnUrl?: string,
+    ): Promise<{ auth_url: string }> {
+        const response = await this.client.get(`creator-social/connect/${platform}`, {
+            params: returnUrl ? { return_url: returnUrl } : undefined,
+        });
+        return response.data;
+    }
+
+    /** Disconnect an OAuth-verified social account. */
+    async disconnectCreatorSocial(platform: 'instagram' | 'tiktok'): Promise<{ disconnected: boolean }> {
+        const response = await this.client.delete(`creator-social/disconnect/${platform}`);
+        return response.data;
+    }
+
+    async uploadCreatorDoc(
+        file: File | Blob | { uri: string; name: string; type?: string },
+    ): Promise<{ filename: string; url: string; source: string }> {
+        const fd = new FormData();
+        if (Platform.OS === 'web' && (file instanceof Blob || (typeof File !== 'undefined' && file instanceof File))) {
+            fd.append('file', file as Blob, (file as File).name || 'document');
+        } else if (typeof file === 'object' && file != null && 'uri' in file) {
+            // @ts-ignore - React Native FormData accepts { uri, name, type }
+            fd.append('file', file);
+        } else {
+            fd.append('file', file as any);
+        }
+        const response = await this.client.post('creator-applications/upload-doc', fd, {
+            transformRequest: [(data: unknown, headers?: Record<string, string>) => {
+                if (headers) delete headers['Content-Type'];
+                return data;
+            }],
+        });
+        return response.data;
+    }
+
+    async linkCreatorDoc(url: string, filename?: string): Promise<{ filename: string; url: string; source: string }> {
+        const response = await this.client.post('creator-applications/link-doc', { url, filename });
+        return response.data;
+    }
+
+    async getInboxMessages(): Promise<{ messages: InboxMessage[] }> {
+        const response = await this.client.get('user-inbox');
+        return response.data;
+    }
+
+    async getInboxUnreadCount(): Promise<{ unread: number }> {
+        const response = await this.client.get('user-inbox/unread-count');
+        return response.data;
+    }
+
+    async markInboxRead(messageId: string): Promise<{ read: boolean }> {
+        const response = await this.client.post(`user-inbox/${messageId}/read`);
+        return response.data;
+    }
+
+    async markAllInboxRead(): Promise<{ read: boolean }> {
+        const response = await this.client.post('user-inbox/read-all');
         return response.data;
     }
 

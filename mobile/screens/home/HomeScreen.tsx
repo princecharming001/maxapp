@@ -24,6 +24,7 @@ import { useFlag } from '../../constants/featureFlags';
 import { usePersonalization } from '../../hooks/usePersonalization';
 import { CachedImage } from '../../components/CachedImage';
 import { StreakFireBadge } from '../../components/StreakFireBadge';
+import InboxBell from '../../components/notifications/InboxBell';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
 
 /* ─── Progress Ring ─── */
@@ -573,6 +574,7 @@ export default function HomeScreen() {
                             {scheduleStreak.current > 0 && (
                                 <StreakFireBadge streakDays={scheduleStreak.current} variant="header" />
                             )}
+                            <InboxBell />
                             <TouchableOpacity
                                 style={s.avatarHit}
                                 onPress={() => navigation.dispatch(CommonActions.navigate({ name: 'Profile' }))}
