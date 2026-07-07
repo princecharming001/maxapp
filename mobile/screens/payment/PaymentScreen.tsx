@@ -4,11 +4,13 @@
  * Layout: a classical bust dissolving into blue particle-smoke (Higgsfield,
  * cream + ink + brand-blue — same palette as the maxx clay icons) fills the
  * screen, a soft cream gradient keeps text legible, a light frosted feature
- * card floats in the middle, a Today/Day-2/Day-3 trial timeline below it,
- * single ink pill CTA.
+ * card floats in the middle, then a minimal two-option plan selector (free
+ * trial default / subscribe now) and a single ink pill CTA.
  *
  * Single plan (funnel V4): Chad — 3-day free trial (Apple introductory
- * offer), then $5.99/wk. Hard paywall: no free tier entry point.
+ * offer), then the SKU's period price. Both selector options run the same
+ * StoreKit purchase (Apple applies the intro offer per eligibility); the
+ * choice is presentation only. Hard paywall: no free tier entry point.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -44,8 +46,6 @@ const CREAM   = '#F4EEE3';                    // base canvas under the hero
 const CARD_BG  = 'rgba(255,255,255,0.55)';   // light frosted — bust shows through
 const HAIR     = 'rgba(17,17,19,0.07)';
 const MUTED    = 'rgba(17,17,19,0.50)';
-const PLAN_BG  = 'rgba(17,17,19,0.05)';       // plan container
-const PLAN_SEL = '#FFFFFF';                   // selected option — white pill
 
 const IS_IOS = Platform.OS === 'ios';
 const SHOW_DEV_BYPASS = __DEV__;
@@ -68,21 +68,6 @@ const CHAD_FEATURES_NO_SCAN: Feature[] = [
 ];
 // Chad Lite is retired (funnel V4): one plan, one price, 3-day free trial.
 // Existing Lite subscribers are grandfathered INTO Chad server-side.
-
-/* ── Price helpers ─────────────────────────────────────────────────────── */
-function parseAmount(s: string): { sym: string; n: number } | null {
-    const m = String(s).match(/^\s*([^\d\s]+)?\s*(\d+(?:[.,]\d+)?)/);
-    if (!m) return null;
-    const sym = (m[1] || '').trim();
-    const n   = parseFloat(m[2].replace(',', '.'));
-    if (!isFinite(n)) return null;
-    return { sym, n };
-}
-function perDayLabel(weekly: string): string | null {
-    const a = parseAmount(weekly);
-    if (!a || a.n <= 0 || !a.sym) return null;
-    return `${a.sym}${(a.n / 7).toFixed(2)}/day`;
-}
 
 /* ── Component ─────────────────────────────────────────────────────────── */
 export default function PaymentScreen() {
@@ -117,7 +102,12 @@ export default function PaymentScreen() {
         return (p?.displayPrice || p?.localizedPrice || fallback) as string;
     };
     const premiumPrice = priceFor(APPLE_IAP_PREMIUM_SKU, '$5.99');
-    const perDay       = perDayLabel(premiumPrice);
+
+    // Free trial is the default; the user can opt to subscribe immediately.
+    // Both run the SAME StoreKit purchase — Apple applies the 3-day intro
+    // offer to eligible accounts either way — so this is a presentation
+    // choice, not two different SKUs.
+    const [payNow, setPayNow] = useState(false);
 
     // Where a successful purchase goes. Mid-funnel (onboarding incomplete) the
     // next step is claiming the account ("Save your results"); a completed user
@@ -176,7 +166,9 @@ export default function PaymentScreen() {
     };
 
     const ctaBusy = busy || devBusy !== null;
-    const ctaLabel = ctaBusy ? 'Processing…' : 'Start my 3-day free trial';
+    const ctaLabel = ctaBusy
+        ? 'Processing…'
+        : payNow ? 'Subscribe now' : 'Start my 3-day free trial';
 
     // The free tier is RETIRED as an entry point (hard paywall: trial or
     // subscribe). chooseFreeTier stays in AuthContext only so accounts that
@@ -251,27 +243,21 @@ export default function PaymentScreen() {
                     ))}
                 </LiquidGlass>
 
-                {/* How the trial works — the day-by-day timeline (the pattern
-                    every high-converting trial paywall uses): it answers "when
-                    am I charged?" before the user has to ask, which is the #1
-                    objection on a free-trial CTA. */}
-                <View style={s.timelineCard}>
-                    <TimelineRow
-                        icon="lock-open-outline"
-                        title="Today — full access"
-                        sub="Everything Chad has, free. Nothing charged."
-                        first
+                {/* Plan choice — free trial (default) or subscribe now. The
+                    selected row carries the price + period (Apple requires it
+                    visible by the CTA); both options run the same purchase. */}
+                <View style={s.planStack}>
+                    <PlanOption
+                        selected={!payNow}
+                        onPress={() => setPayNow(false)}
+                        title="3-day free trial"
+                        sub={`Free today, then ${premiumPrice}/wk`}
                     />
-                    <TimelineRow
-                        icon="notifications-outline"
-                        title="Day 2 — reminder"
-                        sub="We'll remind you before your trial ends."
-                    />
-                    <TimelineRow
-                        icon="star-outline"
-                        title={`Day 3 — ${premiumPrice}/wk`}
-                        sub={`${perDay ? `${perDay} · ` : ''}cancel anytime in Settings`}
-                        last
+                    <PlanOption
+                        selected={payNow}
+                        onPress={() => setPayNow(true)}
+                        title="Subscribe now"
+                        sub={`${premiumPrice}/wk · start today`}
                     />
                 </View>
 
@@ -293,9 +279,10 @@ export default function PaymentScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Hard paywall: trial or subscribe — no free tier. The line under
-                    the CTA restates the only thing a hesitant thumb needs to hear. */}
-                <Text style={s.noPaymentNote}>No payment due now</Text>
+                {/* The one line a hesitant thumb needs to hear, right under the CTA. */}
+                <Text style={s.noPaymentNote}>
+                    {payNow ? 'Cancel anytime in Settings' : 'No payment due today · cancel anytime'}
+                </Text>
 
                 {/* Legal footer */}
                 <View style={s.legalRow}>
@@ -319,24 +306,27 @@ export default function PaymentScreen() {
     );
 }
 
-/* ── Trial timeline row (Today / Day 2 / Day 3) ────────────────────────── */
-function TimelineRow({ icon, title, sub, first, last }: {
-    icon: React.ComponentProps<typeof Ionicons>['name'];
-    title: string; sub: string; first?: boolean; last?: boolean;
+/* ── Plan option (free trial / subscribe now) ──────────────────────────── */
+function PlanOption({ selected, onPress, title, sub }: {
+    selected: boolean; onPress: () => void; title: string; sub: string;
 }) {
     return (
-        <View style={s.tlRow}>
-            <View style={s.tlRail}>
-                <View style={[s.tlDot, first && s.tlDotFirst]}>
-                    <Ionicons name={icon} size={15} color={first ? WHITE : INK} />
-                </View>
-                {!last ? <View style={s.tlLine} /> : null}
+        <TouchableOpacity
+            style={[s.planRow, selected && s.planRowSel]}
+            onPress={onPress}
+            activeOpacity={0.85}
+            accessibilityRole="radio"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`${title}, ${sub}`}
+        >
+            <View style={[s.radio, selected && s.radioSel]}>
+                {selected ? <View style={s.radioDot} /> : null}
             </View>
-            <View style={[s.tlBody, last && s.tlBodyLast]}>
-                <Text style={s.tlTitle}>{title}</Text>
-                <Text style={s.tlSub}>{sub}</Text>
+            <View style={{ flex: 1 }}>
+                <Text style={s.planRowTitle}>{title}</Text>
+                <Text style={s.planRowSub}>{sub}</Text>
             </View>
-        </View>
+        </TouchableOpacity>
     );
 }
 
@@ -382,28 +372,37 @@ const s = StyleSheet.create({
         color: 'rgba(17,17,19,0.55)',
         letterSpacing: 0.1,
     },
-    /* trial timeline (Today / Day 2 / Day 3) */
-    timelineCard: {
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        borderRadius: 18,
+    /* plan choice — free trial (default) / subscribe now, radio rows */
+    planStack: { gap: 10 },
+    planRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 13,
+        backgroundColor: 'rgba(255,255,255,0.55)',
+        borderRadius: 16,
+        borderCurve: 'continuous',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: HAIR,
-        paddingVertical: 12,
-        paddingHorizontal: 14,
     },
-    tlRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-    tlRail: { alignItems: 'center', width: 30 },
-    tlDot: {
-        width: 30, height: 30, borderRadius: 15,
-        backgroundColor: 'rgba(17,17,19,0.06)',
+    planRowSel: {
+        backgroundColor: '#FFFFFF',
+        borderColor: INK,
+        borderWidth: 1.5,
+        ...(IS_IOS
+            ? { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }
+            : { elevation: 3 }),
+    },
+    radio: {
+        width: 22, height: 22, borderRadius: 11,
+        borderWidth: 1.5, borderColor: 'rgba(17,17,19,0.28)',
         alignItems: 'center', justifyContent: 'center',
     },
-    tlDotFirst: { backgroundColor: INK },
-    tlLine: { width: 2, flex: 1, minHeight: 12, backgroundColor: 'rgba(17,17,19,0.10)', marginVertical: 2 },
-    tlBody: { flex: 1, paddingBottom: 12 },
-    tlBodyLast: { paddingBottom: 0 },
-    tlTitle: { fontFamily: 'Matter-SemiBold', fontSize: 14.5, color: INK },
-    tlSub: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTED, marginTop: 2, lineHeight: 17 },
+    radioSel: { borderColor: INK },
+    radioDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: INK },
+    planRowTitle: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: INK, letterSpacing: -0.1 },
+    planRowSub: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTED, marginTop: 2 },
 
     content: {
         flex: 1,
@@ -474,59 +473,6 @@ const s = StyleSheet.create({
         color: MUTED,
         marginTop: 2,
         lineHeight: 17,
-    },
-
-    /* plan picker — single container, Grok-style */
-    planContainer: {
-        flexDirection: 'row',
-        backgroundColor: PLAN_BG,
-        borderRadius: 18,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: HAIR,
-        padding: 5,
-        gap: 4,
-    },
-    planOption: {
-        flex: 1,
-        borderRadius: 13,
-        paddingVertical: 14,
-        paddingHorizontal: 14,
-    },
-    planOptionSel: {
-        backgroundColor: PLAN_SEL,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: 'rgba(17,17,19,0.08)',
-        ...(Platform.OS === 'ios'
-            ? { shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }
-            : { elevation: 3 }),
-    },
-    // Single-plan (V4): the one card spans the container, centered.
-    planOptionFull: {
-        alignItems: 'center',
-    },
-    planName: {
-        fontFamily: 'Matter-Medium',
-        fontSize: 12,
-        color: 'rgba(17,17,19,0.45)',
-        letterSpacing: 0.2,
-        marginBottom: 5,
-    },
-    planPrice: {
-        fontFamily: 'Matter-SemiBold',
-        fontSize: 26,
-        color: INK,
-        letterSpacing: -0.8,
-    },
-    planPer: {
-        fontFamily: 'Matter-Regular',
-        fontSize: 13,
-        letterSpacing: 0,
-    },
-    planNote: {
-        fontFamily: 'Matter-Regular',
-        fontSize: 11,
-        color: 'rgba(17,17,19,0.42)',
-        marginTop: 3,
     },
 
     /* CTA — dark ink pill pops on the light cream canvas */
