@@ -402,7 +402,9 @@ async def provision_creator_from_application(
         user.is_creator = True
         user.updated_at = datetime.utcnow()
 
-    await db.flush()  # assign creator.id
+    await db.flush()
+    if application.course_docs:
+        creator.knowledge_docs = list(application.course_docs)
     register_creator_doc(creator)
     logger.info("provisioned creator user=%s maxx=%s", str(application.user_id)[:8], maxx_id)
     return creator
@@ -812,5 +814,7 @@ def creator_private_dict(creator: Creator) -> dict[str, Any]:
     d.update({
         "apple_review_status": creator.apple_review_status,
         "strikes": int(creator.strikes or 0),
+        "onboarding_step": int(creator.onboarding_step or 0),
+        "onboarding_complete": bool(creator.onboarding_completed_at),
     })
     return d

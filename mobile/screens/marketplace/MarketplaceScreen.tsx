@@ -142,7 +142,7 @@ function CreatorAppStatus({ myApp }: { myApp: { status: string; max_name: string
                 </View>
                 <TouchableOpacity
                     style={styles.applyBtnWrap}
-                    onPress={() => navigation.navigate('CreatorStudio')}
+                    onPress={() => navigation.navigate('CreatorOnboarding')}
                     activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel="Set up your creator studio"

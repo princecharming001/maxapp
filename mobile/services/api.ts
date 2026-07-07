@@ -220,6 +220,48 @@ export interface InboxMessage {
     created_at: string | null;
 }
 
+export interface CreatorHabitTemplate {
+    id: string;
+    title: string;
+    description?: string;
+    duration_minutes?: number;
+    frequency_type?: string;
+    frequency_n?: number;
+    window?: string;
+    tags?: string[];
+    conditions?: string[];
+    sample_questions?: string[];
+    shown_to_count?: number;
+    enabled?: boolean;
+}
+
+export interface CreatorOnboardingState {
+    step: number;
+    complete: boolean;
+    max_name: string;
+    display_name: string;
+    knowledge_docs: { filename: string; url: string; source?: string }[];
+    protocols_pct: number;
+    voice_pct: number;
+    voice_phase: number;
+    voice_samples_total: number;
+    voice_samples_answered: number;
+    current_voice_sample: {
+        id: string;
+        question: string;
+        draft_answer: string | null;
+        status: string;
+    } | null;
+    habit_library: CreatorHabitTemplate[];
+    price_tier: string;
+    price_cents: number;
+    price_tiers: Record<string, number>;
+    intro_video_url: string | null;
+    welcome_message: string;
+    test_chat: { role: string; text: string }[];
+    status: string;
+}
+
 export interface ReferralValidateResult {
     valid: boolean;
     kind?: 'free_comp' | 'discount' | 'referral';
@@ -1536,6 +1578,100 @@ class ApiService {
 
     async markAllInboxRead(): Promise<{ read: boolean }> {
         const response = await this.client.post('user-inbox/read-all');
+        return response.data;
+    }
+
+    // ── Creator studio onboarding ───────────────────────────────────────────
+    async getCreatorOnboarding(): Promise<CreatorOnboardingState> {
+        const response = await this.client.get('creators/me/onboarding');
+        return response.data;
+    }
+
+    async setCreatorOnboardingStep(step: number): Promise<CreatorOnboardingState> {
+        const response = await this.client.patch('creators/me/onboarding/step', { step });
+        return response.data;
+    }
+
+    async analyzeCreatorKnowledge(): Promise<CreatorOnboardingState> {
+        const response = await this.client.post('creators/me/onboarding/analyze');
+        return response.data;
+    }
+
+    async uploadCreatorOnboardingDoc(
+        file: File | Blob | { uri: string; name: string; type?: string },
+    ): Promise<{ filename: string; url: string; source: string }> {
+        const fd = new FormData();
+        if (Platform.OS === 'web' && (file instanceof Blob || (typeof File !== 'undefined' && file instanceof File))) {
+            fd.append('file', file as Blob, (file as File).name || 'document');
+        } else if (typeof file === 'object' && file != null && 'uri' in file) {
+            // @ts-ignore
+            fd.append('file', file);
+        } else {
+            fd.append('file', file as any);
+        }
+        const response = await this.client.post('creators/me/onboarding/upload-doc', fd, {
+            transformRequest: [(data: unknown, headers?: Record<string, string>) => {
+                if (headers) delete headers['Content-Type'];
+                return data;
+            }],
+        });
+        return response.data;
+    }
+
+    async linkCreatorOnboardingDoc(url: string, filename?: string) {
+        const response = await this.client.post('creators/me/onboarding/link-doc', { url, filename });
+        return response.data;
+    }
+
+    async submitCreatorVoiceAnswer(sampleId: string, answer: string): Promise<CreatorOnboardingState> {
+        const response = await this.client.post('creators/me/onboarding/voice/answer', {
+            sample_id: sampleId, answer,
+        });
+        return response.data;
+    }
+
+    async submitCreatorVoiceFeedback(sampleId: string, approved: boolean, correction?: string): Promise<CreatorOnboardingState> {
+        const response = await this.client.post('creators/me/onboarding/voice/feedback', {
+            sample_id: sampleId, approved, correction,
+        });
+        return response.data;
+    }
+
+    async updateCreatorHabitLibrary(habits: CreatorHabitTemplate[]): Promise<CreatorOnboardingState> {
+        const response = await this.client.put('creators/me/onboarding/habits', { habits });
+        return response.data;
+    }
+
+    async setCreatorOnboardingPricing(tier: string): Promise<CreatorOnboardingState> {
+        const response = await this.client.patch('creators/me/onboarding/pricing', { tier });
+        return response.data;
+    }
+
+    async setCreatorOnboardingMedia(introVideoUrl?: string, welcomeMessage?: string): Promise<CreatorOnboardingState> {
+        const response = await this.client.patch('creators/me/onboarding/media', {
+            intro_video_url: introVideoUrl,
+            welcome_message: welcomeMessage,
+        });
+        return response.data;
+    }
+
+    async creatorOnboardingTestChat(message: string): Promise<CreatorOnboardingState & { reply: string }> {
+        const response = await this.client.post('creators/me/onboarding/test-chat', { message });
+        return response.data;
+    }
+
+    async resetCreatorOnboardingTest(): Promise<CreatorOnboardingState> {
+        const response = await this.client.post('creators/me/onboarding/test-reset');
+        return response.data;
+    }
+
+    async syncCreatorOnboardingHabits(): Promise<{ synced: number }> {
+        const response = await this.client.post('creators/me/onboarding/sync-habits');
+        return response.data;
+    }
+
+    async launchCreatorMax(): Promise<CreatorOnboardingState> {
+        const response = await this.client.post('creators/me/onboarding/launch');
         return response.data;
     }
 

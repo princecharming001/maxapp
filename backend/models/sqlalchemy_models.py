@@ -1167,6 +1167,14 @@ class Creator(Base):
     # clients/schedules detect a stale program.
     habits_version = Column(Integer, default=1)
 
+    # Post-approval studio onboarding wizard (0..8; 9 = complete).
+    onboarding_step = Column(Integer, default=0)
+    onboarding_completed_at = Column(DateTime(timezone=True), nullable=True)
+    knowledge_docs = Column(JSON, default=list)          # guides, scripts, protocols
+    intro_video_url = Column(String, nullable=True)
+    welcome_message = Column(Text, default="")
+    onboarding_meta = Column(JSON, default=dict)         # meter %, habit_library, test chat, etc.
+
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -1367,6 +1375,8 @@ class CreatorHabit(Base):
     window = Column(String, default="any")              # morning | evening | any
     icon = Column(String, nullable=True)                # Ionicons name (UI only)
     sort = Column(Integer, default=0)
+    targeting_conditions = Column(JSON, default=list)   # ["goal includes jaw", ...]
+    sample_questions = Column(JSON, default=list)       # subscriber questions this habit relates to
     status = Column(String, default="active", nullable=False)  # active | archived
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
@@ -1375,4 +1385,23 @@ class CreatorHabit(Base):
     __table_args__ = (
         UniqueConstraint("creator_id", "slug", name="uq_creator_habit_slug"),
         Index("idx_creator_habits_maxx", maxx_id, status, sort),
+    )
+
+
+class CreatorVoiceSample(Base):
+    """Creator voice-teaching samples during onboarding (write → correct → approve)."""
+    __tablename__ = "creator_voice_samples"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    creator_id = Column(UUID(as_uuid=True), ForeignKey("creators.id", ondelete="CASCADE"), nullable=False, index=True)
+    question = Column(Text, nullable=False)
+    creator_answer = Column(Text, nullable=True)
+    draft_answer = Column(Text, nullable=True)
+    approved = Column(Boolean, nullable=True)
+    status = Column(String, default="pending", nullable=False)  # pending|answered|draft|approved|rejected
+    sort = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_creator_voice_creator", creator_id, sort),
     )

@@ -495,6 +495,28 @@ async def _run_column_migrations():
         """,
         "CREATE INDEX IF NOT EXISTS idx_user_inbox_user_created ON user_inbox_messages (user_id, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_user_inbox_unread ON user_inbox_messages (user_id, read_at)",
+        "ALTER TABLE creators ADD COLUMN IF NOT EXISTS onboarding_step INTEGER DEFAULT 0",
+        "ALTER TABLE creators ADD COLUMN IF NOT EXISTS onboarding_completed_at TIMESTAMPTZ",
+        "ALTER TABLE creators ADD COLUMN IF NOT EXISTS knowledge_docs JSONB DEFAULT '[]'",
+        "ALTER TABLE creators ADD COLUMN IF NOT EXISTS intro_video_url VARCHAR",
+        "ALTER TABLE creators ADD COLUMN IF NOT EXISTS welcome_message TEXT DEFAULT ''",
+        "ALTER TABLE creators ADD COLUMN IF NOT EXISTS onboarding_meta JSONB DEFAULT '{}'",
+        "ALTER TABLE creator_habits ADD COLUMN IF NOT EXISTS targeting_conditions JSONB DEFAULT '[]'",
+        "ALTER TABLE creator_habits ADD COLUMN IF NOT EXISTS sample_questions JSONB DEFAULT '[]'",
+        """
+        CREATE TABLE IF NOT EXISTS creator_voice_samples (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            creator_id uuid NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
+            question text NOT NULL,
+            creator_answer text,
+            draft_answer text,
+            approved boolean,
+            status varchar(24) NOT NULL DEFAULT 'pending',
+            sort integer DEFAULT 0,
+            created_at timestamptz NOT NULL DEFAULT now()
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_creator_voice_creator ON creator_voice_samples (creator_id, sort)",
         # Creator maxxes as first-class maxxes: lesson paywall fields, module
         # titles, marketplace art, habit versioning, price snapshot, and push
         # deep-link params. (creator_habits is a NEW table — create_all makes it.)

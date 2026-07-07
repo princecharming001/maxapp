@@ -82,6 +82,12 @@ export default function StudioHomeScreen() {
 
     useFocusEffect(useCallback(() => { void load(); }, [load]));
 
+    useFocusEffect(useCallback(() => {
+        if (creator && creator.status === 'onboarding' && !creator.onboarding_complete) {
+            nav.replace('CreatorOnboarding');
+        }
+    }, [creator, nav]));
+
     const accent = creator?.accent_color || GOLD;
 
     if (loading) {
