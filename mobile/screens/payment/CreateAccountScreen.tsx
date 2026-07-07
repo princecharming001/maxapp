@@ -4,12 +4,20 @@
  * anonymous account minted at "Get started" — sets a real email + password + name —
  * then routes to ReferralCode. A returning user who lands here gets a clear "email
  * already registered" error (they sign in from Landing instead).
+ *
+ * Visual: mirrors the paywall (Unlock your potential) — a dark, full-bleed canvas
+ * with the SAME landing-hero avatar drifting behind a near-black gradient, a small
+ * "ALMOST THERE" pill under a serif headline, glass input fields, and a white pill
+ * CTA. The background image itself is unchanged; only the treatment went dark.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-    KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image,
+    KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
+import Animated, {
+    Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,15 +26,20 @@ import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import { useAuth } from '../../context/AuthContext';
 import { track } from '../../lib/analytics';
 import { navigationRef } from '../../lib/navigationRef';
-import { fonts } from '../../theme/dark';
 
-const INK = '#15130F';
-const SUB = '#6B6B6B';
-const BG = '#F4F2ED';
-const ERR = '#B23A2E';
+/* ── Dark cinematic palette — mirrors the paywall ─────────────────────────── */
+const WHITE = '#FFFFFF';
+const INK = '#0B0B0D';                       // near-black canvas
+const HAIR = 'rgba(255,255,255,0.14)';
+const HAIR_SOFT = 'rgba(255,255,255,0.08)';
+const MUTED = 'rgba(255,255,255,0.58)';
+const MUTED_SOFT = 'rgba(255,255,255,0.42)';
+const FIELD = 'rgba(255,255,255,0.06)';
+const ERR = '#FF6B5E';                        // legible red on dark
+const IS_IOS = Platform.OS === 'ios';
 
-// Same hero backdrop as the Landing screen, so the claim step reads as part of
-// the same funnel instead of a bare cream form.
+// Same hero backdrop as the Landing screen (UNCHANGED) — now sitting behind a
+// dark gradient so the claim step reads as part of the same cinematic funnel.
 const HERO = require('../../assets/landing-hero.webp');
 
 // The claim endpoint needs a unique username; the user doesn't pick one here, so
@@ -69,17 +82,34 @@ export default function CreateAccountScreen() {
 
     const canSubmit = name.trim().length > 0 && /\S+@\S+\.\S+/.test(email.trim()) && password.length >= 8 && !busy;
 
+    // Slow Ken-Burns drift on the hero (scale + a touch of pan), matching the
+    // paywall so the screen reads as alive the instant it opens.
+    const bgScale = useSharedValue(1);
+    const bgX = useSharedValue(0);
+    useEffect(() => {
+        bgScale.value = withRepeat(withTiming(1.07, { duration: 9000, easing: Easing.inOut(Easing.sin) }), -1, true);
+        bgX.value = withRepeat(withTiming(9, { duration: 12000, easing: Easing.inOut(Easing.sin) }), -1, true);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const bgAnimatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: bgScale.value }, { translateX: bgX.value }],
+    }));
+
     // Continue to the schedule questions. This screen lives in TWO stacks: the
     // funnel stack (which has 'Onboarding') and the main-app stack (reached when
     // an already-full user opens it from "unlock scan results" — that stack has
     // NO 'Onboarding' route). Navigating to a route the current navigator doesn't
     // know throws the "action REPLACE/NAVIGATE was not handled" error, so guard on
     // the registered route names and fall back to Main outside the funnel.
-    const continueToSchedule = (mode: 'navigate' | 'replace' = 'navigate') => {
+    //
+    // RESET (not navigate/push) into the schedule phase: a plain navigate LEAVES
+    // the pre-schedule funnel (Payment, CreateAccount) sitting in the back-stack,
+    // so when the schedule phase finishes ("Build my day") and the navigator
+    // remounts, that stale CreateAccount is what shows instead of Home. Resetting
+    // to a single Onboarding(schedule) route clears the funnel history entirely.
+    const continueToSchedule = (_mode: 'navigate' | 'replace' = 'navigate') => {
         const routeNames: string[] = ((nav.getState?.() as any)?.routeNames) ?? [];
         if (routeNames.includes('Onboarding')) {
-            if (mode === 'replace') nav.replace('Onboarding', { phase: 'schedule' });
-            else nav.navigate('Onboarding', { phase: 'schedule' });
+            nav.reset({ index: 0, routes: [{ name: 'Onboarding', params: { phase: 'schedule' } }] });
         } else {
             nav.navigate('Main');
         }
@@ -182,57 +212,75 @@ export default function CreateAccountScreen() {
     if (initialClaimed.current) return null;
 
     return (
-        <View style={[styles.root, { paddingTop: insets.top + 6 }]}>
-            {/* Landing hero backdrop + soft cream scrim so the form stays legible. */}
-            <Image source={HERO} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        <View style={styles.root}>
+            {/* Landing-hero avatar (UNCHANGED), now Ken-Burns drifting behind a
+                dark gradient — the same living-background treatment as the paywall. */}
+            <Animated.Image source={HERO} style={[StyleSheet.absoluteFill, bgAnimatedStyle]} resizeMode="cover" />
             <LinearGradient
                 pointerEvents="none"
-                colors={['rgba(244,242,237,0.86)', 'rgba(244,242,237,0.74)', 'rgba(244,242,237,0.93)']}
-                locations={[0, 0.5, 1]}
+                colors={['rgba(11,11,13,0.90)', 'rgba(11,11,13,0.42)', 'rgba(11,11,13,0.52)', 'rgba(11,11,13,0.96)']}
+                locations={[0, 0.34, 0.62, 1]}
                 style={StyleSheet.absoluteFill}
             />
-            <TouchableOpacity style={styles.back} onPress={() => nav.goBack()} hitSlop={12} accessibilityLabel="Back">
-                <Ionicons name="chevron-back" size={26} color={INK} />
-            </TouchableOpacity>
 
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-                <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                    <Text style={styles.title}>Save your{'\n'}<Text style={styles.titleItalic}>results</Text></Text>
+            {/* Top bar — back chevron in a translucent chip (paywall style). */}
+            <View style={[styles.topBar, { top: Math.max(insets.top + 8, 52) }]}>
+                <TouchableOpacity style={styles.backChip} onPress={() => nav.goBack()} hitSlop={12} accessibilityLabel="Back" accessibilityRole="button">
+                    <Ionicons name="chevron-back" size={20} color={WHITE} />
+                </TouchableOpacity>
+            </View>
+
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={IS_IOS ? 'padding' : undefined}>
+                <ScrollView
+                    contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top + 76, 118), paddingBottom: Math.max(insets.bottom + 28, 44) }]}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Headline + pill + sub — centered, mirroring the paywall. */}
+                    <Text style={styles.title}>Save your <Text style={styles.titleItalic}>results</Text></Text>
+                    <View style={styles.pill}>
+                        <Text style={styles.pillText}>ALMOST THERE</Text>
+                    </View>
                     <Text style={styles.sub}>Create your account to keep your scan and your plan.</Text>
 
-                    <TextInput
-                        style={styles.input} value={name} onChangeText={setName}
-                        placeholder="Your name" placeholderTextColor={SUB}
-                        autoCapitalize="words" accessibilityLabel="Name"
-                        textContentType="name" autoComplete="name"
-                        returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} blurOnSubmit={false}
-                    />
-                    <TextInput
-                        ref={emailRef}
-                        style={styles.input} value={email} onChangeText={setEmail}
-                        placeholder="Email" placeholderTextColor={SUB}
-                        autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
-                        accessibilityLabel="Email"
-                        textContentType="emailAddress" autoComplete="email"
-                        returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} blurOnSubmit={false}
-                    />
-                    <TextInput
-                        ref={passwordRef}
-                        style={styles.input} value={password} onChangeText={setPassword}
-                        placeholder="Password (8+ characters)" placeholderTextColor={SUB}
-                        secureTextEntry accessibilityLabel="Password"
-                        textContentType="newPassword" autoComplete="new-password"
-                        returnKeyType="go" onSubmitEditing={onSubmit}
-                    />
+                    <View style={styles.form}>
+                        <TextInput
+                            style={styles.input} value={name} onChangeText={setName}
+                            placeholder="Your name" placeholderTextColor={MUTED_SOFT}
+                            autoCapitalize="words" accessibilityLabel="Name"
+                            textContentType="name" autoComplete="name"
+                            returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} blurOnSubmit={false}
+                        />
+                        <TextInput
+                            ref={emailRef}
+                            style={styles.input} value={email} onChangeText={setEmail}
+                            placeholder="Email" placeholderTextColor={MUTED_SOFT}
+                            autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
+                            accessibilityLabel="Email"
+                            textContentType="emailAddress" autoComplete="email"
+                            returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} blurOnSubmit={false}
+                        />
+                        <TextInput
+                            ref={passwordRef}
+                            style={styles.input} value={password} onChangeText={setPassword}
+                            placeholder="Password (8+ characters)" placeholderTextColor={MUTED_SOFT}
+                            secureTextEntry accessibilityLabel="Password"
+                            textContentType="newPassword" autoComplete="new-password"
+                            returnKeyType="go" onSubmitEditing={onSubmit}
+                        />
+                    </View>
 
                     {error ? <Text style={styles.err}>{error}</Text> : null}
 
-                    <TouchableOpacity
-                        style={[styles.cta, !canSubmit && styles.ctaDisabled]}
-                        onPress={onSubmit} disabled={!canSubmit} activeOpacity={0.85} accessibilityRole="button"
-                    >
-                        {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.ctaText}>Save & continue</Text>}
-                    </TouchableOpacity>
+                    {/* CTA — solid white pill (paywall's inverted-on-dark button). */}
+                    <View style={[styles.ctaWrap, !canSubmit && styles.ctaDisabled]}>
+                        <TouchableOpacity
+                            style={styles.cta}
+                            onPress={onSubmit} disabled={!canSubmit} activeOpacity={0.85} accessibilityRole="button"
+                        >
+                            {busy ? <ActivityIndicator color={INK} /> : <Text style={styles.ctaText}>Save & continue</Text>}
+                        </TouchableOpacity>
+                    </View>
 
                     <View style={styles.orRow}>
                         <View style={styles.orLine} />
@@ -240,7 +288,7 @@ export default function CreateAccountScreen() {
                         <View style={styles.orLine} />
                     </View>
 
-                    <GoogleSignInButton label="Continue with Google" onAuthSuccess={onGoogleSuccess} />
+                    <GoogleSignInButton label="Continue with Google" variant="glass" onAuthSuccess={onGoogleSuccess} />
                     {/* Apple Sign In needs a native build (P0.3) — until it ships, a
                         dead "Coming soon" button on a conversion step only loses users,
                         so it's dev-only. */}
@@ -252,7 +300,7 @@ export default function CreateAccountScreen() {
                             accessibilityRole="button"
                             accessibilityLabel="Continue with Apple"
                         >
-                            <Ionicons name="logo-apple" size={18} color={INK} />
+                            <Ionicons name="logo-apple" size={18} color={WHITE} />
                             <Text style={styles.appleText}>Continue with Apple</Text>
                         </TouchableOpacity>
                     ) : null}
@@ -281,46 +329,133 @@ export default function CreateAccountScreen() {
 }
 
 const styles = StyleSheet.create({
-    root: { flex: 1, backgroundColor: BG, paddingHorizontal: 24 },
-    back: { width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' },
-    content: { flexGrow: 1, justifyContent: 'center', paddingBottom: 40 },
-    title: { fontFamily: fonts.serif, fontSize: 33, color: INK, letterSpacing: -0.6, lineHeight: 37 },
-    titleItalic: { fontFamily: fonts.serifItalic, fontStyle: 'italic' },
-    sub: { fontFamily: fonts.sans, fontSize: 15.5, color: SUB, marginTop: 12, lineHeight: 22, marginBottom: 22 },
+    root: { flex: 1, backgroundColor: INK },
+
+    topBar: {
+        position: 'absolute',
+        left: 20,
+        right: 20,
+        zIndex: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    backChip: {
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        borderRadius: 999,
+        width: 34,
+        height: 34,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 },
+
+    title: {
+        fontFamily: 'Fraunces',
+        fontSize: 34,
+        color: WHITE,
+        letterSpacing: -0.8,
+        lineHeight: 38,
+        textAlign: 'center',
+    },
+    titleItalic: { fontFamily: 'Fraunces-Italic', fontStyle: 'italic' },
+    pill: {
+        alignSelf: 'center',
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: HAIR,
+        borderRadius: 999,
+        paddingHorizontal: 14,
+        paddingVertical: 5,
+    },
+    pillText: {
+        fontFamily: 'Matter-SemiBold',
+        fontSize: 11,
+        color: WHITE,
+        letterSpacing: 1.4,
+    },
+    sub: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 15,
+        color: MUTED,
+        marginTop: 16,
+        marginBottom: 26,
+        lineHeight: 21,
+        textAlign: 'center',
+        paddingHorizontal: 8,
+    },
+
+    form: { gap: 10 },
     input: {
-        height: 54, borderRadius: 14, paddingHorizontal: 16, marginTop: 10,
-        backgroundColor: '#FFFFFF', color: INK, fontFamily: fonts.sans, fontSize: 16,
-        ...(Platform.OS === 'ios'
-            ? { shadowColor: '#1A1714', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }
-            : { elevation: 1 }),
+        height: 54,
+        borderRadius: 14,
+        borderCurve: 'continuous',
+        paddingHorizontal: 16,
+        backgroundColor: FIELD,
+        borderWidth: 1,
+        borderColor: HAIR_SOFT,
+        color: WHITE,
+        fontFamily: 'Matter-Regular',
+        fontSize: 16,
     },
-    err: { fontFamily: fonts.sans, fontSize: 13.5, color: ERR, marginTop: 12, paddingHorizontal: 2 },
+    err: {
+        fontFamily: 'Matter-Regular',
+        fontSize: 13.5,
+        color: ERR,
+        marginTop: 12,
+        paddingHorizontal: 2,
+        textAlign: 'center',
+    },
+
+    ctaWrap: {
+        borderRadius: 999,
+        borderCurve: 'continuous',
+        marginTop: 22,
+        ...(IS_IOS
+            ? { shadowColor: '#000', shadowOpacity: 0.30, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } }
+            : { elevation: 6 }),
+    },
     cta: {
-        marginTop: 24, height: 56, borderRadius: 28, backgroundColor: INK, borderCurve: 'continuous',
-        alignItems: 'center', justifyContent: 'center',
-        ...(Platform.OS === 'ios'
-            ? { shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } }
-            : { elevation: 5 }),
+        height: 56,
+        borderRadius: 999,
+        borderCurve: 'continuous',
+        backgroundColor: WHITE,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    ctaDisabled: { opacity: 0.4 },
-    ctaText: { fontFamily: fonts.sansSemiBold, fontSize: 16.5, color: '#FFFFFF', letterSpacing: 0.2 },
+    ctaDisabled: { opacity: 0.45 },
+    ctaText: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: INK, letterSpacing: 0.1 },
+
     orRow: { flexDirection: 'row', alignItems: 'center', marginTop: 22, marginBottom: 14, gap: 12 },
-    orLine: { flex: 1, height: 1, backgroundColor: '#E6E2D8' },
-    orText: { fontFamily: fonts.sans, fontSize: 11, color: '#A8A29A', letterSpacing: 1.2 },
+    orLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: HAIR },
+    orText: { fontFamily: 'Matter-Regular', fontSize: 11, color: MUTED_SOFT, letterSpacing: 1.2 },
+
     apple: {
-        marginTop: 10, height: 54, borderRadius: 27, borderCurve: 'continuous',
-        backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-        ...(Platform.OS === 'ios'
-            ? { shadowColor: '#1A1714', shadowOpacity: 0.06, shadowRadius: 9, shadowOffset: { width: 0, height: 4 } }
-            : { elevation: 2 }),
+        marginTop: 10,
+        height: 54,
+        borderRadius: 14,
+        borderCurve: 'continuous',
+        backgroundColor: FIELD,
+        borderWidth: 1,
+        borderColor: HAIR_SOFT,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
     },
-    appleText: { fontFamily: fonts.sansSemiBold, fontSize: 15.5, color: INK },
-    signin: { marginTop: 18, alignItems: 'center' },
-    signinText: { fontFamily: fonts.sans, fontSize: 14, color: SUB },
-    signinStrong: { fontFamily: fonts.sansSemiBold, color: INK, textDecorationLine: 'underline' },
+    appleText: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: WHITE },
+
+    signin: { marginTop: 20, alignItems: 'center' },
+    signinText: { fontFamily: 'Matter-Regular', fontSize: 14, color: MUTED },
+    signinStrong: { fontFamily: 'Matter-SemiBold', color: WHITE, textDecorationLine: 'underline' },
+
     devSkip: {
-        marginTop: 14, alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 7,
-        borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.05)',
+        marginTop: 14,
+        alignSelf: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 7,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.10)',
     },
-    devSkipText: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: SUB, letterSpacing: 0.4 },
+    devSkipText: { fontFamily: 'Matter-SemiBold', fontSize: 12, color: MUTED, letterSpacing: 0.4 },
 });

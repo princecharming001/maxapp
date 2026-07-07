@@ -176,9 +176,9 @@ const GENDERS = [
 // How hard they want to go — sets expectations before the paywall and feeds
 // the scheduler's daily load.
 const EFFORTS = [
-    { id: 'light', label: 'Light touch', sub: 'about 10 minutes a day' },
-    { id: 'steady', label: 'Steady', sub: '20–30 minutes a day' },
-    { id: 'all_in', label: 'All in', sub: 'whatever it takes' },
+    { id: 'light', label: 'Light touch', sub: 'some tips and tricks' },
+    { id: 'steady', label: 'Steady', sub: 'tweaking my daily routine' },
+    { id: 'all_in', label: 'All in', sub: 'becoming a new person' },
 ] as const;
 
 const MOTIVATIONS = [
