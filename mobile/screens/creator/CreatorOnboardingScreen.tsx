@@ -51,8 +51,16 @@ function normalizeDocUrl(raw: string): string {
 }
 
 function apiDetail(err: unknown): string {
+    if (err instanceof Error && err.message && err.message !== 'Request failed') {
+        return err.message;
+    }
     const d = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
     return typeof d === 'string' ? d : 'Request failed';
+}
+
+function driveLinkDoc(url: string) {
+    const source = /drive\.google|docs\.google/i.test(url) ? 'gdrive' : 'link';
+    return { filename: 'Google Drive link', url, source };
 }
 
 function ProgressBar({ index, total }: { index: number; total: number }) {
@@ -247,6 +255,12 @@ export default function CreatorOnboardingScreen() {
                     const input = document.createElement('input');
                     input.type = 'file';
                     input.accept = '.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,image/*';
+                    let settled = false;
+                    const done = () => {
+                        if (settled) return;
+                        settled = true;
+                        resolve();
+                    };
                     input.onchange = async () => {
                         try {
                             const file = input.files?.[0];
@@ -256,10 +270,15 @@ export default function CreatorOnboardingScreen() {
                         } catch (e) {
                             setDocErr(apiDetail(e) || 'Upload failed.');
                         } finally {
-                            resolve();
+                            done();
                         }
                     };
-                    input.addEventListener('cancel', () => resolve(), { once: true });
+                    input.addEventListener('cancel', done, { once: true });
+                    window.addEventListener('focus', () => {
+                        setTimeout(() => {
+                            if (!input.files?.length) done();
+                        }, 400);
+                    }, { once: true });
                     input.click();
                 });
                 return;
@@ -284,8 +303,13 @@ export default function CreatorOnboardingScreen() {
         if (!url) return;
         setBusy(true); setDocErr(null);
         try {
-            const data = await api.linkCreatorOnboardingDoc(url);
-            appendKnowledgeDoc(data);
+            try {
+                const data = await api.linkCreatorOnboardingDoc(url);
+                appendKnowledgeDoc(data);
+            } catch {
+                // Show link immediately even if the server is unreachable; analyze will retry.
+                appendKnowledgeDoc(driveLinkDoc(url));
+            }
             setDriveUrl('');
         } catch (e) {
             setDocErr(apiDetail(e) || 'Could not add that link.');

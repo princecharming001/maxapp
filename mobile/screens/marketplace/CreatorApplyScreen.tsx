@@ -229,8 +229,16 @@ function normalizeDocUrl(raw: string): string {
 }
 
 function apiDetail(err: unknown): string {
+    if (err instanceof Error && err.message && err.message !== 'Request failed') {
+        return err.message;
+    }
     const d = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
     return typeof d === 'string' ? d : 'Request failed';
+}
+
+function driveLinkDoc(url: string): CourseDoc {
+    const source = /drive\.google|docs\.google/i.test(url) ? 'gdrive' : 'link';
+    return { filename: 'Google Drive link', url, source };
 }
 
 function DocUploader({ docs, onChange }: {
@@ -249,6 +257,12 @@ function DocUploader({ docs, onChange }: {
                     const input = document.createElement('input');
                     input.type = 'file';
                     input.accept = '.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,image/*';
+                    let settled = false;
+                    const done = () => {
+                        if (settled) return;
+                        settled = true;
+                        resolve();
+                    };
                     input.onchange = async () => {
                         try {
                             const file = input.files?.[0];
@@ -258,11 +272,15 @@ function DocUploader({ docs, onChange }: {
                         } catch (e) {
                             setErr(apiDetail(e) || 'Could not upload that file.');
                         } finally {
-                            resolve();
+                            done();
                         }
                     };
-                    // If the dialog closes without a selection, still unblock the UI.
-                    input.addEventListener('cancel', () => resolve(), { once: true });
+                    input.addEventListener('cancel', done, { once: true });
+                    window.addEventListener('focus', () => {
+                        setTimeout(() => {
+                            if (!input.files?.length) done();
+                        }, 400);
+                    }, { once: true });
                     input.click();
                 });
                 return;
@@ -286,19 +304,12 @@ function DocUploader({ docs, onChange }: {
         }
     };
 
-    const addDrive = async () => {
+    const addDrive = () => {
         const url = normalizeDocUrl(driveUrl);
         if (!url) return;
-        setBusy(true); setErr(null);
-        try {
-            const data = await api.linkCreatorDoc(url);
-            onChange((prev) => [...prev, data]);
-            setDriveUrl('');
-        } catch (e) {
-            setErr(apiDetail(e) || 'Could not add that link.');
-        } finally {
-            setBusy(false);
-        }
+        setErr(null);
+        onChange((prev) => [...prev, driveLinkDoc(url)]);
+        setDriveUrl('');
     };
 
     return (

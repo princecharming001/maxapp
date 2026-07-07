@@ -1535,25 +1535,60 @@ class ApiService {
         return response.data;
     }
 
+    /** Multipart POST via fetch — axios breaks file uploads on web (422). */
+    private async postMultipartJson<T>(
+        path: string,
+        buildForm: () => FormData | Promise<FormData>,
+    ): Promise<T> {
+        const url = `${API_BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+        const doFetch = async (formData: FormData) => {
+            const token = await this.getToken();
+            const headers: Record<string, string> = {};
+            if (token) headers.Authorization = `Bearer ${token}`;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 60_000);
+            try {
+                return await fetch(url, { method: 'POST', headers, body: formData, signal: controller.signal });
+            } finally {
+                clearTimeout(timer);
+            }
+        };
+        let form = await buildForm();
+        let res = await doFetch(form);
+        if (res.status === 401) {
+            await this.refreshToken();
+            form = await buildForm();
+            res = await doFetch(form);
+        }
+        if (!res.ok) {
+            const text = await res.text();
+            let msg = text;
+            try {
+                const j = JSON.parse(text);
+                msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail ?? j);
+            } catch { /* keep text */ }
+            const err = new Error(msg);
+            (err as any).statusCode = res.status;
+            throw err;
+        }
+        return res.json() as Promise<T>;
+    }
+
     async uploadCreatorDoc(
         file: File | Blob | { uri: string; name: string; type?: string },
     ): Promise<{ filename: string; url: string; source: string }> {
-        const fd = new FormData();
-        if (Platform.OS === 'web' && (file instanceof Blob || (typeof File !== 'undefined' && file instanceof File))) {
-            fd.append('file', file as Blob, (file as File).name || 'document');
-        } else if (typeof file === 'object' && file != null && 'uri' in file) {
-            // @ts-ignore - React Native FormData accepts { uri, name, type }
-            fd.append('file', file);
-        } else {
-            fd.append('file', file as any);
-        }
-        const response = await this.client.post('creator-applications/upload-doc', fd, {
-            transformRequest: [(data: unknown, headers?: Record<string, string>) => {
-                if (headers) delete headers['Content-Type'];
-                return data;
-            }],
+        return this.postMultipartJson('creator-applications/upload-doc', () => {
+            const fd = new FormData();
+            if (Platform.OS === 'web' && (file instanceof Blob || (typeof File !== 'undefined' && file instanceof File))) {
+                fd.append('file', file as Blob, (file as File).name || 'document');
+            } else if (typeof file === 'object' && file != null && 'uri' in file) {
+                // @ts-ignore - React Native FormData accepts { uri, name, type }
+                fd.append('file', file);
+            } else {
+                fd.append('file', file as any);
+            }
+            return fd;
         });
-        return response.data;
     }
 
     async linkCreatorDoc(url: string, filename?: string): Promise<{ filename: string; url: string; source: string }> {
@@ -1600,22 +1635,18 @@ class ApiService {
     async uploadCreatorOnboardingDoc(
         file: File | Blob | { uri: string; name: string; type?: string },
     ): Promise<{ filename: string; url: string; source: string }> {
-        const fd = new FormData();
-        if (Platform.OS === 'web' && (file instanceof Blob || (typeof File !== 'undefined' && file instanceof File))) {
-            fd.append('file', file as Blob, (file as File).name || 'document');
-        } else if (typeof file === 'object' && file != null && 'uri' in file) {
-            // @ts-ignore
-            fd.append('file', file);
-        } else {
-            fd.append('file', file as any);
-        }
-        const response = await this.client.post('creators/me/onboarding/upload-doc', fd, {
-            transformRequest: [(data: unknown, headers?: Record<string, string>) => {
-                if (headers) delete headers['Content-Type'];
-                return data;
-            }],
+        return this.postMultipartJson('creators/me/onboarding/upload-doc', () => {
+            const fd = new FormData();
+            if (Platform.OS === 'web' && (file instanceof Blob || (typeof File !== 'undefined' && file instanceof File))) {
+                fd.append('file', file as Blob, (file as File).name || 'document');
+            } else if (typeof file === 'object' && file != null && 'uri' in file) {
+                // @ts-ignore
+                fd.append('file', file);
+            } else {
+                fd.append('file', file as any);
+            }
+            return fd;
         });
-        return response.data;
     }
 
     async linkCreatorOnboardingDoc(url: string, filename?: string) {
