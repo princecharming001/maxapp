@@ -23,6 +23,8 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import settings
+
 from db.sqlalchemy import get_db
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import rate_limit
@@ -139,16 +141,17 @@ async def submit_application(
     if tt_oauth and tt_oauth.handle:
         tt_handle, tt_url = tt_oauth.handle, f"https://www.tiktok.com/@{tt_oauth.handle}"
 
-    if not ig_oauth and not tt_oauth:
-        raise HTTPException(
-            status_code=422,
-            detail="Link at least one Instagram or TikTok account via sign-in.",
-        )
-    if not ig_handle and not tt_handle:
-        raise HTTPException(
-            status_code=422,
-            detail="Link at least one Instagram or TikTok account so we can verify you.",
-        )
+    if settings.creator_social_oauth_required:
+        if not ig_oauth and not tt_oauth:
+            raise HTTPException(
+                status_code=422,
+                detail="Link at least one Instagram or TikTok account via sign-in.",
+            )
+        if not ig_handle and not tt_handle:
+            raise HTTPException(
+                status_code=422,
+                detail="Link at least one Instagram or TikTok account so we can verify you.",
+            )
 
     normalized = _normalize_max_name(body.max_name)
     if not normalized:

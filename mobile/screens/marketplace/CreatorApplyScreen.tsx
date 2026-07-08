@@ -52,6 +52,9 @@ const HAIR = 'rgba(0,0,0,0.08)';
 const DANGER = '#B23A3A';
 const VERIFIED = '#3B82F6';
 
+/** Flip to true when Instagram/TikTok OAuth is configured — restores mandatory social step. */
+const CREATOR_SOCIAL_REQUIRED = true;
+
 const SOFT = {
     shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 }, elevation: 2,
@@ -314,12 +317,24 @@ function DocUploader({ docs, onChange }: {
 
     return (
         <View style={{ gap: 12 }}>
+            <Text style={styles.docHint}>
+                Upload PDFs, docs, or paste Google Drive links. Set sharing to "Anyone with the link can view".
+            </Text>
             {docs.map((d, i) => (
                 <View key={`${d.url}-${i}`} style={styles.docRow}>
-                    <Ionicons name="document-text-outline" size={18} color={INK} />
-                    <Text style={styles.docName} numberOfLines={1}>{d.filename}</Text>
+                    <Ionicons
+                        name={d.source === 'gdrive' ? 'logo-google' : 'document-text-outline'}
+                        size={18}
+                        color={INK}
+                    />
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.docName} numberOfLines={1}>{d.filename}</Text>
+                        <Text style={styles.docSub} numberOfLines={1}>
+                            {d.source === 'gdrive' ? 'Google Drive' : d.source === 'local' ? 'Uploaded file' : 'Link'}
+                        </Text>
+                    </View>
                     <TouchableOpacity onPress={() => onChange((prev) => prev.filter((_, j) => j !== i))}>
-                        <Ionicons name="close" size={18} color={MUTE} />
+                        <Ionicons name="trash-outline" size={18} color={DANGER} />
                     </TouchableOpacity>
                 </View>
             ))}
@@ -376,11 +391,13 @@ export default function CreatorApplyScreen() {
     }, []);
 
     useEffect(() => {
+        if (!CREATOR_SOCIAL_REQUIRED) return;
         void refreshSocialStatus();
     }, [refreshSocialStatus]);
 
     // Re-fetch after OAuth sheet closes (native) or app returns to foreground (web popup).
     useEffect(() => {
+        if (!CREATOR_SOCIAL_REQUIRED) return;
         const sub = AppState.addEventListener('change', (state) => {
             if (state === 'active') void refreshSocialStatus();
         });
@@ -394,7 +411,8 @@ export default function CreatorApplyScreen() {
 
     const hasSocial = igProfile != null || ttProfile != null;
 
-    const steps = useMemo(() => [
+    const steps = useMemo(() => {
+        const all = [
         {
             key: 'intro',
             title: 'Own your\nmax',
@@ -513,7 +531,9 @@ export default function CreatorApplyScreen() {
                 </View>
             ),
         },
-    ], [name, maxName, desc, differentiator, brandFit, courseDocs, igProfile, ttProfile, hasSocial, error, refreshSocialStatus]);
+    ];
+        return CREATOR_SOCIAL_REQUIRED ? all : all.filter((s) => s.key !== 'social');
+    }, [name, maxName, desc, differentiator, brandFit, courseDocs, igProfile, ttProfile, hasSocial, error, refreshSocialStatus]);
 
     const safeStep = Math.min(step, steps.length - 1);
     const current = steps[safeStep];
@@ -706,7 +726,9 @@ const styles = StyleSheet.create({
     oauthBadge: { backgroundColor: '#DCFCE7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
     oauthBadgeText: { fontFamily: 'Matter-SemiBold', fontSize: 10, color: '#166534' },
     docRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, padding: 12, ...SOFT },
-    docName: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 14, color: INK },
+    docName: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK },
+    docSub: { fontFamily: 'Matter-Regular', fontSize: 11.5, color: MUTE, marginTop: 2 },
+    docHint: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: SUB, lineHeight: 18 },
     docBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: CARD, borderRadius: 14, paddingVertical: 14, ...SOFT },
     docBtnText: { fontFamily: 'Matter-SemiBold', fontSize: 14, color: INK },
     driveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

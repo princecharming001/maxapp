@@ -231,8 +231,26 @@ export interface CreatorHabitTemplate {
     tags?: string[];
     conditions?: string[];
     sample_questions?: string[];
-    shown_to_count?: number;
     enabled?: boolean;
+}
+
+export interface TestDriveState {
+    step_index: number;
+    total_steps: number;
+    current: {
+        id: string;
+        question: string;
+        options: string[];
+        index: number;
+        total: number;
+    } | null;
+    answers: Record<string, string>;
+    schedule: {
+        day: string;
+        focus: string;
+        tasks: { title: string; duration_min: number; window: string }[];
+    }[];
+    complete: boolean;
 }
 
 export interface CreatorOnboardingState {
@@ -251,14 +269,19 @@ export interface CreatorOnboardingState {
         question: string;
         draft_answer: string | null;
         status: string;
+        sort?: number;
+        sample_phase?: number;
+        index?: number;
     } | null;
     habit_library: CreatorHabitTemplate[];
+    targeting_presets?: string[];
     price_tier: string;
     price_cents: number;
     price_tiers: Record<string, number>;
     intro_video_url: string | null;
     welcome_message: string;
     test_chat: { role: string; text: string }[];
+    test_drive?: TestDriveState;
     status: string;
 }
 
@@ -1688,6 +1711,19 @@ class ApiService {
 
     async creatorOnboardingTestChat(message: string): Promise<CreatorOnboardingState & { reply: string }> {
         const response = await this.client.post('creators/me/onboarding/test-chat', { message });
+        return response.data;
+    }
+
+    async deleteCreatorOnboardingDoc(url: string): Promise<CreatorOnboardingState> {
+        const response = await this.client.delete('creators/me/onboarding/docs', { data: { url } });
+        return response.data;
+    }
+
+    async submitTestDriveAnswer(stepId: string, answer: string): Promise<CreatorOnboardingState> {
+        const response = await this.client.post('creators/me/onboarding/test-drive/answer', {
+            step_id: stepId,
+            answer,
+        });
         return response.data;
     }
 

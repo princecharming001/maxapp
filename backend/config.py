@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     tiktok_client_key: str = Field(default="")
     tiktok_client_secret: str = Field(default="")
     tiktok_scopes: str = Field(default="user.info.basic,user.info.profile,user.info.stats")
+    # When True, creator applications require OAuth-linked Instagram or TikTok.
+    # Set False while Meta/TikTok credentials are unset; flip True for production verify.
+    creator_social_oauth_required: bool = Field(default=True)
 
     # AWS RDS (shared data)
     aws_rds_host: str = Field(default="localhost")

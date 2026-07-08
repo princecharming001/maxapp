@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import uuid
 from datetime import datetime, timezone
@@ -26,18 +27,90 @@ logger = logging.getLogger(__name__)
 ONBOARDING_COMPLETE_STEP = 9
 VOICE_PHASE1_COUNT = 8
 VOICE_PHASE2_COUNT = 15
+VOICE_SAMPLE_TARGET = 20
+
+TARGETING_PRESETS = [
+    "All subscribers",
+    "Beginners (first 2 weeks)",
+    "Intermediate (week 3+)",
+    "Advanced practitioners",
+    "Morning routine focus",
+    "Evening recovery focus",
+    "Training 3+ days per week",
+    "Reports soreness or fatigue",
+    "Goal matches this max",
+]
 
 DEFAULT_VOICE_QUESTIONS = [
-    "How long until this actually works?",
-    "What should a beginner do on day one?",
-    "How do I know if I'm doing it wrong?",
-    "How much time per day do I really need?",
-    "What mistakes do most people make?",
-    "Can I skip rest days?",
-    "What results should I expect in 30 days?",
-    "How do I stay consistent when I'm busy?",
-    "Is this safe to combine with other routines?",
-    "What gear or tools do I actually need?",
+    "I'm completely new — what should I do on day one, step by step?",
+    "How long until I actually see results if I stay consistent?",
+    "How do I know if I'm doing the main technique wrong?",
+    "What's the minimum daily time commitment to make progress?",
+    "What mistakes do most beginners make in the first week?",
+    "Can I skip rest days or do I need to do this every single day?",
+    "What should my routine look like in weeks 2–4 vs week 1?",
+    "I travel a lot — how do I stay on track when my schedule is chaotic?",
+    "What gear, tools, or products do I actually need vs what's optional?",
+    "How do I combine this with my gym / skincare / other routines?",
+    "What does a bad day look like — when should I push vs rest?",
+    "How do I track progress so I know it's working?",
+    "Someone asked me why I'm doing this — how do I explain it simply?",
+    "What's the hardest part most people quit at, and how do I get past it?",
+    "I plateaued — what should I change first?",
+    "Is this safe if I have {condition}? (injury, braces, sensitive skin, etc.)",
+    "What should I tell a friend who wants to start but keeps procrastinating?",
+    "How strict do I need to be with diet / sleep / lifestyle for this to work?",
+    "What's your personal 'non-negotiable' daily habit from this method?",
+    "If I only had 10 minutes today, what's the highest-impact thing to do?",
+]
+
+TEST_DRIVE_STEPS = [
+    {
+        "id": "goal",
+        "question": "What's your main goal right now?",
+        "options": [
+            "Build a foundation from scratch",
+            "Fix bad habits I've picked up",
+            "Level up — I'm not a beginner anymore",
+            "Get back on track after falling off",
+        ],
+    },
+    {
+        "id": "experience",
+        "question": "How much experience do you have with this?",
+        "options": [
+            "Complete beginner",
+            "Tried it before, didn't stick",
+            "Intermediate — doing some of it already",
+            "Advanced — want to optimize",
+        ],
+    },
+    {
+        "id": "time",
+        "question": "How much time can you commit per day?",
+        "options": ["10 minutes", "20 minutes", "30 minutes", "45+ minutes"],
+    },
+    {
+        "id": "schedule",
+        "question": "When do you usually have free time?",
+        "options": [
+            "Morning before work/school",
+            "Midday breaks",
+            "Evening after dinner",
+            "Flexible — varies day to day",
+        ],
+    },
+    {
+        "id": "blocker",
+        "question": "What's most likely to get in your way?",
+        "options": [
+            "Forgetting / no routine",
+            "Not knowing if I'm doing it right",
+            "Low motivation after a few days",
+            "Physical discomfort or soreness",
+            "Too busy / unpredictable schedule",
+        ],
+    },
 ]
 
 _ASSIST = (
@@ -56,6 +129,7 @@ def _set_meta(creator: Creator, meta: dict) -> None:
 
 
 def voice_phase(creator: Creator, answered: int) -> int:
+    """Global training phase for progress meter copy."""
     if answered < VOICE_PHASE1_COUNT:
         return 1
     if answered < VOICE_PHASE2_COUNT:
@@ -63,12 +137,23 @@ def voice_phase(creator: Creator, answered: int) -> int:
     return 3
 
 
+def sample_voice_phase(sample: CreatorVoiceSample) -> int:
+    """Per-question phase — drives which UI/API flow applies."""
+    idx = int(sample.sort or 0)
+    if idx < VOICE_PHASE1_COUNT:
+        return 1
+    if idx < VOICE_PHASE2_COUNT:
+        return 2
+    return 3
+
+
 def voice_pct(creator: Creator, samples: list[CreatorVoiceSample]) -> int:
-    answered = sum(1 for s in samples if s.creator_answer)
-    approved = sum(1 for s in samples if s.status == "approved" or s.approved is True)
+    """Linear progress: each answered sample counts equally toward 100%."""
     if not samples:
         return 0
-    return min(100, int((answered * 6 + approved * 4) / max(len(samples), 1)))
+    answered = sum(1 for s in samples if s.creator_answer)
+    target = max(len(samples), 1)
+    return min(100, int(round(answered / target * 100)))
 
 
 def protocols_pct(creator: Creator) -> int:
@@ -78,7 +163,37 @@ def protocols_pct(creator: Creator) -> int:
     docs = creator.knowledge_docs or []
     if not docs:
         return 0
-    return min(95, 40 + len(docs) * 15)
+    return min(100, 40 + len(docs) * 15)
+
+
+def _read_doc_text(doc: dict, max_chars: int = 4000) -> str:
+    """Best-effort text extraction from uploaded local files."""
+    url = doc.get("url") or ""
+    if not url.startswith("/uploads/"):
+        return ""
+    path = os.path.join(os.path.dirname(__file__), "..", url.lstrip("/"))
+    if not os.path.isfile(path):
+        return ""
+    ext = os.path.splitext(path)[1].lower()
+    try:
+        if ext in (".txt", ".md"):
+            with open(path, encoding="utf-8", errors="ignore") as f:
+                return f.read(max_chars)
+        if ext == ".pdf":
+            try:
+                from pypdf import PdfReader  # type: ignore
+                reader = PdfReader(path)
+                chunks = []
+                for page in reader.pages[:8]:
+                    chunks.append(page.extract_text() or "")
+                    if sum(len(c) for c in chunks) >= max_chars:
+                        break
+                return "\n".join(chunks)[:max_chars]
+            except Exception:
+                return ""
+    except Exception as e:
+        logger.debug("[creator_onboarding] doc read failed: %s", e)
+    return ""
 
 
 async def copy_application_docs(creator: Creator, user_id: str, db: AsyncSession) -> None:
@@ -99,47 +214,58 @@ async def copy_application_docs(creator: Creator, user_id: str, db: AsyncSession
 
 def _default_habit_library(creator: Creator) -> list[dict]:
     name = creator.display_name or creator.maxx_id
+    max_label = creator.maxx_id.replace("max", "").title() or "Core"
     return [
         {
             "id": str(uuid.uuid4()),
-            "title": f"Morning {creator.maxx_id} check-in",
-            "description": "5 min review of today's focus and cues.",
-            "duration_minutes": 5,
+            "title": f"Morning {max_label} foundation",
+            "description": f"Start the day with {name}'s core cues and checklist.",
+            "duration_minutes": 8,
             "frequency_type": "daily",
             "frequency_n": 1,
             "window": "morning",
-            "tags": ["Foundation"],
-            "conditions": ["shown to all beginners"],
-            "sample_questions": ["What should I do first thing?", "How do I start my day?"],
-            "shown_to_count": 100,
+            "tags": ["Foundation", "Morning"],
+            "conditions": ["All subscribers", "Beginners (first 2 weeks)"],
+            "sample_questions": DEFAULT_VOICE_QUESTIONS[:2],
             "enabled": True,
         },
         {
             "id": str(uuid.uuid4()),
-            "title": "Core protocol block",
+            "title": f"Core {max_label} protocol",
             "description": f"The main daily practice from {name}'s method.",
             "duration_minutes": 15,
             "frequency_type": "daily",
             "frequency_n": 1,
             "window": "any",
             "tags": ["Protocol"],
-            "conditions": ["goal matches this max", "past the first week"],
-            "sample_questions": DEFAULT_VOICE_QUESTIONS[:3],
-            "shown_to_count": 67,
+            "conditions": ["Goal matches this max", "Intermediate (week 3+)"],
+            "sample_questions": DEFAULT_VOICE_QUESTIONS[2:5],
             "enabled": True,
         },
         {
             "id": str(uuid.uuid4()),
-            "title": "Evening recovery routine",
-            "description": "Wind-down habits that support progress.",
+            "title": "Evening recovery block",
+            "description": "Wind-down habits that support tomorrow's session.",
             "duration_minutes": 10,
             "frequency_type": "daily",
             "frequency_n": 1,
             "window": "evening",
-            "tags": ["Recovery"],
-            "conditions": ["training 3+ days/week", "reports soreness or fatigue"],
-            "sample_questions": ["Should I rest tonight?", "How do I recover faster?"],
-            "shown_to_count": 42,
+            "tags": ["Recovery", "Evening"],
+            "conditions": ["Evening recovery focus", "Training 3+ days per week"],
+            "sample_questions": DEFAULT_VOICE_QUESTIONS[5:7],
+            "enabled": True,
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "title": "Weekly progress check-in",
+            "description": "Review wins, adjust intensity, plan the next week.",
+            "duration_minutes": 12,
+            "frequency_type": "weekly",
+            "frequency_n": 1,
+            "window": "any",
+            "tags": ["Review"],
+            "conditions": ["Intermediate (week 3+)", "Advanced practitioners"],
+            "sample_questions": DEFAULT_VOICE_QUESTIONS[7:9],
             "enabled": True,
         },
     ]
@@ -149,32 +275,38 @@ async def analyze_knowledge(creator: Creator, db: AsyncSession) -> dict[str, Any
     """Score protocols + generate habit library and voice question queue."""
     meta = _meta(creator)
     docs = creator.knowledge_docs or []
-    doc_summary = "\n".join(
-        f"- {d.get('filename', 'doc')}: {d.get('url', '')}" for d in docs[:20]
-    )
+    doc_lines = []
+    for d in docs[:20]:
+        line = f"- {d.get('filename', 'doc')}: {d.get('url', '')}"
+        excerpt = _read_doc_text(d)
+        if excerpt:
+            line += f"\n  excerpt: {excerpt[:800]}"
+        doc_lines.append(line)
+    doc_summary = "\n".join(doc_lines)
     topic = creator.tagline or creator.display_name or creator.maxx_id
 
     habits: list[dict] = []
-    questions: list[str] = list(DEFAULT_VOICE_QUESTIONS)
-    pct = min(95, 50 + len(docs) * 12) if docs else 35
+    questions: list[str] = [q.format(condition="a health concern") for q in DEFAULT_VOICE_QUESTIONS]
 
     raw = await claude_service.simple_completion(
         user_prompt=(
-            f"Max: {creator.maxx_id}. Topic: {topic}.\n"
-            f"Creator docs:\n{doc_summary or '(no docs yet)'}\n\n"
-            "Return JSON: {\"protocols_pct\": 0-95, \"habits\": [{\"title\",\"description\","
-            "\"duration_minutes\":10,\"tags\":[\"tag\"],\"conditions\":[\"when shown\"],"
-            "\"sample_questions\":[\"q1\"],\"shown_to_count\":30}], "
-            "\"voice_questions\": [\"subscriber question\", ...]}"
+            f"Max: {creator.maxx_id}. Creator: {creator.display_name}. Topic: {topic}.\n"
+            f"Creator docs (filenames, links, excerpts):\n{doc_summary or '(no docs yet)'}\n\n"
+            "Return JSON with:\n"
+            "- protocols_pct: 100 if any docs provided, else 50\n"
+            "- habits: 8-12 items with title, description, duration_minutes, tags, "
+            "conditions (pick 1-3 from: " + ", ".join(TARGETING_PRESETS[:8]) + "), "
+            "sample_questions (2-3 subscriber questions each)\n"
+            "- voice_questions: 20 specific subscriber questions tailored to THIS max "
+            "(not generic — reference the method, timeline, mistakes, gear, etc.)\n"
+            "Do NOT include fake profile counts."
         ),
         system_prompt=_ASSIST,
-        max_tokens=2000,
+        max_tokens=3500,
     )
     if raw:
         try:
             obj = json.loads(re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.MULTILINE))
-            if isinstance(obj.get("protocols_pct"), (int, float)):
-                pct = int(min(95, max(20, obj["protocols_pct"])))
             for h in (obj.get("habits") or [])[:50]:
                 if not isinstance(h, dict) or not h.get("title"):
                     continue
@@ -183,45 +315,44 @@ async def analyze_knowledge(creator: Creator, db: AsyncSession) -> dict[str, Any
                     "title": str(h["title"])[:60],
                     "description": str(h.get("description") or "")[:300],
                     "duration_minutes": min(90, max(2, int(h.get("duration_minutes") or 10))),
-                    "frequency_type": "daily",
-                    "frequency_n": 1,
-                    "window": "any",
+                    "frequency_type": h.get("frequency_type") or "daily",
+                    "frequency_n": int(h.get("frequency_n") or 1),
+                    "window": h.get("window") if h.get("window") in ("morning", "evening", "any") else "any",
                     "tags": [str(t)[:24] for t in (h.get("tags") or [])[:5]],
-                    "conditions": [str(c)[:120] for c in (h.get("conditions") or [])[:8]],
+                    "conditions": [str(c)[:120] for c in (h.get("conditions") or ["All subscribers"])[:8]],
                     "sample_questions": [str(q)[:200] for q in (h.get("sample_questions") or [])[:5]],
-                    "shown_to_count": int(h.get("shown_to_count") or 30),
                     "enabled": True,
                 })
             vq = obj.get("voice_questions")
-            if isinstance(vq, list) and vq:
-                questions = [str(q)[:200] for q in vq[:20]]
+            if isinstance(vq, list) and len(vq) >= 5:
+                questions = [str(q)[:200] for q in vq[:VOICE_SAMPLE_TARGET]]
         except Exception as e:
             logger.warning("[creator_onboarding] analyze parse failed: %s", e)
 
     if not habits:
         habits = _default_habit_library(creator)
 
-    meta["protocols_pct"] = pct
+    meta["protocols_pct"] = 100 if docs else 50
     meta["habit_library"] = habits
     meta["voice_questions"] = questions
     meta["analyzed_at"] = datetime.now(timezone.utc).isoformat()
+    meta["targeting_presets"] = TARGETING_PRESETS
     _set_meta(creator, meta)
 
-    # Seed voice sample rows if empty
+    # Replace voice sample rows with fresh queue from analysis
     existing = (
         await db.execute(
-            select(func.count()).select_from(CreatorVoiceSample).where(
-                CreatorVoiceSample.creator_id == creator.id
-            )
+            select(CreatorVoiceSample).where(CreatorVoiceSample.creator_id == creator.id)
         )
-    ).scalar_one()
-    if not existing:
-        for i, q in enumerate(questions[:12]):
-            db.add(CreatorVoiceSample(
-                creator_id=creator.id, question=q, sort=i, status="pending",
-            ))
+    ).scalars().all()
+    for row in existing:
+        await db.delete(row)
+    for i, q in enumerate(questions[:VOICE_SAMPLE_TARGET]):
+        db.add(CreatorVoiceSample(
+            creator_id=creator.id, question=q, sort=i, status="pending",
+        ))
 
-    return {"protocols_pct": pct, "habit_count": len(habits), "voice_questions": len(questions)}
+    return {"protocols_pct": meta["protocols_pct"], "habit_count": len(habits), "voice_questions": len(questions)}
 
 
 async def next_voice_sample(creator: Creator, db: AsyncSession) -> Optional[CreatorVoiceSample]:
@@ -247,7 +378,7 @@ async def generate_voice_draft(creator: Creator, sample: CreatorVoiceSample, db:
                 & (CreatorVoiceSample.creator_answer.isnot(None))
             )
             .order_by(CreatorVoiceSample.created_at.desc())
-            .limit(8)
+            .limit(10)
         )
     ).scalars().all()
     examples = "\n".join(
@@ -264,7 +395,45 @@ async def generate_voice_draft(creator: Creator, sample: CreatorVoiceSample, db:
         system_prompt="You mimic a creator's voice from their sample answers.",
         max_tokens=400,
     )
-    return (draft or "").strip()[:800]
+    text = (draft or "").strip()[:800]
+    if text:
+        return text
+    # LLM unavailable or empty — synthesize from creator's cold answers so phase 2/3 still works
+    if prior:
+        tone = (prior[0].creator_answer or "").split(".")[0].strip()
+        return (
+            f"{tone}. Re your question — {sample.question} — "
+            "stay consistent, track weekly, and don't quit in the first month."
+        )[:800]
+    return (
+        f"On \"{sample.question}\": start small, stay consistent, "
+        "and give it 8–12 weeks before you judge results."
+    )[:800]
+
+
+async def ensure_voice_draft(creator: Creator, sample: CreatorVoiceSample, db: AsyncSession) -> None:
+    """Phase 2/3 questions always open with a Max draft — never a blank text box."""
+    if sample_voice_phase(sample) < 2:
+        return
+    if sample.draft_answer:
+        if sample.status == "pending":
+            sample.status = "draft"
+        return
+    sample.draft_answer = await generate_voice_draft(creator, sample, db)
+    if sample.draft_answer:
+        sample.status = "draft"
+
+
+async def prepare_voice_queue(creator: Creator, db: AsyncSession) -> None:
+    """Ensure the next voice question has a draft ready before the creator sees it."""
+    nxt = await next_voice_sample(creator, db)
+    if nxt:
+        await ensure_voice_draft(creator, nxt, db)
+
+
+async def advance_voice_queue(creator: Creator, db: AsyncSession) -> None:
+    """After completing a sample, prep the next one (with draft if phase 2+)."""
+    await prepare_voice_queue(creator, db)
 
 
 async def sync_habit_library(creator: Creator, db: AsyncSession) -> int:
@@ -313,6 +482,104 @@ async def sync_habit_library(creator: Creator, db: AsyncSession) -> int:
     return count
 
 
+def test_drive_state(creator: Creator) -> dict:
+    meta = _meta(creator)
+    td = meta.get("test_drive") or {}
+    answers = td.get("answers") or {}
+    step_idx = int(td.get("step_index") or 0)
+    schedule = td.get("schedule") or []
+    complete = bool(td.get("complete"))
+    current = None
+    if not complete and step_idx < len(TEST_DRIVE_STEPS):
+        current = {**TEST_DRIVE_STEPS[step_idx], "index": step_idx, "total": len(TEST_DRIVE_STEPS)}
+    return {
+        "step_index": step_idx,
+        "total_steps": len(TEST_DRIVE_STEPS),
+        "current": current,
+        "answers": answers,
+        "schedule": schedule,
+        "complete": complete,
+    }
+
+
+async def test_drive_answer(creator: Creator, step_id: str, answer: str, db: AsyncSession) -> dict:
+    meta = _meta(creator)
+    td = dict(meta.get("test_drive") or {})
+    answers = dict(td.get("answers") or {})
+    step_idx = int(td.get("step_index") or 0)
+
+    if step_idx >= len(TEST_DRIVE_STEPS):
+        return test_drive_state(creator)
+
+    expected = TEST_DRIVE_STEPS[step_idx]
+    if expected["id"] != step_id:
+        raise ValueError(f"Expected step {expected['id']}, got {step_id}")
+
+    answers[step_id] = answer.strip()
+    step_idx += 1
+    td["answers"] = answers
+    td["step_index"] = step_idx
+
+    if step_idx >= len(TEST_DRIVE_STEPS):
+        schedule = await _generate_mock_schedule(creator, answers)
+        td["schedule"] = schedule
+        td["complete"] = True
+
+    meta["test_drive"] = td
+    _set_meta(creator, meta)
+    return test_drive_state(creator)
+
+
+async def _generate_mock_schedule(creator: Creator, answers: dict) -> list[dict]:
+    meta = _meta(creator)
+    habits = meta.get("habit_library") or []
+    habit_titles = [h.get("title") for h in habits[:6] if h.get("enabled", True)]
+    raw = await claude_service.simple_completion(
+        user_prompt=(
+            f"Creator max: {creator.maxx_id} by {creator.display_name}.\n"
+            f"Tagline: {creator.tagline}\n"
+            f"Subscriber onboarding answers: {json.dumps(answers)}\n"
+            f"Available habits: {habit_titles}\n\n"
+            "Build a realistic 7-day starter schedule for THIS subscriber. "
+            "Return JSON: {\"days\": [{\"day\": \"Mon\", \"focus\": \"...\", "
+            "\"tasks\": [{\"title\": \"...\", \"duration_min\": 10, \"window\": \"morning|evening|any\"}]}]}"
+        ),
+        system_prompt=_ASSIST,
+        max_tokens=1500,
+    )
+    days: list[dict] = []
+    if raw:
+        try:
+            obj = json.loads(re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.MULTILINE))
+            days = obj.get("days") or []
+        except Exception:
+            pass
+    if not days:
+        time_block = answers.get("schedule", "Morning")
+        daily_time = answers.get("time", "20 minutes")
+        for i, label in enumerate(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]):
+            tasks = []
+            for j, ht in enumerate(habit_titles[:3]):
+                tasks.append({
+                    "title": ht,
+                    "duration_min": 10 + j * 5,
+                    "window": "morning" if "Morning" in time_block else "evening" if "Evening" in time_block else "any",
+                })
+            days.append({
+                "day": label,
+                "focus": f"Day {i + 1} — {answers.get('goal', 'Build consistency')}",
+                "tasks": tasks or [{"title": f"{creator.maxx_id} daily block", "duration_min": 15, "window": "any"}],
+            })
+    return days[:7]
+
+
+def reset_test_drive(creator: Creator) -> None:
+    meta = _meta(creator)
+    meta["test_drive"] = {"answers": {}, "step_index": 0, "schedule": [], "complete": False}
+    meta["test_chat"] = []
+    _set_meta(creator, meta)
+
+
 async def test_chat(creator: Creator, message: str, db: AsyncSession) -> str:
     meta = _meta(creator)
     history = meta.get("test_chat") or []
@@ -323,14 +590,19 @@ async def test_chat(creator: Creator, message: str, db: AsyncSession) -> str:
                 (CreatorVoiceSample.creator_id == creator.id)
                 & (CreatorVoiceSample.creator_answer.isnot(None))
             )
-            .limit(5)
+            .limit(8)
         )
     ).scalars().all()
-    voice_ex = "\n".join(f"- {s.creator_answer[:200]}" for s in samples)
+    voice_ex = "\n".join(f"Q: {s.question}\nA: {s.creator_answer[:200]}" for s in samples)
+    td = meta.get("test_drive") or {}
+    schedule_ctx = ""
+    if td.get("schedule"):
+        schedule_ctx = f"\nSubscriber's mock schedule: {json.dumps(td['schedule'][:3])}"
     reply = await claude_service.simple_completion(
         user_prompt=(
             f"You are the AI coach for {creator.maxx_id} by {creator.display_name}.\n"
-            f"Voice samples:\n{voice_ex or creator.tagline}\n\n"
+            f"Voice samples:\n{voice_ex or creator.tagline}\n"
+            f"{schedule_ctx}\n\n"
             f"Subscriber: {message}\n\nReply in the creator's voice. Max 100 words."
         ),
         system_prompt=_ASSIST,
@@ -403,8 +675,12 @@ def onboarding_state_dict(creator: Creator, samples: list[CreatorVoiceSample]) -
             "question": current.question,
             "draft_answer": current.draft_answer,
             "status": current.status,
+            "sort": int(current.sort or 0),
+            "sample_phase": sample_voice_phase(current),
+            "index": int(current.sort or 0) + 1,
         } if current else None,
         "habit_library": meta.get("habit_library") or [],
+        "targeting_presets": meta.get("targeting_presets") or TARGETING_PRESETS,
         "voice_questions": meta.get("voice_questions") or DEFAULT_VOICE_QUESTIONS,
         "price_tier": creator.price_tier,
         "price_cents": creator.price_cents,
@@ -412,5 +688,6 @@ def onboarding_state_dict(creator: Creator, samples: list[CreatorVoiceSample]) -
         "intro_video_url": creator.intro_video_url,
         "welcome_message": creator.welcome_message or "",
         "test_chat": meta.get("test_chat") or [],
+        "test_drive": test_drive_state(creator),
         "status": creator.status,
     }

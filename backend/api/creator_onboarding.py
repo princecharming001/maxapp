@@ -61,6 +61,12 @@ async def _samples(creator_id, db: AsyncSession):
     ).scalars().all()
 
 
+async def _onboarding_state(creator, db: AsyncSession):
+    await onboarding.prepare_voice_queue(creator, db)
+    samples = await _samples(creator.id, db)
+    return onboarding.onboarding_state_dict(creator, samples)
+
+
 @router.get("")
 async def get_onboarding(
     current_user: dict = Depends(require_creator_user),
@@ -68,9 +74,9 @@ async def get_onboarding(
 ):
     creator = await _creator(current_user, db)
     await onboarding.copy_application_docs(creator, str(current_user["id"]), db)
-    samples = await _samples(creator.id, db)
+    state = await _onboarding_state(creator, db)
     await db.commit()
-    return onboarding.onboarding_state_dict(creator, samples)
+    return state
 
 
 class StepBody(BaseModel):
@@ -87,8 +93,7 @@ async def set_step(
     creator.onboarding_step = body.step
     creator.updated_at = datetime.utcnow()
     await db.commit()
-    samples = await _samples(creator.id, db)
-    return onboarding.onboarding_state_dict(creator, samples)
+    return await _onboarding_state(creator, db)
 
 
 @router.post("/analyze")
@@ -100,8 +105,7 @@ async def analyze_docs(
     result = await onboarding.analyze_knowledge(creator, db)
     creator.onboarding_step = max(int(creator.onboarding_step or 0), 1)
     await db.commit()
-    samples = await _samples(creator.id, db)
-    return {"analysis": result, **onboarding.onboarding_state_dict(creator, samples)}
+    return {"analysis": result, **await _onboarding_state(creator, db)}
 
 
 class DocsBody(BaseModel):
@@ -116,9 +120,27 @@ async def set_docs(
 ):
     creator = await _creator(current_user, db)
     creator.knowledge_docs = body.docs[:30]
+    flag_modified(creator, "knowledge_docs")
     await db.commit()
-    samples = await _samples(creator.id, db)
-    return onboarding.onboarding_state_dict(creator, samples)
+    return await _onboarding_state(creator, db)
+
+
+class DeleteDocBody(BaseModel):
+    url: str
+
+
+@router.delete("/docs")
+async def delete_doc(
+    body: DeleteDocBody,
+    current_user: dict = Depends(require_creator_user),
+    db: AsyncSession = Depends(get_db),
+):
+    creator = await _creator(current_user, db)
+    docs = [d for d in (creator.knowledge_docs or []) if d.get("url") != body.url]
+    creator.knowledge_docs = docs
+    flag_modified(creator, "knowledge_docs")
+    await db.commit()
+    return await _onboarding_state(creator, db)
 
 
 @router.post("/upload-doc")
@@ -193,25 +215,18 @@ async def voice_answer(
     sample = await db.get(CreatorVoiceSample, sid)
     if sample is None or sample.creator_id != creator.id:
         raise HTTPException(status_code=404, detail="Not found")
+    if onboarding.sample_voice_phase(sample) >= 2:
+        raise HTTPException(
+            status_code=422,
+            detail="Max drafts this one — approve it or correct what's off.",
+        )
     sample.creator_answer = body.answer.strip()
     sample.status = "answered"
-    sample.approved = True
-    samples = await _samples(creator.id, db)
-    answered = sum(1 for s in samples if s.creator_answer)
-    phase = onboarding.voice_phase(creator, answered)
-    if phase >= 2:
-        nxt = await onboarding.next_voice_sample(creator, db)
-        if nxt and nxt.status == "pending" and not nxt.draft_answer:
-            nxt.draft_answer = await onboarding.generate_voice_draft(creator, nxt, db)
-            nxt.status = "draft"
-    elif phase == 1:
-        nxt = await onboarding.next_voice_sample(creator, db)
-        if nxt and nxt.id == sample.id:
-            pass  # same sample still pending — ok
+    sample.approved = False
+    await onboarding.advance_voice_queue(creator, db)
     creator.onboarding_step = max(int(creator.onboarding_step or 0), 3)
     await db.commit()
-    samples = await _samples(creator.id, db)
-    return onboarding.onboarding_state_dict(creator, samples)
+    return await _onboarding_state(creator, db)
 
 
 class VoiceFeedbackBody(BaseModel):
@@ -234,17 +249,29 @@ async def voice_feedback(
     sample = await db.get(CreatorVoiceSample, sid)
     if sample is None or sample.creator_id != creator.id:
         raise HTTPException(status_code=404, detail="Not found")
+    if onboarding.sample_voice_phase(sample) < 2:
+        raise HTTPException(
+            status_code=422,
+            detail="Phase 1 — write your answer from scratch, no draft yet.",
+        )
+    if not sample.draft_answer:
+        await onboarding.ensure_voice_draft(creator, sample, db)
+    if not sample.draft_answer:
+        raise HTTPException(status_code=503, detail="Draft not ready — try again in a moment.")
     if body.approved:
-        sample.creator_answer = sample.draft_answer or sample.creator_answer
+        sample.creator_answer = sample.draft_answer
         sample.status = "approved"
         sample.approved = True
     else:
-        sample.creator_answer = (body.correction or sample.creator_answer or "").strip()
+        correction = (body.correction or "").strip()
+        if not correction:
+            raise HTTPException(status_code=422, detail="Enter your correction.")
+        sample.creator_answer = correction
         sample.status = "answered"
         sample.approved = False
+    await onboarding.advance_voice_queue(creator, db)
     await db.commit()
-    samples = await _samples(creator.id, db)
-    return onboarding.onboarding_state_dict(creator, samples)
+    return await _onboarding_state(creator, db)
 
 
 class HabitLibraryBody(BaseModel):
@@ -263,8 +290,7 @@ async def update_habit_library(
     onboarding._set_meta(creator, meta)
     creator.onboarding_step = max(int(creator.onboarding_step or 0), 4)
     await db.commit()
-    samples = await _samples(creator.id, db)
-    return onboarding.onboarding_state_dict(creator, samples)
+    return await _onboarding_state(creator, db)
 
 
 class PricingBody(BaseModel):
@@ -282,8 +308,7 @@ async def set_pricing(
     creator.price_cents = creator_service.price_cents_for_tier(body.tier)
     creator.onboarding_step = max(int(creator.onboarding_step or 0), 6)
     await db.commit()
-    samples = await _samples(creator.id, db)
-    return onboarding.onboarding_state_dict(creator, samples)
+    return await _onboarding_state(creator, db)
 
 
 class MediaBody(BaseModel):
@@ -304,8 +329,7 @@ async def set_media(
         creator.welcome_message = body.welcome_message.strip()
     creator.onboarding_step = max(int(creator.onboarding_step or 0), 7)
     await db.commit()
-    samples = await _samples(creator.id, db)
-    return onboarding.onboarding_state_dict(creator, samples)
+    return await _onboarding_state(creator, db)
 
 
 class TestChatBody(BaseModel):
@@ -325,8 +349,7 @@ async def test_chat(
     reply = await onboarding.test_chat(creator, body.message.strip(), db)
     creator.onboarding_step = max(int(creator.onboarding_step or 0), 5)
     await db.commit()
-    samples = await _samples(creator.id, db)
-    return {"reply": reply, **onboarding.onboarding_state_dict(creator, samples)}
+    return {"reply": reply, **await _onboarding_state(creator, db)}
 
 
 @router.post("/test-reset")
@@ -335,12 +358,32 @@ async def test_reset(
     db: AsyncSession = Depends(get_db),
 ):
     creator = await _creator(current_user, db)
-    meta = onboarding._meta(creator)
-    meta["test_chat"] = []
-    onboarding._set_meta(creator, meta)
+    onboarding.reset_test_drive(creator)
     await db.commit()
-    samples = await _samples(creator.id, db)
-    return onboarding.onboarding_state_dict(creator, samples)
+    return await _onboarding_state(creator, db)
+
+
+class TestDriveAnswerBody(BaseModel):
+    step_id: str
+    answer: str = Field(..., min_length=1, max_length=500)
+
+
+@router.post("/test-drive/answer")
+async def test_drive_answer(
+    body: TestDriveAnswerBody,
+    current_user: dict = Depends(require_creator_user),
+    db: AsyncSession = Depends(get_db),
+):
+    creator = await _creator(current_user, db)
+    try:
+        result = await onboarding.test_drive_answer(
+            creator, body.step_id, body.answer.strip(), db,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    creator.onboarding_step = max(int(creator.onboarding_step or 0), 5)
+    await db.commit()
+    return {"test_drive": result, **await _onboarding_state(creator, db)}
 
 
 @router.post("/sync-habits")
@@ -365,5 +408,4 @@ async def launch(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     await db.commit()
-    samples = await _samples(creator.id, db)
-    return onboarding.onboarding_state_dict(creator, samples)
+    return await _onboarding_state(creator, db)
