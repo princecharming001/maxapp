@@ -378,17 +378,30 @@ export default function CreatorApplyScreen() {
     const [igProfile, setIgProfile] = useState<SocialProfile | null>(null);
     const [ttProfile, setTtProfile] = useState<SocialProfile | null>(null);
 
-    const refreshSocialStatus = useCallback(async () => {
+    const refreshSocialStatus = useCallback(async (): Promise<boolean> => {
         try {
             const status = await api.getCreatorSocialStatus();
             const igConn = status.connections.instagram;
             const ttConn = status.connections.tiktok;
             if (igConn?.handle) setIgProfile(connectionToProfile(igConn));
             if (ttConn?.handle) setTtProfile(connectionToProfile(ttConn));
+            return Boolean(igConn?.handle || ttConn?.handle);
         } catch {
             /* status fetch is best-effort */
+            return false;
         }
     }, []);
+
+    // After the OAuth sheet closes we poll: Post for Me registers the linked
+    // account a beat later (no redirect back to the app on Quickstart projects),
+    // so a single fetch can miss it. Backend /status pulls from Post for Me by
+    // external_id on each call, so we just re-hit it a few times.
+    const pollSocialStatus = useCallback(async () => {
+        for (let i = 0; i < 6; i++) {
+            if (await refreshSocialStatus()) return;
+            await new Promise((r) => setTimeout(r, 1500));
+        }
+    }, [refreshSocialStatus]);
 
     useEffect(() => {
         if (!CREATOR_SOCIAL_REQUIRED) return;
@@ -482,8 +495,8 @@ export default function CreatorApplyScreen() {
             canNext: hasSocial,
             body: (
                 <View style={{ gap: 14 }}>
-                    <SocialLinker platform="instagram" profile={igProfile} onClear={() => setIgProfile(null)} onLinked={refreshSocialStatus} />
-                    <SocialLinker platform="tiktok" profile={ttProfile} onClear={() => setTtProfile(null)} onLinked={refreshSocialStatus} />
+                    <SocialLinker platform="instagram" profile={igProfile} onClear={() => setIgProfile(null)} onLinked={pollSocialStatus} />
+                    <SocialLinker platform="tiktok" profile={ttProfile} onClear={() => setTtProfile(null)} onLinked={pollSocialStatus} />
                 </View>
             ),
         },
@@ -533,7 +546,7 @@ export default function CreatorApplyScreen() {
         },
     ];
         return CREATOR_SOCIAL_REQUIRED ? all : all.filter((s) => s.key !== 'social');
-    }, [name, maxName, desc, differentiator, brandFit, courseDocs, igProfile, ttProfile, hasSocial, error, refreshSocialStatus]);
+    }, [name, maxName, desc, differentiator, brandFit, courseDocs, igProfile, ttProfile, hasSocial, error, pollSocialStatus]);
 
     const safeStep = Math.min(step, steps.length - 1);
     const current = steps[safeStep];

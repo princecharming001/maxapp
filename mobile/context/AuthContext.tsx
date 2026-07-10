@@ -119,6 +119,9 @@ interface AuthContextType {
     fauxSkipSignup: () => Promise<void>;
     /** DEV: throwaway account with EMPTY onboarding (lands on step 1). */
     fauxFreshSignup: () => Promise<void>;
+    /** DEV: flip the CURRENT account's admin flag (jump into/out of the admin
+     *  view as the same user). Returns the new is_admin value. */
+    devToggleAdmin: () => Promise<boolean>;
     startAnon: () => Promise<void>;
     claimAccount: (email: string, password: string, first_name: string, last_name: string, username: string, phone_number?: string) => Promise<void>;
     /** Sign in / up with a verified Google ID token (find-or-create). Returns the
@@ -379,6 +382,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(userData);
     }, []);
 
+    const devToggleAdmin = useCallback(async () => {
+        const { is_admin } = await api.devToggleAdmin();
+        const userData = await api.getMe();
+        setUser(userData);
+        return is_admin;
+    }, []);
+
     // Account-after-scan: mint a credential-less FREE account at "Get started" so
     // the funnel runs before sign-up; the user claims it before the paywall.
     const startAnon = useCallback(async () => {
@@ -508,6 +518,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             fauxSignup,
             fauxSkipSignup,
             fauxFreshSignup,
+            devToggleAdmin,
             startAnon,
             claimAccount,
             signInWithGoogle,
@@ -516,7 +527,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             refreshUser,
             deleteAccount,
         }),
-        [user, isLoading, freeTierChosen, chooseFreeTier, subscriptionTier, login, signup, fauxSignup, fauxSkipSignup, fauxFreshSignup, startAnon, claimAccount, signInWithGoogle, signInWithGoogleDev, logout, refreshUser, deleteAccount],
+        [user, isLoading, freeTierChosen, chooseFreeTier, subscriptionTier, login, signup, fauxSignup, fauxSkipSignup, fauxFreshSignup, devToggleAdmin, startAnon, claimAccount, signInWithGoogle, signInWithGoogleDev, logout, refreshUser, deleteAccount],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

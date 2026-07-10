@@ -703,6 +703,18 @@ class ApiService {
     }
 
     /**
+     * DEV ONLY: flip the CURRENT account's is_admin on the server so the app
+     * swaps into (or out of) the admin view as the SAME user you're testing
+     * with — no separate admin login. Returns the new is_admin value; the caller
+     * re-fetches getMe() to update AuthContext and re-render the navigator.
+     */
+    async devToggleAdmin(): Promise<{ is_admin: boolean }> {
+        if (!__DEV__) throw new Error('dev toggle-admin is unavailable in production builds.');
+        const response = await this.client.post('auth/dev/toggle-admin', {});
+        return response.data;
+    }
+
+    /**
      * DEV ONLY: mint a throwaway account with EMPTY onboarding so the
      * client lands on the very first onboarding question. Lets devs
      * replay the full onboarding flow without retyping signup form.

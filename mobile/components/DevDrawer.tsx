@@ -11,7 +11,7 @@ export default function DevDrawer() {
 }
 
 function DevDrawerInner() {
-    const { isAuthenticated, isPaid, logout, fauxSkipSignup, fauxFreshSignup } = useAuth() as any;
+    const { isAuthenticated, isPaid, user, logout, fauxSkipSignup, fauxFreshSignup, devToggleAdmin } = useAuth() as any;
     const [open, setOpen] = useState(false);
     // Keep the launcher out of the way: idle-invisible, reveal on hover (web) or
     // press (native). On web it can be fully hidden since hover brings it back;
@@ -112,6 +112,27 @@ function DevDrawerInner() {
         }
     }, [currentState, fauxFreshSignup]);
 
+    // Flip the CURRENT account into (or out of) the admin view — same user, no
+    // separate admin login. is_admin drives RootNavigator, so setUser from the
+    // toggle swaps the whole tree to AdminNavigator and back.
+    const isAdmin = !!user?.is_admin;
+    const toggleAdmin = useCallback(async () => {
+        setOpen(false);
+        if (!isAuthenticated) {
+            Alert.alert('Sign in first', 'Start an account (Onboarding/Paid) before jumping to admin.');
+            return;
+        }
+        try {
+            await devToggleAdmin?.();
+        } catch (e: any) {
+            const status = e?.response?.status;
+            const hint = status === 404
+                ? 'toggle-admin is 404 here — point the app at a LOCAL backend (see mobile/.env.local).'
+                : (e?.message ?? 'unknown error');
+            Alert.alert('Dev admin toggle failed', hint);
+        }
+    }, [isAuthenticated, devToggleAdmin]);
+
     return (
         <>
             <Pressable
@@ -149,6 +170,11 @@ function DevDrawerInner() {
                         </Pressable>
                         <Pressable onPress={() => void goToCreateAccount()} style={s.actionBtn}>
                             <Text style={s.actionText}>→ Create account (claim)</Text>
+                        </Pressable>
+                        <Pressable onPress={() => void toggleAdmin()} style={[s.actionBtn, s.adminBtn]}>
+                            <Text style={s.actionText}>
+                                {isAdmin ? '← Back to my account' : '→ Admin view (as me)'}
+                            </Text>
                         </Pressable>
                         <Pressable
                             onPress={() => {
@@ -200,6 +226,7 @@ const s = StyleSheet.create({
         marginBottom: 4,
     },
     actionText: { color: '#f5f5f3', fontSize: 13, fontWeight: '700' },
+    adminBtn: { borderColor: '#5b8cff', backgroundColor: '#16203a' },
 
     closeBtn: { alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 18 },
     closeText: { color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: '600' },

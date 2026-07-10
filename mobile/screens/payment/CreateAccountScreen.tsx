@@ -433,17 +433,18 @@ const styles = StyleSheet.create({
     apple: {
         marginTop: 10,
         height: 54,
-        borderRadius: 14,
+        // Match GoogleSignInButton's glass variant so the two auth buttons are identical.
+        borderRadius: 999,
         borderCurve: 'continuous',
-        backgroundColor: FIELD,
+        backgroundColor: 'rgba(255,255,255,0.14)',
         borderWidth: 1,
-        borderColor: HAIR_SOFT,
+        borderColor: 'rgba(255,255,255,0.45)',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 10,
     },
-    appleText: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: WHITE },
+    appleText: { fontFamily: 'Matter-SemiBold', fontSize: 15, letterSpacing: 0.3, color: WHITE },
 
     signin: { marginTop: 20, alignItems: 'center' },
     signinText: { fontFamily: 'Matter-Regular', fontSize: 14, color: MUTED },
