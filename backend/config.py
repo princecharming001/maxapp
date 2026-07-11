@@ -66,6 +66,19 @@ class Settings(BaseSettings):
     # Set False while Meta/TikTok credentials are unset; flip True for production verify.
     creator_social_oauth_required: bool = Field(default=True)
 
+    # Post for Me — hosted per-user IG/TikTok OAuth linking (brings its own
+    # Meta/TikTok-approved apps, so no direct app review needed). When postforme_key
+    # is set it becomes the creator-social provider, superseding the direct
+    # instagram_/tiktok_ credentials above. One key is shared across products
+    # (e.g. Yunicorn); users are namespaced by external_id = "{prefix}:{user_id}".
+    postforme_key: str = Field(default="")
+    postforme_base: str = Field(default="https://api.postforme.dev/v1")
+    postforme_external_id_prefix: str = Field(default="maxapp")
+    # Quickstart Post for Me projects REJECT redirect_url_override; the account is
+    # instead recovered by polling /social-accounts by external_id (what /status
+    # does). Flip True only on a full (non-Quickstart) project to auto-return to the app.
+    postforme_allow_redirect_override: bool = Field(default=False)
+
     # AWS RDS (shared data)
     aws_rds_host: str = Field(default="localhost")
     aws_rds_port: int = Field(default=5432)

@@ -568,6 +568,28 @@ async def faux_signup_skip(db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.post("/dev/toggle-admin")
+async def dev_toggle_admin(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """DEV-ONLY: flip the CURRENT account's is_admin so you can jump into the
+    admin view as the same user you're testing with (and back), without logging
+    into a separate admin account. is_admin is read from the DB each request
+    (see middleware.auth_middleware) so no re-issued token is needed — the client
+    just re-fetches /auth/me and the navigator swaps to AdminNavigator. 404 in
+    production (an admin-grant endpoint must never be reachable there)."""
+    _block_in_production()
+    uid = current_user.get("id") or current_user.get("user_id") or current_user.get("sub")
+    user = (await db.execute(select(User).where(User.id == uid))).scalars().first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_admin = not bool(user.is_admin)
+    user.updated_at = datetime.utcnow()
+    await db.commit()
+    return {"is_admin": user.is_admin}
+
+
 @router.post(
     "/login",
     response_model=TokenResponse,

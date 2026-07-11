@@ -97,7 +97,7 @@ async def list_users(
 async def get_stats(
     admin: dict = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
-    rds_db: AsyncSession = Depends(get_rds_db)
+    rds_db: "AsyncSession | None" = Depends(get_rds_db_optional),
 ):
     """Get high-level system stats"""
     user_count = (await db.execute(select(func.count(User.id)))).scalar() or 0
@@ -111,13 +111,20 @@ async def get_stats(
             )
         )
     ).scalar() or 0
-    channel_count = (await rds_db.execute(select(func.count(Forum.id)))).scalar() or 0
-    message_count = (await rds_db.execute(select(func.count(ChannelMessage.id)))).scalar() or 0
     reports_count = (await db.execute(select(func.count(ChannelMessageReport.id)))).scalar() or 0
-    v2_cat = (await rds_db.execute(select(func.count(ForumCategory.id)))).scalar() or 0
-    v2_sub = (await rds_db.execute(select(func.count(ForumSubforum.id)))).scalar() or 0
-    v2_thr = (await rds_db.execute(select(func.count(ForumThread.id)))).scalar() or 0
-    v2_post = (await rds_db.execute(select(func.count(ForumPost.id)))).scalar() or 0
+
+    # Forum/channel counts live in the separate AWS RDS. When it's unavailable
+    # (a local dev backend with no RDS, or an RDS outage) get_rds_db_optional
+    # yields None — degrade those counts to 0 rather than 503-ing the whole
+    # dashboard, since the Supabase-backed user stats above are still useful.
+    channel_count = message_count = v2_cat = v2_sub = v2_thr = v2_post = 0
+    if rds_db is not None:
+        channel_count = (await rds_db.execute(select(func.count(Forum.id)))).scalar() or 0
+        message_count = (await rds_db.execute(select(func.count(ChannelMessage.id)))).scalar() or 0
+        v2_cat = (await rds_db.execute(select(func.count(ForumCategory.id)))).scalar() or 0
+        v2_sub = (await rds_db.execute(select(func.count(ForumSubforum.id)))).scalar() or 0
+        v2_thr = (await rds_db.execute(select(func.count(ForumThread.id)))).scalar() or 0
+        v2_post = (await rds_db.execute(select(func.count(ForumPost.id)))).scalar() or 0
 
     return {
         "total_users": user_count,

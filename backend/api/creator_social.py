@@ -29,6 +29,7 @@ from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import rate_limit
 from models.sqlalchemy_models import CreatorSocialConnection
 from services import creator_social_oauth as oauth
+from services import creator_social_postforme as pfm
 from services.secrets import encrypt_token
 
 logger = logging.getLogger(__name__)
@@ -115,6 +116,68 @@ async def _active_connections(db: AsyncSession, user_id: UUID) -> dict[str, Crea
     return {r.platform: r for r in rows}
 
 
+def _platform_available(platform: str) -> bool:
+    """A platform can be linked if Post for Me is on (it provides IG+TikTok) or
+    direct OAuth credentials exist for it."""
+    return pfm.enabled() or oauth.platform_available(platform)
+
+
+async def _sync_postforme(db: AsyncSession, user_id: UUID) -> None:
+    """Pull the user's Post for Me-linked accounts and upsert them as connections.
+
+    This is the 'poll' step: after the user authorizes through Post for Me the
+    app re-fetches /status, and here we look their accounts up by external_id and
+    persist the spc_ id (in platform_user_id) so the connection shows as linked
+    and can later be published to. Best-effort — never fails the status call.
+    """
+    accounts: list[dict] = []
+    try:
+        for platform in pfm.PLATFORMS:
+            accounts.extend(await pfm.list_accounts(str(user_id), platform))
+    except Exception as e:  # network/parse — leave existing DB state as-is
+        logger.warning("[creator_social] postforme sync failed for %s: %s", user_id, e)
+        return
+    if not accounts:
+        return
+    existing = {
+        r.platform: r
+        for r in (
+            await db.execute(
+                select(CreatorSocialConnection).where(
+                    CreatorSocialConnection.user_id == user_id
+                )
+            )
+        ).scalars().all()
+    }
+    seen: set[str] = set()
+    for acct in accounts:
+        platform = acct.get("platform")
+        if platform not in pfm.PLATFORMS or platform in seen:
+            continue  # one connection per platform (first wins)
+        seen.add(platform)
+        conn = existing.get(platform)
+        if conn is None:
+            conn = CreatorSocialConnection(user_id=user_id, platform=platform)
+            db.add(conn)
+        conn.platform_user_id = acct.get("id") or conn.platform_user_id
+        conn.handle = acct.get("username") or conn.handle
+        conn.profile = {
+            "full_name": None,
+            "avatar_url": acct.get("profile_photo_url"),
+            "followers": None,
+            "verified": None,
+            "via": "postforme",
+            "status": acct.get("status"),
+        }
+        # Post for Me holds the platform tokens; we only keep the spc_ id.
+        conn.access_token_encrypted = None
+        conn.refresh_token_encrypted = None
+        conn.token_expires_at = None
+        conn.connected_at = datetime.utcnow()
+        conn.revoked_at = None
+    await db.commit()
+
+
 @router.get("/status")
 async def status(
     current_user: dict = Depends(get_current_user),
@@ -123,10 +186,14 @@ async def status(
     """Connected state per platform + whether each provider can be used at all
     (so the client can fall back to manual handle entry when OAuth is off)."""
     uid = _uid(current_user)
+    # When Post for Me is the provider, refresh from it first so a just-authorized
+    # account shows up (the app re-fetches /status right after the OAuth sheet closes).
+    if pfm.enabled():
+        await _sync_postforme(db, uid)
     conns = await _active_connections(db, uid)
     return {
         "providers": {
-            p: {"available": oauth.platform_available(p)}
+            p: {"available": _platform_available(p)}
             for p in oauth.PLATFORMS
         },
         "connections": {
@@ -149,13 +216,22 @@ async def connect(
     Native clients pass return_url (their cannon:// deep link) so the callback
     can bounce straight back into the app."""
     p = _check_platform(platform)
-    if not oauth.platform_available(p):
+    if not _platform_available(p):
         raise HTTPException(
             status_code=503,
             detail=f"{p.capitalize()} sign-in is not configured.",
         )
     uid = str(_uid(current_user))
     ru = return_url if (return_url and return_url.startswith(_APP_SCHEME)) else None
+    # Post for Me handles the IG/TikTok OAuth on its side (its own approved apps)
+    # and bounces back to the app's return_url; there is no callback to our server.
+    if pfm.enabled():
+        try:
+            url = await pfm.auth_url(p, uid, ru)
+        except Exception as e:
+            logger.warning("[creator_social] postforme auth-url failed: %s", e)
+            raise HTTPException(status_code=502, detail=f"Couldn't start {p.capitalize()} sign-in.")
+        return {"auth_url": url}
     return {"auth_url": oauth.build_auth_url(p, _sign_state(uid, p, ru))}
 
 
@@ -258,6 +334,13 @@ async def disconnect(
     ).scalars().first()
     if conn is None:
         return {"disconnected": True}
+    # If this link lives at Post for Me, revoke it there too (best-effort) so the
+    # account isn't left authorized on their side. platform_user_id holds the spc_ id.
+    if pfm.enabled() and (conn.profile or {}).get("via") == "postforme" and conn.platform_user_id:
+        try:
+            await pfm.disconnect(conn.platform_user_id)
+        except Exception as e:
+            logger.warning("[creator_social] postforme disconnect failed: %s", e)
     conn.access_token_encrypted = None
     conn.refresh_token_encrypted = None
     conn.token_expires_at = None
