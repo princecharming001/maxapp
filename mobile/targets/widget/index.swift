@@ -1,15 +1,22 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 // MARK: - Shared data (written by the RN app into the App Group)
 
 private let appGroup = "group.com.cannon.mobile"
 private let snapshotKey = "todaySnapshot"
+private let queueKey = "widgetToggleQueue"
 
 struct TaskItem: Codable, Hashable {
+    // `id` / `scheduleId` are optional so snapshots written by older app
+    // builds (which lacked them) still decode cleanly; `color` is legacy and
+    // no longer read. A task is only tappable when it carries an id.
+    var id: String?
+    var scheduleId: String?
     var title: String
     var time: String      // pre-formatted, e.g. "4:30p"
-    var color: String     // hex, e.g. "#8B5CF6"
+    var color: String?    // legacy — unused
     var done: Bool
 }
 
@@ -25,14 +32,14 @@ struct TodaySnapshot: Codable {
     }
 
     static let placeholder = TodaySnapshot(
-        streak: 47,
-        done: 3,
-        total: 6,
+        streak: 12,
+        done: 2,
+        total: 5,
         tasks: [
-            TaskItem(title: "Mewing hold", time: "4:30p", color: "#8B5CF6", done: false),
-            TaskItem(title: "Jaw + posture set", time: "6:00p", color: "#F59E0B", done: false),
-            TaskItem(title: "Evening lift", time: "7:15p", color: "#10B981", done: false),
-            TaskItem(title: "Skincare AM", time: "", color: "#9A9A9A", done: true),
+            TaskItem(id: nil, scheduleId: nil, title: "Mewing hold", time: "4:30p", color: nil, done: false),
+            TaskItem(id: nil, scheduleId: nil, title: "Jaw + posture set", time: "6:00p", color: nil, done: false),
+            TaskItem(id: nil, scheduleId: nil, title: "Evening lift", time: "7:15p", color: nil, done: false),
+            TaskItem(id: nil, scheduleId: nil, title: "Skincare AM", time: "", color: nil, done: true),
         ],
         updatedAt: nil
     )
@@ -47,6 +54,70 @@ struct TodaySnapshot: Codable {
             return .placeholder
         }
         return decoded
+    }
+}
+
+// MARK: - Interactive toggle (iOS 17+)
+
+/// One queued check/uncheck the app reconciles with the backend next time it
+/// foregrounds. Written by the widget, drained by `widgetSync.ts`.
+struct PendingToggle: Codable {
+    let taskId: String
+    let scheduleId: String
+    let done: Bool
+}
+
+enum WidgetStore {
+    /// Flip a task's done-state in the shared snapshot so the widget updates
+    /// immediately, and enqueue the change for the app to sync to the server.
+    static func toggle(id: String) {
+        guard let defaults = UserDefaults(suiteName: appGroup) else { return }
+        var snapshot = TodaySnapshot.load()
+        guard let idx = snapshot.tasks.firstIndex(where: { $0.id == id }) else { return }
+
+        let newDone = !snapshot.tasks[idx].done
+        snapshot.tasks[idx].done = newDone
+        snapshot.done = snapshot.tasks.filter { $0.done }.count
+
+        if let data = try? JSONEncoder().encode(snapshot),
+           let str = String(data: data, encoding: .utf8) {
+            defaults.set(str, forKey: snapshotKey)
+        }
+
+        // Collapse any earlier pending entry for this task, then append the
+        // latest intent — a rapid check/uncheck reconciles to one action.
+        var queue = (try? JSONDecoder().decode(
+            [PendingToggle].self,
+            from: Data((defaults.string(forKey: queueKey) ?? "[]").utf8)
+        )) ?? []
+        queue.removeAll { $0.taskId == id }
+        queue.append(PendingToggle(
+            taskId: id,
+            scheduleId: snapshot.tasks[idx].scheduleId ?? "",
+            done: newDone
+        ))
+        if let qdata = try? JSONEncoder().encode(queue),
+           let qstr = String(data: qdata, encoding: .utf8) {
+            defaults.set(qstr, forKey: queueKey)
+        }
+
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+}
+
+@available(iOS 17.0, *)
+struct ToggleTaskIntent: AppIntent {
+    static var title: LocalizedStringResource = "Toggle a max"
+    static var isDiscoverable: Bool = false
+
+    @Parameter(title: "Task ID") var id: String
+
+    init() {}
+    init(id: String) { self.id = id }
+
+    func perform() async throws -> some IntentResult {
+        WidgetStore.toggle(id: id)
+        return .result()
     }
 }
 
@@ -75,7 +146,7 @@ struct MaxProvider: TimelineProvider {
     }
 }
 
-// MARK: - Colors
+// MARK: - Palette (mirrors the app: ink + white + a single blue accent)
 
 extension Color {
     init(hex: String) {
@@ -95,24 +166,26 @@ extension Color {
     }
 }
 
-private let flame = Color(hex: "#F59E0B")
-private let flameHot = Color(hex: "#FF7A00")
-private let ember = Color(hex: "#FFD778")
+private let ink = Color(hex: "#111113")        // near-black, app foreground
+private let mute = Color(hex: "#9A9A9A")       // muted labels
+private let accent = Color(hex: "#2C6BED")     // the app's single blue accent
+private let accentOnDark = Color(hex: "#5A8CF2")
 
 // MARK: - Backgrounds
 
-/// Barely-warm paper gradient for the light Today list.
+/// Neutral off-white paper for the light Today list — matches the app canvas,
+/// no warm/cream tint.
 private var paperGradient: LinearGradient {
     LinearGradient(
-        colors: [Color(hex: "#FFFFFF"), Color(hex: "#F7F4EF")],
-        startPoint: .topLeading, endPoint: .bottomTrailing
+        colors: [Color(hex: "#FFFFFF"), Color(hex: "#FAFAFA")],
+        startPoint: .top, endPoint: .bottom
     )
 }
 
-/// Deep ink gradient for the streak tile.
+/// Neutral deep-ink gradient for the streak tile (cool black, not brown).
 private var inkGradient: LinearGradient {
     LinearGradient(
-        colors: [Color(hex: "#23201B"), Color(hex: "#0E0D0B")],
+        colors: [Color(hex: "#17171A"), Color(hex: "#0B0B0D")],
         startPoint: .topLeading, endPoint: .bottomTrailing
     )
 }
@@ -130,81 +203,92 @@ extension View {
 
 // MARK: - Pieces
 
-/// Amber-tinted capsule chip carrying the streak.
+/// Monochrome streak chip — hairline capsule, ink flame, serif count.
 struct StreakChip: View {
     let streak: Int
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: "flame.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(
-                    LinearGradient(colors: [ember, flameHot], startPoint: .top, endPoint: .bottom)
-                )
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(ink)
             Text("\(streak)")
-                .font(.system(size: 15, weight: .semibold, design: .serif))
-                .foregroundColor(Color(hex: "#8A5A00"))
+                .font(.system(size: 14, weight: .semibold, design: .serif))
+                .foregroundColor(ink)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 4)
-        .background(Capsule().fill(flame.opacity(0.14)))
+        .background(Capsule().fill(Color.primary.opacity(0.05)))
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.07), lineWidth: 1))
     }
 }
 
-/// Multi-stop gradient progress bar built from the day's max colors.
+/// Single-color ink progress bar — no gradient.
 struct DayProgressBar: View {
     let snapshot: TodaySnapshot
-    var stops: [Color] {
-        let cs = snapshot.tasks.map { Color(hex: $0.color) }
-        return cs.count >= 2 ? cs : [Color(hex: "#111113"), Color(hex: "#55524C")]
-    }
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.primary.opacity(0.07))
                 Capsule()
-                    .fill(LinearGradient(colors: stops, startPoint: .leading, endPoint: .trailing))
-                    .frame(width: max(6, geo.size.width * snapshot.progress))
+                    .fill(ink)
+                    .frame(width: snapshot.progress <= 0
+                        ? 0
+                        : max(5, geo.size.width * snapshot.progress))
             }
         }
-        .frame(height: 4)
+        .frame(height: 5)
     }
 }
 
 struct TaskRow: View {
     let task: TaskItem
-    var tint: Color { Color(hex: task.color) }
+
     var body: some View {
-        HStack(spacing: 10) {
-            ZStack {
-                if task.done {
-                    Circle().fill(tint.opacity(0.18))
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(tint)
-                } else {
-                    Circle().strokeBorder(tint, lineWidth: 1.8)
-                    Circle().fill(tint.opacity(0.12)).padding(3.5)
-                }
-            }
-            .frame(width: 17, height: 17)
+        HStack(spacing: 11) {
+            checkbox
             Text(task.title)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundColor(task.done ? Color(uiColor: .tertiaryLabel) : .primary)
-                .strikethrough(task.done, color: Color(uiColor: .tertiaryLabel))
+                .foregroundColor(task.done ? Color(uiColor: .tertiaryLabel) : ink)
+                .strikethrough(task.done, color: Color(uiColor: .quaternaryLabel))
                 .lineLimit(1)
             Spacer(minLength: 4)
+            trailing
+        }
+    }
+
+    @ViewBuilder private var checkbox: some View {
+        if #available(iOS 17.0, *), let id = task.id {
+            Button(intent: ToggleTaskIntent(id: id)) { checkboxShape }
+                .buttonStyle(.plain)
+        } else {
+            checkboxShape
+        }
+    }
+
+    private var checkboxShape: some View {
+        ZStack {
             if task.done {
-                Text("done")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Color(uiColor: .tertiaryLabel))
-            } else if !task.time.isEmpty {
-                Text(task.time)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundColor(tint)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2.5)
-                    .background(Capsule().fill(tint.opacity(0.12)))
+                Circle().fill(accent)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.white)
+            } else {
+                Circle().strokeBorder(Color.primary.opacity(0.22), lineWidth: 1.6)
             }
+        }
+        .frame(width: 19, height: 19)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder private var trailing: some View {
+        if task.done {
+            Text("done")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(Color(uiColor: .tertiaryLabel))
+        } else if !task.time.isEmpty {
+            Text(task.time)
+                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                .foregroundColor(mute)
         }
     }
 }
@@ -220,12 +304,12 @@ struct TodayListView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: family == .systemMedium ? 7 : 6) {
+        VStack(alignment: .leading, spacing: family == .systemMedium ? 8 : 6) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Today")
                         .font(.system(size: family == .systemMedium ? 19 : 15, weight: .semibold, design: .serif))
-                        .foregroundColor(.primary)
+                        .foregroundColor(ink)
                     Text("\(snapshot.done) of \(snapshot.total) done")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
@@ -240,19 +324,19 @@ struct TodayListView: View {
             ForEach(visibleTasks, id: \.self) { TaskRow(task: $0) }
             Spacer(minLength: 0)
             if family == .systemSmall {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: "flame.fill")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(
-                            LinearGradient(colors: [ember, flameHot], startPoint: .top, endPoint: .bottom)
-                        )
+                        .foregroundColor(ink.opacity(0.75))
                     Text("\(snapshot.streak) day streak")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
                 }
             }
         }
-        .padding(family == .systemMedium ? 15 : 13)
+        .padding(family == .systemMedium ? 16 : 14)
+        // Tapping empty space still opens the app; the checkboxes handle their
+        // own taps via the intent.
         .widgetURL(URL(string: "cannon://today"))
         .widgetSurface(paperGradient)
     }
@@ -265,28 +349,16 @@ struct StreakRingView: View {
 
     var body: some View {
         ZStack {
-            // Track
             Circle()
                 .stroke(Color.white.opacity(0.10), lineWidth: 6)
-            // Progress arc with a hot amber sweep + soft glow
             Circle()
                 .trim(from: 0, to: max(0.02, snapshot.progress))
-                .stroke(
-                    AngularGradient(
-                        colors: [flame, ember, flameHot, flame],
-                        center: .center
-                    ),
-                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                )
+                .stroke(accentOnDark, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .shadow(color: flameHot.opacity(0.55), radius: 5)
             VStack(spacing: 0) {
                 Image(systemName: "flame.fill")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(
-                        LinearGradient(colors: [ember, flameHot], startPoint: .top, endPoint: .bottom)
-                    )
-                    .shadow(color: flameHot.opacity(0.7), radius: 6)
+                    .foregroundColor(.white.opacity(0.9))
                 Text("\(snapshot.streak)")
                     .font(.system(size: 34, weight: .semibold, design: .serif))
                     .foregroundColor(.white)
@@ -329,7 +401,7 @@ struct StreakView: View {
             Label("\(snapshot.streak) day streak · \(snapshot.done)/\(snapshot.total)", systemImage: "flame.fill")
                 .widgetURL(URL(string: "cannon://today"))
 
-        default: // systemSmall — dark ink tile with the glowing ring
+        default: // systemSmall — dark ink tile with the ring
             VStack(spacing: 6) {
                 StreakRingView(snapshot: snapshot)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -352,7 +424,7 @@ struct MaxTodayWidget: Widget {
             TodayListView(snapshot: entry.snapshot)
         }
         .configurationDisplayName("Today")
-        .description("Your maxes for today, with your streak.")
+        .description("Your maxes for today — check them off right here.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

@@ -13,8 +13,13 @@ import { Platform } from 'react-native';
 
 const APP_GROUP = 'group.com.cannon.mobile';
 const KEY = 'todaySnapshot';
+const QUEUE_KEY = 'widgetToggleQueue';
 
-let storage: { set: (k: string, v: string) => void } | null = null;
+let storage: {
+    set: (k: string, v: string) => void;
+    get: (k: string) => string | null;
+    remove: (k: string) => void;
+} | null = null;
 let reloadWidget: (() => void) | null = null;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -30,10 +35,18 @@ try {
 }
 
 export type WidgetTask = {
+    id: string; // task_id — lets the widget's checkbox target this task
+    scheduleId: string; // schedule_id — needed to reconcile with the backend
     title: string;
     time: string; // pre-formatted for display, e.g. "4:30p"
-    color: string; // hex, e.g. "#8B5CF6"
     done: boolean;
+};
+
+/** A check/uncheck the user made from the widget, awaiting server sync. */
+export type WidgetToggle = {
+    taskId: string;
+    scheduleId: string;
+    done: boolean; // desired state after the toggle
 };
 
 export type WidgetSnapshot = {
@@ -58,5 +71,34 @@ export function syncTodayWidget(snapshot: WidgetSnapshot): void {
         reloadWidget?.();
     } catch {
         // Best-effort: a widget write must never take down the app.
+    }
+}
+
+/**
+ * Drain the check/uncheck actions the user made from the widget while the app
+ * was backgrounded. The widget already updated its own snapshot optimistically;
+ * the caller is responsible for pushing each toggle to the backend. Returns
+ * `[]` off iOS or when nothing is queued.
+ */
+export function drainWidgetToggleQueue(): WidgetToggle[] {
+    if (!storage) return [];
+    try {
+        const raw = storage.get(QUEUE_KEY);
+        if (!raw) return [];
+        storage.remove(QUEUE_KEY);
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter(
+            (t): t is WidgetToggle =>
+                t && typeof t.taskId === 'string' && typeof t.scheduleId === 'string',
+        );
+    } catch {
+        // A malformed queue must never take down the app; drop it.
+        try {
+            storage.remove(QUEUE_KEY);
+        } catch {
+            /* ignore */
+        }
+        return [];
     }
 }

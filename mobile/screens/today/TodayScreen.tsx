@@ -31,8 +31,7 @@ import { GlassButton } from '../../components/glass/GlassButton';
 import SlideToConfirm from '../../components/today/SlideToConfirm';
 import { track } from '../../lib/analytics';
 import { queryKeys } from '../../lib/queryClient';
-import { maxColor } from '../../utils/scheduleAggregation';
-import { syncTodayWidget, type WidgetTask } from '../../lib/widgetSync';
+import { syncTodayWidget, drainWidgetToggleQueue, type WidgetTask } from '../../lib/widgetSync';
 import api from '../../services/api';
 
 const INK = '#1C1A17';
@@ -115,12 +114,31 @@ export default function TodayScreen() {
         staleTime: 30_000,
     });
 
+    // Reconcile any check/uncheck the user made from the Home Screen widget
+    // while the app was closed: push each toggle to the backend, then refetch
+    // so the in-app list (and the widget re-sync below) reflect server truth.
+    const drainWidgetQueue = useCallback(async () => {
+        const toggles = drainWidgetToggleQueue();
+        if (!toggles.length) return;
+        await Promise.allSettled(
+            toggles.map((t) =>
+                t.done
+                    ? api.completeScheduleTask(t.scheduleId, t.taskId)
+                    : api.uncompleteScheduleTask(t.scheduleId, t.taskId),
+            ),
+        );
+        queryClient.invalidateQueries({ queryKey: TODAY_QK });
+        queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
+    }, [queryClient]);
+
     useEffect(() => {
+        drainWidgetQueue();
         const tick = setInterval(() => setNow(new Date()), 60_000);
         const sub = AppState.addEventListener('change', (state) => {
             if (state === 'active') {
                 setNow(new Date());
                 todayQ.refetch();
+                drainWidgetQueue();
             }
         });
         return () => {
@@ -197,9 +215,10 @@ export default function TodayScreen() {
     useEffect(() => {
         if (Platform.OS !== 'ios') return;
         const toWidget = (t: PlannerTask): WidgetTask => ({
+            id: t.task_id || '',
+            scheduleId: t.schedule_id || '',
             title: displayTitle(t.title) || 'Max',
             time: t.status === 'completed' ? '' : fmtTime(t.time),
-            color: maxColor(t.maxx_id),
             done: t.status === 'completed',
         });
         // Pending (time-ordered) first so the small widget surfaces what's
@@ -210,10 +229,14 @@ export default function TodayScreen() {
         ]
             .slice(0, 6)
             .map(toWidget);
+        // Count only actionable maxes: skipped tasks are neither shown in the
+        // list nor counted, so "done of total" and the progress bar match the
+        // app's own "day closed when nothing's pending" rule (and reach 100%).
+        const actionable = pending.length + completed.length;
         syncTodayWidget({
             streak,
             done: completed.length,
-            total: tasks.length,
+            total: actionable,
             tasks: ordered,
         });
     }, [tasks, pending, completed, streak]);
