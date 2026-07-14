@@ -30,17 +30,18 @@ struct TodaySnapshot: Codable {
     var progress: Double {
         total > 0 ? Double(done) / Double(total) : 0
     }
+    var allDone: Bool { total > 0 && done >= total }
 
     static let placeholder = TodaySnapshot(
         streak: 47,
-        done: 2,
+        done: 1,
         total: 5,
         tasks: [
             TaskItem(id: "1", scheduleId: "s", title: "Mewing hold", time: "4:30p", color: nil, done: false),
             TaskItem(id: "2", scheduleId: "s", title: "Jaw + posture set", time: "6:00p", color: nil, done: false),
             TaskItem(id: "3", scheduleId: "s", title: "Evening lift", time: "7:15p", color: nil, done: false),
             TaskItem(id: "4", scheduleId: "s", title: "Skincare AM", time: "", color: nil, done: true),
-            TaskItem(id: "5", scheduleId: "s", title: "Cold shower", time: "", color: nil, done: true),
+            TaskItem(id: "5", scheduleId: "s", title: "Cold shower", time: "8:00p", color: nil, done: false),
         ],
         updatedAt: nil
     )
@@ -122,7 +123,7 @@ struct ToggleTaskIntent: AppIntent {
     }
 }
 
-// MARK: - Timeline
+// MARK: - Timeline provider
 
 struct MaxEntry: TimelineEntry {
     let date: Date
@@ -145,7 +146,7 @@ struct MaxProvider: TimelineProvider {
     }
 }
 
-// MARK: - Palette (mirrors the app: ink + white + a single blue accent)
+// MARK: - Palette
 
 extension Color {
     init(hex: String) {
@@ -167,8 +168,21 @@ extension Color {
 
 private let ink = Color(hex: "#111113")
 private let mute = Color(hex: "#9A9A9A")
-private let accent = Color(hex: "#2C6BED")
-private let accentOnDark = Color(hex: "#5A8CF2")
+private let green = Color(hex: "#2F9E60")
+
+/// THE one color moment: warm orange → light → cool blue. The light middle
+/// keeps the two hues from muddying where they meet.
+private let gradOrange = Color(hex: "#FF7A1A")
+private let gradLight = Color(hex: "#F3EDF2")
+private let gradBlue = Color(hex: "#2C6BED")
+private let dayGradient = LinearGradient(
+    colors: [gradOrange, gradLight, gradBlue],
+    startPoint: .leading, endPoint: .trailing
+)
+private let ringGradient = LinearGradient(
+    colors: [gradOrange, gradLight, gradBlue],
+    startPoint: .topLeading, endPoint: .bottomTrailing
+)
 
 private func weekdayKicker() -> String {
     let f = DateFormatter()
@@ -176,16 +190,11 @@ private func weekdayKicker() -> String {
     return f.string(from: Date()).uppercased()
 }
 
-// MARK: - Backgrounds
+// MARK: - Surface
 
 private var paperGradient: LinearGradient {
     LinearGradient(colors: [Color(hex: "#FFFFFF"), Color(hex: "#FAFAFA")],
                    startPoint: .top, endPoint: .bottom)
-}
-
-private var inkGradient: LinearGradient {
-    LinearGradient(colors: [Color(hex: "#18181B"), Color(hex: "#0B0B0D")],
-                   startPoint: .topLeading, endPoint: .bottomTrailing)
 }
 
 extension View {
@@ -201,195 +210,190 @@ extension View {
 
 // MARK: - Pieces
 
-/// Uppercase tracked label — the editorial kicker.
-struct Kicker: View {
-    let text: String
-    var onDark: Bool = false
+/// The header divider doubles as the day's progress: a gradient fill sweeps
+/// left→right across a quiet hairline. Green once the day closes.
+struct ProgressRule: View {
+    let progress: Double
+    let allDone: Bool
     var body: some View {
-        Text(text)
-            .font(.system(size: 10, weight: .semibold))
-            .tracking(1.6)
-            .foregroundColor(onDark ? .white.opacity(0.5) : mute)
-            .lineLimit(1)
-    }
-}
-
-/// Streak as a hairline capsule — flame + serif count, fully monochrome.
-struct StreakPill: View {
-    let streak: Int
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "flame.fill").font(.system(size: 10, weight: .semibold)).foregroundColor(ink)
-            Text("\(streak)").font(.system(size: 13, weight: .semibold, design: .serif)).foregroundColor(ink)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3.5)
-        .background(Capsule().fill(Color.primary.opacity(0.05)))
-        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.07), lineWidth: 1))
-    }
-}
-
-/// One cell per max — filled = done. Reads the day at a glance, no gradient.
-struct SegmentedProgress: View {
-    let done: Int
-    let total: Int
-    var fill: Color = ink
-    var track: Color = Color.primary.opacity(0.10)
-
-    var body: some View {
-        if total > 0 && total <= 8 {
-            HStack(spacing: 3) {
-                ForEach(0..<total, id: \.self) { i in
-                    Capsule().fill(i < done ? fill : track).frame(height: 4)
-                }
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.08))
+                Capsule()
+                    .fill(allDone ? AnyShapeStyle(green) : AnyShapeStyle(dayGradient))
+                    .frame(width: progress <= 0 ? 0 : max(4, geo.size.width * progress))
             }
-        } else {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(track)
-                    Capsule().fill(fill).frame(
-                        width: total > 0 ? max(4, geo.size.width * Double(done) / Double(total)) : 0)
-                }
-            }
-            .frame(height: 4)
         }
+        .frame(height: 4)
     }
 }
 
-/// Things-style rounded-square checkbox, tappable via the intent (iOS 17+).
-struct TaskRow: View {
+/// Timeline row: time gutter · node on the rail · title. The node IS the
+/// checkbox (tappable on iOS 17+); the rail threads the day together.
+struct TimelineRow: View {
     let task: TaskItem
-    var compact: Bool = false
+    let isFirst: Bool
+    let isLast: Bool
 
     var body: some View {
         HStack(spacing: 10) {
-            checkbox
+            Text(task.done ? "" : task.time)
+                .font(.system(size: 11, weight: .semibold))
+                .monospacedDigit()
+                .foregroundColor(mute)
+                .frame(width: 38, alignment: .trailing)
+            VStack(spacing: 0) {
+                Rectangle().fill(Color.primary.opacity(isFirst ? 0 : 0.10)).frame(width: 1.5)
+                node
+                Rectangle().fill(Color.primary.opacity(isLast ? 0 : 0.10)).frame(width: 1.5)
+            }
+            .frame(width: 22)
             Text(task.title)
-                .font(.system(size: compact ? 12.5 : 13, weight: .medium))
+                .font(.system(size: 13.5, weight: .medium))
                 .foregroundColor(task.done ? mute : ink)
                 .strikethrough(task.done, color: mute.opacity(0.6))
                 .lineLimit(1)
             Spacer(minLength: 4)
-            trailing
-        }
-        .padding(.vertical, compact ? 3 : 4)
-    }
-
-    @ViewBuilder private var checkbox: some View {
-        if #available(iOS 17.0, *), let id = task.id {
-            Button(intent: ToggleTaskIntent(id: id)) { checkboxShape }.buttonStyle(.plain)
-        } else {
-            checkboxShape
-        }
-    }
-
-    private var checkboxShape: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(task.done ? accent : Color.clear)
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .strokeBorder(task.done ? Color.clear : Color.primary.opacity(0.24), lineWidth: 1.6)
             if task.done {
-                Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundColor(.white)
+                Text("done")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundColor(mute)
             }
         }
-        .frame(width: 19, height: 19)
+        .frame(height: 32)
+    }
+
+    @ViewBuilder private var node: some View {
+        if #available(iOS 17.0, *), let id = task.id {
+            Button(intent: ToggleTaskIntent(id: id)) { nodeShape }.buttonStyle(.plain)
+        } else {
+            nodeShape
+        }
+    }
+
+    private var nodeShape: some View {
+        ZStack {
+            if task.done {
+                Circle().fill(ink)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundColor(.white)
+            } else {
+                Circle().fill(Color(hex: "#FFFFFF"))
+                Circle().strokeBorder(Color.primary.opacity(0.25), lineWidth: 1.5)
+            }
+        }
+        .frame(width: 20, height: 20)
         .contentShape(Rectangle())
     }
-
-    @ViewBuilder private var trailing: some View {
-        if task.done {
-            Text("done").font(.system(size: 11, weight: .medium)).foregroundColor(mute)
-        } else if !task.time.isEmpty {
-            Text(task.time).font(.system(size: 11.5, weight: .semibold, design: .rounded)).foregroundColor(mute)
-        }
-    }
 }
 
-/// Hairline ledger rule between rows.
-private var ruleLine: some View {
-    Rectangle().fill(Color.primary.opacity(0.06)).frame(height: 1)
-}
-
-// MARK: - Today list (small + medium)
+// MARK: - Today (medium: the day rail)
 
 struct TodayListView: View {
-    @Environment(\.widgetFamily) var family
     let snapshot: TodaySnapshot
 
-    var isMedium: Bool { family == .systemMedium }
-    var visibleTasks: [TaskItem] { Array(snapshot.tasks.prefix(isMedium ? 4 : 2)) }
+    // Widgets can't scroll — a fixed 3 rows never clips; the header carries
+    // the rest as "+N".
+    var visibleTasks: [TaskItem] { Array(snapshot.tasks.prefix(3)) }
+    var moreCount: Int { max(0, snapshot.total - visibleTasks.count) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: isMedium ? 8 : 7) {
-            HStack(alignment: .center) {
-                Kicker(text: isMedium ? weekdayKicker() : "TODAY")
-                Spacer()
-                StreakPill(streak: snapshot.streak)
-            }
-
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text("\(snapshot.done)")
-                    .font(.system(size: isMedium ? 24 : 22, weight: .semibold, design: .serif))
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                Text(weekdayKicker())
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(1.8)
                     .foregroundColor(ink)
-                Text("/ \(snapshot.total)")
-                    .font(.system(size: isMedium ? 15 : 14, weight: .medium, design: .serif))
-                    .foregroundColor(mute)
-                Text("done")
+                Text("\(snapshot.done) of \(snapshot.total)\(moreCount > 0 ? "  ·  +\(moreCount)" : "")")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .padding(.leading, 1)
-            }
-
-            SegmentedProgress(done: snapshot.done, total: snapshot.total)
-
-            VStack(spacing: 0) {
-                ForEach(Array(visibleTasks.enumerated()), id: \.element) { idx, task in
-                    if idx > 0 { ruleLine }
-                    TaskRow(task: task, compact: !isMedium)
+                    .foregroundColor(mute)
+                Spacer()
+                HStack(spacing: 3.5) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(snapshot.allDone ? green : ink)
+                    Text("\(snapshot.streak)")
+                        .font(.system(size: 14, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundColor(ink)
                 }
             }
-            .padding(.top, 1)
-
+            ProgressRule(progress: snapshot.progress, allDone: snapshot.allDone)
+                .padding(.top, 8)
+            VStack(spacing: 0) {
+                ForEach(Array(visibleTasks.enumerated()), id: \.element) { idx, task in
+                    TimelineRow(task: task, isFirst: idx == 0, isLast: idx == visibleTasks.count - 1)
+                }
+            }
+            .padding(.top, 6)
             Spacer(minLength: 0)
         }
-        .padding(isMedium ? 15 : 13)
+        .padding(.horizontal, 15)
+        .padding(.vertical, 13)
         .widgetURL(URL(string: "cannon://today"))
         .widgetSurface(paperGradient)
     }
 }
 
-// MARK: - Streak (small dark tile + lock screen)
+// MARK: - Small: streak count inside the day's progress ring
 
-struct StreakTileView: View {
+struct ProgressRingView: View {
     let snapshot: TodaySnapshot
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 5) {
-                Image(systemName: "flame.fill").font(.system(size: 11, weight: .semibold)).foregroundColor(.white.opacity(0.85))
-                Kicker(text: "STREAK", onDark: true)
+        ZStack {
+            Circle().stroke(Color.primary.opacity(0.08), lineWidth: 9)
+            Circle()
+                .trim(from: 0, to: max(0.001, snapshot.progress))
+                .stroke(
+                    snapshot.allDone ? AnyShapeStyle(green) : AnyShapeStyle(ringGradient),
+                    style: StrokeStyle(lineWidth: 9, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 2) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(snapshot.allDone ? green : ink)
+                Text("\(snapshot.streak)")
+                    .font(.system(size: 34, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundColor(ink)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                Text(snapshot.allDone ? "all done" : "\(snapshot.done)/\(snapshot.total) today")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(snapshot.allDone ? green : mute)
             }
-            Spacer(minLength: 4)
-            Text("\(snapshot.streak)")
-                .font(.system(size: 52, weight: .semibold, design: .serif))
-                .foregroundColor(.white)
-                .minimumScaleFactor(0.5)
-                .lineLimit(1)
-            Text("day streak")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.55))
-            Spacer(minLength: 6)
-            SegmentedProgress(done: snapshot.done, total: snapshot.total,
-                              fill: accentOnDark, track: .white.opacity(0.14))
-            Text("\(snapshot.done) of \(snapshot.total) today")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.white.opacity(0.45))
-                .padding(.top, 5)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .padding(15)
+        .padding(16)
         .widgetURL(URL(string: "cannon://today"))
-        .widgetSurface(inkGradient)
+        .widgetSurface(paperGradient)
+    }
+}
+
+// MARK: - Widgets
+
+/// Small = the streak ring; medium = the day rail.
+struct TodayEntryView: View {
+    @Environment(\.widgetFamily) var family
+    let snapshot: TodaySnapshot
+    var body: some View {
+        if family == .systemSmall {
+            ProgressRingView(snapshot: snapshot)
+        } else {
+            TodayListView(snapshot: snapshot)
+        }
+    }
+}
+
+struct MaxTodayWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "MaxTodayWidget", provider: MaxProvider()) { entry in
+            TodayEntryView(snapshot: entry.snapshot)
+        }
+        .configurationDisplayName("Today")
+        .description("Your maxes for today — check them off right here.")
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
@@ -422,22 +426,9 @@ struct StreakView: View {
             Label("\(snapshot.streak) day streak · \(snapshot.done)/\(snapshot.total)", systemImage: "flame.fill")
                 .widgetURL(URL(string: "cannon://today"))
 
-        default:
-            StreakTileView(snapshot: snapshot)
+        default: // systemSmall — the same streak ring
+            ProgressRingView(snapshot: snapshot)
         }
-    }
-}
-
-// MARK: - Widgets
-
-struct MaxTodayWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "MaxTodayWidget", provider: MaxProvider()) { entry in
-            TodayListView(snapshot: entry.snapshot)
-        }
-        .configurationDisplayName("Today")
-        .description("Your maxes for today — check them off right here.")
-        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
@@ -447,7 +438,7 @@ struct MaxStreakWidget: Widget {
             StreakView(snapshot: entry.snapshot)
         }
         .configurationDisplayName("Streak")
-        .description("Keep your daily streak alive.")
+        .description("Your streak and today's progress at a glance.")
         .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
@@ -468,11 +459,7 @@ struct MaxWidgetBundle: WidgetBundle {
     MaxEntry(date: Date(), snapshot: .placeholder)
 }
 @available(iOS 17.0, *)
-#Preview("Today — small", as: .systemSmall) { MaxTodayWidget() } timeline: {
-    MaxEntry(date: Date(), snapshot: .placeholder)
-}
-@available(iOS 17.0, *)
-#Preview("Streak — small", as: .systemSmall) { MaxStreakWidget() } timeline: {
+#Preview("Ring — small", as: .systemSmall) { MaxTodayWidget() } timeline: {
     MaxEntry(date: Date(), snapshot: .placeholder)
 }
 #endif
