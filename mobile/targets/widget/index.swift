@@ -224,43 +224,39 @@ struct ProgressRule: View {
                     .frame(width: progress <= 0 ? 0 : max(4, geo.size.width * progress))
             }
         }
-        .frame(height: 4)
+        .frame(height: 3)
     }
 }
 
 /// Timeline row: time gutter · node on the rail · title. The node IS the
-/// checkbox (tappable on iOS 17+); the rail threads the day together.
+/// checkbox (tappable on iOS 17+); the rail threads the day together. No
+/// "done" label — the filled node and strikethrough carry that alone.
 struct TimelineRow: View {
     let task: TaskItem
     let isFirst: Bool
     let isLast: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 11) {
             Text(task.done ? "" : task.time)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 10.5, weight: .medium))
                 .monospacedDigit()
-                .foregroundColor(mute)
-                .frame(width: 38, alignment: .trailing)
+                .foregroundColor(mute.opacity(0.9))
+                .frame(width: 36, alignment: .trailing)
             VStack(spacing: 0) {
-                Rectangle().fill(Color.primary.opacity(isFirst ? 0 : 0.10)).frame(width: 1.5)
+                Rectangle().fill(Color.primary.opacity(isFirst ? 0 : 0.08)).frame(width: 1)
                 node
-                Rectangle().fill(Color.primary.opacity(isLast ? 0 : 0.10)).frame(width: 1.5)
+                Rectangle().fill(Color.primary.opacity(isLast ? 0 : 0.08)).frame(width: 1)
             }
-            .frame(width: 22)
+            .frame(width: 26)
             Text(task.title)
-                .font(.system(size: 13.5, weight: .medium))
+                .font(.system(size: 13.5, weight: .regular))
                 .foregroundColor(task.done ? mute : ink)
-                .strikethrough(task.done, color: mute.opacity(0.6))
+                .strikethrough(task.done, color: mute.opacity(0.5))
                 .lineLimit(1)
             Spacer(minLength: 4)
-            if task.done {
-                Text("done")
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundColor(mute)
-            }
         }
-        .frame(height: 32)
+        .frame(height: 33)
     }
 
     @ViewBuilder private var node: some View {
@@ -276,14 +272,14 @@ struct TimelineRow: View {
             if task.done {
                 Circle().fill(ink)
                 Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white)
             } else {
                 Circle().fill(Color(hex: "#FFFFFF"))
-                Circle().strokeBorder(Color.primary.opacity(0.25), lineWidth: 1.5)
+                Circle().strokeBorder(Color.primary.opacity(0.20), lineWidth: 1.25)
             }
         }
-        .frame(width: 20, height: 20)
+        .frame(width: 24, height: 24)
         .contentShape(Rectangle())
     }
 }
@@ -300,37 +296,38 @@ struct TodayListView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(weekdayKicker())
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1.8)
-                    .foregroundColor(ink)
-                Text("\(snapshot.done) of \(snapshot.total)\(moreCount > 0 ? "  ·  +\(moreCount)" : "")")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .tracking(2.2)
                     .foregroundColor(mute)
+                Text("\(snapshot.done)/\(snapshot.total)\(moreCount > 0 ? " · +\(moreCount)" : "")")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundColor(mute.opacity(0.8))
                 Spacer()
-                HStack(spacing: 3.5) {
+                HStack(spacing: 3) {
                     Image(systemName: "flame.fill")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 10.5, weight: .semibold))
                         .foregroundColor(snapshot.allDone ? green : ink)
                     Text("\(snapshot.streak)")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .semibold))
                         .monospacedDigit()
                         .foregroundColor(ink)
                 }
             }
             ProgressRule(progress: snapshot.progress, allDone: snapshot.allDone)
-                .padding(.top, 8)
+                .padding(.top, 7)
             VStack(spacing: 0) {
                 ForEach(Array(visibleTasks.enumerated()), id: \.element) { idx, task in
                     TimelineRow(task: task, isFirst: idx == 0, isLast: idx == visibleTasks.count - 1)
                 }
             }
-            .padding(.top, 6)
+            .padding(.top, 5)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 13)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .widgetURL(URL(string: "cannon://today"))
         .widgetSurface(paperGradient)
     }
@@ -342,20 +339,20 @@ struct ProgressRingView: View {
     let snapshot: TodaySnapshot
     var body: some View {
         ZStack {
-            Circle().stroke(Color.primary.opacity(0.08), lineWidth: 9)
+            Circle().stroke(Color.primary.opacity(0.07), lineWidth: 7)
             Circle()
                 .trim(from: 0, to: max(0.001, snapshot.progress))
                 .stroke(
                     snapshot.allDone ? AnyShapeStyle(green) : AnyShapeStyle(ringGradient),
-                    style: StrokeStyle(lineWidth: 9, lineCap: .round)
+                    style: StrokeStyle(lineWidth: 7, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
             VStack(spacing: 2) {
                 Image(systemName: "flame.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(snapshot.allDone ? green : ink)
                 Text("\(snapshot.streak)")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 33, weight: .semibold))
                     .monospacedDigit()
                     .foregroundColor(ink)
                     .minimumScaleFactor(0.5)
@@ -365,7 +362,7 @@ struct ProgressRingView: View {
                     .foregroundColor(snapshot.allDone ? green : mute)
             }
         }
-        .padding(16)
+        .padding(17)
         .widgetURL(URL(string: "cannon://today"))
         .widgetSurface(paperGradient)
     }
