@@ -32,6 +32,12 @@ struct TodaySnapshot: Codable {
     }
     var allDone: Bool { total > 0 && done >= total }
 
+    /// Real "nothing here yet" state — used whenever the app hasn't written a
+    /// snapshot (never signed in / opened Today). NEVER shows fake tasks.
+    static let empty = TodaySnapshot(streak: 0, done: 0, total: 0, tasks: [], updatedAt: nil)
+
+    /// Sample data — shown ONLY in the widget gallery picker, never on a
+    /// placed widget (see MaxProvider.getSnapshot's isPreview branch).
     static let placeholder = TodaySnapshot(
         streak: 47,
         done: 1,
@@ -46,6 +52,7 @@ struct TodaySnapshot: Codable {
         updatedAt: nil
     )
 
+    /// The real snapshot the app last wrote, or `.empty` when there is none.
     static func load() -> TodaySnapshot {
         guard
             let defaults = UserDefaults(suiteName: appGroup),
@@ -53,7 +60,7 @@ struct TodaySnapshot: Codable {
             let data = raw.data(using: .utf8),
             let decoded = try? JSONDecoder().decode(TodaySnapshot.self, from: data)
         else {
-            return .placeholder
+            return .empty
         }
         return decoded
     }
@@ -136,7 +143,9 @@ struct MaxProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (MaxEntry) -> Void) {
-        completion(MaxEntry(date: Date(), snapshot: TodaySnapshot.load()))
+        // The gallery picker shows sample data; a real placed widget never does.
+        let snap = context.isPreview ? TodaySnapshot.placeholder : TodaySnapshot.load()
+        completion(MaxEntry(date: Date(), snapshot: snap))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<MaxEntry>) -> Void) {
@@ -301,10 +310,12 @@ struct TodayListView: View {
                     .font(.system(size: 10.5, weight: .semibold))
                     .tracking(2.2)
                     .foregroundColor(mute)
-                Text("\(snapshot.done)/\(snapshot.total)\(moreCount > 0 ? " · +\(moreCount)" : "")")
-                    .font(.system(size: 10.5, weight: .medium))
-                    .monospacedDigit()
-                    .foregroundColor(mute.opacity(0.8))
+                if snapshot.total > 0 {
+                    Text("\(snapshot.done)/\(snapshot.total)\(moreCount > 0 ? " · +\(moreCount)" : "")")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundColor(mute.opacity(0.8))
+                }
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text("\(snapshot.streak)")
@@ -318,13 +329,26 @@ struct TodayListView: View {
             }
             ProgressRule(progress: snapshot.progress, allDone: snapshot.allDone)
                 .padding(.top, 7)
-            VStack(spacing: 0) {
-                ForEach(Array(visibleTasks.enumerated()), id: \.element) { idx, task in
-                    TimelineRow(task: task, isFirst: idx == 0, isLast: idx == visibleTasks.count - 1)
+            if visibleTasks.isEmpty {
+                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("No maxes today")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(ink)
+                    Text("Plan your day in Max to see it here.")
+                        .font(.system(size: 11.5, weight: .regular))
+                        .foregroundColor(mute)
                 }
+                Spacer(minLength: 0)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(visibleTasks.enumerated()), id: \.element) { idx, task in
+                        TimelineRow(task: task, isFirst: idx == 0, isLast: idx == visibleTasks.count - 1)
+                    }
+                }
+                .padding(.top, 5)
+                Spacer(minLength: 0)
             }
-            .padding(.top, 5)
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -340,13 +364,15 @@ struct ProgressRingView: View {
     var body: some View {
         ZStack {
             Circle().stroke(Color.primary.opacity(0.07), lineWidth: 7)
-            Circle()
-                .trim(from: 0, to: max(0.001, snapshot.progress))
-                .stroke(
-                    snapshot.allDone ? AnyShapeStyle(green) : AnyShapeStyle(ringGradient),
-                    style: StrokeStyle(lineWidth: 7, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
+            if snapshot.progress > 0 {
+                Circle()
+                    .trim(from: 0, to: snapshot.progress)
+                    .stroke(
+                        snapshot.allDone ? AnyShapeStyle(green) : AnyShapeStyle(ringGradient),
+                        style: StrokeStyle(lineWidth: 7, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+            }
             VStack(spacing: 3) {
                 Text("\(snapshot.streak)")
                     .font(.system(size: 36, weight: .semibold))

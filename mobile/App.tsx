@@ -123,6 +123,39 @@ function AppNavigator() {
         };
     }, [navRef]);
 
+    // Home Screen widget deep links (cannon://today | cannon://home | bare
+    // cannon://): open the app to the Home tab. Handles warm foreground taps,
+    // cold starts (nav not ready yet), and the first-launch auth flip.
+    const widgetHomePendingRef = useRef(false);
+    const flushWidgetHome = useCallback(() => {
+        if (!widgetHomePendingRef.current) return;
+        if (isAuthenticated && navRef.isReady()) {
+            navRef.dispatch(CommonActions.navigate({ name: 'Home' }));
+            widgetHomePendingRef.current = false;
+        }
+    }, [isAuthenticated, navRef]);
+    useEffect(() => {
+        let mounted = true;
+        const handle = (url: string | null) => {
+            if (!mounted || !url) return;
+            if (/^cannon:\/\/(today|home)?\/?$/i.test(url.trim())) {
+                widgetHomePendingRef.current = true;
+                flushWidgetHome();
+            }
+        };
+        const sub = Linking.addEventListener('url', (e) => handle(e.url));
+        void Linking.getInitialURL().then(handle).catch(() => undefined);
+        return () => {
+            mounted = false;
+            sub.remove();
+        };
+    }, [flushWidgetHome]);
+    // Re-attempt once auth resolves — on a cold start the Home tree can mount
+    // after the widget URL has already arrived.
+    useEffect(() => {
+        flushWidgetHome();
+    }, [isAuthenticated, flushWidgetHome]);
+
     // Apply pending OTA updates promptly: check on mount and whenever the app
     // returns to the foreground, then hot-swap the new JS bundle. Without this,
     // fallbackToCacheTimeout:0 means a shipped update only applies on the *next*
@@ -309,6 +342,7 @@ function AppNavigator() {
                     navRef.navigate(pending as never);
                     pendingDeepLinkRef.current = null;
                 }
+                flushWidgetHome();
             }}
             // Remember which paid-app tab the user is on so a reload/relaunch
             // restores it instead of bouncing to the default tab. Scoped + safe:
