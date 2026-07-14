@@ -306,14 +306,14 @@ struct TodayListView: View {
                     .monospacedDigit()
                     .foregroundColor(mute.opacity(0.8))
                 Spacer()
-                HStack(spacing: 3) {
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundColor(snapshot.allDone ? green : ink)
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text("\(snapshot.streak)")
                         .font(.system(size: 13, weight: .semibold))
                         .monospacedDigit()
                         .foregroundColor(ink)
+                    Text("days")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(snapshot.allDone ? green : mute)
                 }
             }
             ProgressRule(progress: snapshot.progress, allDone: snapshot.allDone)
@@ -347,18 +347,16 @@ struct ProgressRingView: View {
                     style: StrokeStyle(lineWidth: 7, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-            VStack(spacing: 2) {
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(snapshot.allDone ? green : ink)
+            VStack(spacing: 3) {
                 Text("\(snapshot.streak)")
-                    .font(.system(size: 33, weight: .semibold))
+                    .font(.system(size: 36, weight: .semibold))
                     .monospacedDigit()
                     .foregroundColor(ink)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
-                Text(snapshot.allDone ? "all done" : "\(snapshot.done)/\(snapshot.total) today")
-                    .font(.system(size: 10, weight: .medium))
+                Text("days")
+                    .font(.system(size: 11, weight: .medium))
+                    .tracking(0.5)
                     .foregroundColor(snapshot.allDone ? green : mute)
             }
         }
