@@ -75,6 +75,23 @@ export function syncTodayWidget(snapshot: WidgetSnapshot): void {
 }
 
 /**
+ * Wipe the widget's snapshot so it shows its blank state — call on logout /
+ * when unauthenticated so a signed-out device (or the next user) never sees the
+ * previous session's tasks or streak.
+ */
+export function clearTodayWidget(): void {
+    if (!storage) return;
+    try {
+        storage.remove(KEY);
+        storage.remove(QUEUE_KEY);
+        lastSerialized = '';
+        reloadWidget?.();
+    } catch {
+        // Best-effort: never let a widget clear take down the app.
+    }
+}
+
+/**
  * Drain the check/uncheck actions the user made from the widget while the app
  * was backgrounded. The widget already updated its own snapshot optimistically;
  * the caller is responsible for pushing each toggle to the backend. Returns

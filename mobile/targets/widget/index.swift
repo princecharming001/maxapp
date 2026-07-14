@@ -31,6 +31,10 @@ struct TodaySnapshot: Codable {
         total > 0 ? Double(done) / Double(total) : 0
     }
     var allDone: Bool { total > 0 && done >= total }
+    /// True once the app has written a real snapshot. When false the user has
+    /// never signed in / the session was cleared — show a blank widget, never
+    /// a fake streak or tasks.
+    var hasData: Bool { updatedAt != nil }
 
     /// Real "nothing here yet" state — used whenever the app hasn't written a
     /// snapshot (never signed in / opened Today). NEVER shows fake tasks.
@@ -49,7 +53,7 @@ struct TodaySnapshot: Codable {
             TaskItem(id: "4", scheduleId: "s", title: "Skincare AM", time: "", color: nil, done: true),
             TaskItem(id: "5", scheduleId: "s", title: "Cold shower", time: "8:00p", color: nil, done: false),
         ],
-        updatedAt: nil
+        updatedAt: "preview" // non-nil so the gallery preview renders the sample
     )
 
     /// The real snapshot the app last wrote, or `.empty` when there is none.
@@ -293,6 +297,28 @@ struct TimelineRow: View {
     }
 }
 
+/// Shown before the app has ever written data (never signed in / signed out):
+/// a clean prompt, never a fake streak or tasks.
+struct BlankView: View {
+    var compact: Bool
+    var body: some View {
+        VStack(spacing: compact ? 5 : 7) {
+            Text("MAX")
+                .font(.system(size: compact ? 15 : 17, weight: .bold))
+                .tracking(compact ? 3 : 4)
+                .foregroundColor(ink)
+            Text(compact ? "Open the app" : "Open the app to see your day")
+                .font(.system(size: compact ? 10 : 12, weight: .medium))
+                .foregroundColor(mute)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(14)
+        .widgetURL(URL(string: "cannon://today"))
+        .widgetSurface(paperGradient)
+    }
+}
+
 // MARK: - Today (medium: the day rail)
 
 struct TodayListView: View {
@@ -304,6 +330,14 @@ struct TodayListView: View {
     var moreCount: Int { max(0, snapshot.total - visibleTasks.count) }
 
     var body: some View {
+        if !snapshot.hasData {
+            BlankView(compact: false)
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(weekdayKicker())
@@ -362,6 +396,14 @@ struct TodayListView: View {
 struct ProgressRingView: View {
     let snapshot: TodaySnapshot
     var body: some View {
+        if !snapshot.hasData {
+            BlankView(compact: true)
+        } else {
+            ring
+        }
+    }
+
+    private var ring: some View {
         ZStack {
             Circle().stroke(Color.primary.opacity(0.07), lineWidth: 7)
             if snapshot.progress > 0 {

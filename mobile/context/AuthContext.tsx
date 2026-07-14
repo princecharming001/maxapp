@@ -11,6 +11,7 @@ import api, { subscribeAuthLost } from '../services/api';
 import { clearFaceScanDraft, clearPendingFaceScanSubmit } from '../lib/faceScanDraft';
 import { clearOnboardingDraft } from '../lib/onboardingDraft';
 import { clearRestoredTab } from '../lib/navState';
+import { clearTodayWidget } from '../lib/widgetSync';
 import { loadFreeTierChoice, saveFreeTierChoice, clearFreeTierChoice } from '../lib/freeTier';
 import {
     clearPersistedQueryCache,
@@ -319,6 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } catch {
                 /* ignore */
             }
+            clearTodayWidget();
             void clearPendingFaceScanSubmit().catch(() => undefined);
             void clearFaceScanDraft().catch(() => undefined);
             void clearOnboardingDraft().catch(() => undefined);
@@ -462,6 +464,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await resetGoogleNativeSession();
         // Drop cached server state on logout so user B can't see user A's data.
         queryClient.clear();
+        // Blank the Home Screen widget so a signed-out device (or user B) never
+        // sees user A's tasks/streak.
+        clearTodayWidget();
         await clearFreeTierChoice().catch(() => undefined);
         await clearPendingFaceScanSubmit().catch(() => undefined);
         await clearFaceScanDraft().catch(() => undefined);
@@ -481,6 +486,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await api.clearTokens();
         setUser(null);
         setFreeTierChosen(false);
+        clearTodayWidget();
         await resetGoogleNativeSession();
         await clearFreeTierChoice().catch(() => undefined);
         await clearPendingFaceScanSubmit().catch(() => undefined);
