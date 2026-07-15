@@ -35,6 +35,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
+# Apple-native billing ONLY (2026-07): there are no Stripe subscriptions and
+# none may ever be created. Every Stripe subscription endpoint (create +
+# manage) is retired below with 410 Gone. The Stripe webhook and /status stay
+# mounted as read-only safety nets, but nothing can mint a Stripe sub anymore.
+STRIPE_BILLING_RETIRED = True
+
+
+def _reject_stripe_retired() -> None:
+    if STRIPE_BILLING_RETIRED:
+        raise HTTPException(
+            status_code=410,
+            detail="Card billing is retired — subscribe through the App Store.",
+        )
+
 
 # ------------------------------------------------------------------
 # Helpers
@@ -227,6 +241,7 @@ async def billing_preview(
     Return the three secrets that Payment Sheet needs:
     customerId, ephemeralKeySecret, setupIntentClientSecret.
     """
+    _reject_stripe_retired()
     customer_id = await _ensure_stripe_customer(current_user, db)
     ephemeral_secret = await stripe_service.create_ephemeral_key(customer_id)
     si_id, si_secret = await stripe_service.create_setup_intent(
@@ -259,6 +274,7 @@ async def subscribe(
     After the client confirms a SetupIntent, call this to create the
     weekly Subscription on the saved payment method.
     """
+    _reject_stripe_retired()
     user_id = current_user["id"]
 
     if current_user.get("is_paid"):
@@ -312,6 +328,7 @@ async def cancel_subscription(
             status_code=409,
             detail="This subscription was purchased through Apple. Open Settings → Apple ID → Subscriptions to cancel.",
         )
+    _reject_stripe_retired()
 
     sub_id = current_user.get("subscription_id")
     if not sub_id:
@@ -859,6 +876,7 @@ async def change_subscription_tier(
             status_code=409,
             detail="Plan changes for Apple subscriptions are done in Settings → Apple ID → Subscriptions.",
         )
+    _reject_stripe_retired()
 
     sub_id = current_user.get("subscription_id")
     if not sub_id:
@@ -916,6 +934,7 @@ async def resume_subscription(
             status_code=409,
             detail="Resume or manage Apple subscriptions in Settings → Apple ID → Subscriptions.",
         )
+    _reject_stripe_retired()
 
     sub_id = current_user.get("subscription_id")
     if not sub_id:
@@ -954,6 +973,7 @@ async def create_checkout_session(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    _reject_stripe_retired()
     user_id = current_user["id"]
     customer_id = await _ensure_stripe_customer(current_user, db)
 
