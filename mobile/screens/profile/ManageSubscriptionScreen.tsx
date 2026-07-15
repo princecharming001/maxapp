@@ -10,12 +10,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 
-const BASIC_FEATURES = [
-    'Chatbot access',
-    '1 active program',
-    'Weekly face scan',
-];
-
+// Chad Lite is RETIRED (single-plan pivot, 2026-07): Chad is the only plan.
+// Legacy Chadlite subscribers are grandfathered — same price, full Chad access.
 const PREMIUM_FEATURES = [
     'Chatbot Pro: deeper, sharper coaching',
     '3 active programs',
@@ -56,7 +52,6 @@ export default function ManageSubscriptionScreen() {
     const faceScanEnabled = useFlag('faceScan');
     // When the face-scan feature is off, strip every scan-related perk/line so the
     // paywall makes no promise the app can't keep. Flip the flag to fully restore.
-    const basicFeatures = faceScanEnabled ? BASIC_FEATURES : BASIC_FEATURES.filter((p) => !/scan/i.test(p));
     const premiumFeatures = faceScanEnabled ? PREMIUM_FEATURES : PREMIUM_FEATURES.filter((p) => !/scan/i.test(p));
     const apple = useAppleSubscription();
     const appleRestoring = 'restoring' in apple ? !!apple.restoring : false;
@@ -122,17 +117,9 @@ export default function ManageSubscriptionScreen() {
     const tier = (subscriptionTier || user?.subscription_tier || 'basic').toLowerCase() as 'basic' | 'premium';
     const periodLabel = formatPeriodEnd(periodEndIso);
 
+    // Chad is the only plan (Lite retired). Legacy Chadlite subscribers show as
+    // premium after the grandfather migration and keep their original price.
     const PLANS = [
-        {
-            tier: 'basic' as const,
-            name: 'Chadlite',
-            tag: 'Core access',
-            sub: faceScanEnabled
-                ? 'Chatbot, one active program, and a weekly face scan.'
-                : 'Chatbot and one active program.',
-            features: basicFeatures,
-            price: '$3.99',
-        },
         {
             tier: 'premium' as const,
             name: 'Chad',
@@ -162,13 +149,15 @@ export default function ManageSubscriptionScreen() {
         }
     };
 
-    const runChangeTier = async (next: 'basic' | 'premium') => {
+    // Lite is retired: the only tier change left is legacy-basic -> premium
+    // (kept for any user whose grandfather migration hasn't landed yet).
+    const runChangeTier = async (next: 'premium') => {
         setActionBusy(`tier-${next}`);
         try {
             await api.changeSubscriptionTier(next);
             await refreshUser();
             await loadStatus();
-            Alert.alert('Plan updated', next === 'premium' ? "You're on Premium." : "You're on Basic.");
+            Alert.alert('Plan updated', "You're on Chad.");
         } catch (e: unknown) {
             const msg =
                 (e as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail ||
@@ -182,24 +171,11 @@ export default function ManageSubscriptionScreen() {
 
     const confirmUpgrade = () => {
         Alert.alert(
-            'Upgrade to Premium?',
-            'Your payment method will be charged the Premium rate (prorated for the rest of this billing period).',
+            'Upgrade to Chad?',
+            'Your payment method will be charged the Chad rate (prorated for the rest of this billing period).',
             [
                 { text: 'Not now', style: 'cancel' },
                 { text: 'Upgrade', onPress: () => void runChangeTier('premium') },
-            ],
-        );
-    };
-
-    const confirmDowngrade = () => {
-        Alert.alert(
-            'Switch to Basic?',
-            faceScanEnabled
-                ? "You'll lose Premium benefits (extra programs, daily face scans, full course library). Stripe may credit or charge a prorated difference."
-                : "You'll lose Premium benefits (extra programs, full course library). Stripe may credit or charge a prorated difference.",
-            [
-                { text: 'Keep Premium', style: 'cancel' },
-                { text: 'Switch to Basic', style: 'destructive', onPress: () => void runChangeTier('basic') },
             ],
         );
     };
@@ -353,9 +329,7 @@ export default function ManageSubscriptionScreen() {
                         {PLANS.map((plan) => {
                             const isPremiumPlan = plan.tier === 'premium';
                             const isCurrent = tier === plan.tier;
-                            const busyThis =
-                                (plan.tier === 'premium' && actionBusy === 'tier-premium') ||
-                                (plan.tier === 'basic' && actionBusy === 'tier-basic');
+                            const busyThis = actionBusy === 'tier-premium';
 
                             return (
                                 <View
@@ -428,45 +402,19 @@ export default function ManageSubscriptionScreen() {
                                         <View style={styles.currentPlanFooter}>
                                             <Text style={styles.currentPlanFooterText}>{"You're subscribed to this plan"}</Text>
                                         </View>
-                                    ) : isPremiumPlan ? (
-                                        stripeManageEnabled ? (
-                                            <TouchableOpacity
-                                                style={[styles.cardUpgradeBtn, busyThis && styles.btnDisabled]}
-                                                onPress={confirmUpgrade}
-                                                disabled={actionBusy !== null}
-                                                activeOpacity={0.88}
-                                            >
-                                                {busyThis ? (
-                                                    <ActivityIndicator color={colors.buttonText} />
-                                                ) : (
-                                                    <>
-                                                        <Text style={styles.cardUpgradeBtnText}>Upgrade to Chad</Text>
-                                                        <Ionicons name="arrow-forward" size={18} color={colors.buttonText} />
-                                                    </>
-                                                )}
-                                            </TouchableOpacity>
-                                        ) : (
-                                            <View style={styles.stripeActionPlaceholder}>
-                                                <Text style={styles.stripeActionPlaceholderText}>
-                                                    {Platform.OS === 'ios'
-                                                        ? 'Change your plan in iOS Settings → Subscriptions.'
-                                                        : 'Upgrade is available when billing is connected to Stripe.'}
-                                                </Text>
-                                            </View>
-                                        )
                                     ) : stripeManageEnabled ? (
                                         <TouchableOpacity
-                                            style={[styles.cardDowngradeBtn, busyThis && styles.btnDisabled]}
-                                            onPress={confirmDowngrade}
+                                            style={[styles.cardUpgradeBtn, busyThis && styles.btnDisabled]}
+                                            onPress={confirmUpgrade}
                                             disabled={actionBusy !== null}
                                             activeOpacity={0.88}
                                         >
                                             {busyThis ? (
-                                                <ActivityIndicator color={colors.foreground} />
+                                                <ActivityIndicator color={colors.buttonText} />
                                             ) : (
                                                 <>
-                                                    <Ionicons name="arrow-down-circle-outline" size={20} color={colors.textSecondary} />
-                                                    <Text style={styles.cardDowngradeBtnText}>Switch to Chadlite</Text>
+                                                    <Text style={styles.cardUpgradeBtnText}>Upgrade to Chad</Text>
+                                                    <Ionicons name="arrow-forward" size={18} color={colors.buttonText} />
                                                 </>
                                             )}
                                         </TouchableOpacity>
@@ -475,10 +423,15 @@ export default function ManageSubscriptionScreen() {
                                             <Text style={styles.stripeActionPlaceholderText}>
                                                 {Platform.OS === 'ios'
                                                     ? 'Change your plan in iOS Settings → Subscriptions.'
-                                                    : 'Plan switches are available when billing is connected to Stripe.'}
+                                                    : 'Upgrade is available when billing is connected to Stripe.'}
                                             </Text>
                                         </View>
                                     )}
+                                    {isCurrent ? (
+                                        <Text style={styles.legacyPriceNote}>
+                                            Subscribed on a legacy Chadlite price? You keep that price with full Chad access.
+                                        </Text>
+                                    ) : null}
                                 </View>
                             );
                         })}
@@ -792,6 +745,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     currentPlanFooterText: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+    legacyPriceNote: { fontSize: 12, color: colors.textMuted, marginTop: 10, lineHeight: 17 },
     cardUpgradeBtn: {
         marginTop: spacing.md,
         flexDirection: 'row',

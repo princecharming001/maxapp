@@ -119,13 +119,19 @@ class StripeService:
         return price_id
 
     def tier_for_price_id(self, price_id: Optional[str]) -> Optional[str]:
-        """Map configured weekly price id to basic | premium."""
+        """Map configured weekly price id to a tier.
+
+        Chad Lite is RETIRED (single-plan pivot, 2026-07): the legacy basic
+        price maps to premium so a Lite renewal never re-downgrades a
+        grandfathered subscriber (price unchanged). Mirrors
+        apple_iap_service.tier_for_product_id.
+        """
         if not price_id:
             return None
         basic = settings.stripe_price_id_weekly_basic
         premium = settings.stripe_price_id_weekly_premium
         if basic and price_id == basic:
-            return "basic"
+            return "premium"
         if premium and price_id == premium:
             return "premium"
         return None
@@ -136,7 +142,9 @@ class StripeService:
             meta = dict(subscription.metadata or {})
             tier_meta = (meta.get("tier") or "").lower()
             if tier_meta in ("basic", "premium"):
-                return tier_meta
+                # Legacy subs carry metadata tier="basic" — Lite is retired,
+                # everything resolves to Chad now.
+                return "premium"
             item0 = subscription.items.data[0]
             pid = item0.price.id
             return self.tier_for_price_id(pid)

@@ -83,8 +83,12 @@ async def _activate_user(
     if subscription_id:
         user.subscription_id = subscription_id
     user.subscription_status = subscription_status
+    # Chad Lite is RETIRED (single-plan pivot, 2026-07): every activation —
+    # regardless of provider, price, or metadata — grants Chad. Legacy Lite
+    # subscribers keep their old price but get the full feature set. This is
+    # the single choke point, so no webhook replay can re-downgrade anyone.
     if subscription_tier in ("basic", "premium"):
-        user.subscription_tier = subscription_tier
+        user.subscription_tier = "premium"
     if billing_provider is not None:
         user.billing_provider = billing_provider
     if subscription_end_date is not None:
@@ -860,8 +864,11 @@ async def change_subscription_tier(
     if not sub_id:
         raise HTTPException(status_code=404, detail="No active subscription")
 
-    if body.tier not in ("basic", "premium"):
-        raise HTTPException(status_code=400, detail="Invalid tier")
+    # Chad Lite is RETIRED (single-plan pivot, 2026-07): the only valid tier is
+    # premium. Nobody can switch INTO the legacy plan; existing Lite subscribers
+    # are grandfathered at their old price with full Chad access.
+    if body.tier != "premium":
+        raise HTTPException(status_code=400, detail="Chad Lite is retired — Chad is the only plan.")
 
     user = await db.get(User, UUID(current_user["id"]))
     current_tier = (
