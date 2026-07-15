@@ -278,7 +278,7 @@ async def health_check():
     # Liveness, not readiness: always 200 while the process is up so a transient
     # DB blip can't fail a deploy or crash-loop the instance under Render's health
     # check. DB connectivity is reported in the body for observability.
-    body = {"status": "healthy" if db_ok else "degraded", "build": "20260622a", "db": db_ok}
+    body = {"status": "healthy" if db_ok else "degraded", "build": "20260715a-single-plan", "db": db_ok}
     return JSONResponse(status_code=200, content=body)
 
 
