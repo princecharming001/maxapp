@@ -782,6 +782,129 @@ async def _find_or_create_google_user(
     return user, True
 
 
+async def _find_or_create_apple_user(
+    db: AsyncSession,
+    *,
+    sub: str,
+    email: str,
+    given_name: str = "",
+    family_name: str = "",
+    claim_user: "User | None" = None,
+) -> tuple[User, bool]:
+    """Resolve an Apple identity to an app user (created = was new).
+
+    Match order: apple_sub (stable) -> email (link an existing account). Apple
+    only returns email on the FIRST authorization and name never comes in the
+    token (the client passes it once), so apple_sub is the durable key. Mirrors
+    the Google helper exactly."""
+    email = (email or "").strip().lower()
+
+    user = (await db.execute(
+        select(User).where(User.apple_sub == sub)
+    )).scalar_one_or_none()
+    if user:
+        return user, False
+
+    if email:
+        user = (await db.execute(
+            select(User).where(User.email == email)
+        )).scalar_one_or_none()
+        if user:
+            if not user.apple_sub:
+                user.apple_sub = sub
+            if not user.auth_provider or user.auth_provider == "password":
+                user.auth_provider = "apple"
+            user.updated_at = datetime.utcnow()
+            await db.commit()
+            await db.refresh(user)
+            return user, False
+
+    # Account-after-scan: claim the caller's own unclaimed anon account.
+    if claim_user is not None:
+        if email:
+            claim_user.email = email
+        claim_user.apple_sub = sub
+        claim_user.auth_provider = "apple"
+        if given_name:
+            claim_user.first_name = given_name.strip()
+        if family_name:
+            claim_user.last_name = family_name.strip()
+        claim_user.updated_at = datetime.utcnow()
+        await db.commit()
+        await db.refresh(claim_user)
+        return claim_user, False
+
+    username = await _unique_username(db, email.split("@", 1)[0] if email else "max")
+    user = User(
+        email=email or f"apple_{sub[:12]}@placeholder.max",
+        password_hash=hash_password(secrets.token_urlsafe(32)),  # unusable
+        first_name=(given_name or "").strip() or "Max",
+        last_name=(family_name or "").strip() or "User",
+        username=username,
+        apple_sub=sub,
+        auth_provider="apple",
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        is_paid=False,
+        is_admin=False,
+        onboarding={},  # fresh -> runs onboarding
+        profile=UserProfile().model_dump(),
+        first_scan_completed=False,
+    )
+    db.add(user)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        existing = (await db.execute(
+            select(User).where(User.apple_sub == sub)
+        )).scalar_one_or_none()
+        if existing is None and email:
+            existing = (await db.execute(
+                select(User).where(User.email == email)
+            )).scalar_one_or_none()
+        if existing is not None:
+            return existing, False
+        raise
+    await db.refresh(user)
+    return user, True
+
+
+@router.post("/apple", response_model=TokenResponse)
+async def apple_signin(payload: dict, db: AsyncSession = Depends(get_db), authorization: str | None = Header(default=None)):
+    """Sign in / sign up with a Sign in with Apple identity token. The iOS
+    client obtains it via AppleAuthentication and POSTs it here (with the name
+    on first sign-in only, since Apple provides it once); we verify it against
+    Apple's keys, then find-or-create the account and issue our own tokens.
+    Required for App Store guideline 4.8 (Google Sign-In needs an equivalent)."""
+    from services.apple_signin import apple_signin_available, verify_apple_id_token
+
+    if not apple_signin_available():
+        raise HTTPException(status_code=503, detail="Sign in with Apple is not configured")
+    token = payload.get("identity_token") or payload.get("id_token")
+    if not token:
+        raise HTTPException(status_code=422, detail="identity_token required")
+    try:
+        claims = await verify_apple_id_token(token)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+    user, _created = await _find_or_create_apple_user(
+        db,
+        sub=str(claims["sub"]),
+        email=str(claims.get("email") or payload.get("email") or ""),
+        given_name=str(payload.get("given_name") or ""),
+        family_name=str(payload.get("family_name") or ""),
+        claim_user=await _optional_anon_caller(authorization, db),
+    )
+    user_id = str(user.id)
+    return TokenResponse(
+        access_token=create_access_token(user_id),
+        refresh_token=create_refresh_token(user_id),
+        token_type="bearer",
+    )
+
+
 @router.get("/google/config")
 async def google_signin_config():
     """What the client needs to start Google Sign-In (and whether it's set

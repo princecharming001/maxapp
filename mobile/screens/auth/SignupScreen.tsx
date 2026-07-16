@@ -18,6 +18,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { fonts } from '../../theme/dark';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
+import { AppleSignInButton } from '../../components/auth/AppleSignInButton';
 import { LiquidGlass } from '../../components/glass/LiquidGlass';
 
 // ─── Error helpers (unchanged) ────────────────────────────────────────────────
@@ -359,17 +360,12 @@ export default function SignupScreen() {
                         {/* Social sign-in */}
                         <View style={s.social}>
                             <GoogleSignInButton label="Continue with Google" />
-                            <TouchableOpacity
-                                activeOpacity={0.85}
-                                onPress={() => Alert.alert('Apple Sign In', 'Coming soon.')}
-                                accessibilityRole="button"
-                                accessibilityLabel="Continue with Apple"
-                            >
-                                <LiquidGlass radius={27} contentStyle={s.appleContent}>
-                                    <Ionicons name="logo-apple" size={18} color={INK} />
-                                    <Text style={s.appleBtnText}>Continue with Apple</Text>
-                                </LiquidGlass>
-                            </TouchableOpacity>
+                            <AppleSignInButton
+                                label="Continue with Apple"
+                                iconColor={INK}
+                                textStyle={s.appleBtnText}
+                                style={{ height: 54, borderRadius: 27, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(0,0,0,0.10)' }}
+                            />
                         </View>
 
                         {/* Terms */}

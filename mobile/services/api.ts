@@ -815,6 +815,34 @@ class ApiService {
         return response.data;
     }
 
+    /**
+     * Sign in with Apple. `identityToken` comes from AppleAuthentication; the
+     * name/email are only present on the FIRST sign-in (Apple provides them
+     * once), so we forward whatever we got. Same anon-claim behavior as Google.
+     */
+    async appleSignIn(identityToken: string, opts?: { givenName?: string; familyName?: string; email?: string }) {
+        try {
+            const access = await this.getToken();
+            if (access && ApiService.jwtExpiresSoon(access) && (await getItemAsync('refresh_token'))) {
+                await this.refreshToken();
+            }
+        } catch {
+            /* no session or refresh failed — proceed as a plain sign-in */
+        }
+        const response = await this.client.post(
+            'auth/apple',
+            {
+                identity_token: identityToken,
+                given_name: opts?.givenName,
+                family_name: opts?.familyName,
+                email: opts?.email,
+            },
+            { timeout: Platform.OS === 'web' ? WEB_AUTH_TIMEOUT_MS : undefined },
+        );
+        await this.setTokens(response.data.access_token, response.data.refresh_token);
+        return response.data;
+    }
+
     /** DEV-ONLY: exercise the Google identity path without a real token. */
     async googleSignInDev(email: string, name?: string) {
         const response = await this.client.post(

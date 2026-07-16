@@ -23,6 +23,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
+import { AppleSignInButton } from '../../components/auth/AppleSignInButton';
 import { useAuth } from '../../context/AuthContext';
 import { track } from '../../lib/analytics';
 import { navigationRef } from '../../lib/navigationRef';
@@ -289,21 +290,13 @@ export default function CreateAccountScreen() {
                     </View>
 
                     <GoogleSignInButton label="Continue with Google" variant="glass" onAuthSuccess={onGoogleSuccess} />
-                    {/* Apple Sign In needs a native build (P0.3) — until it ships, a
-                        dead "Coming soon" button on a conversion step only loses users,
-                        so it's dev-only. */}
-                    {__DEV__ ? (
-                        <TouchableOpacity
-                            style={styles.apple}
-                            onPress={() => Alert.alert('Apple Sign In', 'Coming soon.')}
-                            activeOpacity={0.85}
-                            accessibilityRole="button"
-                            accessibilityLabel="Continue with Apple"
-                        >
-                            <Ionicons name="logo-apple" size={18} color={WHITE} />
-                            <Text style={styles.appleText}>Continue with Apple</Text>
-                        </TouchableOpacity>
-                    ) : null}
+                    <AppleSignInButton
+                        label="Continue with Apple"
+                        style={styles.apple}
+                        textStyle={styles.appleText}
+                        iconColor={WHITE}
+                        onAuthSuccess={onGoogleSuccess}
+                    />
 
                     <TouchableOpacity style={styles.signin} onPress={onSignInInstead} hitSlop={8} accessibilityRole="button">
                         <Text style={styles.signinText}>Already have an account? <Text style={styles.signinStrong}>Sign in</Text></Text>

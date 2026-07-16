@@ -246,6 +246,10 @@ async def _run_app_users_column_migrations():
         "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS google_sub VARCHAR",
         "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR DEFAULT 'password'",
         "CREATE UNIQUE INDEX IF NOT EXISTS ix_app_users_google_sub ON app_users (google_sub) WHERE google_sub IS NOT NULL",
+        # Sign in with Apple (identity): the verified Apple subject id (stable
+        # per account). Required for App Store guideline 4.8 (equivalent login).
+        "ALTER TABLE app_users ADD COLUMN IF NOT EXISTS apple_sub VARCHAR",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_app_users_apple_sub ON app_users (apple_sub) WHERE apple_sub IS NOT NULL",
         # subscription_id was unique but Apple reuses originalTransactionId across renewals
         "ALTER TABLE app_users DROP CONSTRAINT IF EXISTS app_users_subscription_id_key",
         # Billing provider ('apple' | 'stripe' | 'referral_comp' | ...). This is

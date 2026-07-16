@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
+import { AppleSignInButton } from '../../components/auth/AppleSignInButton';
 import { fonts } from '../../theme/dark';
 
 // ─── Error helper ─────────────────────────────────────────────────────────────
@@ -218,16 +219,7 @@ export default function LoginScreen() {
                     {/* Social sign-in */}
                     <View style={s.social}>
                         <GoogleSignInButton label="Continue with Google" />
-                        <TouchableOpacity
-                            style={s.appleBtn}
-                            activeOpacity={0.85}
-                            onPress={() => Alert.alert('Apple Sign In', 'Coming soon.')}
-                            accessibilityRole="button"
-                            accessibilityLabel="Continue with Apple"
-                        >
-                            <Ionicons name="logo-apple" size={18} color={INK} />
-                            <Text style={s.appleBtnText}>Continue with Apple</Text>
-                        </TouchableOpacity>
+                        <AppleSignInButton label="Continue with Apple" style={s.appleBtn} textStyle={s.appleBtnText} iconColor={INK} />
                     </View>
 
                     {/* Create account link */}

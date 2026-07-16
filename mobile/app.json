@@ -25,7 +25,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.cannon.mobile",
       "appleTeamId": "3TJ8RC3JCX",
-      "buildNumber": "332",
+      "buildNumber": "333",
+      "usesAppleSignIn": true,
       "entitlements": {
         "aps-environment": "production",
         "com.apple.security.application-groups": [
@@ -61,6 +62,7 @@
     },
     "plugins": [
       "@bacons/apple-targets",
+      "expo-apple-authentication",
       "./plugins/withModularHeaders",
       [
         "expo-camera",

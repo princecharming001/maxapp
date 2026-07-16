@@ -130,6 +130,8 @@ interface AuthContextType {
     signInWithGoogle: (idToken: string) => Promise<User>;
     /** DEV-only Google identity path (no real token) for localhost testing. */
     signInWithGoogleDev: (email: string, name?: string) => Promise<User>;
+    /** Sign in / up with a verified Sign in with Apple identity token (find-or-create). */
+    signInWithApple: (identityToken: string, opts?: { givenName?: string; familyName?: string; email?: string }) => Promise<User>;
     logout: () => Promise<void>;
     /** Returns latest user from API (e.g. after payment) so callers can branch before next render. */
     refreshUser: () => Promise<User>;
@@ -455,6 +457,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return userData;
     }, []);
 
+    const signInWithApple = useCallback(async (
+        identityToken: string,
+        opts?: { givenName?: string; familyName?: string; email?: string },
+    ) => {
+        await api.appleSignIn(identityToken, opts);
+        const userData = await api.getMe();
+        setUser(userData);
+        return userData;
+    }, []);
+
     const logout = useCallback(async () => {
         await api.clearTokens();
         setUser(null);
@@ -529,11 +541,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             claimAccount,
             signInWithGoogle,
             signInWithGoogleDev,
+            signInWithApple,
             logout,
             refreshUser,
             deleteAccount,
         }),
-        [user, isLoading, freeTierChosen, chooseFreeTier, subscriptionTier, login, signup, fauxSignup, fauxSkipSignup, fauxFreshSignup, devToggleAdmin, startAnon, claimAccount, signInWithGoogle, signInWithGoogleDev, logout, refreshUser, deleteAccount],
+        [user, isLoading, freeTierChosen, chooseFreeTier, subscriptionTier, login, signup, fauxSignup, fauxSkipSignup, fauxFreshSignup, devToggleAdmin, startAnon, claimAccount, signInWithGoogle, signInWithGoogleDev, signInWithApple, logout, refreshUser, deleteAccount],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

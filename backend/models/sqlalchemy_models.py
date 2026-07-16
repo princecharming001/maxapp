@@ -73,6 +73,8 @@ class User(Base):
     # Google Sign-In (identity). google_sub is the stable Google account id;
     # auth_provider records how the account was created ('password' | 'google').
     google_sub = Column(String, nullable=True)
+    # Sign in with Apple (identity). apple_sub is the stable Apple user id.
+    apple_sub = Column(String, nullable=True)
     auth_provider = Column(String, default="password")
 
     # iOS APNs device token (hex, no spaces) for server-driven push; cleared on 410 from Apple
