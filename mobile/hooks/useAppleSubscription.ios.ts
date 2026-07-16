@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { prefetchMainTabData } from '../lib/prefetchMainTabData';
 import { queryKeys } from '../lib/queryClient';
 import { markPostPayPending } from '../lib/postPayNav';
+import { reconcileOwnedSubscriptions } from '../lib/entitlementReconciler';
 import api from '../services/api';
 
 type Tier = 'basic' | 'premium';
@@ -125,6 +126,43 @@ export function useAppleSubscription() {
                 setLoading(null);
                 pendingSkuRef.current = null;
                 if (error.code === ErrorCode.UserCancelled) return;
+
+                // FAILSAFE: the Apple ID already owns this subscription (new
+                // phone / reinstall / different app account) — StoreKit refuses
+                // to re-sell, which used to strand the user at the paywall.
+                // Reconcile the owned entitlement with the backend instead: a
+                // successful verify flips isPaid and routes them forward like a
+                // normal purchase.
+                const alreadyOwned =
+                    error.code === ErrorCode.AlreadyOwned ||
+                    /already\s+(own|subscrib|purchas)/i.test(error.message || '');
+                if (alreadyOwned) {
+                    console.log('[AppleIAP] Already owned — reconciling entitlement instead of erroring');
+                    void (async () => {
+                        try {
+                            const granted = await reconcileOwnedSubscriptions({ force: true });
+                            if (granted) {
+                                markPostPayPending(); // BEFORE refreshUser flips isPaid
+                                await refreshUser();
+                                void queryClient.invalidateQueries({ queryKey: queryKeys.maxes });
+                                prefetchMainTabData(queryClient);
+                                return;
+                            }
+                            Alert.alert(
+                                'Subscription found',
+                                "Your Apple ID already has a Max subscription, but it couldn't be activated for this account. Tap Restore Purchases below, or try again in a moment.",
+                            );
+                        } catch (e) {
+                            console.warn('[AppleIAP] already-owned reconcile failed:', e);
+                            Alert.alert(
+                                'Subscription found',
+                                'Your Apple ID already has a Max subscription. Tap Restore Purchases to activate it on this account.',
+                            );
+                        }
+                    })();
+                    return;
+                }
+
                 console.error('[AppleIAP] Purchase error:', error.code, error.message);
                 Alert.alert('Purchase error', error.message || 'Something went wrong.');
             },
@@ -197,13 +235,18 @@ export function useAppleSubscription() {
                     const p = purchase as { transactionId?: string; id?: string; productId?: string };
                     const tid = String(p.transactionId ?? p.id ?? '').trim();
                     if (!tid || processedTids.current.has(tid)) continue;
-                    processedTids.current.add(tid);
                     try {
                         await api.verifyAppleIapTransaction(tid, p.productId || undefined);
-                        await finishTransaction({ purchase });
-                        await refreshUser();
-                    } catch {
+                        // Only a SUCCESSFUL verify consumes the transaction. A
+                        // failed one (network blip, backend 503, signed-out race)
+                        // must stay in the queue and stay retryable — the old
+                        // finish-and-mark-anyway behavior permanently stranded
+                        // "owned but locked out" users for the session.
+                        processedTids.current.add(tid);
                         try { await finishTransaction({ purchase }); } catch {}
+                        await refreshUser();
+                    } catch (err) {
+                        console.warn('[AppleIAP] recover verify failed (left retryable):', tid, err);
                     }
                 }
             } catch (e) {

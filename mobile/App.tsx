@@ -26,6 +26,7 @@ import { consumePostPayPending } from './lib/postPayNav';
 import { colors } from './theme/dark';
 import MaxLoadingView from './components/MaxLoadingView';
 import { StripeProviderGate } from './components/StripeProviderGate';
+import { reconcileOwnedSubscriptions } from './lib/entitlementReconciler';
 import { InAppAlertHost } from './components/InAppAlert';
 import DevDrawer from './components/DevDrawer';
 import { TamaguiProvider } from 'tamagui';
@@ -241,6 +242,34 @@ function AppNavigator() {
         };
         go();
     }, [isPaid, faceScanEnabled, navRef]);
+
+    // Entitlement failsafe: an authenticated-but-unpaid user whose Apple ID
+    // already OWNS an active subscription (new phone, reinstall, second
+    // account) would otherwise be stranded at the paywall — StoreKit refuses
+    // to re-sell ("You're already subscribed") and nothing reconciles. Sweep
+    // the Apple ID's entitlements on launch and every foreground while
+    // unpaid; a successful server verify flips isPaid via refreshUser and the
+    // navigator remounts into the paid app.
+    useEffect(() => {
+        if (Platform.OS !== 'ios' || !isAuthenticated || isPaid) return;
+        let mounted = true;
+        const heal = async () => {
+            try {
+                const granted = await reconcileOwnedSubscriptions();
+                if (granted && mounted) await refreshUser();
+            } catch {
+                /* silent — retried on next foreground */
+            }
+        };
+        void heal();
+        const sub = AppState.addEventListener('change', (s: AppStateStatus) => {
+            if (s === 'active') void heal();
+        });
+        return () => {
+            mounted = false;
+            sub.remove();
+        };
+    }, [isAuthenticated, isPaid, refreshUser]);
 
     // Root-level face scan recovery: runs whenever the app comes back to the
     // foreground so a pending upload that was interrupted in the background
