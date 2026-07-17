@@ -34,8 +34,14 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
+# NOTE: .env holds PRODUCTION defaults and is what OTA bundles bake in
+# (eas update -> expo export loads it). Local dev overrides belong in
+# .env.development.local — loaded ONLY when NODE_ENV=development, so they can
+# never leak into an OTA. Never put the API URL in .env.local (Expo loads that
+# in every environment, incl. production exports).
 .env*
 .env
+!.env.example
 
 # vercel
 .vercel
