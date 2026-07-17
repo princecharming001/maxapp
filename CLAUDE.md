@@ -34,8 +34,8 @@ npx expo start --lan          # or: npm run start:clear
 node -e "require('@babel/core').transformFileSync('screens/x.tsx', {presets:['babel-preset-expo']})"
 ```
 - No JS unit-test runner. UI tests are **Maestro** flows in `mobile/maestro/*.yaml`.
-- iOS builds: `eas build --platform ios --profile production --auto-submit`. `buildNumber` lives in `app.json`. The production API URL is hardcoded in `eas.json` (`.env.local` is ignored by EAS).
-- `mobile/.env.local` (gitignored) overrides the API base URL for local dev — point it at the Mac's **LAN IP** (changes when the network changes), not `127.0.0.1`.
+- iOS builds: `eas build --platform ios --profile production --auto-submit`. `buildNumber` lives in `app.json`. The production API URL for **builds** comes from `eas.json` (builds ignore the `.env*` files).
+- **Local dev API override lives in `mobile/.env.development.local`** (gitignored; loaded ONLY when `NODE_ENV=development`, i.e. `expo start`) — point it at the Mac's **LAN IP** for a real device, or `localhost` for the simulator. **NEVER use `mobile/.env.local`** for this: Expo loads that in *every* environment including production exports, so it leaks into OTA bundles and points every phone at localhost (see the OTA notes under Deploy & ops).
 
 ## Backend architecture
 
