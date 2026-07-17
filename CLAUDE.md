@@ -63,3 +63,11 @@ node -e "require('@babel/core').transformFileSync('screens/x.tsx', {presets:['ba
 
 - **Backend → Render** (service `maxapp-api`), auto-deploys on push to `main`. Render env vars are the prod config source of truth (DB pooler creds, `GOOGLE_IOS_CLIENT_ID`, Stripe, Apple keys). A **failed** deploy keeps serving the last good build — confirm a deploy actually went live via `/health`'s `build` string and `[DB] mode=transaction` in the boot logs.
 - **Mobile → EAS → TestFlight** (bundle id `com.cannon.mobile`, App Store Connect app id `6761345332`). Native config (Google sign-in URL scheme, IAP, etc.) is baked into the binary, so changes there require a new build.
+- **⚠️ `eas update` (OTA) and `eas build` read DIFFERENT env.** A build uses `eas.json`'s `build.<profile>.env` (correct prod API URL) and ignores `.env.local`. **`eas update` runs `expo export` locally, which DOES load `.env.local`** — and `mobile/.env.local` points `EXPO_PUBLIC_API_BASE_URL` at localhost for dev. Publishing an OTA without neutralizing it ships a bundle that points every phone at localhost → "network error" on every API call, app unusable (this happened 2026-07-15). **Always publish OTAs like this:**
+  ```bash
+  cd mobile && mv .env.local .env.local.bak
+  EXPO_PUBLIC_API_BASE_URL="https://maxapp-api.onrender.com/api/" \
+    eas update --branch production --message "..." --non-interactive
+  mv .env.local.bak .env.local
+  ```
+  Verify in the output: it must log `env: load .env` (NOT `.env.local .env`).
