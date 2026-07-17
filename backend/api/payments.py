@@ -148,10 +148,21 @@ async def _resolve_apple_user(claims: dict, db: AsyncSession) -> Optional[str]:
     """Resolve the owning user from TRUSTED Apple transaction claims.
 
     Never trusts the raw notification's inner JWS: this is called only on claims
-    fetched from Apple's authenticated App Store Server API. Prefers the
-    appAccountToken (our user id, set at purchase), falling back to matching the
-    originalTransactionId against a stored subscription_id.
+    fetched from Apple's authenticated App Store Server API.
+
+    Resolution order matters: the CURRENT holder of the subscription (stored
+    subscription_id == originalTransactionId) wins over the appAccountToken.
+    The token is frozen at purchase time forever, so after a legitimate
+    cross-account adoption/transfer it still names the ORIGINAL buying account —
+    resolving by token first made every renewal snap the entitlement back to
+    the old account, silently reverting the transfer each billing cycle.
     """
+    original = str(claims.get("originalTransactionId") or "")
+    if original:
+        res = await db.execute(select(User).where(User.subscription_id == original))
+        row = res.scalar_one_or_none()
+        if row:
+            return str(row.id)
     tok = claims.get("appAccountToken")
     if tok:
         try:
@@ -159,12 +170,6 @@ async def _resolve_apple_user(claims: dict, db: AsyncSession) -> Optional[str]:
             return str(tok)
         except ValueError:
             pass
-    original = str(claims.get("originalTransactionId") or "")
-    if original:
-        res = await db.execute(select(User).where(User.subscription_id == original))
-        row = res.scalar_one_or_none()
-        if row:
-            return str(row.id)
     return None
 
 
