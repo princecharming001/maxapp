@@ -168,6 +168,45 @@ async def _resolve_apple_user(claims: dict, db: AsyncSession) -> Optional[str]:
     return None
 
 
+async def _assert_claimable(user_id: str, claims: dict, db: AsyncSession) -> None:
+    """Guard the appAccountToken mismatch case WITHOUT stranding real customers.
+
+    An Apple subscription belongs to an APPLE ID, not to the app account that
+    happened to buy it — so a user on a new phone / reinstall / fresh signup
+    legitimately presents a transaction stamped with an older app-account token.
+    Hard-rejecting that (the old behavior) locked paying users out of the app
+    forever, since the client can only ever replay the same transaction.
+
+    Policy: a mismatched token is fine as long as NO OTHER account currently
+    holds this subscription. If someone else actively holds it, refuse — that's
+    the case the original guard existed for (a replayed/stolen transaction id
+    must never take an entitlement away from its active owner).
+    """
+    from services import apple_iap_service as apple
+
+    if apple.account_token_matches(claims, user_id) is not False:
+        return  # matches, or a legacy transaction with no token
+
+    original = str(claims.get("originalTransactionId") or "")
+    holder = None
+    if original:
+        holder = (await db.execute(
+            select(User).where(User.subscription_id == original)
+        )).scalars().first()
+
+    if holder is not None and str(holder.id) != str(user_id):
+        logger.warning(
+            "Apple IAP: token mismatch AND actively held by another account "
+            "(txn=%s holder=%s caller=%s) — refusing", original, holder.id, user_id,
+        )
+        raise ValueError("account_token_mismatch")
+
+    logger.info(
+        "Apple IAP: adopting unclaimed subscription across app accounts "
+        "(txn=%s token=%s caller=%s)", original, claims.get("appAccountToken"), user_id,
+    )
+
+
 async def _apple_sync_entitlement(user_id: str, claims: dict, db: AsyncSession) -> None:
     """Apply App Store transaction claims to Supabase user (active or expired)."""
     from services import apple_iap_service as apple
@@ -178,6 +217,7 @@ async def _apple_sync_entitlement(user_id: str, claims: dict, db: AsyncSession) 
     original = str(claims.get("originalTransactionId") or "")
     if not original:
         raise ValueError("missing_original")
+    await _assert_claimable(user_id, claims, db)
     active = apple.subscription_active_from_claims(claims)
     exp = apple.expires_datetime_from_claims(claims)
     if not active:

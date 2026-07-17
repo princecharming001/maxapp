@@ -1633,12 +1633,19 @@ async def verify_creator_subscription(
 
     from services.apple_iap_service import (
         apple_iap_configured, fetch_transaction_claims, validate_claims_for_user,
-        subscription_active_from_claims, expires_datetime_from_claims,
+        account_token_matches, subscription_active_from_claims, expires_datetime_from_claims,
     )
     if apple_iap_configured():
         try:
             claims = await fetch_transaction_claims(body.transaction_id)
             validate_claims_for_user(claims, current_user["id"])
+            # Keep the creator path STRICT on appAccountToken. The main
+            # subscription path now tolerates a mismatch for an unclaimed sub
+            # (Apple-ID-owned entitlement outliving the buying app account), but
+            # that leniency is deliberately NOT extended here — this check is
+            # part of what stops one user replaying another's creator receipt.
+            if account_token_matches(claims, current_user["id"]) is False:
+                raise ValueError("account_token_mismatch")
         except Exception as e:
             logger.warning("creator apple verify failed: %s", e)
             raise HTTPException(status_code=401, detail="Could not verify purchase.")

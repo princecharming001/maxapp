@@ -189,22 +189,36 @@ async def fetch_transaction_claims(transaction_id: str) -> Dict[str, Any]:
     raise RuntimeError(last_err or "Apple transaction lookup failed")
 
 
+def account_token_matches(claims: Dict[str, Any], expected_user_id: str) -> Optional[bool]:
+    """Does this transaction's appAccountToken belong to `expected_user_id`?
+
+    Returns True (match), False (bound to a DIFFERENT app account), or None when
+    the transaction carries no token at all (legacy purchases — always tolerated).
+    A False is NOT automatically fatal: an Apple ID's subscription legitimately
+    outlives the app account that bought it (new phone, reinstall, fresh signup),
+    so the caller decides based on whether anyone else actually holds it.
+    """
+    token = claims.get("appAccountToken")
+    if not token:
+        return None
+    return str(token).lower() == str(expected_user_id).lower()
+
+
 def validate_claims_for_user(claims: Dict[str, Any], expected_user_id: str) -> None:
+    """Hard validation: the transaction must be OUR app's.
+
+    NOTE: the appAccountToken is deliberately NOT enforced here. It used to raise
+    `account_token_mismatch`, which permanently stranded paying users whose Apple
+    ID owned an active subscription bought under a different app account — the
+    client retried forever and could never be granted (observed in prod
+    2026-07-17). Callers now use `account_token_matches()` + an ownership check so
+    an UNCLAIMED subscription can be adopted while one that is actively held by
+    another account is still refused.
+    """
     bundle = (claims.get("bundleId") or claims.get("bundle_id") or "").strip()
     expected_bundle = settings.apple_bundle_id.strip()
     if bundle and expected_bundle and bundle != expected_bundle:
         raise ValueError("bundle_mismatch")
-
-    token = claims.get("appAccountToken")
-    if token and str(token).lower() != str(expected_user_id).lower():
-        # A present appAccountToken that doesn't match the authenticated caller
-        # means this transaction was bound to a DIFFERENT account (e.g. a replayed
-        # transaction_id from another user). Reject so we never activate the wrong
-        # account. Legacy purchases with no appAccountToken are still tolerated.
-        logger.warning(
-            "appAccountToken mismatch (token=%s, user=%s) — rejecting", token, expected_user_id,
-        )
-        raise ValueError("account_token_mismatch")
 
 
 def decode_notification_payload(signed_payload: str) -> Dict[str, Any]:
