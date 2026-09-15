@@ -22,6 +22,7 @@ import ForumNotificationsV2Screen from '../screens/forums/ForumNotificationsV2Sc
 import DayPlannerScreen from '../screens/profile/DayPlannerScreen';
 import MarketplaceScreen from '../screens/marketplace/MarketplaceScreen';
 import { getRestoredTab, pickInitialTab } from '../lib/navState';
+import { useAuth } from '../context/AuthContext';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -159,6 +160,12 @@ function ForumsStack() {
 
 export default function TabNavigator() {
     const insets = useSafeAreaInsets();
+    const { user } = useAuth();
+    // Until the first-run walkthrough is finished, the app always opens on
+    // Home. The walkthrough's last step lands on Chat, and restoring THAT as
+    // the boot tab made a brand-new account "open with a chat by default" —
+    // and kept Home (where the walkthrough lives) from ever focusing.
+    const tourDone = (user?.onboarding as { main_app_tour_completed?: boolean } | undefined)?.main_app_tour_completed === true;
 
     useEffect(() => {
         prefetchMainTabData(queryClient);
@@ -169,9 +176,11 @@ export default function TabNavigator() {
             <Tab.Navigator
                 // Restore the tab the user left (lib/navState); falls back to
                 // Home when there's nothing valid to restore.
-                initialRouteName={pickInitialTab(getRestoredTab(), [
-                    'Home', 'MasterScheduleTab', 'ScanCenter', 'Explore', 'Chat', 'Forums',
-                ])}
+                initialRouteName={tourDone
+                    ? pickInitialTab(getRestoredTab(), [
+                        'Home', 'MasterScheduleTab', 'ScanCenter', 'Explore', 'Chat', 'Forums',
+                    ])
+                    : 'Home'}
                 screenOptions={{
                     headerShown: false,
                     tabBarBackground: () => <TabBarFrost />,

@@ -969,8 +969,15 @@ class ScheduleService:
             # Hard ceiling so a hung LLM provider can't leave the user stuck on
             # a "building your schedule…" spinner forever — on timeout we fall
             # through to the deterministic fallback below and still ship a plan.
+            # 30 days × every mandatory task × product-level descriptions routinely
+            # overran the 8192-token default, truncating the JSON and dropping
+            # fitmax into the deterministic fallback — which is where the
+            # brand-prefixed titles came from. Same ceiling the adapter uses.
             raw = await asyncio.wait_for(
-                asyncio.to_thread(sync_llm_json_response, prompt),
+                asyncio.to_thread(
+                    sync_llm_json_response, prompt,
+                    int(getattr(settings, "schedule_adapt_max_output_tokens", 16384)),
+                ),
                 timeout=float(getattr(settings, "llm_timeout_seconds", 25)) * 2 + 10,
             )
             schedule_data = json.loads(raw)
@@ -3606,9 +3613,9 @@ def _humanize_titles_in_days(days: list[dict]) -> list[dict]:
             changed = False
             if raw:
                 try:
-                    friendly = _humanize_title(raw)
+                    friendly = _humanize_title(strip_brand_prefix(raw))
                 except Exception:
-                    friendly = raw
+                    friendly = strip_brand_prefix(raw)
                 if friendly and friendly != raw:
                     new_t["title"] = friendly
                     changed = True
@@ -3627,6 +3634,29 @@ def _humanize_titles_in_days(days: list[dict]) -> list[dict]:
                 day_out["motivation_message"] = clean_motiv
         out.append(day_out)
     return out
+
+
+_BRAND_PREFIX_RE = re.compile(
+    r"^\s*(?:skin|fit|hair|height|bone|coloring)\s*max+\s*(?:—|–|-|:|,|\|)\s*",
+    re.IGNORECASE,
+)
+
+
+def strip_brand_prefix(title: str) -> str:
+    """Drop a leading "FitMax — " / "Skinmax: " from a task title.
+
+    The deterministic fallback generators (and the skinmax LLM augmenter)
+    hard-code the program name into every title, and the em-dash scrub then
+    turns it into "FitMax, Morning nutrition". Every surface that shows a task
+    already names its program beside it (the Home card's module subtitle, the
+    planner's module tint, the guide header), so the prefix is pure redundancy
+    — the owner's words: "says Fitmax, whatever the task is". Applied at the
+    persist boundary for new rows AND on read for rows already stored.
+    """
+    if not isinstance(title, str) or not title:
+        return title
+    out = _BRAND_PREFIX_RE.sub("", title, count=1).strip()
+    return out or title
 
 
 def _clean_days_em_dashes(days: list[dict]) -> None:
@@ -3650,6 +3680,9 @@ def _clean_days_em_dashes(days: list[dict]) -> None:
         for t in day.get("tasks") or []:
             if not isinstance(t, dict):
                 continue
+            title = t.get("title")
+            if isinstance(title, str) and title:
+                t["title"] = strip_brand_prefix(title)
             for key in ("title", "description"):
                 val = t.get(key)
                 if isinstance(val, str) and "—" in val:

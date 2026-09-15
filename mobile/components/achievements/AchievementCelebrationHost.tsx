@@ -77,9 +77,10 @@ export default function AchievementCelebrationHost() {
     }, [fresh]);
 
     // Hold the celebration until the user is on a calm screen (not mid-scan etc.)
-    // — and never underneath/on top of the first-run walkthrough (the auto-enroll
-    // pass earns "First Steps" while it's up; the queue survives and promotes
-    // the moment the walkthrough closes).
+    // — and never underneath/on top of the first-run walkthrough, nor in the
+    // tick it is about to appear (the hold covers "pending" too — starting
+    // their first Max earns "First Steps" right as the task step shows; the
+    // queue survives and promotes the moment the walkthrough closes).
     const walkthroughUp = useWalkthroughVisible();
     const onSafeScreen = !!routeName && !SUPPRESS_ROUTES.has(routeName) && !walkthroughUp;
 

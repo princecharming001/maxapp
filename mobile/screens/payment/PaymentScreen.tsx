@@ -143,10 +143,27 @@ export default function PaymentScreen() {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Where a successful purchase goes. Mid-funnel (onboarding incomplete) the
-    // next step is claiming the account ("Save your results"); a completed user
-    // hitting this as an in-app gate rides the paid-stack remount instead.
-    const afterPurchase = () => {
+    // payoff for paying is the FULL scan reveal — shown right here, before the
+    // account step ("Save your results" then reads literally). A skipper has no
+    // scan and goes straight to the account. A completed user hitting this as
+    // an in-app gate rides the paid-stack remount instead.
+    //
+    // Previously the reveal was left to Home's focus effect after the schedule
+    // questions — a push that the paid-stack remount swallowed on first
+    // arrival, so it only ever appeared after a relaunch.
+    const afterPurchase = async () => {
         if (!onboardingCompleted) {
+            let hasScan = !!user?.first_scan_completed;
+            if (!hasScan && faceScanEnabled) {
+                // The funnel scan may still be analyzing (first_scan_completed
+                // flips only when analysis lands); the row itself exists from
+                // the upload, and the reveal screen polls it to completion.
+                try { hasScan = !!(await api.getLatestScan()); } catch { hasScan = false; }
+            }
+            if (hasScan && faceScanEnabled) {
+                navigation.navigate('FaceScanResults', { postPay: true, funnel: true });
+                return;
+            }
             navigation.navigate('CreateAccount');
         } else if (navigation.canGoBack()) {
             navigation.goBack();
@@ -170,7 +187,7 @@ export default function PaymentScreen() {
                 if (cancelled || paidExitRef.current) return;
                 if (fresh?.is_paid) {
                     paidExitRef.current = true;
-                    afterPurchase();
+                    void afterPurchase();
                 }
             } catch {
                 // Could not verify — do NOT skip the paywall on cache alone.
@@ -187,7 +204,7 @@ export default function PaymentScreen() {
         try {
             await api.testActivateSubscription('premium');
             await refreshUser();
-            afterPurchase();
+            await afterPurchase();
         } catch (e: any) {
             Alert.alert('Dev bypass failed', String(e?.message || e || 'Could not activate.'));
         } finally {
@@ -226,7 +243,7 @@ export default function PaymentScreen() {
                 return;
             }
             track('purchase_success', { plan: 'premium' });
-            afterPurchase();
+            await afterPurchase();
         } catch (e: any) {
             track('purchase_failed', { plan: 'premium', error: String(e?.message ?? 'unknown') });
             throw e;
@@ -261,7 +278,7 @@ export default function PaymentScreen() {
             {/* ── Top bar — X close (left) / Restore (right), Cosmos-style ── */}
             <View style={[s.topBar, { top: Math.max(insets.top + 8, 52) }]}>
                 {SHOW_DEV_BYPASS ? (
-                    <TouchableOpacity style={s.topChip} onPress={afterPurchase} activeOpacity={0.7} hitSlop={12}>
+                    <TouchableOpacity style={s.topChip} onPress={() => { void afterPurchase(); }} activeOpacity={0.7} hitSlop={12}>
                         <Text style={s.topChipText}>Skip payment</Text>
                     </TouchableOpacity>
                 ) : isFreeTier && navigation.canGoBack() ? (

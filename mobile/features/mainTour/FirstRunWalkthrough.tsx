@@ -1,99 +1,55 @@
-/**
- * FirstRunWalkthrough — the guided first-actions overlay a brand-new user sees
- * on their first landing on Home (replaces the old five-stop spotlight tour).
- *
- * Philosophy: don't point at chrome, hand them their first WINS. Three steps,
- * each with one real action:
- *   1. "your plan is live" — confirms the auto-enrolled max landed (or that
- *      it's still building — the funnel-completion pass is async).
- *   2. "start with this" — their actual first task, one tap from TaskGuide.
- *      Skipped entirely when the plan hasn't landed yet.
- *   3. "max knows your setup" — the funnel conversation is saved in chat;
- *      one tap opens it.
- *
- * Visual: dim scrim + a bottom ink card in the editorial voice (Fraunces
- * serif title, Matter body, lowercase copy), progress dots, white pill CTA.
- * All-or-nothing overlay, no anchors, no measuring — it cannot trap touches
- * (the scrim itself advances on tap).
- */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, borderRadius } from '../../theme/dark';
+import { borderRadius, colors, fonts } from '../../theme/dark';
+import type { WalkthroughStep } from './useMainAppTour';
+
+/**
+ * First-run walkthrough card: a bottom ink card with ONE real action per step,
+ * guiding a brand-new account from an empty Home to their own first Max.
+ *
+ *   build  "build your first max"  → Explore (they pick; Max tailors it)
+ *   task   "start with this"       → their first task in TaskGuide
+ *   chat   "max is your coach"     → the chat tab
+ *
+ * The step is CONTROLLED by useFirstRunWalkthrough (persisted per user), so a
+ * tap on "build it", a trip through Explore, and a return to Home resume at the
+ * right step instead of starting over — or never coming back.
+ *
+ * The scrim only hides the card for this visit; nothing here marks the
+ * walkthrough done except the chat step's own actions.
+ */
 
 export type WalkthroughFirstTask = { title: string; time?: string | null } | null;
 
 type Props = {
     visible: boolean;
-    /** Label of the max the funnel auto-enrolled ("Skinmax"), if it landed. */
-    maxxLabel: string | null;
-    /** Today's first pending task, when the plan has landed. */
+    step: WalkthroughStep;
+    /** Today's first pending task, when the user's plan has landed. */
     firstTask: WalkthroughFirstTask;
-    /** Open the first task in TaskGuide (caller owns navigation). */
+    /** 'build' primary: take them to Explore to start their first Max. */
+    onBuildFirstMax: () => void;
+    /** 'task' primary: open the first task in TaskGuide. */
     onOpenFirstTask: () => void;
-    /** Jump to the Max chat tab. */
+    /** 'chat' primary: jump to the chat tab (also finishes). */
     onOpenChat: () => void;
-    /** Walkthrough finished (any exit) — persist + hide. */
+    /** Move to another step while staying up ("skip"). */
+    onGoTo: (to: WalkthroughStep) => void;
+    /** Hide for this visit; same step returns next time. */
+    onDismiss: () => void;
+    /** Done for good. */
     onFinish: () => void;
 };
 
-type Step = {
-    key: string;
-    title: string;
-    body: string;
-    primary: string;
-    onPrimary: 'next' | 'task' | 'chat';
-    secondary?: string;   // always finishes
-};
+const ORDER: WalkthroughStep[] = ['build', 'task', 'chat'];
+
+type Card = { title: string; body: string; primary: string; secondary?: string };
 
 export default function FirstRunWalkthrough({
-    visible, maxxLabel, firstTask, onOpenFirstTask, onOpenChat, onFinish,
+    visible, step, firstTask, onBuildFirstMax, onOpenFirstTask, onOpenChat, onGoTo, onDismiss, onFinish,
 }: Props) {
     const insets = useSafeAreaInsets();
-    // Current step tracked by KEY, not index: the steps array is LIVE (the
-    // "start with this" step inserts itself when the funnel-completion pass
-    // lands the first task), and an index would swap the card's content under
-    // the user mid-read. A key keeps the visible card stable while new steps
-    // slot in around it.
-    const [stepKey, setStepKey] = useState('plan');
 
-    const steps = useMemo<Step[]>(() => {
-        const s: Step[] = [];
-        s.push({
-            key: 'plan',
-            title: 'your plan is live',
-            body: maxxLabel
-                ? `${maxxLabel.toLowerCase()} is on your planner, built around your real hours.`
-                : 'max is building your day one right now — it lands on your planner in a moment.',
-            primary: 'show me',
-            onPrimary: 'next',
-        });
-        if (firstTask) {
-            const when = (firstTask.time || '').trim();
-            s.push({
-                key: 'task',
-                title: 'start with this',
-                body: `“${firstTask.title.toLowerCase()}”${when ? ` at ${when}` : ''}. open it and max walks you through.`,
-                primary: 'open it',
-                onPrimary: 'task',
-                secondary: 'later',
-            });
-        }
-        s.push({
-            key: 'chat',
-            title: 'max knows your setup',
-            body: 'everything you answered during setup is saved in chat. ask max to tweak any part of your day.',
-            primary: 'open chat',
-            onPrimary: 'chat',
-            secondary: 'i’m set',
-        });
-        return s;
-    }, [maxxLabel, firstTask]);
-
-    const idx = Math.max(0, steps.findIndex((s) => s.key === stepKey));
-    const step = steps[idx];
-
-    // Entrance / step-change animation: card slides up + fades.
     const anim = useRef(new Animated.Value(0)).current;
     useEffect(() => {
         if (!visible) return;
@@ -101,25 +57,63 @@ export default function FirstRunWalkthrough({
         Animated.timing(anim, {
             toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true,
         }).start();
-    }, [visible, stepKey, anim]);
+    }, [visible, step, anim]);
 
     if (!visible) return null;
 
-    const advance = () => {
-        if (idx < steps.length - 1) setStepKey(steps[idx + 1].key);
-        else onFinish();
-    };
+    let card: Card;
+    if (step === 'build') {
+        card = {
+            title: 'build your first max',
+            body: 'pick what you want to work on. max builds the routine around your real hours.',
+            primary: 'build it',
+            secondary: 'later',
+        };
+    } else if (step === 'task') {
+        const when = (firstTask?.time || '').trim();
+        card = firstTask
+            ? {
+                title: 'start with this',
+                body: `“${firstTask.title.toLowerCase()}”${when ? ` at ${when}` : ''}. open it and max walks you through.`,
+                primary: 'open it',
+                secondary: 'skip',
+            }
+            : {
+                title: 'your max is live',
+                body: 'it’s on your planner, built around your day. your first task shows up here when it’s time.',
+                primary: 'got it',
+            };
+    } else {
+        card = {
+            title: 'max is your coach',
+            body: 'ask max anything, or tell it to move any part of your day. it already knows your setup.',
+            primary: 'open chat',
+            secondary: 'i’m set',
+        };
+    }
 
     const handlePrimary = () => {
-        if (step.onPrimary === 'task') { onFinish(); onOpenFirstTask(); return; }
-        if (step.onPrimary === 'chat') { onFinish(); onOpenChat(); return; }
-        advance();
+        if (step === 'build') { onBuildFirstMax(); return; }
+        if (step === 'task') {
+            if (firstTask) { onOpenFirstTask(); return; }
+            onGoTo('chat');
+            return;
+        }
+        onOpenChat();
     };
+
+    const handleSecondary = () => {
+        if (step === 'build') { onDismiss(); return; }
+        if (step === 'task') { onGoTo('chat'); return; }
+        onFinish();
+    };
+
+    const idx = Math.max(0, ORDER.indexOf(step));
 
     return (
         <View style={StyleSheet.absoluteFill} pointerEvents="auto">
-            {/* Scrim — tapping it advances (never a dead backdrop). */}
-            <Pressable style={s.scrim} onPress={advance} accessibilityLabel="Continue walkthrough" />
+            {/* Scrim — tapping it hides the card for now; it comes back next visit. */}
+            <Pressable style={s.scrim} onPress={onDismiss} accessibilityLabel="Dismiss walkthrough" />
             <Animated.View
                 style={[
                     s.card,
@@ -134,19 +128,19 @@ export default function FirstRunWalkthrough({
                 testID="first-run-walkthrough"
             >
                 <Text style={s.kicker}>getting started</Text>
-                <Text style={s.title}>{step.title}</Text>
-                <Text style={s.body}>{step.body}</Text>
+                <Text style={s.title}>{card.title}</Text>
+                <Text style={s.body}>{card.body}</Text>
 
                 <View style={s.row}>
                     <View style={s.dots}>
-                        {steps.map((st, i) => (
-                            <View key={st.key} style={[s.dot, i === idx && s.dotActive]} />
+                        {ORDER.map((st, i) => (
+                            <View key={st} style={[s.dot, i === idx && s.dotActive]} />
                         ))}
                     </View>
                     <View style={s.actions}>
-                        {step.secondary ? (
-                            <TouchableOpacity onPress={advance} hitSlop={10} accessibilityRole="button">
-                                <Text style={s.secondary}>{step.secondary}</Text>
+                        {card.secondary ? (
+                            <TouchableOpacity onPress={handleSecondary} hitSlop={10} accessibilityRole="button">
+                                <Text style={s.secondary}>{card.secondary}</Text>
                             </TouchableOpacity>
                         ) : null}
                         <TouchableOpacity
@@ -155,7 +149,7 @@ export default function FirstRunWalkthrough({
                             accessibilityRole="button"
                             testID="walkthrough-primary"
                         >
-                            <Text style={s.primaryText}>{step.primary}</Text>
+                            <Text style={s.primaryText}>{card.primary}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

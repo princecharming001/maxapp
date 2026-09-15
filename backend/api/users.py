@@ -662,9 +662,6 @@ async def save_onboarding(
         "sendblue_sms_opt_in", "app_notifications_opt_in", "main_app_tour_completed",
         "post_subscription_onboarding", "sendblue_connect_completed",
         "notification_channels_completed", "module_select_completed",
-        # Funnel-completion pass markers (services.funnel_completion) — a later
-        # lifestyle edit through this endpoint must not resurrect or wipe them.
-        "funnel_auto_enroll_pending", "funnel_auto_enrolled", "funnel_chat_seeded",
     )
     _existing_ob = dict(user.onboarding or {})
     for _k in _SERVER_OWNED:
@@ -792,24 +789,10 @@ async def save_onboarding(
         wt["saturday"] = {**weekend, **(wt.get("saturday") or {})}
         wt["sunday"] = {**weekend, **(wt.get("sunday") or {})}
         onboarding_data["weekly_timings"] = wt
-    # Funnel completion intent (see services.funnel_completion): picking a first
-    # max is REQUIRED — mark the auto-enroll intent IN THE SAME COMMIT as
-    # `completed` so a process death between commit and the background task
-    # still leaves a durable marker for /schedules/active/full to re-kick.
-    # ONLY when `completed` NEWLY flips: an already-completed user re-saving
-    # lifestyle edits (this same endpoint) must never be auto-enrolled — a
-    # veteran who deliberately paused every schedule would get their top quiz
-    # pick rebuilt uninvited.
-    newly_completed = (
-        onboarding_data.get("completed") is True
-        and _existing_ob.get("completed") is not True
-    )
-    if (
-        newly_completed
-        and (onboarding_data.get("goals") or onboarding_data.get("priority_order"))
-        and not onboarding_data.get("funnel_auto_enrolled")
-    ):
-        onboarding_data["funnel_auto_enroll_pending"] = True
+    # The first Max is built by the USER through the guided walkthrough
+    # (Home → Explore → start a schedule), never pre-built here: a plan the
+    # user didn't choose read as "a Max already built in" and skipped the
+    # onboarding that makes it theirs. Likewise nothing is seeded into chat.
     user.onboarding = onboarding_data
     user.updated_at = datetime.utcnow()
     await db.flush()
@@ -819,18 +802,6 @@ async def save_onboarding(
     # strand the user mid-funnel (completed never sticks, the client keeps reading
     # completed:false and never advances). See db.best_effort.
     await db.commit()
-
-    # Kick the post-funnel pass (auto-enroll top pick + seed the funnel chat).
-    # Fire-and-forget with its own session — generation is LLM-backed (~up to
-    # 60s) and must never block the funnel's final tap. Only on the completion
-    # flip (or an unfinished retry marker) — never on routine lifestyle edits
-    # by long-completed users.
-    if newly_completed or onboarding_data.get("funnel_auto_enroll_pending"):
-        try:
-            from services.funnel_completion import kick_funnel_completion
-            kick_funnel_completion(str(user_uuid))
-        except Exception:
-            logger.exception("funnel completion kick failed")
 
     # Mirror durable profile facts (wake/sleep, skin/hair type, equipment, ...)
     # into user_facts so they're part of KNOWN PROFILE and never re-asked when

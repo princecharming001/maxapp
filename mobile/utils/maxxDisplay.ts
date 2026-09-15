@@ -32,6 +32,19 @@ export function normalizeMaxxNameSuffix(label: string): string {
     return s;
 }
 
+/**
+ * Drop a leading program name from a task title ("FitMax — Morning nutrition",
+ * "FitMax, Morning nutrition" after the server's dash scrub, "Skinmax: SPF").
+ * Every task surface already names the program beside the title, so the prefix
+ * only reads as "Fitmax, whatever the task is". Server now strips it too; this
+ * keeps rows persisted before that render clean without a refetch.
+ */
+export function stripMaxxTitlePrefix(title: string): string {
+    const s = String(title || '');
+    const out = s.replace(/^\s*(?:skin|fit|hair|height|bone|coloring)\s*max+\s*(?:—|–|-|:|,|\|)\s*/i, '').trim();
+    return out || s;
+}
+
 export function getMaxxDisplayLabel(maxx: { id?: string; label?: string }): string {
     const id = String(maxx.id || '').toLowerCase().trim();
     const raw = String(maxx.label ?? maxx.id ?? '').trim();

@@ -447,7 +447,29 @@ export default function HomeScreen() {
                     .catch(() => { postPayRedirected.current = false; });   // retry next focus
                 return;
             }
-            navigation.navigate('FaceScanResults', { postPay: true });
+            // FALLBACK only — the reveal now happens inline right after the
+            // paywall (PaymentScreen → FaceScanResults{funnel}). This path
+            // remains for the rare miss (kill-switch flipped mid-funnel, a
+            // crash between verify and reveal). Deferred one macrotask on
+            // purpose: on the treatAsFull remount this effect runs in the SAME
+            // commit the re-keyed root navigator mounts, and that navigator's
+            // own mount effect re-publishes its render-time state ([Main])
+            // AFTER us, discarding a push dispatched synchronously here. That
+            // was why the reveal only ever appeared after a relaunch (a cold
+            // start gets a fresh container and no overwrite).
+            setTimeout(() => {
+                navigation.navigate('FaceScanResults', { postPay: true });
+                // Confirm the push actually landed in the ROOT stack; if the
+                // remount swallowed it, release the latch so the next focus
+                // retries instead of going permanently dead.
+                setTimeout(() => {
+                    const root = (navigation.getParent() as { getState?: () => { routes?: { name: string }[] } } | undefined)?.getState?.();
+                    const names = root?.routes?.map((r) => r.name) ?? [];
+                    if (!names.includes('FaceScanResults')) postPayRedirected.current = false;
+                }, 100);
+            }, 0);
+            // No timer cleanup on purpose: this callback's identity changes on
+            // every setUser, and a cleanup would cancel the deferred push.
         }, [user?.onboarding, user?.first_scan_completed, navigation, faceScan, refreshUser]),
     );
 
@@ -458,7 +480,12 @@ export default function HomeScreen() {
         faceScan &&
         !!(user?.onboarding as { post_subscription_onboarding?: boolean } | undefined)?.post_subscription_onboarding &&
         !postPayRedirected.current;
-    const walkthrough = useFirstRunWalkthrough({ redirectPending: tourRedirectPending });
+    const hasPlan = ((schedulesQuery.data?.schedules as unknown[] | undefined)?.length ?? 0) > 0;
+    const walkthrough = useFirstRunWalkthrough({
+        redirectPending: tourRedirectPending,
+        hasPlan,
+        planLoading: schedulesLoading,
+    });
 
     useEffect(() => {
         Animated.parallel([
@@ -473,38 +500,6 @@ export default function HomeScreen() {
         () => (byDate[today] || []).find((r) => r.status !== 'completed') ?? null,
         [byDate, today],
     );
-
-    // Funnel-completion settle: the server builds the first max in the
-    // BACKGROUND after onboarding completes (services.funnel_completion), so a
-    // brand-new user lands here seconds before their schedule exists. The
-    // cached schedules query would show the empty state until a manual
-    // refresh — banned. Poll the query (bounded: ~90s) while a completed user
-    // with quiz picks has zero schedules; stops the moment rows land.
-    const settlePollCount = useRef(0);
-    useEffect(() => {
-        const ob = user?.onboarding as {
-            completed?: boolean;
-            goals?: unknown[];
-            funnel_auto_enroll_pending?: boolean;
-            funnel_auto_enrolled?: string;
-        } | undefined;
-        const eligible =
-            ob?.completed === true &&
-            Array.isArray(ob?.goals) && ob.goals.length > 0 &&
-            // Funnel-era users only (the completion pass stamps these) — a
-            // veteran who deliberately paused every schedule must not trigger
-            // 90s of background refetching on every Home visit.
-            !!(ob?.funnel_auto_enroll_pending || ob?.funnel_auto_enrolled) &&
-            schedulesQuery.isSuccess &&
-            ((schedulesQuery.data?.schedules as unknown[] | undefined)?.length ?? 0) === 0;
-        if (!eligible || settlePollCount.current >= 22) return;
-        const id = setInterval(() => {
-            settlePollCount.current += 1;
-            if (settlePollCount.current >= 22) { clearInterval(id); return; }
-            void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
-        }, 4000);
-        return () => clearInterval(id);
-    }, [user?.onboarding, schedulesQuery.isSuccess, schedulesQuery.data, queryClient]);
 
     const personalizedUI = useFlag('personalizedUI');
     const pers = usePersonalization();
@@ -793,12 +788,19 @@ export default function HomeScreen() {
 
             <FirstRunWalkthrough
                 visible={walkthrough.visible}
-                maxxLabel={activeMaxxes.find((m) => !m.isCourse)?.label ?? activeMaxxes[0]?.label ?? null}
+                step={walkthrough.step}
                 firstTask={walkthroughFirstRow
                     ? { title: walkthroughFirstRow.title, time: formatTimeTo12Hour(walkthroughFirstRow.time) }
                     : null}
+                onBuildFirstMax={() => {
+                    // Cursor stays at 'build': if they come back without a Max
+                    // the card asks again; with one, it moves on to the task.
+                    walkthrough.dismiss();
+                    navigation.navigate('Explore');
+                }}
                 onOpenFirstTask={() => {
                     const row = walkthroughFirstRow;
+                    walkthrough.advance('chat');
                     if (!row) return;
                     navigation.navigate('TaskGuide', {
                         scheduleId: row.scheduleId,
@@ -809,7 +811,9 @@ export default function HomeScreen() {
                         done: false,
                     });
                 }}
-                onOpenChat={() => navigation.navigate('Chat')}
+                onOpenChat={() => { walkthrough.finish(); navigation.navigate('Chat'); }}
+                onGoTo={walkthrough.goTo}
+                onDismiss={walkthrough.dismiss}
                 onFinish={walkthrough.finish}
             />
         </View>

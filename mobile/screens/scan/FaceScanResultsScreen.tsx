@@ -828,6 +828,9 @@ export default function FaceScanResultsScreen() {
     // a single unlock CTA into the paywall. Everything below the fold is
     // paid-only and hidden here.
     const gateV4 = !!(route.params as any)?.gateV4;
+    // V4 funnel post-pay reveal: pushed by the paywall right after purchase,
+    // BEFORE the account step. Its exit is the account form, not Main.
+    const funnelParam = !!(route.params as any)?.funnel;
     const viewingHistory = !!scanIdParam;
     const postSubscriptionOnboarding = !!(user?.onboarding as any)?.post_subscription_onboarding;
 
@@ -973,7 +976,11 @@ export default function FaceScanResultsScreen() {
     const a = coerceAnalysisObject(scan?.analysis);
     const treatAsPaid = isPaid === true || isScanUser === true || scan?.is_unlocked === true;
     const locked = !treatAsPaid;
-    const postPay = !!postPayParam && !locked && postSubscriptionOnboarding;
+    // In the funnel the paywall pushes this reveal the instant the purchase
+    // verifies; the server's post_subscription_onboarding flag is set in that
+    // same verify, but never make the payoff screen wait on a flag that a
+    // webhook replay or a slow refresh could still be catching up on.
+    const postPay = !!postPayParam && !locked && (postSubscriptionOnboarding || funnelParam);
     // The full "Your Analysis" breakdown is shown ONLY for the user's first scan
     // ever (incl. the locked onboarding teaser + the post-pay reveal). Daily /
     // repeat scans show just the three headline rings at the top — nothing else.
@@ -982,7 +989,14 @@ export default function FaceScanResultsScreen() {
     // Finish the post-pay flow: clear the post-subscription flag (so HomeScreen
     // stops redirecting back here) and land on Main. Programs are picked later in
     // the marketplace — there's no longer a dedicated picker step.
+    const advancingRef = useRef(false);
     const advancePostPay = useCallback(async () => {
+        // In-flight guard: the CTA could be tapped twice (or a fallback Back +
+        // the CTA), which fired TWO exits — two flag clears and two stack
+        // resets — remounting Home twice and killing the first-run walkthrough
+        // mid-show on a real device. Second and later taps are no-ops.
+        if (advancingRef.current) return;
+        advancingRef.current = true;
         // Guard BEFORE any side effect: in the funnel stack there is no 'Main',
         // so the reset below would be a silent no-op — and we'd have consumed
         // the post-subscription flag for a reveal the user never saw. If we
@@ -991,6 +1005,18 @@ export default function FaceScanResultsScreen() {
         const routeNames: string[] = ((navigation.getState?.() as any)?.routeNames) ?? [];
         if (!routeNames.includes('Main')) {
             setAdvancing(false); // release the spinner — we are NOT exiting via reset
+            if (funnelParam && routeNames.includes('CreateAccount')) {
+                // Reveal seen: on to "Save your results". Navigate FIRST, then
+                // clear the flag in the background — if the clear fails, Home's
+                // fallback redirect simply shows the reveal once more (self-
+                // healing) rather than stranding anyone here.
+                navigation.navigate('CreateAccount');
+                void api.dismissPostSubscriptionOnboarding()
+                    .then(() => refreshUser())
+                    .catch((e) => console.error(e));
+                return;
+            }
+            advancingRef.current = false;
             if (navigation.canGoBack()) navigation.goBack();
             return;
         }
@@ -1091,9 +1117,15 @@ export default function FaceScanResultsScreen() {
     const onPrimaryCta = async () => {
         if (isScanUser) { navigation.reset({ index: 0, routes: [{ name: 'FaceScan' }] }); return; }
         if (locked) { goPayment(); return; }
-        if (postPay) { void advancePostPay(); return; }
+        if (postPay) { setAdvancing(true); void advancePostPay(); return; }
         navigation.navigate('Main');
     };
+
+    const primaryCtaLabel = isScanUser
+        ? 'Scan Again'
+        : locked ? 'Unlock full results'
+        : postPay ? (funnelParam ? 'Save my results' : 'Get started')
+        : 'Continue';
 
     const postPayOnboardingFlow = postPay && !viewingHistory;
 
@@ -1649,10 +1681,16 @@ export default function FaceScanResultsScreen() {
                         the single sticky "Unlock full results" there). */}
                     {!viewingHistory && !gateV4 ? (
                         <>
-                            <TouchableOpacity style={s.cta} onPress={onPrimaryCta} activeOpacity={0.85} accessibilityLabel="Unlock full results">
-                                <Text style={s.ctaText}>
-                                    {isScanUser ? 'Scan Again' : locked ? 'Unlock full results' : postPay ? 'Get started' : 'Continue'}
-                                </Text>
+                            <TouchableOpacity
+                                style={[s.cta, advancing && { opacity: 0.6 }]}
+                                onPress={onPrimaryCta}
+                                disabled={advancing}
+                                activeOpacity={0.85}
+                                // Mirror the visible label — a fixed "Unlock full results" read
+                                // wrong to VoiceOver on the paid reveal.
+                                accessibilityLabel={primaryCtaLabel}
+                            >
+                                <Text style={s.ctaText}>{primaryCtaLabel}</Text>
                                 <Ionicons name={isScanUser ? 'camera-outline' : locked ? 'lock-open-outline' : 'arrow-forward'}
                                     size={17} color="#FFFFFF" />
                             </TouchableOpacity>

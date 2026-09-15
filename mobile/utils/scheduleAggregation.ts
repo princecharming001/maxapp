@@ -2,7 +2,7 @@
  * Shared merge + colors for master schedule and Home "today" tasks.
  */
 
-import { normalizeMaxxNameSuffix } from './maxxDisplay';
+import { normalizeMaxxNameSuffix, stripMaxxTitlePrefix } from './maxxDisplay';
 
 export const FALLBACK_MODULE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f97316', '#8b5cf6', '#0ea5e9'];
 
@@ -355,6 +355,7 @@ export function mergeSchedules(
         );
         byDate[d].push({
           ...t,
+          title: stripMaxxTitlePrefix(t.title),
           scheduleId: s.id,
           moduleLabel,
           moduleColor,

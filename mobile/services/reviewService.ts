@@ -23,6 +23,12 @@ const LOCAL_KEY = 'review_last_prompt_ms_v1';
 const MIN_LOCAL_MS = 3 * 24 * 60 * 60 * 1000; // no re-prompt within 3 days (any device)
 const MIN_DAYS_BETWEEN = 45;                    // our cross-install gap (Apple caps ~3/yr)
 const MAX_LIFETIME_REQUESTS = 3;
+// Never ask a brand-new account. The first level-up lands within minutes of
+// signing up (scan badge XP, "First Steps"), which put Apple's rating sheet on
+// top of the first-run walkthrough and the habit picker — the worst possible
+// moment. Ask only once they've finished the guided walkthrough AND have had a
+// few days with the app.
+const MIN_ACCOUNT_AGE_DAYS = 3;
 
 // TODO: set the real numeric App Store ID once the app is published — only the
 // Linking fallback (native module unavailable) needs it; requestReview() doesn't.
@@ -74,6 +80,11 @@ export async function checkAndRequestReview(_context: string): Promise<void> {
         // Global (server) throttle.
         const me = await api.getMe().catch(() => null);
         const profile = (me as any)?.profile || {};
+        // First-run gates: walkthrough finished + account old enough.
+        const ob = (me as any)?.onboarding || {};
+        if (ob.main_app_tour_completed !== true) return;
+        const createdMs = (me as any)?.created_at ? new Date((me as any).created_at).getTime() : NaN;
+        if (Number.isNaN(createdMs) || (Date.now() - createdMs) / 86400000 < MIN_ACCOUNT_AGE_DAYS) return;
         if (Number(profile.review_request_count || 0) >= MAX_LIFETIME_REQUESTS) return;
         const last = profile.last_review_request_date;
         if (last) {

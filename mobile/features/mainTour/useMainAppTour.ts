@@ -6,112 +6,183 @@ import { useAuth } from '../../context/AuthContext';
 import { useFlag } from '../../constants/featureFlags';
 import api from '../../services/api';
 
-// Local "seen" flag, written the moment the walkthrough SHOWS (not only on a
-// clean finish). A frozen / force-quit session never reaches the finish
-// handler, so without this the server `main_app_tour_completed` stays false
-// and the walkthrough re-fires on every launch. Key kept from the old
-// spotlight tour on purpose: users who saw THAT must not also see THIS.
-export const MAIN_TOUR_SEEN_KEY = 'main_app_tour_seen_v1';
+/**
+ * First-run walkthrough: the guided path from an empty Home to the user's OWN
+ * first Max, then their first task, then chat.
+ *
+ *   build → (user goes to Explore and starts a schedule) → task → chat → done
+ *
+ * Two things the previous version got wrong, both visible on a real device:
+ *
+ *  1. It marked itself "seen" the instant it rendered (local + server) and was
+ *     a one-shot — a scrim tap, a modal collision, or a relaunch and it was
+ *     gone for good. This one is RESUMABLE: it keeps a per-user step cursor and
+ *     re-shows on every Home focus until the user actually finishes it. The
+ *     server flag is written only on finish.
+ *
+ *  2. The "seen" key was device-wide, never cleared on logout. Once any account
+ *     had shown it on a device, no later account on that device ever saw it.
+ *     The cursor is keyed by user id.
+ *
+ * The cursor advances only on the user's own action ("build it" / "open it"),
+ * never on time, so a plan that lands while they're away is picked up on
+ * their next visit at the right step.
+ */
 
-// ── Cross-tree visibility signal ─────────────────────────────────────────────
-// The auto-enroll pass earns "First Steps" DURING the walkthrough, and the
-// achievement celebration host would stack its overlay on top of ours — two
-// scrims, two CTAs, on the user's very first screen. The host subscribes here
-// and holds celebrations until the walkthrough closes (its queue survives).
-let _walkthroughVisible = false;
-const _visListeners = new Set<(v: boolean) => void>();
+export type WalkthroughStep = 'build' | 'task' | 'chat';
+type Cursor = WalkthroughStep | 'done';
 
-function setWalkthroughVisible(v: boolean) {
-    if (_walkthroughVisible === v) return;
-    _walkthroughVisible = v;
-    _visListeners.forEach((l) => l(v));
+const cursorKey = (uid: string) => `main_app_tour_v2:${uid}`;
+
+// ── Cross-tree hold signal ──────────────────────────────────────────────────
+// The achievement celebration host must not stack its transparent Modal on top
+// of (or under) the walkthrough card — and not in the same tick the card is
+// about to appear, either, which reads as a flash. It subscribes here and
+// holds while the walkthrough is visible OR pending (decided, awaiting the
+// interaction settle). Its queue survives and promotes when the hold lifts.
+let _hold = false;
+const _holdListeners = new Set<(v: boolean) => void>();
+
+function setHold(v: boolean) {
+    if (_hold === v) return;
+    _hold = v;
+    _holdListeners.forEach((l) => l(v));
 }
 
-/** Reactive: true while the first-run walkthrough overlay is on screen. */
+/** Reactive: true while the walkthrough is on screen or about to be. */
 export function useWalkthroughVisible(): boolean {
-    const [v, setV] = useState(_walkthroughVisible);
+    const [v, setV] = useState(_hold);
     useEffect(() => {
-        _visListeners.add(setV);
-        setV(_walkthroughVisible);
-        return () => { _visListeners.delete(setV); };
+        _holdListeners.add(setV);
+        setV(_hold);
+        return () => { _holdListeners.delete(setV); };
     }, []);
     return v;
 }
 
-/**
- * Visibility brain for the first-run walkthrough (the guided-first-actions
- * overlay that replaced the react-native-spotlight-tour spotlight tour).
- *
- * The old tour spotlighted five UI regions, which meant anchor refs, measure
- * retries, and a zero-spot watchdog to escape an untouchable backdrop. The
- * walkthrough is a self-contained bottom card with real actions (open your
- * first task / open chat), so all of that machinery is gone — this hook is
- * ONLY the gating:
- *  - `mainAppTour` kill-switch flag (name kept for backend override compat),
- *  - user is paid, Home focused,
- *  - not still in the post-subscription scan flow, no post-pay redirect
- *    in flight,
- *  - not already seen (local key OR server `main_app_tour_completed`).
- *
- * Show/seen semantics match the old tour exactly: mark seen (local + server,
- * best-effort) the instant it becomes visible, and converge the server flag
- * again on finish.
- */
-export function useFirstRunWalkthrough(opts: { redirectPending: boolean }) {
+export function useFirstRunWalkthrough(opts: {
+    /** A post-pay reveal redirect is about to fire from Home — wait. */
+    redirectPending: boolean;
+    /** The user has at least one live schedule. */
+    hasPlan: boolean;
+    /** Schedules haven't loaded yet — don't decide a step on an unknown. */
+    planLoading: boolean;
+}) {
     const { user, isPaid, refreshUser } = useAuth();
     const isFocused = useIsFocused();
     const enabled = useFlag('mainAppTour');
-    const { redirectPending } = opts;
+    const { redirectPending, hasPlan, planLoading } = opts;
+    const uid = user?.id ? String(user.id) : null;
 
     const [visible, setVisible] = useState(false);
-    // Once shown (or ruled out for this session), never re-fire.
-    const decidedRef = useRef(false);
-    // null = still reading the local seen key; boolean once known.
-    const [seenLocally, setSeenLocally] = useState<boolean | null>(null);
+    const [step, setStep] = useState<WalkthroughStep>('build');
+    // null = still reading; otherwise the persisted cursor (missing ⇒ 'build').
+    const [cursor, setCursor] = useState<Cursor | null>(null);
+    // One decision per Home focus: a dismissed card stays dismissed until the
+    // user leaves and comes back (or the step they need changes).
+    const decidedThisFocus = useRef(false);
+    const decidedFor = useRef<WalkthroughStep | null>(null);
 
+    // Load the per-user cursor.
     useEffect(() => {
         let cancelled = false;
-        AsyncStorage.getItem(MAIN_TOUR_SEEN_KEY)
-            .then((v) => { if (!cancelled) setSeenLocally(v === '1'); })
-            .catch(() => { if (!cancelled) setSeenLocally(false); });
+        setCursor(null);
+        if (!uid) return;
+        AsyncStorage.getItem(cursorKey(uid))
+            .then((v) => {
+                if (cancelled) return;
+                setCursor(v === 'done' || v === 'task' || v === 'chat' || v === 'build' ? (v as Cursor) : 'build');
+            })
+            .catch(() => { if (!cancelled) setCursor('build'); });
         return () => { cancelled = true; };
-    }, []);
+    }, [uid]);
+
+    const persist = useCallback((c: Cursor) => {
+        setCursor(c);
+        if (uid) AsyncStorage.setItem(cursorKey(uid), c).catch(() => {});
+    }, [uid]);
+
+    // Reset the per-focus latch when Home loses focus so the next visit can
+    // decide again (that is what makes "build it → Explore → back" resume).
+    useEffect(() => {
+        if (!isFocused) {
+            decidedThisFocus.current = false;
+            decidedFor.current = null;
+            setVisible(false);
+        }
+    }, [isFocused]);
 
     useEffect(() => {
-        if (decidedRef.current || visible) return;
-        if (!enabled || !isPaid || !isFocused) return;
-        if (seenLocally !== false) return;   // unknown yet, or already seen
+        if (visible) return;
+        if (!enabled || !isPaid || !isFocused || !uid) return;
+        if (cursor === null || cursor === 'done') return;
         const ob = user?.onboarding as Record<string, unknown> | undefined;
-        if (ob?.post_subscription_onboarding) return;   // scan reveal still pending
-        if (ob?.main_app_tour_completed) return;        // server says seen
-        if (redirectPending) return;
-        // Let the post-pay navigation dust settle, then re-check and show.
+        if (ob?.main_app_tour_completed) return;          // finished on another device
+        if (ob?.post_subscription_onboarding) return;     // scan reveal still pending
+        if (redirectPending || planLoading) return;
+
+        // Which step does this visit need?
+        //   no plan            → build (whatever the cursor says: they need a Max)
+        //   plan, cursor build → task  (their Max landed since last time)
+        //   otherwise          → the cursor
+        const next: WalkthroughStep = !hasPlan ? 'build' : cursor === 'build' ? 'task' : cursor;
+        if (decidedThisFocus.current && decidedFor.current === next) return;
+
+        decidedThisFocus.current = true;
+        decidedFor.current = next;
+        setHold(true);
+        // Let the arrival animation / any navigation settle before presenting.
         const task = InteractionManager.runAfterInteractions(() => {
-            if (decidedRef.current) return;
             const ob2 = user?.onboarding as Record<string, unknown> | undefined;
-            if (ob2?.post_subscription_onboarding) return;
-            decidedRef.current = true;
-            // Persist "seen" the instant we show — survives a crash before the
-            // finish handler. Local first (authoritative), server best-effort.
-            AsyncStorage.setItem(MAIN_TOUR_SEEN_KEY, '1').catch(() => {});
-            api.completeMainAppTour().catch(() => {});
-            setWalkthroughVisible(true);
+            if (ob2?.post_subscription_onboarding || !isFocused) return;
+            if (next !== cursor) persist(next);
+            setStep(next);
             setVisible(true);
         });
         return () => task.cancel();
-    }, [enabled, isPaid, isFocused, seenLocally, user?.onboarding, redirectPending, visible]);
+    }, [enabled, isPaid, isFocused, uid, cursor, user?.onboarding, redirectPending, hasPlan, planLoading, visible, persist]);
 
-    // Belt-and-braces: if the hosting screen unmounts with the overlay up,
-    // release the celebration hold too.
-    useEffect(() => () => setWalkthroughVisible(false), []);
+    // Hold badge celebrations for the WHOLE guided flow, not just while the
+    // card is on screen: "build it" → Explore → start a Max earns "First Steps"
+    // (and the scan already earned "Baseline Set"), and a badge Modal popping
+    // over the very screen the walkthrough just sent them to breaks the thread.
+    // The queue survives; everything promotes the moment they finish.
+    const unfinished =
+        enabled && isPaid && !!uid && cursor !== null && cursor !== 'done'
+        && !(user?.onboarding as Record<string, unknown> | undefined)?.main_app_tour_completed;
+    useEffect(() => {
+        if (unfinished) setHold(true);
+        else if (!visible) setHold(false);
+    }, [unfinished, visible]);
 
-    const finish = useCallback(() => {
+    // Belt-and-braces: release the hold if the hosting screen unmounts.
+    useEffect(() => () => setHold(false), []);
+
+    /** Hide for this visit; the same step comes back next time Home focuses. */
+    const dismiss = useCallback(() => {
         setVisible(false);
-        setWalkthroughVisible(false);
-        // Converge the server flag + refresh so `main_app_tour_completed`
-        // reaches this device's user object (and any other device).
-        void api.completeMainAppTour().then(() => refreshUser()).catch(() => {});
-    }, [refreshUser]);
+    }, []);
 
-    return { visible, finish };
+    /** Move to another step while staying on screen (e.g. "skip" → chat). */
+    const goTo = useCallback((to: WalkthroughStep) => {
+        persist(to);
+        setStep(to);
+    }, [persist]);
+
+    /** The user acted on a step — remember where to resume, then hide. */
+    const advance = useCallback((to: WalkthroughStep) => {
+        persist(to);
+        setStep(to);
+        setVisible(false);
+    }, [persist]);
+
+    /** Done for good: local cursor + server flag (so other devices agree). */
+    const finish = useCallback(() => {
+        persist('done');
+        setVisible(false);
+        setHold(false);
+        void api.completeMainAppTour().then(() => refreshUser()).catch(() => {});
+    }, [persist, refreshUser]);
+
+    return { visible, step, dismiss, advance, goTo, finish };
 }

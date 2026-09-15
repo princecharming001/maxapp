@@ -306,6 +306,19 @@ export default function FaceScanScreen() {
         const run = async () => {
             if (isScanUser) return;
             if (!isPaid) return;
+            // Same guards as the layout effect above, for the same reason: in
+            // the V4 funnel this screen stays MOUNTED under the wizard after
+            // the capture hands off. When the purchase verifies, refreshUser()
+            // flips isPaid/isPremium in the shared auth context and this effect
+            // fired on the BURIED screen — the funnel scan was minutes old, so
+            // it always computed a "next scan" limit, alerted, and called
+            // goBack(). A goBack dispatched from a non-focused route carries no
+            // target, so the root stack popped whatever was on TOP: the
+            // CreateAccount screen the paywall had just pushed. That was the
+            // "goes to sign-in, then bounces back to the paywall" bug. A limit
+            // check has no business running from a capture step nobody is
+            // looking at, and never in the funnel at all.
+            if (!isFocused || funnelV4) return;
             try {
                 const latest = await api.getLatestScan();
                 const ts = latest?.created_at ? new Date(latest.created_at) : null;
@@ -337,6 +350,10 @@ export default function FaceScanScreen() {
                     }
                 }
                 if (nextAt) {
+                    // getLatestScan is async: focus can change while it's in
+                    // flight. Re-check at resolution so the pop can only ever
+                    // remove THIS screen.
+                    if (!navigation.isFocused()) return;
                     Alert.alert(
                         title,
                         `${plan} Wait until ${formatNextScan(nextAt)} for your next scan.`,
@@ -350,7 +367,7 @@ export default function FaceScanScreen() {
             }
         };
         void run();
-    }, [isPaid, isPremium, isScanUser, navigation]);
+    }, [isPaid, isPremium, isScanUser, isFocused, funnelV4, navigation]);
 
     /**
      * Resume camera cleanly after background; recover analyzing flow from server when user returns.
