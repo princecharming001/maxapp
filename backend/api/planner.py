@@ -146,12 +146,19 @@ async def planner_today(
             profile = dict(user.profile or {})
             if profile.get("horizon_checked") != marker:
                 from services.horizon import ensure_plan_horizon
-                await ensure_plan_horizon(user, db)
-                profile["horizon_checked"] = marker
-                user.profile = profile
-                from sqlalchemy.orm.attributes import flag_modified as _fm
-                _fm(user, "profile")
-                await db.commit()
+                horizon = await ensure_plan_horizon(user, db)
+                # Stamp today's check ONLY once every short plan really got
+                # its runway back. A regen that no-op'd or failed reports
+                # still_short > 0; withholding the stamp makes the next
+                # /planner/today (and the 120-min scheduler tick) retry
+                # instead of leaving the user to run out of plan for the
+                # rest of the day (H12).
+                if not (horizon or {}).get("still_short"):
+                    profile["horizon_checked"] = marker
+                    user.profile = profile
+                    from sqlalchemy.orm.attributes import flag_modified as _fm
+                    _fm(user, "profile")
+                    await db.commit()
         except Exception:
             pass  # the keeper is best-effort by contract
 
