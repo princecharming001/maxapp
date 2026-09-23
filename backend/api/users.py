@@ -1537,7 +1537,7 @@ async def upload_avatar(
 
     try:
         if user.profile and user.profile.get("avatar_url"):
-            delete_by_url(user.profile.get("avatar_url"))
+            await delete_by_url(user.profile.get("avatar_url"))
     except Exception as e:
         logger.warning("Avatar cleanup failed: %s", e)
 
@@ -1723,7 +1723,7 @@ async def delete_progress_photo(
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
     try:
-        delete_by_url(photo.image_url)
+        await delete_by_url(photo.image_url)
     except Exception as e:
         logger.warning("Progress photo S3 cleanup failed: %s", e)
     await db.execute(

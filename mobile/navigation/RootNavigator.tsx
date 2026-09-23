@@ -220,7 +220,11 @@ export function RootNavigator() {
                 </>
             ) : !treatAsFull ? (
                 <>
-                    <Stack.Screen name="Onboarding" component={OnboardingComponent} />
+                    {/* gestureEnabled:false — the intro quiz sits on top of the still-mounted
+                        FaceScan capture; an iOS swipe-back exposed it with the photos still
+                        in state (a second Analyze = a second scan row). The wizard has its own
+                        Back control. */}
+                    <Stack.Screen name="Onboarding" component={OnboardingComponent} options={{ gestureEnabled: false }} />
                     {/* Funnel V4 front door: yes/no scan offer. */}
                     <Stack.Screen name="ScanOffer" component={ScanOfferScreen} />
                     <Stack.Screen name="RoutineReveal" component={RevealComponent} />

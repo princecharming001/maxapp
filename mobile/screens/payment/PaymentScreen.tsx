@@ -45,6 +45,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useStripeSubscription } from '../../hooks/useStripeSubscription';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { signOutToLogin } from '../../lib/signOutToLogin';
+import { setOnboardingFunnelStage } from '../../lib/onboardingDraft';
 import { APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
 import { useFlag } from '../../constants/featureFlags';
 
@@ -103,6 +104,12 @@ export default function PaymentScreen() {
 
     useEffect(() => {
         track('paywall_view', { lapsed: isLapsed });
+        // Funnel checkpoint: a kill behind the Apple sheet (jetsam) used to
+        // resume at ScanOffer and the last quiz question. ScanOffer's resume
+        // guard forwards straight to the stamped stage.
+        if (!onboardingCompleted && !isPaid && user?.id) {
+            void setOnboardingFunnelStage(String(user.id), 'paywall').catch(() => undefined);
+        }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const faceScanEnabled = useFlag('faceScan');
