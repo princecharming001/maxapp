@@ -22,7 +22,7 @@ from db import get_db, get_rds_db_optional, release_conn
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import rate_limit
 from models.leaderboard import ChatRequest, ChatResponse
-from models.sqlalchemy_models import ChatHistory, Scan, User, UserSchedule
+from models.sqlalchemy_models import ChatConversation, ChatHistory, Scan, User, UserSchedule
 from services.coaching_service import coaching_service
 from services.chat_telemetry import fast_path_snapshot, note_chat_turn
 from services.lc_agent import make_chat_tools, run_chat_agent
@@ -4156,7 +4156,9 @@ async def _generate_after_intake(
         try:
             await merge_context(
                 user_id,
-                {"_onboarding_pending": make_pending(maxx_id, _RETRY_GENERATE_QID)},
+                {"_onboarding_pending": _stamp_pending_thread(
+                    make_pending(maxx_id, _RETRY_GENERATE_QID)
+                )},
                 db,
             )
             await db.commit()
@@ -4260,6 +4262,27 @@ async def _run_onboarding_questioner_impl(
     # Detect a possible "start a different max" intent in the free text.
     new_max = detect_max_start_intent(msg)
 
+    # ── Per-thread scoping (H3) ──────────────────────────────────────────
+    # The pending intake is stamped with the thread it lives in. A message
+    # from a DIFFERENT thread is ordinary chat: hand it to the agent and leave
+    # the intake parked where it is (so hairmax's question never claims a turn
+    # typed under the fitmax thread). Two exceptions: re-issuing the SAME max's
+    # start intent jumps this turn into the parked thread (the client adopts
+    # the returned conversation id, exactly like the start_schedule tap), and
+    # a stamp whose thread was deleted is orphaned — this thread adopts the
+    # intake so the user can still finish it. Unstamped (pre-H3) state keeps
+    # the legacy per-user behavior.
+    if pending:
+        scope, parked_conv = await _pending_thread_scope(pending, user_id, db)
+        if scope == "other":
+            if new_max and new_max == pending.get("max"):
+                from models.sqlalchemy_models import active_conversation_id as _acid
+                _acid.set(parked_conv.id)
+            elif not new_max:
+                return None
+            # else: a different max's start intent → the switch logic below
+            # opens that max's own thread and re-stamps the pending state.
+
     # ── No pending onboarding ────────────────────────────────────────────
     # A free-text start-intent begins that max's intake. (Explicit taps from
     # the marketplace arrive as chat_intent=start_schedule and already opened a
@@ -4290,7 +4313,9 @@ async def _run_onboarding_questioner_impl(
             )
             if next_field is not None:
                 await merge_context(
-                    user_id, {**clear_pending(), "_onboarding_pending": plan_pending}, db
+                    user_id,
+                    {**clear_pending(), "_onboarding_pending": _stamp_pending_thread(plan_pending)},
+                    db,
                 )
                 payload = field_to_question_payload(next_field, progress=plan_progress(plan_pending))
                 text = (
@@ -4305,7 +4330,9 @@ async def _run_onboarding_questioner_impl(
             return None
         await merge_context(
             user_id,
-            {**clear_pending(), "_onboarding_pending": make_pending(new_max, next_field["id"])},
+            {**clear_pending(), "_onboarding_pending": _stamp_pending_thread(
+                make_pending(new_max, next_field["id"])
+            )},
             db,
         )
         payload = field_to_question_payload(next_field)
@@ -4381,9 +4408,13 @@ async def _run_onboarding_questioner_impl(
                 _acid.set(_new_conv.id)
             except Exception as _e:
                 logger.warning("[onboarding] could not open thread for max switch: %s", _e)
+            # Stamped AFTER the re-pin above so the switched intake is scoped to
+            # the new max's own thread, not the one this message arrived in.
             await merge_context(
                 user_id,
-                {**clear_pending(), "_onboarding_pending": make_pending(new_max, next_field["id"])},
+                {**clear_pending(), "_onboarding_pending": _stamp_pending_thread(
+                    make_pending(new_max, next_field["id"])
+                )},
                 db,
             )
             logger.info("[onboarding] free-text switch %s -> %s (own thread)", maxx_id, new_max)
@@ -4431,7 +4462,9 @@ async def _run_onboarding_questioner_impl(
         new_pending = make_pending(maxx_id, next_field["id"]) if next_field is not None else None
     if next_field is not None:
         # More to ask. Update pending pointer + persist answer.
-        await merge_context(user_id, {**update, "_onboarding_pending": new_pending}, db)
+        await merge_context(
+            user_id, {**update, "_onboarding_pending": _stamp_pending_thread(new_pending)}, db
+        )
         await _mirror_intake_to_facts(user_id, update, db)
         payload = field_to_question_payload(next_field, progress=plan_progress(new_pending))
         return _finish_onboarding_turn(
@@ -4682,6 +4715,186 @@ async def _extract_facts_bg(user_id: str, user_msg: str, assistant_response: str
         logger.info("bg fact extract setup failed (non-fatal): %s", e)
 
 
+# --------------------------------------------------------------------------- #
+#  Thread-integrity helpers (H2 / H3)                                         #
+#                                                                             #
+#  Every ChatHistory row an app turn writes must carry the thread it was      #
+#  written in: /history filters by conversation_id, so a NULL row is invisible#
+#  in EVERY thread (the whole fitmax intake vanished on reload). The model    #
+#  only stamps conversation_id from the request-scoped contextvar, and until  #
+#  H2 only the agent path (process_chat_message) set it — the context-change, #
+#  questioner, broad-MCQ and generic-edit branches all persisted NULL rows.   #
+# --------------------------------------------------------------------------- #
+
+async def _persist_turn(
+    db: AsyncSession,
+    *,
+    user_id: str,
+    user_message: str,
+    assistant_text: str,
+    conversation_id,
+) -> None:
+    """Persist one user/assistant pair for a branch that bypasses the agent.
+
+    `conversation_id` is passed EXPLICITLY (not left to the contextvar default)
+    so the invariant holds even if some future branch forgets to pin the
+    contextvar — and so a test can assert it. Also bumps the thread's recency
+    + auto-title the same way the agent path does; without that an intake
+    thread (created with last_message_at NULL) sorted to the BOTTOM of the
+    drawer and /history's "most recent" never resolved to it.
+    """
+    from services import chat_conversations_service as _conv
+
+    try:
+        user_uuid = UUID(user_id)
+        db.add(ChatHistory(
+            user_id=user_uuid, role="user", content=user_message,
+            channel="app", conversation_id=conversation_id,
+        ))
+        db.add(ChatHistory(
+            user_id=user_uuid, role="assistant", content=assistant_text,
+            channel="app", conversation_id=conversation_id,
+        ))
+        if conversation_id is not None:
+            await _conv.touch_last_message(
+                db,
+                conversation_id=str(conversation_id),
+                first_user_message=user_message,
+                commit=False,
+            )
+        await db.commit()
+    except Exception:
+        logger.warning("[chat] could not persist turn for user=%s", str(user_id)[:8], exc_info=True)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+
+
+async def _response_conversation_id(
+    db: AsyncSession, *, user_id: str, data: "ChatRequest",
+) -> Optional[str]:
+    """The thread this turn was persisted into, for the response envelope.
+
+    Prefers the contextvar over data.conversation_id because a mid-turn
+    re-pin (the questioner's free-text max switch / same-max re-entry jumps
+    the turn into that max's own thread) is what the rows were written under
+    — returning the stale request id would leave the client showing a thread
+    the reply never landed in.
+    """
+    from models.sqlalchemy_models import active_conversation_id as _acid
+    from services import chat_conversations_service as _conv
+
+    cv = _acid.get()
+    if cv is not None:
+        return str(cv)
+    if data.conversation_id:
+        return data.conversation_id
+    conv = await _conv.resolve_active_conversation(
+        db, user_id=user_id, conversation_id=None, channel="app",
+    )
+    return str(conv.id)
+
+
+def _stamp_pending_thread(pending: Optional[dict]) -> Optional[dict]:
+    """Tag an `_onboarding_pending` state with the thread it lives in.
+
+    The intake state used to be per-USER only, so /history attached the
+    pending question (chips / slider) to whatever thread was loaded — hairmax's
+    chips rendered under the fitmax thread and answered hairmax's intake.
+    Stamping the thread id lets /history and the questioner scope it. Pure:
+    returns a new dict; a None pending (the clear marker) passes through, and
+    when no thread is pinned (SMS / tests) the state is left unstamped so the
+    legacy per-user behavior still applies.
+    """
+    if not isinstance(pending, dict):
+        return pending
+    from models.sqlalchemy_models import active_conversation_id as _acid
+    cv = _acid.get()
+    if cv is None:
+        return pending
+    return {**pending, "conversation_id": str(cv)}
+
+
+async def _pending_thread_scope(
+    pending: dict, user_id: str, db: AsyncSession,
+) -> Tuple[str, Optional["ChatConversation"]]:
+    """Where an in-flight intake lives relative to the CURRENT turn's thread.
+
+    Returns (scope, conv):
+      "match"     — stamped with this turn's thread.
+      "other"     — stamped with another live thread of this user (conv given).
+      "orphan"    — stamped, but that thread was deleted/archived: the current
+                    thread adopts the intake so it can still be finished.
+      "unstamped" — pre-H3 state (or no thread pinned): legacy per-user scope.
+    """
+    from models.sqlalchemy_models import active_conversation_id as _acid
+    from services import chat_conversations_service as _conv
+
+    stamped = pending.get("conversation_id")
+    current = _acid.get()
+    if not stamped or current is None:
+        return "unstamped", None
+    if str(current) == str(stamped):
+        return "match", None
+    try:
+        conv = await _conv.get_conversation(db, conversation_id=str(stamped), user_id=user_id)
+    except Exception as _e:
+        logger.warning("[onboarding] pending thread lookup failed: %s", _e)
+        return "unstamped", None
+    if conv is None or getattr(conv, "is_archived", False):
+        return "orphan", None
+    return "other", conv
+
+
+def _pending_belongs_to_thread(
+    pending: dict,
+    *,
+    target_id: Optional[str],
+    stamped_alive: Optional[bool],
+    maxx_thread_id: Optional[str],
+    most_recent_id: Optional[str],
+) -> bool:
+    """Should /history attach this pending question to the thread being read?
+
+    `stamped_alive` is None when the state carries no thread (pre-H3 rows),
+    True when its stamped thread still exists, False when that thread is gone.
+    A stamped, live intake belongs ONLY to its own thread. An unstamped or
+    orphaned one is anchored to the best guess — the max's dedicated
+    "<Max> plan" thread when one exists, else the user's most-recent thread —
+    so it still surfaces once, in one place, instead of under every thread.
+    """
+    if target_id is None:
+        # No threads at all (legacy account): nothing to scope against.
+        return True
+    stamped = pending.get("conversation_id")
+    if stamped and stamped_alive:
+        return str(target_id) == str(stamped)
+    anchor = maxx_thread_id or most_recent_id
+    return anchor is None or str(target_id) == str(anchor)
+
+
+async def _find_maxx_thread_id(db: AsyncSession, *, user_id: str, maxx_id: str) -> Optional[str]:
+    """Read-only lookup of a max's dedicated "<Max> plan" thread (no create)."""
+    try:
+        stmt = (
+            select(ChatConversation.id)
+            .where(
+                ChatConversation.user_id == UUID(user_id),
+                ChatConversation.channel == "app",
+                ChatConversation.is_archived == False,  # noqa: E712
+                ChatConversation.title == _maxx_thread_title(maxx_id),
+            )
+            .order_by(ChatConversation.created_at.desc())
+            .limit(1)
+        )
+        found = (await db.execute(stmt)).scalar_one_or_none()
+        return str(found) if found else None
+    except Exception as _e:
+        logger.warning("[chat] maxx thread lookup failed: %s", _e)
+        return None
+
+
 @router.post(
     "/message",
     response_model=ChatResponse,
@@ -4717,6 +4930,7 @@ async def _send_message_locked(
     from services import chat_conversations_service as _conv
     from services.lc_agent import reset_recommended_products, get_recommended_products
     from services.lc_agent import reset_proposed_change, get_proposed_change
+    from models.sqlalchemy_models import active_conversation_id as _acid
 
     user_id = current_user["id"]
     # Start a fresh per-turn product sink so recommend_product can hand us
@@ -4736,6 +4950,7 @@ async def _send_message_locked(
     # data.conversation_id + the request-scoped contextvar to it so every
     # downstream path (questioner / process_chat_message / end-of-turn id
     # resolution) persists into and returns the new thread.
+    thread_pinned = False
     try:
         _new_maxx = (
             _coerce_chat_maxx_id(data.init_context)
@@ -4743,7 +4958,6 @@ async def _send_message_locked(
             else None
         )
         if _new_maxx:
-            from models.sqlalchemy_models import active_conversation_id as _acid
             # Idempotent: re-entering a max's setup (double-tap / remount re-fire)
             # reuses its existing "Xmax plan" thread instead of duplicating it.
             _new_conv = await _conv.get_or_create_maxx_conversation(
@@ -4751,8 +4965,30 @@ async def _send_message_locked(
             )
             data.conversation_id = str(_new_conv.id)
             _acid.set(_new_conv.id)
+            thread_pinned = True
     except Exception as _e:
         logger.warning("[chat] could not open dedicated thread for new max: %s", _e)
+
+    # ── Resolve the thread ONCE, before any branch can persist (H2) ──────
+    # Every branch below writes ChatHistory rows, but only the agent path
+    # (process_chat_message) used to pin the conversation contextvar — so the
+    # context-change / questioner / broad-MCQ / generic-edit branches saved
+    # their turns with conversation_id NULL, which /history excludes from
+    # every thread. Pinning here (and mirroring into data.conversation_id, so
+    # the agent path resolves to the very same thread) makes the thread id
+    # part of the turn, not of one branch.
+    if not thread_pinned:
+        try:
+            _turn_conv = await _conv.resolve_active_conversation(
+                db, user_id=user_id, conversation_id=data.conversation_id, channel="app",
+            )
+            data.conversation_id = str(_turn_conv.id)
+            _acid.set(_turn_conv.id)
+        except Exception as _e:
+            # Non-fatal: the agent path re-resolves; other branches persist
+            # unthreaded as before rather than failing the whole turn.
+            logger.warning("[chat] could not resolve thread up front for user=%s: %s",
+                           str(user_id)[:8], _e)
 
     # Tier 0 — passive fact extraction. Catches vegetarian/allergic-to/lives-in/
     # weighs-X/has-eczema/etc. and merges into user_schedule_context.user_facts.
@@ -4794,19 +5030,11 @@ async def _send_message_locked(
     )
     if ctx_out is not None:
         response_text, choices, iw = ctx_out
-        try:
-            user_uuid = UUID(user_id)
-            db.add(ChatHistory(user_id=user_uuid, role="user", content=data.message, channel="app"))
-            db.add(ChatHistory(user_id=user_uuid, role="assistant", content=response_text, channel="app"))
-            await db.commit()
-        except Exception:
-            await db.rollback()
-        conv_id = data.conversation_id
-        if not conv_id:
-            conv = await _conv.resolve_active_conversation(
-                db, user_id=user_id, conversation_id=None, channel="app",
-            )
-            conv_id = str(conv.id)
+        await _persist_turn(
+            db, user_id=user_id, user_message=data.message,
+            assistant_text=response_text, conversation_id=_acid.get(),
+        )
+        conv_id = await _response_conversation_id(db, user_id=user_id, data=data)
         return ChatResponse(
             response=response_text,
             choices=choices,
@@ -4862,14 +5090,13 @@ async def _send_message_locked(
         response_text, choices, iw, driver_multi, driver_progress = driver_out
         # Persist the user message + assistant reply to ChatHistory so the
         # transcript matches what the user sees (the agent path does this
-        # internally; we have to do it explicitly when bypassing).
-        try:
-            user_uuid = UUID(user_id)
-            db.add(ChatHistory(user_id=user_uuid, role="user", content=data.message, channel="app"))
-            db.add(ChatHistory(user_id=user_uuid, role="assistant", content=response_text, channel="app"))
-            await db.commit()
-        except Exception:
-            await db.rollback()
+        # internally; we have to do it explicitly when bypassing). The thread
+        # is read from the contextvar, not data.conversation_id: the questioner
+        # may have re-pinned this turn into a max's own thread.
+        await _persist_turn(
+            db, user_id=user_id, user_message=data.message,
+            assistant_text=response_text, conversation_id=_acid.get(),
+        )
         # Flush the brief cache so the NEXT turn sees the message just stored.
         try:
             from services.user_brief import invalidate_brief as _invalidate_brief
@@ -4878,13 +5105,10 @@ async def _send_message_locked(
             pass
     elif broad_mcq is not None:
         response_text, choices, _broad_multi = broad_mcq
-        try:
-            user_uuid = UUID(user_id)
-            db.add(ChatHistory(user_id=user_uuid, role="user", content=data.message, channel="app"))
-            db.add(ChatHistory(user_id=user_uuid, role="assistant", content=response_text, channel="app"))
-            await db.commit()
-        except Exception:
-            await db.rollback()
+        await _persist_turn(
+            db, user_id=user_id, user_message=data.message,
+            assistant_text=response_text, conversation_id=_acid.get(),
+        )
         # Flush the brief cache so the NEXT turn sees the message just stored.
         try:
             from services.user_brief import invalidate_brief as _invalidate_brief
@@ -4893,12 +5117,7 @@ async def _send_message_locked(
             pass
         # Short-circuit: skip bg fact-extraction-affecting paths below is fine;
         # return directly with the canonical multi flag so chips render right.
-        conv_id = data.conversation_id
-        if not conv_id:
-            conv = await _conv.resolve_active_conversation(
-                db, user_id=user_id, conversation_id=None, channel="app",
-            )
-            conv_id = str(conv.id)
+        conv_id = await _response_conversation_id(db, user_id=user_id, data=data)
         return ChatResponse(
             response=response_text.lower(),
             choices=choices,
@@ -4916,13 +5135,10 @@ async def _send_message_locked(
             )
         if mod_out is not None:
             response_text, choices, iw = mod_out
-            try:
-                user_uuid = UUID(user_id)
-                db.add(ChatHistory(user_id=user_uuid, role="user", content=data.message, channel="app"))
-                db.add(ChatHistory(user_id=user_uuid, role="assistant", content=response_text, channel="app"))
-                await db.commit()
-            except Exception:
-                await db.rollback()
+            await _persist_turn(
+                db, user_id=user_id, user_message=data.message,
+                assistant_text=response_text, conversation_id=_acid.get(),
+            )
         else:
             async with _CHAT_LLM_SEMAPHORE:
                 response_text, choices = await process_chat_message(
@@ -4945,15 +5161,7 @@ async def _send_message_locked(
             except Exception:
                 pass
 
-    conv_id = data.conversation_id
-    if not conv_id:
-        conv = await _conv.resolve_active_conversation(
-            db,
-            user_id=user_id,
-            conversation_id=None,
-            channel="app",
-        )
-        conv_id = str(conv.id)
+    conv_id = await _response_conversation_id(db, user_id=user_id, data=data)
 
     # Background fact extraction. Fires after the response is returned, so
     # zero added latency for the user. Catches any phrasing the regex
@@ -5245,16 +5453,51 @@ async def get_chat_history(
     user_id = current_user["id"]
     user_uuid = UUID(user_id)
 
+    # Read the in-flight intake state FIRST: it decides which thread a cold
+    # start (no conversation_id) should land on, and which thread its
+    # question belongs to (H3). Cheap — one user row + one context row.
+    pending: Optional[dict] = None
+    onboarding: dict = {}
+    persistent: dict = {}
+    try:
+        from services.onboarding_questioner import get_pending
+        from services.user_context_service import get_context, merged_user_state
+
+        user_obj = await db.get(User, user_uuid)
+        onboarding = dict(getattr(user_obj, "onboarding", {}) or {})
+        persistent = await get_context(user_id, db)
+        pending = get_pending(merged_user_state(onboarding, persistent))
+    except Exception as _e:
+        logger.warning("history pending-state read failed: %s", _e)
+        pending = None
+
+    # Where does the pending intake live? A stamped thread that still exists
+    # is authoritative; a deleted one is an orphan (treated like unstamped).
+    stamped_conv = None
+    stamped_alive: Optional[bool] = None
+    if pending and pending.get("conversation_id"):
+        stamped_conv = await _conv.get_conversation(
+            db, conversation_id=str(pending["conversation_id"]), user_id=user_id
+        )
+        stamped_alive = stamped_conv is not None and not stamped_conv.is_archived
+
     # Decide which conversation to read.
     target_conv = None
+    most_recent_id: Optional[str] = None
     if conversation_id:
         target_conv = await _conv.get_conversation(
             db, conversation_id=conversation_id, user_id=user_id
         )
         if target_conv is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
+    elif stamped_alive:
+        # Cold start mid-intake: land on the thread the question lives in, so
+        # the question text and its chips come back together (the most-recent
+        # thread could be an unrelated chat the user opened after).
+        target_conv = stamped_conv
     else:
         convs = await _conv.list_conversations(db, user_id=user_id, limit=1)
+        most_recent_id = convs[0]["id"] if convs else None
         target_conv = None if not convs else await _conv.get_conversation(
             db, conversation_id=convs[0]["id"], user_id=user_id
         )
@@ -5282,22 +5525,38 @@ async def get_chat_history(
     pending_question: Optional[dict] = None
     try:
         from services.onboarding_questioner import (
-            get_pending,
             peek_next_question,
             field_to_question_payload,
             plan_progress,
         )
-        from services.user_context_service import get_context, merged_user_state
+        from services.user_context_service import merged_user_state
         from services.task_catalog_service import is_loaded, warm_catalog, get_doc
 
-        if not is_loaded():
+        # Only the thread the intake lives in gets its question — never every
+        # thread the user opens (the cross-thread chip bug). Unstamped/orphaned
+        # state is anchored to the max's own plan thread, else the most-recent.
+        if pending and stamped_alive is not True:
+            maxx_thread_id = await _find_maxx_thread_id(
+                db, user_id=user_id, maxx_id=str(pending.get("max") or "")
+            )
+            if most_recent_id is None:
+                convs = await _conv.list_conversations(db, user_id=user_id, limit=1)
+                most_recent_id = convs[0]["id"] if convs else None
+        else:
+            maxx_thread_id = None
+        if pending and not _pending_belongs_to_thread(
+            pending,
+            target_id=str(target_conv.id) if target_conv else None,
+            stamped_alive=stamped_alive,
+            maxx_thread_id=maxx_thread_id,
+            most_recent_id=most_recent_id,
+        ):
+            pending = None
+
+        if pending and not is_loaded():
             await warm_catalog()
 
-        user_obj = await db.get(User, user_uuid)
-        onboarding = dict(getattr(user_obj, "onboarding", {}) or {})
-        persistent = await get_context(user_id, db)
         state = merged_user_state(onboarding, persistent)
-        pending = get_pending(state)
         if pending and get_doc(pending.get("max", "")):
             state = await _apply_slot_prefill(user_id, pending["max"], state, db)
             next_field = peek_next_question(pending["max"], state)
@@ -5316,6 +5575,9 @@ async def get_chat_history(
                     "multi_choice": bool(payload.get("multi_choice")),
                     # Optional plan-progress hint (None unless a plan is active).
                     "progress": payload.get("progress"),
+                    # The thread this question belongs to — the client only
+                    # restores chips when it matches the thread it shows.
+                    "conversation_id": str(target_conv.id) if target_conv else None,
                 }
     except Exception as _e:
         logger.warning("history pending-question hydrate failed: %s", _e)

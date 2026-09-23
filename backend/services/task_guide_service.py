@@ -30,6 +30,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from typing import Optional
 
 from sqlalchemy import text
@@ -161,7 +162,7 @@ Return the JSON guide with 3-5 steps."""
             logger.warning("OpenAI guide gen also failed/timed out: %s", e2)
 
     if not raw:
-        # Minimal safe fallback
+        # Minimal safe fallback (marked degraded — see _fallback_guide).
         return _fallback_guide(title, description, duration_minutes)
 
     # Strip markdown fences if the model adds them
@@ -235,7 +236,15 @@ def _validate(guide: dict) -> None:
 
 
 def _fallback_guide(title: str, description: str, duration_minutes: int) -> dict:
+    # `degraded` + `degraded_at`: this generic text is what the user gets when
+    # BOTH LLM providers failed. It used to be cached exactly like a real guide
+    # — forever — so one provider blip froze "Get set up / Do the work" as that
+    # task's guide for every user. The cache now expires degraded entries after
+    # _DEGRADED_TTL_S (a real guide replaces it on the next read), and the
+    # client refetches a degraded guide on next open instead of pinning it.
     return {
+        "degraded": True,
+        "degraded_at": time.time(),
         "overview": description or f"Complete your {title} habit.",
         "steps": [
             {
@@ -271,6 +280,32 @@ def _fallback_guide(title: str, description: str, duration_minutes: int) -> dict
 #   v2 = per-step `ingredients` + `hero_image`
 #   v3 = commodity-gated ingredients + distinct per-step `image`
 _PAYLOAD_V = 3
+
+# How long a degraded (LLM-failed fallback) entry is served from the cache
+# before the next read regenerates. Long enough that a provider outage doesn't
+# turn every guide open into a 44s double-timeout, short enough that the
+# generic text never becomes permanent.
+_DEGRADED_TTL_S = 60 * 60
+
+
+def _degraded_expired(cached: Optional[dict]) -> bool:
+    """True for a cached fallback guide whose retry window has passed."""
+    if not cached or not cached.get("degraded"):
+        return False
+    try:
+        at = float(cached.get("degraded_at") or 0)
+    except (TypeError, ValueError):
+        at = 0.0
+    return (time.time() - at) >= _DEGRADED_TTL_S
+
+
+def _cache_usable(cached: Optional[dict]) -> bool:
+    """Honour a cached entry only on the current payload version AND, for a
+    degraded fallback, only inside its TTL — otherwise fall through to
+    regenerate."""
+    if not cached or cached.get("_v") != _PAYLOAD_V:
+        return False
+    return not _degraded_expired(cached)
 
 
 # ---------------------------------------------------------------------------
@@ -395,7 +430,7 @@ async def pregenerate_for_schedule(schedule_id: str, user_id: str) -> None:
                 if key in _IN_FLIGHT:
                     return
                 cached = await _cache_get(key, db)
-                if cached:
+                if cached and not _degraded_expired(cached):
                     return
                 _IN_FLIGHT.add(key)
                 try:
@@ -539,7 +574,7 @@ async def get_task_guide(
     # Cache hit — only honour entries on the current payload version. Stale-shape
     # entries (no per-step ingredients / hero image) fall through to regenerate.
     cached = await _cache_get(task_key, db)
-    if cached and cached.get("_v") == _PAYLOAD_V:
+    if _cache_usable(cached):
         guide = cached
     else:
         # Hand the connection back before we wait on / run the LLM call.
@@ -564,7 +599,7 @@ async def get_task_guide(
             # Re-check: another request may have generated + cached this
             # exact task_key while we were waiting for the lock.
             cached = await _cache_get(task_key, db)
-            if cached and cached.get("_v") == _PAYLOAD_V:
+            if _cache_usable(cached):
                 guide = cached
             else:
                 # The re-check SELECT just above re-acquired a connection.
@@ -580,6 +615,12 @@ async def get_task_guide(
 
 
 def _error_guide(msg: str) -> dict:
+    # Returned with HTTP 200 (the endpoint maps exceptions to a blanket 500),
+    # so the client must be able to tell this placeholder from a real guide:
+    # `unavailable` is the signal. Without it the mobile prefetch cached
+    # "Unavailable" with staleTime Infinity whenever a guide request landed in
+    # a regen commit gap (task ids re-minted), leaving that task's guide broken
+    # until relaunch. Never written to the server cache (no task_key).
     return {
         "task_key": "",
         "title": "Task",
@@ -589,5 +630,7 @@ def _error_guide(msg: str) -> dict:
         "products": [],
         "duration_minutes": 5,
         "why_it_matters": "",
+        "unavailable": True,
+        "error": msg,
         "_v": _PAYLOAD_V,
     }

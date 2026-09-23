@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, type AppStateStatus, View, Text, StyleSheet, TextInput, TouchableOpacity, Pressable, PanResponder, Animated, KeyboardAvoidingView, Platform, ActivityIndicator, Linking, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,7 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import api, { type VisualBlock, type MethodConfidence } from '../../services/api';
 import MessageBlocks from '../../components/MessageBlocks';
 import ConfidenceInfoButton from '../../components/ConfidenceInfoButton';
-import { useChatHistoryQuery } from '../../hooks/useAppQueries';
+import { useChatHistoryQuery, isPendingQuestionForThread } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
 import { ChatTypingIndicator, ChatTypingMode } from '../../components/ChatTypingIndicator';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
@@ -23,8 +22,16 @@ import ChatSliderInput, { SliderSpec } from '../../components/ChatSliderInput';
 import ChatHabitPicker, { HabitPickerSpec } from '../../components/ChatHabitPicker';
 import { renderRichText } from '../../utils/chatMarkdown';
 import { usePaywallGate } from '../../hooks/usePaywallGate';
+import { useAuth } from '../../context/AuthContext';
+import { savePendingChat, loadPendingChat, clearPendingChat } from '../../lib/pendingChat';
+import { userFacingError } from '../../lib/userFacingError';
 
-const PENDING_CHAT_KEY = '@max_pending_chat_v1';
+// The in-flight message that survives a kill/offline blip lives in
+// lib/pendingChat.ts, scoped to the user id (the old device-wide
+// '@max_pending_chat_v1' blob replayed user A's message as user B).
+
+/** Copy for a send that failed for a reason the user can't act on. */
+const SEND_FAILED_COPY = 'Something went wrong. Try sending that again in a sec.';
 
 /** Widgets the chat knows how to render inline (slider question / habit picker). */
 function isRenderableWidget(w: any): boolean {
@@ -471,6 +478,13 @@ export default function MaxChatScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const gate = usePaywallGate();
+    // Owner of any pending (interrupted) send. A ref so the mount-time replay
+    // and the AppState listener read the CURRENT user, not the one captured
+    // at mount.
+    const { user } = useAuth();
+    const userId = user?.id ?? null;
+    const userIdRef = useRef<string | null>(userId);
+    userIdRef.current = userId;
     // MaxChatScreen is a bottom-tab child, so the keyboard avoider must offset by
     // the tab bar height — otherwise the composer (and its Send button) hides
     // BEHIND the keyboard when typing a reply, e.g. a custom onboarding answer.
@@ -596,15 +610,21 @@ export default function MaxChatScreen() {
         // question. Without this, the question text stays in the transcript
         // but the answer-chooser disappears on reload, leaving the user no
         // way to tap an option without re-typing.
-        if (pendingQ) {
+        // Only for the thread on screen: the backend stamps the question with
+        // the thread it lives in, so hairmax's chips never render under (and
+        // answer from) the fitmax thread. `resolvedId` is the thread this
+        // payload describes; an unstamped question (older backend) passes.
+        if (pendingQ && isPendingQuestionForThread(pendingQ, resolvedId ?? activeConversationId)) {
             if (Array.isArray(pendingQ.choices) && pendingQ.choices.length > 0) {
                 setServerChoices(pendingQ.choices);
                 // Restore multi-select mode for `multi` fields so the toggle
                 // chips + submit button come back on reload, not single-tap chips.
                 setMultiChoice(!!pendingQ.multi_choice);
             }
-            if (pendingQ.input_widget && pendingQ.input_widget.type === 'slider') {
-                setInputWidget(pendingQ.input_widget as SliderSpec);
+            // Any widget the chat can render — slider OR habit picker. Only the
+            // slider was restored before, so a kill mid habit-pick lost the picker.
+            if (isRenderableWidget(pendingQ.input_widget)) {
+                setInputWidget(pendingQ.input_widget as SliderSpec | HabitPickerSpec);
             }
         }
     }, [chatHistoryQuery.isSuccess, chatHistoryQuery.data, activeConversationId, seededForConversation, pendingNewChat]);
@@ -705,10 +725,10 @@ export default function MaxChatScreen() {
         // It's cleared the instant a response arrives; the only downside is that
         // a kill in the tiny window after the server commits but before the
         // clear could re-send (a duplicate user turn — far better than a lost one).
-        await AsyncStorage.setItem(
-            PENDING_CHAT_KEY,
-            JSON.stringify({ msg, initContext, chatIntent }),
-        ).catch(() => undefined);
+        // Stamped with the user id so it can only ever replay under THIS account.
+        if (userIdRef.current) {
+            await savePendingChat({ userId: userIdRef.current, msg, initContext, chatIntent, at: Date.now() });
+        }
         try {
             abortRef.current = new AbortController();
             const { response, choices, multi_choice, input_widget, products, conversation_id, visual_blocks, method_metadata } = await api.sendChatMessage(
@@ -722,7 +742,7 @@ export default function MaxChatScreen() {
                 abortRef.current.signal,
             );
             // Committed server-side — drop the pending blob so it isn't re-sent.
-            await AsyncStorage.removeItem(PENDING_CHAT_KEY).catch(() => undefined);
+            await clearPendingChat();
             // Adopt the server-assigned conversation on first message so the
             // mobile client stays aligned with backend routing (no second call).
             // CRITICAL: also bump seededForConversation in lockstep so the seed
@@ -793,7 +813,7 @@ export default function MaxChatScreen() {
                 // User tapped Stop: drop the typing bubble and clear the queued
                 // message so the foreground retry doesn't resend it.
                 setMessages(prev => prev.filter((m) => !m.isTyping));
-                await AsyncStorage.removeItem(PENDING_CHAT_KEY).catch(() => undefined);
+                await clearPendingChat();
                 return;
             }
             console.error('sendMessageWithContext error:', e?.response?.data || e?.message || e);
@@ -802,17 +822,18 @@ export default function MaxChatScreen() {
             // On a 5xx, never surface the raw server detail (e.g. "Internal
             // server error") and don't strand the user: show a friendly
             // retryable line and restore the question chips/slider cleared at
-            // send-start so they can answer again.
-            const serverMsg = isServerError
-                ? undefined
-                : (e?.response?.data?.response || e?.response?.data?.detail);
+            // send-start so they can answer again. Everything else goes through
+            // userFacingError: only a short, plain 4xx `detail` written for
+            // users passes; a 422 array / "Network Error" / axios status text
+            // never renders as a bubble.
+            const serverMsg = isServerError ? undefined : userFacingError(e, SEND_FAILED_COPY);
             // HTTP error => the server received and rejected this turn; clear the
             // pre-persisted pending blob so it doesn't auto-retry a request that
             // will just fail again (matches the prior "don't retry HTTP errors"
             // behaviour). Network error / no response => LEAVE it queued so the
             // foreground retry (trySendPending) resends when connectivity is back.
             if (e?.response) {
-                await AsyncStorage.removeItem(PENDING_CHAT_KEY).catch(() => undefined);
+                await clearPendingChat();
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
@@ -820,7 +841,7 @@ export default function MaxChatScreen() {
                     role: 'assistant',
                     content: isServerError
                         ? 'Hit a snag on my end — tap to resend that.'
-                        : (serverMsg || 'Something went wrong. Try sending that again in a sec.'),
+                        : (serverMsg || SEND_FAILED_COPY),
                 },
             ]);
             if (isServerError) {
@@ -844,10 +865,11 @@ export default function MaxChatScreen() {
     useEffect(() => {
         const trySendPending = async () => {
             if (retryingRef.current) return; // don't stack concurrent retries
-            const raw = await AsyncStorage.getItem(PENDING_CHAT_KEY).catch(() => null);
-            if (!raw) return;
-            let queued: { msg: string; initContext?: string; chatIntent?: string } | null = null;
-            try { queued = JSON.parse(raw); } catch { return; }
+            // User-scoped: a blob left by a previous account on this device is
+            // dropped by the loader, never replayed under this user.
+            const uid = userIdRef.current;
+            if (!uid) return;
+            const queued = await loadPendingChat(uid);
             if (!queued?.msg) return;
             // IMPORTANT: do NOT remove the blob here. sendMessageWithContext
             // re-persists it before its request and clears it only on success
@@ -868,10 +890,11 @@ export default function MaxChatScreen() {
                 void trySendPending();
             }
         });
-        // Also check on mount (cold start)
+        // Also check on mount (cold start), and again if the signed-in user
+        // changes under a mounted screen.
         void trySendPending();
         return () => sub.remove();
-    }, []);
+    }, [userId]);
 
     const sendMessage = async (presetArg?: unknown) => {
         const fromPreset = typeof presetArg === 'string' ? presetArg.trim() : '';
@@ -967,11 +990,12 @@ export default function MaxChatScreen() {
             const isServerError = typeof status === 'number' && status >= 500;
             // 5xx: friendly retryable line (never the raw "Internal server
             // error" detail) + restore the chips/slider so the user isn't stuck.
-            const serverMsg = isServerError
-                ? undefined
-                : (e?.response?.data?.response || e?.response?.data?.detail);
-            if (!e?.response) {
-                await AsyncStorage.setItem(PENDING_CHAT_KEY, JSON.stringify({ msg: userContent })).catch(() => undefined);
+            // Other failures: user copy via userFacingError (see the other path).
+            const serverMsg = isServerError ? undefined : userFacingError(e, SEND_FAILED_COPY);
+            // No response at all (offline / killed connection): queue it for the
+            // foreground retry, scoped to this user.
+            if (!e?.response && userIdRef.current) {
+                await savePendingChat({ userId: userIdRef.current, msg: userContent, at: Date.now() });
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),
@@ -979,7 +1003,7 @@ export default function MaxChatScreen() {
                     role: 'assistant',
                     content: isServerError
                         ? 'Hit a snag on my end — tap to resend that.'
-                        : (serverMsg || 'Something went wrong. Try sending that again in a sec.'),
+                        : (serverMsg || SEND_FAILED_COPY),
                 },
             ]);
             if (isServerError) {
