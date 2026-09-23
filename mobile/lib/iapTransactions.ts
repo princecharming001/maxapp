@@ -103,7 +103,15 @@ type ApiDeps = {
     verifyAppleIapTransaction: (tid: string, productId?: string) => Promise<{ status?: string; tier?: string } | undefined>;
 };
 
-type Deps = { iap: IapDeps; api: ApiDeps; isIos: boolean; now: () => number };
+type Deps = {
+    iap: IapDeps;
+    api: ApiDeps;
+    isIos: boolean;
+    now: () => number;
+    /** The base-subscription SKUs this service owns. Anything else (creator
+     *  subscriptions) has its own hook and its own verify endpoint. */
+    managedSkus: string[];
+};
 
 // ── Deps (lazy; injectable for tests) ───────────────────────────────────────
 
@@ -116,6 +124,7 @@ function loadDeps(): Deps {
             api: depsOverride.api,
             isIos: depsOverride.isIos ?? true,
             now: depsOverride.now ?? (() => Date.now()),
+            managedSkus: depsOverride.managedSkus ?? [],
         };
     }
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -124,7 +133,20 @@ function loadDeps(): Deps {
     const iap = require('react-native-iap');
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const api = require('../services/api').default;
-    return { iap, api, isIos: rn.Platform.OS === 'ios', now: () => Date.now() };
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const skus = require('../constants/appleIap').APPLE_IAP_PRODUCT_IDS as readonly string[];
+    return { iap, api, isIos: rn.Platform.OS === 'ios', now: () => Date.now(), managedSkus: [...skus] };
+}
+
+/** Is this a base Max subscription (vs. a creator product owned elsewhere)?
+ *  A transaction with no product id is treated as ours — StoreKit always
+ *  sets it, so the only way to see none is a shape we don't recognise, and
+ *  ignoring it would lose a real purchase. */
+function isManagedSku(productId: string | undefined): boolean {
+    if (!productId) return true;
+    const { managedSkus } = loadDeps();
+    if (managedSkus.length === 0) return true;
+    return managedSkus.includes(productId);
 }
 
 /** Test seam. Resets all module state. */
@@ -369,6 +391,7 @@ function scheduleRetry(purchase: PurchaseLike, attempt: number): void {
 
 async function onPurchaseUpdated(purchase: PurchaseLike): Promise<void> {
     const sku = purchase.productId || undefined;
+    if (!isManagedSku(sku)) return; // creator products: their own hook owns them
     // Snapshot the armed request NOW: a replayed transaction for another
     // product must never settle the purchase the paywall is waiting on.
     const armedMatch = !!armed && (!sku || armed.sku === sku);
@@ -400,6 +423,7 @@ function onPurchaseError(error: PurchaseErrorLike): void {
     const code = String(error.code || '').toLowerCase();
     const message = error.message || '';
     const sku = error.productId || undefined;
+    if (!isManagedSku(sku)) return;
     const armedMatch = !!armed && (!sku || armed.sku === sku);
     if (!armedMatch) {
         // A stray/replayed error (or nothing in flight): never surface it.
@@ -540,6 +564,7 @@ async function sweep(): Promise<ReconcileOutcome> {
     let sawOther = false;
     for (const p of purchases) {
         if (!tidOf(p)) continue;
+        if (!isManagedSku(p.productId || undefined)) continue;
         const r = await verifyTransaction(p, { armedMatch: isPurchaseArmed(p.productId || undefined) });
         if (r.kind === 'granted') { out.granted = true; out.tier = r.tier; }
         else if (r.kind === 'other_account') { sawOther = true; out.detail = r.detail; }

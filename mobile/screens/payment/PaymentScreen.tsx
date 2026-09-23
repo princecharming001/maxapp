@@ -44,6 +44,7 @@ import { track } from '../../lib/analytics';
 import { useAuth } from '../../context/AuthContext';
 import { useStripeSubscription } from '../../hooks/useStripeSubscription';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
+import { signOutToLogin } from '../../lib/signOutToLogin';
 import { APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
 import { useFlag } from '../../constants/featureFlags';
 
@@ -82,15 +83,26 @@ export default function PaymentScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const insets     = useSafeAreaInsets();
-    const { user, refreshUser, isAnonymous, isFreeTier, isPaid } = useAuth();
+    const { user, refreshUser, isAnonymous, isFreeTier, isPaid, logout } = useAuth();
 
     // Funnel V4: the paywall comes BEFORE account creation — anonymous users
     // purchase (Apple IAP is Apple-ID-scoped; the entitlement attaches to this
     // authed anon account) and claim the account on the next screen.
     const onboardingCompleted = user?.onboarding?.completed === true;
 
+    // A returning customer whose plan ended (expired comp, cancelled or
+    // refunded Apple sub, missed renewal) boots straight onto this screen.
+    // Say so, and hide the trial box: Apple's introductory offer is once per
+    // Apple ID, so "3-day trial · Free" would be untrue for them (the App
+    // Store sheet shows the real price at confirm time either way).
+    const lapsedStatus = String(user?.subscription_status ?? '').toLowerCase();
+    const isLapsed =
+        onboardingCompleted && !isPaid && !isAnonymous
+        && (['expired', 'canceled', 'cancelled', 'past_due', 'refunded', 'revoked'].includes(lapsedStatus)
+            || !!user?.subscription_end_date);
+
     useEffect(() => {
-        track('paywall_view');
+        track('paywall_view', { lapsed: isLapsed });
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const faceScanEnabled = useFlag('faceScan');
@@ -115,7 +127,7 @@ export default function PaymentScreen() {
     // Both run the SAME StoreKit purchase — Apple applies the 3-day intro
     // offer to eligible accounts either way — so this is a presentation
     // choice, not two different SKUs.
-    const [payNow, setPayNow] = useState(false);
+    const [payNow, setPayNow] = useState(isLapsed);
 
     // Slow Ken Burns drift on the background image (scale + a touch of
     // horizontal pan), so the screen has motion the instant it opens — the
@@ -178,6 +190,18 @@ export default function PaymentScreen() {
     // so confirm with the server before exiting; on any doubt, keep the
     // paywall. One-shot so the exit navigation can't loop.
     const paidExitRef = useRef(false);
+
+    // Belt and braces for "I have a plan but I'm being asked to pay": before
+    // the user can even tap Subscribe, re-check the Apple ID's entitlements
+    // with the server. A grant flips isPaid and the effect below leaves the
+    // paywall; a subscription held by ANOTHER Max account gets the sign-in
+    // prompt instead of a Subscribe button that can only bounce.
+    useEffect(() => {
+        if (!IS_IOS || isPaid) return;
+        const fn = (apple as { reconcileSilently?: () => Promise<boolean> }).reconcileSilently;
+        if (fn) void fn().catch(() => undefined);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     useEffect(() => {
         if (!isPaid || paidExitRef.current) return;
         let cancelled = false;
@@ -253,7 +277,15 @@ export default function PaymentScreen() {
     const ctaBusy = busy || devBusy !== null;
     const ctaLabel = ctaBusy
         ? 'Processing…'
+        : isLapsed ? 'Restart my plan'
         : payNow ? 'Subscribe now' : 'Start my 3-day free trial';
+
+    // A gate-pushed paywall INSIDE the main app (free tier, or a lapsed
+    // subscriber whose 402 remount hasn't landed yet) must be dismissible on
+    // screen, not only by an undiscoverable swipe. The funnel paywall stays
+    // hard: with no Main route mounted there is no close chip.
+    const mountedRouteNames: string[] = ((navigation.getState?.() as { routeNames?: string[] } | undefined)?.routeNames) ?? [];
+    const canDismiss = navigation.canGoBack() && (isFreeTier || mountedRouteNames.includes('Main'));
 
     // The free tier is RETIRED as an entry point (hard paywall: trial or
     // subscribe). chooseFreeTier stays in AuthContext only so accounts that
@@ -281,7 +313,7 @@ export default function PaymentScreen() {
                     <TouchableOpacity style={s.topChip} onPress={() => { void afterPurchase(); }} activeOpacity={0.7} hitSlop={12}>
                         <Text style={s.topChipText}>Skip payment</Text>
                     </TouchableOpacity>
-                ) : isFreeTier && navigation.canGoBack() ? (
+                ) : canDismiss ? (
                     <TouchableOpacity
                         style={s.close}
                         onPress={() => navigation.goBack()}
@@ -308,10 +340,17 @@ export default function PaymentScreen() {
                 <PulseDotRing t={dotT} />
 
                 {/* Title — sits just below the mark, no dead space */}
-                <Text style={s.title}>Unlock your <Text style={s.titleI}>potential</Text></Text>
+                {isLapsed
+                    ? <Text style={s.title}>Welcome <Text style={s.titleI}>back</Text></Text>
+                    : <Text style={s.title}>Unlock your <Text style={s.titleI}>potential</Text></Text>}
                 <View style={s.proPill}>
                     <Text style={s.proPillText}>PREMIUM</Text>
                 </View>
+                {isLapsed && (
+                    <Text style={s.lapsedNote}>
+                        Your plan ended. Your habits and scans are saved — restart to pick up where you left off.
+                    </Text>
+                )}
 
                 {/* Feature checklist — flat bordered card over the photo bg,
                     uniform checkmarks (Cosmos convention) instead of per-feature
@@ -336,19 +375,21 @@ export default function PaymentScreen() {
                     carries the price + period (Apple requires it visible by the
                     CTA); both boxes run the same purchase. */}
                 <View style={s.planRow}>
-                    <PlanBox
-                        selected={!payNow}
-                        onPress={() => setPayNow(false)}
-                        title="3-day trial"
-                        price="Free"
-                        sub={`then ${premiumPrice}/wk`}
-                    />
+                    {!isLapsed && (
+                        <PlanBox
+                            selected={!payNow}
+                            onPress={() => setPayNow(false)}
+                            title="3-day trial"
+                            price="Free"
+                            sub={`then ${premiumPrice}/wk`}
+                        />
+                    )}
                     <PlanBox
                         selected={payNow}
                         onPress={() => setPayNow(true)}
-                        title="Subscribe now"
+                        title={isLapsed ? 'Restart' : 'Subscribe now'}
                         price={`${premiumPrice}/wk`}
-                        sub="start today"
+                        sub={isLapsed ? 'cancel anytime' : 'start today'}
                     />
                 </View>
 
@@ -385,6 +426,26 @@ export default function PaymentScreen() {
                 >
                     <Text style={s.referralLink}>Have a referral code?</Text>
                 </TouchableOpacity>
+
+                {/* The funnel stack registers no Login route, so this is the ONLY
+                    way a returning customer who tapped "Get started" (or a device
+                    signed into the wrong Max account) can reach their own plan.
+                    Restore's "belongs to another account" alert offers the same
+                    action. */}
+                {!isPaid && (
+                    <TouchableOpacity
+                        style={s.signInLinkWrap}
+                        onPress={() => { void signOutToLogin(logout); }}
+                        hitSlop={8}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Sign in to a different account"
+                    >
+                        <Text style={s.referralLink}>
+                            {isAnonymous ? 'Already have an account? Sign in' : 'Not you? Sign in to a different account'}
+                        </Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* Legal footer */}
                 <View style={s.legalRow}>
@@ -514,7 +575,22 @@ const s = StyleSheet.create({
         color: MUTED,
         letterSpacing: 0.1,
     },
+
+    lapsedNote: {
+        alignSelf: 'center',
+        textAlign: 'center',
+        marginTop: 12,
+        marginBottom: 2,
+        paddingHorizontal: 18,
+        fontFamily: 'Matter-Medium',
+        fontSize: 13.5,
+        lineHeight: 19,
+        color: MUTED,
+        letterSpacing: 0.1,
+    },
     referralLinkWrap: { alignSelf: 'center', marginTop: 14 },
+
+    signInLinkWrap: { alignSelf: 'center', marginTop: 10 },
     referralLink: {
         fontFamily: 'Matter-Medium',
         fontSize: 13.5,

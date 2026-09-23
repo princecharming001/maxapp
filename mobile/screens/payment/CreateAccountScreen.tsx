@@ -25,6 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import { AppleSignInButton } from '../../components/auth/AppleSignInButton';
 import { useAuth } from '../../context/AuthContext';
+import { signOutToLogin } from '../../lib/signOutToLogin';
 import { track } from '../../lib/analytics';
 import { navigationRef } from '../../lib/navigationRef';
 
@@ -67,7 +68,7 @@ export default function CreateAccountScreen() {
     const nav = useNavigation<any>();
     const route = useRoute<any>();
     const insets = useSafeAreaInsets();
-    const { user, claimAccount, logout, refreshUser } = useAuth();
+    const { user, claimAccount, logout, refreshUser, isPaid } = useAuth();
     // The anon account this screen is claiming — captured at mount so a Google
     // sign-in can tell a CLAIM (same id) from a switch to an existing account.
     const anonIdRef = useRef(user?.id);
@@ -218,11 +219,23 @@ export default function CreateAccountScreen() {
     };
 
     // Returning user who tapped "Get started" by mistake: drop the throwaway anon
-    // session and send them to sign in instead.
+    // session and send them to sign in instead (App.tsx forwards to Login once
+    // the guest stack is mounted — a navigate() fired here races the remount).
+    //
+    // Unless this anon has ALREADY PAID: logging out a credential-less paid
+    // account orphans the purchase (a referral comp is unrecoverable; an Apple
+    // sub only comes back via a later reconcile). Point them at the two paths
+    // that keep it — create the login here, or Continue with Google/Apple,
+    // which claims/merges INTO the existing account server-side.
     const onSignInInstead = async () => {
-        try { await logout(); } catch { /* fall through to Login regardless */ }
-        // logout swaps to the unauthenticated stack; jump to Login once it's mounted.
-        setTimeout(() => { if (navigationRef.isReady()) navigationRef.navigate('Login' as never); }, 350);
+        if (isPaid) {
+            Alert.alert(
+                'Keep your subscription',
+                'Your new plan is on this account. Create your login here to keep it, or use Continue with Google or Apple and we\'ll move it to that account.',
+            );
+            return;
+        }
+        await signOutToLogin(logout);
     };
 
     // Arrived already-claimed (post-onboarding remount / relaunch): never render

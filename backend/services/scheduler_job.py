@@ -1177,6 +1177,39 @@ async def reconcile_expired_subscriptions():
         from sqlalchemy import update, and_, or_
         now_utc = datetime.now(_tz.utc)
         async with AsyncSessionLocal() as db:
+            # Before expiring Apple rows, ask Apple: a renewal whose
+            # notification never arrived, or a subscriber in a billing-retry
+            # grace period, is still entitled and gets its end date advanced
+            # instead of being locked out. Bounded per run; failures leave the
+            # row for the next sweep (the middleware already gates access).
+            try:
+                from services.apple_entitlement_recheck import extend_if_apple_says_active
+                stale_apple = (await db.execute(
+                    select(User).where(
+                        and_(
+                            User.is_paid == True,  # noqa: E712
+                            User.billing_provider == "apple",
+                            User.subscription_id.isnot(None),
+                            User.subscription_end_date.isnot(None),
+                            User.subscription_end_date < now_utc,
+                            User.is_admin == False,  # noqa: E712
+                        )
+                    ).limit(100)
+                )).scalars().all()
+                extended = 0
+                for row in stale_apple:
+                    try:
+                        if await extend_if_apple_says_active(str(row.id), str(row.subscription_id), db, timeout_s=8.0):
+                            extended += 1
+                    except Exception as e:  # noqa: BLE001
+                        logger.info("reconcile_expired_subscriptions: apple recheck failed for %s: %s", row.id, e)
+                if stale_apple:
+                    logger.info(
+                        "reconcile_expired_subscriptions: apple recheck %s stale row(s), %s extended",
+                        len(stale_apple), extended,
+                    )
+            except Exception as e:  # noqa: BLE001
+                logger.info("reconcile_expired_subscriptions: apple recheck skipped: %s", e)
             result = await db.execute(
                 update(User)
                 .where(

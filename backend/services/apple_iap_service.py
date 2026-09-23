@@ -134,11 +134,138 @@ def expires_datetime_from_claims(claims: Dict[str, Any]) -> Optional[datetime]:
         return None
 
 
+def revoked_from_claims(claims: Dict[str, Any]) -> bool:
+    """Apple stamps `revocationDate` on refunded / revoked transactions."""
+    return claims.get("revocationDate") is not None
+
+
 def subscription_active_from_claims(claims: Dict[str, Any]) -> bool:
+    # A refunded transaction keeps a future expiresDate — without the
+    # revocation check a refunded user was re-activated by the very next
+    # launch reconcile / restore ("the app reflects a plan Apple revoked").
+    if revoked_from_claims(claims):
+        return False
     exp = expires_datetime_from_claims(claims)
     if exp is None:
         return True
     return datetime.utcnow() < exp
+
+
+# App Store Server API subscription `status` values
+# (Get All Subscription Statuses → data[].lastTransactions[].status).
+SUB_STATUS_ACTIVE = 1
+SUB_STATUS_EXPIRED = 2
+SUB_STATUS_BILLING_RETRY = 3
+SUB_STATUS_GRACE_PERIOD = 4
+SUB_STATUS_REVOKED = 5
+
+
+def _ms_to_naive_utc(raw: Any) -> Optional[datetime]:
+    if raw is None:
+        return None
+    try:
+        return datetime.fromtimestamp(int(raw) / 1000.0, tz=timezone.utc).replace(tzinfo=None)
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def grace_end_from_renewal(renewal: Dict[str, Any] | None) -> Optional[datetime]:
+    """gracePeriodExpiresDate from signedRenewalInfo, naive UTC (matches
+    expires_datetime_from_claims)."""
+    if not renewal:
+        return None
+    return _ms_to_naive_utc(renewal.get("gracePeriodExpiresDate"))
+
+
+async def fetch_subscription_status(
+    original_transaction_id: str, *, timeout_s: float = 30.0,
+) -> Dict[str, Any]:
+    """GET /inApps/v1/subscriptions/{originalTransactionId} — Apple's CURRENT
+    view of one subscription: `status` (1 active, 2 expired, 3 billing retry,
+    4 grace period, 5 revoked) plus the latest transaction + renewal info.
+
+    Returns {"status": int|None, "transaction": claims|None, "renewal":
+    claims|None, "environment": str|None}. Raises on config/network failure
+    (callers decide what a missing answer means — never a grant).
+    """
+    if not apple_iap_configured():
+        raise RuntimeError("Apple IAP is not configured (missing issuer/key/p8)")
+    oid = (original_transaction_id or "").strip()
+    if not oid:
+        raise ValueError("original_transaction_id required")
+
+    token = _create_bearer_token()
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    prefer_sandbox = settings.apple_iap_force_sandbox_api or settings.app_env.strip().lower() != "production"
+    order = [SANDBOX_API, PRODUCTION_API] if prefer_sandbox else [PRODUCTION_API, SANDBOX_API]
+
+    last_err: Optional[str] = None
+    async with httpx.AsyncClient(http2=True, timeout=timeout_s) as client:
+        for base in order:
+            url = f"{base}/inApps/v1/subscriptions/{oid}"
+            try:
+                r = await client.get(url, headers=headers)
+                if r.status_code == 404:
+                    last_err = f"{base} 404"
+                    continue
+                r.raise_for_status()
+                data = r.json() or {}
+                best: Optional[Dict[str, Any]] = None
+                for group in data.get("data") or []:
+                    for item in group.get("lastTransactions") or []:
+                        if str(item.get("originalTransactionId") or "") == oid or best is None:
+                            best = item
+                            if str(item.get("originalTransactionId") or "") == oid:
+                                break
+                if best is None:
+                    raise ValueError("no lastTransactions in subscription status")
+                txn = best.get("signedTransactionInfo")
+                ren = best.get("signedRenewalInfo")
+                return {
+                    "status": best.get("status"),
+                    "transaction": decode_jws_payload_unverified(txn) if txn else None,
+                    "renewal": decode_jws_payload_unverified(ren) if ren else None,
+                    "environment": data.get("environment"),
+                }
+            except httpx.HTTPStatusError as e:
+                last_err = f"{base} HTTP {e.response.status_code}"
+                logger.warning("Apple subscription status fetch failed: %s", last_err)
+            except Exception as e:
+                last_err = str(e)
+                logger.warning("Apple subscription status fetch error: %s", e)
+    raise RuntimeError(last_err or "Apple subscription status lookup failed")
+
+
+def entitlement_from_status(status_payload: Dict[str, Any]) -> tuple[bool, Optional[datetime]]:
+    """(entitled, entitled_until) from a fetch_subscription_status() payload.
+
+    Active → until expiresDate. Grace period / billing retry → Apple keeps the
+    subscriber entitled while it retries the card: until the LATER of
+    expiresDate and gracePeriodExpiresDate (billing retry without a grace date
+    is NOT entitled — that's Apple's own rule). Expired / revoked → False.
+    """
+    st = status_payload.get("status")
+    txn = status_payload.get("transaction") or {}
+    ren = status_payload.get("renewal") or {}
+    exp = expires_datetime_from_claims(txn)
+    grace = grace_end_from_renewal(ren)
+    now = datetime.utcnow()
+    if revoked_from_claims(txn) or st in (SUB_STATUS_EXPIRED, SUB_STATUS_REVOKED):
+        return False, exp
+    if st == SUB_STATUS_ACTIVE:
+        if exp is None or now < exp:
+            return True, exp
+        return False, exp
+    if st in (SUB_STATUS_GRACE_PERIOD, SUB_STATUS_BILLING_RETRY):
+        candidates = [d for d in (exp, grace) if d is not None]
+        until = max(candidates) if candidates else None
+        if until is not None and now < until:
+            return True, until
+        return False, until
+    # Unknown status: fall back to the transaction's own dates.
+    if exp is None:
+        return False, None
+    return now < exp, exp
 
 
 async def fetch_transaction_claims(transaction_id: str) -> Dict[str, Any]:

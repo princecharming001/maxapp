@@ -1,283 +1,64 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native'
+import { useCallback, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { Alert } from '../components/InAppAlert';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-    useIAP,
-    ErrorCode,
-    // Use the STANDALONE fetchProducts/getAvailablePurchases — they RESOLVE to the
-    // arrays. The useIAP() wrappers of the same name return Promise<void> and only
-    // push results into the hook's internal state, so `await hookFetchProducts()`
-    // is always undefined → the paywall saw 0 products ("Plan not available yet").
+    // Use the STANDALONE fetchProducts — it RESOLVES to the array. (The
+    // useIAP() wrapper of the same name returns Promise<void> and only pushes
+    // results into the hook's internal state, so awaiting it is always
+    // undefined → the paywall saw 0 products: "Plan not available yet".)
     fetchProducts as fetchProductsRaw,
-    getAvailablePurchases as getAvailablePurchasesRaw,
-    type Purchase,
     type Product,
 } from 'react-native-iap';
 import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../constants/appleIap';
 import { useAuth } from '../context/AuthContext';
 import { prefetchMainTabData } from '../lib/prefetchMainTabData';
-import { createPurchaseOutcome, type PurchaseOutcome } from '../lib/purchaseOutcome';
 import { queryKeys } from '../lib/queryClient';
 import { markPostPayPending } from '../lib/postPayNav';
-import { reconcileOwnedSubscriptions } from '../lib/entitlementReconciler';
-import api from '../services/api';
+import { signOutToLogin } from '../lib/signOutToLogin';
+import {
+    connect as iapConnect,
+    purchase as iapPurchase,
+    purchaseCopy,
+    reconcileOwnedSubscriptions,
+} from '../lib/iapTransactions';
 
-// Backstop only. Apple reports cancel/failure through onPurchaseError within
-// seconds; this exists so a StoreKit callback that never arrives can't leave the
-// paywall's await hanging forever. Long enough to never fire during a real
-// purchase (password prompts, 2FA, Ask-to-Buy can be slow).
-const PURCHASE_OUTCOME_TIMEOUT_MS = 5 * 60_000;
+/**
+ * The paywall's view of Apple IAP.
+ *
+ * All StoreKit plumbing — listeners, verification, dedupe, the already-owned
+ * / duplicate-event recovery — lives in lib/iapTransactions.ts, which is
+ * registered at app launch so no transaction can ever be delivered while
+ * nobody is listening. This hook only (1) loads products, (2) starts a
+ * purchase and maps its typed outcome to UI, and (3) runs Restore. Every
+ * string a user can see here is app copy; library and HTTP text never
+ * passes through.
+ */
 
 type Tier = 'basic' | 'premium';
 
 // react-native-iap v14 exposes the StoreKit product identifier as `id`
-// (ProductCommon.id); older shapes used `productId`. The pre-purchase gate must
-// match on EITHER — matching only `productId` made every check fail on v14
-// (productId is undefined there) and surfaced a false "Plan not available yet"
-// even when the App Store returned the products correctly.
+// (ProductCommon.id); older shapes used `productId`. Match on EITHER —
+// matching only `productId` made every check fail on v14.
 const productSku = (p: unknown): string | undefined => {
     const o = p as { id?: string; productId?: string } | null | undefined;
     return o?.id ?? o?.productId;
 };
 
 export function useAppleSubscription() {
-    const { user, refreshUser } = useAuth();
+    const { user, refreshUser, logout } = useAuth();
     const queryClient = useQueryClient();
     const [loading, setLoading] = useState<Tier | null>(null);
     const [restoring, setRestoring] = useState(false);
-    const pendingSkuRef = useRef<string | null>(null);
-    const requestInFlightRef = useRef(false);
-    const processedTids = useRef<Set<string>>(new Set());
-    // Transactions with a verify CURRENTLY in flight. onPurchaseSuccess marks
-    // processedTids BEFORE verifying (session-long dedupe) while the recovery
-    // effect marks AFTER (failed verifies stay retryable) — deliberately
-    // opposite orderings, which left a window where both paths (StoreKit's
-    // post-update replay + the recovery sweep) verified the SAME transaction
-    // concurrently. This set closes the window without changing either
-    // path's retry semantics: entries are added synchronously pre-await and
-    // removed in finally.
-    const verifyingTids = useRef<Set<string>>(new Set());
-    const recoveringRef = useRef(false);
+    const [connected, setConnected] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
 
-    // ── Real purchase outcome ───────────────────────────────────────────────
-    // react-native-iap's requestPurchase() resolves as soon as the request is
-    // HANDED TO StoreKit — not when the purchase completes. Awaiting it therefore
-    // reported "success" while Apple's sheet was still open, so a CANCELLED or
-    // FAILED purchase still walked the user forward into account creation.
-    // The true outcome only ever arrives via onPurchaseSuccess/onPurchaseError,
-    // so subscribeTier returns a promise that those listeners settle.
-    // See lib/purchaseOutcome.ts (unit-tested in __tests__/purchaseOutcome.test.ts).
-    const purchaseOutcomeRef = useRef<PurchaseOutcome | null>(null);
-
-    /** Settle the in-flight purchase promise exactly once. No-ops for StoreKit
-     *  replays/restores, which have no waiting caller. */
-    const settlePurchase = useCallback((ok: boolean) => {
-        const pending = purchaseOutcomeRef.current;
-        if (!pending) return;
-        purchaseOutcomeRef.current = null;
-        pending.settle(ok);
+    useEffect(() => {
+        if (Platform.OS !== 'ios') return;
+        let mounted = true;
+        void iapConnect().then((ok) => { if (mounted) setConnected(ok); });
+        return () => { mounted = false; };
     }, []);
-
-    const { connected, requestPurchase, finishTransaction } =
-        useIAP({
-            onPurchaseSuccess: async (purchase: Purchase) => {
-                if (Platform.OS !== 'ios') return;
-                const p = purchase as { transactionId?: string; id?: string; productId?: string };
-                const tid = String(p.transactionId ?? p.id ?? '').trim();
-                const incomingProductId = p.productId || undefined;
-                // Capture the armed sku SYNCHRONOUSLY, before any `await` below —
-                // pendingSkuRef can be reassigned by a NEW subscribeTier() call
-                // while this listener is still mid-flight (e.g. a stray/replayed
-                // transaction is being verified when the user starts a second
-                // purchase), so every later use in this invocation reads this
-                // captured snapshot, never the live ref. This event resolves the
-                // LIVE in-flight purchase only if it's for the same product the
-                // caller is actually waiting on (or the SDK reported no productId
-                // at all, in which case there's nothing to disambiguate against).
-                // A replayed/stray transaction for a DIFFERENT product must still
-                // be verified+finalized below, but must NEVER settle or clear a
-                // different, still-pending purchase.
-                const armedSku = pendingSkuRef.current;
-                const isArmedMatch = armedSku !== null && (!incomingProductId || incomingProductId === armedSku);
-
-                // Always attempt to finalize the transaction at the end so
-                // StoreKit stops replaying it on every launch, even when the
-                // backend rejects verification (e.g. stale / expired txn from
-                // a previous sandbox session).
-                const finalize = async () => {
-                    try { await finishTransaction({ purchase }); } catch (err) {
-                        console.warn('[AppleIAP] finishTransaction error (non-fatal):', err);
-                    }
-                };
-
-                // Only a fully verified, non-expired entitlement counts as a
-                // purchase for the awaiting caller — every other exit settles false.
-                let verified = false;
-
-                try {
-                    if (!tid) {
-                        console.error('[AppleIAP] Missing transaction id from StoreKit purchase:', JSON.stringify(p));
-                        await finalize();
-                        return;
-                    }
-
-                    if (processedTids.current.has(tid)) {
-                        console.log('[AppleIAP] Duplicate tid, finishing:', tid);
-                        await finalize();
-                        return;
-                    }
-                    if (verifyingTids.current.has(tid)) {
-                        // The recovery sweep is already verifying this exact
-                        // transaction — let it finish; it also finalizes.
-                        console.log('[AppleIAP] Verify already in flight for', tid);
-                        return;
-                    }
-                    processedTids.current.add(tid);
-                    verifyingTids.current.add(tid);
-
-                    const productId = incomingProductId || armedSku || undefined;
-                    console.log('[AppleIAP] Verifying transaction:', tid, 'product:', productId, 'armedMatch:', isArmedMatch);
-
-                    let result: { status?: string; tier?: string } | undefined;
-                    try {
-                        result = await api.verifyAppleIapTransaction(tid, productId);
-                    } catch (e: unknown) {
-                        console.error('[AppleIAP] Purchase verification failed:', e);
-                        await finalize();
-                        // The client can time out here well before the backend is
-                        // done — it tries Apple's production Server API host, then
-                        // sandbox, sequentially (legitimately up to ~60s). Re-check
-                        // the account before deciding to alert: if the backend
-                        // actually finished and granted the entitlement, a charged
-                        // user must NEVER see "Purchase error".
-                        let freshlyEntitled = false;
-                        if (isArmedMatch) {
-                            try {
-                                const freshUser = await refreshUser();
-                                freshlyEntitled = !!freshUser?.is_paid;
-                            } catch (refreshErr) {
-                                console.warn('[AppleIAP] refreshUser after verify failure failed:', refreshErr);
-                            }
-                        }
-                        if (freshlyEntitled) {
-                            console.log('[AppleIAP] Verify call failed/timed out but entitlement is active — treating as purchased.');
-                            markPostPayPending();
-                            void queryClient.invalidateQueries({ queryKey: queryKeys.maxes });
-                            prefetchMainTabData(queryClient);
-                            verified = true;
-                        } else if (isArmedMatch) {
-                            const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-                            const msg =
-                                typeof d === 'string'
-                                    ? d
-                                    : Array.isArray(d)
-                                      ? d.map((x: { msg?: string }) => x?.msg).filter(Boolean).join('\n') || 'Could not verify purchase.'
-                                      : (e as Error)?.message || 'Could not verify purchase.';
-                            Alert.alert('Purchase error', String(msg));
-                        }
-                        return;
-                    }
-
-                    await finalize();
-
-                    if (result?.status === 'expired') {
-                        console.log('[AppleIAP] Cleared stale expired transaction:', tid);
-                        return;
-                    }
-
-                    // Mark BEFORE refreshUser so the flag is already set when
-                    // refreshUser flips isPaid and App.tsx's effect fires. Only
-                    // for the purchase the caller is actually waiting on — never a
-                    // StoreKit replay/restore of an unrelated transaction — so
-                    // existing subscribers aren't dropped into the post-pay flow
-                    // on launch.
-                    if (isArmedMatch) markPostPayPending();
-                    await refreshUser();
-                    void queryClient.invalidateQueries({ queryKey: queryKeys.maxes });
-                    prefetchMainTabData(queryClient);
-                    verified = true;
-                } finally {
-                    verifyingTids.current.delete(tid);
-                    // Settling — and clearing the in-flight refs — only happens
-                    // for the event that corresponds to the ARMED purchase. A
-                    // non-matching replay must never resolve (or clear the state
-                    // of) a different purchase that's still awaiting its own
-                    // outcome; it stays pending until ITS OWN onPurchaseSuccess/
-                    // onPurchaseError arrives (or the timeout backstop fires).
-                    if (isArmedMatch) {
-                        settlePurchase(verified);
-                        requestInFlightRef.current = false;
-                        setLoading(null);
-                        pendingSkuRef.current = null;
-                    }
-                }
-            },
-            onPurchaseError: (error: { code?: string; message: string; productId?: string | null }) => {
-                const armedSku = pendingSkuRef.current;
-                const isArmedMatch = armedSku !== null && (!error.productId || error.productId === armedSku);
-                if (!isArmedMatch) {
-                    // Not the purchase we're waiting on (or nothing is in
-                    // flight) — a stray/replayed error must not touch the live
-                    // request's state or surface a confusing alert.
-                    console.warn('[AppleIAP] Ignoring non-matching purchase error:', error.code, error.productId);
-                    return;
-                }
-                requestInFlightRef.current = false;
-                setLoading(null);
-                pendingSkuRef.current = null;
-                if (error.code === ErrorCode.UserCancelled) {
-                    // The user backed out of Apple's sheet: NOT a purchase. The
-                    // caller must stay on the paywall.
-                    settlePurchase(false);
-                    return;
-                }
-
-                // FAILSAFE: the Apple ID already owns this subscription (new
-                // phone / reinstall / different app account) — StoreKit refuses
-                // to re-sell, which used to strand the user at the paywall.
-                // Reconcile the owned entitlement with the backend instead: a
-                // successful verify flips isPaid and routes them forward like a
-                // normal purchase.
-                const alreadyOwned =
-                    error.code === ErrorCode.AlreadyOwned ||
-                    /already\s+(own|subscrib|purchas)/i.test(error.message || '');
-                if (alreadyOwned) {
-                    console.log('[AppleIAP] Already owned — reconciling entitlement instead of erroring');
-                    void (async () => {
-                        try {
-                            const granted = await reconcileOwnedSubscriptions({ force: true });
-                            if (granted) {
-                                markPostPayPending(); // BEFORE refreshUser flips isPaid
-                                await refreshUser();
-                                void queryClient.invalidateQueries({ queryKey: queryKeys.maxes });
-                                prefetchMainTabData(queryClient);
-                                settlePurchase(true); // entitlement is real — proceed
-                                return;
-                            }
-                            settlePurchase(false);
-                            Alert.alert(
-                                'Subscription found',
-                                "Your Apple ID already has a Max subscription, but it couldn't be activated for this account. Tap Restore Purchases below, or try again in a moment.",
-                            );
-                        } catch (e) {
-                            console.warn('[AppleIAP] already-owned reconcile failed:', e);
-                            settlePurchase(false);
-                            Alert.alert(
-                                'Subscription found',
-                                'Your Apple ID already has a Max subscription. Tap Restore Purchases to activate it on this account.',
-                            );
-                        }
-                    })();
-                    return;
-                }
-
-                console.error('[AppleIAP] Purchase error:', error.code, error.message);
-                settlePurchase(false);
-                Alert.alert('Purchase error', error.message || 'Something went wrong.');
-            },
-        });
 
     // Fetch products with retry — Apple sandbox occasionally returns an empty
     // list on the first request even when products are fully configured.
@@ -289,8 +70,7 @@ export function useAppleSubscription() {
                 let list = ((await fetchProductsRaw({ skus, type: 'subs' })) ?? []) as Product[];
                 // Fallback: some react-native-iap v14 setups return [] for
                 // type:'subs' on TestFlight even when the subscriptions are
-                // approved. Re-query type:'all' and filter to our skus — this
-                // sidesteps any subscription-type classification mismatch.
+                // approved. Re-query type:'all' and filter to our skus.
                 if (list.length === 0) {
                     console.warn('[AppleIAP] subs fetch empty; retrying as type:all');
                     const all = ((await fetchProductsRaw({ skus, type: 'all' })) ?? []) as Product[];
@@ -307,8 +87,7 @@ export function useAppleSubscription() {
                     await new Promise((r) => setTimeout(r, delay));
                     return loadProducts(attempt + 1);
                 }
-                const msg = 'No subscription products found in App Store. Check App Store Connect product IDs and agreements.';
-                console.error('[AppleIAP]', msg);
+                console.error('[AppleIAP] No subscription products found in App Store. Check App Store Connect product IDs and agreements.');
                 setProducts([]);
                 return [];
             } catch (err) {
@@ -318,8 +97,7 @@ export function useAppleSubscription() {
                     await new Promise((r) => setTimeout(r, delay));
                     return loadProducts(attempt + 1);
                 }
-                const msg = `Failed to load products: ${(err as Error)?.message || err}`;
-                console.error('[AppleIAP]', msg);
+                console.error('[AppleIAP] Failed to load products:', (err as Error)?.message || err);
                 return [];
             }
         },
@@ -331,44 +109,31 @@ export function useAppleSubscription() {
         void loadProducts();
     }, [connected, loadProducts]);
 
-    // Recover pending transactions
-    useEffect(() => {
-        if (Platform.OS !== 'ios' || !connected || recoveringRef.current) return;
-        recoveringRef.current = true;
-        const recoverPending = async () => {
-            try {
-                // `getAvailablePurchases()` can resolve to `undefined` on iOS
-                // when the StoreKit queue is empty or not yet initialised; normalise
-                // to an array so downstream `.length` / `for..of` never crash.
-                const purchases = (await getAvailablePurchasesRaw()) ?? [];
-                console.log('[AppleIAP] Recovering pending purchases:', purchases.length);
-                for (const purchase of purchases) {
-                    const p = purchase as { transactionId?: string; id?: string; productId?: string };
-                    const tid = String(p.transactionId ?? p.id ?? '').trim();
-                    if (!tid || processedTids.current.has(tid) || verifyingTids.current.has(tid)) continue;
-                    verifyingTids.current.add(tid);
-                    try {
-                        await api.verifyAppleIapTransaction(tid, p.productId || undefined);
-                        // Only a SUCCESSFUL verify consumes the transaction. A
-                        // failed one (network blip, backend 503, signed-out race)
-                        // must stay in the queue and stay retryable — the old
-                        // finish-and-mark-anyway behavior permanently stranded
-                        // "owned but locked out" users for the session.
-                        processedTids.current.add(tid);
-                        try { await finishTransaction({ purchase }); } catch {}
-                        await refreshUser();
-                    } catch (err) {
-                        console.warn('[AppleIAP] recover verify failed (left retryable):', tid, err);
-                    } finally {
-                        verifyingTids.current.delete(tid);
-                    }
-                }
-            } catch (e) {
-                console.warn('[AppleIAP] recoverPending:', e);
-            }
-        };
-        void recoverPending();
-    }, [connected, finishTransaction, refreshUser]);
+    /** The account now holds an entitlement: refresh + warm the paid app. */
+    const onEntitled = useCallback(async (userInitiated: boolean) => {
+        // Mark BEFORE refreshUser: refreshUser flips isPaid, which remounts the
+        // navigator and runs App.tsx's post-pay effect — the flag must already
+        // be set when that effect reads it. Only for a purchase the user just
+        // made; a restore of an old subscription is not a celebration.
+        if (userInitiated) markPostPayPending();
+        await refreshUser();
+        void queryClient.invalidateQueries({ queryKey: queryKeys.maxes });
+        prefetchMainTabData(queryClient);
+    }, [refreshUser, queryClient]);
+
+    /** "Your Apple ID's subscription belongs to another Max account" — with
+     *  the way out, not just the news. Sign in drops this session (the
+     *  funnel stack has no Login route; App.tsx forwards after logout). */
+    const showOtherAccount = useCallback((detail?: string) => {
+        Alert.alert(
+            purchaseCopy.otherAccountTitle,
+            detail || purchaseCopy.otherAccount,
+            [
+                { text: 'Not now', style: 'cancel' },
+                { text: 'Sign in', onPress: () => { void signOutToLogin(logout); } },
+            ],
+        );
+    }, [logout]);
 
     const subscribeTier = useCallback(
         async (tier: Tier): Promise<boolean> => {
@@ -377,31 +142,28 @@ export function useAppleSubscription() {
                 Alert.alert('Sign in', 'Log in to subscribe.');
                 return false;
             }
-            if (requestInFlightRef.current || pendingSkuRef.current) {
+            if (loading) {
                 console.log('[AppleIAP] Purchase request ignored; one is already in flight.');
                 return false;
             }
-
-            // Check store connectivity
             if (!connected) {
-                console.error('[AppleIAP] Store not connected');
-                Alert.alert(
-                    'App Store unavailable',
-                    'Cannot connect to the App Store. Please check your internet connection and try again.',
-                );
-                return false;
+                const ok = await iapConnect();
+                if (!ok) {
+                    // canMakePayments=false (Screen Time / MDM) lands here too —
+                    // never blame the network for a device restriction.
+                    Alert.alert('App Store unavailable', purchaseCopy.forCode('init-connection'));
+                    return false;
+                }
+                setConnected(true);
             }
 
             const sku = tier === 'premium' ? APPLE_IAP_PREMIUM_SKU : APPLE_IAP_BASIC_SKU;
 
-            // If the product is already cached, fire requestPurchase immediately
-            // so StoreKit opens its sheet with no perceptible delay.
-            // If it is NOT cached, do ONE bounded fetch first and confirm THIS
-            // sku is actually available before requesting. Firing a purchase for
-            // a sku StoreKit doesn't know (e.g. a just-approved product still
-            // propagating to sandbox, or a transient empty fetch) silently does
-            // nothing — no sheet, no error — which reads as a dead button. A
-            // bounded check lets us give real feedback instead.
+            // If the product is cached, fire immediately so StoreKit's sheet opens
+            // with no perceptible delay. Otherwise do ONE bounded fetch and confirm
+            // THIS sku exists before requesting: a purchase for a sku StoreKit
+            // doesn't know silently does nothing — no sheet, no error — which
+            // reads as a dead button.
             let productCached = products.some((p) => productSku(p) === sku);
             if (!productCached) {
                 console.log('[AppleIAP] Cache miss at subscribe time; fetching before purchase:', sku);
@@ -413,75 +175,65 @@ export function useAppleSubscription() {
                 }
                 if (!productCached) {
                     console.error('[AppleIAP] Product not available from StoreKit, aborting purchase:', sku);
-                    Alert.alert(
-                        'Plan not available yet',
-                        "This plan isn't available from the App Store right now. If it was just set up, it can take a little while to appear — please try again shortly.",
-                    );
+                    Alert.alert('Plan not available yet', purchaseCopy.forCode('item-unavailable'));
                     return false;
                 }
             }
 
-            requestInFlightRef.current = true;
             setLoading(tier);
-            pendingSkuRef.current = sku;
             console.log('[AppleIAP] Requesting purchase:', sku);
-
-            // Arm the outcome promise BEFORE requesting, so a listener that fires
-            // synchronously still finds somewhere to report to.
-            const outcome = createPurchaseOutcome(PURCHASE_OUTCOME_TIMEOUT_MS, () => {
-                // StoreKit never reported back — release the UI so the paywall
-                // isn't left stuck on "Processing…".
-                console.warn('[AppleIAP] No purchase outcome within timeout — treating as not purchased.');
-                purchaseOutcomeRef.current = null;
-                requestInFlightRef.current = false;
-                setLoading(null);
-                pendingSkuRef.current = null;
-            });
-            purchaseOutcomeRef.current = outcome;
-
             try {
-                await requestPurchase({
-                    type: 'subs',
-                    request: {
-                        apple: {
-                            sku,
-                            appAccountToken: user.id,
-                        },
-                    },
-                });
-                // NOTE: requestPurchase resolving means the request reached
-                // StoreKit — NOT that the user bought anything. Wait for the
-                // listeners to report the real outcome.
-                return await outcome.promise;
-            } catch (e: unknown) {
-                settlePurchase(false);
-                requestInFlightRef.current = false;
-                setLoading(null);
-                pendingSkuRef.current = null;
-                const msg = (e as Error)?.message || 'Could not start purchase.';
-                console.error('[AppleIAP] requestPurchase failed:', msg);
-                if (!msg.includes('cancelled') && !msg.includes('canceled')) {
-                    Alert.alert('Error', msg);
+                const result = await iapPurchase(sku, user.id);
+                console.log('[AppleIAP] Purchase outcome:', result.kind);
+                switch (result.kind) {
+                    case 'purchased':
+                        await onEntitled(true);
+                        return true;
+                    case 'cancelled':
+                        // The user backed out of Apple's sheet: NOT a purchase, not
+                        // an error. Stay on the paywall quietly.
+                        return false;
+                    case 'pending':
+                        Alert.alert(purchaseCopy.pendingTitle, purchaseCopy.pending);
+                        return false;
+                    case 'other_account':
+                        showOtherAccount(result.detail);
+                        return false;
+                    case 'not_purchased':
+                    default: {
+                        if (result.kind === 'not_purchased' && result.code === 'unreachable') {
+                            // The verify call failed client-side but the backend may
+                            // have finished (it tries Apple's production host, then
+                            // sandbox — legitimately up to ~60s). A charged user must
+                            // NEVER see an error: re-check the account first.
+                            try {
+                                const fresh = await refreshUser();
+                                if (fresh?.is_paid) {
+                                    console.log('[AppleIAP] Verify unreachable but entitlement is active — treating as purchased.');
+                                    await onEntitled(true);
+                                    return true;
+                                }
+                            } catch (e) {
+                                console.warn('[AppleIAP] refreshUser after unreachable verify failed:', e);
+                            }
+                        }
+                        Alert.alert('Purchase not completed', result.kind === 'not_purchased' ? result.message : purchaseCopy.forCode('unknown'));
+                        return false;
+                    }
                 }
-                return false;
+            } finally {
+                setLoading(null);
             }
         },
-        [user?.id, requestPurchase, connected, products, loadProducts, settlePurchase],
+        [user?.id, loading, connected, products, loadProducts, onEntitled, showOtherAccount, refreshUser],
     );
 
-    const subscribeBasic = useCallback(
-        () => subscribeTier('basic'),
-        [subscribeTier],
-    );
-    const subscribePremium = useCallback(
-        () => subscribeTier('premium'),
-        [subscribeTier],
-    );
+    const subscribeBasic = useCallback(() => subscribeTier('basic'), [subscribeTier]);
+    const subscribePremium = useCallback(() => subscribeTier('premium'), [subscribeTier]);
 
-    // User-initiated "Restore Purchases" flow required by Apple
-    // (App Review Guideline 3.1.1). Queries StoreKit for the user's
-    // prior purchases, re-verifies each with the backend, finalizes
-    // the transactions, and refreshes the account.
+    // User-initiated "Restore Purchases" (App Review Guideline 3.1.1): read the
+    // Apple ID's current entitlements, re-verify each with the backend, and
+    // tell the user exactly which of the four things happened.
     const restorePurchases = useCallback(async (): Promise<boolean> => {
         if (Platform.OS !== 'ios') return false;
         if (restoring) return false;
@@ -489,94 +241,60 @@ export function useAppleSubscription() {
             Alert.alert('Sign in', 'Log in to restore purchases.');
             return false;
         }
-        if (!connected) {
-            Alert.alert(
-                'App Store unavailable',
-                'Cannot connect to the App Store. Please check your internet connection and try again.',
-            );
-            return false;
-        }
-
         setRestoring(true);
-        let restoredActive = false;
-        let attempted = 0;
-        let ownedByOtherAccount = false;
         try {
-            // Normalise to an array — `react-native-iap` has been observed to
-            // resolve to `undefined` when there are no prior purchases on the
-            // Apple ID, which would otherwise throw "Cannot read property
-            // 'length' of undefined" and surface a misleading "Restore failed".
-            const purchases = (await getAvailablePurchasesRaw()) ?? [];
-            console.log('[AppleIAP] restorePurchases: found', purchases.length, 'purchase(s)');
-
-            for (const purchase of purchases) {
-                const p = purchase as { transactionId?: string; id?: string; productId?: string };
-                const tid = String(p.transactionId ?? p.id ?? '').trim();
-                if (!tid) continue;
-                attempted += 1;
-
-                try {
-                    const result = await api.verifyAppleIapTransaction(tid, p.productId || undefined);
-                    if (result?.status && result.status !== 'expired') {
-                        restoredActive = true;
-                    }
-                } catch (err) {
-                    console.warn('[AppleIAP] restore verify failed for', tid, err);
-                    // Ownership refusal: the sub is held by a DIFFERENT claimed
-                    // Max account (classic reinstall-as-new-anon). Remember it —
-                    // telling this user "subscription expired, subscribe again"
-                    // is false and re-subscribing just hits AlreadyOwned again.
-                    const detail = String((err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail ?? '');
-                    if (/different max account|another max account|account_token_mismatch/i.test(detail)) {
-                        ownedByOtherAccount = true;
-                    }
-                } finally {
-                    try { await finishTransaction({ purchase }); } catch {}
-                    processedTids.current.add(tid);
-                }
+            const ok = await iapConnect();
+            if (!ok) {
+                Alert.alert('App Store unavailable', purchaseCopy.forCode('init-connection'));
+                return false;
             }
-
-            await refreshUser();
-            void queryClient.invalidateQueries({ queryKey: queryKeys.maxes });
-            prefetchMainTabData(queryClient);
-
-            if (restoredActive) {
-                Alert.alert('Purchases restored', 'Your subscription has been restored on this device.');
-            } else if (ownedByOtherAccount) {
-                // The truth, with the actual way out — NOT "subscribe again"
-                // (which would just bounce off StoreKit's AlreadyOwned forever).
-                Alert.alert(
-                    'Subscription on another account',
-                    'Your Apple ID has an active Max subscription, but it belongs to a different Max account. Sign in with the account you originally subscribed on to keep using it.',
-                );
-            } else if (attempted === 0) {
+            const o = await reconcileOwnedSubscriptions({ force: true });
+            console.log('[AppleIAP] restore outcome:', JSON.stringify(o));
+            if (o.granted) {
+                await onEntitled(false);
+                Alert.alert('Purchases restored', 'Your subscription is active on this account.');
+                return true;
+            }
+            // Keep the screen honest even when nothing was granted.
+            try { await refreshUser(); } catch { /* non-fatal */ }
+            if (o.otherAccount) {
+                showOtherAccount(o.detail);
+            } else if (o.transient) {
+                Alert.alert('Try again in a moment', "Max couldn't be reached to check your subscription. Your purchase is safe — please try again shortly.");
+            } else if (o.checked === 0) {
                 Alert.alert(
                     'Nothing to restore',
-                    'No previous purchases were found for your Apple ID on this device. If you believe this is wrong, make sure you are signed in to the App Store with the Apple ID used for the original purchase.',
+                    'No active Max subscription was found for the Apple ID signed in to the App Store on this device. If that seems wrong, check Settings › Apple ID › Subscriptions.',
                 );
             } else {
                 Alert.alert(
                     'No active subscription',
-                    'We found previous transactions, but none are currently active. If your subscription expired, please subscribe again.',
+                    "This Apple ID's Max subscription has ended. Subscribe again to pick up where you left off.",
                 );
             }
-            return restoredActive;
-        } catch (e: unknown) {
+            return false;
+        } catch (e) {
             console.error('[AppleIAP] restorePurchases failed:', e);
-            const msg = (e as Error)?.message || 'Could not restore purchases. Please try again.';
-            Alert.alert('Restore failed', String(msg));
+            Alert.alert('Restore failed', purchaseCopy.forCode('unknown'));
             return false;
         } finally {
             setRestoring(false);
         }
-    }, [
-        restoring,
-        user?.id,
-        connected,
-        finishTransaction,
-        refreshUser,
-        queryClient,
-    ]);
+    }, [restoring, user?.id, onEntitled, refreshUser, showOtherAccount]);
+
+    /** Silent, server-verified check used by the paywall on mount: if the
+     *  Apple ID already owns an active subscription this account can adopt,
+     *  activate it now instead of asking the user to buy it again. */
+    const reconcileSilently = useCallback(async (): Promise<boolean> => {
+        if (Platform.OS !== 'ios' || !user?.id) return false;
+        const o = await reconcileOwnedSubscriptions({ force: true });
+        if (o.granted) {
+            await onEntitled(false);
+            return true;
+        }
+        if (o.otherAccount) showOtherAccount(o.detail);
+        return false;
+    }, [user?.id, onEntitled, showOtherAccount]);
 
     return {
         loading,
@@ -585,6 +303,7 @@ export function useAppleSubscription() {
         subscribePremium,
         subscribeTier,
         restorePurchases,
+        reconcileSilently,
         storeConnected: connected,
         products,
     };

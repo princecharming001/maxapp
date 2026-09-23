@@ -171,10 +171,22 @@ async def get_my_products(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_profile(current_user: dict = Depends(get_current_user)):
+async def get_profile(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Get current user's profile
     """
+    # An Apple-billed row whose end date passed without a renewal event
+    # (dropped notification) reads as unpaid here and boots the user into the
+    # paywall. Ask Apple before saying so — throttled, bounded, never grants
+    # on failure. See services/apple_entitlement_recheck.
+    try:
+        from services.apple_entitlement_recheck import recheck_if_stale
+        current_user = await recheck_if_stale(current_user, db)
+    except Exception as e:  # noqa: BLE001 — /me must never fail on this
+        logger.info("apple entitlement recheck skipped: %s", e)
     ob_raw = dict(current_user.get("onboarding") or {})
     if not ob_raw.get("main_app_tour_completed"):
         cutoff = settings.main_app_tour_cutoff_at

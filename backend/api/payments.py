@@ -93,6 +93,13 @@ async def _activate_user(
     if not user:
         return
     was_already_paid = bool(user.is_paid)
+    # "First activation" means the account has NEVER held a plan — not merely
+    # "is_paid happens to be False right now". A lapsed subscriber who comes
+    # back (or a renewal that lands after the hourly sweep expired the row)
+    # was re-flagged for the post-purchase reveal of a months-old scan and the
+    # first-run walkthrough. The row remembers every earlier plan through
+    # subscription_id / subscription_end_date.
+    first_activation_ever = not was_already_paid and not user.subscription_id and user.subscription_end_date is None
     user.is_paid = True
     if subscription_id:
         user.subscription_id = subscription_id
@@ -107,7 +114,7 @@ async def _activate_user(
         user.billing_provider = billing_provider
     if subscription_end_date is not None:
         user.subscription_end_date = subscription_end_date
-    if not was_already_paid:
+    if first_activation_ever:
         ob = dict(user.onboarding or {})
         ob["post_subscription_onboarding"] = True
         # Only initialize the flag if it has never been set. If the user has
@@ -126,6 +133,24 @@ async def _activate_user(
         sa_update(Scan).where(Scan.user_id == user_uuid).values(is_unlocked=True)
     )
     await db.commit()
+
+
+async def _record_apple_renewal_status(user_id: str, auto_renew: bool, db: AsyncSession) -> None:
+    """Remember whether the Apple subscription will auto-renew (drives the
+    "renews weekly" vs "ends on <date>" copy). Profile is written key-targeted
+    so this can never clobber a concurrent streak/XP write."""
+    try:
+        user = await db.get(User, UUID(user_id))
+        if user is None:
+            return
+        prof = dict(user.profile or {})
+        if prof.get("apple_auto_renew") is auto_renew:
+            return
+        prof["apple_auto_renew"] = bool(auto_renew)
+        user.profile = prof
+        await db.commit()
+    except Exception as e:  # noqa: BLE001 — display metadata only
+        logger.info("apple renewal status not recorded for %s: %s", user_id, e)
 
 
 async def _deactivate_user(user_id: str, db: AsyncSession):
@@ -500,7 +525,11 @@ async def apple_verify(
 
     paid = bool(current_user.get("is_paid"))
     bp = (current_user.get("billing_provider") or "").lower()
-    if paid and bp != "apple":
+    # Only a live STRIPE plan conflicts. A referral comp (or a legacy row with
+    # no provider) must be superseded by an Apple purchase — Apple has already
+    # charged the card; 409-ing here left the row on the comp, which then
+    # expired and locked a paying customer out until a reconcile.
+    if paid and bp == "stripe":
         raise HTTPException(
             status_code=409,
             detail="This account already has a subscription from another billing provider.",
@@ -531,12 +560,39 @@ async def apple_verify(
                 claims.get("bundleId"),
             )
 
+            if not apple.subscription_active_from_claims(claims) and not apple.revoked_from_claims(claims):
+                # The transaction's own period is over, but Apple may still
+                # count the subscriber as entitled: a billing-retry / grace
+                # period after a declined renewal. Ask Apple for the CURRENT
+                # subscription status and, when it says active-or-grace, treat
+                # the transaction as active until that date. Without this a
+                # transient card decline locked paying users out for the whole
+                # retry window ("Apple says I'm subscribed, the app says pay").
+                grace_until = None
+                try:
+                    st = await apple.fetch_subscription_status(
+                        str(claims.get("originalTransactionId") or ""), timeout_s=12.0,
+                    )
+                    entitled, until = apple.entitlement_from_status(st)
+                    if entitled and until is not None:
+                        grace_until = until
+                        logger.info(
+                            "Apple IAP verify: transaction period over but subscription status=%s "
+                            "→ entitled until %s: user=%s tid=%s",
+                            st.get("status"), until, current_user["id"], tid,
+                        )
+                except Exception as e:  # noqa: BLE001 — status lookup is best-effort
+                    logger.info("Apple IAP verify: status lookup skipped (%s)", e)
+                if grace_until is not None:
+                    claims = dict(claims)
+                    claims["expiresDate"] = int(grace_until.replace(tzinfo=timezone.utc).timestamp() * 1000)
+
             if not apple.subscription_active_from_claims(claims):
                 exp = apple.expires_datetime_from_claims(claims)
                 logger.info(
                     "Apple IAP expired (stale queued transaction, acking to clear client queue): "
-                    "user=%s tid=%s expiresDate=%s (utc now=%s)",
-                    current_user["id"], tid, exp, datetime.utcnow(),
+                    "user=%s tid=%s expiresDate=%s revoked=%s (utc now=%s)",
+                    current_user["id"], tid, exp, apple.revoked_from_claims(claims), datetime.utcnow(),
                 )
                 # Historical/expired transactions are NOT an error — StoreKit
                 # replays old unfinished transactions on every launch. Return
@@ -722,13 +778,43 @@ async def apple_server_notifications(
 
     try:
         if ntype in ("REFUND", "REVOKE", "EXPIRED"):
-            u = await db.get(User, UUID(user_id_str))
-            if (
-                u
-                and (u.billing_provider or "").lower() == "apple"
-                and (u.subscription_id or "") == original_id
-            ):
-                await _deactivate_user(user_id_str, db)
+            # Deactivate the HOLDER of this subscription (row whose
+            # subscription_id is the originalTransactionId), resolved the same
+            # way the grant path resolves it. Token-first resolution skipped
+            # every subscription that had been adopted by a different account,
+            # so refunds/expiries never revoked access there.
+            target = user_id_str
+            if original_id:
+                holder = (await db.execute(
+                    select(User).where(User.subscription_id == original_id)
+                )).scalars().first()
+                if holder is not None:
+                    target = str(holder.id)
+            # A request we cannot authenticate (no shared secret) must be
+            # confirmed with Apple before it takes access away from anyone: a
+            # forged payload naming a victim's ids would otherwise lock a
+            # paying customer out until the next reconcile.
+            confirmed = authenticated_via_secret
+            if not confirmed and txn_id and apple.apple_iap_configured():
+                try:
+                    claims = await apple.fetch_transaction_claims(txn_id)
+                    confirmed = (
+                        str(claims.get("originalTransactionId") or "") == original_id
+                        and not apple.subscription_active_from_claims(claims)
+                    )
+                except Exception as e:
+                    logger.warning("ASN %s: could not confirm with Apple (%s) — ignored", ntype, e)
+            if confirmed:
+                u = await db.get(User, UUID(target))
+                if (
+                    u
+                    and (u.billing_provider or "").lower() == "apple"
+                    and (u.subscription_id or "") == original_id
+                ):
+                    await _deactivate_user(target, db)
+                    await _record_apple_renewal_status(target, False, db)
+            else:
+                logger.warning("ASN %s unconfirmed for original=%s — no change applied", ntype, original_id)
         elif ntype in (
             "SUBSCRIBED",
             "DID_RENEW",
@@ -749,6 +835,16 @@ async def apple_server_notifications(
                     apple.validate_claims_for_user(claims, trusted_uid)
                     await _apple_sync_entitlement(trusted_uid, claims, db)
                     granted = True
+                    # Auto-renew ON/OFF drives the manage-subscription copy
+                    # ("renews weekly" vs "ends on <date>"); take it from
+                    # Apple's authenticated status, never the raw payload.
+                    try:
+                        st = await apple.fetch_subscription_status(original_id, timeout_s=12.0)
+                        ren = st.get("renewal") or {}
+                        if "autoRenewStatus" in ren:
+                            await _record_apple_renewal_status(trusted_uid, bool(ren.get("autoRenewStatus")), db)
+                    except Exception as e:  # noqa: BLE001
+                        logger.info("ASN %s: renewal status lookup skipped (%s)", ntype, e)
                 except Exception as e:
                     logger.warning("ASN trusted entitlement sync failed: %s", e)
             # Fallback ONLY when the request itself is authenticated as Apple via
@@ -764,6 +860,26 @@ async def apple_server_notifications(
             u = await db.get(User, UUID(user_id_str))
             if u:
                 u.subscription_status = "past_due"
+                # Authenticated path first: Apple's own subscription status
+                # says whether the subscriber is in a grace period and until
+                # when. (The shared-secret branch below is the legacy path,
+                # kept for deployments that do set the secret.)
+                if original_id and apple.apple_iap_configured():
+                    try:
+                        st = await apple.fetch_subscription_status(original_id, timeout_s=12.0)
+                        entitled, until = apple.entitlement_from_status(st)
+                        if entitled and until is not None:
+                            until_aware = until.replace(tzinfo=timezone.utc)
+                            cur = u.subscription_end_date
+                            cur_aware = cur if (cur is None or cur.tzinfo) else cur.replace(tzinfo=timezone.utc)
+                            if cur_aware is None or until_aware > cur_aware:
+                                u.subscription_end_date = until_aware
+                                logger.info(
+                                    "ASN billing-retry: Apple status=%s → user=%s entitled until %s",
+                                    st.get("status"), user_id_str, until_aware.isoformat(),
+                                )
+                    except Exception as e:  # noqa: BLE001
+                        logger.info("ASN DID_FAIL_TO_RENEW: status lookup skipped (%s)", e)
                 # Apple grace period / billing retry: while Apple is retrying the
                 # charge, the subscriber remains ENTITLED per Apple — but our
                 # gate refuses purely on subscription_end_date, which has already
@@ -908,10 +1024,16 @@ async def get_subscription_status(
         end_iso = _dt_iso(user_row.subscription_end_date)
         st = (user_row.subscription_status or "").lower()
         is_active = paid and st not in ("canceled", "expired")
+        # Auto-renew OFF (turned off in iOS Settings) is recorded from App
+        # Store Server Notifications; None = unknown → assume renewing.
+        auto_renew = (user_row.profile or {}).get("apple_auto_renew")
+        cancel_at_period_end = auto_renew is False
         return {
             "is_active": is_active,
             "subscription_tier": tier,
-            "cancel_at_period_end": False,
+            "cancel_at_period_end": cancel_at_period_end,
+            "auto_renew": None if auto_renew is None else bool(auto_renew),
+            "ends_on_iso": end_iso if cancel_at_period_end else None,
             "current_period_end_iso": end_iso,
             "current_period_start_iso": None,
             "has_stripe_subscription": False,

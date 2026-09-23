@@ -10,6 +10,7 @@ import { ensureFirstRunClean } from '../lib/firstRunGuard';
 import api, { subscribeAuthLost, subscribeEntitlementLost } from '../services/api';
 import { clearFaceScanDraft, clearPendingFaceScanSubmit } from '../lib/faceScanDraft';
 import { clearOnboardingDraft } from '../lib/onboardingDraft';
+import { clearPendingChat } from '../lib/pendingChat';
 import { clearRestoredTab } from '../lib/navState';
 import { clearTodayWidget } from '../lib/widgetSync';
 import { loadFreeTierChoice, saveFreeTierChoice, clearFreeTierChoice } from '../lib/freeTier';
@@ -254,6 +255,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 } catch {
                     /* ignore — worst case is a brief stale flash, refetch fixes it */
                 }
+                // Resolve the per-user free-tier choice BEFORE publishing the
+                // user: it otherwise loads in an effect after the first render,
+                // so a legacy free-tier account mounted the unpaid funnel stack
+                // (locked scan teaser) for a frame before treatAsFull flipped.
+                try {
+                    if (userData?.id) setFreeTierChosen(await loadFreeTierChoice(userData.id));
+                } catch { /* the effect above reloads it */ }
                 setUser(userData);
                 setSessionRestorePending(false);
             }
@@ -328,9 +336,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Stamp the persisted query cache with the current user so a different
     // user's cold start can detect + drop a stale blob. Covers every path that
     // sets `user` (login, signup, faux, refresh, logout→null).
+    const prevUserIdRef = useRef<string | null>(null);
     useEffect(() => {
         setPersistUserId(user?.id ?? null);
-    }, [user?.id]);
+        const prev = prevUserIdRef.current;
+        const next = user?.id ?? null;
+        prevUserIdRef.current = next;
+        // In-session account SWITCH (anon → existing account at "Save your
+        // results", or any sign-in over a live session): the previous
+        // identity's server cache, drafts, pending chat and widget must not
+        // survive into the new one. The logout paths clear these too; this
+        // covers the switch that never went through logout.
+        if (prev && next && prev !== next) {
+            try { queryClient.clear(); } catch { /* ignore */ }
+            clearTodayWidget();
+            void clearPersistedQueryCache().catch(() => undefined);
+            void clearOnboardingDraft().catch(() => undefined);
+            void clearPendingChat().catch(() => undefined);
+            void clearRestoredTab().catch(() => undefined);
+        }
+    }, [user?.id, queryClient]);
 
     // When the api layer detects a permanently-invalid session (refresh 401'd,
     // account deleted, key rotated), tear down auth state so React Query hooks
@@ -351,6 +376,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             void clearOnboardingDraft().catch(() => undefined);
             void clearRestoredTab().catch(() => undefined);
             void clearPersistedQueryCache().catch(() => undefined);
+            void clearPendingChat().catch(() => undefined);
         });
         return unsubscribe;
     }, [queryClient]);
@@ -397,18 +423,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 /* non-fatal — user can re-save prefs in Profile */
             }
         })();
-    }, [user?.id]);
+        // Re-run when entitlement flips: /users/push-token 403s for unpaid
+        // accounts, so a user who subscribes mid-session would otherwise have
+        // no token on the server until their next cold start — no reminders
+        // for their very first day.
+    }, [user?.id, user?.is_paid]);
+
+    // The post-auth profile fetch. Tokens are ALREADY persisted when this
+    // runs, so a transient blip here must not report "Couldn't sign in" for a
+    // session that exists (the next cold start would land inside the app).
+    // Same 45s + one retry as the boot restore.
+    const getMeResilient = useCallback(async (): Promise<User> => {
+        try {
+            return await api.getMe({ timeout: 45_000 });
+        } catch {
+            await new Promise((r) => setTimeout(r, 1000));
+            return await api.getMe({ timeout: 45_000 });
+        }
+    }, []);
 
     const login = useCallback(async (identifier: string, password: string) => {
         await api.login(identifier, password);
-        const userData = await api.getMe();
+        const userData = await getMeResilient();
         setUser(userData);
-    }, []);
+    }, [getMeResilient]);
 
     const signup = useCallback(
         async (email: string, password: string, first_name: string, last_name: string, username: string, phone_number?: string) => {
             await api.signup(email, password, first_name, last_name, username, phone_number);
-            const userData = await api.getMe();
+            const userData = await getMeResilient();
             setUser(userData);
         },
         [],
@@ -416,25 +459,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const fauxSignup = useCallback(async () => {
         await api.fauxSignup();
-        const userData = await api.getMe();
+        const userData = await getMeResilient();
         setUser(userData);
     }, []);
 
     const fauxSkipSignup = useCallback(async () => {
         await api.fauxSkipSignup();
-        const userData = await api.getMe();
+        const userData = await getMeResilient();
         setUser(userData);
     }, []);
 
     const fauxFreshSignup = useCallback(async () => {
         await api.fauxFreshSignup();
-        const userData = await api.getMe();
+        const userData = await getMeResilient();
         setUser(userData);
     }, []);
 
     const devToggleAdmin = useCallback(async () => {
         const { is_admin } = await api.devToggleAdmin();
-        const userData = await api.getMe();
+        const userData = await getMeResilient();
         setUser(userData);
         return is_admin;
     }, []);
@@ -448,15 +491,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // permanently orphan its onboarding answers / scan. Logout and a
         // definitive auth failure both clear tokens, so this never resurrects
         // a session the user chose to leave.
+        let hadToken = false;
         try {
             const existing = await getItemAsync('access_token');
+            hadToken = !!existing;
             if (existing) {
-                const userData = await api.getMe({ timeout: 20_000 });
+                const userData = await api.getMe({ timeout: 45_000 });
                 setUser(userData);
                 return;
             }
         } catch {
-            /* unreadable/dead session — fall through to a fresh start */
+            // Only a DEAD session may fall through to minting. The refresh
+            // interceptor clears the tokens when the server definitively
+            // rejects them, so "token still on disk" means this failure was
+            // transient (cold backend, offline) — minting over it orphaned
+            // real, sometimes paid, accounts. Landing shows a retry instead.
+            const stillThere = await getItemAsync('access_token').catch(() => null);
+            if (hadToken && stillThere) {
+                const err = new Error('session_transient') as Error & { code?: string };
+                err.code = 'session_transient';
+                throw err;
+            }
         }
         await api.anonSignup();
         // The account + tokens are set now; don't let a transient getMe blip fail
@@ -491,14 +546,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const signInWithGoogle = useCallback(async (idToken: string) => {
         await api.googleSignIn(idToken);
-        const userData = await api.getMe();
+        const userData = await getMeResilient();
         setUser(userData);
         return userData;
     }, []);
 
     const signInWithGoogleDev = useCallback(async (email: string, name?: string) => {
         await api.googleSignInDev(email, name);
-        const userData = await api.getMe();
+        const userData = await getMeResilient();
         setUser(userData);
         return userData;
     }, []);
@@ -508,7 +563,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         opts?: { givenName?: string; familyName?: string; email?: string },
     ) => {
         await api.appleSignIn(identityToken, opts);
-        const userData = await api.getMe();
+        const userData = await getMeResilient();
         setUser(userData);
         return userData;
     }, []);
@@ -531,6 +586,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await clearOnboardingDraft().catch(() => undefined);
         await clearRestoredTab().catch(() => undefined);
         await clearPersistedQueryCache().catch(() => undefined);
+        await clearPendingChat().catch(() => undefined);
     }, [queryClient]);
 
     const refreshUser = useCallback(async (): Promise<User> => {
@@ -552,6 +608,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await clearOnboardingDraft().catch(() => undefined);
         await clearRestoredTab().catch(() => undefined);
         await clearPersistedQueryCache().catch(() => undefined);
+        await clearPendingChat().catch(() => undefined);
     }, []);
 
     const chooseFreeTier = useCallback(async () => {

@@ -15,7 +15,7 @@ import bcrypt
 from fastapi import APIRouter, HTTPException, status, Depends, Header
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt
-from sqlalchemy import delete, desc, func, select
+from sqlalchemy import delete, desc, func, select, update as sa_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,7 +23,7 @@ from config import settings
 from db import get_db
 from middleware import get_current_user
 from middleware.rate_limit import rate_limit
-from models.sqlalchemy_models import PasswordResetOTP, User
+from models.sqlalchemy_models import PasswordResetOTP, Scan, User, UserProgressPhoto
 from models.user import (
     AuthMessageResponse,
     ForgotPasswordSmsConfirm,
@@ -695,6 +695,77 @@ async def _optional_anon_caller(authorization: str | None, db: AsyncSession) -> 
     return None
 
 
+
+async def _absorb_anon_into(existing: "User", anon: "User | None", db: AsyncSession) -> None:
+    """The caller's UNCLAIMED anon account is being abandoned for an existing one.
+
+    Funnel V4 runs scan → quiz → paywall on an anon account and only then asks
+    for an identity. When "Continue with Google/Apple" resolves to an account
+    the user ALREADY had, the session simply switched to it and everything the
+    anon did was orphaned: the scan disappeared from the archive, the quiz was
+    asked again — and a subscription bought minutes earlier sat on an account
+    nobody could ever sign into again (Apple then refuses to re-sell it).
+    Move what matters onto the account the user actually wants, in the same
+    transaction as the sign-in:
+      - scans + progress photos are re-parented (the archive keeps them),
+      - first_scan_completed follows them,
+      - intro answers fill in an account that never finished onboarding
+        (an account that did keeps its own),
+      - a paid anon hands its plan over (fields copied, anon released) so the
+        existing account is entitled the moment it signs in — no reconcile,
+        no "belongs to a different account".
+    """
+    if anon is None or existing is None or anon.id == existing.id:
+        return
+    if not _is_anonymous_email(anon.email):
+        return  # never absorb a credentialed account
+    now = datetime.utcnow()
+    await db.execute(sa_update(Scan).where(Scan.user_id == anon.id).values(user_id=existing.id))
+    await db.execute(
+        sa_update(UserProgressPhoto).where(UserProgressPhoto.user_id == anon.id).values(user_id=existing.id)
+    )
+    if anon.first_scan_completed and not existing.first_scan_completed:
+        existing.first_scan_completed = True
+
+    ex_ob = dict(existing.onboarding or {})
+    an_ob = dict(anon.onboarding or {})
+    if an_ob and not ex_ob.get("completed"):
+        merged = dict(an_ob)
+        # Existing values win where they are actually set; the anon fills gaps.
+        for k, v in ex_ob.items():
+            if v not in (None, "", [], {}):
+                merged[k] = v
+        merged["completed"] = bool(ex_ob.get("completed"))
+        existing.onboarding = merged
+
+    if anon.is_paid and not existing.is_paid:
+        existing.is_paid = True
+        existing.subscription_id = anon.subscription_id
+        existing.subscription_tier = anon.subscription_tier or "premium"
+        existing.subscription_status = anon.subscription_status or "active"
+        existing.subscription_end_date = anon.subscription_end_date
+        existing.billing_provider = anon.billing_provider
+        ob = dict(existing.onboarding or {})
+        if an_ob.get("post_subscription_onboarding") and not ob.get("main_app_tour_completed"):
+            ob["post_subscription_onboarding"] = True
+            existing.onboarding = ob
+        anon.is_paid = False
+        anon.subscription_id = None
+        anon.subscription_tier = None
+        anon.billing_provider = None
+        anon.subscription_status = "transferred"
+        logger.info(
+            "identity merge: moved entitlement + funnel data from anon %s to %s",
+            anon.id, existing.id,
+        )
+    else:
+        logger.info("identity merge: moved funnel data from anon %s to %s", anon.id, existing.id)
+    anon.updated_at = now
+    existing.updated_at = now
+    await db.commit()
+    await db.refresh(existing)
+
+
 async def _find_or_create_google_user(
     db: AsyncSession,
     *,
@@ -716,6 +787,7 @@ async def _find_or_create_google_user(
         select(User).where(User.google_sub == sub)
     )).scalar_one_or_none()
     if user:
+        await _absorb_anon_into(user, claim_user, db)
         return user, False
 
     if email:
@@ -731,6 +803,7 @@ async def _find_or_create_google_user(
             user.updated_at = datetime.utcnow()
             await db.commit()
             await db.refresh(user)
+            await _absorb_anon_into(user, claim_user, db)
             return user, False
 
     # Account-after-scan: claim the CALLER's own unclaimed anon account with this
@@ -809,6 +882,7 @@ async def _find_or_create_apple_user(
         select(User).where(User.apple_sub == sub)
     )).scalar_one_or_none()
     if user:
+        await _absorb_anon_into(user, claim_user, db)
         return user, False
 
     if email:
@@ -823,6 +897,7 @@ async def _find_or_create_apple_user(
             user.updated_at = datetime.utcnow()
             await db.commit()
             await db.refresh(user)
+            await _absorb_anon_into(user, claim_user, db)
             return user, False
 
     # Account-after-scan: claim the caller's own unclaimed anon account.

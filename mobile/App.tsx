@@ -26,8 +26,16 @@ import { consumePostPayPending } from './lib/postPayNav';
 import { colors } from './theme/dark';
 import MaxLoadingView from './components/MaxLoadingView';
 import { StripeProviderGate } from './components/StripeProviderGate';
-import { reconcileOwnedSubscriptions } from './lib/entitlementReconciler';
-import { InAppAlertHost } from './components/InAppAlert';
+import {
+    connect as iapConnect,
+    purchaseCopy,
+    reconcileOwnedSubscriptions,
+    setIapUser,
+    subscribeEntitlementGranted,
+} from './lib/iapTransactions';
+import { consumePostLogoutRoute } from './lib/postLogoutNav';
+import { signOutToLogin } from './lib/signOutToLogin';
+import { Alert, InAppAlertHost } from './components/InAppAlert';
 import DevDrawer from './components/DevDrawer';
 import api from './services/api';
 import { useFlag } from './constants/featureFlags';
@@ -70,7 +78,7 @@ const NOTIFICATION_DEEP_LINK_ROUTES = new Set<string>([
 ]);
 
 function AppNavigator() {
-    const { isAuthenticated, isPaid, refreshUser, user, isScanUser } = useAuth();
+    const { isAuthenticated, isPaid, refreshUser, user, isScanUser, logout } = useAuth();
     const faceScanEnabled = useFlag('faceScan');
     const navRef = navigationRef;
     const appStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -276,20 +284,70 @@ function AppNavigator() {
         go();
     }, [isPaid, faceScanEnabled, navRef]);
 
+    // The IAP service is keyed by account: verifies are memoised per
+    // (user, transaction), so switching accounts re-verifies everything and a
+    // new account gets an immediate, unthrottled entitlement sweep.
+    useEffect(() => {
+        setIapUser(user?.id ?? null);
+    }, [user?.id]);
+
+    // Open the StoreKit connection for EVERY signed-in iOS user, paid or not,
+    // so the app-level transaction listener is live from launch. Background
+    // renewals and unfinished replays then get verified and finished — which
+    // also refreshes the server's end date when a renewal notification was
+    // missed. Before this only the paywall listened: paid users' renewals
+    // were never finished (replayed every launch), and a transaction emitted
+    // while nobody listened was recorded-and-dropped by the native dedupe —
+    // the root of the "Duplicate purchase update skipped" paywall error.
+    useEffect(() => {
+        if (Platform.OS !== 'ios' || !isAuthenticated) return;
+        void iapConnect();
+    }, [isAuthenticated]);
+
+    // A transaction the app-level listener verified (renewal, launch replay,
+    // an entitlement adopted onto this account): refresh so isPaid reflects
+    // it. The paywall owns the ARMED case — it sets the post-pay flag before
+    // refreshing, and a refresh from here first would race that.
+    useEffect(() => {
+        return subscribeEntitlementGranted((_r, ctx) => {
+            if (ctx.armed) return;
+            void refreshUser().catch(() => undefined);
+        });
+    }, [refreshUser]);
+
     // Entitlement failsafe: an authenticated-but-unpaid user whose Apple ID
     // already OWNS an active subscription (new phone, reinstall, second
     // account) would otherwise be stranded at the paywall — StoreKit refuses
-    // to re-sell ("You're already subscribed") and nothing reconciles. Sweep
-    // the Apple ID's entitlements on launch and every foreground while
-    // unpaid; a successful server verify flips isPaid via refreshUser and the
-    // navigator remounts into the paid app.
+    // to re-sell and nothing reconciles. Sweep the Apple ID's entitlements on
+    // launch, on every foreground and on every account change while unpaid:
+    //   granted        → refreshUser flips isPaid, navigator remounts into Main
+    //                    ("if I have a plan, take me home");
+    //   other account  → the plan lives on a different Max account: offer to
+    //                    sign in ("…or ask me to log in"), once per account.
+    const otherAccountPromptedFor = useRef<string | null>(null);
     useEffect(() => {
-        if (Platform.OS !== 'ios' || !isAuthenticated || isPaid) return;
+        if (Platform.OS !== 'ios' || !isAuthenticated || isPaid || !user?.id) return;
+        const uid = user.id;
         let mounted = true;
         const heal = async () => {
             try {
-                const granted = await reconcileOwnedSubscriptions();
-                if (granted && mounted) await refreshUser();
+                const o = await reconcileOwnedSubscriptions();
+                if (!mounted) return;
+                if (o.granted) {
+                    await refreshUser();
+                    return;
+                }
+                if (o.otherAccount && otherAccountPromptedFor.current !== uid) {
+                    otherAccountPromptedFor.current = uid;
+                    Alert.alert(
+                        purchaseCopy.otherAccountTitle,
+                        o.detail || purchaseCopy.otherAccount,
+                        [
+                            { text: 'Not now', style: 'cancel' },
+                            { text: 'Sign in', onPress: () => { void signOutToLogin(logout); } },
+                        ],
+                    );
+                }
             } catch {
                 /* silent — retried on next foreground */
             }
@@ -302,7 +360,28 @@ function AppNavigator() {
             mounted = false;
             sub.remove();
         };
-    }, [isAuthenticated, isPaid, refreshUser]);
+    }, [isAuthenticated, isPaid, user?.id, refreshUser, logout]);
+
+    // "Sign in" from inside the authenticated funnel (which has no Login
+    // route): the logout has remounted the container onto the guest stack;
+    // forward to the requested route once that stack is mounted and ready.
+    useEffect(() => {
+        if (isAuthenticated) return;
+        const route = consumePostLogoutRoute();
+        if (!route) return;
+        let tries = 0;
+        const go = () => {
+            if (navRef.isReady()) {
+                const names: string[] = (navRef.getRootState()?.routeNames as string[] | undefined) ?? [];
+                if (names.includes(route)) {
+                    navRef.dispatch(CommonActions.navigate({ name: route }));
+                    return;
+                }
+            }
+            if (tries++ < 40) setTimeout(go, 100);
+        };
+        go();
+    }, [isAuthenticated, navRef]);
 
     // Root-level face scan recovery: runs whenever the app comes back to the
     // foreground so a pending upload that was interrupted in the background
@@ -327,6 +406,23 @@ function AppNavigator() {
             const pending = await getPendingFaceScanSubmit().catch(() => null);
             if (!pending || pending.userId !== user.id) return;
 
+            // A repeat scanner already has first_scan_completed=true and an OLD
+            // completed row, so neither proves THIS upload landed — recovery
+            // used to declare success, delete the captured photos and show
+            // yesterday's scan. Require a row created after the flag was set
+            // (2-min clock-skew allowance). A flag without a timestamp keeps
+            // the old test.
+            const pendingAt = Date.parse(String((pending as { at?: string }).at ?? ''));
+            const newerThanPending = (scan: unknown): boolean => {
+                if (!Number.isFinite(pendingAt)) return true;
+                const c = Date.parse(String((scan as { created_at?: string } | null)?.created_at ?? ''));
+                return Number.isFinite(c) && c >= pendingAt - 120_000;
+            };
+            const landedAfterPending = async (): Promise<boolean> => {
+                if (!Number.isFinite(pendingAt)) return true;
+                try { return newerThanPending(await api.getLatestScan()); } catch { return false; }
+            };
+
             // Reset target must come from the MOUNTED stack, not from isPaid:
             // (a) this effect's closure captured a stale isPaid (it's not in the
             // dep array), and (b) stack membership is keyed on treatAsFull —
@@ -345,7 +441,7 @@ function AppNavigator() {
                     if (ms > 0) await new Promise((r) => setTimeout(r, ms));
                     try {
                         const u = await refreshUser();
-                        if (u?.first_scan_completed) {
+                        if (u?.first_scan_completed && await landedAfterPending()) {
                             await clearPendingFaceScanSubmit();
                             await clearFaceScanDraft();
                             navRef.dispatch(
@@ -360,7 +456,7 @@ function AppNavigator() {
                     try {
                         const latest = await api.getLatestScan();
                         const st = (latest as { processing_status?: string })?.processing_status;
-                        if (st === 'completed') {
+                        if (st === 'completed' && newerThanPending(latest)) {
                             await refreshUser();
                             await clearPendingFaceScanSubmit();
                             await clearFaceScanDraft();
@@ -372,7 +468,7 @@ function AppNavigator() {
                             );
                             return;
                         }
-                        if (st === 'failed') {
+                        if (st === 'failed' && newerThanPending(latest)) {
                             await clearPendingFaceScanSubmit();
                             return;
                         }
@@ -382,7 +478,7 @@ function AppNavigator() {
                 try {
                     const latest = await api.getLatestScan();
                     const st = (latest as { processing_status?: string })?.processing_status;
-                    if (st === 'processing') {
+                    if (st === 'processing' && newerThanPending(latest)) {
                         await clearPendingFaceScanSubmit();
                         navRef.dispatch(
                             // FeaturesIntro only exists in the UNPAID stack; a paid

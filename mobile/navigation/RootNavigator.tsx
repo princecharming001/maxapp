@@ -124,6 +124,20 @@ export function RootNavigator() {
     // onboarding.completed, so this changes nothing for them.
     const treatAsFull = (isPaid || isFreeTier) && onboardingCompleted;
 
+    // A LAPSED subscriber: finished onboarding, no entitlement now, but the
+    // server remembers a plan (expired / cancelled / refunded status, or a
+    // past end date). They used to boot into the locked teaser of their OLD
+    // scan (or FeaturesIntro asking for a new scan) with no explanation and
+    // no way to sign in — the owner's "why is it showing me this". They go
+    // straight to the paywall in its "welcome back" state instead, which
+    // carries Restore, a referral code and a sign-in link. Never-paid legacy
+    // accounts keep the scan-teaser path.
+    const lapsedStatus = String(user?.subscription_status ?? '').toLowerCase();
+    const isLapsed =
+        onboardingCompleted && !treatAsFull && isAuthenticated
+        && (['expired', 'canceled', 'cancelled', 'past_due', 'refunded', 'revoked'].includes(lapsedStatus)
+            || !!user?.subscription_end_date);
+
     const initialRoute = !isAuthenticated
         // New users land on the Landing 'Get started' funnel (which mints the
         // anonymous account + starts the scan flow), not the Login form. Login is
@@ -160,11 +174,13 @@ export function RootNavigator() {
                             : faceScan && !firstScanDone
                                 ? 'ScanOffer'
                                 : 'Onboarding'
-                        : !faceScan
-                            ? 'ReferralCode'
-                            : firstScanDone
-                                ? 'FaceScanResults'
-                                : 'FeaturesIntro'
+                        : isLapsed
+                            ? 'Payment'
+                            : !faceScan
+                                ? 'ReferralCode'
+                                : firstScanDone
+                                    ? 'FaceScanResults'
+                                    : 'FeaturesIntro'
                     : 'Main';
 
     const stackKey = !isAuthenticated

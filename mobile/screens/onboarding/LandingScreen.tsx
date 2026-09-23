@@ -39,7 +39,12 @@ export default function LandingScreen() {
             await startAnon();
         } catch (e: any) {
             setStarting(false);  // keep the button tappable so a retry works
-            if (e?.response?.status === 429) {
+            if (e?.code === 'session_transient') {
+                // A live session is on disk but Max couldn't be reached to
+                // resume it. Never mint a new account over it (that orphaned
+                // real — sometimes paid — accounts); ask for a retry instead.
+                Alert.alert('Still connecting', "We couldn't reach Max to pick up where you left off. Check your connection and try again.");
+            } else if (e?.response?.status === 429) {
                 Alert.alert('One moment', 'Too many attempts right now. Please try again in a minute.');
             } else {
                 // Diagnostic detail so the real cause is visible if it still
