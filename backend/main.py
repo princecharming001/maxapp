@@ -84,6 +84,16 @@ async def lifespan(app: FastAPI):
             "APNs not configured — push notifications will be silently skipped. "
             "Set APNS_AUTH_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID in .env to enable iOS push."
         )
+    # LLM readiness: verify the configured Gemini models exist for THIS key and
+    # pre-learn any retired-model remap before the first user turn. Background
+    # task, bounded timeout, never blocks or fails startup.
+    try:
+        from services.llm_startup_check import run_llm_startup_check
+
+        _llm_probe = _asyncio.create_task(run_llm_startup_check())
+        app.state.llm_startup_probe = _llm_probe
+    except Exception:  # noqa: BLE001
+        logging.getLogger("llm").warning("llm startup probe not scheduled", exc_info=True)
     # Env-gated so extra instances can run scheduler-free when scaling out
     # (two in-process schedulers would double-send every notification).
     scheduler = start_scheduler(app) if settings.run_scheduler else None
@@ -280,6 +290,15 @@ async def health_check():
     # DB blip can't fail a deploy or crash-loop the instance under Render's health
     # check. DB connectivity is reported in the body for observability.
     body = {"status": "healthy" if db_ok else "degraded", "build": "20260715a-single-plan", "db": db_ok}
+    # LLM provider health: breaker states, learned Gemini model remaps and the
+    # boot-time model probe. Cheap in-process snapshot; lets an operator see a
+    # provider outage without grepping logs.
+    try:
+        from services.provider_health import snapshot as _llm_snapshot
+
+        body["llm"] = _llm_snapshot()
+    except Exception:  # noqa: BLE001
+        body["llm"] = {"error": "unavailable"}
     return JSONResponse(status_code=200, content=body)
 
 

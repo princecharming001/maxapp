@@ -32,6 +32,7 @@ from services.nutrition_service import nutrition_service
 from services.storage_service import storage_service
 from services.intent_classifier import classify_turn
 from services.fast_rag_answer import answer_from_rag
+from services.llm_outage import LLMOutage
 from services.fast_product_links import product_links_from_context, product_brands_for_module
 from services.bonemax_chat_prompt import BONEMAX_NEW_SCHEDULE_SYSTEM_PROMPT
 from services.maxx_guidelines import SKINMAX_PROTOCOLS, resolve_skin_concern
@@ -59,33 +60,134 @@ _WAKE_SLEEP_NEVER_ASK = (
 
 
 def _friendly_llm_error_message(llm_err: BaseException) -> str:
-    """After primary+fallback LLM both fail, map quota/rate errors to clearer copy."""
-    if isinstance(llm_err, TimeoutError):
-        return str(llm_err) or (
-            "The assistant took too long -- please try again. Your message was saved."
+    """After primary+fallback LLM both fail: the ONE user-facing outage line.
+
+    Never names a vendor, a quota or an API key (the previous copy told users
+    "the server needs fresh API quota for Gemini and/or OpenAI"). The kind is
+    logged at ERROR by the caller / services.provider_health; the user gets
+    services.llm_outage.OUTAGE_REPLY (timeouts get their own line).
+    """
+    from services.llm_outage import classify_llm_error, outage_reply_for
+
+    try:
+        logger.error(
+            "[llm-outage] turn failed kind=%s err=%s",
+            classify_llm_error(llm_err), f"{type(llm_err).__name__}: {llm_err}"[:300],
         )
-    blob = f"{type(llm_err).__name__} {llm_err}".lower()
-    if any(
-        x in blob
-        for x in (
-            "429",
-            "quota",
-            "resourceexhausted",
-            "insufficient_quota",
-            "rate_limit",
-            "ratelimit",
-            "too many requests",
+    except Exception:  # noqa: BLE001
+        pass
+    return outage_reply_for(llm_err)
+
+
+async def _pending_question_for_current_thread(
+    user_id: str, db: AsyncSession,
+) -> Optional[Tuple[str, list[str], bool]]:
+    """If a doc-driven intake is parked in the thread this turn runs in,
+    return (question_text, choices, multi_choice) for its NEXT question.
+
+    Used when the agent path fails mid-intake (the user asked a side question
+    and the model is down): instead of leaving them staring at an outage line
+    with no chips, the intake question comes back so they can keep going —
+    the questioner is deterministic and does not need the model.
+    """
+    try:
+        from services.onboarding_questioner import (
+            field_to_question_payload,
+            get_pending,
+            peek_next_question,
         )
-    ):
+        from services.task_catalog_service import get_doc, is_loaded, warm_catalog
+        from services.user_context_service import get_context, merged_user_state
+
+        user = await db.get(User, UUID(user_id))
+        onboarding = dict(getattr(user, "onboarding", {}) or {})
+        persistent = await get_context(user_id, db)
+        state = merged_user_state(onboarding, persistent)
+        pending = get_pending(state)
+        if not pending:
+            return None
+        if not is_loaded():
+            await warm_catalog()
+        if not get_doc(pending.get("max") or ""):
+            return None
+        scope, _conv = await _pending_thread_scope(pending, user_id, db)
+        if scope == "other":
+            return None
+        if pending.get("last_question") == _RETRY_GENERATE_QID:
+            return None
+        state = await _apply_slot_prefill(user_id, pending["max"], state, db)
+        nxt = peek_next_question(pending["max"], state)
+        if nxt is None:
+            return None
+        payload = field_to_question_payload(nxt)
         return (
-            "The AI service hit a usage or billing limit (not your Wi‑Fi). "
-            "Try again in a few minutes. If it keeps happening, the server needs fresh API quota "
-            "for Gemini and/or OpenAI. Your message was saved."
+            str(payload.get("text") or "").lower(),
+            list(payload.get("choices") or []),
+            bool(payload.get("multi_choice")),
         )
-    return (
-        "I'm having trouble reaching my brain right now -- please try again "
-        "in a moment. Your message was saved."
-    )
+    except Exception as _e:  # noqa: BLE001 — best-effort garnish, never a second failure
+        logger.warning("[llm-outage] pending-question lookup skipped: %s: %s", type(_e).__name__, _e)
+        return None
+
+
+async def _reply_with_outage(
+    llm_err: BaseException,
+    *,
+    user_id: str,
+    user_uuid: UUID,
+    channel: str,
+    db: AsyncSession,
+    persist_user_message: Optional[str] = None,
+) -> Tuple[str, list[str]]:
+    """Persist + return the outage reply for a failed agent / graph / fast-RAG
+    call. `persist_user_message` is the user's text when the caller has not
+    stored the user turn yet (the fast-RAG path persists both rows at once).
+
+    When an intake is parked in this thread, the pending question (and its
+    chips) ride along so the user is never stranded mid-onboarding by a
+    provider outage.
+    """
+    text = _friendly_llm_error_message(llm_err)
+    choices: list[str] = []
+    try:
+        await db.rollback()  # the failed call may have left the session poisoned
+    except Exception:  # noqa: BLE001
+        pass
+    pending_q = await _pending_question_for_current_thread(user_id, db)
+    if pending_q is not None:
+        q_text, q_choices, _multi = pending_q
+        if q_text:
+            text = f"{text}\n\nwhere we left off: {q_text}"
+            choices = q_choices
+    if _persist_chat_history(channel):
+        try:
+            if persist_user_message:
+                db.add(
+                    ChatHistory(
+                        user_id=user_uuid,
+                        role="user",
+                        content=persist_user_message,
+                        channel=channel,
+                        created_at=datetime.utcnow(),
+                    )
+                )
+            db.add(
+                ChatHistory(
+                    user_id=user_uuid,
+                    role="assistant",
+                    content=text,
+                    channel=channel,
+                    created_at=datetime.utcnow(),
+                )
+            )
+            await db.commit()
+        except Exception as _e:  # noqa: BLE001
+            logger.warning("[llm-outage] could not persist outage reply: %s", _e)
+            try:
+                await db.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+    return _finalize_assistant_message(text), choices
 
 
 def _chunk_audit_refs(chunks: list[dict]) -> list[str] | None:
@@ -2219,16 +2321,29 @@ async def process_chat_message(
         # standalone conversation recency/title bump), which is safe to
         # persist early on its own.
         await release_conn(db)
-        fast_response, fast_chunks = await answer_from_rag(
-            message=message_text,
-            maxx_hints=turn_intent.get("maxx_hints") or [],
-            active_maxx=active_hint,
-            response_length=str(onboarding.get("response_length") or "").strip().lower() or None,
-            user_facts=_facts_blob,
-            recent_turns=(_memctx.recent_turns if _memctx else None),
-            user_profile=_rag_user_profile or None,
-            coaching_tone=(getattr(user, "coaching_tone", None) if user else None),
-        )
+        try:
+            fast_response, fast_chunks = await answer_from_rag(
+                message=message_text,
+                maxx_hints=turn_intent.get("maxx_hints") or [],
+                active_maxx=active_hint,
+                response_length=str(onboarding.get("response_length") or "").strip().lower() or None,
+                user_facts=_facts_blob,
+                recent_turns=(_memctx.recent_turns if _memctx else None),
+                user_profile=_rag_user_profile or None,
+                coaching_tone=(getattr(user, "coaching_tone", None) if user else None),
+            )
+        except LLMOutage as outage:
+            # The model, not the evidence, failed. Persist the turn with the
+            # outage line (the user's message is saved, as the copy promises)
+            # and stop here — never fall through to a path that could answer
+            # "i don't have that in the course material yet." for an outage.
+            # Same helper as the agent path, so a parked intake question rides
+            # along here too (a mid-intake side question often routes here).
+            fast_path_snapshot("knowledge_outage")
+            return await _reply_with_outage(
+                outage, user_id=user_id, user_uuid=user_uuid, channel=channel, db=db,
+                persist_user_message=message_text,
+            )
         if fast_response:
             # Web-search safety net for fast-RAG too. When the doc-grounded
             # answer is "i don't see enough in the docs", try the web before
@@ -3056,18 +3171,9 @@ Ask ONE question at a time. Your very first response must ask the concern questi
                 retrieved_chunks = graph_result["retrieved"]
         except Exception as llm_err:
             logger.exception("lc_graph failed for user %s: %s", user_id, llm_err)
-            if _persist_chat_history(channel):
-                db.add(
-                    ChatHistory(
-                        user_id=user_uuid,
-                        role="assistant",
-                        content=_friendly_llm_error_message(llm_err),
-                        channel=channel,
-                        created_at=datetime.utcnow(),
-                    )
-                )
-                await db.commit()
-            return _finalize_assistant_message(_friendly_llm_error_message(llm_err)), []
+            return await _reply_with_outage(
+                llm_err, user_id=user_id, user_uuid=user_uuid, channel=channel, db=db,
+            )
     else:
         tools = _mk_tools()
         lc_history = history_dicts_to_lc_messages(history[-CHAT_HISTORY_WINDOW:])
@@ -3277,18 +3383,9 @@ Ask ONE question at a time. Your very first response must ask the concern questi
 
         except Exception as llm_err:
             logger.exception("run_chat_agent failed for user %s: %s", user_id, llm_err)
-            if _persist_chat_history(channel):
-                db.add(
-                    ChatHistory(
-                        user_id=user_uuid,
-                        role="assistant",
-                        content=_friendly_llm_error_message(llm_err),
-                        channel=channel,
-                        created_at=datetime.utcnow(),
-                    )
-                )
-                await db.commit()
-            return _finalize_assistant_message(_friendly_llm_error_message(llm_err)), []
+            return await _reply_with_outage(
+                llm_err, user_id=user_id, user_uuid=user_uuid, channel=channel, db=db,
+            )
 
     # --- Safety net: if user clearly requested a schedule change but agent missed it ---
     # --- If user asked to change schedule times but the model didn't call modify_schedule, adapt anyway ---
@@ -4241,7 +4338,9 @@ async def _run_onboarding_questioner_impl(
             field_to_question_payload,
             plan_progress,
             coerce_answer,
+            coerce_answer_llm,
             detect_max_start_intent,
+            detect_max_switch_source,
         )
         from services.task_catalog_service import warm_catalog, is_loaded, get_doc
         from services.user_context_service import get_context, merge_context, merged_user_state
@@ -4319,10 +4418,7 @@ async def _run_onboarding_questioner_impl(
                     db,
                 )
                 payload = field_to_question_payload(next_field, progress=plan_progress(plan_pending))
-                text = (
-                    f"let's get your {get_doc(new_max).display_name.lower()} schedule going. "
-                    + payload["text"].lower()
-                )
+                text = _start_intake_leadin(new_max, msg) + payload["text"].lower()
                 return _finish_onboarding_turn(text, payload)
         # Rungs 2/3: deterministic prefill + raw missing_required (today's flow).
         next_field = peek_next_question(new_max, state)
@@ -4337,10 +4433,7 @@ async def _run_onboarding_questioner_impl(
             db,
         )
         payload = field_to_question_payload(next_field)
-        text = (
-            f"let's get your {get_doc(new_max).display_name.lower()} schedule going. "
-            + payload["text"].lower()
-        )
+        text = _start_intake_leadin(new_max, msg) + payload["text"].lower()
         return _finish_onboarding_turn(text, payload)
 
     # ── Pending onboarding for some max A ────────────────────────────────
@@ -4431,12 +4524,19 @@ async def _run_onboarding_questioner_impl(
         # pending state is left intact so onboarding resumes on the next turn.
         if _looks_like_onboarding_interrupt(msg):
             return None
-        # Re-ask, but keep state as-is.
-        payload = field_to_question_payload(last_field)
-        return _finish_onboarding_turn(
-            "didn't quite catch that — " + payload["text"].lower(),
-            payload,
-        )
+        # Neither a chip nor a keyword hit — a real free-text answer ("not
+        # really, some light clicking but nothing major"). One bounded LLM
+        # call maps it onto the field's own options; provider down / unclear
+        # → None → the deterministic re-ask that always existed.
+        await release_conn(db)
+        coerced = await coerce_answer_llm(last_field, msg)
+        if coerced is None:
+            # Re-ask, but keep state as-is.
+            payload = field_to_question_payload(last_field)
+            return _finish_onboarding_turn(
+                "didn't quite catch that — " + payload["text"].lower(),
+                payload,
+            )
 
     # Save the answer to persistent context (also lives in onboarding overlay
     # for the generator).
@@ -4513,6 +4613,21 @@ async def _mirror_intake_to_facts(user_id: str, update: dict, db: AsyncSession) 
         await merge_context(user_id, {FACTS_KEY: merged}, db)
     except Exception as e:
         logger.warning("intake->user_facts mirror failed (non-fatal): %s", e)
+
+
+def _start_intake_leadin(new_max: str, msg: str) -> str:
+    """Opening line for a freshly started intake. "change fitmax to hairmax"
+    gets an explicit switch acknowledgement instead of the generic opener."""
+    from services.onboarding_questioner import detect_max_switch_source
+    from services.task_catalog_service import get_doc
+
+    name = get_doc(new_max).display_name.lower()
+    source = detect_max_switch_source(msg, new_max)
+    if source:
+        src_doc = get_doc(source)
+        src_name = src_doc.display_name.lower() if src_doc is not None else source
+        return f"switching you from {src_name} to {name}. "
+    return f"let's get your {name} schedule going. "
 
 
 def _finish_onboarding_turn(

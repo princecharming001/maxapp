@@ -780,8 +780,18 @@ The user asked for external product links (Amazon, Google Shopping, etc.). You c
             logger.info("[fast_rag] link validator skipped: %s", e)
         return out
     except Exception as e:
-        logger.warning("fast rag answer failed: %s", e)
-        return ""
+        # Evidence WAS found; the model failed to answer from it. That is a
+        # provider outage (retired model, quota, timeout, network) or a bug —
+        # either way the user must not read the "not in the course material"
+        # miss copy for it. Raise so answer_from_rag / the graph node hand the
+        # turn to the outage handler (services.llm_outage.OUTAGE_REPLY).
+        from services.llm_outage import as_outage, classify_llm_error
+        kind = classify_llm_error(e)
+        if kind == "unknown":
+            logger.exception("fast rag answer failed (non-provider error): %s", e)
+        else:
+            logger.error("fast rag answer failed (provider outage kind=%s): %s", kind, str(e)[:300])
+        raise as_outage(e) from e
 
 
 # Phrases that indicate the LLM produced a standard-template response. We
@@ -851,7 +861,11 @@ async def _answer_from_web(
     """
     from services.web_search import search as _web_search
 
-    web_blob = await _web_search(message, max_results=3)
+    try:
+        web_blob = await _web_search(message, max_results=3)
+    except Exception as e:  # noqa: BLE001 — the search vendor, not the model
+        logger.info("[fast_rag] web search fetch failed (non-fatal): %s", e)
+        return ""
     if not web_blob or web_blob.startswith("(no web results") or web_blob.startswith("(web search"):
         return ""
 
@@ -934,8 +948,15 @@ ANSWER QUALITY:
             text = "\n".join(str(x) for x in text)
         return _scrub_leakage(str(text or "").strip())
     except Exception as e:
-        logger.warning("fast rag web-search failsafe failed: %s", e)
-        return ""
+        # Web snippets were fetched; the MODEL failed. Same rule as
+        # answer_from_chunks: an outage is never presented as a content miss.
+        from services.llm_outage import as_outage, classify_llm_error
+        kind = classify_llm_error(e)
+        if kind == "unknown":
+            logger.exception("fast rag web-search failsafe failed (non-provider error): %s", e)
+        else:
+            logger.error("fast rag web-search failsafe failed (provider outage kind=%s): %s", kind, str(e)[:300])
+        raise as_outage(e) from e
 
 
 async def answer_from_rag(
@@ -965,6 +986,11 @@ async def answer_from_rag(
     no-evidence template response (truncated, "no protocol on file", etc.)
     AND broad fan-out finds chunks the targeted pass missed, we re-run
     `answer_from_chunks` with the broader evidence and return that.
+
+    Raises services.llm_outage.LLMOutage when the MODEL (not the evidence)
+    failed — a retired model, quota, timeout or network error. Callers reply
+    with OUTAGE_REPLY for that; the strict miss copy below is reserved for a
+    question the docs and the web genuinely do not cover.
     """
     retrieved = await gather_rag_evidence(
         message=message,

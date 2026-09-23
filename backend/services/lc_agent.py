@@ -2137,7 +2137,7 @@ def make_chat_tools(
             if not q:
                 return "no query provided"
             from services.intent_classifier import classify_turn
-            from services.rag_service import hybrid_retrieve
+            from services.rag_service import retrieve_chunks
 
             intent = classify_turn(q, active_maxx=None)
             hints = [h for h in (intent.get("maxx_hints") or []) if h]
@@ -2145,12 +2145,15 @@ def make_chat_tools(
                 hints = ["general"]
 
             # Retrieve the hinted modules concurrently (was serial ~3x latency).
-            # Safe: hybrid_retrieve doesn't use the passed db (vector_search opens
-            # its own session, BM25 is in-memory), so concurrent calls don't
-            # collide; and embed_text now caches, so the shared query embeds once.
+            # retrieve_chunks = hybrid (BM25 + vector) with the BM25-only
+            # fallback when embeddings are unavailable (2026-09-22: calling
+            # hybrid_retrieve directly made this tool fail outright for the
+            # whole OpenAI outage). It doesn't use the passed db (vector_search
+            # opens its own session, BM25 is in-memory) and embed_text caches,
+            # so the shared query embeds once.
             sel_hints = hints[:3]
             got_lists = await asyncio.gather(
-                *[hybrid_retrieve(db=db, maxx_id=h, query=q, k=3) for h in sel_hints]
+                *[retrieve_chunks(db, h, q, k=3) for h in sel_hints]
             )
             rows: list[dict] = []
             for hint, got in zip(sel_hints, got_lists):

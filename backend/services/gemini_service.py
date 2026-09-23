@@ -834,11 +834,15 @@ class GeminiService:
     
     def __init__(self):
         genai.configure(api_key=settings.gemini_api_key)
+        # Same runtime remap the LangChain builders use (a retired model name
+        # learned at startup or from a 404 — services.provider_health).
+        from services.provider_health import resolve_gemini_model as _resolve
+        _model_name = _resolve(settings.gemini_model)
         self.model = genai.GenerativeModel(
-            settings.gemini_model,
+            _model_name,
             tools=[modify_schedule, generate_maxx_schedule, stop_schedule, update_schedule_context, log_check_in, schedule_push_notification]
         )
-        self.vision_model = genai.GenerativeModel(settings.gemini_model)
+        self.vision_model = genai.GenerativeModel(_model_name)
     
     async def analyze_face(
         self,

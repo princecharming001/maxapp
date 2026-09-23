@@ -447,6 +447,161 @@ def coerce_answer(field_spec: dict, raw: str) -> Optional[Any]:
     return text
 
 
+# --------------------------------------------------------------------------- #
+#  LLM-assisted coercion (only after coerce_answer() said None)               #
+# --------------------------------------------------------------------------- #
+
+_LLM_COERCE_SYSTEM = (
+    "You map one chat reply onto one field of an onboarding form for a self-improvement app. "
+    "Reply with a single JSON object and nothing else: {\"value\": ...}. "
+    "Rules: pick an option ONLY when the reply clearly means it; otherwise use null. "
+    "Never invent options. For yes/no fields answer true or false (null if unclear). "
+    "For numeric fields return an integer (null if none stated). "
+    "For time fields return \"HH:MM\" 24h (null if none stated). "
+    "For multi-select fields return a JSON list of option ids (empty list if none)."
+)
+
+
+def _llm_coerce_prompt(field_spec: dict, raw: str) -> str:
+    ftype = str(field_spec.get("type") or "str").strip().lower()
+    q = str(field_spec.get("question") or field_spec.get("id") or "").strip()
+    lines = [f"Question asked: {q}", f"Field type: {ftype}"]
+    if ftype == "enum":
+        opts = field_spec.get("options") or {}
+        if isinstance(opts, dict):
+            lines.append("Options (id: label):")
+            for k, v in opts.items():
+                lines.append(f"  {k}: {v}")
+        if _flag(field_spec, "multi"):
+            lines.append("This is a MULTI-select field: return a list of option ids.")
+    elif ftype == "int":
+        lines.append(f"Allowed range: {field_spec.get('min', 0)}..{field_spec.get('max', 200)}")
+    lines.append(f"User reply: {raw.strip()}")
+    return "\n".join(lines)
+
+
+def _parse_llm_json(text: str) -> Optional[dict]:
+    import json as _json
+    import re as _re
+
+    t = (text or "").strip()
+    t = _re.sub(r"^```(?:json)?\s*|\s*```$", "", t, flags=_re.IGNORECASE)
+    m = _re.search(r"\{.*\}", t, flags=_re.DOTALL)
+    if not m:
+        return None
+    try:
+        out = _json.loads(m.group(0))
+    except Exception:  # noqa: BLE001
+        return None
+    return out if isinstance(out, dict) else None
+
+
+def _validate_llm_value(field_spec: dict, value: Any) -> Optional[Any]:
+    """Only values coerce_answer() itself could have produced survive."""
+    ftype = str(field_spec.get("type") or "str").strip().lower()
+    if value is None:
+        return None
+    if ftype == "enum":
+        opts = field_spec.get("options") or {}
+        if not isinstance(opts, dict):
+            return None
+        ids = {str(k) for k in opts}
+        if _flag(field_spec, "multi"):
+            if not isinstance(value, list):
+                value = [value]
+            picked = [str(v) for v in value if str(v) in ids]
+            picked = _apply_exclusive(field_spec, list(dict.fromkeys(picked)))
+            return picked or None
+        v = str(value)
+        if v in ids:
+            return v
+        # tolerate the label being returned instead of the id
+        for k, lab in opts.items():
+            if v.strip().lower() == str(lab).strip().lower():
+                return str(k)
+        return None
+    if ftype == "yes_no":
+        if isinstance(value, bool):
+            return value
+        s = str(value).strip().lower()
+        if s in ("true", "yes"):
+            return True
+        if s in ("false", "no"):
+            return False
+        return None
+    if ftype == "int":
+        try:
+            v = int(round(float(value)))
+        except (TypeError, ValueError):
+            return None
+        lo = int(field_spec.get("min", 0))
+        hi = int(field_spec.get("max", 200))
+        return max(lo, min(hi, v))
+    if ftype in ("clock", "time"):
+        import re as _re
+
+        m = _re.match(r"^\s*(\d{1,2}):(\d{2})\s*$", str(value))
+        if not m:
+            return None
+        h, mm = int(m.group(1)), int(m.group(2))
+        if not (0 <= h <= 23 and 0 <= mm <= 59):
+            return None
+        return f"{h:02d}:{mm:02d}"
+    return None
+
+
+async def coerce_answer_llm(
+    field_spec: dict, raw: str, *, timeout_s: float = 6.0,
+) -> Optional[Any]:
+    """LLM-assisted mapping of a free-text reply onto the field, used ONLY
+    after coerce_answer() returned None and the message is not an interrupt.
+
+    "not really some light clicking but nothing major" → "no"; "partly" →
+    null (re-ask); "about an hour" → 60. Bounded (one call, `timeout_s`),
+    never raises: any provider failure → None → the deterministic re-ask that
+    exists today. Output is validated against the field's own schema, so the
+    model can never write a value the chips could not have produced.
+    """
+    from config import settings
+
+    if not getattr(settings, "intake_llm_coerce_enabled", True):
+        return None
+    text = (raw or "").strip()
+    if not text or len(text) > 400:
+        return None
+    ftype = str(field_spec.get("type") or "str").strip().lower()
+    if ftype not in ("enum", "yes_no", "int", "clock", "time"):
+        return None
+    try:
+        import asyncio as _asyncio
+
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        from services.lc_providers import get_chat_llm_with_fallback
+
+        llm = get_chat_llm_with_fallback(max_tokens=80, temperature=0.0)
+        resp = await _asyncio.wait_for(
+            llm.ainvoke([
+                SystemMessage(content=_LLM_COERCE_SYSTEM),
+                HumanMessage(content=_llm_coerce_prompt(field_spec, text)),
+            ]),
+            timeout=timeout_s,
+        )
+        content = getattr(resp, "content", resp)
+        if isinstance(content, list):
+            content = "\n".join(str(x) for x in content)
+        parsed = _parse_llm_json(str(content or ""))
+        if not parsed or "value" not in parsed:
+            return None
+        value = _validate_llm_value(field_spec, parsed.get("value"))
+        if value is not None:
+            logger.info("[intake] llm-coerced %r -> %r (field=%s)", text[:60], value, field_spec.get("id"))
+        return value
+    except Exception as e:  # noqa: BLE001 — degrade to the deterministic re-ask
+        logger.info("[intake] llm coerce skipped (%s: %s)", type(e).__name__, str(e)[:120])
+        return None
+
+
 # Labels the mobile client treats as the custom-input chip (kept in sync with
 # MaxChatScreen.tsx CUSTOM_CHIP_LABELS). A bare submission of one of these is
 # the chip tap itself, not an answer.
@@ -623,12 +778,156 @@ _START_INTENT_KEYWORDS = {
     "bonemax":   ["bonemax", "bone max", "bone schedule", "bone plan", "jaw plan", "mewing plan"],
 }
 
+# Verbs/phrases that turn a max mention into a request to START it. "change"
+# / "switch" / "swap" / "instead" were missing until 2026-09-22, when
+# "change fitmax to hairmax" fell through to the (down) agent.
+_START_INTENT_VERBS = (
+    "start", "begin", "create", "build", "make", "set up", "setup", "set-up",
+    "want", "i'd like", "id like", "let's do", "lets do", "let me do",
+    "switch", "change", "swap", "move", "instead", "go with", "try", "do the",
+    "give me", "need", "put me on", "sign me up", "get me", "onboard",
+)
+
+_BARE_NAME_FILLER = frozenset({
+    "please", "pls", "plz", "the", "my", "a", "an", "one", "plan", "schedule",
+    "routine", "ok", "okay", "yes", "yeah", "yep", "now", "this", "that", "do",
+    "go", "lets", "let's", "max", "maxx", "thanks", "thank", "you", "ty",
+})
+
+
+def _max_mentions(text: str) -> list[tuple[int, str]]:
+    """Every max mentioned in `text`, as (position, maxx_id), message order.
+    Exact keyword hits first; then a light fuzzy pass so "hairmac" /
+    "skinmaxx" / "fitmaxx" still resolve (edit distance ≤ 1 on the bare name)."""
+    import re as _re
+
+    found: dict[str, int] = {}
+    for max_, kws in _START_INTENT_KEYWORDS.items():
+        for kw in kws:
+            i = text.find(kw)
+            if i >= 0 and (max_ not in found or i < found[max_]):
+                found[max_] = i
+    for m in _re.finditer(r"[a-z]+", text):
+        tok = m.group(0)
+        if len(tok) < 6:
+            continue
+        for max_ in _START_INTENT_KEYWORDS:
+            if max_ in found:
+                continue
+            if _edit_distance(tok, max_) <= 1 or _edit_distance(tok, max_ + "x") <= 1:
+                found[max_] = m.start()
+    return sorted(((pos, mx) for mx, pos in found.items()), key=lambda t: t[0])
+
+
+def _edit_distance(a: str, b: str) -> int:
+    if a == b:
+        return 0
+    if abs(len(a) - len(b)) > 1:
+        return 2
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _pick_switch_target(text: str, mentions: list[tuple[int, str]]) -> Optional[str]:
+    """For "change/switch/swap/move X to Y" and "Y instead of X" return Y."""
+    import re as _re
+
+    if len(mentions) < 2:
+        return None
+    m = _re.search(r"\b(?:change|switch|swap|move|go)\b.*?\bto\b", text)
+    if m:
+        after = [mx for pos, mx in mentions if pos > m.end() - 2]
+        if after:
+            return after[0]
+    m = _re.search(r"\binstead of\b", text)
+    if m:
+        before = [mx for pos, mx in mentions if pos < m.start()]
+        after = [mx for pos, mx in mentions if pos > m.end()]
+        if before:
+            return before[0]
+        if after and len(mentions) > len(after):
+            return [mx for pos, mx in mentions if mx not in after][0]
+    return None
+
+
+def detect_max_switch_source(message: str, target: str) -> Optional[str]:
+    """If `message` reads as "change/switch X to <target>" (or "<target>
+    instead of X"), return X — so the reply can acknowledge the switch."""
+    if not message or not target:
+        return None
+    text = message.lower()
+    mentions = _max_mentions(text)
+    others = [mx for _pos, mx in mentions if mx != target]
+    if not others:
+        return None
+    if _pick_switch_target(text, mentions) == target:
+        return others[0]
+    return None
+
 
 def detect_max_start_intent(message: str) -> Optional[str]:
     """If the user's message is asking to start a max schedule, return the
-    maxx_id (only for maxes that have a doc). Otherwise None."""
+    maxx_id (only for maxes that have a doc). Otherwise None.
+
+    Deterministic — this is what keeps "hairmax" / "change fitmax to hairmax"
+    / "start skin maxx" out of the LLM agent (which cannot start an intake and,
+    during a provider outage, cannot answer at all).
+      • verb + max name ("start hairmax", "i want skinmax", "switch to fitmax")
+      • "change/switch/swap X to Y" → Y; "Y instead of X" → Y
+      • a BARE max name (≤ 3 words: "hairmax", "hairmax please", "skin max")
+      • typos within one edit ("hairmac", "skinmaxx")
+    Not a start intent: "what is skinmax", "i love hairmax", "is fitmax hard".
+    """
     if not message:
         return None
+    import re as _re
+
+    text = message.lower().strip()
+    mentions = _max_mentions(text)
+    if not mentions:
+        return None
+    candidates = [mx for _pos, mx in mentions if get_doc(mx) is not None]
+    if not candidates:
+        return None
+
+    words = _re.findall(r"[a-z0-9']+", text)
+    has_action = any(v in text for v in _START_INTENT_VERBS)
+    question_like = text.endswith("?") or bool(
+        _re.match(r"^(?:what|how|why|when|where|who|which|does|do|is|are|can|will|should|would|could|did|was|were)\b", text)
+    )
+    # "Bare name": the message IS the max name, give or take filler ("hairmax",
+    # "hairmax please", "skin max"). "i love hairmax" is not — its leftover
+    # words are not filler, so it needs a verb like any other sentence.
+    leftover = text
+    for max_ in {mx for _pos, mx in mentions}:
+        for kw in _START_INTENT_KEYWORDS[max_]:
+            leftover = leftover.replace(kw, " ")
+    leftover_words = [
+        w for w in _re.findall(r"[a-z0-9']+", leftover)
+        if not any(_edit_distance(w, mx) <= 1 or _edit_distance(w, mx + "x") <= 1
+                   for mx in _START_INTENT_KEYWORDS)
+    ]
+    bare_name = (
+        len(words) <= 3
+        and not question_like
+        and all(w in _BARE_NAME_FILLER for w in leftover_words)
+    )
+
+    if not has_action and not bare_name:
+        return None
+    if has_action and question_like and not bare_name:
+        # "should i start hairmax?" is a question, not a request.
+        return None
+
+    switch_target = _pick_switch_target(text, mentions)
+    if switch_target and get_doc(switch_target) is not None:
+        return switch_target
+    return candidates[0]
     text = message.lower()
     # Require an action verb to avoid false positives on "what is skinmax"
     has_action = any(w in text for w in ["start", "begin", "create", "build", "make", "set up", "want", "i'd like", "id like", "let's do", "lets do"])

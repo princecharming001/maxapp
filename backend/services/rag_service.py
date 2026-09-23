@@ -25,7 +25,9 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession  # kept for signature parity
 
 from config import settings
+from services import provider_health
 from services.chat_telemetry import log_retrieval
+from services.llm_outage import as_outage
 
 logger = logging.getLogger(__name__)
 
@@ -314,7 +316,15 @@ async def retrieve_chunks(
                 min_similarity=min_similarity,
             )
         except Exception as e:
-            logger.warning("RAG hybrid retrieve failed (maxx=%s): %s; falling back to BM25", maxx_id, e)
+            if isinstance(e, EmbeddingsUnavailable):
+                # Embedding breaker is open: no vendor call was made. The real
+                # failure that opened it already logged at WARNING (and
+                # provider_health logged the OPEN at ERROR); every
+                # short-circuited call inside the window is DEBUG so a dead
+                # vendor does not log 6x per chat turn.
+                logger.debug("RAG hybrid retrieve skipped (maxx=%s): %s; falling back to BM25", maxx_id, e)
+            else:
+                logger.warning("RAG hybrid retrieve failed (maxx=%s): %s; falling back to BM25", maxx_id, e)
 
     return await _bm25_retrieve_chunks(maxx_id=maxx_id, query=query, k=k, min_similarity=min_similarity)
 
@@ -355,34 +365,213 @@ async def _bm25_retrieve_chunks(
         return []
 
 
+# ---------------------------------------------------------------------------
+# Embeddings: pluggable provider (openai | gemini) behind a circuit breaker
+# ---------------------------------------------------------------------------
+#
+# 2026-09-22 incident: the OpenAI account ran out of credits, so every
+# embed_text() raised a 429 (insufficient_quota). retrieve_chunks() fell back
+# to BM25 correctly but paid the vendor round trip (SDK retries, up to the
+# 15 s timeout) on EVERY retrieval and logged a WARNING each time, 6x per
+# chat turn. Two mechanisms live here:
+#
+#   * A provider_health breaker per embedding vendor ("openai-embeddings" /
+#     "gemini-embeddings"). A hard failure (quota / auth / not_found) or a
+#     streak of soft ones opens it; while open, embed_text / embed_batch
+#     raise EmbeddingsUnavailable at once, with NO network call, so
+#     hybrid_retrieve -> retrieve_chunks falls straight to BM25.
+#
+#   * RAG_EMBEDDING_PROVIDER=gemini moves the corpus off OpenAI. Gemini's
+#     gemini-embedding-001 at outputDimensionality=1536 fits the existing
+#     vector(1536) column and its HNSW cosine index. Query and corpus vectors
+#     MUST come from the same model: flip the setting only together with
+#     scripts/reembed_rag.py (re-embed first, then flip at deploy).
+
+_EMBED_TIMEOUT_S = 15.0
+_GEMINI_EMBED_BASE = "https://generativelanguage.googleapis.com/v1beta"
+_GEMINI_MAX_BATCH = 96
+_SUPPORTED_EMBEDDING_PROVIDERS: tuple[str, ...] = ("openai", "gemini")
+
 # Small TTL+LRU cache so one chat turn (which fans out multiple retrieval tiers
 # over the SAME query text) doesn't fire 3-8 identical billed embedding calls.
 # Embeddings are deterministic; TTL bounds staleness if the model/dim env flips.
+# The key carries provider|model|dim so a provider flip never serves a vector
+# from the other model's space.
 _EMBED_CACHE: "OrderedDict[str, tuple[float, list[float]]]" = OrderedDict()
 _EMBED_CACHE_MAX = 256
 _EMBED_CACHE_TTL_S = 300.0
 
 
-async def embed_text(text: str) -> list[float]:
-    """Generate query/document embeddings for hybrid retrieval."""
-    global _EMBEDDING_CLIENT
-    body = (text or "").strip()
-    if not body:
-        raise ValueError("Cannot embed empty text")
-    api_key = (getattr(settings, "openai_api_key", "") or "").strip()
-    if not api_key:
+class EmbeddingsUnavailable(RuntimeError):
+    """The embedding vendor's breaker is open.
+
+    Raised WITHOUT a network call so callers (hybrid_retrieve -> retrieve_chunks)
+    fall straight to BM25 instead of paying a doomed round trip per query.
+    """
+
+
+def _embedding_provider() -> str:
+    raw = (getattr(settings, "rag_embedding_provider", "openai") or "openai").strip().lower()
+    if raw not in _SUPPORTED_EMBEDDING_PROVIDERS:
+        raise RuntimeError(
+            f"RAG_EMBEDDING_PROVIDER={raw!r} is not supported; use one of {', '.join(_SUPPORTED_EMBEDDING_PROVIDERS)}"
+        )
+    return raw
+
+
+def _embedding_model(provider: str) -> str:
+    if provider == "gemini":
+        return (getattr(settings, "gemini_embedding_model", "gemini-embedding-001") or "gemini-embedding-001").strip()
+    return getattr(settings, "rag_embedding_model", "text-embedding-3-small") or "text-embedding-3-small"
+
+
+def _embedding_dim() -> int:
+    return int(getattr(settings, "rag_embedding_dimensions", 1536) or 1536)
+
+
+def _breaker_name(provider: str) -> str:
+    return f"{provider}-embeddings"
+
+
+def _require_embedding_key(provider: str) -> str:
+    if provider == "gemini":
+        key = (getattr(settings, "gemini_api_key", "") or "").strip()
+        if not key:
+            raise RuntimeError("GEMINI_API_KEY is required for hybrid RAG embeddings (RAG_EMBEDDING_PROVIDER=gemini)")
+        return key
+    key = (getattr(settings, "openai_api_key", "") or "").strip()
+    if not key:
         raise RuntimeError("OPENAI_API_KEY is required for hybrid RAG embeddings")
+    return key
+
+
+def _embed_cache_key(provider: str, model: str, dim: int, body: str) -> str:
+    return f"{provider}|{model}|{dim}|{hashlib.sha1(body.encode('utf-8')).hexdigest()}"
+
+
+def _check_embedding_breaker(provider: str) -> None:
+    """Raise EmbeddingsUnavailable (no network) while the vendor's breaker is open."""
+    name = _breaker_name(provider)
+    if not provider_health.is_open(name):
+        return
+    detail = ""
+    try:
+        b = provider_health.snapshot().get("breakers", {}).get(name, {})
+        detail = f" (last failure: {b.get('last_kind') or '?'}, {b.get('open_for_s', 0)}s left)"
+    except Exception:  # noqa: BLE001 — cosmetic only
+        pass
+    raise EmbeddingsUnavailable(f"{name} breaker open{detail}; vendor call skipped")
+
+
+def _openai_client(api_key: str):
+    global _EMBEDDING_CLIENT
     if _EMBEDDING_CLIENT is None:
         from openai import AsyncOpenAI
 
         # timeout: SDK default is 600s (+retries). Embeddings run inside the
         # chat request path — a stalled connection must not pin a turn for
         # ~10+ minutes. Embedding calls normally complete in well under 15s.
-        _EMBEDDING_CLIENT = AsyncOpenAI(api_key=api_key, timeout=15.0)
-    model = getattr(settings, "rag_embedding_model", "text-embedding-3-small") or "text-embedding-3-small"
-    dim = int(getattr(settings, "rag_embedding_dimensions", 1536) or 1536)
+        _EMBEDDING_CLIENT = AsyncOpenAI(api_key=api_key, timeout=_EMBED_TIMEOUT_S)
+    return _EMBEDDING_CLIENT
 
-    cache_key = f"{model}|{dim}|{hashlib.sha1(body.encode('utf-8')).hexdigest()}"
+
+async def _openai_embed(api_key: str, model: str, dim: int, inputs: "str | list[str]") -> list[list[float]]:
+    """The historical path, unchanged: text-embedding-3-small with dimensions=dim."""
+    client = _openai_client(api_key)
+    response = await client.embeddings.create(
+        model=model,
+        input=inputs,
+        dimensions=dim,
+    )
+    return [list(row.embedding) for row in response.data]
+
+
+async def _gemini_post(api_key: str, path: str, payload: dict) -> dict:
+    """POST to the Gemini REST API (no SDK dependency). Non-2xx -> LLMOutage
+    whose kind is classified from status + body, so the breaker opens on the
+    right signal (429 quota, 400 'API key not valid' auth, 404 not_found)."""
+    import httpx
+
+    url = f"{_GEMINI_EMBED_BASE}/{path}"
+    async with httpx.AsyncClient(timeout=_EMBED_TIMEOUT_S) as client:
+        resp = await client.post(url, headers={"x-goog-api-key": api_key}, json=payload)
+    if resp.status_code >= 400:
+        body = (resp.text or "")[:300].replace("\n", " ")
+        raise as_outage(
+            RuntimeError(f"gemini embeddings HTTP {resp.status_code} ({path}): {body}"),
+            provider=_breaker_name("gemini"),
+        )
+    return resp.json()
+
+
+def _finish_gemini_vector(values: object, dim: int, model: str) -> list[float]:
+    if not isinstance(values, list) or len(values) != dim:
+        got = len(values) if isinstance(values, list) else type(values).__name__
+        raise RuntimeError(f"gemini {model} returned {got} dims, expected {dim} (RAG_EMBEDDING_DIMENSIONS)")
+    vec = [float(v) for v in values]
+    # Google unit-normalises only the full 3072-d output; a truncated
+    # outputDimensionality (1536 here) is NOT unit length. Normalise so the
+    # corpus keeps the unit-vector convention of the OpenAI vectors it
+    # replaces. Cosine ranking (the HNSW index) is unaffected either way.
+    norm = math.sqrt(sum(v * v for v in vec))
+    return [v / norm for v in vec] if norm > 0.0 else vec
+
+
+async def _gemini_embed_one(api_key: str, model: str, dim: int, body: str, task_type: str) -> list[float]:
+    data = await _gemini_post(
+        api_key,
+        f"models/{model}:embedContent",
+        {
+            "content": {"parts": [{"text": body}]},
+            "taskType": task_type,
+            "outputDimensionality": dim,
+        },
+    )
+    values = (data.get("embedding") or {}).get("values") if isinstance(data, dict) else None
+    return _finish_gemini_vector(values, dim, model)
+
+
+async def _gemini_embed_many(
+    api_key: str, model: str, dim: int, texts: list[str], task_type: str,
+) -> list[list[float]]:
+    data = await _gemini_post(
+        api_key,
+        f"models/{model}:batchEmbedContents",
+        {
+            "requests": [
+                {
+                    "model": f"models/{model}",
+                    "content": {"parts": [{"text": t}]},
+                    "taskType": task_type,
+                    "outputDimensionality": dim,
+                }
+                for t in texts
+            ]
+        },
+    )
+    rows = (data.get("embeddings") or []) if isinstance(data, dict) else []
+    if len(rows) != len(texts):
+        raise RuntimeError(f"gemini batchEmbedContents returned {len(rows)} vectors for {len(texts)} inputs")
+    return [_finish_gemini_vector((r or {}).get("values"), dim, model) for r in rows]
+
+
+async def embed_text(text: str) -> list[float]:
+    """Generate query/document embeddings for hybrid retrieval.
+
+    Provider = RAG_EMBEDDING_PROVIDER (openai | gemini). Raises
+    EmbeddingsUnavailable (no network call) while that provider's breaker is
+    open; otherwise records the outcome with provider_health and re-raises
+    the vendor error unchanged.
+    """
+    body = (text or "").strip()
+    if not body:
+        raise ValueError("Cannot embed empty text")
+    provider = _embedding_provider()
+    api_key = _require_embedding_key(provider)
+    model = _embedding_model(provider)
+    dim = _embedding_dim()
+
+    cache_key = _embed_cache_key(provider, model, dim, body)
     hit = _EMBED_CACHE.get(cache_key)
     if hit is not None:
         ts, vec = hit
@@ -391,12 +580,18 @@ async def embed_text(text: str) -> list[float]:
             return vec
         _EMBED_CACHE.pop(cache_key, None)
 
-    response = await _EMBEDDING_CLIENT.embeddings.create(
-        model=model,
-        input=body,
-        dimensions=dim,
-    )
-    vec = list(response.data[0].embedding)
+    _check_embedding_breaker(provider)
+    breaker = _breaker_name(provider)
+    try:
+        if provider == "gemini":
+            vec = await _gemini_embed_one(api_key, model, dim, body, "RETRIEVAL_QUERY")
+        else:
+            vec = (await _openai_embed(api_key, model, dim, body))[0]
+    except Exception as exc:
+        provider_health.observe_failure(breaker, model, exc)
+        raise
+    provider_health.record_success(breaker)
+
     _EMBED_CACHE[cache_key] = (time.time(), vec)
     _EMBED_CACHE.move_to_end(cache_key)
     while len(_EMBED_CACHE) > _EMBED_CACHE_MAX:
@@ -405,25 +600,38 @@ async def embed_text(text: str) -> list[float]:
 
 
 async def embed_batch(texts: list[str], batch_size: int = 96) -> list[list[float]]:
-    """Batch embedding helper for ingest/backfills."""
+    """Batch embedding helper for ingest/backfills (document task type).
+
+    Empty/blank inputs are dropped, so the result can be shorter than `texts`;
+    callers that zip results back onto rows must filter blanks first.
+    """
     cleaned = [str(t or "").strip() for t in (texts or [])]
     cleaned = [t for t in cleaned if t]
     if not cleaned:
         return []
+    provider = _embedding_provider()
+    api_key = _require_embedding_key(provider)
+    model = _embedding_model(provider)
+    dim = _embedding_dim()
+    breaker = _breaker_name(provider)
+    batch_size = max(1, int(batch_size or 96))
+    if provider == "gemini":
+        batch_size = min(batch_size, _GEMINI_MAX_BATCH)  # batchEmbedContents caps at 100 requests
+
     out: list[list[float]] = []
     for i in range(0, len(cleaned), batch_size):
         batch = cleaned[i : i + batch_size]
-        # Reuse the already-initialized client through embed_text initialization path.
-        if _EMBEDDING_CLIENT is None:
-            await embed_text(batch[0])
-        model = getattr(settings, "rag_embedding_model", "text-embedding-3-small") or "text-embedding-3-small"
-        dim = int(getattr(settings, "rag_embedding_dimensions", 1536) or 1536)
-        response = await _EMBEDDING_CLIENT.embeddings.create(
-            model=model,
-            input=batch,
-            dimensions=dim,
-        )
-        out.extend([list(row.embedding) for row in response.data])
+        _check_embedding_breaker(provider)
+        try:
+            if provider == "gemini":
+                vecs = await _gemini_embed_many(api_key, model, dim, batch, "RETRIEVAL_DOCUMENT")
+            else:
+                vecs = await _openai_embed(api_key, model, dim, batch)
+        except Exception as exc:
+            provider_health.observe_failure(breaker, model, exc)
+            raise
+        provider_health.record_success(breaker)
+        out.extend(vecs)
     return out
 
 

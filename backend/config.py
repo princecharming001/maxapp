@@ -115,7 +115,11 @@ class Settings(BaseSettings):
     # they get separate knobs. flash-lite ships with thinking OFF by default
     # (the old langchain-google-genai 2.0.x stack can't set thinking_budget),
     # which is most of the speedup. Empty = use gemini_model for chat too.
-    gemini_chat_model: str = Field(default="gemini-2.5-flash-lite")
+    # 2026-09-22: gemini-2.5-flash-lite is "no longer available to new users" (404)
+    # on keys created after Google retired it; a rotated key took chat down for
+    # 20h. services/provider_health remaps a retired model at runtime, but the
+    # default must be a model every key can use.
+    gemini_chat_model: str = Field(default="gemini-3.5-flash-lite")
     # Anthropic Claude -- used for face-scan vision when LLM_PROVIDER=claude
     anthropic_api_key: str = Field(default="")
     anthropic_model: str = Field(default="claude-haiku-4-5")
@@ -137,6 +141,10 @@ class Settings(BaseSettings):
     )
     dynamic_questions_model: str = Field(default="claude-haiku-4-5")
     dynamic_questions_cache_ttl_s: int = Field(default=600)
+    # When the deterministic chip/keyword coercion cannot read a free-text
+    # intake answer, ask the chat LLM (one bounded call) to map it onto the
+    # field's options before re-asking. Off → today's plain re-ask.
+    intake_llm_coerce_enabled: bool = Field(default=True)
     slot_default_min_confidence: float = Field(default=0.6)
     slot_freshness_ttl_days: int = Field(default=180)
 
@@ -171,6 +179,13 @@ class Settings(BaseSettings):
         default="text-embedding-3-small",
         description="Embedding model used for hybrid RAG vector search.",
     )
+    # Which vendor embeds queries/documents. "openai" (text-embedding-3-small,
+    # the historical corpus) or "gemini" (gemini-embedding-001 at the same
+    # 1536 dims). Switching requires re-embedding rag_documents:
+    #   python scripts/reembed_rag.py --provider gemini --apply
+    # Query and corpus embeddings must come from the SAME model.
+    rag_embedding_provider: str = Field(default="openai")
+    gemini_embedding_model: str = Field(default="gemini-embedding-001")
     rag_embedding_dimensions: int = Field(
         default=1536,
         description="Embedding vector dimensions for rag_documents.embedding.",
