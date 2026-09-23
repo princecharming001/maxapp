@@ -101,6 +101,7 @@ type IapDeps = {
     purchaseUpdatedListener: (cb: (p: PurchaseLike) => void) => { remove: () => void };
     purchaseErrorListener: (cb: (e: PurchaseErrorLike) => void) => { remove: () => void };
     requestPurchase: (args: unknown) => Promise<unknown>;
+    fetchProducts?: (args: { skus: string[]; type: 'subs' | 'all' | 'in-app' }) => Promise<unknown[] | undefined | null>;
 };
 
 type ApiDeps = {
@@ -175,6 +176,8 @@ export function __resetIapStateForTests(): void {
     lastReconcileAt = 0;
     reconcileInFlight = null;
     otherAccountPrompted.clear();
+    cachedProducts = [];
+    productsWarming = null;
     emissionQueue.length = 0;
     if (emissionTimer) { clearTimeout(emissionTimer); emissionTimer = null; }
     newestGranted.clear();
@@ -205,6 +208,53 @@ const grantedSubs = new Set<GrantedListener>();
 
 let lastReconcileAt = 0;
 let reconcileInFlight: Promise<ReconcileOutcome> | null = null;
+
+// ── Product cache ───────────────────────────────────────────────────────────
+// StoreKit product metadata (price for the paywall). Warmed at launch so the
+// paywall's FIRST tap after a cold boot never waits on a product fetch: a
+// lapsed subscriber boots straight into the paywall and taps within seconds,
+// and the old tap-time fetch-with-backoff showed no spinner while it waited —
+// the tap read as dead and the user tapped again. Purchasing itself never
+// depends on this cache (OpenIAP fetches an uncached product on demand).
+let cachedProducts: unknown[] = [];
+let productsWarming: Promise<unknown[]> | null = null;
+
+export function getCachedProducts(): unknown[] {
+    return cachedProducts;
+}
+
+const productSkuOf = (p: unknown): string | undefined => {
+    const o = p as { id?: string; productId?: string } | null | undefined;
+    return o?.id ?? o?.productId;
+};
+
+/** Fetch + cache product metadata for the managed SKUs. One in-flight fetch
+ *  at a time; a second caller shares it. Never throws. */
+export function warmProducts(skus?: string[]): Promise<unknown[]> {
+    const { iap, isIos, managedSkus } = loadDeps();
+    if (!isIos || !iap.fetchProducts) return Promise.resolve(cachedProducts);
+    if (productsWarming) return productsWarming;
+    const want = skus && skus.length ? skus : managedSkus;
+    productsWarming = (async () => {
+        try {
+            await connect();
+            let list = (await iap.fetchProducts!({ skus: want, type: 'subs' })) ?? [];
+            if (list.length === 0) {
+                // Some v14 setups return [] for type:'subs' on TestFlight even
+                // when the subscriptions are approved — re-query as 'all'.
+                const all = (await iap.fetchProducts!({ skus: want, type: 'all' })) ?? [];
+                list = all.filter((p) => want.includes(productSkuOf(p) ?? ''));
+            }
+            if (list.length > 0) cachedProducts = list;
+        } catch (e) {
+            console.warn('[IAP] product warm failed:', e);
+        } finally {
+            productsWarming = null;
+        }
+        return cachedProducts;
+    })();
+    return productsWarming;
+}
 /** Accounts already shown the "plan lives on another account" prompt this
  *  session — the launch sweep and the paywall's mount reconcile share one
  *  result and must not stack two identical alerts. */

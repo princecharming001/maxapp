@@ -21,6 +21,8 @@ import {
     setIapUser,
     subscribeEntitlementGranted,
     verifyTransaction,
+    warmProducts,
+    getCachedProducts,
     type PurchaseLike,
     type PurchaseErrorLike,
 } from '../lib/iapTransactions';
@@ -179,7 +181,9 @@ export const tests: Record<string, () => void | Promise<void>> = {
         };
         const r = await purchase(SKU, 'user-a');
         assert.strictEqual(r.kind, 'cancelled');
-        // the stray replay was still verified + finished on its own
+        // the stray replay was still verified + finished on its own (its
+        // verify runs through the coalescing flush, a few ticks behind)
+        await settle(12);
         assert.ok(f.finished.includes('old'));
     },
 
@@ -365,6 +369,31 @@ export const tests: Record<string, () => void | Promise<void>> = {
         assert.strictEqual(await connect(), true, 'second call re-asks StoreKit');
         assert.strictEqual(n, 2);
         void g;
+    },
+
+    'warmProducts caches once and is shared; purchase() never waits on it': async () => {
+        const f = setup();
+        let fetches = 0;
+        void f;
+        __setIapDepsForTests({
+            isIos: true, managedSkus: [SKU], emissionWindowMs: 0,
+            iap: {
+                initConnection: async () => true,
+                getAvailablePurchases: async () => [],
+                finishTransaction: async () => undefined,
+                purchaseUpdatedListener: () => ({ remove: () => undefined }),
+                purchaseErrorListener: () => ({ remove: () => undefined }),
+                requestPurchase: async () => undefined,
+                fetchProducts: async ({ skus }) => { fetches += 1; await tick(); return skus.map((id) => ({ id, displayPrice: '$5.99' })); },
+            },
+            api: { verifyAppleIapTransaction: async () => ({ status: 'ok' }) },
+        });
+        setIapUser('user-a');
+        const [a, b] = await Promise.all([warmProducts(), warmProducts()]);
+        assert.strictEqual(fetches, 1, 'concurrent warms share one fetch');
+        assert.strictEqual(a.length, 1);
+        assert.strictEqual(b.length, 1);
+        assert.strictEqual(getCachedProducts().length, 1);
     },
 
     'purchaseCopy never leaks a code: unknown codes get the generic line': () => {

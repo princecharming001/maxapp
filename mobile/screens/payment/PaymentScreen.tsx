@@ -47,6 +47,7 @@ import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { signOutToLogin } from '../../lib/signOutToLogin';
 import { setOnboardingFunnelStage } from '../../lib/onboardingDraft';
 import { isLapsedUser } from '../../lib/lapsed';
+import { userFacingError } from '../../lib/userFacingError';
 import { APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
 import { useFlag } from '../../constants/featureFlags';
 
@@ -273,8 +274,11 @@ export default function PaymentScreen() {
             track('purchase_success', { plan: 'premium' });
             await afterPurchase();
         } catch (e: any) {
+            // An unexpected throw (not a StoreKit outcome — those are alerted by
+            // the hook) used to escape as an unhandled rejection: the button
+            // silently did nothing. Say something the user can act on.
             track('purchase_failed', { plan: 'premium', error: String(e?.message ?? 'unknown') });
-            throw e;
+            Alert.alert('Purchase not completed', userFacingError(e, "The purchase didn't go through. Please try again."));
         }
     };
 

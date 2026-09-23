@@ -96,7 +96,15 @@ export default function ReferralCodeScreen() {
                     <ReferralCodeField
                         ref={fieldRef}
                         initialCode={initialCode}
-                        onValidated={(res) => setCompReady(res.valid && res.free)}
+                        onValidated={(res) => {
+                            setCompReady(res.valid && res.free);
+                            // ONE step for a full comp: Apply validates AND
+                            // redeems. The two-tap dance (Apply → "Approved" →
+                            // tap "Unlock access") read as "I had to enter my
+                            // code twice". The bottom button stays as the
+                            // retry if this redeem fails transiently.
+                            if (res.valid && res.free) void fieldRef.current?.redeem();
+                        }}
                         onComped={() => {
                             // Set the same one-shot post-pay flag the real IAP
                             // purchase path uses (so a stack remount, if one

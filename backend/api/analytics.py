@@ -38,6 +38,10 @@ ALLOWED_EVENTS = frozenset({
     "purchase_started",
     "purchase_success",
     "purchase_failed",
+    # Sheet dismissed / cancelled / not verified — the client has emitted this
+    # since 2026-08 but it was never allowlisted, so every "tapped Subscribe,
+    # nothing happened" was invisible in the funnel.
+    "purchase_not_completed",
 })
 
 _MAX_BATCH = 25

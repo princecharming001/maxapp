@@ -19,9 +19,11 @@ import { signOutToLogin } from '../lib/signOutToLogin';
 import {
     claimOtherAccountPrompt,
     connect as iapConnect,
+    getCachedProducts,
     purchase as iapPurchase,
     purchaseCopy,
     reconcileOwnedSubscriptions,
+    warmProducts,
 } from '../lib/iapTransactions';
 
 /**
@@ -52,7 +54,9 @@ export function useAppleSubscription() {
     const [loading, setLoading] = useState<Tier | null>(null);
     const [restoring, setRestoring] = useState(false);
     const [connected, setConnected] = useState(false);
-    const [products, setProducts] = useState<Product[]>([]);
+    // Seeded from the launch-warmed cache so a cold boot straight into the
+    // paywall already has the price (and the SKU) on the first render.
+    const [products, setProducts] = useState<Product[]>(() => getCachedProducts() as Product[]);
 
     useEffect(() => {
         if (Platform.OS !== 'ios') return;
@@ -107,7 +111,17 @@ export function useAppleSubscription() {
 
     useEffect(() => {
         if (Platform.OS !== 'ios' || !connected) return;
-        void loadProducts();
+        if (products.length > 0) return;
+        // Shared, single-flight warm first (cheap when App.tsx already did it);
+        // fall back to the retrying loader only if the cache is still empty.
+        let mounted = true;
+        void warmProducts().then((list) => {
+            if (!mounted) return;
+            if (list.length > 0) setProducts(list as Product[]);
+            else void loadProducts();
+        });
+        return () => { mounted = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [connected, loadProducts]);
 
     /** The account now holds an entitlement: refresh + warm the paid app. */
@@ -173,28 +187,19 @@ export function useAppleSubscription() {
 
             const sku = tier === 'premium' ? APPLE_IAP_PREMIUM_SKU : APPLE_IAP_BASIC_SKU;
 
-            // If the product is cached, fire immediately so StoreKit's sheet opens
-            // with no perceptible delay. Otherwise do ONE bounded fetch and confirm
-            // THIS sku exists before requesting: a purchase for a sku StoreKit
-            // doesn't know silently does nothing — no sheet, no error — which
-            // reads as a dead button.
-            let productCached = products.some((p) => productSku(p) === sku);
-            if (!productCached) {
-                console.log('[AppleIAP] Cache miss at subscribe time; fetching before purchase:', sku);
-                try {
-                    const list = await loadProducts();
-                    productCached = list.some((p) => productSku(p) === sku);
-                } catch (err) {
-                    console.warn('[AppleIAP] product fetch before purchase failed:', err);
-                }
-                if (!productCached) {
-                    console.error('[AppleIAP] Product not available from StoreKit, aborting purchase:', sku);
-                    Alert.alert('Plan not available yet', purchaseCopy.forCode('item-unavailable'));
-                    return false;
-                }
-            }
-
+            // Busy from the FIRST millisecond of the tap. The old flow gated the
+            // purchase on a product fetch (with exponential back-off) BEFORE
+            // flipping the busy state: a lapsed subscriber boots straight into
+            // the paywall, taps within seconds while StoreKit is still warming,
+            // sees no spinner and no sheet, and taps again — "I have to press
+            // it twice". OpenIAP fetches an uncached product itself inside
+            // requestPurchase (and reports sku-not-found if it truly doesn't
+            // exist), so nothing here needs to wait for the price metadata.
             setLoading(tier);
+            if (!products.some((p) => productSku(p) === sku)) {
+                // Best-effort refresh for the displayed price; never blocks the sheet.
+                void warmProducts().then((list) => { if (list.length > 0) setProducts(list as Product[]); });
+            }
             console.log('[AppleIAP] Requesting purchase:', sku);
             try {
                 const result = await iapPurchase(sku, user.id);
@@ -239,7 +244,7 @@ export function useAppleSubscription() {
                 setLoading(null);
             }
         },
-        [user?.id, loading, connected, products, loadProducts, onEntitled, showOtherAccount, refreshUser],
+        [user?.id, loading, connected, products, onEntitled, showOtherAccount, refreshUser],
     );
 
     const subscribeBasic = useCallback(() => subscribeTier('basic'), [subscribeTier]);

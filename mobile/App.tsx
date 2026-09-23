@@ -33,6 +33,7 @@ import {
     reconcileOwnedSubscriptions,
     setIapUser,
     subscribeEntitlementGranted,
+    warmProducts,
 } from './lib/iapTransactions';
 import { consumePostLogoutRoute } from './lib/postLogoutNav';
 import { signOutToLogin } from './lib/signOutToLogin';
@@ -302,7 +303,12 @@ function AppNavigator() {
     // the root of the "Duplicate purchase update skipped" paywall error.
     useEffect(() => {
         if (Platform.OS !== 'ios' || !isAuthenticated) return;
-        void iapConnect();
+        void iapConnect().then((ok) => {
+            // Warm the paywall's product metadata for anyone who might see it
+            // (unpaid boots straight into it): the first tap must never wait.
+            if (ok && !isPaid) void warmProducts();
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated]);
 
     // A transaction the app-level listener verified (renewal, launch replay,
