@@ -14,15 +14,19 @@ import { StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useFlag } from '../constants/featureFlags';
+import { useAuth } from '../context/AuthContext';
 import { usePersonalization } from '../hooks/usePersonalization';
 import { streakMilestone, streakMilestoneCopy } from '../lib/personalization';
 import { colors, fonts } from '../theme/dark';
 
+// Per user (like main_app_tour_v2:<uid>): the device-wide key meant a
+// milestone A dismissed was never shown to B on the same phone.
 const SEEN_KEY = 'streak_milestone_seen_v1';
+const seenKey = (uid: string) => `${SEEN_KEY}:${uid}`;
 
-async function loadSeen(): Promise<number[]> {
+async function loadSeen(key: string): Promise<number[]> {
     try {
-        const raw = await AsyncStorage.getItem(SEEN_KEY);
+        const raw = await AsyncStorage.getItem(key);
         const arr = raw ? JSON.parse(raw) : [];
         return Array.isArray(arr) ? arr.filter((n) => typeof n === 'number') : [];
     } catch {
@@ -30,11 +34,11 @@ async function loadSeen(): Promise<number[]> {
     }
 }
 
-async function markSeen(threshold: number): Promise<void> {
+async function markSeen(key: string, threshold: number): Promise<void> {
     try {
-        const seen = await loadSeen();
+        const seen = await loadSeen(key);
         if (!seen.includes(threshold)) {
-            await AsyncStorage.setItem(SEEN_KEY, JSON.stringify([...seen, threshold]));
+            await AsyncStorage.setItem(key, JSON.stringify([...seen, threshold]));
         }
     } catch {
         /* non-fatal — worst case the callout shows again next time */
@@ -43,29 +47,31 @@ async function markSeen(threshold: number): Promise<void> {
 
 export function StreakMilestoneCallout() {
     const enabled = useFlag('personalizedUI');
+    const uid = useAuth().user?.id;
     const { streakDays, personaId } = usePersonalization();
     const milestone = streakMilestone(streakDays);
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
-        if (!enabled || milestone == null) {
+        if (!enabled || milestone == null || !uid) {
             setVisible(false);
             return;
         }
+        const key = seenKey(uid);
         let active = true;
         void (async () => {
-            const seen = await loadSeen();
+            const seen = await loadSeen(key);
             if (seen.includes(milestone)) {
                 if (active) setVisible(false);
                 return;
             }
-            await markSeen(milestone);
+            await markSeen(key, milestone);
             if (active) setVisible(true);
         })();
         return () => {
             active = false;
         };
-    }, [enabled, milestone]);
+    }, [enabled, milestone, uid]);
 
     if (!enabled || milestone == null || !visible) return null;
 

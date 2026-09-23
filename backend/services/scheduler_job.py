@@ -325,6 +325,11 @@ async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
                     "time_min": parts[0] * 60 + parts[1],
                     "maxx": schedule.maxx_id,
                     "pending": task.get("status") == "pending",
+                    # Instance ids for the TaskGuide deep link — the guide route
+                    # is schedule-scoped and keyed by task_id, not task_uuid
+                    # (see notification_candidates.build_candidates).
+                    "schedule_id": str(schedule.id) if getattr(schedule, "id", None) else None,
+                    "task_id": task.get("task_id"),
                 })
                 ref[uuid] = (schedule, task)
 

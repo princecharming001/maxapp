@@ -192,21 +192,36 @@ def _public(a: Achievement, *, earned: bool, seen: bool, stats: Optional[dict] =
 # --- award + read -----------------------------------------------------------
 
 async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict]) -> list[dict]:
-    """Award any newly-met achievements; return the freshly-earned ones (public
-    shape) so the caller can hand them to the client for a celebration. Awards
-    are idempotent (unique on user+code) and best-effort — never fatal to the
-    day-state response that calls this."""
+    """Award any newly-met achievements; return every earned-but-uncelebrated
+    badge (public shape) so the caller can hand them to the client for a
+    celebration. Awards are idempotent (unique on user+code) and best-effort —
+    never fatal to the day-state response that calls this.
+
+    The return is "earned && !seen", NOT "inserted on this call": handing an
+    award back exactly once meant a lost response (app backgrounded mid-request,
+    network drop) or a fetch that bypassed the client's canonical cache consumed
+    the celebration for good — the badge just appeared, silently, as earned.
+    The client host dedupes by code and marks seen only when it actually shows
+    the badge, so repeating an unseen one across calls is harmless."""
     if user is None:
         return []
     try:
         # Read what's already earned FIRST — if everything is earned, skip the
         # count queries in compute_stats entirely (this runs on the hottest
         # endpoint, /schedules/active/full, on every load).
-        earned = set((await db.execute(
-            select(UserAchievement.code).where(UserAchievement.user_id == user.id)
-        )).scalars().all())
+        rows = (await db.execute(
+            select(UserAchievement.code, UserAchievement.seen)
+            .where(UserAchievement.user_id == user.id)
+            .order_by(UserAchievement.earned_at)
+        )).all()
+        earned = {code for code, _seen in rows}
+        unseen: list[dict] = [
+            _public(CATALOG_BY_CODE[code], earned=True, seen=False)
+            for code, seen in rows
+            if not seen and code in CATALOG_BY_CODE
+        ]
         if len(earned) >= len(CATALOG):
-            return []
+            return unseen
         stats = await compute_stats(db, user, streak=streak, schedules=schedules)
         newly: list[dict] = []
         now = _utcnow()
@@ -238,7 +253,9 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
                 await _send_milestone_push(db, user, streak)
             except Exception as e:
                 logger.debug("milestone push skipped: %s", e)
-        return newly
+        # Oldest first: a badge that was earned earlier but never celebrated
+        # shows before the one that just landed.
+        return unseen + newly
     except Exception as e:
         # Unique-constraint race (concurrent evaluate) or any DB hiccup — never
         # break the day-state response over a badge.

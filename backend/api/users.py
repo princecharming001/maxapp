@@ -394,6 +394,48 @@ async def patch_coaching_tone(
     return {"message": "ok", "tone": tone}
 
 
+class TimezonePatchBody(BaseModel):
+    """IANA zone the device reports (Intl.DateTimeFormat().resolvedOptions().timeZone)."""
+    timezone: str = Field(..., min_length=1, max_length=64)
+
+
+@router.patch("/timezone")
+async def patch_timezone(
+    body: TimezonePatchBody,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sync the device timezone into onboarding.timezone.
+
+    Every server-side notion of "today" (streak credit, schedule date stamping,
+    reminder timing, the Home 'Today' label) reads onboarding.timezone and falls
+    back to UTC when it is missing — so an account whose onboarding never carried
+    a zone, or a user who moved, saw tomorrow's plan labelled 'Tomorrow' after
+    ~5pm Pacific and never got today's completions credited. The zone was only
+    ever written by the onboarding/planner/EditPersonal saves; the client now
+    calls this on launch and foreground whenever the device zone differs from
+    what /me reports. Unchanged → 200 with changed=false, no write.
+    """
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    tz_name = (body.timezone or "").strip()
+    try:
+        ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError, OSError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown timezone")
+    user = await db.get(User, UUID(current_user["id"]))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    ob = dict(user.onboarding or {})
+    if ob.get("timezone") == tz_name:
+        return {"message": "ok", "timezone": tz_name, "changed": False}
+    ob["timezone"] = tz_name
+    user.onboarding = ob
+    user.updated_at = datetime.utcnow()
+    await db.commit()
+    return {"message": "ok", "timezone": tz_name, "changed": True}
+
+
 @router.patch("/intensity-preference")
 async def patch_intensity_preference(
     body: IntensityPreferenceBody,

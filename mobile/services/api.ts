@@ -1489,6 +1489,14 @@ class ApiService {
         return response.data;
     }
 
+    /** Sync the device's IANA timezone (hooks/useTimezoneSync) so the server's
+     *  "today" — streak credit, date stamping, reminders — follows the user's
+     *  clock instead of falling back to UTC. Unchanged → changed:false, no write. */
+    async patchTimezone(timezone: string): Promise<{ message: string; timezone: string; changed: boolean }> {
+        const response = await this.client.patch('users/timezone', { timezone });
+        return response.data;
+    }
+
     async getScanById(scanId: string) {
         const response = await this.client.get(`scans/${scanId}`);
         return response.data;

@@ -197,8 +197,23 @@ export default function MaxxDetailScreen() {
         let mounted = true;
         const load = async () => {
             try {
-                const [scheduleRes, chatRes] = await Promise.all([api.getMaxxSchedule('fitmax'), api.getChatHistory()]);
-                const context = scheduleRes?.schedule?.schedule_context || {};
+                // Through the canonical keys (same queryFn/shape as
+                // useMaxxScheduleQuery / useChatHistoryQuery) so this shares the
+                // cache with the rest of the app instead of a second raw GET
+                // whose result no other screen could see.
+                const [fitmaxSchedule, chatRes] = await Promise.all([
+                    queryClient.fetchQuery({
+                        queryKey: queryKeys.maxxSchedule('fitmax'),
+                        queryFn: async () => (await api.getMaxxSchedule('fitmax'))?.schedule ?? null,
+                        staleTime: 60 * 1000,
+                    }),
+                    queryClient.fetchQuery({
+                        queryKey: queryKeys.chatHistory,
+                        queryFn: () => fetchChatHistory(null),
+                        staleTime: 60 * 1000,
+                    }),
+                ]);
+                const context = fitmaxSchedule?.schedule_context || {};
                 const targetCalories = Number(
                     context.calories ?? context.calorie_target ?? context.target_calories ?? defaultFitmaxMacroSummary().calories,
                 );
@@ -228,7 +243,7 @@ export default function MaxxDetailScreen() {
         return () => {
             mounted = false;
         };
-    }, [isFitmax]);
+    }, [isFitmax, queryClient]);
 
     // Rely on React Query's staleTime for refresh. Focus-refetch caused 3 simultaneous
     // API calls every time the user tabbed back, which was a major perf hit.

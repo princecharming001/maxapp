@@ -44,6 +44,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { openGoogleCalendarAuth } from '../../lib/googleConnect';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryClient, queryKeys } from '../../lib/queryClient';
+import { userFacingError } from '../../lib/userFacingError';
 import { useAuth } from '../../context/AuthContext';
 import { useFlag } from '../../constants/featureFlags';
 import { experienceTier } from '../../lib/personalization';
@@ -317,9 +318,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
       // cached schedule is now stale.
       invalidateSchedules();
     } catch (e: any) {
-      const status = e?.response?.status;
-      const detail = status ? `HTTP ${status}` : e?.message ? String(e.message) : 'no response (network)';
-      Alert.alert('Could not connect Google Calendar', `Please try again.\n\n(${detail})`);
+      Alert.alert('Could not connect Google Calendar', userFacingError(e, 'Please try again.'));
     } finally {
       // Always stop the status poll — on the error path the interval would
       // otherwise keep refetching every 3s until the screen unmounts.
@@ -504,11 +503,10 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
       await refreshUser();
       invalidateSchedules();
     } catch (error: any) {
-      const msg =
-        typeof error?.response?.data?.detail === 'string'
-          ? error.response.data.detail
-          : error?.message || 'Could not save your week.';
-      Alert.alert('Error', msg);
+      // Never the raw axios/library string ("Request failed with status code
+      // 500", "Network Error") — userFacingError maps transport failures to
+      // plain copy and only passes through a short backend `detail`.
+      Alert.alert('Error', userFacingError(error, 'Could not save your week.'));
     } finally {
       setSaving(false);
     }
@@ -580,12 +578,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
       await refreshUser();
       invalidateSchedules();
     } catch (error: any) {
-      const msg =
-        typeof error?.response?.data?.detail === 'string'
-          ? error.response.data.detail
-          : error?.message || 'Couldn\'t update your plan. Try rephrasing.';
       setChatReplyTone('warn');
-      setChatReply(msg);
+      setChatReply(userFacingError(error, 'Couldn\'t update your plan. Try rephrasing.'));
     } finally {
       setChatLoading(false);
     }

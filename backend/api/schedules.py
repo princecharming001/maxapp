@@ -154,7 +154,10 @@ async def get_all_active_schedules_full(
     user_row = await db.get(User, UUID(current_user["id"]))
     streak = await sync_master_schedule_streak(user_row, schedules, db)
     # Award any newly-earned badges off the freshly-synced day-state and hand
-    # them back so the client can fire a celebration. Best-effort, never fatal.
+    # back every earned-but-unseen badge (not just this call's awards — a lost
+    # response must not eat the celebration; the client host dedupes by code
+    # and marks seen on display). Best-effort, never fatal. The key keeps its
+    # historical name so every shipped client still reads it.
     newly_earned: list = []
     try:
         from services.achievements import evaluate as _evaluate_achievements

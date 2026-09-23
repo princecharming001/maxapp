@@ -19,6 +19,7 @@ import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, moduleColorForSchedule,
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { useReviewTriggers } from '../../hooks/useReviewTriggers';
 import { queryKeys } from '../../lib/queryClient';
+import { userFacingError } from '../../lib/userFacingError';
 import { useFlag } from '../../constants/featureFlags';
 import { usePersonalization } from '../../hooks/usePersonalization';
 import { CachedImage } from '../../components/CachedImage';
@@ -248,6 +249,18 @@ export default function HomeScreen() {
     const schedulesQuery = useActiveSchedulesFullQuery();
 
     const taskToggleInFlightRef = useRef(new Set<string>());
+
+    // Inline toast for a failed habit toggle. The old behaviour — checkbox flips
+    // on, then silently flips back — read as "the app is broken"; one line of
+    // copy turns it into "try again". One message at a time, auto-clears.
+    const [toast, setToast] = useState<string | null>(null);
+    const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const showToast = (msg: string) => {
+        setToast(msg);
+        if (toastTimer.current) clearTimeout(toastTimer.current);
+        toastTimer.current = setTimeout(() => setToast(null), 2800);
+    };
+    useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
     // One-time "welcome to Chad" popup for grandfathered Chad-Lite subscribers
     // (the single-plan pivot upgraded them server-side; the migration sets
@@ -558,22 +571,26 @@ export default function HomeScreen() {
         // never gated on the network. THEN cancel any in-flight refetch so it
         // can't clobber the optimistic state. Awaiting cancelQueries before the
         // flip (the old order) added a network-shaped delay before the check.
-        const prevData = queryClient.getQueryData(queryKeys.schedulesActiveFull);
-        queryClient.setQueryData(queryKeys.schedulesActiveFull, (old: any) => {
-            if (!old?.schedules) return old;
-            return {
-                ...old,
-                schedules: old.schedules.map((s: any) => s.id !== row.scheduleId ? s : {
-                    ...s,
-                    days: (s.days ?? []).map((d: any) => ({
-                        ...d,
-                        tasks: (d.tasks ?? []).map((t: any) =>
-                            t.task_id === row.task_id ? { ...t, status: newStatus } : t
-                        ),
-                    })),
-                }),
-            };
-        });
+        // Patches exactly ONE task; the rollback below uses the same shape so a
+        // failure can't undo a second task toggled in the same second (the old
+        // whole-payload snapshot restore did exactly that).
+        const setTaskStatus = (status: string) =>
+            queryClient.setQueryData(queryKeys.schedulesActiveFull, (old: any) => {
+                if (!old?.schedules) return old;
+                return {
+                    ...old,
+                    schedules: old.schedules.map((s: any) => s.id !== row.scheduleId ? s : {
+                        ...s,
+                        days: (s.days ?? []).map((d: any) => ({
+                            ...d,
+                            tasks: (d.tasks ?? []).map((t: any) =>
+                                t.task_id === row.task_id ? { ...t, status } : t
+                            ),
+                        })),
+                    }),
+                };
+            });
+        setTaskStatus(newStatus);
         void queryClient.cancelQueries({ queryKey: queryKeys.schedulesActiveFull });
         try {
             if (completing) {
@@ -589,7 +606,19 @@ export default function HomeScreen() {
             }
         } catch (e) {
             console.error('toggleTodayTask', e);
-            queryClient.setQueryData(queryKeys.schedulesActiveFull, prevData);
+            // Revert ONLY this task, then refetch: after a regen re-mints task
+            // ids the cached id 404s ("Task not found in schedule") on every
+            // tap until fresh ids land — without the invalidate the user was
+            // stuck flipping a checkbox that always flipped back, for up to
+            // the 60s staleTime.
+            setTaskStatus(row.status);
+            void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
+            const status = (e as { response?: { status?: number } })?.response?.status;
+            showToast(
+                status === 404
+                    ? 'That habit was updated \u2014 refreshing your day.'
+                    : userFacingError(e, "Couldn't save that \u2014 try again."),
+            );
         } finally {
             taskToggleInFlightRef.current.delete(key);
         }
@@ -786,6 +815,17 @@ export default function HomeScreen() {
                 </Animated.View>
             </ScrollView>
 
+            {toast ? (
+                <View
+                    style={[s.toast, { bottom: insets.bottom + 72 }]}
+                    pointerEvents="none"
+                    accessibilityLiveRegion="polite"
+                    testID="home-toast"
+                >
+                    <Text style={s.toastText}>{toast}</Text>
+                </View>
+            ) : null}
+
             <FirstRunWalkthrough
                 visible={walkthrough.visible}
                 step={walkthrough.step}
@@ -921,4 +961,12 @@ const s = StyleSheet.create({
         paddingVertical: 20, paddingHorizontal: PAD,
     },
     emptyProgramText: { fontSize: 13, fontFamily: fonts.sans, color: BW.mute, letterSpacing: 0.2 },
+
+    /* Inline toast (habit toggle failure) */
+    toast: {
+        position: 'absolute', left: PAD, right: PAD,
+        paddingVertical: 12, paddingHorizontal: 16, borderRadius: 14,
+        backgroundColor: BW.ink, alignItems: 'center',
+    },
+    toastText: { fontSize: 13.5, fontFamily: fonts.sansMedium, color: BW.onInk, textAlign: 'center' },
 });

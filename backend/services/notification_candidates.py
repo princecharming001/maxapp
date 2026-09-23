@@ -30,7 +30,7 @@ _TIP_WEEKDAYS = frozenset({0, 2, 4})  # occasional: Mon/Wed/Fri only
 
 def build_candidates(
     *,
-    tasks: list[dict],          # [{uuid, title, time_min, maxx, pending}]
+    tasks: list[dict],          # [{uuid, title, time_min, maxx, pending, schedule_id?, task_id?}]
     now_min: int,
     wake_min: int,
     sleep_min: int,
@@ -61,6 +61,17 @@ def build_candidates(
         if tmin is None:
             continue
         title = (t.get("title") or "your routine").strip()
+        route_params = {"task_uuid": t.get("uuid"), "maxx": t.get("maxx"), "title": title}
+        # The TaskGuide route is schedule-scoped (schedules/:id/tasks/:task_id/
+        # guide) and ``task_uuid`` is the day-stable identity, not the instance
+        # id — a push carrying only uuid+maxx dead-ended every tap on "this
+        # guide link is missing its schedule". Ride the instance ids along when
+        # the caller has them (scheduler_job does); absent keys keep the legacy
+        # shape so nothing downstream sees a JSON null.
+        if t.get("schedule_id"):
+            route_params["schedule_id"] = str(t["schedule_id"])
+        if t.get("task_id"):
+            route_params["task_id"] = str(t["task_id"])
         copy = compose(
             CAT_TASK_DUE,
             name=name,
@@ -69,7 +80,7 @@ def build_candidates(
             why=why,
             rotation=rotation,
             coaching_tone=coaching_tone,
-            route_params={"task_uuid": t.get("uuid"), "maxx": t.get("maxx"), "title": title},
+            route_params=route_params,
         )
         cands.append(
             Candidate(

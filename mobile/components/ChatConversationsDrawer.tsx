@@ -47,6 +47,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import api from '../services/api';
 import { queryKeys } from '../lib/queryClient';
+import { userFacingError } from '../lib/userFacingError';
 import { useChatConversationsQuery } from '../hooks/useAppQueries';
 import { useAuth } from '../context/AuthContext';
 import { fonts, spacing } from '../theme/dark';
@@ -240,7 +241,9 @@ export default function ChatConversationsDrawer({
             onCreated(conversation.id);
             onClose();
         } catch (e: any) {
-            Alert.alert('Could not start a new chat', e?.message || 'Please try again.');
+            // Raw transport strings ("Network Error", "Request failed with
+            // status code 500") never reach the user — mapped to plain copy.
+            Alert.alert('Could not start a new chat', userFacingError(e, 'Please try again.'));
         } finally {
             setCreating(false);
         }
@@ -264,7 +267,7 @@ export default function ChatConversationsDrawer({
             await api.renameChatConversation(renamingId, title);
             invalidate();
         } catch (e: any) {
-            Alert.alert('Rename failed', e?.message || 'Please try again.');
+            Alert.alert('Rename failed', userFacingError(e, 'Please try again.'));
         } finally {
             setRenamingId(null);
             setRenameValue('');
@@ -298,7 +301,7 @@ export default function ChatConversationsDrawer({
                                 invalidate();
                             } catch (e: any) {
                                 if (prev) queryClient.setQueryData(queryKeys.chatConversations, prev);
-                                Alert.alert('Delete failed', e?.message || 'Please try again.');
+                                Alert.alert('Delete failed', userFacingError(e, 'Please try again.'));
                             }
                         },
                     },
@@ -321,7 +324,7 @@ export default function ChatConversationsDrawer({
                 await refreshUser().catch(() => undefined);
             } catch (e: any) {
                 setPersona(previous);
-                Alert.alert('Could not update coach', e?.message || 'Please try again.');
+                Alert.alert('Could not update coach', userFacingError(e, 'Please try again.'));
             } finally {
                 setSavingPersona(null);
             }
@@ -340,7 +343,7 @@ export default function ChatConversationsDrawer({
                 await refreshUser().catch(() => undefined);
             } catch (e: any) {
                 setLength(previous);
-                Alert.alert('Could not update response length', e?.message || 'Please try again.');
+                Alert.alert('Could not update response length', userFacingError(e, 'Please try again.'));
             } finally {
                 setSavingLength(null);
             }

@@ -13,7 +13,7 @@
  *   • No new native deps. expo-image (hero + product tiles), expo-linear-gradient (the
  *     seamless fade), expo-video (the optional "Watch" button).
  */
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -42,9 +42,11 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
+import { useQuery } from '@tanstack/react-query';
 import { useTaskGuide, type TaskGuideStep, type TaskGuideIngredient } from '../../hooks/useTaskGuide';
 import { fonts } from '../../theme/dark';
 import api from '../../services/api';
+import { queryKeys } from '../../lib/queryClient';
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
@@ -71,9 +73,9 @@ function maxxIcon(id?: string): any | null {
 // ── Types ──────────────────────────────────────────────────────────────────
 // In-app navigation passes {scheduleId, taskId, maxxId}. A task-reminder PUSH
 // notification instead passes the backend's route_params shape —
-// {task_uuid, maxx, title}, with no scheduleId at all — so both id fields are
-// optional here and the screen below accepts either naming (see the param
-// extraction in TaskGuideScreen).
+// {task_uuid, maxx, title} plus, from newer backends, {schedule_id, task_id}
+// — so both id fields are optional here and the screen below accepts either
+// naming (see the param extraction in TaskGuideScreen).
 type RouteParams = {
     TaskGuide: {
         scheduleId?: string;
@@ -84,8 +86,49 @@ type RouteParams = {
         done?: boolean;
         task_uuid?: string;
         maxx?: string;
+        schedule_id?: string;
+        task_id?: string;
     };
 };
+
+/**
+ * Resolve a push's task reference against the cached /schedules/active/full
+ * payload. The guide endpoint is schedule-scoped and keyed by the per-INSTANCE
+ * task_id, while a reminder carries the day-stable task_uuid (uuid5 of
+ * maxx:catalog:day_index) — so an older push (uuid only) or one whose ids went
+ * stale after a regen is matched here before we declare it unresolvable.
+ * Exact task_uuid match first; then task_id (both spellings); a scheduleId hint
+ * narrows the search when present.
+ */
+export function resolveTaskRef(
+    schedules: any[] | undefined,
+    ref: { taskUuid?: string; taskId?: string; scheduleId?: string },
+): { scheduleId: string; taskId: string; maxxId?: string } | null {
+    const wantUuid = ref.taskUuid ? String(ref.taskUuid) : '';
+    const wantId = ref.taskId ? String(ref.taskId) : '';
+    if (!wantUuid && !wantId) return null;
+    const candidates = (schedules || []).filter(
+        (s) => !ref.scheduleId || String(s?.id) === String(ref.scheduleId),
+    );
+    const hit = (pred: (t: any) => boolean) => {
+        for (const s of candidates) {
+            for (const d of (s?.days || []) as any[]) {
+                for (const t of (d?.tasks || []) as any[]) {
+                    if (t?.task_id && pred(t)) {
+                        return { scheduleId: String(s.id), taskId: String(t.task_id), maxxId: s?.maxx_id ? String(s.maxx_id) : undefined };
+                    }
+                }
+            }
+        }
+        return null;
+    };
+    return (
+        (wantUuid && hit((t) => String(t.task_uuid ?? t.uuid ?? '') === wantUuid)) ||
+        (wantUuid && hit((t) => String(t.task_id) === wantUuid)) ||
+        (wantId && hit((t) => String(t.task_id) === wantId)) ||
+        null
+    );
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function hapticTick() {
@@ -316,18 +359,41 @@ export default function TaskGuideScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'TaskGuide'>>();
     // In-app navigation sends {scheduleId, taskId}; a task-reminder PUSH sends
-    // the backend's route_params shape instead — {task_uuid, maxx, title}, no
-    // scheduleId at all — so a direct destructure left both undefined and the
-    // guide query (enabled: !!(scheduleId && taskId)) never ran, permanently
-    // stranding the user on this screen. Accept both shapes; a push carrying a
-    // task id but no schedule id can never resolve (the guide endpoint is
-    // schedule-scoped: schedules/:scheduleId/tasks/:taskId/guide) — surface
-    // that plainly instead of hanging on a spinner that will never clear.
+    // the backend's route_params shape instead — {task_uuid, maxx, title} and,
+    // from newer backends, {schedule_id, task_id}. A direct destructure used
+    // to leave both undefined and the guide query (enabled: !!(scheduleId &&
+    // taskId)) never ran, stranding the user on a spinner; and a push with
+    // only task_uuid (day-stable, NOT the instance id the schedule-scoped
+    // guide endpoint needs) dead-ended on every tap. Accept every shape, and
+    // when the instance ids are missing resolve the uuid against the cached
+    // day-state before giving up.
     const p: any = route.params ?? {};
-    const taskId: string | undefined = p.taskId ?? p.task_uuid;
-    const maxxId: string | undefined = p.maxxId ?? p.maxx;
-    const scheduleId: string | undefined = p.scheduleId ?? p.schedule_id;
-    const unresolvable = !scheduleId && !!taskId;
+    const directScheduleId: string | undefined = p.scheduleId ?? p.schedule_id;
+    const directTaskId: string | undefined = p.taskId ?? p.task_id;
+    const taskUuid: string | undefined = p.task_uuid;
+    const needsResolve = !(directScheduleId && directTaskId) && !!(taskUuid || directTaskId);
+    // Canonical key + identical queryFn: reads Home's cache when warm (also
+    // hydrated from disk on a cold start from a tap), fetches otherwise — and
+    // any badge that fetch awards lands where the celebration host looks.
+    const fullQuery = useQuery({
+        queryKey: queryKeys.schedulesActiveFull,
+        queryFn: () => api.getActiveSchedulesFull(),
+        enabled: needsResolve,
+        staleTime: 60 * 1000,
+    });
+    const resolved = useMemo(
+        () => (needsResolve
+            ? resolveTaskRef(fullQuery.data?.schedules, { taskUuid, taskId: directTaskId, scheduleId: directScheduleId })
+            : null),
+        [needsResolve, fullQuery.data, taskUuid, directTaskId, directScheduleId],
+    );
+    const scheduleId: string | undefined = needsResolve ? resolved?.scheduleId : directScheduleId;
+    const taskId: string | undefined = needsResolve ? resolved?.taskId : directTaskId;
+    const maxxId: string | undefined = p.maxxId ?? p.maxx ?? resolved?.maxxId;
+    // Still waiting on the day-state (isPending stays true while disabled, so
+    // gate it on needsResolve); unresolvable only once that has settled.
+    const resolving = needsResolve && !resolved && fullQuery.isPending;
+    const unresolvable = needsResolve && !resolved && !fullQuery.isPending;
     const maxImg = maxxIcon(maxxId);
 
     const { data: guide, isLoading, isError } = useTaskGuide(scheduleId ?? '', taskId ?? '');
@@ -359,18 +425,18 @@ export default function TaskGuideScreen() {
     const handleWatch = useCallback((url: string) => setVideoUrl(url), []);
 
     // ── Loading / error ──────────────────────────────────────────────────────
-    if (isLoading || isError || !guide) {
+    if (isLoading || resolving || isError || !guide) {
         return (
             <View style={[s.screen, { paddingTop: insets.top }]}>
                 <CloseButton onPress={() => navigation.goBack()} top={insets.top} />
                 <View style={s.center}>
-                    {isLoading ? (
+                    {isLoading || resolving ? (
                         <>
                             <ActivityIndicator color={MUTE} />
                             <Text style={s.dim}>Preparing your guide…</Text>
                         </>
                     ) : unresolvable ? (
-                        <Text style={s.dim}>This guide link is missing its schedule — open it from today's schedule instead.</Text>
+                        <Text style={s.dim}>Couldn't find that habit in your current plan — open it from Home instead.</Text>
                     ) : (
                         <Text style={s.dim}>Couldn't load guide. Try again.</Text>
                     )}
