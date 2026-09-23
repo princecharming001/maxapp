@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import copy
+import json
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.orm.attributes import flag_modified, set_committed_value
 
 from models.sqlalchemy_models import User
 from services.schedule_master_merge import (
@@ -41,6 +44,169 @@ MAX_ARMED_FREEZES = 2
 # (proxied by account creation in their tz). Persisted once so the day counter
 # keeps incrementing day-over-day and never resets when schedules regenerate.
 JOURNEY_START_KEY = "master_journey_start_date"
+
+
+# ---------------------------------------------------------------------------
+# Profile write safety — shared by every app_users.profile writer we own
+# (this streak, the task-XP ledger in schedule_service.complete_task, the
+# achievements XP + milestone push, the 5-minute notification tick).
+#
+# `user.profile` is ONE json column with many independent writers. Each used to
+# read-modify-write the whole column from whatever snapshot its session
+# happened to hold, so two overlapping writers silently dropped each other's
+# keys: a streak credited on /active/full was reset by a notification tick that
+# committed a profile it had loaded seconds earlier, XP vanished, and a rolled-
+# back `sent` ledger re-sent the same push. write_profile_keys() fixes that with
+# two ingredients:
+#   1. SELECT ... FOR UPDATE on the user's row (populate_existing refreshes the
+#      identity-map instance) so the mutation runs on the FRESH committed
+#      profile, serialized against every other locked writer;
+#   2. a targeted merge UPDATE that writes ONLY the keys the mutation changed
+#      (jsonb `||` for set, `-` for removed), never the whole column, so this
+#      writer can never clobber keys it doesn't own — even against the writers
+#      that still do unlocked whole-column writes (planner horizon marker,
+#      identity/onboarding editors).
+#
+# LOCK DISCIPLINE (what keeps this deadlock-free — keep it that way):
+#   * A transaction that takes this lock holds NO other row lock. The caller
+#     commits any pending write to another table BEFORE calling (complete_task
+#     commits its user_schedules change first; the tick commits its schedule
+#     flags in a separate transaction), and commits IMMEDIATELY after. Every
+#     owned writer is therefore a single-table transaction on app_users, so it
+#     never waits on someone else's lock while holding this one — whatever
+#     order the remaining unit-of-work flushes elsewhere pick.
+#   * The lock is held across pure in-memory work only. Never a network call:
+#     APNs/SMS sends happen BEFORE the write phase and are replayed onto the
+#     fresh state under the lock.
+#   * Sessions are autoflush=False, so the FOR UPDATE select cannot drag an
+#     unrelated pending UPDATE ahead of the lock.
+#
+# The column is `json` (not jsonb) in production, hence the casts.
+# ---------------------------------------------------------------------------
+
+_PROFILE_MERGE_SQL = text(
+    """
+    UPDATE app_users
+       SET profile = (
+               (CASE WHEN jsonb_typeof(profile::jsonb) = 'object'
+                     THEN profile::jsonb ELSE '{}'::jsonb END
+                - CAST(:removed AS text[]))
+               || CAST(CAST(:patch AS text) AS jsonb)
+           )::json,
+           updated_at = now()
+     WHERE id = CAST(CAST(:uid AS text) AS uuid)
+ RETURNING profile
+    """
+)
+
+
+def _lock_stmt(user_id):
+    """SELECT ... FOR UPDATE on the app_users row. populate_existing makes the
+    session overwrite the (possibly stale) identity-map instance with the row
+    as it is NOW, under the lock. Dialects without FOR UPDATE (sqlite) compile
+    this to a plain select, so the code path stays testable there."""
+    return (
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+
+async def lock_user_row(db: AsyncSession, user) -> User | None:
+    """Take the row lock and return the refreshed instance (None if the row is
+    gone). Callers that must read something else under the same lock (e.g.
+    achievements re-reading what's already earned) call this first; a later
+    write_profile_keys() in the same transaction re-issues the lock, which
+    Postgres treats as a no-op for the holder."""
+    return (await db.execute(_lock_stmt(user.id))).scalar_one_or_none()
+
+
+def _dialect_name(db) -> str:
+    try:
+        return str(db.get_bind().dialect.name)
+    except Exception:
+        return ""
+
+
+def _set_committed_profile(obj, value: dict) -> None:
+    # Adopt the row we just wrote WITHOUT marking `profile` dirty: if it were
+    # dirty, the caller's commit would re-emit the WHOLE column from memory and
+    # undo the targeted merge. Non-ORM objects (test doubles) just get the value.
+    try:
+        set_committed_value(obj, "profile", value)
+    except Exception:
+        try:
+            obj.profile = value
+        except Exception:
+            pass
+
+
+async def write_profile_keys(
+    db: AsyncSession,
+    user,
+    mutate: Callable[[dict], Any],
+) -> dict:
+    """Run `mutate(profile)` on the freshly-locked profile and persist ONLY the
+    top-level keys it added, changed or removed. Does NOT commit: the caller
+    commits immediately afterwards (see LOCK DISCIPLINE above). Returns the
+    post-mutation profile; `user.profile` is kept coherent with it.
+
+    If the locked path itself fails (a mock session in tests, or a DB hiccup)
+    we fall back to the legacy unlocked in-memory write with a warning: a push
+    that already went out MUST still be recorded rather than re-sent next tick,
+    and the fallback is exactly what every writer did before — never worse."""
+    try:
+        fresh = await lock_user_row(db, user)
+    except Exception as e:
+        logger.warning(
+            "profile lock path failed for %s; unlocked fallback write (%s)",
+            getattr(user, "id", None), e,
+        )
+        profile = dict(user.profile or {})
+        mutate(profile)
+        user.profile = profile
+        try:
+            flag_modified(user, "profile")
+        except Exception:
+            pass
+        return profile
+
+    if fresh is None:
+        logger.warning("profile write skipped: user %s no longer exists", getattr(user, "id", None))
+        return dict(user.profile or {})
+
+    # Deep copies: the pure mutators edit nested structures in place (the XP
+    # task ledger, notif_state.sent), which a shallow copy would alias — and
+    # then `before == after` would hide the change from the diff.
+    before = copy.deepcopy(fresh.profile) if isinstance(fresh.profile, dict) else {}
+    after = copy.deepcopy(before)
+    mutate(after)
+    patch = {k: v for k, v in after.items() if k not in before or before[k] != v}
+    removed = [k for k in before if k not in after]
+    if not patch and not removed:
+        return after
+
+    if _dialect_name(db) == "postgresql":
+        row = (await db.execute(_PROFILE_MERGE_SQL, {
+            "uid": str(fresh.id),
+            "removed": list(removed),
+            "patch": json.dumps(patch),
+        })).scalar_one_or_none()
+        merged = dict(row) if isinstance(row, dict) else after
+        _set_committed_profile(fresh, merged)
+        if user is not fresh:
+            _set_committed_profile(user, merged)
+        return merged
+
+    # Non-Postgres (sqlite tests): the lock above is a no-op, so the ORM
+    # whole-column write of the refreshed profile is the best we can do.
+    fresh.profile = after
+    flag_modified(fresh, "profile")
+    fresh.updated_at = datetime.utcnow()
+    if user is not fresh:
+        _set_committed_profile(user, after)
+    return after
 
 
 def _user_tz(onboarding: dict | None) -> ZoneInfo:
@@ -309,8 +475,43 @@ async def sync_master_schedule_streak(
 
     onboarding = dict(user.onboarding or {})
     today = local_today_date(onboarding)
-    profile = dict(user.profile or {})
 
+    # Dry pass on the session's snapshot: the common case (already reconciled
+    # today, nothing to credit) stays lock-free and write-free — this runs on
+    # the hottest endpoint, on every Home open.
+    profile = copy.deepcopy(user.profile or {})
+    changed, start = _apply_streak_rules(profile, schedules, today, user, onboarding)
+
+    if changed:
+        # Real pass: the same pure rules re-run on the FRESH row under the
+        # app_users lock, and only the streak/XP/journey keys they changed are
+        # merged in. Without this, a notification tick that loaded the profile
+        # seconds ago committed over the credit we wrote here (streak "lost").
+        # Single-table transaction: nothing else is pending in this session.
+        profile = await write_profile_keys(
+            db, user,
+            lambda p: _apply_streak_rules(p, schedules, today, user, onboarding),
+        )
+        await db.commit()
+        start = _journey_start(user, profile, onboarding, today)
+
+    payload = streak_payload_from_profile(profile, today)
+    payload["journey_start_date"] = start.isoformat()
+    payload["day_number"] = max(1, (today - start).days + 1)
+    return payload
+
+
+def _apply_streak_rules(
+    profile: dict[str, Any],
+    schedules: list[dict],
+    today: date,
+    user: User,
+    onboarding: dict | None,
+) -> tuple[bool, date]:
+    """Pure streak transition on `profile` IN PLACE (never commits): reconcile
+    missed days -> credit today -> un-credit -> streak XP -> journey anchor.
+    Returns (changed, journey_start). Runs twice per credit: once dry on the
+    session's snapshot, once for real on the locked fresh row."""
     # Pass schedules so a rest/no-task gap day doesn't burn a freeze or reset.
     prev_streak = int(profile.get(STREAK_KEY) or 0)
     changed = _reconcile_missed(profile, today, schedules)
@@ -335,14 +536,4 @@ async def sync_master_schedule_streak(
     if profile.get(JOURNEY_START_KEY) != start.isoformat():
         profile[JOURNEY_START_KEY] = start.isoformat()
         changed = True
-
-    if changed:
-        user.profile = profile
-        flag_modified(user, "profile")
-        user.updated_at = datetime.utcnow()
-        await db.commit()
-
-    payload = streak_payload_from_profile(profile, today)
-    payload["journey_start_date"] = start.isoformat()
-    payload["day_number"] = max(1, (today - start).days + 1)
-    return payload
+    return changed, start
