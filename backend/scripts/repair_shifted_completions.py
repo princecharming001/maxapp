@@ -6,7 +6,7 @@ state POSITIONALLY after re-anchoring day 0 to today, so every regen on day
 D0+k slid the user's completions k days into the future. The live DB ended up
 with tasks "completed" on dates that had not happened yet (and the real
 history dropped). This script FINDS those rows so a human can decide on the
-repair. It never writes: read-only connection, no UPDATE, no --apply flag.
+repair. Read-only by default; --apply (with REPAIR_APPLY_CONFIRM=yes) writes the reviewed repair.
 
 The intended repair (deliberately NOT implemented here): for every listed task
 set status="pending" and drop completed_at / skipped_at, keeping task_id, then
@@ -205,16 +205,61 @@ def _print_report(findings: list[dict], summary: dict) -> None:
           "task listed above; task_id unchanged. Review before any write is authored.")
 
 
+async def _apply(findings: list[dict]) -> int:
+    """Write the repair for the listed tasks: status → 'pending', stamps
+    dropped, task_id untouched. One transaction per schedule, re-reading the
+    row so a task the user resolved since the scan is left alone. Requires
+    REPAIR_APPLY_CONFIRM=yes in the environment — the owner's explicit,
+    per-run go-ahead for a production write."""
+    import os
+    if os.environ.get("REPAIR_APPLY_CONFIRM") != "yes":
+        raise SystemExit("refusing to write: set REPAIR_APPLY_CONFIRM=yes to apply (owner approval required)")
+    fixed = 0
+    for f in findings:
+        targets = {(t["date"], t["task_id"]) for t in f["tasks"] if t.get("verdict") == "shifted" and t.get("task_id")}
+        if not targets:
+            continue
+        async with engine.begin() as conn:
+            row = (await conn.execute(
+                text("SELECT days FROM user_schedules WHERE id = :id FOR UPDATE"), {"id": f["schedule_id"]}
+            )).mappings().first()
+            if not row:
+                continue
+            days = row["days"] if isinstance(row["days"], list) else json.loads(row["days"] or "[]")
+            changed = 0
+            for d in days:
+                for t in d.get("tasks") or []:
+                    if (str(d.get("date")), str(t.get("task_id"))) in targets and \
+                            str(t.get("status") or "").lower() in ("completed", "skipped") and \
+                            not t.get("completed_at") and not t.get("skipped_at"):
+                        t["status"] = "pending"
+                        changed += 1
+            if changed:
+                await conn.execute(
+                    text("UPDATE user_schedules SET days = CAST(:days AS json), updated_at = now() WHERE id = :id"),
+                    {"days": json.dumps(days), "id": f["schedule_id"]},
+                )
+                fixed += changed
+                print(f"  repaired {changed} task(s) on schedule {f['schedule_id']}")
+    await engine.dispose()
+    return fixed
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--json", action="store_true", help="emit machine-readable JSON instead of the text report")
     ap.add_argument("--include-inactive", action="store_true", help="also scan is_active=false rows")
+    ap.add_argument("--apply", action="store_true",
+                    help="WRITE the repair for provably-shifted tasks (needs REPAIR_APPLY_CONFIRM=yes; owner approval)")
     args = ap.parse_args()
     findings, summary = asyncio.run(_run(include_inactive=args.include_inactive))
     if args.json:
         print(json.dumps({"summary": summary, "findings": findings}, indent=2, default=str))
     else:
         _print_report(findings, summary)
+    if args.apply:
+        n = asyncio.run(_apply(findings))
+        print(f"APPLIED: {n} task(s) reset to pending")
 
 
 if __name__ == "__main__":

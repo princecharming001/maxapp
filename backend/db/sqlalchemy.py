@@ -436,13 +436,18 @@ async def _run_chat_history_column_migrations():
         async with engine.begin() as conn:
             await conn.execute(text("SET lock_timeout = '30s'"))
             await conn.execute(text("""
-                INSERT INTO chat_conversations (id, user_id, title, last_message_at)
-                -- id has a Python-side default only (uuid4 in the ORM); a raw
-                -- INSERT without it violated NOT NULL on every boot, so this
-                -- backfill has silently never run since the multi-chat migration.
-                SELECT gen_random_uuid(), ch.user_id, 'Chat history', MAX(ch.created_at)
+                INSERT INTO chat_conversations
+                    (id, user_id, title, channel, is_archived, last_message_at, created_at, updated_at)
+                -- id/channel/is_archived/created_at/updated_at have ORM-side
+                -- defaults only; a raw INSERT without them violated NOT NULL on
+                -- every boot, so this backfill silently never ran since the
+                -- multi-chat migration. App rows only: SMS assistant rows are
+                -- never threaded.
+                SELECT gen_random_uuid(), ch.user_id, 'Chat history', 'app', false,
+                       MAX(ch.created_at), now(), now()
                 FROM chat_history ch
                 WHERE ch.conversation_id IS NULL
+                  AND (ch.channel = 'app' OR ch.channel IS NULL)
                   AND NOT EXISTS (
                       SELECT 1 FROM chat_conversations cc
                       WHERE cc.user_id = ch.user_id
@@ -454,8 +459,10 @@ async def _run_chat_history_column_migrations():
                 SET conversation_id = cc.id
                 FROM chat_conversations cc
                 WHERE ch.conversation_id IS NULL
+                  AND (ch.channel = 'app' OR ch.channel IS NULL)
                   AND cc.user_id = ch.user_id
                   AND cc.title = 'Chat history'
+                  AND ch.created_at <= cc.created_at
             """))
         print("[OK] chat_history conversation_id backfill complete")
     except Exception as e:

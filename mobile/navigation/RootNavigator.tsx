@@ -70,6 +70,7 @@ import ChannelsManagerScreen from '../screens/creator/ChannelsManagerScreen';
 import ChannelChatScreen from '../screens/forums/ChannelChatScreen';
 import WeeklyReviewScreen from '../screens/review/WeeklyReviewScreen';
 import DaySetupScreen from '../screens/you/DaySetupScreen';
+import { isLapsedUser } from '../lib/lapsed';
 import { useFlag } from '../constants/featureFlags';
 
 const Stack = createNativeStackNavigator();
@@ -132,11 +133,7 @@ export function RootNavigator() {
     // straight to the paywall in its "welcome back" state instead, which
     // carries Restore, a referral code and a sign-in link. Never-paid legacy
     // accounts keep the scan-teaser path.
-    const lapsedStatus = String(user?.subscription_status ?? '').toLowerCase();
-    const isLapsed =
-        onboardingCompleted && !treatAsFull && isAuthenticated
-        && (['expired', 'canceled', 'cancelled', 'past_due', 'refunded', 'revoked'].includes(lapsedStatus)
-            || !!user?.subscription_end_date);
+    const isLapsed = isAuthenticated && !treatAsFull && isLapsedUser(user);
 
     const initialRoute = !isAuthenticated
         // New users land on the Landing 'Get started' funnel (which mints the

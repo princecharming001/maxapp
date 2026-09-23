@@ -141,6 +141,13 @@ export function parseWidgetToggleQueue(raw: string | null | undefined): WidgetTo
 // Skip redundant writes so we don't thrash WidgetKit reloads on every render.
 let lastSerialized = '';
 
+/** The widget rewrote its own store (a checkbox tap) — the app's content
+ *  dedupe no longer reflects what is on disk, so the next snapshot must land
+ *  even if the app's rows are unchanged (e.g. the drained toggle failed). */
+export function forceNextWidgetWrite(): void {
+    lastSerialized = '';
+}
+
 export function syncTodayWidget(snapshot: WidgetSnapshot): void {
     if (!storage) return;
     try {

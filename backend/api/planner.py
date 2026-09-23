@@ -154,10 +154,15 @@ async def planner_today(
                 # instead of leaving the user to run out of plan for the
                 # rest of the day (H12).
                 if not (horizon or {}).get("still_short"):
-                    profile["horizon_checked"] = marker
-                    user.profile = profile
-                    from sqlalchemy.orm.attributes import flag_modified as _fm
-                    _fm(user, "profile")
+                    # Key-targeted, row-locked: `profile` was snapshotted BEFORE
+                    # a potentially multi-second regen; writing it whole here
+                    # clobbered streak / XP credits that landed in between.
+                    from services.schedule_streak import write_profile_keys
+
+                    def _stamp(p: dict) -> None:
+                        p["horizon_checked"] = marker
+
+                    await write_profile_keys(db, user, _stamp)
                     await db.commit()
         except Exception:
             pass  # the keeper is best-effort by contract

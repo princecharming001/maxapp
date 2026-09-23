@@ -100,9 +100,15 @@ async def record_notification_opened(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     now = datetime.utcnow()
-    state = ns.record_opened(ns.get_state(user.profile), now)
-    user.profile = ns.put_state(dict(user.profile or {}), state)
-    flag_modified(user, "profile")
+    from services.schedule_streak import write_profile_keys
+
+    def _opened(profile: dict) -> None:
+        st = ns.record_opened(ns.get_state(profile), now)
+        profile.update(ns.put_state({}, st))
+
+    # notif_state only, under the row lock — this fires on every tap and
+    # used to write the whole profile from a stale snapshot.
+    await write_profile_keys(db, user, _opened)
     await db.commit()
     return {"ok": True}
 
@@ -117,9 +123,16 @@ async def record_app_activity(
     user = await db.get(User, UUID(current_user["id"]))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    state = ns.mark_app_active(ns.get_state(user.profile), datetime.utcnow())
-    user.profile = ns.put_state(dict(user.profile or {}), state)
-    flag_modified(user, "profile")
+    from services.schedule_streak import write_profile_keys
+    _now = datetime.utcnow()
+
+    def _active(profile: dict) -> None:
+        st = ns.mark_app_active(ns.get_state(profile), _now)
+        profile.update(ns.put_state({}, st))
+
+    # Every foreground hits this; a whole-profile write from the request's
+    # snapshot raced the streak/XP writers (H11).
+    await write_profile_keys(db, user, _active)
     await db.commit()
     return {"ok": True}
 

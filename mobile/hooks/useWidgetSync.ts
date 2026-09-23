@@ -25,7 +25,7 @@ import api from '../services/api';
 import { queryKeys } from '../lib/queryClient';
 import { useActiveSchedulesFullQuery, useMaxxesQuery } from './useAppQueries';
 import { buildMaxxMaps, mergeSchedules } from '../utils/scheduleAggregation';
-import { buildWidgetSnapshot, drainWidgetToggleQueue, syncTodayWidget } from '../lib/widgetSync';
+import { buildWidgetSnapshot, drainWidgetToggleQueue, syncTodayWidget, forceNextWidgetWrite } from '../lib/widgetSync';
 
 /** Device-local YYYY-MM-DD (NOT toISOString, which is UTC and rolls over at ~5pm PT). */
 function localISODate(d: Date = new Date()): string {
@@ -101,6 +101,9 @@ export function useWidgetSync(): void {
                 draining.current = false;
                 // Always re-sync: even an all-skipped/failed batch means the
                 // widget's optimistic snapshot may disagree with the server.
+                // The widget rewrote its own store, so the app's content
+                // dedupe must not skip the next write.
+                forceNextWidgetWrite();
                 void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
             }
         };

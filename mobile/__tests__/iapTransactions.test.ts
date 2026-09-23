@@ -62,6 +62,7 @@ function setup(opts?: { verify?: Fake['verify']; available?: PurchaseLike[]; now
         isIos: true,
         now: opts?.now ?? (() => t),
         managedSkus: [SKU, 'com.cannon.mobile.subscribe.basic.weekly'],
+        emissionWindowMs: 0,
         iap: {
             initConnection: async () => { fake.log.push('initConnection'); return true; },
             getAvailablePurchases: async () => { fake.log.push('getAvailablePurchases'); return fake.available; },
@@ -309,6 +310,61 @@ export const tests: Record<string, () => void | Promise<void>> = {
         assert.deepStrictEqual(f.verifyCalls, []);
         assert.deepStrictEqual(f.finished, []);
         assert.strictEqual(o.granted, false);
+    },
+
+    'a burst of replayed renewals verifies the NEWEST first and finishes the older ones without a server call': async () => {
+        const f = setup();
+        await connect();
+        // Three unfinished weekly renewals delivered at connect time (oldest first, as StoreKit does).
+        f.emit({ id: 'r1', productId: SKU, transactionDate: 1_000 });
+        f.emit({ id: 'r2', productId: SKU, transactionDate: 2_000 });
+        f.emit({ id: 'r3', productId: SKU, transactionDate: 3_000 });
+        await settle(12);
+        assert.deepStrictEqual(f.verifyCalls, [`r3:${SKU}`], 'only the newest renewal hits the server');
+        assert.deepStrictEqual([...f.finished].sort(), ['r1', 'r2', 'r3'], 'all three are finished');
+    },
+
+    'a server REJECTION of an owned transaction is reported as rejected, never as "nothing was charged"': async () => {
+        const f = setup({
+            available: [{ id: 'live', productId: SKU }],
+            verify: async () => { throw httpError(400, "That purchase isn't recognized. If you were charged, contact support and we'll sort it out."); },
+        });
+        const o = await reconcileOwnedSubscriptions({ force: true });
+        assert.strictEqual(o.rejected, true);
+        assert.strictEqual(o.expiredOnly, false);
+        assert.ok(/recognized/.test(o.detail || ''));
+        // and the already-owned path surfaces it instead of the no-entitlement copy
+        f.onRequest = () => { setTimeout(() => f.emitError({ code: 'already-owned', message: 'owned', productId: SKU }), 0); };
+        const r = await purchase(SKU, 'user-a');
+        assert.ok(r.kind === 'not_purchased' && r.code === 'rejected');
+        assert.ok(r.kind === 'not_purchased' && !/Nothing was charged/.test(r.message));
+    },
+
+    'connect(): a false initConnection (purchases restricted) is NOT cached for the process': async () => {
+        const f = setup();
+        let calls = 0;
+        (f as unknown as { _init: () => Promise<boolean> })._init = async () => { calls += 1; return calls === 1 ? false : true; };
+        __setIapDepsForTests(null);
+        const g = setup();
+        // rebuild deps with a first-false initConnection
+        let n = 0;
+        __setIapDepsForTests({
+            isIos: true, managedSkus: [SKU], emissionWindowMs: 0,
+            iap: {
+                initConnection: async () => { n += 1; return n === 1 ? false : true; },
+                getAvailablePurchases: async () => [],
+                finishTransaction: async () => undefined,
+                purchaseUpdatedListener: () => ({ remove: () => undefined }),
+                purchaseErrorListener: () => ({ remove: () => undefined }),
+                requestPurchase: async () => undefined,
+            },
+            api: { verifyAppleIapTransaction: async () => ({ status: 'ok' }) },
+        });
+        setIapUser('user-a');
+        assert.strictEqual(await connect(), false);
+        assert.strictEqual(await connect(), true, 'second call re-asks StoreKit');
+        assert.strictEqual(n, 2);
+        void g;
     },
 
     'purchaseCopy never leaks a code: unknown codes get the generic line': () => {

@@ -46,6 +46,7 @@ import { useStripeSubscription } from '../../hooks/useStripeSubscription';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { signOutToLogin } from '../../lib/signOutToLogin';
 import { setOnboardingFunnelStage } from '../../lib/onboardingDraft';
+import { isLapsedUser } from '../../lib/lapsed';
 import { APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
 import { useFlag } from '../../constants/featureFlags';
 
@@ -96,11 +97,7 @@ export default function PaymentScreen() {
     // Say so, and hide the trial box: Apple's introductory offer is once per
     // Apple ID, so "3-day trial · Free" would be untrue for them (the App
     // Store sheet shows the real price at confirm time either way).
-    const lapsedStatus = String(user?.subscription_status ?? '').toLowerCase();
-    const isLapsed =
-        onboardingCompleted && !isPaid && !isAnonymous
-        && (['expired', 'canceled', 'cancelled', 'past_due', 'refunded', 'revoked'].includes(lapsedStatus)
-            || !!user?.subscription_end_date);
+    const isLapsed = isLapsedUser(user);
 
     useEffect(() => {
         track('paywall_view', { lapsed: isLapsed });

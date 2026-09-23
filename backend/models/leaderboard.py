@@ -73,6 +73,14 @@ class ChatRequest(BaseModel):
     # "user is replying to this earlier turn:" so the response treats the
     # quoted turn as the focal subject. Persisted on the new chat_history
     # row so the transcript renders the quoted strip on reload.
+    # Client-generated uuid per turn. The mobile app persists an in-flight
+    # message before sending and replays it after a kill; the server returns
+    # the first response for a repeated (user, turn) instead of re-running it.
+    client_turn_id: Optional[str] = Field(
+        default=None,
+        max_length=64,
+        description="Client uuid for this turn; a replay with the same id is served from cache.",
+    )
     reply_to_message_id: Optional[str] = Field(
         default=None,
         description="chat_history.id the user is replying to (iMessage-style swipe-reply).",

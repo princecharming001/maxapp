@@ -84,6 +84,10 @@ export type ReconcileOutcome = {
     expiredOnly: boolean;
     /** At least one verify could not reach the server. */
     transient: boolean;
+    /** The server refused an ACTIVE transaction for a reason other than
+     *  ownership (unknown product, Stripe conflict…): the user may well have
+     *  been charged — never tell them "nothing was charged". */
+    rejected: boolean;
     /** How many transactions StoreKit reported. */
     checked: number;
     tier?: string;
@@ -111,6 +115,8 @@ type Deps = {
     /** The base-subscription SKUs this service owns. Anything else (creator
      *  subscriptions) has its own hook and its own verify endpoint. */
     managedSkus: string[];
+    /** Emission coalescing window (ms). Tests pass 0. */
+    emissionWindowMs: number;
 };
 
 // ── Deps (lazy; injectable for tests) ───────────────────────────────────────
@@ -125,6 +131,7 @@ function loadDeps(): Deps {
             isIos: depsOverride.isIos ?? true,
             now: depsOverride.now ?? (() => Date.now()),
             managedSkus: depsOverride.managedSkus ?? [],
+            emissionWindowMs: depsOverride.emissionWindowMs ?? 0,
         };
     }
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -135,7 +142,7 @@ function loadDeps(): Deps {
     const api = require('../services/api').default;
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const skus = require('../constants/appleIap').APPLE_IAP_PRODUCT_IDS as readonly string[];
-    return { iap, api, isIos: rn.Platform.OS === 'ios', now: () => Date.now(), managedSkus: [...skus] };
+    return { iap, api, isIos: rn.Platform.OS === 'ios', now: () => Date.now(), managedSkus: [...skus], emissionWindowMs: EMISSION_WINDOW_MS };
 }
 
 /** Is this a base Max subscription (vs. a creator product owned elsewhere)?
@@ -167,6 +174,10 @@ export function __resetIapStateForTests(): void {
     retryTimers.clear();
     lastReconcileAt = 0;
     reconcileInFlight = null;
+    otherAccountPrompted.clear();
+    emissionQueue.length = 0;
+    if (emissionTimer) { clearTimeout(emissionTimer); emissionTimer = null; }
+    newestGranted.clear();
 }
 
 // ── Module state ────────────────────────────────────────────────────────────
@@ -194,6 +205,18 @@ const grantedSubs = new Set<GrantedListener>();
 
 let lastReconcileAt = 0;
 let reconcileInFlight: Promise<ReconcileOutcome> | null = null;
+/** Accounts already shown the "plan lives on another account" prompt this
+ *  session — the launch sweep and the paywall's mount reconcile share one
+ *  result and must not stack two identical alerts. */
+const otherAccountPrompted = new Set<string>();
+
+/** True the FIRST time per account per session; false afterwards. */
+export function claimOtherAccountPrompt(): boolean {
+    const uid = currentUserId ?? 'anon';
+    if (otherAccountPrompted.has(uid)) return false;
+    otherAccountPrompted.add(uid);
+    return true;
+}
 
 // Backstop only: StoreKit reports cancel/failure through the error listener
 // within seconds; this exists so a callback that never arrives can't leave the
@@ -308,7 +331,13 @@ export function connect(): Promise<boolean> {
     ensureListeners();
     if (!connectPromise) {
         connectPromise = iap.initConnection()
-            .then((ok) => ok !== false)
+            .then((ok) => {
+                // `false` = AppStore.canMakePayments is off (Screen Time / MDM).
+                // Never cache it: the user can lift the restriction and come
+                // back, and the next Subscribe/Restore must re-ask StoreKit.
+                if (ok === false) connectPromise = null;
+                return ok !== false;
+            })
             .catch((e) => {
                 console.warn('[IAP] initConnection failed:', e);
                 connectPromise = null; // allow a later retry
@@ -389,16 +418,65 @@ function scheduleRetry(purchase: PurchaseLike, attempt: number): void {
 
 // ── Listeners ───────────────────────────────────────────────────────────────
 
-async function onPurchaseUpdated(purchase: PurchaseLike): Promise<void> {
+// ── Emission coalescing ─────────────────────────────────────────────────────
+// StoreKit replays every unfinished transaction at connect time. Before this
+// service existed nobody listened for paid users, so a long-tenured weekly
+// subscriber can have dozens queued: verifying each one is dozens of Apple
+// round-trips server-side and can exhaust the per-user verify budget right
+// when a real purchase needs it. Buffer emissions briefly, verify NEWEST
+// first per product, and finish the older ones locally once a newer one
+// was granted (they cannot add entitlement).
+const EMISSION_WINDOW_MS = 300;
+const emissionQueue: { purchase: PurchaseLike; armedMatch: boolean }[] = [];
+let emissionTimer: ReturnType<typeof setTimeout> | null = null;
+let emissionFlushing: Promise<void> | null = null;
+/** Newest granted transactionDate per product this session. */
+const newestGranted = new Map<string, number>();
+
+const txDate = (p: PurchaseLike): number => {
+    const raw = (p as { transactionDate?: number | string }).transactionDate;
+    const n = typeof raw === 'string' ? Date.parse(raw) : Number(raw);
+    return Number.isFinite(n) ? n : 0;
+};
+
+function onPurchaseUpdated(purchase: PurchaseLike): Promise<void> {
     const sku = purchase.productId || undefined;
-    if (!isManagedSku(sku)) return; // creator products: their own hook owns them
+    if (!isManagedSku(sku)) return Promise.resolve(); // creator products: their own hook owns them
     // Snapshot the armed request NOW: a replayed transaction for another
     // product must never settle the purchase the paywall is waiting on.
     const armedMatch = !!armed && (!sku || armed.sku === sku);
-    const r = await verifyTransaction(purchase, { armedMatch });
-    if (r.kind === 'unreachable') scheduleRetry(purchase, 0);
-    if (!armedMatch || !armed) return;
-    settleArmed(purchaseResultFromVerify(r));
+    emissionQueue.push({ purchase, armedMatch });
+    if (!emissionTimer) {
+        emissionTimer = setTimeout(() => {
+            emissionTimer = null;
+            emissionFlushing = (emissionFlushing ?? Promise.resolve()).then(flushEmissions);
+        }, loadDeps().emissionWindowMs);
+    }
+    return Promise.resolve();
+}
+
+async function flushEmissions(): Promise<void> {
+    const batch = emissionQueue.splice(0, emissionQueue.length);
+    // Newest first, so a granted renewal short-circuits its predecessors.
+    batch.sort((a, b) => txDate(b.purchase) - txDate(a.purchase));
+    for (const { purchase, armedMatch } of batch) {
+        const sku = purchase.productId || '';
+        const { iap } = loadDeps();
+        const newer = newestGranted.get(sku);
+        if (!armedMatch && newer !== undefined && txDate(purchase) > 0 && txDate(purchase) < newer && !results.has(memoKey(tidOf(purchase)))) {
+            // An older period of a subscription we already know is active:
+            // nothing to learn from the server — just stop StoreKit replaying it.
+            console.log('[IAP] finishing superseded transaction without verify:', tidOf(purchase), sku);
+            await finishQuietly(iap, purchase);
+            continue;
+        }
+        const r = await verifyTransaction(purchase, { armedMatch });
+        if (r.kind === 'granted' && sku) {
+            newestGranted.set(sku, Math.max(newestGranted.get(sku) ?? 0, txDate(purchase)));
+        }
+        if (r.kind === 'unreachable') scheduleRetry(purchase, 0);
+        if (armedMatch && armed) settleArmed(purchaseResultFromVerify(r));
+    }
 }
 
 function purchaseResultFromVerify(r: VerifyResult): PurchaseResult {
@@ -452,6 +530,7 @@ function onPurchaseError(error: PurchaseErrorLike): void {
             if (o.granted) { settleArmed({ kind: 'purchased', tier: o.tier }); return; }
             if (o.otherAccount) { settleArmed({ kind: 'other_account', detail: o.detail }); return; }
             if (o.transient) { settleArmed({ kind: 'not_purchased', code: 'unreachable', message: purchaseCopy.unreachableAfterPurchase }); return; }
+            if (o.rejected) { settleArmed({ kind: 'not_purchased', code: 'rejected', message: o.detail || purchaseCopy.rejected }); return; }
             // Nothing active on the Apple ID after all (expired, or the event
             // was a sandbox artefact): the user has NOT bought anything.
             settleArmed({ kind: 'not_purchased', code: 'no-active-entitlement', message: purchaseCopy.noActiveEntitlement });
@@ -536,7 +615,7 @@ export async function purchase(sku: string, appAccountToken: string): Promise<Pu
  */
 export function reconcileOwnedSubscriptions(opts?: { force?: boolean }): Promise<ReconcileOutcome> {
     const { isIos, now } = loadDeps();
-    const none: ReconcileOutcome = { granted: false, otherAccount: false, expiredOnly: false, transient: false, checked: 0 };
+    const none: ReconcileOutcome = { granted: false, otherAccount: false, expiredOnly: false, transient: false, rejected: false, checked: 0 };
     if (!isIos) return Promise.resolve(none);
     if (reconcileInFlight) return reconcileInFlight;
     const t = now();
@@ -553,7 +632,7 @@ export function reconcileOwnedSubscriptions(opts?: { force?: boolean }): Promise
 
 async function sweep(): Promise<ReconcileOutcome> {
     const { iap } = loadDeps();
-    const out: ReconcileOutcome = { granted: false, otherAccount: false, expiredOnly: false, transient: false, checked: 0 };
+    const out: ReconcileOutcome = { granted: false, otherAccount: false, expiredOnly: false, transient: false, rejected: false, checked: 0 };
     const ok = await connect();
     if (!ok) return { ...out, transient: true };
     const purchases = (await iap.getAvailablePurchases({ onlyIncludeActiveItemsIOS: true, alsoPublishToEventListenerIOS: false })) ?? [];
@@ -570,10 +649,11 @@ async function sweep(): Promise<ReconcileOutcome> {
         else if (r.kind === 'other_account') { sawOther = true; out.detail = r.detail; }
         else if (r.kind === 'expired') { sawExpired = true; }
         else if (r.kind === 'unreachable') { out.transient = true; }
+        else if (r.kind === 'rejected') { out.rejected = true; out.detail = out.detail || r.detail; }
     }
     if (!out.granted) {
         out.otherAccount = sawOther;
-        out.expiredOnly = !sawOther && sawExpired && !out.transient;
+        out.expiredOnly = !sawOther && sawExpired && !out.transient && !out.rejected;
     }
     return out;
 }

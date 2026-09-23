@@ -738,7 +738,14 @@ async def _absorb_anon_into(existing: "User", anon: "User | None", db: AsyncSess
         merged["completed"] = bool(ex_ob.get("completed"))
         existing.onboarding = merged
 
-    if anon.is_paid and not existing.is_paid:
+    # Date-aware on BOTH sides: a lapsed existing account still carries
+    # is_paid=True until the hourly sweep flips it, and a comp on the anon can
+    # itself be past its end date.
+    from middleware.auth_middleware import _subscription_expired
+
+    anon_entitled = bool(anon.is_paid) and not _subscription_expired(anon.subscription_end_date)
+    existing_entitled = bool(existing.is_paid) and not _subscription_expired(existing.subscription_end_date)
+    if anon_entitled and not existing_entitled:
         existing.is_paid = True
         existing.subscription_id = anon.subscription_id
         existing.subscription_tier = anon.subscription_tier or "premium"

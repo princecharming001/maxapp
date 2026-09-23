@@ -201,6 +201,18 @@ export default function ScheduleScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFromCache, fullQuery.isPending]);
 
+  // Keep the selected pill in view: with history retained the strip can hold
+  // months of days and today drifted off-screen to the right.
+  const dayStripRef = useRef<ScrollView>(null);
+  const pillXRef = useRef<Record<number, number>>({});
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const x = pillXRef.current[selectedDayIndex];
+      if (typeof x === 'number') dayStripRef.current?.scrollTo({ x: Math.max(0, x - 140), animated: false });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [selectedDayIndex]);
+
   // Open on today's day once the schedule (and the backend's today) are known.
   const selectedInitRef = useRef(false);
   useEffect(() => {
@@ -442,7 +454,7 @@ export default function ScheduleScreen() {
 
       {/* Day selector — compact strip aligned with Master Schedule */}
       <View style={styles.dayStripWrap}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.daySelectorContainer}>
+        <ScrollView ref={dayStripRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.daySelectorContainer}>
         {schedule.days.map((day, idx) => {
           const isSelected = idx === selectedDayIndex;
           const date = new Date(day.date + 'T00:00:00');
@@ -454,6 +466,7 @@ export default function ScheduleScreen() {
               key={day.day_number}
               style={styles.dayPill}
               onPress={() => setSelectedDayIndex(idx)}
+              onLayout={(e) => { pillXRef.current[idx] = e.nativeEvent.layout.x; }}
               activeOpacity={0.7}
             >
               <Text style={styles.dayPillLabel}>{dayName}</Text>

@@ -17,6 +17,7 @@ import { queryKeys } from '../lib/queryClient';
 import { markPostPayPending } from '../lib/postPayNav';
 import { signOutToLogin } from '../lib/signOutToLogin';
 import {
+    claimOtherAccountPrompt,
     connect as iapConnect,
     purchase as iapPurchase,
     purchaseCopy,
@@ -114,12 +115,25 @@ export function useAppleSubscription() {
         // Mark BEFORE refreshUser: refreshUser flips isPaid, which remounts the
         // navigator and runs App.tsx's post-pay effect — the flag must already
         // be set when that effect reads it. Only for a purchase the user just
-        // made; a restore of an old subscription is not a celebration.
-        if (userInitiated) markPostPayPending();
-        await refreshUser();
+        // made INSIDE the funnel (onboarding not finished): that reveal is the
+        // payoff for paying. A lapsed subscriber restarting their plan, or an
+        // onboarded user paying at an in-app gate, goes straight back to the
+        // app — not to a "reveal" of a months-old scan.
+        if (userInitiated && user?.onboarding?.completed !== true) markPostPayPending();
+        // The entitlement is server-confirmed at this point. A refresh blip
+        // must not turn into "purchase failed" for someone Apple just charged:
+        // retry once, then let the paywall's isPaid exit / the launch sweep
+        // converge on the next tick.
+        try {
+            await refreshUser();
+        } catch (e) {
+            console.warn('[AppleIAP] refreshUser after entitlement failed, retrying:', e);
+            await new Promise((r) => setTimeout(r, 1500));
+            try { await refreshUser(); } catch (e2) { console.warn('[AppleIAP] refreshUser retry failed:', e2); }
+        }
         void queryClient.invalidateQueries({ queryKey: queryKeys.maxes });
         prefetchMainTabData(queryClient);
-    }, [refreshUser, queryClient]);
+    }, [refreshUser, queryClient, user?.onboarding?.completed]);
 
     /** "Your Apple ID's subscription belongs to another Max account" — with
      *  the way out, not just the news. Sign in drops this session (the
@@ -259,6 +273,8 @@ export function useAppleSubscription() {
             try { await refreshUser(); } catch { /* non-fatal */ }
             if (o.otherAccount) {
                 showOtherAccount(o.detail);
+            } else if (o.rejected) {
+                Alert.alert('Subscription found', o.detail || purchaseCopy.rejected);
             } else if (o.transient) {
                 Alert.alert('Try again in a moment', "Max couldn't be reached to check your subscription. Your purchase is safe — please try again shortly.");
             } else if (o.checked === 0) {
@@ -292,7 +308,10 @@ export function useAppleSubscription() {
             await onEntitled(false);
             return true;
         }
-        if (o.otherAccount) showOtherAccount(o.detail);
+        // Once per account per session, shared with App.tsx's launch sweep —
+        // both consume the same in-flight reconcile and would otherwise stack
+        // two identical alerts.
+        if (o.otherAccount && claimOtherAccountPrompt()) showOtherAccount(o.detail);
         return false;
     }, [user?.id, onEntitled, showOtherAccount]);
 

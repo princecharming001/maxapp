@@ -228,10 +228,26 @@ export default function CreateAccountScreen() {
     // that keep it — create the login here, or Continue with Google/Apple,
     // which claims/merges INTO the existing account server-side.
     const onSignInInstead = async () => {
-        if (isPaid) {
+        if (isPaid && user?.billing_provider === 'referral_comp') {
+            // A referral comp has no App Store transaction to re-attach: it
+            // lives and dies with this account.
             Alert.alert(
                 'Keep your subscription',
-                'Your new plan is on this account. Create your login here to keep it, or use Continue with Google or Apple and we\'ll move it to that account.',
+                'Your plan is on this account. Create your login here to keep it, or use Continue with Google or Apple and we\'ll move it to that account.',
+            );
+            return;
+        }
+        if (isPaid) {
+            // An App Store subscription belongs to the Apple ID: the launch
+            // sweep adopts it onto whichever Max account signs in next (the
+            // server releases an unclaimed anon holder). Say so, then go.
+            Alert.alert(
+                'Sign in to an existing account?',
+                'Your new subscription follows your Apple ID — it will attach to the account you sign in to.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Sign in', onPress: () => { void signOutToLogin(logout); } },
+                ],
             );
             return;
         }

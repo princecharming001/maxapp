@@ -27,6 +27,7 @@ import { colors } from './theme/dark';
 import MaxLoadingView from './components/MaxLoadingView';
 import { StripeProviderGate } from './components/StripeProviderGate';
 import {
+    claimOtherAccountPrompt,
     connect as iapConnect,
     purchaseCopy,
     reconcileOwnedSubscriptions,
@@ -78,7 +79,7 @@ const NOTIFICATION_DEEP_LINK_ROUTES = new Set<string>([
 ]);
 
 function AppNavigator() {
-    const { isAuthenticated, isPaid, refreshUser, user, isScanUser, logout } = useAuth();
+    const { isAuthenticated, isPaid, refreshUser, user, isScanUser, logout, isAnonymous } = useAuth();
     const faceScanEnabled = useFlag('faceScan');
     const navRef = navigationRef;
     const appStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -324,10 +325,8 @@ function AppNavigator() {
     //                    ("if I have a plan, take me home");
     //   other account  → the plan lives on a different Max account: offer to
     //                    sign in ("…or ask me to log in"), once per account.
-    const otherAccountPromptedFor = useRef<string | null>(null);
     useEffect(() => {
         if (Platform.OS !== 'ios' || !isAuthenticated || isPaid || !user?.id) return;
-        const uid = user.id;
         let mounted = true;
         const heal = async () => {
             try {
@@ -337,8 +336,7 @@ function AppNavigator() {
                     await refreshUser();
                     return;
                 }
-                if (o.otherAccount && otherAccountPromptedFor.current !== uid) {
-                    otherAccountPromptedFor.current = uid;
+                if (o.otherAccount && claimOtherAccountPrompt()) {
                     Alert.alert(
                         purchaseCopy.otherAccountTitle,
                         o.detail || purchaseCopy.otherAccount,
@@ -361,6 +359,33 @@ function AppNavigator() {
             sub.remove();
         };
     }, [isAuthenticated, isPaid, user?.id, refreshUser, logout]);
+
+    // A legacy anonymous account that finished onboarding before paying
+    // (pre-V4 funnel) used to be forwarded to CreateAccount at the paywall;
+    // that branch was removed (it let anon users skip the paywall). Once
+    // such a user pays, the paid stack mounts with them still credential-
+    // less — nothing would ever ask them to save their login. Send them to
+    // CreateAccount once the paid stack is up. One-shot per account.
+    const legacyClaimPromptedFor = useRef<string | null>(null);
+    useEffect(() => {
+        if (!isPaid || !isAnonymous || !user?.id || user.onboarding?.completed !== true) return;
+        if (legacyClaimPromptedFor.current === user.id) return;
+        let tries = 0;
+        const go = () => {
+            if (legacyClaimPromptedFor.current === user.id) return;
+            if (navRef.isReady()) {
+                const names: string[] = (navRef.getRootState()?.routeNames as string[] | undefined) ?? [];
+                if (names.includes('Main') && names.includes('CreateAccount')) {
+                    legacyClaimPromptedFor.current = user.id;
+                    navRef.dispatch(CommonActions.navigate({ name: 'CreateAccount' }));
+                    return;
+                }
+            }
+            if (tries++ < 30) setTimeout(go, 200);
+        };
+        // Let the post-pay reveal (if any) dispatch first.
+        setTimeout(go, 400);
+    }, [isPaid, isAnonymous, user?.id, user?.onboarding?.completed, navRef]);
 
     // "Sign in" from inside the authenticated funnel (which has no Login
     // route): the logout has remounted the container onto the guest stack;

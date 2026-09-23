@@ -39,6 +39,8 @@ interface User {
     subscription_tier?: SubscriptionTier;
     subscription_status?: string | null;
     subscription_end_date?: string | null;
+    /** 'apple' | 'stripe' | 'referral_comp' | null — where the current plan came from. */
+    billing_provider?: string | null;
     onboarding: {
         completed: boolean;
         goals: string[];
@@ -514,18 +516,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(userData);
                 return;
             }
-        } catch {
+        } catch (e) {
             // Only a DEAD session may fall through to minting. The refresh
             // interceptor clears the tokens when the server definitively
             // rejects them, so "token still on disk" means this failure was
             // transient (cold backend, offline) — minting over it orphaned
             // real, sometimes paid, accounts. Landing shows a retry instead.
+            // One exception: a 401/403 that reached us with the token still
+            // on disk means the refresh could not even be attempted (no
+            // refresh token — an interrupted setTokens) — that session is
+            // dead too, and keeping it would block "Get started" forever.
+            const status = (e as { response?: { status?: number } })?.response?.status;
+            const rejected = status === 401 || status === 403;
             const stillThere = await getItemAsync('access_token').catch(() => null);
-            if (hadToken && stillThere) {
+            if (hadToken && stillThere && !rejected) {
                 const err = new Error('session_transient') as Error & { code?: string };
                 err.code = 'session_transient';
                 throw err;
             }
+            if (rejected) await api.clearTokens().catch(() => undefined);
         }
         await api.anonSignup();
         // The account + tokens are set now; don't let a transient getMe blip fail

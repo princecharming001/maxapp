@@ -206,6 +206,7 @@ async def get_profile(
         subscription_tier=current_user.get("subscription_tier"),
         subscription_status=current_user.get("subscription_status"),
         subscription_end_date=current_user.get("subscription_end_date"),
+        billing_provider=current_user.get("billing_provider"),
         onboarding=OnboardingData(**ob_raw),
         profile=UserProfile(**current_user.get("profile", {})),
         first_scan_completed=current_user.get("first_scan_completed", False),

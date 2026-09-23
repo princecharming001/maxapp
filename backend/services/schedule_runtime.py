@@ -952,21 +952,35 @@ def _apply_instance_overrides(days: list[dict], overrides: dict) -> list[dict]:
 # Never the skeleton-owned fields (time / title / description).
 _CARRIED_IDENTITY_FIELDS = (
     "task_id",                # client cache, complete/edit endpoints, completion logs
-    "task_uuid",              # notification ledger key (profile sent_keys_today)
     "notification_sent",      # dedupe markers — a regen must not re-send today's reminder
     "notification_sent_push",
     "notification_sent_sms",
 )
+# task_uuid is uuid5(day_index): carrying it onto a re-anchored FUTURE day
+# collides with the uuid the same index gets in the retained history, so a
+# uuid-only push deep link resolved to the oldest history instance. Only
+# today's uuid matters (its reminder ledger is mid-day); later days take the
+# fresh index-based uuid. See _carry_task_state.
+_CARRIED_TODAY_ONLY_FIELDS = ("task_uuid",)
+# Retained history is unbounded by construction (every past day is kept
+# verbatim). Cap it so days / the /active/full payload / the persisted client
+# cache stop growing forever; two months covers every reader (streak
+# reconcile, weekly review, day strip).
+HISTORY_RETENTION_DAYS = 60
 _RESOLVED_STATUSES = ("completed", "skipped")
 
 
-def _carry_task_state(*, old: dict, new: dict) -> dict:
+def _carry_task_state(*, old: dict, new: dict, is_today: bool = False) -> dict:
     """Copy of `new` with the old occurrence's identity/markers, and its status
     + timestamps when the user resolved it (else the task restarts pending)."""
     nt = dict(new)
     for field in _CARRIED_IDENTITY_FIELDS:
         if old.get(field) is not None:
             nt[field] = old[field]
+    if is_today:
+        for field in _CARRIED_TODAY_ONLY_FIELDS:
+            if old.get(field) is not None:
+                nt[field] = old[field]
     ot_status = str(old.get("status") or "pending").lower()
     if ot_status in _RESOLVED_STATUSES:
         nt["status"] = ot_status
@@ -1017,7 +1031,8 @@ def _merge_preserving_status(
     for od in old_live:
         old_by_date.setdefault(str(od.get("date")), od)
 
-    merged: list[dict] = list(history)
+    # History is frozen record — but not an infinite one (H: unbounded growth).
+    merged: list[dict] = list(history[-HISTORY_RETENTION_DAYS:]) if len(history) > HISTORY_RETENTION_DAYS else list(history)
     for nd in new_days:
         od = old_by_date.get(str(nd.get("date"))) or {}
         old_by_cid: dict[str, dict] = {}
@@ -1032,7 +1047,7 @@ def _merge_preserving_status(
             ot = old_by_cid.get(cid) if cid else None
             if ot:
                 matched.add(cid)
-                nt = _carry_task_state(old=ot, new=nt)
+                nt = _carry_task_state(old=ot, new=nt, is_today=(str(nd.get("date")) == today.isoformat()))
             new_tasks.append(nt)
         if _day_date(nd) == today:
             # Done-but-no-longer-scheduled on today: keep the evidence rather
@@ -1060,7 +1075,8 @@ def _merge_positional(*, old_days: list[dict], new_days: list[dict]) -> list[dic
         new_tasks: list[dict] = []
         for nt in (nd.get("tasks") or []):
             ot = old_by_cid.get(nt.get("catalog_id"))
-            new_tasks.append(_carry_task_state(old=ot, new=nt) if ot else nt)
+            # Legacy undated rows: no date to reason about, keep the old behaviour (uuid carried).
+            new_tasks.append(_carry_task_state(old=ot, new=nt, is_today=True) if ot else nt)
         merged.append({**nd, "tasks": new_tasks})
     return merged
 

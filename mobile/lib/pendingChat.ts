@@ -16,8 +16,15 @@ export type PendingChat = {
     msg: string;
     initContext?: string;
     chatIntent?: string;
+    /** Stable per-turn id: a replay re-sends it so the server can dedupe. */
+    clientTurnId?: string;
     at: number;
 };
+
+/** A new client turn id (no uuid dependency; uniqueness per device is all we need). */
+export function newClientTurnId(): string {
+    return `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export async function savePendingChat(entry: PendingChat): Promise<void> {
     try {

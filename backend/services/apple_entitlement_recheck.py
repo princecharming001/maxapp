@@ -39,15 +39,24 @@ def _aware(dt: Optional[datetime]) -> Optional[datetime]:
 
 
 def needs_recheck(user_dict: Dict[str, Any]) -> bool:
-    """Apple-billed, the column still says paid, but the end date has passed."""
+    """Apple-billed, not entitled now, but Apple might still say active:
+    either the column still says paid with a past end date (a renewal event we
+    never received), or the hourly sweep already flipped it to expired /
+    past_due — possibly while Apple was unreachable. Both are worth one
+    throttled question to Apple before the user sees a paywall."""
     if (user_dict.get("billing_provider") or "").lower() != "apple":
         return False
-    if not user_dict.get("is_paid_raw") or user_dict.get("is_paid"):
+    if user_dict.get("is_paid"):
         return False
     if not user_dict.get("subscription_id"):
         return False
     end = _aware(user_dict.get("subscription_end_date"))
-    return end is not None and end < datetime.now(timezone.utc)
+    if end is None or end >= datetime.now(timezone.utc):
+        return False
+    if user_dict.get("is_paid_raw"):
+        return True
+    status = (user_dict.get("subscription_status") or "").lower()
+    return status in ("expired", "past_due")
 
 
 def _throttled(user_id: str) -> bool:
@@ -63,12 +72,18 @@ def _throttled(user_id: str) -> bool:
     return False
 
 
+class AppleUnreachable(Exception):
+    """Apple's status API could not be reached — nothing was decided."""
+
+
 async def extend_if_apple_says_active(
     user_id: str, original_transaction_id: str, db: AsyncSession, *, timeout_s: float = 8.0,
 ) -> Optional[datetime]:
     """Ask Apple; when the subscription is active or in grace, advance the row's
-    end date and re-mark it paid. Returns the new end date, or None when nothing
-    changed (expired, revoked, unreachable, unconfigured)."""
+    end date and re-mark it paid. Returns the new end date, or None when Apple
+    said the subscription is NOT entitled (expired / revoked / unconfigured).
+    Raises AppleUnreachable when Apple could not be asked — callers must treat
+    that as "unknown", never as "expired"."""
     from services import apple_iap_service as apple
 
     if not apple.apple_iap_configured():
@@ -77,7 +92,7 @@ async def extend_if_apple_says_active(
         status = await apple.fetch_subscription_status(original_transaction_id, timeout_s=timeout_s)
     except Exception as e:  # noqa: BLE001 — never a grant, never a crash
         logger.info("apple recheck: status fetch failed for user=%s oid=%s: %s", user_id, original_transaction_id, e)
-        return None
+        raise AppleUnreachable(str(e)) from e
     entitled, until = apple.entitlement_from_status(status)
     if not entitled or until is None:
         logger.info("apple recheck: user=%s oid=%s status=%s → not entitled", user_id, original_transaction_id, status.get("status"))
@@ -110,7 +125,12 @@ async def recheck_if_stale(user_dict: Dict[str, Any], db: AsyncSession) -> Dict[
     uid = str(user_dict.get("id"))
     if _throttled(uid):
         return user_dict
-    new_end = await extend_if_apple_says_active(uid, str(user_dict.get("subscription_id")), db)
+    try:
+        new_end = await extend_if_apple_says_active(uid, str(user_dict.get("subscription_id")), db)
+    except AppleUnreachable:
+        # Let the throttle lapse sooner so the next request re-asks.
+        _last_check_at.pop(uid, None)
+        return user_dict
     if new_end is None:
         return user_dict
     from middleware.auth_middleware import _user_dict

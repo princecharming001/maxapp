@@ -489,11 +489,51 @@ async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
                 await db.rollback()
             except Exception:
                 pass
+    # Per-task sent flags onto a FRESH copy of the row, under lock. The chunk's
+    # `days` were loaded at chunk start; writing them back whole reverted any
+    # completion / regen that landed while earlier users in the chunk were
+    # being pushed. Only the flags this tick set are copied over, matched by
+    # task identity.
     for sched in touched_schedules:
-        flag_modified(sched, "days")
-        sched.updated_at = datetime.utcnow()
-    if touched_schedules:
-        await db.commit()
+        try:
+            flagged: dict[str, dict] = {}
+            for d in (sched.days or []):
+                for t in (d.get("tasks") or []):
+                    marks = {k: v for k, v in t.items() if str(k).startswith("notification_sent") and v}
+                    if not marks:
+                        continue
+                    for key in (t.get("task_uuid"), t.get("uuid"), t.get("task_id")):
+                        if key:
+                            flagged[str(key)] = marks
+            if not flagged:
+                continue
+            await db.refresh(sched, attribute_names=["days"], with_for_update=True)
+            fresh_days = [dict(d) for d in (sched.days or [])]
+            changed_any = False
+            for d in fresh_days:
+                new_tasks = []
+                for t in (d.get("tasks") or []):
+                    marks = None
+                    for key in (t.get("task_uuid"), t.get("uuid"), t.get("task_id")):
+                        if key and str(key) in flagged:
+                            marks = flagged[str(key)]
+                            break
+                    if marks and any(t.get(k) != v for k, v in marks.items()):
+                        t = {**t, **marks}
+                        changed_any = True
+                    new_tasks.append(t)
+                d["tasks"] = new_tasks
+            if changed_any:
+                sched.days = fresh_days
+                flag_modified(sched, "days")
+                sched.updated_at = datetime.utcnow()
+            await db.commit()
+        except Exception as e:
+            logger.warning("notif sent-flag persist failed for schedule %s: %s", getattr(sched, "id", "?"), e)
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
 
 def _parse_sleep_hh_mm(raw: str | None) -> tuple[int, int] | None:
@@ -1247,13 +1287,14 @@ async def reconcile_expired_subscriptions():
         from sqlalchemy import update, and_, or_
         now_utc = datetime.now(_tz.utc)
         async with AsyncSessionLocal() as db:
+            unreachable_ids: list = []
             # Before expiring Apple rows, ask Apple: a renewal whose
             # notification never arrived, or a subscriber in a billing-retry
             # grace period, is still entitled and gets its end date advanced
             # instead of being locked out. Bounded per run; failures leave the
             # row for the next sweep (the middleware already gates access).
             try:
-                from services.apple_entitlement_recheck import extend_if_apple_says_active
+                from services.apple_entitlement_recheck import AppleUnreachable, extend_if_apple_says_active
                 stale_apple = (await db.execute(
                     select(User).where(
                         and_(
@@ -1271,12 +1312,18 @@ async def reconcile_expired_subscriptions():
                     try:
                         if await extend_if_apple_says_active(str(row.id), str(row.subscription_id), db, timeout_s=8.0):
                             extended += 1
+                    except AppleUnreachable:
+                        # Unknown ≠ expired: keep the row exactly as it is until a
+                        # sweep can actually ask Apple (the middleware already
+                        # gates access on the date meanwhile).
+                        unreachable_ids.append(row.id)
                     except Exception as e:  # noqa: BLE001
                         logger.info("reconcile_expired_subscriptions: apple recheck failed for %s: %s", row.id, e)
+                        unreachable_ids.append(row.id)
                 if stale_apple:
                     logger.info(
-                        "reconcile_expired_subscriptions: apple recheck %s stale row(s), %s extended",
-                        len(stale_apple), extended,
+                        "reconcile_expired_subscriptions: apple recheck %s stale row(s), %s extended, %s unreachable",
+                        len(stale_apple), extended, len(unreachable_ids),
                     )
             except Exception as e:  # noqa: BLE001
                 logger.info("reconcile_expired_subscriptions: apple recheck skipped: %s", e)
@@ -1293,6 +1340,8 @@ async def reconcile_expired_subscriptions():
                         ),
                         # admins/scan users are never billing-gated
                         User.is_admin == False,  # noqa: E712
+                        # rows Apple could not be asked about wait for the next sweep
+                        *([User.id.notin_(unreachable_ids)] if unreachable_ids else []),
                     )
                 )
                 .values(is_paid=False, subscription_status="expired")

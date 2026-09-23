@@ -2190,6 +2190,10 @@ class ApiService {
         conversationId?: string | null,
         replyToMessageId?: string | null,
         signal?: AbortSignal,
+        /** Client uuid for this turn — a replay after a kill re-sends the same
+         *  id and the server returns the first response instead of running
+         *  the turn twice. */
+        clientTurnId?: string | null,
     ): Promise<{
         response: string;
         choices?: string[];
@@ -2224,6 +2228,7 @@ class ApiService {
         if (chatIntent) body.chat_intent = chatIntent;
         if (conversationId) body.conversation_id = conversationId;
         if (replyToMessageId) body.reply_to_message_id = replyToMessageId;
+        if (clientTurnId) body.client_turn_id = clientTurnId;
         // LangChain agent may chain multiple tool calls + LLM fallback,
         // so allow up to 120s before timing out.
         const response = await this.client.post('chat/message', body, {

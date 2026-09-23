@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Tuple
 from uuid import UUID
@@ -4813,7 +4814,28 @@ def _stamp_pending_thread(pending: Optional[dict]) -> Optional[dict]:
     cv = _acid.get()
     if cv is None:
         return pending
-    return {**pending, "conversation_id": str(cv)}
+    return {**pending, "conversation_id": str(cv), "stamped_at": datetime.utcnow().isoformat()}
+
+
+# A parked intake older than this no longer pins the Chat tab's cold start to
+# its thread (the user has evidently moved on); it still resumes when THAT
+# thread is opened.
+_PENDING_RECENT_DAYS = 7
+
+
+def _pending_is_recent(pending: Optional[dict]) -> bool:
+    if not isinstance(pending, dict):
+        return False
+    raw = pending.get("stamped_at")
+    if not raw:
+        return True  # pre-timestamp stamps: keep the previous behavior
+    try:
+        stamped = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        if stamped.tzinfo is not None:
+            stamped = stamped.astimezone(timezone.utc).replace(tzinfo=None)
+    except ValueError:
+        return True
+    return (datetime.utcnow() - stamped) <= timedelta(days=_PENDING_RECENT_DAYS)
 
 
 async def _pending_thread_scope(
@@ -4920,7 +4942,58 @@ async def send_message(
         return await _send_message_locked(data, background_tasks, current_user, db, rds_db)
 
 
+# Replayed turns: the mobile client persists an in-flight message before the
+# request and re-sends it after a kill / offline blip. A kill in the window
+# between the server commit and the client's "clear pending" replays the SAME
+# turn (a duplicate user row + a second reply, or a second intake start). The
+# client stamps each turn with a uuid; the same (user, turn) within the window
+# returns the first response instead of running the turn again. In-process
+# and bounded — single-instance deploy; best-effort across restarts.
+_TURN_CACHE: "dict[tuple[str, str], tuple[float, ChatResponse]]" = {}
+_TURN_CACHE_TTL_S = 15 * 60
+_TURN_CACHE_MAX = 500
+
+
+def _turn_cache_get(key: tuple[str, str]) -> "Optional[ChatResponse]":
+    hit = _TURN_CACHE.get(key)
+    if not hit:
+        return None
+    ts, resp = hit
+    if time.monotonic() - ts > _TURN_CACHE_TTL_S:
+        _TURN_CACHE.pop(key, None)
+        return None
+    return resp
+
+
+def _turn_cache_put(key: tuple[str, str], resp: "ChatResponse") -> None:
+    if len(_TURN_CACHE) >= _TURN_CACHE_MAX:
+        oldest = sorted(_TURN_CACHE.items(), key=lambda kv: kv[1][0])[: _TURN_CACHE_MAX // 5]
+        for k, _ in oldest:
+            _TURN_CACHE.pop(k, None)
+    _TURN_CACHE[key] = (time.monotonic(), resp)
+
+
 async def _send_message_locked(
+    data: "ChatRequest",
+    background_tasks: BackgroundTasks,
+    current_user: dict,
+    db: AsyncSession,
+    rds_db: AsyncSession | None,
+) -> "ChatResponse":
+    turn_id = (getattr(data, "client_turn_id", None) or "").strip()
+    key = (str(current_user["id"]), turn_id) if turn_id else None
+    if key is not None:
+        cached = _turn_cache_get(key)
+        if cached is not None:
+            logger.info("[chat] replayed turn %s for user=%s served from cache", turn_id, current_user["id"])
+            return cached
+    resp = await _send_message_locked_inner(data, background_tasks, current_user, db, rds_db)
+    if key is not None:
+        _turn_cache_put(key, resp)
+    return resp
+
+
+async def _send_message_locked_inner(
     data: "ChatRequest",
     background_tasks: BackgroundTasks,
     current_user: dict,
@@ -5490,10 +5563,11 @@ async def get_chat_history(
         )
         if target_conv is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
-    elif stamped_alive:
+    elif stamped_alive and _pending_is_recent(pending):
         # Cold start mid-intake: land on the thread the question lives in, so
         # the question text and its chips come back together (the most-recent
-        # thread could be an unrelated chat the user opened after).
+        # thread could be an unrelated chat the user opened after). A week-old
+        # parked intake stops steering the cold start (see _pending_is_recent).
         target_conv = stamped_conv
     else:
         convs = await _conv.list_conversations(db, user_id=user_id, limit=1)

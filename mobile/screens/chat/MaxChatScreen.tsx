@@ -23,7 +23,7 @@ import ChatHabitPicker, { HabitPickerSpec } from '../../components/ChatHabitPick
 import { renderRichText } from '../../utils/chatMarkdown';
 import { usePaywallGate } from '../../hooks/usePaywallGate';
 import { useAuth } from '../../context/AuthContext';
-import { savePendingChat, loadPendingChat, clearPendingChat } from '../../lib/pendingChat';
+import { savePendingChat, loadPendingChat, clearPendingChat, newClientTurnId } from '../../lib/pendingChat';
 import { userFacingError } from '../../lib/userFacingError';
 
 // The in-flight message that survives a kill/offline blip lives in
@@ -686,7 +686,8 @@ export default function MaxChatScreen() {
         sendMessageWithContext(initQuestion);
     }, [route.params?.initQuestion, loading, historyReady]);
 
-    const sendMessageWithContext = async (msg: string, initContext?: string, chatIntent?: string, forceNewConversation?: boolean) => {
+    const sendMessageWithContext = async (msg: string, initContext?: string, chatIntent?: string, forceNewConversation?: boolean, turnId?: string) => {
+        const clientTurnId = turnId || newClientTurnId();
         if (!msg.trim() || loading) return;
         // Free tier: chat is paid — every send path (typed, chips, max-onboarding
         // auto-init) funnels through here, so one gate covers them all.
@@ -727,7 +728,7 @@ export default function MaxChatScreen() {
         // clear could re-send (a duplicate user turn — far better than a lost one).
         // Stamped with the user id so it can only ever replay under THIS account.
         if (userIdRef.current) {
-            await savePendingChat({ userId: userIdRef.current, msg, initContext, chatIntent, at: Date.now() });
+            await savePendingChat({ userId: userIdRef.current, msg, initContext, chatIntent, clientTurnId, at: Date.now() });
         }
         try {
             abortRef.current = new AbortController();
@@ -740,6 +741,7 @@ export default function MaxChatScreen() {
                 forceNewConversation ? undefined : (activeConversationId ?? undefined),
                 replyId,
                 abortRef.current.signal,
+                clientTurnId,
             );
             // Committed server-side — drop the pending blob so it isn't re-sent.
             await clearPendingChat();
@@ -878,7 +880,7 @@ export default function MaxChatScreen() {
             // retry instead of being deleted-then-dropped (the old bug).
             retryingRef.current = true;
             try {
-                await sendMessageRef.current(queued.msg, queued.initContext, queued.chatIntent);
+                await sendMessageRef.current(queued.msg, queued.initContext, queued.chatIntent, undefined, queued.clientTurnId);
             } finally {
                 retryingRef.current = false;
             }
@@ -923,6 +925,7 @@ export default function MaxChatScreen() {
         ]);
         const replyId = replyTarget?.id ?? undefined;
         if (replyTarget) setReplyTarget(null);
+        const typedTurnId = newClientTurnId();
         try {
             abortRef.current = new AbortController();
             const { response, choices, multi_choice, input_widget, products, conversation_id, confirm, visual_blocks, method_metadata } = await api.sendChatMessage(
@@ -934,6 +937,7 @@ export default function MaxChatScreen() {
                 activeConversationId ?? undefined,
                 replyId,
                 abortRef.current.signal,
+                typedTurnId,
             );
             // Adopt server-assigned conversation in lockstep so a refetch
             // doesn't clobber the optimistic turns (same race that hit
@@ -995,7 +999,7 @@ export default function MaxChatScreen() {
             // No response at all (offline / killed connection): queue it for the
             // foreground retry, scoped to this user.
             if (!e?.response && userIdRef.current) {
-                await savePendingChat({ userId: userIdRef.current, msg: userContent, at: Date.now() });
+                await savePendingChat({ userId: userIdRef.current, msg: userContent, clientTurnId: typedTurnId, at: Date.now() });
             }
             setMessages(prev => [
                 ...prev.filter((m) => !m.isTyping),

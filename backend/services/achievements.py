@@ -234,7 +234,7 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
             except Exception as e:
                 logger.debug("achievement check failed for %s: %s", a.code, e)
         if not candidates:
-            return []
+            return unseen
 
         # Write phase. Lock the app_users row FIRST (lock discipline in
         # schedule_streak: single-table transaction, commit right after) and
@@ -255,7 +255,9 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
             candidates = [a for a in candidates if a.code not in earned]
             if not candidates:
                 await db.commit()  # nothing to write — just release the lock
-                return []
+                # Still hand back badges earned earlier whose celebration was
+                # lost (response dropped) — that is the whole point of `unseen`.
+                return unseen
 
         newly: list[dict] = []
         now = _utcnow()
