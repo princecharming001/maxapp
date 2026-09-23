@@ -1,9 +1,16 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet, Easing } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Animated, StyleSheet, Easing, Text } from 'react-native';
 
 export default function MaxLoadingView() {
     const opacity = useRef(new Animated.Value(0)).current;
     const barWidth = useRef(new Animated.Value(0)).current;
+    // A cold backend can hold this view for a while. Say so after 12s so a
+    // long wait reads as "still connecting", not as a hang.
+    const [slow, setSlow] = useState(false);
+    useEffect(() => {
+        const t = setTimeout(() => setSlow(true), 12_000);
+        return () => clearTimeout(t);
+    }, []);
 
     useEffect(() => {
         Animated.timing(opacity, {
@@ -44,6 +51,7 @@ export default function MaxLoadingView() {
                     <Animated.View style={[s.fill, { width: animatedWidth }]} />
                 </Animated.View>
             </View>
+            {slow ? <Text style={s.hint}>Still connecting — this can take a moment.</Text> : null}
         </View>
     );
 }
@@ -77,5 +85,12 @@ const s = StyleSheet.create({
     fill: {
         height: '100%',
         backgroundColor: '#0A0A0A',
+    },
+    hint: {
+        marginTop: 28,
+        fontFamily: 'Matter-Medium',
+        fontSize: 13,
+        color: '#8A8780',
+        letterSpacing: 0.1,
     },
 });

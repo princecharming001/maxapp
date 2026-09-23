@@ -306,6 +306,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void checkAuth();
     }, [checkAuth]);
 
+    // Cap the blank boot wait. Three restore attempts at 45s (+ a network
+    // retry each) could hold the loading view for minutes with no message.
+    // After 45s, show Landing with the tokens INTACT: the resume loop below
+    // keeps retrying, and "Get started" refuses to mint over the live session
+    // ("Still connecting"), so nothing is lost — the user just isn't staring
+    // at a bar. A restore that already succeeded makes this a no-op.
+    useEffect(() => {
+        const t = setTimeout(() => {
+            setIsLoading(false);
+            setSessionRestorePending(false);
+        }, 45_000);
+        return () => clearTimeout(t);
+    }, []);
+
     // Boot can end logged-out while a durable session token still exists — a
     // transiently-failed restore (cold backend wake, brief offline). The user
     // is sitting on Landing with a perfectly valid session on disk. Retry the
