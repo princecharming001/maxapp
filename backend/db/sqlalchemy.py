@@ -436,8 +436,11 @@ async def _run_chat_history_column_migrations():
         async with engine.begin() as conn:
             await conn.execute(text("SET lock_timeout = '30s'"))
             await conn.execute(text("""
-                INSERT INTO chat_conversations (user_id, title, last_message_at)
-                SELECT ch.user_id, 'Chat history', MAX(ch.created_at)
+                INSERT INTO chat_conversations (id, user_id, title, last_message_at)
+                -- id has a Python-side default only (uuid4 in the ORM); a raw
+                -- INSERT without it violated NOT NULL on every boot, so this
+                -- backfill has silently never run since the multi-chat migration.
+                SELECT gen_random_uuid(), ch.user_id, 'Chat history', MAX(ch.created_at)
                 FROM chat_history ch
                 WHERE ch.conversation_id IS NULL
                   AND NOT EXISTS (
