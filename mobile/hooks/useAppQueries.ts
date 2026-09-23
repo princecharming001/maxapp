@@ -152,9 +152,42 @@ export function useForumV2NotificationsQuery(unreadOnly: boolean) {
     });
 }
 
-// Shared fetcher so the screen's `useChatHistoryQuery(null)` and the
-// Start-schedule CTA prefetch use a BYTE-IDENTICAL queryFn + queryKey — the
-// screen then consumes the warmed cache instead of firing a second cold GET.
+/** The in-flight intake question `/history` returns alongside a thread, so the
+ *  chips / slider can be re-rendered after a reload. */
+export type ChatPendingQuestion = {
+    max?: string;
+    field_id?: string;
+    text?: string;
+    choices?: string[];
+    input_widget?: ({ type: string } & Record<string, any>) | null;
+    multi_choice?: boolean;
+    progress?: { index: number; total: number } | null;
+    /** The thread the question belongs to (backend H3). Absent on older backends. */
+    conversation_id?: string | null;
+};
+
+/** Should the chat screen restore this pending question under `threadId`?
+ *  The backend scopes the question to ONE thread (its `conversation_id`); an
+ *  unstamped question (older backend) keeps the legacy per-user behavior. This
+ *  is the client-side half of the guard that stopped hairmax's chips rendering
+ *  under — and answering from — the fitmax thread. Pure. */
+export function isPendingQuestionForThread(
+    pendingQ: ChatPendingQuestion | null | undefined,
+    threadId: string | null | undefined,
+): boolean {
+    if (!pendingQ) return false;
+    const owner = pendingQ.conversation_id ?? null;
+    if (!owner) return true;
+    return !!threadId && String(owner) === String(threadId);
+}
+
+// Shared fetcher so the screen's `useChatHistoryQuery(null)`, the boot prefetch
+// (lib/prefetchMainTabData) and the Start-schedule CTA prefetch use a
+// BYTE-IDENTICAL queryFn + queryKey — the screen then consumes the warmed cache
+// instead of firing a second cold GET. The prefetch used to seed this key with
+// a bare `messages[]` (the pre-multi-chat shape), which the screen read as a
+// legacy payload: conversationId null, pendingQuestion null → no chips for the
+// first 60s after a cold start.
 export async function fetchChatHistory(conversationId?: string | null) {
     const { messages, conversation_id, pending_question } = await api.getChatHistory({
         limit: 80,
@@ -164,7 +197,7 @@ export async function fetchChatHistory(conversationId?: string | null) {
     return {
         messages: messages ?? [],
         conversationId: conversation_id ?? null,
-        pendingQuestion: pending_question ?? null,
+        pendingQuestion: (pending_question ?? null) as ChatPendingQuestion | null,
     };
 }
 

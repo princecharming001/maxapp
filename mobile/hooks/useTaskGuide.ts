@@ -41,14 +41,59 @@ export type TaskGuide = {
     products?: TaskGuideIngredient[];
     duration_minutes: number;
     why_it_matters: string;
+    /** The server could not find the schedule/task (e.g. ids re-minted by a regen
+     *  while the request was in flight). It is a placeholder that says "Unavailable",
+     *  NOT a guide — `fetchTaskGuide` throws on it so it is never cached as data. */
+    unavailable?: boolean;
+    error?: string;
+    /** Both LLM providers failed and the server sent its generic fallback text.
+     *  Usable, but stale immediately so the next open fetches the real guide. */
+    degraded?: boolean;
 };
+
+export const TASK_GUIDE_UNAVAILABLE = 'TASK_GUIDE_UNAVAILABLE';
+
+/** Marker on the error thrown for an `unavailable` guide. A `code` field rather
+ *  than an Error subclass: `instanceof` on transpiled Error subclasses is not
+ *  reliable under Hermes, and React Query's retry predicate needs a sure test. */
+export function isTaskGuideUnavailableError(e: unknown): boolean {
+    return !!e && typeof e === 'object' && (e as { code?: unknown }).code === TASK_GUIDE_UNAVAILABLE;
+}
+
+/** The ONE cache key for a task's guide — shared by the screen hook and the boot
+ *  prefetch so both read/write the same entry. */
+export const taskGuideQueryKey = (scheduleId: string, taskId: string) =>
+    ['taskGuide', scheduleId, taskId] as const;
+
+/** The ONE queryFn for a task's guide (screen + prefetch). Throws on the
+ *  server's `unavailable` placeholder so React Query keeps it out of the data
+ *  cache — a placeholder cached with staleTime Infinity kept that task's guide
+ *  broken until relaunch. */
+export async function fetchTaskGuide(scheduleId: string, taskId: string): Promise<TaskGuide> {
+    const guide = (await apiService.getTaskGuide(scheduleId, taskId)) as TaskGuide;
+    if (!guide || guide.unavailable) {
+        const err = new Error(guide?.error || 'Task guide unavailable') as Error & { code: string };
+        err.code = TASK_GUIDE_UNAVAILABLE;
+        throw err;
+    }
+    return guide;
+}
+
+/** Backend caches real guides, so content never changes → never stale. A
+ *  degraded (LLM-failed fallback) guide is stale at once so the next open
+ *  replaces it with the real one. */
+export function taskGuideStaleTime(data: TaskGuide | undefined): number {
+    return data?.degraded ? 0 : Infinity;
+}
 
 export function useTaskGuide(scheduleId: string, taskId: string) {
     return useQuery<TaskGuide>({
-        queryKey: ['taskGuide', scheduleId, taskId],
-        queryFn: () => apiService.getTaskGuide(scheduleId, taskId),
-        staleTime: Infinity, // backend caches; content never changes
-        retry: 2,
+        queryKey: taskGuideQueryKey(scheduleId, taskId),
+        queryFn: () => fetchTaskGuide(scheduleId, taskId),
+        staleTime: (q) => taskGuideStaleTime(q.state.data),
+        // An `unavailable` answer is deterministic (the task id is gone from the
+        // schedule) — retrying it only burns requests; transport errors still retry.
+        retry: (failureCount, error) => !isTaskGuideUnavailableError(error) && failureCount < 2,
         enabled: !!(scheduleId && taskId),
     });
 }
