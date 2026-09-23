@@ -65,6 +65,9 @@ import {
     saveOnboardingDraft,
     loadOnboardingDraft,
     clearOnboardingDraft,
+    setOnboardingFunnelStage,
+    seedAnswersFromServerOnboarding,
+    firstUnansweredIntroStep,
 } from '../../lib/onboardingDraft';
 
 // Stable per-step keys for funnel analytics (title → slug), so step drop-off
@@ -558,8 +561,17 @@ export default function OnboardingV2Screen() {
     const [dir, setDir] = useState(1); // +1 forward, -1 back — drives slide direction
     const [phase, setPhase] = useState<OnboardingPhase>(route?.params?.phase ?? 'intro');
     // Set when the user declined the scan at the offer screen — the intro run
-    // then ends at the paywall instead of the (scan-less) results gate.
-    const [scanSkipped, setScanSkipped] = useState<boolean>(!!route?.params?.scanSkipped);
+    // then ends at the paywall instead of the (scan-less) results gate. An
+    // EXPLICIT boolean param is authoritative either way: FaceScan hands off
+    // with scanSkipped:false after a capture, and that must beat a stale
+    // scanSkipped:true in the draft (skipped once, scanned on a later launch)
+    // — otherwise the scan they just took was never shown pre-pay.
+    const paramScanSkipped: boolean | undefined =
+        typeof route?.params?.scanSkipped === 'boolean' ? route.params.scanSkipped : undefined;
+    const [scanSkipped, setScanSkipped] = useState<boolean>(paramScanSkipped ?? false);
+    // Latched once the server says a scan row exists — a draft restore that
+    // resolves later must not flip scanSkipped back to true.
+    const scanExistsRef = useRef<boolean>(user?.first_scan_completed === true);
     const [ageBand, setAgeBand] = useState<string | null>(null);
     const [gender, setGender] = useState<string | null>(null);
     const [effort, setEffort] = useState<string | null>(null);
@@ -590,6 +602,11 @@ export default function OnboardingV2Screen() {
     const [weekendShift, setWeekendShift] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // finish(): the schedule answers are committed server-side; only the
+    // post-save refresh (which flips the navigator onto Home) is outstanding.
+    // A re-tap then retries the refresh, never re-POSTs.
+    const [saved, setSaved] = useState(false);
+    const [finishing, setFinishing] = useState(false);
     // Gates the first render until any saved draft is restored — without it the
     // wizard would flash step 0 / default answers before the saved step loads.
     const [draftLoaded, setDraftLoaded] = useState(false);
@@ -599,11 +616,36 @@ export default function OnboardingV2Screen() {
     // defaults instead of crashing.
     useEffect(() => {
         let cancelled = false;
-        void loadOnboardingDraft()
+        const uid = user?.id;
+        // Server-saved answers come first (a new phone / reinstall has no
+        // local draft, but the intro save landed goals/age/gender/motivation
+        // server-side — never ask those twice, and never let finish() re-send
+        // them empty). The local draft, when present, overrides on top.
+        const seed = seedAnswersFromServerOnboarding(user?.onboarding);
+        if (seed.goals) setGoals(seed.goals);
+        if (seed.ageBand) setAgeBand(seed.ageBand);
+        if (seed.gender) setGender(seed.gender);
+        if (seed.motivation) setMotivation(seed.motivation);
+        if (typeof seed.motivationOther === 'string') setMotivationOther(seed.motivationOther);
+        if (seed.effort) setEffort(seed.effort);
+        void (uid ? loadOnboardingDraft(uid) : Promise.resolve(null))
             .then((d) => {
-                if (cancelled || !d) return;
+                if (cancelled) return;
+                if (!d) {
+                    // No local draft: resume the intro at the first question the
+                    // server doesn't already have an answer for.
+                    const effectivePhase = route?.params?.phase ?? 'intro';
+                    if (effectivePhase === 'intro' && Object.keys(seed).length > 0) {
+                        setStep(firstUnansweredIntroStep(seed));
+                    }
+                    return;
+                }
                 const a = d.answers || {};
-                if (typeof a.scanSkipped === 'boolean' && !route?.params?.scanSkipped) setScanSkipped(a.scanSkipped);
+                if (
+                    typeof a.scanSkipped === 'boolean'
+                    && paramScanSkipped === undefined
+                    && !scanExistsRef.current
+                ) setScanSkipped(a.scanSkipped);
                 if (typeof a.ageBand === 'string') setAgeBand(a.ageBand);
                 if (typeof a.gender === 'string') setGender(a.gender);
                 if (typeof a.effort === 'string') setEffort(a.effort);
@@ -644,6 +686,17 @@ export default function OnboardingV2Screen() {
                 if (typeof d.step === 'number' && d.step >= 0 && d.phase === effectivePhase) {
                     setStep(d.step);
                 }
+                // Funnel checkpoint past the intro (gate / referral / paywall):
+                // when this wizard is the stack's INITIAL route (relaunch with a
+                // completed scan boots straight here, bypassing ScanOffer's
+                // resume guard) forward to that step instead of re-asking the
+                // last question. A hand-off with an explicit phase param is a
+                // real re-entry and is left alone.
+                if (!route?.params?.phase && effectivePhase === 'intro') {
+                    if (d.stage === 'gate') resumeForwardRef.current = { route: 'FaceScanResults', params: { gateV4: true } };
+                    else if (d.stage === 'referral') resumeForwardRef.current = { route: 'ReferralCode' };
+                    else if (d.stage === 'paywall') resumeForwardRef.current = { route: 'Payment' };
+                }
             })
             .catch(() => undefined)
             .finally(() => {
@@ -654,12 +707,29 @@ export default function OnboardingV2Screen() {
         };
     }, []);
 
+    // Deferred one macrotask and focus-checked: a navigate fired synchronously
+    // from the mount effect while the root stack is (re)mounting is swallowed.
+    // If it IS swallowed the user simply sees the last intro question, whose
+    // Next reaches the same target — graceful, never a trap.
+    const resumeForwardRef = useRef<{ route: string; params?: Record<string, unknown> } | null>(null);
+    useEffect(() => {
+        if (!draftLoaded || !resumeForwardRef.current) return;
+        const target = resumeForwardRef.current;
+        resumeForwardRef.current = null;
+        const t = setTimeout(() => {
+            if (!navigation.isFocused()) return;
+            navigation.navigate(target.route, target.params);
+        }, 0);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [draftLoaded]);
+
     // Persist the draft after every change (only once the initial restore has
     // run, so we never overwrite a saved draft with the default state before
     // it's loaded). Fire-and-forget; onboarding edits aren't high-frequency.
     useEffect(() => {
-        if (!draftLoaded) return;
-        void saveOnboardingDraft(step, {
+        if (!draftLoaded || !user?.id) return;
+        void saveOnboardingDraft(user.id, step, {
             scanSkipped, ageBand, gender, effort,
             goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
             workStartMin, workEndMin, workLocation, commuteMin,
@@ -667,7 +737,7 @@ export default function OnboardingV2Screen() {
             showerTime, workoutMin, weekendShift,
         }, phase);
     }, [
-        draftLoaded, step, phase, scanSkipped, ageBand, gender, effort,
+        draftLoaded, user?.id, step, phase, scanSkipped, ageBand, gender, effort,
         goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
         workStartMin, workEndMin, workLocation, commuteMin,
         breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
@@ -685,6 +755,34 @@ export default function OnboardingV2Screen() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [route?.params?.phase]);
+
+    // An explicit scanSkipped param on an already-mounted wizard (FaceScan
+    // re-handing off after a retake) is authoritative — see above.
+    useEffect(() => {
+        if (paramScanSkipped !== undefined) setScanSkipped(paramScanSkipped);
+    }, [paramScanSkipped]);
+
+    // scanSkipped can never be true while a scan exists: the offer was
+    // declined on an earlier launch, but this launch took one (the resume
+    // guard re-offers when no row exists). Server truth wins over the draft.
+    useEffect(() => {
+        if (user?.first_scan_completed) {
+            scanExistsRef.current = true;
+            setScanSkipped(false);
+            return;
+        }
+        let cancelled = false;
+        void api.getLatestScan()
+            .then((s: { processing_status?: string } | null) => {
+                if (cancelled || !s) return;
+                if (s.processing_status === 'processing' || s.processing_status === 'completed') {
+                    scanExistsRef.current = true;
+                    setScanSkipped(false);
+                }
+            })
+            .catch(() => undefined);
+        return () => { cancelled = true; };
+    }, [user?.first_scan_completed]);
 
     // Wheel picker — `picker` holds the field currently being edited. A bumping
     // key forces a fresh sheet (correct initial scroll) every time one opens.
@@ -790,7 +888,9 @@ export default function OnboardingV2Screen() {
                 // the navigator remounts onto Main. No reveal step.
                 completed: true,
             };
-        const goHome = async () => {
+        // Returns false when the post-save refresh never came back — the
+        // caller shows a retry instead of silently re-enabling the button.
+        const goHome = async (): Promise<boolean> => {
             track('onboarding_step', {
                 step: 'completed',
                 goals,
@@ -801,43 +901,64 @@ export default function OnboardingV2Screen() {
             // doesn't drag the user back into the wizard.
             void clearOnboardingDraft();
             // Flipping onboarding.completed makes treatAsFull true → the
-            // navigator remounts onto Main (Home). AWAIT the refresh (retry once
-            // on a transient blip) so a paid user reliably lands home even if
-            // getMe hiccups. treatAsFull ALSO requires paid||free-tier — but the
-            // schedule questions are the LAST funnel step (V4: paywall → account
-            // → schedule → Main), so anyone finishing here is already PAST the
-            // hard paywall. A user who reaches this point yet is neither paid nor
-            // free-tier (a dev bypass, or a funnel edge) must NOT be bounced
-            // BACKWARD into Payment → "Save your results" (they already did the
-            // account step) — grant browse-only free-tier so treatAsFull flips
-            // and the navigator remounts straight onto Home. Paid features stay
-            // gated at point-of-use by usePaywallGate.
+            // navigator remounts onto Main (Home). AWAIT the refresh with a
+            // visible "Finishing up…" and real backoff: with two quick tries the
+            // spinner ended, the button read "Build my day" again and NOTHING
+            // happened on a cold Render / brief offline blip (the save had
+            // already landed, so a second tap re-POSTed and usually worked —
+            // silently). treatAsFull cannot flip without a fresh user object.
             let fresh: any = null;
-            for (let i = 0; i < 2 && !fresh; i++) {
+            const delays = [0, 600, 1500, 3000, 5000];
+            for (const ms of delays) {
+                if (ms > 0) await new Promise((r) => setTimeout(r, ms));
                 fresh = await refreshUser().catch(() => null);
-                if (!fresh && i === 0) await new Promise((r) => setTimeout(r, 600));
+                if (fresh) break;
             }
+            if (!fresh) return false;
+            // treatAsFull ALSO requires paid||free-tier. The schedule questions
+            // are the LAST funnel step (V4: paywall → account → schedule → Main),
+            // so anyone finishing here is already PAST the hard paywall. Someone
+            // who still isn't (a dev bypass, or the legacy anon+completed path)
+            // used to be granted browse-only free tier here — which let the
+            // legacy path reach Main without ever seeing the paywall. Dev keeps
+            // the bypass; production sends them to the referral/paywall step.
             const willBeFull =
                 ((fresh?.is_paid ?? user?.is_paid ?? isPaid) === true) || isFreeTier;
             if (!willBeFull) {
-                await chooseFreeTier().catch(() => {});
+                if (__DEV__) {
+                    await chooseFreeTier().catch(() => {});
+                } else {
+                    const names: string[] = ((navigation.getState?.() as any)?.routeNames) ?? [];
+                    if (names.includes('ReferralCode')) navigation.navigate('ReferralCode');
+                    else if (names.includes('Payment')) navigation.navigate('Payment');
+                }
             }
+            return true;
         };
         try {
-            await api.saveOnboarding(payload as any);
-            goHome();
+            if (!saved) {
+                await api.saveOnboarding(payload as any);
+                setSaved(true);
+            }
+            setFinishing(true);
+            const landed = await goHome();
+            if (!landed) {
+                setError("Saved — but we couldn't refresh your account. Check your connection and tap Try again.");
+            }
         } catch (e: any) {
             // On the computer/web dev build, don't trap the user behind a save
             // failure (e.g. no local backend) — proceed with the answers in
             // hand, exactly as a successful save would. Native/prod still
             // surfaces the real error so a genuine failure isn't hidden.
             if (Platform.OS === 'web' && __DEV__) {
-                goHome();
+                setFinishing(true);
+                await goHome();
             } else {
                 setError("Couldn't save. Check your connection and try again.");
             }
         } finally {
             setSaving(false);
+            setFinishing(false);
         }
     };
 
@@ -1303,6 +1424,11 @@ export default function OnboardingV2Screen() {
                 // processing loader if the background analysis hasn't landed.
                 void api.saveOnboarding(introPayload() as any).catch(() => {});
                 track('onboarding_step', { step: 'intro_done' });
+                // Funnel checkpoint: a relaunch from here on resumes at the
+                // gate / referral step, not at this question (ScanOffer reads it).
+                if (user?.id) {
+                    void setOnboardingFunnelStage(user.id, scanSkipped ? 'referral' : 'gate').catch(() => undefined);
+                }
                 // Skipped the scan → nothing to gate on; referral/promo step,
                 // then the paywall (a full comp like CASH99 redeems there and
                 // routes past Payment entirely).
@@ -1410,7 +1536,11 @@ export default function OnboardingV2Screen() {
                         <View style={{ height: 52 }} />
                     ) : (
                         <PrimaryButton
-                            label={isLast && phase === 'schedule' ? 'Build my day' : 'Continue'}
+                            label={
+                                isLast && phase === 'schedule'
+                                    ? finishing ? 'Finishing up…' : saved ? 'Try again' : 'Build my day'
+                                    : 'Continue'
+                            }
                             loading={saving}
                             disabled={!current.canNext}
                             onPress={goNext}

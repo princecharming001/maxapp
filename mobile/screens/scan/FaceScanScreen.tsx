@@ -30,7 +30,62 @@ import {
     setPendingFaceScanSubmit,
     clearPendingFaceScanSubmit,
     getPendingFaceScanSubmit,
+    setFaceScanUploadFailed,
+    getFaceScanUploadFailed,
+    clearFaceScanUploadFailed,
+    scanLandedAfterSubmit,
 } from '../../lib/faceScanDraft';
+import { userFacingError } from '../../lib/userFacingError';
+import type { LatestScan } from '../../services/api';
+
+/**
+ * Owned copy for a failed scan upload. Never the raw server/library string:
+ * the alert used to read "Analysis failed: 503 UNAVAILABLE The model is
+ * overloaded…" or name a retired plan. `showResults` = the user already has
+ * a scan the server is pointing at (limit used / previous one still
+ * analyzing), so offer to open it.
+ */
+function scanUploadErrorCopy(err: unknown): { title: string; message: string; showResults: boolean } {
+    const e = err as { response?: { status?: number; data?: { detail?: unknown } }; statusCode?: number } | null;
+    const status = e?.response?.status ?? e?.statusCode;
+    const detail = typeof e?.response?.data?.detail === 'string' ? e.response.data.detail.trim() : '';
+    if (status === 429) {
+        return {
+            title: 'Scan limit reached',
+            message: detail && detail.length <= 160 ? detail : "You've already used your scan for now. Come back tomorrow.",
+            showResults: true,
+        };
+    }
+    if (status === 409) {
+        return {
+            title: 'Still analyzing',
+            message: 'Your last scan is still being analyzed. It will show up in a moment.',
+            showResults: true,
+        };
+    }
+    if (status === 413) {
+        return {
+            title: 'Photo too large',
+            message: userFacingError(err, 'One of the photos is too large. Retake it and try again.'),
+            showResults: false,
+        };
+    }
+    if (status === 400) {
+        // Our own short, user-written detail (free scan already used, not an
+        // image…) passes through userFacingError; anything internal-looking
+        // falls to its fallback.
+        return {
+            title: 'Face scan',
+            message: userFacingError(err, 'Those photos could not be used. Retake them and try again.'),
+            showResults: status === 400 && /already completed/i.test(detail),
+        };
+    }
+    return {
+        title: "Couldn't analyze",
+        message: userFacingError(err, 'Could not analyze photos. Check your connection and try again.'),
+        showResults: false,
+    };
+}
 
 function formatNextScan(d: Date): string {
     const now = new Date();
@@ -73,7 +128,7 @@ export default function FaceScanScreen() {
     const route = useRoute<any>();
     const isFocused = useIsFocused();
     const insets = useSafeAreaInsets();
-    const { user, isPaid, isPremium, isScanUser, refreshUser } = useAuth();
+    const { user, isPaid, isScanUser, refreshUser } = useAuth();
     // Funnel V4: the capture is the FIRST screen after "Get started", mounted
     // as the navigator's initial route (no params) — so infer funnel mode for
     // any not-yet-onboarded user, not just explicit funnelV4 pushes. Scan-only
@@ -99,6 +154,18 @@ export default function FaceScanScreen() {
     // upload keeps running server-side, but its resolution must no longer
     // navigate or alert (the user has moved on; recovery flags stay cleared).
     const scanCancelledRef = useRef(false);
+    // Funnel in-flight guard: the background upload has no spinner, so a
+    // double-tap on Analyze (or a swipe-back onto this buried screen from the
+    // quiz + another tap) fired a SECOND upload — two scan rows, two vision
+    // analyses, and /scans/latest then hid the full breakdown (is_first_scan
+    // false). One upload per set of photos.
+    const funnelUploadRef = useRef(false);
+    // Whether this mount ever held a photo — the on-disk draft is only wiped
+    // after the user retakes back to empty, never on an empty mount (H5).
+    const hadPhotosRef = useRef(false);
+    // Inline notice over the capture UI after a failed funnel upload: the
+    // photos are restored and Analyze re-sends them.
+    const [uploadNotice, setUploadNotice] = useState<string | null>(null);
 
     const navigateToResults = useCallback(() => {
         // Funnel V4: the capture is the funnel's FIRST screen; the analysis
@@ -109,7 +176,10 @@ export default function FaceScanScreen() {
             // mount; this path skips it, so clear them here (upload succeeded).
             void clearPendingFaceScanSubmit().catch(() => undefined);
             void clearFaceScanDraft().catch(() => undefined);
-            navigation.navigate('Onboarding', { phase: 'intro' });
+            // scanSkipped:false is EXPLICIT: a scan now exists, so a stale
+            // scanSkipped:true in the quiz draft (skipped once, then scanned on
+            // a later launch) must not route the intro past the results gate.
+            navigation.navigate('Onboarding', { phase: 'intro', scanSkipped: false });
             return;
         }
         // `justSubmitted` tells the results screen this is the genuine
@@ -128,6 +198,16 @@ export default function FaceScanScreen() {
         // Additional scans (first scan already done) shouldn't push FeaturesIntro
         // back into the stack — that's only for the first-scan onboarding flow.
         if (user?.first_scan_completed) {
+            // Keep whatever is beneath (Main with its tab state, or the scan
+            // archive): a reset to [FaceScanResults] alone unmounted the tab
+            // navigator on every daily scan — chat scroll, planner date and
+            // any in-progress composer were lost, and the results' Continue
+            // then pushed a FRESH Main on top. Swap this capture screen for
+            // the results; the results screen exits with goBack.
+            if (navigation.canGoBack()) {
+                navigation.replace('FaceScanResults', resultsRoute.params);
+                return;
+            }
             navigation.dispatch(
                 CommonActions.reset({ index: 0, routes: [resultsRoute] }),
             );
@@ -153,34 +233,32 @@ export default function FaceScanScreen() {
         );
     }, [navigation, isScanUser, user?.first_scan_completed, funnelV4]);
 
+    // Did the interrupted submit land server-side? Decided by matching the
+    // latest row's created_at against the submit timestamp in the pending
+    // flag — NOT by `first_scan_completed`, which is true for every repeat
+    // scan and made a killed repeat upload look successful (photos deleted,
+    // yesterday's scan shown as new, daily limit then refusing a redo).
+    //   'landed'  — a row from this submit exists (completed or still processing) and we navigated on
+    //   'failed'  — that row failed; photos stay so Analyze can resend
+    //   'no-row'  — nothing from this submit reached the server
     const runAnalyzingRecovery = useCallback(
-        async (fromForeground: boolean) => {
+        async (fromForeground: boolean): Promise<'landed' | 'failed' | 'no-row'> => {
+            const pending = await getPendingFaceScanSubmit().catch(() => null);
+            const pendingAt = pending?.at ?? null;
             const delays = [0, 1500, 3000, 4500];
             for (const ms of delays) {
                 if (ms > 0) await new Promise((r) => setTimeout(r, ms));
                 try {
-                    const u = await refreshUser();
-                    if (u?.first_scan_completed) {
+                    const latest = (await api.getLatestScan()) as LatestScan | null;
+                    // An older row is a PREVIOUS scan, not this upload — keep waiting.
+                    if (!latest || !scanLandedAfterSubmit(latest.created_at, pendingAt)) continue;
+                    const st = latest.processing_status;
+                    if (st === 'completed') {
+                        await refreshUser().catch(() => undefined);
                         await clearPendingFaceScanSubmit();
                         await clearFaceScanDraft();
                         navigateToResults();
-                        return;
-                    }
-                } catch {
-                    /* continue */
-                }
-                try {
-                    const latest = await api.getLatestScan();
-                    const st = (latest as { processing_status?: string })?.processing_status;
-                    if (st === 'completed' || st === 'processing') {
-                        if (st === 'completed') {
-                            await refreshUser();
-                            await clearPendingFaceScanSubmit();
-                            await clearFaceScanDraft();
-                            navigateToResults();
-                            return;
-                        }
-                        continue;
+                        return 'landed';
                     }
                     if (st === 'failed') {
                         await clearPendingFaceScanSubmit();
@@ -189,19 +267,24 @@ export default function FaceScanScreen() {
                             'Try again',
                             'Your photos need another pass. Tap Analyze again. Closing the app next time won\'t stop it.',
                         );
-                        return;
+                        return 'failed';
                     }
+                    // still processing — poll a little longer
                 } catch {
-                    /* 404 = no scan row yet */
+                    /* transient — retry */
                 }
             }
+            // Still processing after the polls: hand off to the results screen,
+            // which keeps polling with its own watchdog.
             try {
-                const latest = await api.getLatestScan();
-                const st = (latest as { processing_status?: string })?.processing_status;
-                if (st === 'processing') {
+                const latest = (await api.getLatestScan()) as LatestScan | null;
+                if (
+                    latest?.processing_status === 'processing'
+                    && scanLandedAfterSubmit(latest.created_at, pendingAt)
+                ) {
                     await clearPendingFaceScanSubmit();
                     navigateToResults();
-                    return;
+                    return 'landed';
                 }
             } catch {
                 /* no scan */
@@ -211,9 +294,10 @@ export default function FaceScanScreen() {
             if (fromForeground) {
                 Alert.alert(
                     'Pick up where you left off',
-                    'You can close the app anytime. Your analysis keeps running. Open Results from your profile, or tap Analyze again.',
+                    'Your photos are still here. Tap Analyze to send them again.',
                 );
             }
+            return 'no-row';
         },
         [navigateToResults, refreshUser],
     );
@@ -226,19 +310,42 @@ export default function FaceScanScreen() {
         let cancelled = false;
         void (async () => {
             try {
+                const restoreDraft = async () => {
+                    const draft = await loadFaceScanDraft(user.id);
+                    if (cancelled || !draft) return;
+                    if (draft.uris.some(Boolean)) hadPhotosRef.current = true;
+                    setStepIndex(draft.stepIndex);
+                    setUris(draft.uris);
+                };
+                // A funnel upload that already failed for good: no point in a
+                // recovery spinner — restore the photos and say why.
+                const failedUpload = await getFaceScanUploadFailed(user.id);
+                if (cancelled) return;
+                if (failedUpload) {
+                    await clearPendingFaceScanSubmit().catch(() => undefined);
+                    await clearFaceScanUploadFailed();
+                    setUploadNotice(failedUpload.message || "Your photos didn't upload. Tap Analyze to send them again.");
+                    await restoreDraft();
+                    return;
+                }
                 const pending = await getPendingFaceScanSubmit();
                 if (cancelled) return;
                 if (pending?.userId === user.id) {
                     setAnalyzing(true);
                     setAnalysisStep(1);
-                    await runAnalyzingRecovery(false);
+                    const outcome = await runAnalyzingRecovery(false);
+                    if (cancelled || outcome === 'landed') return;
+                    // Nothing (or a failed row) landed: the photos are still on
+                    // disk — put them back so Analyze can resend. Recovery used
+                    // to skip this restore, and the empty capture UI then wiped
+                    // the draft: a 9s spinner followed by "take them again".
+                    await restoreDraft();
+                    if (outcome === 'no-row') {
+                        setUploadNotice("Your photos didn't finish uploading. Tap Analyze to send them again.");
+                    }
                     return;
                 }
-                const draft = await loadFaceScanDraft(user.id);
-                if (!cancelled && draft) {
-                    setStepIndex(draft.stepIndex);
-                    setUris(draft.uris);
-                }
+                await restoreDraft();
             } catch (e) {
                 console.warn('face scan bootstrap', e);
             } finally {
@@ -250,6 +357,26 @@ export default function FaceScanScreen() {
         };
     }, [user?.id, runAnalyzingRecovery]);
 
+    // "Retake photos" from the results gate re-enters this screen (still
+    // mounted beneath the quiz, or pushed fresh). Drop the failure markers so
+    // the gate doesn't fail fast again, and restore photos if state is empty.
+    const retakeToken = route?.params?.retake;
+    useEffect(() => {
+        if (!retakeToken || !user?.id) return;
+        void clearFaceScanUploadFailed();
+        void clearPendingFaceScanSubmit().catch(() => undefined);
+        setUploadNotice(null);
+        if (!uris.some(Boolean)) {
+            void loadFaceScanDraft(user.id).then((draft) => {
+                if (!draft) return;
+                if (draft.uris.some(Boolean)) hadPhotosRef.current = true;
+                setStepIndex(draft.stepIndex);
+                setUris(draft.uris);
+            }).catch(() => undefined);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [retakeToken, user?.id]);
+
     useFocusEffect(
         useCallback(() => {
             if (Platform.OS === 'web') return;
@@ -260,8 +387,13 @@ export default function FaceScanScreen() {
     useEffect(() => {
         if (!user?.id || analyzing || !bootstrapped) return;
         const hasAny = uris.some(Boolean);
+        if (hasAny) hadPhotosRef.current = true;
         if (!hasAny && stepIndex === 0) {
-            void clearFaceScanDraft().catch(() => undefined);
+            // Only wipe the on-disk photos when THIS session had some and the
+            // user retook back to empty — never on an empty mount. A recovery
+            // that found no row, or a bootstrap that failed to read the draft,
+            // used to land here with empty state and delete the photos.
+            if (hadPhotosRef.current) void clearFaceScanDraft().catch(() => undefined);
             return;
         }
         const t = setTimeout(() => {
@@ -320,54 +452,35 @@ export default function FaceScanScreen() {
             // looking at, and never in the funnel at all.
             if (!isFocused || funnelV4) return;
             try {
-                const latest = await api.getLatestScan();
-                const ts = latest?.created_at ? new Date(latest.created_at) : null;
-                if (!ts || Number.isNaN(ts.getTime())) return;
-                const now = new Date();
-                let nextAt: Date | null = null;
-                let title = '';
-                let plan = '';
-                if (isPremium) {
-                    // Chad — 1 per local calendar day
-                    const sameDay =
-                        ts.getFullYear() === now.getFullYear() &&
-                        ts.getMonth() === now.getMonth() &&
-                        ts.getDate() === now.getDate();
-                    if (sameDay) {
-                        nextAt = new Date(now);
-                        nextAt.setHours(0, 0, 0, 0);
-                        nextAt.setDate(nextAt.getDate() + 1);
-                        title = 'Daily face scan';
-                        plan = 'Chad includes one face scan per day.';
-                    }
-                } else {
-                    // Chadlite — 1 per rolling 7-day window
-                    const next = new Date(ts.getTime() + 7 * 24 * 60 * 60 * 1000);
-                    if (next > now) {
-                        nextAt = next;
-                        title = 'Weekly face scan';
-                        plan = 'Chadlite includes one face scan per week.';
-                    }
-                }
-                if (nextAt) {
-                    // getLatestScan is async: focus can change while it's in
-                    // flight. Re-check at resolution so the pop can only ever
-                    // remove THIS screen.
-                    if (!navigation.isFocused()) return;
-                    Alert.alert(
-                        title,
-                        `${plan} Wait until ${formatNextScan(nextAt)} for your next scan.`,
-                    );
-                    if (navigation.canGoBack()) {
-                        navigation.goBack();
-                    }
+                // The SERVER decides — the same rule the upload enforces (UTC
+                // day, failed scans don't count). The local re-implementation
+                // that lived here (local calendar day, any status) disagreed
+                // with it in both directions: it bounced users out when a scan
+                // was permitted, and let them take three photos before a 429.
+                const latest = (await api.getLatestScan()) as LatestScan | null;
+                if (!latest || latest.can_scan_now !== false) return;
+                // getLatestScan is async: focus can change while it's in
+                // flight. Re-check at resolution so the pop can only ever
+                // remove THIS screen.
+                if (!navigation.isFocused()) return;
+                const weekly = latest.scan_limit_reason === 'weekly_limit';
+                const nextAt = latest.next_scan_allowed_at ? new Date(latest.next_scan_allowed_at) : null;
+                const when = nextAt && !Number.isNaN(nextAt.getTime())
+                    ? ` Wait until ${formatNextScan(nextAt)} for your next scan.`
+                    : ' Try again tomorrow.';
+                Alert.alert(
+                    weekly ? 'Weekly face scan' : 'Daily face scan',
+                    `${weekly ? 'Your plan includes one face scan per week.' : 'Your plan includes one face scan per day.'}${when}`,
+                );
+                if (navigation.canGoBack()) {
+                    navigation.goBack();
                 }
             } catch {
                 // ignore
             }
         };
         void run();
-    }, [isPaid, isPremium, isScanUser, isFocused, funnelV4, navigation]);
+    }, [isPaid, isScanUser, isFocused, funnelV4, navigation]);
 
     /**
      * Resume camera cleanly after background; recover analyzing flow from server when user returns.
@@ -485,13 +598,22 @@ export default function FaceScanScreen() {
         // flags stay SET until the background upload succeeds, so a kill/crash
         // mid-upload still restores the photos for a resubmit.
         if (funnelV4) {
+            if (funnelUploadRef.current) {
+                // Already uploading these photos — back to the quiz, no second row.
+                navigation.navigate('Onboarding', { phase: 'intro', scanSkipped: false });
+                return;
+            }
+            funnelUploadRef.current = true;
+            setUploadNotice(null);
+            await clearFaceScanUploadFailed();
             if (user?.id) {
                 try { await setPendingFaceScanSubmit(user.id); } catch (e) { console.warn('pending submit flag', e); }
             }
+            const uid = user?.id;
             void (async () => {
                 try {
-                    const scanRes = (await api.uploadScanTriple(f, l, r)) as { analysis?: { overall_score?: number } };
-                    const os = scanRes?.analysis?.overall_score;
+                    const scanRes = await api.uploadScanTriple(f, l, r);
+                    const os = (scanRes?.analysis as { overall_score?: number } | undefined)?.overall_score;
                     const rating =
                         typeof os === 'number' && Number.isFinite(os) ? Math.round(os * 10) / 10 : undefined;
                     void api.uploadProgressPhoto(f, { faceRating: rating }).catch((pe) => {
@@ -504,16 +626,28 @@ export default function FaceScanScreen() {
                         queryKey: queryKeys.schedulesActiveFull,
                         refetchType: 'all',
                     });
-                    // Upload landed — safe to drop the recovery flags now.
+                    // Upload landed — safe to drop the recovery flags now, and
+                    // the photos: a swipe-back onto this buried screen must not
+                    // find an Analyze button armed with an already-sent set.
                     void clearPendingFaceScanSubmit().catch(() => undefined);
                     void clearFaceScanDraft().catch(() => undefined);
+                    setUris([null, null, null]);
+                    setStepIndex(0);
                 } catch (err) {
-                    // Leave the recovery flags set: the results gate times out into
-                    // a retry that reopens this screen with the photos restored.
+                    // Failed for good (three attempts, or a 4xx). Record it so the
+                    // results gate fails FAST into "Retake photos / Skip scan"
+                    // instead of spinning for two minutes on a row that will
+                    // never appear. The pending flag + on-disk photos stay, so
+                    // re-entering this screen restores them for a resend.
                     console.warn('background scan upload failed', err);
+                    const copy = scanUploadErrorCopy(err);
+                    if (uid) await setFaceScanUploadFailed(uid, copy.message).catch(() => undefined);
+                } finally {
+                    funnelUploadRef.current = false;
                 }
             })();
-            navigation.navigate('Onboarding', { phase: 'intro' });
+            // scanSkipped:false is explicit — see navigateToResults.
+            navigation.navigate('Onboarding', { phase: 'intro', scanSkipped: false });
             return;
         }
         setAnalyzing(true);
@@ -530,10 +664,10 @@ export default function FaceScanScreen() {
         }
         try {
             setAnalysisStep(1);
-            const scanRes = (await api.uploadScanTriple(f, l, r)) as { analysis?: { overall_score?: number } };
+            const scanRes = await api.uploadScanTriple(f, l, r);
             if (scanCancelledRef.current) return; // user bailed; don't navigate/alert late
             setAnalysisStep(2);
-            const os = scanRes?.analysis?.overall_score;
+            const os = (scanRes?.analysis as { overall_score?: number } | undefined)?.overall_score;
             const rating =
                 typeof os === 'number' && Number.isFinite(os) ? Math.round(os * 10) / 10 : undefined;
             // Navigate to results immediately so the user is never stuck on the
@@ -573,15 +707,17 @@ export default function FaceScanScreen() {
             console.error(err);
             await clearPendingFaceScanSubmit().catch(() => undefined);
             if (scanCancelledRef.current) return; // cancel aborted the fetch — no error alert
-            const e = err as any;
-            const detail =
-                e?.response?.data?.detail ??
-                (typeof e?.message === 'string' && e.message.length < 200 ? e.message : null);
+            // Owned copy only — never the server detail / exception text.
+            const copy = scanUploadErrorCopy(err);
             Alert.alert(
-                'Error',
-                typeof detail === 'string' && detail.trim()
-                    ? detail
-                    : 'Could not analyze photos. Check connection and try again.',
+                copy.title,
+                copy.message,
+                copy.showResults
+                    ? [
+                        { text: 'See my scan', onPress: () => navigation.navigate('FaceScanResults') },
+                        { text: 'OK', style: 'cancel' },
+                    ]
+                    : undefined,
             );
         } finally {
             uploadActiveRef.current = false;
@@ -689,6 +825,12 @@ export default function FaceScanScreen() {
             <View style={styles.titleBlock}>
                 <Text style={styles.title}>{step.title}</Text>
                 <Text style={styles.instruction}>{step.instruction}</Text>
+                {uploadNotice ? (
+                    <View style={styles.noticePill} accessibilityRole="alert">
+                        <Ionicons name="cloud-offline-outline" size={14} color="#FFFFFF" />
+                        <Text style={styles.noticeText}>{uploadNotice}</Text>
+                    </View>
+                ) : null}
             </View>
 
             {/* ── Bottom controls ───────────────────────────────────── */}
@@ -806,6 +948,26 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 4,
         letterSpacing: 0.1,
+    },
+    noticePill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 9,
+        borderRadius: 999,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(255,255,255,0.28)',
+        maxWidth: 340,
+    },
+    noticeText: {
+        flexShrink: 1,
+        fontFamily: fonts.sans,
+        fontSize: 12.5,
+        lineHeight: 17,
+        color: '#FFFFFF',
     },
 
     /* camera */

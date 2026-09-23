@@ -4,7 +4,7 @@ Storage Service - S3 or local fallback for image storage
 
 import asyncio
 import os
-from typing import Optional
+from typing import Awaitable, Optional
 import uuid
 from datetime import datetime
 from config import settings
@@ -328,19 +328,64 @@ def create_storage_service():
 storage_service = create_storage_service()
 
 
-def delete_by_url(url: str) -> bool:
-    """
-    Delete a stored image by URL or key.
-    Supports local "/uploads/..." paths and S3 URLs/keys.
-    """
+async def _delete_by_url(url: str) -> bool:
     if not url:
         return False
     # Local storage paths
     if url.startswith("/uploads/"):
-        return storage_service.delete_image(url)
+        return await storage_service.delete_image(url)
     # S3 keys or URLs
     if isinstance(storage_service, S3StorageService):
         key = _extract_s3_key(url, settings.aws_s3_bucket, settings.aws_s3_region) or url
-        return storage_service.delete_image(key)
+        return await storage_service.delete_image(key)
     return False
+
+
+# Strong references to scheduled deletes: asyncio keeps only a WEAK reference
+# to a bare create_task result, so an un-awaited delete could be garbage-
+# collected mid-flight and never reach S3.
+_bg_deletes: set = set()
+
+
+def delete_by_url(url: str) -> Awaitable[bool]:
+    """
+    Delete a stored image by URL or key (local "/uploads/..." paths and S3
+    URLs/keys). The delete RUNS whether or not the caller awaits the result.
+
+    This used to be a plain `def` that returned the *un-awaited*
+    `delete_image(...)` coroutine: every caller silently deleted nothing, and
+    face photos of replaced avatars / deleted progress pictures stayed at
+    their public S3 URLs forever. The work is scheduled here so the existing
+    fire-and-forget call sites (avatar replace, progress-photo delete) now
+    actually delete, while callers that need the outcome — account deletion —
+    `await` the returned task.
+    """
+    coro = _delete_by_url(url)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop (a sync script): hand the coroutine back to be run.
+        return coro
+    task = loop.create_task(coro)
+    _bg_deletes.add(task)
+    task.add_done_callback(_bg_deletes.discard)
+    return task
+
+
+async def delete_many_by_url(urls) -> int:
+    """Best-effort bulk delete for account deletion: every URL is attempted,
+    a failure on one never stops the rest, and nothing here raises. Returns
+    the number of objects reported deleted (for the log line)."""
+    deleted = 0
+    seen: set = set()
+    for u in urls or []:
+        if not isinstance(u, str) or not u or u in seen:
+            continue
+        seen.add(u)
+        try:
+            if await delete_by_url(u):
+                deleted += 1
+        except Exception as e:  # noqa: BLE001 — storage cleanup must never abort the delete
+            print(f"Storage cleanup failed for {u}: {e}")
+    return deleted
 

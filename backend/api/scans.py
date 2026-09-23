@@ -36,8 +36,9 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from sqlalchemy.exc import IntegrityError
+
 from db import get_db, release_conn
 from middleware.auth_middleware import require_paid_user, get_current_user
 from middleware.rate_limit import rate_limit
@@ -49,6 +50,151 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/scans", tags=["Face Scans"])
+
+
+# ── Scan allowance (one rule, shared by upload + /scans/latest) ──────────────
+#
+# The app used to re-derive the daily/weekly limit client-side (local calendar
+# day vs the server's UTC day; counting FAILED scans) and disagreed with the
+# upload endpoint: it either bounced users out of the Scan tab when a scan was
+# permitted, or let them take three photos only to be 429'd. The server now
+# reports `can_scan_now` / `next_scan_allowed_at` from THIS function and the
+# client reads that instead.
+_WEEKLY_WINDOW = timedelta(days=7)
+
+
+def _to_naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def compute_scan_allowance(
+    *,
+    is_scan_user: bool,
+    is_paid: bool,
+    is_premium: bool,
+    first_scan_completed: bool,
+    last_scan_at: Optional[datetime],
+    now: Optional[datetime] = None,
+) -> tuple[bool, Optional[datetime], Optional[str]]:
+    """Return (can_scan_now, next_scan_allowed_at, reason).
+
+    `last_scan_at` is the newest NON-failed scan's created_at — a failed scan
+    never consumes a slot. Tiers: scan-user unlimited; free = one lifetime
+    scan (keyed on the user flag, like the upload endpoint); basic = one per
+    rolling 7 days; premium = one per UTC day. Naive datetimes are UTC.
+    """
+    now_u = _to_naive_utc(now) or datetime.utcnow()
+    last_u = _to_naive_utc(last_scan_at)
+    if is_scan_user:
+        return True, None, None
+    if not is_paid:
+        if first_scan_completed:
+            return False, None, "free_limit"
+        return True, None, None
+    if not is_premium:
+        if last_u is not None and last_u >= now_u - _WEEKLY_WINDOW:
+            return False, last_u + _WEEKLY_WINDOW, "weekly_limit"
+        return True, None, None
+    day_start = now_u.replace(hour=0, minute=0, second=0, microsecond=0)
+    if last_u is not None and last_u >= day_start:
+        return False, day_start + timedelta(days=1), "daily_limit"
+    return True, None, None
+
+
+def has_inflight_scan(processing_created_at: Optional[datetime], now: Optional[datetime] = None) -> bool:
+    """True when a `processing` row is recent enough to still be a live
+    analysis (younger than the read-path reaper's cutoff). Older rows are
+    stranded, not in flight, and a re-upload is the right thing."""
+    if processing_created_at is None:
+        return False
+    now_u = _to_naive_utc(now) or datetime.utcnow()
+    age_s = (now_u - _to_naive_utc(processing_created_at)).total_seconds()
+    return age_s < _STALE_PROCESSING_S
+
+
+def _iso_utc(dt: Optional[datetime]) -> Optional[str]:
+    if dt is None:
+        return None
+    return _to_naive_utc(dt).replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def facial_scan_summary_from_analysis(analysis: dict, now: Optional[datetime] = None) -> dict:
+    """The denormalized headline the AI coach / paywall read from
+    onboarding.facial_scan_summary. Pure so it can be unit-tested."""
+    pi = analysis.get("profile_insights") or {}
+    pr = analysis.get("psl_rating") if isinstance(analysis.get("psl_rating"), dict) else {}
+    return {
+        "overall_score": analysis.get("overall_score"),
+        "psl_score": pr.get("psl_score"),
+        "psl_tier": pr.get("psl_tier"),
+        "appeal": pr.get("appeal"),
+        "potential_score": analysis.get("potential_score"),
+        "archetype": pi.get("archetype"),
+        "suggested_modules": pi.get("suggested_modules") or [],
+        # New viral metrics.
+        "halo_feature": pr.get("halo_feature") or pi.get("halo_feature"),
+        "bottleneck": pr.get("bottleneck") or pi.get("bottleneck"),
+        "bottleneck_max": pr.get("bottleneck_max") or pi.get("bottleneck_max"),
+        "sex_appeal": pr.get("sex_appeal"),
+        "trust_appeal": pr.get("trust_appeal"),
+        "appeal_quadrant": pr.get("appeal_quadrant"),
+        "dimorphism": pr.get("dimorphism"),
+        "dimorphism_note": pr.get("dimorphism_note"),
+        "glow_up_label": pr.get("glow_up_label"),
+        "first_move": pr.get("first_move") or pi.get("first_move") or [],
+        "scan_completed_at": (now or datetime.utcnow()).isoformat() + "Z",
+    }
+
+
+# Atomic first-scan completion. The handler's `User` object was loaded BEFORE
+# the ~75s vision analysis (and expire_on_commit=False keeps it in the identity
+# map), so `dict(user.onboarding)` + write-back replayed a STALE blob: under
+# funnel V4 the quiz saves its intro answers (goals, age, gender…) WHILE the
+# analysis runs, and this write wiped them. Merging server-side (`||` on the
+# existing column) touches only the scan keys, and the `first_scan_completed
+# IS NOT TRUE` predicate makes a racing duplicate upload a no-op instead of a
+# second "first scan". `onboarding`/`profile` are `json` columns and may hold a
+# JSON null, which `||` rejects — hence the typeof guards.
+_FIRST_SCAN_COMPLETION_SQL = text(
+    """
+    UPDATE app_users
+       SET first_scan_completed = TRUE,
+           onboarding = (
+               CASE WHEN jsonb_typeof(onboarding::jsonb) = 'object' THEN onboarding::jsonb ELSE '{}'::jsonb END
+               || CAST(:patch AS jsonb)
+           )::json,
+           profile = CASE
+               WHEN COALESCE(profile::jsonb ->> 'avatar_url', '') = '' AND CAST(:avatar_url AS text) IS NOT NULL
+                   THEN (
+                       CASE WHEN jsonb_typeof(profile::jsonb) = 'object' THEN profile::jsonb ELSE '{}'::jsonb END
+                       || jsonb_build_object('avatar_url', CAST(:avatar_url AS text))
+                   )::json
+               ELSE profile
+           END,
+           updated_at = NOW()
+     WHERE id = :uid AND first_scan_completed IS NOT TRUE
+    """
+)
+
+
+async def _complete_first_scan(db: AsyncSession, user_uuid: UUID, summary: dict, front_url: Optional[str]) -> bool:
+    """Mark the user's first scan done + merge `facial_scan_summary` into
+    onboarding without clobbering keys written during the analysis. Returns
+    True iff THIS call claimed the first scan."""
+    res = await db.execute(
+        _FIRST_SCAN_COMPLETION_SQL,
+        {
+            "patch": json.dumps({"facial_scan_summary": summary}, default=str),
+            "avatar_url": front_url or None,
+            "uid": str(user_uuid),
+        },
+    )
+    await db.commit()
+    return bool(getattr(res, "rowcount", 0))
 
 # Strong references to fire-and-forget notification tasks. asyncio only keeps a
 # WEAK reference to a bare create_task result, so without this the scan-complete
@@ -261,62 +407,68 @@ async def upload_scan_triple(
     tier = (current_user.get("subscription_tier") or "").lower()
     is_premium = is_paid and tier == "premium"
 
-    # Tier-based scan rate limiting
+    # Tier-based scan rate limiting — the SAME rule GET /scans/latest reports
+    # to the app (compute_scan_allowance), so the client never re-derives it.
     #   Scan-user (admin/internal): unlimited
     #   Free (not paid):  1 lifetime
-    #   Chadlite (basic): 1 per ROLLING 7-DAY WINDOW (weekly)
-    #   Chad (premium):   1 per UTC DAY (daily)
-    if is_scan_user:
-        pass
-    elif not is_paid:
-        if user_row and user_row.first_scan_completed:
+    #   Basic:            1 per ROLLING 7-DAY WINDOW (weekly)
+    #   Premium:          1 per UTC DAY (daily)
+    now = datetime.utcnow()
+    last_ok_row = (await db.execute(
+        select(Scan.created_at)
+        .where(Scan.user_id == user_uuid)
+        .where(Scan.processing_status != "failed")
+        .order_by(Scan.created_at.desc())
+        .limit(1)
+    )).first()
+    can_scan, next_at, reason = compute_scan_allowance(
+        is_scan_user=is_scan_user,
+        is_paid=is_paid,
+        is_premium=is_premium,
+        first_scan_completed=bool(user_row and user_row.first_scan_completed),
+        last_scan_at=last_ok_row[0] if last_ok_row else None,
+        now=now,
+    )
+    if not can_scan:
+        if reason == "free_limit":
             raise HTTPException(
                 status_code=400,
                 detail="You have already completed your free face scan. Subscribe to scan again.",
             )
-    elif not is_premium:
-        # Chadlite — once per rolling 7-day window
-        now = datetime.utcnow()
-        week_start = now - timedelta(days=7)
-        recent_res = await db.execute(
-            select(Scan.id, Scan.created_at)
-            .where(Scan.user_id == user_uuid)
-            .where(Scan.created_at >= week_start)
-            .where(Scan.processing_status != "failed")
-            .order_by(Scan.created_at.desc())
-            .limit(1)
-        )
-        recent_row = recent_res.first()
-        if recent_row:
-            last_scan_at = recent_row[1]
-            next_at = last_scan_at + timedelta(days=7)
-            wait_days = max(1, (next_at - now).days + 1)
+        if reason == "weekly_limit":
+            wait_days = max(1, ((next_at or now) - now).days + 1)
             raise HTTPException(
                 status_code=429,
                 detail=(
-                    f"Chadlite includes 1 face scan per week. "
-                    f"Try again in ~{wait_days} day{'s' if wait_days != 1 else ''}, "
-                    f"or upgrade to Chad for daily scans."
+                    f"Your plan includes one face scan per week. "
+                    f"Try again in ~{wait_days} day{'s' if wait_days != 1 else ''}."
                 ),
             )
-    else:
-        # Chad — once per UTC day
-        now = datetime.utcnow()
-        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start + timedelta(days=1)
-        today_res = await db.execute(
-            select(Scan.id)
-            .where(Scan.user_id == user_uuid)
-            .where(Scan.created_at >= day_start)
-            .where(Scan.created_at < day_end)
-            .where(Scan.processing_status != "failed")
-            .limit(1)
+        raise HTTPException(
+            status_code=429,
+            detail="You already completed a face scan today. Try again tomorrow.",
         )
-        if today_res.first():
-            raise HTTPException(
-                status_code=429,
-                detail="You already completed a face scan today. Try again tomorrow.",
-            )
+
+    # Duplicate-upload guard: a second upload while the previous scan is still
+    # being analyzed (double-tap on Analyze, swipe-back to the buried capture
+    # screen, a client retry after its own timeout while the first request is
+    # still running here) created a second row and a second ~75s vision call —
+    # twice the LLM cost, and /scans/latest then reported is_first_scan=false
+    # so the full breakdown was hidden. 409 tells the client to poll the row
+    # it already has. The window matches the read-path reaper: an older
+    # `processing` row is stranded, not in flight.
+    inflight_row = (await db.execute(
+        select(Scan.created_at)
+        .where(Scan.user_id == user_uuid)
+        .where(Scan.processing_status == "processing")
+        .order_by(Scan.created_at.desc())
+        .limit(1)
+    )).first()
+    if inflight_row and has_inflight_scan(inflight_row[0], now):
+        raise HTTPException(
+            status_code=409,
+            detail="Your last scan is still being analyzed. It will appear in a moment.",
+        )
 
     onboarding_ctx = json.dumps(user_row.onboarding or {}, default=str) if user_row else "{}"
 
@@ -374,6 +526,15 @@ async def upload_scan_triple(
         # Chadlite/Chad on a first scan, which inflates expectations and
         # cuts off the upgrade ladder. Subsequent scans uncap.
         user = await db.get(User, user_uuid)
+        if user is not None:
+            # `db.get` returns the identity-mapped object loaded at the top of
+            # this request, BEFORE the ~75s analysis (expire_on_commit=False).
+            # Re-read it: the quiz may have saved intro answers meanwhile and
+            # a duplicate upload may already have claimed the first scan.
+            try:
+                await db.refresh(user)
+            except Exception as refresh_err:  # noqa: BLE001 — a lost row must not fail a finished analysis
+                logger.warning("scan: user refresh after analysis failed: %s", refresh_err)
         is_first_scan = bool(user and not user.first_scan_completed)
         if is_first_scan:
             from services.gemini_service import _infer_psl_tier_from_score
@@ -391,41 +552,19 @@ async def upload_scan_triple(
         scan_row.processing_status = "completed"
         await db.commit()
 
-        if user and not user.first_scan_completed:
-            user.first_scan_completed = True
-            # Auto-set the profile picture to the front photo from this first
-            # scan (the onboarding scan, or whenever the first scan happens) —
-            # but never clobber an avatar they've already chosen themselves.
-            prof = dict(user.profile or {})
-            if not prof.get("avatar_url") and front_url:
-                prof["avatar_url"] = front_url
-                user.profile = prof
-            ob = dict(user.onboarding or {})
-            pi = analysis.get("profile_insights") or {}
-            pr = analysis.get("psl_rating") if isinstance(analysis.get("psl_rating"), dict) else {}
-            ob["facial_scan_summary"] = {
-                "overall_score": analysis.get("overall_score"),
-                "psl_score": pr.get("psl_score"),
-                "psl_tier": pr.get("psl_tier"),
-                "appeal": pr.get("appeal"),
-                "potential_score": analysis.get("potential_score"),
-                "archetype": pi.get("archetype"),
-                "suggested_modules": pi.get("suggested_modules") or [],
-                # New viral metrics.
-                "halo_feature": pr.get("halo_feature") or pi.get("halo_feature"),
-                "bottleneck": pr.get("bottleneck") or pi.get("bottleneck"),
-                "bottleneck_max": pr.get("bottleneck_max") or pi.get("bottleneck_max"),
-                "sex_appeal": pr.get("sex_appeal"),
-                "trust_appeal": pr.get("trust_appeal"),
-                "appeal_quadrant": pr.get("appeal_quadrant"),
-                "dimorphism": pr.get("dimorphism"),
-                "dimorphism_note": pr.get("dimorphism_note"),
-                "glow_up_label": pr.get("glow_up_label"),
-                "first_move": pr.get("first_move") or pi.get("first_move") or [],
-                "scan_completed_at": datetime.utcnow().isoformat() + "Z",
-            }
-            user.onboarding = ob
-            await db.commit()
+        if is_first_scan:
+            # Auto-sets the profile picture to this first scan's front photo
+            # (never clobbering one they chose) and merges the scan headline
+            # into onboarding — server-side, key by key, so the intro answers
+            # the quiz saved during the analysis survive (see the SQL above).
+            await _complete_first_scan(
+                db, user_uuid, facial_scan_summary_from_analysis(analysis), front_url,
+            )
+            if user is not None:
+                try:
+                    await db.refresh(user)
+                except Exception as refresh_err:  # noqa: BLE001
+                    logger.warning("scan: user refresh after completion failed: %s", refresh_err)
 
         overall_score = _overall_from_analysis(analysis)
         await _update_leaderboard_after_scan(db, user_uuid, overall_score)
@@ -450,7 +589,11 @@ async def upload_scan_triple(
         scan_row.processing_status = "failed"
         scan_row.error_message = str(e)
         await db.commit()
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+        # The provider/exception text stays in scans.error_message for us; the
+        # client used to render this detail verbatim in an alert ("Analysis
+        # failed: 503 UNAVAILABLE The model is overloaded…").
+        logger.error("scan %s analysis failed: %s", scan_id, e)
+        raise HTTPException(status_code=500, detail="We couldn't analyze your photos. Please try again.")
 
 
 @router.post("/upload-video")
@@ -625,7 +768,8 @@ async def analyze_scan(
         scan.processing_status = "failed"
         scan.error_message = str(e)
         await db.commit()
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+        logger.error("scan %s re-analysis failed: %s", scan_id, e)
+        raise HTTPException(status_code=500, detail="We couldn't analyze your photos. Please try again.")
 
 
 async def _reap_if_stale_processing(scan: "Scan", db: AsyncSession) -> None:
@@ -687,6 +831,28 @@ async def get_latest_scan(
         )
     )).scalar() or 0)
 
+    # The limit decision the upload endpoint will make, so the app can tell
+    # the user BEFORE they take three photos (and never re-derive the rule
+    # locally). A failed latest row doesn't consume a slot — look past it.
+    last_ok_at = scan.created_at
+    if scan.processing_status == "failed":
+        last_ok_row = (await db.execute(
+            select(Scan.created_at)
+            .where(Scan.user_id == user_uuid)
+            .where(Scan.processing_status != "failed")
+            .order_by(Scan.created_at.desc())
+            .limit(1)
+        )).first()
+        last_ok_at = last_ok_row[0] if last_ok_row else None
+    tier = (current_user.get("subscription_tier") or "").lower()
+    can_scan, next_at, reason = compute_scan_allowance(
+        is_scan_user=bool(is_scan_user),
+        is_paid=bool(is_paid),
+        is_premium=bool(is_paid) and tier == "premium",
+        first_scan_completed=bool(current_user.get("first_scan_completed", False)),
+        last_scan_at=last_ok_at,
+    )
+
     response = {
         "id": str(scan.id),
         "created_at": scan.created_at,
@@ -694,6 +860,9 @@ async def get_latest_scan(
         "is_unlocked": treat_as_paid,
         "processing_status": scan.processing_status,
         "is_first_scan": completed_count <= 1,
+        "can_scan_now": can_scan,
+        "next_scan_allowed_at": _iso_utc(next_at),
+        "scan_limit_reason": reason,
     }
 
     if scan.analysis:

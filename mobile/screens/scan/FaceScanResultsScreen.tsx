@@ -22,13 +22,19 @@ import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LiquidGlassFill } from '../../components/glass/LiquidGlass';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
-import { clearFaceScanDraft, clearPendingFaceScanSubmit } from '../../lib/faceScanDraft';
+import {
+    clearFaceScanDraft,
+    clearFaceScanUploadFailed,
+    clearPendingFaceScanSubmit,
+    getFaceScanUploadFailed,
+} from '../../lib/faceScanDraft';
+import { markOnboardingScanSkipped, setOnboardingFunnelStage } from '../../lib/onboardingDraft';
 import { useAuth } from '../../context/AuthContext';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { useFlag } from '../../constants/featureFlags';
@@ -220,17 +226,38 @@ function PaywallBlurShell({ children, minHeight }: { children: React.ReactNode; 
 
 const PROCESSING_TIMEOUT_MS = 60_000;
 
-function ScanProcessingView({ onRetry, onBack }: { onRetry: () => void; onBack: () => void }) {
+/**
+ * Processing / stuck view. In the V4 funnel the gate ALSO receives
+ * `onRetake` + `onSkip`: its only exits used to be Retry (a re-fetch of a row
+ * that will never appear) and Back (the last quiz question, whose Next led
+ * straight back here) — a dead loop with no way to rescan, skip or pay.
+ * `failedMessage` short-circuits the wait: the capture screen recorded that
+ * the background upload failed for good, so show the exits immediately.
+ */
+function ScanProcessingView({
+    onRetry,
+    onBack,
+    onRetake,
+    onSkip,
+    failedMessage,
+}: {
+    onRetry: () => void;
+    onBack: () => void;
+    onRetake?: () => void;
+    onSkip?: () => void;
+    failedMessage?: string | null;
+}) {
     const insets = useSafeAreaInsets();
     const [trackWidth, setTrackWidth] = useState(0);
     const progressAnim = useRef(new Animated.Value(12)).current;
     const [pctLabel, setPctLabel] = useState(12);
-    const [timedOut, setTimedOut] = useState(false);
+    const [timedOut, setTimedOut] = useState(!!failedMessage);
 
     useEffect(() => {
+        if (failedMessage) { setTimedOut(true); return; }
         const id = setTimeout(() => setTimedOut(true), PROCESSING_TIMEOUT_MS);
         return () => clearTimeout(id);
-    }, []);
+    }, [failedMessage]);
 
     useEffect(() => {
         if (timedOut) return;
@@ -247,15 +274,39 @@ function ScanProcessingView({ onRetry, onBack }: { onRetry: () => void; onBack: 
     const fillWidth = trackWidth > 0 ? progressAnim.interpolate({ inputRange: [0, 100], outputRange: [0, trackWidth], extrapolate: 'clamp' }) : 0;
 
     if (timedOut) {
+        const failed = !!failedMessage;
         return (
             <View style={[s.root, s.fetchingRoot]}>
-                <Text style={s.fetchErrorText}>This is taking longer than expected. Check your connection and try again.</Text>
-                <TouchableOpacity style={s.fetchRetryBtn} onPress={() => { setTimedOut(false); onRetry(); }} activeOpacity={0.85}>
-                    <Text style={s.fetchRetryText}>Retry</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.fetchSkipBtn} onPress={onBack} activeOpacity={0.85}>
-                    <Text style={s.fetchSkipText}>Back</Text>
-                </TouchableOpacity>
+                <Text style={s.fetchErrorText}>
+                    {failed
+                        ? `${failedMessage} Your photos are saved — retake or resend them, or skip the scan for now.`
+                        : 'This is taking longer than expected. Check your connection and try again.'}
+                </Text>
+                {/* Primary: resend/retake when the upload is known dead, else Retry. */}
+                {failed && onRetake ? (
+                    <TouchableOpacity style={s.fetchRetryBtn} onPress={onRetake} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Retake photos">
+                        <Text style={s.fetchRetryText}>Retake photos</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity style={s.fetchRetryBtn} onPress={() => { setTimedOut(false); onRetry(); }} activeOpacity={0.85}>
+                        <Text style={s.fetchRetryText}>Retry</Text>
+                    </TouchableOpacity>
+                )}
+                {!failed && onRetake ? (
+                    <TouchableOpacity style={s.fetchSkipBtn} onPress={onRetake} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Retake photos">
+                        <Text style={s.fetchSkipText}>Retake photos</Text>
+                    </TouchableOpacity>
+                ) : null}
+                {onSkip ? (
+                    <TouchableOpacity style={s.fetchSkipBtn} onPress={onSkip} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Skip scan">
+                        <Text style={s.fetchSkipText}>Skip scan</Text>
+                    </TouchableOpacity>
+                ) : null}
+                {!failed ? (
+                    <TouchableOpacity style={s.fetchSkipBtn} onPress={onBack} activeOpacity={0.85}>
+                        <Text style={s.fetchSkipText}>Back</Text>
+                    </TouchableOpacity>
+                ) : null}
             </View>
         );
     }
@@ -839,6 +890,10 @@ export default function FaceScanResultsScreen() {
     const [processing, setProcessing] = useState(false);
     const [advancing, setAdvancing] = useState(false);
     const advancedRef = useRef(false);
+    const isFocused = useIsFocused();
+    // Funnel V4: the capture screen recorded that the background upload
+    // failed for good — the row will never appear, so don't wait for it.
+    const [uploadFailed, setUploadFailed] = useState<string | null>(null);
     // Save/Share now snapshot the REAL views the user sees, not an off-screen
     // designed card: rootRef = the full-screen hero (scan photo + the 3 rings),
     // analysisRef = the white "Your Analysis" sheet.
@@ -899,6 +954,34 @@ export default function FaceScanResultsScreen() {
         didTrackResultsView.current = true;
         track('onboarding_step', { step: 'results_view' });
     }, [hydrating]);
+
+    // Funnel checkpoint: a kill here used to relaunch into ScanOffer → the
+    // last quiz question → this gate again. ScanOffer now forwards straight
+    // back here (lib/onboardingDraft funnelResumeTarget).
+    // Focus-guarded: ScanOffer rebuilds this screen BENEATH a resumed
+    // referral/paywall step, and a background stamp would overwrite that
+    // later stage. Re-stamps when the user comes Back here — correct.
+    useEffect(() => {
+        if (!gateV4 || !user?.id || !isFocused) return;
+        void setOnboardingFunnelStage(user.id, 'gate').catch(() => undefined);
+    }, [gateV4, user?.id, isFocused]);
+
+    // While the gate waits for a row, watch for the capture screen's
+    // "upload failed" marker so we fail fast into Retake/Skip instead of
+    // sitting on the analyzing spinner for two minutes.
+    useEffect(() => {
+        if (!gateV4 || !user?.id) return;
+        if (scan) { setUploadFailed(null); return; }
+        const uid = user.id;
+        let cancelled = false;
+        const check = async () => {
+            const f = await getFaceScanUploadFailed(uid).catch(() => null);
+            if (!cancelled && f) setUploadFailed(f.message || "Your photos didn't upload.");
+        };
+        void check();
+        const t = setInterval(() => { void check(); }, 1500);
+        return () => { cancelled = true; clearInterval(t); };
+    }, [gateV4, user?.id, scan]);
 
     // Clear the in-flight submit flag + captured-photo draft ONLY when this is
     // the genuine post-upload hand-off (FaceScanScreen passes justSubmitted).
@@ -1090,9 +1173,6 @@ export default function FaceScanResultsScreen() {
     ).map(String).filter(Boolean).slice(0, 2);
     const glowUpGain = ratingDisplay != null ? Math.max(0, Math.round((potentialDisplay - ratingDisplay) * 10) / 10) : null;
 
-    // Account-after-scan: an unclaimed (anon) user creates their account first;
-    // a claimed user goes straight to the referral/paywall step.
-    const isAnon = !!user?.email && String(user.email).endsWith('@anon.trymax.app');
     // V4 gate: the paywall is the next step (account comes after purchase) —
     // unless this is a resumed already-paid/free-tier user, who skips straight
     // to the account step. Legacy locked-results paths keep their old routing.
@@ -1108,17 +1188,63 @@ export default function FaceScanResultsScreen() {
         if (v4Gate) {
             // Referral/promo step sits in front of the paywall (a full comp like
             // CASH99 redeems there and routes past Payment entirely).
-            navigation.navigate(isPaid || isFreeTier ? 'CreateAccount' : 'ReferralCode');
+            if (isPaid || isFreeTier) {
+                navigation.navigate('CreateAccount');
+                return;
+            }
+            if (user?.id) void setOnboardingFunnelStage(user.id, 'referral').catch(() => undefined);
+            navigation.navigate('ReferralCode');
             return;
         }
-        navigation.navigate(isAnon ? 'CreateAccount' : 'ReferralCode');
+        // Legacy (onboarding already completed) locked results: the paywall
+        // comes FIRST. Anon users used to be sent to CreateAccount here, whose
+        // claim → schedule → finish() path granted browse-only access without
+        // ever showing the paywall (a silent revenue leak). Account claim is a
+        // post-pay step in this funnel.
+        navigation.navigate('ReferralCode');
+    };
+
+    // V4 gate exits that reach the capture screen — the gate had none: both
+    // "Scan again" and Back popped to the last quiz question, whose Next led
+    // straight back to the same dead gate.
+    const goRetake = () => {
+        track('onboarding_step', { step: 'scan_retake' });
+        setUploadFailed(null);
+        void clearFaceScanUploadFailed();
+        // FaceScan is registered in this stack: still mounted beneath the quiz
+        // (navigate pops back to it) or pushed fresh (it restores the saved
+        // photos on mount). `retake` is a fresh token so its effect re-runs.
+        navigation.navigate('FaceScan', { funnelV4: true, retake: Date.now() });
+    };
+    const goSkipScan = async () => {
+        track('onboarding_step', { step: 'scan_skipped_from_gate' });
+        setUploadFailed(null);
+        void clearFaceScanUploadFailed();
+        void clearPendingFaceScanSubmit().catch(() => undefined);
+        if (user?.id) {
+            // The wizard beneath us keeps its own scanSkipped state; the draft
+            // is what a relaunch reads, so mark it there too.
+            await markOnboardingScanSkipped(user.id, true).catch(() => undefined);
+            if (!(isPaid || isFreeTier)) {
+                await setOnboardingFunnelStage(user.id, 'referral').catch(() => undefined);
+            }
+        }
+        navigation.navigate(isPaid || isFreeTier ? 'CreateAccount' : 'ReferralCode');
+    };
+
+    // Exit for an UNLOCKED, non-post-pay results view. This screen now sits on
+    // top of whatever launched it (Main with its live tab state, or the scan
+    // archive) — navigate('Main') pushed a FRESH Main on top and lost that.
+    const exitToHome = () => {
+        if (navigation.canGoBack()) { navigation.goBack(); return; }
+        navigation.navigate('Main');
     };
 
     const onPrimaryCta = async () => {
         if (isScanUser) { navigation.reset({ index: 0, routes: [{ name: 'FaceScan' }] }); return; }
         if (locked) { goPayment(); return; }
         if (postPay) { setAdvancing(true); void advancePostPay(); return; }
-        navigation.navigate('Main');
+        exitToHome();
     };
 
     const primaryCtaLabel = isScanUser
@@ -1126,6 +1252,28 @@ export default function FaceScanResultsScreen() {
         : locked ? 'Unlock full results'
         : postPay ? (funnelParam ? 'Save my results' : 'Get started')
         : 'Continue';
+
+    // V4 gate CTA from STATE: a purchase verified while the user was still in
+    // the quiz (killed behind the Apple sheet, boot reconciler adopted the
+    // sub) reaches this gate already paid — "Unlock full results" with a lock
+    // icon read as "it forgot my purchase". Paid ⇒ the next step is the
+    // account, so say so, and go there without a tap.
+    const gatePaid = isPaid === true;
+    const gateCtaLabel = gatePaid ? 'Save my results' : 'Unlock full results';
+    const autoForwardedRef = useRef(false);
+    useEffect(() => {
+        if (!gateV4 || postPayParam || hydrating || !isFocused) return;
+        if (!gatePaid || user?.onboarding?.completed === true) return;
+        // Deferred one macrotask and re-checked: a navigate fired synchronously
+        // from a focus effect while the stack is remounting gets swallowed, and
+        // one fired from an unfocused screen lands on the wrong route.
+        const t = setTimeout(() => {
+            if (autoForwardedRef.current || !navigation.isFocused()) return;
+            autoForwardedRef.current = true;
+            navigation.navigate('CreateAccount');
+        }, 0);
+        return () => clearTimeout(t);
+    }, [gateV4, postPayParam, hydrating, isFocused, gatePaid, user?.onboarding?.completed, navigation]);
 
     const postPayOnboardingFlow = postPay && !viewingHistory;
 
@@ -1257,7 +1405,8 @@ export default function FaceScanResultsScreen() {
     // the upload lands, step 2 once the analysis is processing); other paths
     // keep the plain processing view with its retry affordance.
     if (scan?.processing_status === 'processing' || (gateV4 && !hydrating && !scan)) {
-        if (gateV4 && !gateTimedOut) {
+        const gateStuck = gateV4 && !scan && !!uploadFailed;
+        if (gateV4 && !gateTimedOut && !gateStuck) {
             return (
                 <AnalyzingScreen
                     currentStep={scan ? 2 : 1}
@@ -1265,12 +1414,31 @@ export default function FaceScanResultsScreen() {
                 />
             );
         }
-        return <ScanProcessingView onRetry={bootstrap} onBack={headerBack} />;
+        return (
+            <ScanProcessingView
+                onRetry={bootstrap}
+                onBack={headerBack}
+                onRetake={v4Gate && !isScanUser ? goRetake : undefined}
+                onSkip={v4Gate && !isScanUser ? () => { void goSkipScan(); } : undefined}
+                failedMessage={gateStuck ? uploadFailed : null}
+            />
+        );
     }
     if ((hydrating && !scan) || (advancing && !scan)) {
         return <View style={[s.root, s.fetchingRoot]}><ActivityIndicator size="large" color={colors.foreground} /></View>;
     }
     if (!hydrating && !scan) {
+        // Exit for an UNPAID user with no scan row. This can be the stack's
+        // INITIAL route (onboarded + unpaid + first_scan_completed with the
+        // row gone — 1 real user in prod), where "Try again" alone was a
+        // dead end: no Back, no Skip (paid-only), nothing behind it.
+        const exitNoScan = () => {
+            if (navigation.canGoBack()) { navigation.goBack(); return; }
+            const names: string[] = ((navigation.getState?.() as any)?.routeNames) ?? [];
+            if (names.includes('ReferralCode')) navigation.navigate('ReferralCode');
+            else if (names.includes('Main')) navigation.navigate('Main');
+            else if (names.includes('FeaturesIntro')) navigation.navigate('FeaturesIntro');
+        };
         return (
             <View style={[s.root, s.fetchingRoot]}>
                 <Text style={s.fetchErrorText}>Couldn&apos;t load your scan.</Text>
@@ -1285,11 +1453,15 @@ export default function FaceScanResultsScreen() {
                         // no-op, leaving them with no working exit if retry also
                         // kept failing. Same guard the rest of this file uses.
                         if (isScanUser) { navigation.reset({ index: 0, routes: [{ name: 'FaceScan' }] }); return; }
-                        if (postPayParam) advancePostPay(); else navigation.navigate('Main');
+                        if (postPayParam) advancePostPay(); else exitToHome();
                     }} activeOpacity={0.85}>
                         <Text style={s.fetchSkipText}>Skip for now</Text>
                     </TouchableOpacity>
-                ) : null}
+                ) : (
+                    <TouchableOpacity style={s.fetchSkipBtn} onPress={exitNoScan} activeOpacity={0.85} accessibilityRole="button">
+                        <Text style={s.fetchSkipText}>{navigation.canGoBack() ? 'Back' : 'Continue'}</Text>
+                    </TouchableOpacity>
+                )}
             </View>
         );
     }
@@ -1299,9 +1471,12 @@ export default function FaceScanResultsScreen() {
     const missingAnalysis = !hydrating && scan && scan.processing_status === 'completed' && !a;
     if (scanFailed || missingAnalysis) {
         const goRescan = () => {
-            if (isScanUser) navigation.reset({ index: 0, routes: [{ name: 'FaceScan' }] });
-            else if (navigation.canGoBack()) navigation.goBack();
-            else navigation.navigate('FaceScan');
+            if (isScanUser) { navigation.reset({ index: 0, routes: [{ name: 'FaceScan' }] }); return; }
+            // The funnel gate: go to the capture screen (goBack only reached the
+            // quiz, whose Next came straight back here). Elsewhere FaceScan is
+            // registered on every stack that mounts this screen — push it.
+            if (v4Gate) { goRetake(); return; }
+            navigation.navigate('FaceScan');
         };
         return (
             <View style={[s.root, s.fetchingRoot]}>
@@ -1313,6 +1488,11 @@ export default function FaceScanResultsScreen() {
                 <TouchableOpacity style={s.fetchRetryBtn} onPress={missingAnalysis ? bootstrap : goRescan} activeOpacity={0.85}>
                     <Text style={s.fetchRetryText}>{missingAnalysis ? 'Retry' : 'Scan again'}</Text>
                 </TouchableOpacity>
+                {v4Gate && !isScanUser ? (
+                    <TouchableOpacity style={s.fetchSkipBtn} onPress={() => { void goSkipScan(); }} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Skip scan">
+                        <Text style={s.fetchSkipText}>Skip scan</Text>
+                    </TouchableOpacity>
+                ) : null}
                 <TouchableOpacity style={s.fetchSkipBtn} onPress={headerBack} activeOpacity={0.85}>
                     <Text style={s.fetchSkipText}>Back</Text>
                 </TouchableOpacity>
@@ -1695,7 +1875,7 @@ export default function FaceScanResultsScreen() {
                                     size={17} color="#FFFFFF" />
                             </TouchableOpacity>
                             {!isScanUser && !locked && !postSubscriptionOnboarding ? (
-                                <TouchableOpacity style={s.skipBtn} onPress={() => navigation.navigate('Main')} activeOpacity={0.7}>
+                                <TouchableOpacity style={s.skipBtn} onPress={exitToHome} activeOpacity={0.7}>
                                     <Text style={s.skipText}>Go to home</Text>
                                 </TouchableOpacity>
                             ) : null}
@@ -1708,9 +1888,9 @@ export default function FaceScanResultsScreen() {
             {/* ── V4 gate CTA — overlays the hero (nothing below the fold) ── */}
             {gateV4 ? (
                 <View style={[s.gateCtaWrap, { bottom: Math.max(insets.bottom, 20) + 10 }]} pointerEvents="box-none">
-                    <TouchableOpacity style={s.cta} onPress={goPayment} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Unlock full results">
-                        <Text style={s.ctaText}>Unlock full results</Text>
-                        <Ionicons name="lock-open-outline" size={17} color="#FFFFFF" />
+                    <TouchableOpacity style={s.cta} onPress={goPayment} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={gateCtaLabel}>
+                        <Text style={s.ctaText}>{gateCtaLabel}</Text>
+                        <Ionicons name={gatePaid ? 'arrow-forward' : 'lock-open-outline'} size={17} color="#FFFFFF" />
                     </TouchableOpacity>
                 </View>
             ) : null}

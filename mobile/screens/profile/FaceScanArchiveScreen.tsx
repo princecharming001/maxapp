@@ -15,6 +15,18 @@ function formatDate(dateStr: string): string {
     return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
+// "2:00 AM today" / "tomorrow 5:00 PM" for the server's next_scan_allowed_at.
+function formatNextScan(d: Date): string {
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const dayDiff = Math.round((d.getTime() - startOfToday.getTime()) / 86_400_000);
+    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    if (dayDiff === 0) return `${time} today`;
+    if (dayDiff === 1) return `${time} tomorrow`;
+    return `${d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })} at ${time}`;
+}
+
 export default function FaceScanArchiveScreen() {
     const navigation = useNavigation<any>();
     const { isPremium } = useAuth();
@@ -61,19 +73,15 @@ export default function FaceScanArchiveScreen() {
                 Alert.alert('Could not check your scans', 'Check your connection and try again.');
                 return;
             }
-            if (latest?.created_at) {
-                const ts = new Date(latest.created_at);
-                if (!Number.isNaN(ts.getTime())) {
-                    const now = new Date();
-                    const sameDay =
-                        ts.getFullYear() === now.getFullYear() &&
-                        ts.getMonth() === now.getMonth() &&
-                        ts.getDate() === now.getDate();
-                    if (sameDay) {
-                        Alert.alert('Face scans', "You already used today's face scan. Come back tomorrow.");
-                        return;
-                    }
-                }
+            // The SERVER decides (same rule the upload enforces: UTC day, failed
+            // scans don't count). The local calendar-day check that lived here
+            // disagreed with it — it blocked permitted scans after 4pm PST and
+            // let through ones the upload then 429'd.
+            if (latest && latest.can_scan_now === false) {
+                const next = new Date(latest.next_scan_allowed_at ?? NaN);
+                const when = Number.isNaN(next.getTime()) ? 'tomorrow' : `after ${formatNextScan(next)}`;
+                Alert.alert('Face scans', `You already used today's face scan. Come back ${when}.`);
+                return;
             }
         }
         navigation.navigate('FaceScan', { source: 'archive' });
