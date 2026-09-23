@@ -116,6 +116,20 @@ class SendblueService:
             logger.error("Sendblue send error: %s", e, exc_info=True)
             return None
 
+    def _headers(self) -> dict[str, str]:
+        return {
+            "Content-Type": "application/json",
+            "sb-api-key-id": settings.sendblue_api_key_id,
+            "sb-api-secret-key": settings.sendblue_api_secret_key,
+        }
+
+    def _configured(self) -> bool:
+        return bool(
+            settings.sendblue_api_key_id
+            and settings.sendblue_api_secret_key
+            and settings.sendblue_from_number
+        )
+
     async def send_sms(self, to_phone: str, message: str) -> Optional[str]:
         """Same as send_message with text only (SMS/iMessage). Voice-gated."""
         return await self.send_message(to_phone, filter_text(message, context="sms"))
