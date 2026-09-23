@@ -448,6 +448,8 @@ async def _run_chat_history_column_migrations():
                 FROM chat_history ch
                 WHERE ch.conversation_id IS NULL
                   AND (ch.channel = 'app' OR ch.channel IS NULL)
+                  -- orphan rows of deleted accounts would violate the FK
+                  AND EXISTS (SELECT 1 FROM app_users u WHERE u.id = ch.user_id)
                   AND NOT EXISTS (
                       SELECT 1 FROM chat_conversations cc
                       WHERE cc.user_id = ch.user_id
