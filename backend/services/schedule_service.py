@@ -3099,7 +3099,10 @@ class ScheduleService:
         """Edit a scheduled task.
 
         scope="instance" (default): change only the single tapped occurrence
-        (each day's copy carries its own task_id).
+        (each day's copy carries its own task_id). The change is also recorded
+        in schedule_context.instance_overrides[(date, catalog_id)] so a later
+        silent re-expansion re-applies it instead of snapping the occurrence
+        back to the skeleton default.
 
         scope="series": the user moved a recurring part in their routine.
         Resolve the catalog_id and apply the change to EVERY day's instance.
@@ -3156,6 +3159,13 @@ class ScheduleService:
                 ctx["time_overrides"] = overrides
                 schedule.schedule_context = ctx
                 flag_modified(schedule, "schedule_context")
+            # The series-wide value is the user's newest intent for every day,
+            # so drop older single-day tweaks of the same fields (else a stale
+            # per-day pin would beat this move on the next regen).
+            _forget_instance_overrides(
+                schedule, target_catalog_id,
+                fields={k for k in _INSTANCE_EDIT_FIELDS if updates.get(k)},
+            )
         else:
             for day in days:
                 for task in day.get("tasks", []):
@@ -3163,6 +3173,11 @@ class ScheduleService:
                         _apply(task)
                         updated = True
                         updated_task = task
+                        # Durable single-day override so the next silent regen
+                        # re-applies this edit instead of snapping it back.
+                        _record_instance_override(
+                            schedule, day.get("date"), task.get("catalog_id"), updates,
+                        )
                         break
                 if updated:
                     break
@@ -3193,7 +3208,9 @@ class ScheduleService:
 
         scope="instance" (default): drop the single occurrence the user
         tapped — each day's copy carries its own task_id, so this only
-        affects one day.
+        affects one day. Recorded as a `deleted` entry in
+        schedule_context.instance_overrides[(date, catalog_id)] so a later
+        silent re-expansion doesn't resurrect that day's occurrence.
 
         scope="series": the user pruned a recurring part they don't want at
         all. Resolve that task's catalog_id, drop EVERY occurrence across all
@@ -3243,12 +3260,19 @@ class ScheduleService:
                 ctx["time_overrides"] = overrides
             schedule.schedule_context = ctx
             flag_modified(schedule, "schedule_context")
+            # Per-day tweaks of a part that no longer exists are dead weight.
+            _forget_instance_overrides(schedule, target_catalog_id)
         else:
             for day in days:
                 before = len(day.get("tasks", []))
                 day["tasks"] = [t for t in day.get("tasks", []) if t.get("task_id") != task_id]
                 if len(day["tasks"]) < before:
                     removed += before - len(day["tasks"])
+                    # Durable single-day removal: without it the next silent
+                    # regen re-expands the skeleton and the task comes back.
+                    _record_instance_override(
+                        schedule, day.get("date"), target_catalog_id, {"deleted": True},
+                    )
                     break
 
         if removed == 0:
@@ -3687,6 +3711,80 @@ def _clean_days_em_dashes(days: list[dict]) -> None:
                 val = t.get(key)
                 if isinstance(val, str) and "—" in val:
                     t[key] = _strip_em_dashes(val)
+
+
+# --------------------------------------------------------------------------- #
+#  Instance overrides — scope="instance" edits/deletes that survive a regen   #
+# --------------------------------------------------------------------------- #
+
+# The task fields edit_task._apply can change; mirrored by
+# schedule_runtime._apply_instance_overrides on re-expansion.
+_INSTANCE_EDIT_FIELDS = ("time", "title", "description", "duration_minutes")
+
+
+def _record_instance_override(schedule: Any, day_date: Any, catalog_id: Any, patch: dict) -> None:
+    """Persist a single-occurrence edit/delete in schedule_context so
+    regenerate_active_schedules can re-apply it after the next re-expansion
+    (otherwise the occurrence snaps back to its skeleton time/title, or a
+    deleted day reappears). Keyed by (date, catalog_id); no-op for one-off
+    tasks without a catalog_id, which are never re-expanded anyway. A `deleted`
+    entry replaces any earlier field edits for that occurrence; field edits
+    accumulate (move the time, then rename -> both stick)."""
+    from services.schedule_runtime import INSTANCE_OVERRIDES_KEY, instance_override_key
+
+    key = instance_override_key(day_date, catalog_id)
+    if not key:
+        return
+    ctx = dict(schedule.schedule_context or {})
+    overrides = dict(ctx.get(INSTANCE_OVERRIDES_KEY) or {})
+    if patch.get("deleted"):
+        entry: dict = {"deleted": True}
+    else:
+        entry = {k: v for k, v in (overrides.get(key) or {}).items() if k != "deleted"}
+        entry.update({k: patch[k] for k in _INSTANCE_EDIT_FIELDS if patch.get(k)})
+        if not entry:
+            return
+    overrides[key] = entry
+    ctx[INSTANCE_OVERRIDES_KEY] = overrides
+    schedule.schedule_context = ctx
+    flag_modified(schedule, "schedule_context")
+
+
+def _forget_instance_overrides(schedule: Any, catalog_id: Any, fields: set[str] | None = None) -> None:
+    """A series-wide edit/delete supersedes earlier single-day tweaks of the
+    same part. Drop those `fields` from every dated entry for `catalog_id`
+    (or, with fields=None, the whole entries) so a stale per-day pin cannot
+    beat the user's newer series-wide intent on the next regen. `deleted`
+    markers survive a series EDIT: the user removed that day, and editing the
+    series does not bring it back."""
+    if not catalog_id:
+        return
+    from services.schedule_runtime import INSTANCE_OVERRIDES_KEY
+
+    ctx = dict(schedule.schedule_context or {})
+    overrides = dict(ctx.get(INSTANCE_OVERRIDES_KEY) or {})
+    changed = False
+    for key in list(overrides):
+        if not str(key).endswith(f"|{catalog_id}"):
+            continue
+        if fields is None:
+            overrides.pop(key)
+            changed = True
+            continue
+        entry = dict(overrides[key] or {})
+        if entry.get("deleted"):
+            continue
+        trimmed = {k: v for k, v in entry.items() if k not in fields}
+        if trimmed != entry:
+            changed = True
+            if trimmed:
+                overrides[key] = trimmed
+            else:
+                overrides.pop(key)
+    if changed:
+        ctx[INSTANCE_OVERRIDES_KEY] = overrides
+        schedule.schedule_context = ctx
+        flag_modified(schedule, "schedule_context")
 
 
 schedule_service = ScheduleService()

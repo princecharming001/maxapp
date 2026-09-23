@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional
 from uuid import UUID, uuid4
 
@@ -460,11 +460,14 @@ async def regenerate_active_schedules(
 
     Strategy:
       - For each active UserSchedule whose maxx_id has a doc-driven
-        skeleton, expand a fresh `days` array.
-      - Diff against the existing days POSITIONALLY by `(day_index,
-        catalog_id)`: matching tasks keep their `task_id` and `status`
-        (so completed checkmarks survive). New tasks get fresh ids.
-        Tasks no longer in the skeleton drop out.
+        skeleton, expand a fresh `days` array anchored on the user's today.
+      - Merge against the existing days BY DATE (`_merge_preserving_status`):
+        days before today are kept verbatim as history; from today on,
+        tasks match on `(date, catalog_id)` and keep their `task_id`,
+        `status`, timestamps and notification markers. New tasks get fresh
+        ids. Tasks no longer in the skeleton drop out (a done task on today
+        is kept). Single-day edits/deletes recorded in
+        schedule_context.instance_overrides are re-applied first.
       - Update the row in-place (do NOT deactivate + re-create) so all
         downstream references (notifications, completion logs) stay
         valid.
@@ -589,19 +592,42 @@ async def regenerate_active_schedules(
         if overrides:
             fixed_new = _apply_time_overrides(fixed_new, overrides)
 
-        merged = _merge_preserving_status(old_days=list(sched.days or []), new_days=fixed_new)
-        # Only update if anything actually changed (cheap to compare via
-        # the fingerprints we already build; here we just compare lengths
-        # + first day's task tuple).
-        changed = _days_differ(list(sched.days or []), merged)
+        # Single-occurrence edits/deletes (scope="instance") are keyed by
+        # (date, catalog_id) in schedule_context so they survive this silent
+        # re-expansion instead of snapping back to the skeleton default or
+        # resurrecting a removed day. Applied LAST so a one-day move beats the
+        # series pin for that day. Past dates are pruned: the merge below keeps
+        # those days verbatim, so there is nothing left to re-apply.
+        raw_inst = dict(sctx.get(INSTANCE_OVERRIDES_KEY) or {})
+        inst_overrides = _prune_instance_overrides(raw_inst, today)
+        if inst_overrides:
+            fixed_new = _apply_instance_overrides(fixed_new, inst_overrides)
+
+        if not fixed_new:
+            # Never replace a live plan with an empty expansion — the user
+            # would open Home to nothing. Keep the row as-is and move on.
+            logger.warning(
+                "regen produced no days for max=%s user=%s; keeping existing plan", mid, user_id
+            )
+            continue
+
+        old_days = list(sched.days or [])
+        merged = _merge_preserving_status(old_days=old_days, new_days=fixed_new, today=today)
+        # Only write when something actually changed. Dates are part of the
+        # fingerprint (see _days_differ), so a re-anchor always counts as a
+        # change — a horizon extension can never silently no-op.
+        changed = _days_differ(old_days, merged)
         if changed:
             sched.days = merged
             sched.updated_at = datetime.utcnow()
-            sched.schedule_context = {
+            new_ctx = {
                 **(sched.schedule_context or {}),
                 "last_regen_reason": reason,
                 "last_regen_at": datetime.utcnow().isoformat(),
             }
+            if inst_overrides != raw_inst:
+                new_ctx[INSTANCE_OVERRIDES_KEY] = inst_overrides
+            sched.schedule_context = new_ctx
         out.append({
             "maxx_id": mid,
             "schedule_id": str(sched.id),
@@ -612,9 +638,19 @@ async def regenerate_active_schedules(
     # merge becomes the only (and unprotected) merge running.
     if len(actives) >= 2 and any(s["changed"] for s in out):
         try:
-            bundle = {
-                s.maxx_id: list(s.days or []) for s in actives if s.maxx_id and s.days
-            }
+            # History (days before today) is frozen record: keep it out of the
+            # collision passes (they re-time, defer and trim tasks) and stitch
+            # it back in front of the reconciled live days afterwards.
+            history_by_max: dict[str, list[dict]] = {}
+            bundle: dict[str, list[dict]] = {}
+            for s in actives:
+                if not (s.maxx_id and s.days):
+                    continue
+                hist, live = _split_days_by_date(list(s.days), today)
+                if not live:
+                    continue  # nothing schedulable left (e.g. a run-out course)
+                history_by_max[s.maxx_id] = hist
+                bundle[s.maxx_id] = live
             if len(bundle) >= 2:
                 recon_ctx = merged_user_state(onboarding, persistent)
                 if _regen_busy:
@@ -622,7 +658,7 @@ async def regenerate_active_schedules(
                 bundle = reconcile_schedules(bundle, user_ctx=recon_ctx, start_date=today)
                 for s in actives:
                     if s.maxx_id in bundle:
-                        s.days = bundle[s.maxx_id]
+                        s.days = history_by_max.get(s.maxx_id, []) + bundle[s.maxx_id]
                         s.updated_at = datetime.utcnow()
         except Exception as e:
             logger.warning("post-regen reconcile failed (non-fatal): %s", e)
@@ -818,10 +854,201 @@ def _apply_time_overrides(days: list[dict], overrides: dict[str, str]) -> list[d
     return out
 
 
-def _merge_preserving_status(*, old_days: list[dict], new_days: list[dict]) -> list[dict]:
-    """Positional merge: for each day, keep the matching old task's
-    `task_id` and `status` when its `catalog_id` is still present in the
-    new skeleton expansion. New tasks get fresh ids. Removed tasks drop."""
+# --------------------------------------------------------------------------- #
+#  Regen merge: date-aligned status preservation + per-instance overrides     #
+# --------------------------------------------------------------------------- #
+
+# schedule_context key holding single-occurrence edits/deletes (scope="instance")
+# so a silent re-expansion can re-apply them. Shape:
+#   {"<YYYY-MM-DD>|<catalog_id>": {"time": "HH:MM", "title": "...",
+#                                  "description": "...", "duration_minutes": N}
+#    | {"deleted": True}}
+# Only the fields the user actually changed are present; `deleted` wins.
+INSTANCE_OVERRIDES_KEY = "instance_overrides"
+
+
+def instance_override_key(day_date: Any, catalog_id: Any) -> str | None:
+    """Composite (date, catalog_id) key for schedule_context.instance_overrides.
+    None when either half is missing: a one-off task with no catalog_id is
+    never re-expanded, so there is nothing for a regen to re-apply."""
+    if not day_date or not catalog_id:
+        return None
+    return f"{day_date}|{catalog_id}"
+
+
+def _day_date(d: dict) -> date | None:
+    try:
+        return date.fromisoformat(str(d.get("date")))
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def _split_days_by_date(days: list[dict], today: date) -> tuple[list[dict], list[dict]]:
+    """(history, live): history = days dated strictly before `today`, in their
+    stored order; live = today and later plus any undated legacy day. History
+    is frozen record — no pass may re-time, trim or re-anchor it."""
+    history: list[dict] = []
+    live: list[dict] = []
+    for d in days or []:
+        dd = _day_date(d)
+        if dd is not None and dd < today:
+            history.append(d)
+        else:
+            live.append(d)
+    return history, live
+
+
+def _prune_instance_overrides(overrides: dict, today: date) -> dict:
+    """Drop overrides for dates already in the past (those days are kept
+    verbatim by the merge, so they never need re-applying) and malformed keys."""
+    kept: dict = {}
+    for key, patch in (overrides or {}).items():
+        try:
+            if date.fromisoformat(str(key).split("|", 1)[0]) < today:
+                continue
+        except (TypeError, ValueError):
+            continue
+        if isinstance(patch, dict):
+            kept[key] = patch
+    return kept
+
+
+def _apply_instance_overrides(days: list[dict], overrides: dict) -> list[dict]:
+    """Re-apply single-occurrence edits/deletes (scope="instance") onto a fresh
+    expansion. Mirrors schedule_service.edit_task._apply and delete_task's
+    instance branch: a `deleted` override drops that day's occurrence;
+    otherwise the recorded fields win over the skeleton's and a moved time
+    re-arms the reminder. Returns shallow-copied days so the caller's input
+    isn't mutated."""
+    if not overrides:
+        return days
+    out: list[dict] = []
+    for d in days:
+        day_iso = d.get("date")
+        tasks: list[dict] = []
+        for t in (d.get("tasks") or []):
+            key = instance_override_key(day_iso, t.get("catalog_id"))
+            patch = overrides.get(key) if key else None
+            if not isinstance(patch, dict):
+                tasks.append(t)
+                continue
+            if patch.get("deleted"):
+                continue
+            nt = dict(t)
+            if patch.get("time"):
+                nt["time"] = patch["time"]
+                nt["notification_sent"] = False
+            for field in ("title", "description", "duration_minutes"):
+                if patch.get(field):
+                    nt[field] = patch[field]
+            tasks.append(nt)
+        out.append({**d, "tasks": tasks})
+    return out
+
+
+# Per-task state a silent regen carries from the old occurrence onto the
+# re-expanded one (same date, same catalog_id): identity, what we already told
+# the user, and — when the user resolved it — the status and its timestamp.
+# Never the skeleton-owned fields (time / title / description).
+_CARRIED_IDENTITY_FIELDS = (
+    "task_id",                # client cache, complete/edit endpoints, completion logs
+    "task_uuid",              # notification ledger key (profile sent_keys_today)
+    "notification_sent",      # dedupe markers — a regen must not re-send today's reminder
+    "notification_sent_push",
+    "notification_sent_sms",
+)
+_RESOLVED_STATUSES = ("completed", "skipped")
+
+
+def _carry_task_state(*, old: dict, new: dict) -> dict:
+    """Copy of `new` with the old occurrence's identity/markers, and its status
+    + timestamps when the user resolved it (else the task restarts pending)."""
+    nt = dict(new)
+    for field in _CARRIED_IDENTITY_FIELDS:
+        if old.get(field) is not None:
+            nt[field] = old[field]
+    ot_status = str(old.get("status") or "pending").lower()
+    if ot_status in _RESOLVED_STATUSES:
+        nt["status"] = ot_status
+        for field in ("completed_at", "skipped_at"):
+            if old.get(field) is not None:
+                nt[field] = old[field]
+    else:
+        nt["status"] = "pending"
+    return nt
+
+
+def _merge_preserving_status(
+    *, old_days: list[dict], new_days: list[dict], today: date | None = None,
+) -> list[dict]:
+    """Date-aligned merge of a fresh expansion onto the persisted days.
+
+    The expansion is re-anchored so its day 0 == today, while the persisted
+    days still start on the ORIGINAL generation date. Merging positionally
+    (old[i] <-> new[i]) therefore shifted every completion k days into the
+    future and threw the real history away: users opened Home to pre-checked
+    tomorrows, their real completions moved to next week, and the day strip
+    lost every past day (P0). So:
+
+      - every old day dated BEFORE today is kept verbatim — it is history;
+      - from today on, tasks match on (date, catalog_id) and the old
+        occurrence's identity, resolved status + timestamps and notification
+        markers carry over (see _carry_task_state);
+      - an occurrence on TODAY the user already completed/skipped but the new
+        skeleton no longer schedules is kept — the work was done; on later
+        dates the skeleton is the source of truth, so it drops;
+      - tasks new to the expansion keep their fresh ids and start pending.
+
+    `today` defaults to the first new day's date. Undated input (legacy rows,
+    positional unit fixtures) falls back to the old positional behavior.
+    """
+    if today is None and new_days:
+        today = _day_date(new_days[0])
+    dated = (
+        today is not None
+        and all(_day_date(d) is not None for d in new_days)
+        and all(_day_date(d) is not None for d in old_days)
+    )
+    if not dated:
+        return _merge_positional(old_days=old_days, new_days=new_days)
+
+    history, old_live = _split_days_by_date(old_days, today)
+    old_by_date: dict[str, dict] = {}
+    for od in old_live:
+        old_by_date.setdefault(str(od.get("date")), od)
+
+    merged: list[dict] = list(history)
+    for nd in new_days:
+        od = old_by_date.get(str(nd.get("date"))) or {}
+        old_by_cid: dict[str, dict] = {}
+        for ot in (od.get("tasks") or []):
+            cid = ot.get("catalog_id")
+            if cid and cid not in old_by_cid:
+                old_by_cid[cid] = ot
+        new_tasks: list[dict] = []
+        matched: set[str] = set()
+        for nt in (nd.get("tasks") or []):
+            cid = nt.get("catalog_id")
+            ot = old_by_cid.get(cid) if cid else None
+            if ot:
+                matched.add(cid)
+                nt = _carry_task_state(old=ot, new=nt)
+            new_tasks.append(nt)
+        if _day_date(nd) == today:
+            # Done-but-no-longer-scheduled on today: keep the evidence rather
+            # than un-ticking work the user actually did.
+            for cid, ot in old_by_cid.items():
+                if cid in matched:
+                    continue
+                if str(ot.get("status") or "").lower() in _RESOLVED_STATUSES:
+                    new_tasks.append(dict(ot))
+        merged.append({**nd, "tasks": new_tasks})
+    return merged
+
+
+def _merge_positional(*, old_days: list[dict], new_days: list[dict]) -> list[dict]:
+    """Legacy positional merge (old[i] <-> new[i]) for UNDATED days only. Do not
+    use for dated rows — see _merge_preserving_status for why."""
     merged: list[dict] = []
     for di, nd in enumerate(new_days):
         od = old_days[di] if di < len(old_days) else {}
@@ -832,32 +1059,29 @@ def _merge_preserving_status(*, old_days: list[dict], new_days: list[dict]) -> l
                 old_by_cid[cid] = ot
         new_tasks: list[dict] = []
         for nt in (nd.get("tasks") or []):
-            cid = nt.get("catalog_id")
-            ot = old_by_cid.get(cid)
-            if ot:
-                # Preserve identity so notifications + completion stats survive.
-                nt["task_id"] = ot.get("task_id") or nt.get("task_id")
-                # Preserve user-touched status (completed / skipped). Default
-                # to pending for tasks the user never touched.
-                ot_status = (ot.get("status") or "pending").lower()
-                if ot_status in ("completed", "skipped"):
-                    nt["status"] = ot_status
-                else:
-                    nt["status"] = "pending"
-            new_tasks.append(nt)
+            ot = old_by_cid.get(nt.get("catalog_id"))
+            new_tasks.append(_carry_task_state(old=ot, new=nt) if ot else nt)
         merged.append({**nd, "tasks": new_tasks})
     return merged
 
 
 def _days_differ(a: list[dict], b: list[dict]) -> bool:
-    """Cheap structural diff — used to skip a no-op write when state
-    didn't actually change anything (e.g. a context merge that didn't
-    touch any field the skeleton consults)."""
+    """Cheap structural diff — used to skip a no-op write when state didn't
+    actually change anything (e.g. a context merge that didn't touch any
+    field the skeleton consults).
+
+    Dates are part of the fingerprint: a re-anchored expansion whose
+    (catalog_id, time) sequence happens to line up with the old days
+    positionally (daily-only skeletons) is STILL a change — the same rows now
+    cover different calendar dates. Without this the horizon extension
+    silently no-op'd and the plan ran out (H12)."""
     if len(a) != len(b):
         return True
     for da, db_ in zip(a, b):
-        ta = [(t.get("catalog_id"), t.get("time")) for t in (da.get("tasks") or [])]
-        tb = [(t.get("catalog_id"), t.get("time")) for t in (db_.get("tasks") or [])]
+        if da.get("date") != db_.get("date"):
+            return True
+        ta = [(t.get("catalog_id"), t.get("time"), t.get("status")) for t in (da.get("tasks") or [])]
+        tb = [(t.get("catalog_id"), t.get("time"), t.get("status")) for t in (db_.get("tasks") or [])]
         if ta != tb:
             return True
     return False

@@ -60,7 +60,7 @@ async def ensure_plan_horizon(user: User, db: AsyncSession) -> dict[str, int]:
 
     ob = dict(user.onboarding or {})
     today = local_today_date(ob)
-    out = {"native_regens": 0, "course_extensions": 0, "completed_courses": 0}
+    out = {"native_regens": 0, "course_extensions": 0, "completed_courses": 0, "still_short": 0}
 
     # One fetch shared by every course extension below (native regens get their
     # own inside regenerate_active_schedules).
@@ -76,6 +76,9 @@ async def ensure_plan_horizon(user: User, db: AsyncSession) -> dict[str, int]:
     )).scalars().all())
 
     regen_targets: list[str] = []
+    # Every schedule we tried to extend this pass; re-checked at the end so the
+    # caller learns whether the runway ACTUALLY grew (see `still_short`).
+    attempted: list[UserSchedule] = []
     for sched in rows:
         last = _last_date(sched.days or [])
         if last is None or (last - today).days >= HORIZON_MIN_DAYS:
@@ -102,6 +105,7 @@ async def ensure_plan_horizon(user: User, db: AsyncSession) -> dict[str, int]:
                 out["completed_courses"] += 1
                 continue
             remaining = min(COURSE_CHUNK_DAYS, total - elapsed)
+            attempted.append(sched)
             try:
                 appended = _extend_course_days(
                     sched, course, ob, start=last + timedelta(days=1),
@@ -116,6 +120,7 @@ async def ensure_plan_horizon(user: User, db: AsyncSession) -> dict[str, int]:
                 logger.warning("course horizon extend failed (non-fatal): %s", e)
         elif has_skeleton(sched.maxx_id or ""):
             regen_targets.append(sched.maxx_id or "")
+            attempted.append(sched)
 
     if regen_targets:
         try:
@@ -128,6 +133,26 @@ async def ensure_plan_horizon(user: User, db: AsyncSession) -> dict[str, int]:
                 out["native_regens"] += 1
         except Exception as e:
             logger.warning("native horizon regen failed (non-fatal): %s", e)
+
+    # Verify the runway actually extended. A regen that raised, expanded to
+    # nothing, or was judged a no-op leaves the plan exactly as short as
+    # before — and the per-day marker in /planner/today used to be stamped
+    # regardless, so nothing retried until the next day (H12). Report it so
+    # the caller withholds the marker and the next call / scheduler tick has
+    # another go. `rows` are the session's identity-mapped instances, so the
+    # regen's in-place updates are visible here without a re-select.
+    still_short = 0
+    for sched in attempted:
+        if not sched.is_active:
+            continue  # course closed out above — genuinely finished
+        last = _last_date(sched.days or [])
+        if last is None or (last - today).days < HORIZON_MIN_DAYS:
+            still_short += 1
+            logger.warning(
+                "plan horizon still short after keeper: user=%s max=%s last=%s today=%s",
+                user.id, sched.maxx_id, last, today,
+            )
+    out["still_short"] = still_short
 
     await db.commit()
 
