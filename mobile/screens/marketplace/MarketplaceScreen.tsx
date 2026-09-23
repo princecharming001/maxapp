@@ -36,6 +36,7 @@ import api, { isCreatorMaxx, type MarketplaceItem } from '../../services/api';
 import { maxMeta, hexA, registerMaxMeta } from '../../utils/scheduleAggregation';
 import { useFlag } from '../../constants/featureFlags';
 import { usePersonalization } from '../../hooks/usePersonalization';
+import { useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { rankByGoals } from '../../lib/personalization';
 
 const CACHE_KEY = 'marketplace_cache_v2';
@@ -126,6 +127,32 @@ type MyMax = {
     offered?: OfferedHabit[];
 };
 
+/** "My Maxxes" rows from the canonical /schedules/active/full payload: one per
+ *  active max with today's task progress. Pure — derived, never fetched here. */
+function deriveMyMaxxes(full: { schedules?: any[]; today_date?: string } | undefined): MyMax[] {
+    const today = full?.today_date;
+    const out: MyMax[] = [];
+    for (const s of (full?.schedules || [])) {
+        const mid = String(s?.maxx_id || '').toLowerCase();
+        if (!mid) continue;
+        const days = s?.days || [];
+        const todayDay = today ? days.find((d: any) => d?.date === today) : days[0];
+        const tasks = (todayDay?.tasks || []) as any[];
+        const done = tasks.filter((t) => t?.status === 'completed').length;
+        const ctx = s?.schedule_context || {};
+        out.push({
+            maxxId: mid,
+            label: maxMeta(mid).label,
+            todayCount: tasks.length,
+            todayDone: done,
+            scheduleId: String(s?.id || ''),
+            wanted: Array.isArray(ctx.wanted_catalog_ids) ? ctx.wanted_catalog_ids.map(String) : [],
+            avoided: Array.isArray(ctx.avoided_catalog_ids) ? ctx.avoided_catalog_ids.map(String) : [],
+        });
+    }
+    return out;
+}
+
 // The caller's creator-application status on the Creator tab. Once APPROVED the
 // creator provisions their max in the Studio (habits/course/channels) — so this
 // must be a live door to CreatorStudio, not a dead "we'll be in touch" pill.
@@ -185,7 +212,14 @@ export default function MarketplaceScreen() {
     const [query, setQuery] = useState('');
     const [searchOpen, setSearchOpen] = useState(false);
     const [tab, setTab] = useState<Tab>('all');
-    const [myMaxxes, setMyMaxxes] = useState<MyMax[]>([]);
+    // SC5 — "My Maxxes" read from the CANONICAL day-state cache, never a raw
+    // api call into local state: /active/full awards achievements on the
+    // server, and the celebration host only watches this cache — a fetch
+    // outside it (the old loadMine) consumed the award and the badge silently
+    // appeared as earned with no celebration ("Stacking" on a second max,
+    // "Clean Sweep" when Explore was opened right after the last task).
+    const schedulesQuery = useActiveSchedulesFullQuery();
+    const myMaxxes = useMemo(() => deriveMyMaxxes(schedulesQuery.data), [schedulesQuery.data]);
     const [tuning, setTuning] = useState<MyMax | null>(null);
     const [savingTune, setSavingTune] = useState(false);
     // The user's latest creator application, if any — drives the "applied" state.
@@ -300,39 +334,21 @@ export default function MarketplaceScreen() {
 
     useEffect(() => { void load(); }, [load]);
 
-    // SC5 — "My Maxxes": the maxes the user has onboarded (active UserSchedules),
-    // with today's task progress per max. Refetched on focus so a freshly-onboarded
-    // max appears here.
+    // Refresh "My Maxxes" on focus so a freshly-onboarded max appears — through
+    // the canonical key with the hook's staleTime, so a focus inside the window
+    // is served from cache (no duplicate hot-endpoint call per Explore visit)
+    // and any award the fetch produces lands where the celebration host looks.
     const loadMine = useCallback(async () => {
         try {
-            const full = await api.getActiveSchedulesFull();
-            const today = full?.today_date;
-            const out: MyMax[] = [];
-            for (const s of (full?.schedules || [])) {
-                const mid = String(s?.maxx_id || '').toLowerCase();
-                if (!mid) continue;
-                const days = s?.days || [];
-                const todayDay = today ? days.find((d: any) => d?.date === today) : days[0];
-                const tasks = (todayDay?.tasks || []) as any[];
-                const done = tasks.filter((t) => t?.status === 'completed').length;
-                const ctx = s?.schedule_context || {};
-                out.push({
-                    maxxId: mid,
-                    label: maxMeta(mid).label,
-                    todayCount: tasks.length,
-                    todayDone: done,
-                    scheduleId: String(s?.id || ''),
-                    wanted: Array.isArray(ctx.wanted_catalog_ids) ? ctx.wanted_catalog_ids.map(String) : [],
-                    avoided: Array.isArray(ctx.avoided_catalog_ids) ? ctx.avoided_catalog_ids.map(String) : [],
-                });
-            }
-            setMyMaxxes(out);
+            await queryClient.fetchQuery({
+                queryKey: queryKeys.schedulesActiveFull,
+                queryFn: () => api.getActiveSchedulesFull(),
+                staleTime: 60 * 1000,
+            });
         } catch {
-            // best-effort; leave prior value
+            // best-effort; the hook keeps the last good payload
         }
-    }, []);
-
-    useEffect(() => { void loadMine(); }, [loadMine]);
+    }, [queryClient]);
 
     // Deep links / You > Purchases pass itemId — open that page.
     useEffect(() => {

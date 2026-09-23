@@ -9,6 +9,7 @@ import { useFlag } from '../../constants/featureFlags';
 import { useAuth } from '../../context/AuthContext';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
+import { userFacingError } from '../../lib/userFacingError';
 
 // Chad Lite is RETIRED (single-plan pivot, 2026-07): Chad is the only plan.
 // Legacy Chadlite subscribers are grandfathered — same price, full Chad access.
@@ -37,12 +38,26 @@ function formatPeriodEnd(iso: string | null | undefined): string | null {
 }
 
 function formatApiError(e: unknown): string {
-    const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-    if (typeof d === 'string') return d;
-    if (Array.isArray(d)) {
-        return d.map((x: { msg?: string }) => x?.msg || JSON.stringify(x)).join('\n');
-    }
-    return (e as Error)?.message || 'Could not load subscription status.';
+    // Transport/library strings never reach the screen; a short backend
+    // `detail` does.
+    return userFacingError(e, 'Could not load subscription status.');
+}
+
+/** Fields newer backends add to /payments/status for a cancelled-but-active
+ *  plan (auto-renew off in iOS Settings). Every one is optional: an older API
+ *  simply omits them and the pill keeps saying "renews automatically". */
+type RenewalHints = {
+    cancel_at_period_end?: boolean;
+    auto_renew?: boolean;
+    ends_on?: string | null;
+    ends_on_iso?: string | null;
+    current_period_end_iso?: string | null;
+};
+
+/** True when the plan will NOT renew: any of the three signals the server may
+ *  send. Exported-shape helper so the derivation is in one place. */
+function renewalStopped(s: RenewalHints): boolean {
+    return !!s.cancel_at_period_end || s.auto_renew === false || !!(s.ends_on_iso ?? s.ends_on);
 }
 
 export default function ManageSubscriptionScreen() {
@@ -71,8 +86,15 @@ export default function ManageSubscriptionScreen() {
         setBillingDegraded(false);
         try {
             const s = await api.getSubscriptionStatus();
-            setCancelAtPeriodEnd(!!s.cancel_at_period_end);
-            setPeriodEndIso(s.current_period_end_iso ?? null);
+            // Apple subs are cancelled from iOS Settings, never through us; the
+            // server surfaces that as cancel_at_period_end / auto_renew:false /
+            // ends_on depending on version. Reading all three means the pill
+            // says "Ends on <date>" instead of "renews automatically" for a
+            // plan Apple has already stopped renewing.
+            const hints = s as RenewalHints;
+            const endsOn = hints.ends_on_iso ?? hints.ends_on ?? null;
+            setCancelAtPeriodEnd(renewalStopped(hints));
+            setPeriodEndIso(endsOn ?? s.current_period_end_iso ?? null);
             const degraded = !!s.degraded;
             setBillingDegraded(degraded);
             const subId = s.subscription?.id;
@@ -292,8 +314,12 @@ export default function ManageSubscriptionScreen() {
                     <>
                         <Text style={styles.sectionKicker}>YOUR PLANS</Text>
                         <View style={styles.billingPill}>
-                            <Ionicons name="sync-outline" size={14} color={colors.textMuted} />
-                            <Text style={styles.billingPillText}>Billed weekly · renews automatically</Text>
+                            <Ionicons name={cancelAtPeriodEnd ? 'calendar-outline' : 'sync-outline'} size={14} color={colors.textMuted} />
+                            <Text style={styles.billingPillText}>
+                                {cancelAtPeriodEnd
+                                    ? (periodLabel ? `Ends on ${periodLabel}` : 'Ends at the end of this billing period')
+                                    : 'Billed weekly · renews automatically'}
+                            </Text>
                         </View>
 
                         {noStripeButPaid ? (

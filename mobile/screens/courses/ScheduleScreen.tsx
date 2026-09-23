@@ -16,7 +16,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import { queryKeys } from '../../lib/queryClient';
-import { useMaxxesQuery } from '../../hooks/useAppQueries';
+import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
+import { userFacingError } from '../../lib/userFacingError';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { buildMaxxMaps, moduleColorForSchedule, moduleLabelForSchedule } from '../../utils/scheduleAggregation';
 
@@ -78,6 +79,32 @@ const formatTimeTo12Hour = (time24: string) => {
   }
 };
 
+/** Device-local YYYY-MM-DD. NOT toISOString().split('T') — that is the UTC
+ *  date, which is already "tomorrow" after ~5pm Pacific and opened this screen
+ *  on the wrong day. Only a fallback: the backend's today_date wins. */
+function localISODate(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Flip one task's status inside a schedule list (immutable). */
+function withTaskStatus<T extends { id: string; days: Day[] }>(
+  list: T[],
+  scheduleId: string,
+  taskId: string,
+  status: string,
+): T[] {
+  return list.map((s) => String(s.id) !== String(scheduleId) ? s : {
+    ...s,
+    days: (s.days ?? []).map((day) => ({
+      ...day,
+      tasks: (day.tasks ?? []).map((t) => (t.task_id === taskId ? { ...t, status } : t)),
+    })),
+  });
+}
+
 export default function ScheduleScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -85,7 +112,25 @@ export default function ScheduleScreen() {
   const queryClient = useQueryClient();
   const { courseId, moduleNumber, courseTitle, scheduleId: paramScheduleId, maxxId } = route.params || {};
 
-  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  // The schedule this screen shows comes from the CANONICAL day-state cache
+  // whenever it is one of the user's active schedules (selected by id or
+  // maxx_id) — so a task checked on Home is already checked here, the toggle
+  // below writes to the same cache Home reads, and the celebration host sees
+  // any badge the fetch awards. The raw loads into local state remain only as
+  // the fallback for schedules that are NOT active (a stopped schedule opened
+  // by id, or the legacy course/module path).
+  const fullQuery = useActiveSchedulesFullQuery();
+  const activeFromCache = useMemo<Schedule | null>(() => {
+    const list = (fullQuery.data?.schedules || []) as Schedule[];
+    if (paramScheduleId) return list.find((x) => String(x.id) === String(paramScheduleId)) ?? null;
+    if (maxxId) {
+      const want = String(maxxId).toLowerCase();
+      return list.find((x) => String(x.maxx_id || '').toLowerCase() === want) ?? null;
+    }
+    return null;
+  }, [fullQuery.data, paramScheduleId, maxxId]);
+  const [localSchedule, setLocalSchedule] = useState<Schedule | null>(null);
+  const schedule = activeFromCache ?? localSchedule;
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
@@ -95,7 +140,13 @@ export default function ScheduleScreen() {
   // "you have no schedule" (which renders the Generate state).
   const [loadError, setLoadError] = useState(false);
 
-  
+  // "Today" is the backend's local date (user timezone), falling back to the
+  // DEVICE-local date — never the UTC date.
+  const today =
+    fullQuery.data?.today_date ||
+    fullQuery.data?.schedule_streak?.today_date ||
+    localISODate();
+
   const maxxesQuery = useMaxxesQuery();
   const maxxes = maxxesQuery.data?.maxes ?? [];
 
@@ -109,35 +160,19 @@ export default function ScheduleScreen() {
     [schedule, maxxLabels],
   );
 
-  useEffect(() => {
-    loadSchedule();
-  }, []);
-
+  // Fallback raw load (inactive schedule by id / course path) into local state.
   const loadSchedule = async () => {
     setLoadError(false);
     try {
       let result;
       if (paramScheduleId) {
         result = await api.getSchedule(paramScheduleId);
-        if (result.schedule) {
-          setSchedule(result.schedule);
-        }
       } else if (maxxId) {
         result = await api.getMaxxSchedule(maxxId);
-        if (result.schedule) {
-          setSchedule(result.schedule);
-        }
       } else {
         result = await api.getCurrentSchedule(courseId, moduleNumber);
-        if (result.schedule) {
-          setSchedule(result.schedule);
-        }
       }
-      if (result?.schedule) {
-        const today = new Date().toISOString().split('T')[0];
-        const todayIdx = result.schedule.days.findIndex((d: Day) => d.date === today);
-        if (todayIdx >= 0) setSelectedDayIndex(todayIdx);
-      }
+      if (result?.schedule) setLocalSchedule(result.schedule);
     } catch (e) {
       console.error('Failed to load schedule:', e);
       setLoadError(true);
@@ -146,11 +181,54 @@ export default function ScheduleScreen() {
     }
   };
 
+  // Resolve the schedule: cache hit → done; otherwise wait for the canonical
+  // payload to settle once, then try the raw fallback exactly once (a stopped
+  // schedule dropping out of the cache must not re-trigger it in a loop).
+  const fallbackTriedRef = useRef(false);
+  useEffect(() => {
+    if (activeFromCache) {
+      setLoading(false);
+      setLoadError(false);
+      return;
+    }
+    if (fullQuery.isPending) return;
+    if (fallbackTriedRef.current) {
+      setLoading(false);
+      return;
+    }
+    fallbackTriedRef.current = true;
+    void loadSchedule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFromCache, fullQuery.isPending]);
+
+  // Open on today's day once the schedule (and the backend's today) are known.
+  const selectedInitRef = useRef(false);
+  useEffect(() => {
+    if (!schedule || selectedInitRef.current) return;
+    selectedInitRef.current = true;
+    const todayIdx = (schedule.days || []).findIndex((d: Day) => d.date === today);
+    if (todayIdx >= 0) setSelectedDayIndex(todayIdx);
+  }, [schedule, today]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadSchedule();
-    setRefreshing(false);
-  }, []);
+    try {
+      await Promise.all([
+        fullQuery.refetch(),
+        activeFromCache ? Promise.resolve() : loadSchedule(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFromCache, fullQuery.refetch]);
+
+  const retryLoad = () => {
+    fallbackTriedRef.current = false;
+    setLoading(true);
+    void fullQuery.refetch();
+    void loadSchedule();
+  };
 
   const handleGenerate = async () => {
     if (!courseId || !moduleNumber) {
@@ -160,10 +238,12 @@ export default function ScheduleScreen() {
     setGenerating(true);
     try {
       const result = await api.generateSchedule(courseId, moduleNumber, 7);
-      setSchedule(result.schedule);
+      setLocalSchedule(result.schedule);
       setSelectedDayIndex(0);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to generate schedule');
+      // Never the raw axios string ("Request failed with status code 500").
+      Alert.alert('Error', userFacingError(e, 'Failed to generate schedule'));
     } finally {
       setGenerating(false);
     }
@@ -176,19 +256,21 @@ export default function ScheduleScreen() {
     taskToggleInFlightRef.current.add(key);
 
     const completing = currentStatus !== 'completed';
-    setSchedule(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev, days: prev.days.map(day => ({
-          ...day,
-          tasks: day.tasks.map(t =>
-            t.task_id === taskId
-              ? { ...t, status: completing ? 'completed' : 'pending' }
-              : t
-          ),
-        }))
-      };
-    });
+    const optimistic = completing ? 'completed' : 'pending';
+    // Optimistic flip in whichever store this schedule lives in: the canonical
+    // cache for an active schedule (so Home flips too), local state otherwise.
+    const applyStatus = (status: string) => {
+      if (activeFromCache) {
+        queryClient.setQueryData(queryKeys.schedulesActiveFull, (old: any) => {
+          if (!old?.schedules) return old;
+          return { ...old, schedules: withTaskStatus(old.schedules, schedule.id, taskId, status) };
+        });
+      } else {
+        setLocalSchedule((prev) => (prev ? withTaskStatus([prev], schedule.id, taskId, status)[0] : prev));
+      }
+    };
+    applyStatus(optimistic);
+    if (activeFromCache) void queryClient.cancelQueries({ queryKey: queryKeys.schedulesActiveFull });
     try {
       if (completing) {
         await api.completeScheduleTask(schedule.id, taskId);
@@ -200,19 +282,11 @@ export default function ScheduleScreen() {
       if (mid) void queryClient.invalidateQueries({ queryKey: queryKeys.maxxSchedule(mid) });
     } catch (e) {
       console.error('Failed to toggle task:', e);
-      setSchedule(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev, days: prev.days.map(day => ({
-            ...day,
-            tasks: day.tasks.map(t =>
-              t.task_id === taskId
-                ? { ...t, status: completing ? 'pending' : 'completed' }
-                : t
-            ),
-          }))
-        };
-      });
+      // Revert only this task, refetch fresh ids (a regen re-mints task_ids and
+      // the stale one 404s), and say so instead of a silent flip-back.
+      applyStatus(currentStatus);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
+      Alert.alert('Couldn\'t save', userFacingError(e, 'Please try again.'));
     } finally {
       taskToggleInFlightRef.current.delete(key);
     }
@@ -222,10 +296,13 @@ export default function ScheduleScreen() {
     if (!schedule) return;
     try {
       const result = await api.adaptSchedule(schedule.id, feedback);
-      setSchedule(result.schedule);
+      if (result?.schedule) setLocalSchedule(result.schedule);
+      // The adapted days now live on the server — refresh the canonical copy
+      // (which wins over localSchedule whenever this schedule is active).
+      void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
       Alert.alert('Schedule Adapted', 'Max adjusted your schedule.');
     } catch (e) {
-      Alert.alert('Error', 'Failed to adapt schedule');
+      Alert.alert('Error', userFacingError(e, 'Failed to adapt schedule'));
     }
   };
 
@@ -312,10 +389,7 @@ export default function ScheduleScreen() {
           </Text>
           <TouchableOpacity
             style={styles.generateButton}
-            onPress={() => {
-              setLoading(true);
-              loadSchedule();
-            }}
+            onPress={retryLoad}
             activeOpacity={0.7}
           >
             <Text style={styles.generateButtonText}>Retry</Text>

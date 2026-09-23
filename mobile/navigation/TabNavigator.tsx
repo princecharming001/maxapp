@@ -23,6 +23,8 @@ import DayPlannerScreen from '../screens/profile/DayPlannerScreen';
 import MarketplaceScreen from '../screens/marketplace/MarketplaceScreen';
 import { getRestoredTab, pickInitialTab } from '../lib/navState';
 import { useAuth } from '../context/AuthContext';
+import { useWidgetSync } from '../hooks/useWidgetSync';
+import { useTimezoneSync } from '../hooks/useTimezoneSync';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -170,6 +172,12 @@ export default function TabNavigator() {
     useEffect(() => {
         prefetchMainTabData(queryClient);
     }, []);
+
+    // Session-wide side effects that belong to a signed-in, onboarded user and
+    // no single screen: the Home/Lock Screen widget writer + toggle drain, and
+    // the device-timezone sync that keeps the server's "today" on their clock.
+    useWidgetSync();
+    useTimezoneSync();
 
     return (
         <>
