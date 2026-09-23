@@ -41,7 +41,7 @@ from services.notification_planner import (
     choose_channel,
 )
 import services.notification_state as ns
-from services.schedule_streak import STREAK_KEY
+from services.schedule_streak import STREAK_KEY, write_profile_keys
 from models.sqlalchemy_models import UserSchedule, User, UserCoachingState
 from config import settings
 
@@ -265,11 +265,32 @@ async def send_due_notifications():
                         await _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days)
                     except Exception as ue:
                         logger.warning("planner send failed for %s: %s", user_id, ue, exc_info=True)
+                        # A failed statement leaves the session's transaction
+                        # unusable; roll it back so the rest of the chunk isn't
+                        # skipped with PendingRollbackError.
+                        try:
+                            await db.rollback()
+                        except Exception:
+                            pass
 
+                # Each user commits its own writes inside _plan_and_send_for_user
+                # (short per-user transactions — never one profile held across
+                # the chunk). This is only a no-op safety net.
                 await db.commit()
 
     except Exception as e:
         logger.error(f"Scheduler job error: {e}", exc_info=True)
+
+
+async def _fresh_profile(db, user) -> dict:
+    """The user's profile as committed NOW (a plain column read, no lock, no
+    identity-map refresh). Falls back to the session's snapshot when the read
+    isn't possible (mock sessions in tests, a DB hiccup)."""
+    try:
+        row = (await db.execute(select(User.profile).where(User.id == user.id))).scalar_one_or_none()
+        return dict(row or {})
+    except Exception:
+        return dict(user.profile or {})
 
 
 async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
@@ -297,7 +318,11 @@ async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
     sleep_p = _parse_task_time_parts(str(ob.get("sleep_time") or "23:00")) or (23, 0)
     wake_min, sleep_min = wake_p[0] * 60 + wake_p[1], sleep_p[0] * 60 + sleep_p[1]
 
-    profile = dict(user.profile or {})
+    # Read the profile FRESH for this user rather than the snapshot the chunk
+    # warmed up to a minute ago: foreground suppression, the daily cap and the
+    # sent-key dedup all key off it, and the stale copy is how a user who had
+    # just opened the app still got the push.
+    profile = await _fresh_profile(db, user)
     state = ns.get_state(profile)
 
     # Foreground suppression — never push while the app is open / just used.
@@ -386,6 +411,8 @@ async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
 
     touched_schedules: set = set()
     changed = False
+    token_dead = False
+    sent_log: list[tuple[str, str, str]] = []
     for c in due:
         if c.dedup_key in ns.sent_keys_today(state, today_iso):
             continue
@@ -402,17 +429,22 @@ async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
                 (user.apns_device_token or "").strip(), c.title, c.body, custom=custom
             )
             if apns_response_should_invalidate_token(http_status):
-                user.apns_device_token = None
-                user.apns_token_updated_at = None
+                # Applied in the persist step below, AFTER the row lock: the
+                # refresh under the lock would otherwise discard the change.
+                token_dead = True
                 break
         else:  # sms — task reminders only
             ok = bool(await sendblue_service.send_coaching_sms(user.phone_number, c.body))
 
         if not ok:
             continue
+        # Keep the in-tick copy current (the min-interval / dedup checks above
+        # read it) AND log the delta: the persist step replays this log onto
+        # the FRESH state under the row lock instead of writing this copy.
         state = ns.record_delivered(state, local_now)
         state = ns.record_sent(state, today_iso, c.dedup_key, local_now)
         state = ns.push_recent_template(state, c.category, c.template_id)
+        sent_log.append((c.category, c.template_id, c.dedup_key))
         changed = True
         if c.category == CAT_TASK_DUE and c.task_uuid in ref:
             sched, task = ref[c.task_uuid]
@@ -423,12 +455,45 @@ async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
             touched_schedules.add(sched)
         logger.info("notif planner sent %s to %s via %s", c.category, user.id, channel)
 
+    # Persist as two SHORT single-table transactions, committed per user. The
+    # old shape wrote the whole profile from the chunk's snapshot and committed
+    # once per 200-user chunk, so a streak credit or XP landing in between was
+    # overwritten — and a crash mid-chunk forgot every send and re-pushed.
+    #   1. app_users: lock the row, replay this tick's sends onto the FRESH
+    #      notif_state, merge only that key (write_profile_keys). The profile
+    #      is the stronger dedup ledger, so it lands first — a crash before
+    #      step 2 still can't re-send (plan_day skips already_sent_keys).
+    #   2. user_schedules: the per-task sent flags. flag_modified is deferred
+    #      to here on purpose so step 1's commit carries no user_schedules
+    #      write (lock discipline in schedule_streak).
+    if changed or token_dead:
+        try:
+            if changed:
+                def _record(profile: dict) -> None:
+                    st = ns.get_state(profile)
+                    for category, template_id, dedup_key in sent_log:
+                        st = ns.record_delivered(st, local_now)
+                        st = ns.record_sent(st, today_iso, dedup_key, local_now)
+                        st = ns.push_recent_template(st, category, template_id)
+                    profile["notif_state"] = st
+
+                await write_profile_keys(db, user, _record)
+            if token_dead:
+                # A plain column write on the row we now hold (410/dead token).
+                user.apns_device_token = None
+                user.apns_token_updated_at = None
+            await db.commit()
+        except Exception as e:
+            logger.warning("notif state persist failed for %s: %s", user.id, e, exc_info=True)
+            try:
+                await db.rollback()
+            except Exception:
+                pass
     for sched in touched_schedules:
         flag_modified(sched, "days")
         sched.updated_at = datetime.utcnow()
-    if changed:
-        user.profile = ns.put_state(dict(user.profile or {}), state)
-        flag_modified(user, "profile")
+    if touched_schedules:
+        await db.commit()
 
 
 def _parse_sleep_hh_mm(raw: str | None) -> tuple[int, int] | None:

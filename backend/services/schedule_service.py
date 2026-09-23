@@ -2742,6 +2742,7 @@ class ScheduleService:
         updated = False
         already_completed = False
         task_day_date = None  # ISO date of the day the task lives in
+        xp_award = None  # (user, today_iso, n_today) once this completion is known to earn task XP
         days = schedule.days or []
         for day in days:
             for task in day.get("tasks", []):
@@ -2781,10 +2782,12 @@ class ScheduleService:
             # ledger (so uncomplete→recomplete toggling farms nothing), amount
             # normalized to the size of TODAY'S whole plan across every active
             # schedule (so volume can't out-earn discipline), scaled by the
-            # streak multiplier. Best-effort: rides this commit, never blocks.
+            # streak multiplier. Best-effort, never blocks. DECIDED here (reads
+            # only) but PERSISTED after the schedule commit below, in its own
+            # short app_users-only transaction — see write_profile_keys' lock
+            # discipline in schedule_streak.
             try:
-                from services.gamification import award_task_xp
-                from services.schedule_streak import local_today_date, STREAK_KEY
+                from services.schedule_streak import local_today_date
                 user = await db.get(User, UUID(user_id))
                 if user is not None:
                     today_iso = local_today_date(user.onboarding).isoformat()
@@ -2804,11 +2807,7 @@ class ScheduleService:
                                         n_today += len(d.get("tasks") or [])
                         except Exception:
                             n_today = 0
-                        profile = dict(user.profile or {})
-                        streak = int(profile.get(STREAK_KEY) or 0)
-                        award_task_xp(profile, task_id, n_today, streak, today_iso)
-                        user.profile = profile
-                        flag_modified(user, "profile")
+                        xp_award = (user, today_iso, n_today)
             except Exception as _xp_e:  # pragma: no cover - non-fatal
                 logger.warning("task-completion XP award failed (non-fatal): %s", _xp_e)
 
@@ -2825,6 +2824,32 @@ class ScheduleService:
 
         if not already_completed or feedback_logged:
             await db.commit()
+
+        if xp_award is not None:
+            # The XP ledger lives in user.profile next to the streak and the
+            # notification state. It used to ride the schedule commit above as
+            # a whole-column write from this session's snapshot, which lost a
+            # concurrent streak credit / notification tick (and they lost this
+            # XP). Now: lock the row, award on the FRESH profile (fresh streak
+            # multiplier too), merge only the XP keys, commit. Runs AFTER the
+            # user_schedules commit so this transaction holds no other lock.
+            try:
+                from services.gamification import award_task_xp
+                from services.schedule_streak import STREAK_KEY, write_profile_keys
+                user, today_iso, n_today = xp_award
+
+                def _award(profile: dict) -> None:
+                    streak = int(profile.get(STREAK_KEY) or 0)
+                    award_task_xp(profile, task_id, n_today, streak, today_iso)
+
+                await write_profile_keys(db, user, _award)
+                await db.commit()
+            except Exception as _xp_e:  # pragma: no cover - non-fatal
+                logger.warning("task-completion XP award failed (non-fatal): %s", _xp_e)
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
 
         # Return immediately with stats. Streak sync is deferred to background/on-demand to avoid
         # blocking on expensive multi-schedule merge operation. Mobile handles optimistic UI.

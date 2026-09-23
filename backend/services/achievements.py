@@ -25,6 +25,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.sqlalchemy_models import Scan, UserAchievement, UserMemory
+from services.schedule_streak import lock_user_row, write_profile_keys
 
 logger = logging.getLogger(__name__)
 
@@ -223,36 +224,64 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
         if len(earned) >= len(CATALOG):
             return unseen
         stats = await compute_stats(db, user, streak=streak, schedules=schedules)
-        newly: list[dict] = []
-        now = _utcnow()
+        candidates: list[Achievement] = []
         for a in CATALOG:
             if a.code in earned:
                 continue
             try:
                 if a.check(stats):
-                    db.add(UserAchievement(user_id=user.id, code=a.code, earned_at=now, seen=False))
-                    newly.append(_public(a, earned=True, seen=False))
+                    candidates.append(a)
             except Exception as e:
                 logger.debug("achievement check failed for %s: %s", a.code, e)
-        if newly:
-            # Grant XP for each freshly-earned badge (+50 each). Best-effort,
-            # rides this same commit; a failure never blocks the badge award.
-            try:
-                from services.gamification import award_xp, XP_ACHIEVEMENT
-                from sqlalchemy.orm.attributes import flag_modified as _flag
-                today_iso = str((streak or {}).get("today_date") or "")
-                profile = dict(user.profile or {})
+        if not candidates:
+            return []
+
+        # Write phase. Lock the app_users row FIRST (lock discipline in
+        # schedule_streak: single-table transaction, commit right after) and
+        # re-read what's earned UNDER it: two /active/full in flight used to
+        # both insert the same code — the loser hit the unique constraint and
+        # rolled back its whole day-state write. Now it simply finds the badge
+        # already there. Mock sessions (tests) can't take the lock; they keep
+        # the pre-lock read and the unlocked fallback inside write_profile_keys.
+        try:
+            locked = await lock_user_row(db, user)
+        except Exception as e:
+            logger.debug("achievement lock path unavailable: %s", e)
+            locked = None
+        if locked is not None:
+            earned = set((await db.execute(
+                select(UserAchievement.code).where(UserAchievement.user_id == user.id)
+            )).scalars().all())
+            candidates = [a for a in candidates if a.code not in earned]
+            if not candidates:
+                await db.commit()  # nothing to write — just release the lock
+                return []
+
+        newly: list[dict] = []
+        now = _utcnow()
+        for a in candidates:
+            db.add(UserAchievement(user_id=user.id, code=a.code, earned_at=now, seen=False))
+            newly.append(_public(a, earned=True, seen=False))
+        # Grant XP for each freshly-earned badge (+50 each), awarded on the
+        # FRESH profile under the same lock and merged as the XP keys only — so
+        # the streak credit this very request just wrote, or a notification
+        # tick landing now, keep their keys. Best-effort; a failure never
+        # blocks the badge award.
+        try:
+            from services.gamification import award_xp, XP_ACHIEVEMENT
+            today_iso = str((streak or {}).get("today_date") or "")
+
+            def _award(profile: dict) -> None:
                 for _ in newly:
                     award_xp(profile, XP_ACHIEVEMENT, today_iso)
-                user.profile = profile
-                _flag(user, "profile")
-            except Exception as _xp_e:
-                logger.debug("achievement XP award skipped: %s", _xp_e)
-            await db.commit()
-            try:
-                await _send_milestone_push(db, user, streak)
-            except Exception as e:
-                logger.debug("milestone push skipped: %s", e)
+            await write_profile_keys(db, user, _award)
+        except Exception as _xp_e:
+            logger.debug("achievement XP award skipped: %s", _xp_e)
+        await db.commit()
+        try:
+            await _send_milestone_push(db, user, streak)
+        except Exception as e:
+            logger.debug("milestone push skipped: %s", e)
         # Oldest first: a badge that was earned earlier but never celebrated
         # shows before the one that just landed.
         return unseen + newly
@@ -274,7 +303,6 @@ async def _send_milestone_push(db: AsyncSession, user, streak: dict) -> None:
     from datetime import datetime as _dt
     from zoneinfo import ZoneInfo
     from config import settings as _settings
-    from sqlalchemy.orm.attributes import flag_modified
     from services.notification_prefs import user_allows_proactive_push
     from services.apns_service import send_apns_alert, apns_response_should_invalidate_token
     from services.notification_copy import CAT_MILESTONE, compose, build_push_custom
@@ -335,10 +363,17 @@ async def _send_milestone_push(db: AsyncSession, user, streak: dict) -> None:
         await db.commit()
         return
     if ok:
-        state = ns.record_delivered(state, local_now)
-        state = ns.record_sent(state, today_iso, "cat:milestone", local_now)
-        user.profile = ns.put_state(dict(user.profile or {}), state)
-        flag_modified(user, "profile")
+        # Record on the FRESH row under the lock, merging only notif_state: the
+        # streak/XP keys this same request just committed — and whatever the
+        # 5-minute tick recorded meanwhile — must survive. The send already
+        # happened, so this runs after the network call, never around it.
+        def _record(profile: dict) -> None:
+            st = ns.get_state(profile)
+            st = ns.record_delivered(st, local_now)
+            st = ns.record_sent(st, today_iso, "cat:milestone", local_now)
+            profile["notif_state"] = st
+
+        await write_profile_keys(db, user, _record)
         await db.commit()
 
 
