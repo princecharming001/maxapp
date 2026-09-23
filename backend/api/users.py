@@ -686,6 +686,22 @@ async def complete_sendblue_connect(
     return {"message": "ok"}
 
 
+# Onboarding keys the SERVER writes (scan completion, purchase verify, tour
+# flags…) and a client save must never overwrite. Module-level so tests can
+# pin the set. `facial_scan_summary` + `scan_completed_at` are written by
+# POST /scans/upload-triple when the first analysis lands; without them here
+# the very next quiz/lifestyle save replaced the blob with a pydantic dump
+# whose facial_scan_summary defaults to None, and the AI coach/brief then
+# behaved as if the user had never scanned (67/69 recent scanners in prod).
+ONBOARDING_SERVER_OWNED_KEYS = (
+    "maxx_entered_at", "lock_ins", "confirmed_facts", "notif_category_prefs",
+    "sendblue_sms_opt_in", "app_notifications_opt_in", "main_app_tour_completed",
+    "post_subscription_onboarding", "sendblue_connect_completed",
+    "notification_channels_completed", "module_select_completed",
+    "facial_scan_summary", "scan_completed_at",
+)
+
+
 @router.post("/onboarding")
 async def save_onboarding(
     data: OnboardingData,
@@ -711,12 +727,7 @@ async def save_onboarding(
     # flags, post-pay steps). Preserve those from the existing blob and never take
     # them from the request body. (Client-settable keys like intensity_preference
     # and chat-owned response_length are intentionally NOT in this set.)
-    _SERVER_OWNED = (
-        "maxx_entered_at", "lock_ins", "confirmed_facts", "notif_category_prefs",
-        "sendblue_sms_opt_in", "app_notifications_opt_in", "main_app_tour_completed",
-        "post_subscription_onboarding", "sendblue_connect_completed",
-        "notification_channels_completed", "module_select_completed",
-    )
+    _SERVER_OWNED = ONBOARDING_SERVER_OWNED_KEYS
     _existing_ob = dict(user.onboarding or {})
     for _k in _SERVER_OWNED:
         if _k in _existing_ob:
@@ -1861,8 +1872,37 @@ async def delete_my_account(
     )
     await rds_db.commit()
 
+    # Collect every stored image BEFORE the row delete (the FK cascade removes
+    # the scan/progress-photo rows that hold the URLs). Face photos of a
+    # deleted user must not live on at public S3 URLs. Best-effort and never
+    # blocking: a storage hiccup must not make the account undeletable.
+    storage_urls: list = []
+    try:
+        from models.sqlalchemy_models import Scan
+        scan_rows = (await db.execute(select(Scan.images).where(Scan.user_id == user_uuid))).all()
+        for (imgs,) in scan_rows:
+            if isinstance(imgs, dict):
+                storage_urls.extend(v for v in imgs.values() if isinstance(v, str))
+        photo_rows = (await db.execute(
+            select(UserProgressPhoto.image_url).where(UserProgressPhoto.user_id == user_uuid)
+        )).all()
+        storage_urls.extend(u for (u,) in photo_rows if isinstance(u, str))
+        avatar = (user.profile or {}).get("avatar_url") if isinstance(user.profile, dict) else None
+        if isinstance(avatar, str):
+            storage_urls.append(avatar)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("delete_my_account: could not enumerate storage objects: %s", e)
+
     await db.execute(delete(User).where(User.id == user_uuid))
     await db.commit()
+
+    if storage_urls:
+        try:
+            from services.storage_service import delete_many_by_url
+            removed = await delete_many_by_url(storage_urls)
+            logger.info("delete_my_account: removed %d/%d stored images", removed, len(storage_urls))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("delete_my_account: storage cleanup failed: %s", e)
 
     return {"message": "Account deleted"}
 
