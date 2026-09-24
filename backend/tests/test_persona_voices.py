@@ -104,17 +104,42 @@ def test_unknown_tone_keeps_base_push_copy():
 
 
 def test_every_persona_push_line_is_safe_and_applied():
-    # Every persona/category line, filled with rich signals, must clear the taste
-    # bar (so it is actually used, not silently dropped) and pass content filter.
-    slots, available = _slots(name="anish", task="morning skincare", streak=6,
-                              count=3, why="a sharper jaw", plan="skinmax")
+    # EVERY persona/category line (every rotation index, rich and bare signals)
+    # must clear the taste bar (so it is actually used, not silently dropped)
+    # and pass the content filter.
+    rich = _slots(name="anish", task="morning skincare", streak=6,
+                  count=3, why="a sharper jaw", plan="skinmax")
+    bare = _slots(name=None, task="morning skincare", streak=None,
+                  count=None, why=None, plan=None)
     for persona, banks in _PERSONA_BANKS.items():
-        for category in banks:
-            pc = persona_push_copy(persona, category, slots, available, 0)
-            assert pc is not None
-            assert passes_taste_bar(pc["title"]) and passes_taste_bar(pc["body"]), \
-                f"{persona}/{category} trips taste bar: {pc}"
-            assert check_content(pc["title"]) == [] and check_content(pc["body"]) == []
+        for category, bank in banks.items():
+            for slots, available in (rich, bare):
+                for i in range(len(bank)):
+                    pc = persona_push_copy(persona, category, slots, available, i)
+                    if pc is None:
+                        continue   # nothing eligible without the signal → base copy
+                    assert "{" not in pc["title"] + pc["body"], pc
+                    assert passes_taste_bar(pc["title"]) and passes_taste_bar(pc["body"]), \
+                        f"{persona}/{category} trips taste bar: {pc}"
+                    assert check_content(pc["title"]) == [] and check_content(pc["body"]) == []
+                    assert len(pc["body"]) <= 110 and len(pc["title"]) <= 45, pc
+
+
+def test_per_task_pushes_rotate_through_distinct_persona_lines():
+    # One push per task: a day of task reminders must not repeat one sentence,
+    # even without a streak (the gated lines drop out).
+    slots, available = _slots(name="chad", task="face pulls", streak=None,
+                              count=None, why=None, plan=None)
+    for persona, banks in _PERSONA_BANKS.items():
+        bodies = {persona_push_copy(persona, CAT_TASK_DUE, slots, available, i)["body"] for i in range(5)}
+        assert len(bodies) == 5, f"{persona} task_due repeats within 5 pushes: {bodies}"
+
+
+def test_name_slot_uses_the_first_name_only():
+    slots, available = _slots(name="Luke Spencer", task=None, streak=None,
+                              count=None, why=None, plan=None)
+    assert "name" in available
+    assert slots["name_c"] == ", luke"
 
 
 def test_build_candidates_threads_coaching_tone_into_push():

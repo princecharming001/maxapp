@@ -64,9 +64,16 @@ class _P:
 #   {name_c} ", anish" or "" · {task} · {streak} · {count} · {why}
 # Big Daddy addresses the user as "champ"/"kid" instead of using {name_c}.
 _GOGGINS: dict[str, list[_P]] = {
+    # task_due fires once per task (up to ~8 a day), so each voice needs enough
+    # ungated lines that a full day doesn't read the same sentence twice.
     CAT_TASK_DUE: [
         _P("{task}", "{task} is up{name_c}. nobody is coming to do it for you. go."),
         _P("{task} now", "get after {task}{name_c}. the work doesn't care that you're tired."),
+        _P("{task}", "{task}{name_c}. no negotiating with yourself. do the rep."),
+        _P("{task}", "clock says {task}{name_c}. show up for it."),
+        _P("{task} now", "{task}{name_c}. discipline over mood. handle it."),
+        _P("{task}", "{task} is on the schedule{name_c}. earn the next hour."),
+        _P("day {streak}: {task}", "{task}{name_c}. day {streak} was built one rep at a time. add one.", frozenset({"streak"})),
     ],
     CAT_MORNING_PREVIEW: [
         _P("get up{name_c}", "short list today. attack it before it attacks you."),
@@ -95,6 +102,11 @@ _CLAVICULAR: dict[str, list[_P]] = {
     CAT_TASK_DUE: [
         _P("day {streak}: {task}", "{task}{name_c}. tongue on the palate, stack the fundamentals.", frozenset({"streak"})),
         _P("{task}", "{task} time{name_c}. lock it in, you're ascending."),
+        _P("{task}", "{task}{name_c}. fundamentals first, that's how the glow-up compounds."),
+        _P("{task}", "{task} is up{name_c}. small reps, real ascension."),
+        _P("{task} now", "{task}{name_c}. stack it, then back to your day."),
+        _P("{task}", "{task}{name_c}. consistency mogs intensity. lock in."),
+        _P("{task}", "{task} o'clock{name_c}. the halo is built on boring reps."),
     ],
     CAT_MORNING_PREVIEW: [
         _P("morning{name_c}", "today's stack is short. run it and mog the day."),
@@ -121,6 +133,10 @@ _BIG_DADDY: dict[str, list[_P]] = {
     CAT_TASK_DUE: [
         _P("one step, kid", "time for {task}, champ. we go at your pace, but we don't quit."),
         _P("hey champ", "{task} whenever you're ready, champ. one small step, i've got you."),
+        _P("{task}, champ", "{task} time, kid. nice and easy, you've got this."),
+        _P("one small thing", "{task} is up, champ. just this one, then go enjoy your day."),
+        _P("{task}", "hey kid, {task} now? proud of you for showing up."),
+        _P("right on time, champ", "{task}, kid. one small step, then take a breath."),
     ],
     CAT_MORNING_PREVIEW: [
         _P("morning, champ", "short list today, kid. one at a time. i'm right here."),

@@ -372,8 +372,9 @@ def _slots(
     """Build the format-slot dict and the set of available signal keys."""
     available: set = set()
     # Lowercased to match the copy voice — every template is lowercase
-    # editorial ("morning, chad." — never "morning, Chad.").
-    nm = (name or "").strip().lower()
+    # editorial ("morning, chad." — never "morning, Chad."). First word only:
+    # people type their full name into first_name ("morning, luke spencer.").
+    nm = ((name or "").strip().split() or [""])[0].lower()
     if nm:
         available.add("name")
     tk = (task or "").strip().lower()
