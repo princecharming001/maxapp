@@ -169,3 +169,70 @@ def test_payload_exposes_multiplier():
     p = {"master_schedule_streak": 7}
     pay = g.gamification_payload(p, "2026-07-04")
     assert pay["streak_multiplier"] == 1.25
+
+
+
+# --- 2026-09-24 recalibration: levels must be earned, not given ---------------
+
+def test_curve_milestones_are_pinned():
+    # Pinned so a future edit to the curve is a deliberate, reviewed change.
+    assert [g.xp_for_level(n) for n in (1, 2, 5, 10, 25, 40, 60, 100)] == [
+        0, 100, 919, 3363, 16156, 35132, 68134, 155961]
+
+
+def test_badge_xp_scales_with_tier_and_setup_badges_are_tokens():
+    assert g.achievement_xp("first_routine") == 10
+    assert g.achievement_xp("first_scan") == 10
+    assert g.achievement_xp("two_maxxes") == 10
+    assert g.achievement_xp("knows_me") == 10
+    assert g.achievement_xp("streak_3") == 25        # bronze
+    assert g.achievement_xp("streak_7") == 75        # silver
+    assert g.achievement_xp("streak_30") == 200      # gold
+    assert g.achievement_xp("streak_100") == 500     # override
+    assert g.achievement_xp("unknown_code") == g.XP_ACHIEVEMENT
+    # every catalog badge resolves to a sane amount
+    from services.achievements import CATALOG
+    for a in CATALOG:
+        assert 10 <= g.achievement_xp(a.code, a.tier) <= 500, a.code
+
+
+def test_onboarding_alone_never_levels_up():
+    # finishing onboarding (all four setup badges) without doing a task
+    p = {}
+    for code in ("first_routine", "first_scan", "two_maxxes", "knows_me"):
+        g.award_xp(p, g.achievement_xp(code), "2026-09-24")
+    assert g.gamification_payload(p, "2026-09-24")["current_level"] == 1
+
+
+def test_one_fully_completed_first_day_is_level_two_not_five():
+    p = {}
+    today = "2026-09-24"
+    g.award_xp(p, g.achievement_xp("first_routine") + g.achievement_xp("first_scan"), today)
+    for i in range(7):
+        g.award_task_xp(p, f"t{i}", 7, 0, today)
+    g.award_streak_xp(p, 0, 1, today)
+    g.award_xp(p, g.achievement_xp("perfect_day"), today)
+    assert g.gamification_payload(p, today)["current_level"] == 2
+
+
+def test_level_is_pure_function_of_xp_no_legacy_floor():
+    # a level minted by the old curve (level 8 on 240 XP) is not preserved
+    p = {g.XP_KEY: 240, g.LEVEL_KEY: 8}
+    assert g.gamification_payload(p, "2026-09-24")["current_level"] == g.level_from_xp(240) == 2
+    r = g.award_xp(p, 0, "2026-09-24")
+    assert r["level_after"] == 2 and p[g.LEVEL_KEY] == 2
+
+
+def test_a_perfect_month_is_about_level_ten_not_thirty():
+    p = {}
+    streak = 0
+    import datetime as dt
+    d0 = dt.date(2026, 9, 1)
+    for day in range(30):
+        iso = (d0 + dt.timedelta(days=day)).isoformat()
+        for i in range(7):
+            g.award_task_xp(p, f"{day}-{i}", 7, streak, iso)
+        g.award_streak_xp(p, streak, streak + 1, iso)
+        streak += 1
+    lvl = g.gamification_payload(p, (d0 + dt.timedelta(days=29)).isoformat())["current_level"]
+    assert 9 <= lvl <= 13, lvl

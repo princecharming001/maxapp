@@ -45,7 +45,7 @@ import services.notification_state as ns
 import services.schedule_streak as ss
 import services.scheduler_job as sj
 from models.sqlalchemy_models import Base, User, UserAchievement, UserSchedule
-from services.gamification import TASK_LEDGER_KEY, XP_ACHIEVEMENT, XP_KEY
+from services.gamification import TASK_LEDGER_KEY, XP_KEY, achievement_xp
 from services.notification_planner import PlannerConfig
 from services.schedule_service import schedule_service
 from services.schedule_streak import LAST_PERFECT_KEY, STREAK_KEY
@@ -310,7 +310,7 @@ async def test_complete_task_xp_is_awarded_on_the_fresh_profile(Session):
 @pytest.mark.asyncio
 async def test_achievements_concurrent_evaluate_awards_each_badge_once(Session, monkeypatch):
     # Two /active/full in flight both see "first_routine" unearned. Under the
-    # lock the loser re-reads and finds the winner's row: one badge row, +50 XP
+    # lock the loser re-reads and finds the winner's row: one badge row, its XP
     # once, and no unique-constraint rollback of the loser's day-state.
     monkeypatch.setattr(ach, "_scan_count", AsyncMock(return_value=0))
     monkeypatch.setattr(ach, "_fact_count", AsyncMock(return_value=0))
@@ -330,7 +330,7 @@ async def test_achievements_concurrent_evaluate_awards_each_badge_once(Session, 
     async with Session() as R:
         rows = (await R.execute(select(UserAchievement.code).where(UserAchievement.user_id == uid))).scalars().all()
         assert rows == ["first_routine"]
-    assert (await _read_profile(Session, uid))[XP_KEY] == XP_ACHIEVEMENT
+    assert (await _read_profile(Session, uid))[XP_KEY] == achievement_xp("first_routine")
 
 
 # --- fallback + structure: run anywhere -----------------------------------------

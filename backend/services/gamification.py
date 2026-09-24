@@ -1,21 +1,30 @@
 """XP + Rank — additive-only gamification, stored in User.profile JSON.
 
-XP accrues from four positive actions:
-  • completing a scheduled task on time (its own day)  -> +15
-  • unlocking a badge/achievement                      -> +50
+XP accrues from real, repeated behaviour:
+  • completing today's scheduled tasks — a fully-done day is worth ~90 XP
+    whatever the plan size (5..15 per task), × a streak multiplier (≤1.5)
   • a perfect day (all of today's tasks done)          -> +25
-  • a streak milestone (every 7 days)                  -> +100 bonus
+  • a streak milestone (every 7 days)                  -> +100
+  • unlocking a badge — scaled by what it took: setup badges (first routine,
+    first scan, second max, telling Max about yourself) +10, bronze +25,
+    silver +75, gold +200, Centurion +500
 
-XP maps to a level (1..100) via a mild quadratic curve, and levels group into
-named RANKS. Everything here is PURE: the functions mutate the passed `profile`
+Calibration (2026-09-24, simulated over two years for four archetypes):
+  perfect user  → L2 day 1, L5 week 1, L12 month 1, L24 month 3, L58 year 1
+  typical user  → L3 week 1, L5 month 1, L10 month 3, L21 year 1
+The previous economy paid 50 XP per badge regardless of tier, so onboarding
+alone (3 setup badges) put every new user on level 3 before a single task,
+and one completed day reached level 5 — levels meant nothing.
+
+XP maps to a level (1..100) via a power curve and levels group into named
+RANKS. Everything here is PURE: the functions mutate the passed `profile`
 dict and NEVER commit — the caller owns the transaction (mirrors the streak
 helpers in schedule_streak.py). Every function is defensive: on any error it
-no-ops, so an XP award can never break the task/achievement/streak write it rides
-on. XP is additive-only — a user never loses XP (un-checking a task keeps the XP,
-it just won't be re-awarded).
+no-ops, so an XP award can never break the task/achievement/streak write it
+rides on. XP is additive-only — un-checking a task keeps the XP, it just won't
+be re-awarded.
 
-Keys live in `profile` alongside the streak keys, so they persist on the same
-day-state sync with zero new tables (OTA-safe).
+Keys live in `profile` alongside the streak keys (zero new tables, OTA-safe).
 """
 from __future__ import annotations
 
@@ -34,11 +43,36 @@ PERFECT_XP_DATE_KEY = "xp_perfect_awarded_date"  # guards the once/day perfect-d
 XP_TASK_ON_TIME = 15          # per-task ceiling (small plans)
 XP_TASK_FLOOR = 5             # per-task floor (very large plans)
 TASK_DAY_BUDGET = 90          # a fully-completed day is worth ~this much task XP
-XP_ACHIEVEMENT = 50
+XP_ACHIEVEMENT = 25            # fallback for a badge code missing from the table below
 XP_PERFECT_DAY = 25
 XP_STREAK_MILESTONE = 100
 STREAK_MILESTONE_EVERY = 7
 TASK_LEDGER_KEY = "xp_task_ledger"  # {"date": iso, "ids": [task ids already paid today]}
+
+# Badge XP scales with what the badge took. Setup badges are earned by simply
+# finishing onboarding, so they are a token — they must never level a user up
+# on their own. Keyed by services.achievements CATALOG code.
+XP_BADGE_SETUP = 10
+XP_BADGE_BY_TIER = {"bronze": 25, "silver": 75, "gold": 200}
+_SETUP_BADGES = frozenset({"first_routine", "first_scan", "two_maxxes", "knows_me"})
+_BADGE_OVERRIDES = {"streak_100": 500}
+
+
+def achievement_xp(code: str, tier: str | None = None) -> int:
+    """XP for unlocking badge `code` (tier from the catalog when not given)."""
+    try:
+        code = str(code or "")
+        if code in _BADGE_OVERRIDES:
+            return _BADGE_OVERRIDES[code]
+        if code in _SETUP_BADGES:
+            return XP_BADGE_SETUP
+        if tier is None:
+            from services.achievements import CATALOG_BY_CODE
+            a = CATALOG_BY_CODE.get(code)
+            tier = a.tier if a is not None else None
+        return XP_BADGE_BY_TIER.get(str(tier or "").lower(), XP_ACHIEVEMENT)
+    except Exception:  # pragma: no cover - never break the badge write
+        return XP_ACHIEVEMENT
 
 # Streak multiplier on task XP — consistency is the top earner and can't be
 # farmed in a sitting. (0-2: ×1.0, 3-6: ×1.1, 7-29: ×1.25, 30+: ×1.5)
@@ -94,13 +128,17 @@ def award_task_xp(
         return award_xp(profile, 0, today_iso) | {"xp_awarded": 0, "already_paid": False}
 
 MAX_LEVEL = 100
-_LEVEL_COEFF_NUM = 46  # quadratic term: 46*(n-1)**2 // 10  (== 4.6·(n-1)²)
-# Linear term. A PURE quadratic makes the first levels near-free (L2=4, …, L6=115
-# XP), so a single fully-completed day (~115 XP) rocketed a new user to level 6.
-# The linear term puts a real floor under each early level (L2=54, L3=118, L4=191)
-# so day one lands around L2 and a consistent week reaches ~L9 — while L100 stays
-# ~50k XP (≈ a year of play), preserving the aspirational top end.
-_LEVEL_LINEAR = 50
+# Power curve: XP to REACH level n = round(100 · (n-1)^1.6). Early levels cost
+# about a real day of work each (L2 = 100 ≈ one completed day), mid levels a
+# week or two, and the top of the ladder years:
+#   L2=100  L5=919  L10=3,363  L25=16,156  L40=35,132  L60=68,134  L100=155,961
+# A precomputed integer table keeps xp_for_level/level_from_xp exactly
+# consistent (float drift once caused an off-by-one at a boundary).
+_CURVE_SCALE = 100
+_CURVE_EXP = 1.6
+_LEVEL_TABLE: tuple[int, ...] = tuple(
+    int(round(_CURVE_SCALE * (n - 1) ** _CURVE_EXP)) for n in range(1, MAX_LEVEL + 1)
+)
 
 # Named ranks over the 1..100 ladder — themed to the app's disciplined,
 # self-improvement vibe. (min_level inclusive, ascending.)
@@ -117,11 +155,9 @@ RANKS = [
 
 
 def xp_for_level(n: int) -> int:
-    """Cumulative XP required to REACH level n (n>=1). Level 1 = 0 XP (everyone
-    starts at level 1). Quadratic curve: quick early levels, aspirational L100
-    (~45k XP → roughly a year of consistent play)."""
+    """Cumulative XP required to REACH level n (n>=1). Level 1 = 0 XP."""
     n = max(1, min(int(n), MAX_LEVEL))
-    return _LEVEL_LINEAR * (n - 1) + _LEVEL_COEFF_NUM * (n - 1) ** 2 // 10
+    return _LEVEL_TABLE[n - 1]
 
 
 def level_from_xp(xp: int) -> int:
@@ -131,7 +167,7 @@ def level_from_xp(xp: int) -> int:
     except (TypeError, ValueError):
         return 1
     lvl = 1
-    while lvl < MAX_LEVEL and xp >= xp_for_level(lvl + 1):
+    while lvl < MAX_LEVEL and xp >= _LEVEL_TABLE[lvl]:
         lvl += 1
     return lvl
 
@@ -144,18 +180,6 @@ def rank_for_level(level: int) -> str:
     return name
 
 
-def _stored_level_floor(profile: dict) -> int:
-    """Grandfathering floor: the level already persisted for this user. The
-    curve got steeper (linear term added 2026-07), which would DEMOTE every
-    existing user's recomputed level/rank on their next app open. Levels are
-    additive-only like XP — display level never decreases; XP simply has to
-    catch up to the new curve before it climbs again."""
-    try:
-        return max(1, min(MAX_LEVEL, int(profile.get(LEVEL_KEY) or 1)))
-    except (TypeError, ValueError):
-        return 1
-
-
 def award_xp(profile: dict, amount: int, today_iso: str) -> dict:
     """Add `amount` XP to `profile` IN PLACE (no commit). Lazily resets the
     per-day counter when the local date rolls over. Returns a summary with
@@ -164,8 +188,7 @@ def award_xp(profile: dict, amount: int, today_iso: str) -> dict:
     try:
         amount = max(0, int(amount))
         total_before = int(profile.get(XP_KEY) or 0)
-        floor = _stored_level_floor(profile)
-        level_before = max(level_from_xp(total_before), floor)
+        level_before = level_from_xp(total_before)
 
         # Daily reset: a new local day zeroes "earned today" before we add.
         if profile.get(LAST_AWARD_DATE_KEY) != today_iso:
@@ -179,8 +202,8 @@ def award_xp(profile: dict, amount: int, today_iso: str) -> dict:
         else:
             total_after = total_before
 
-        level_after = max(level_from_xp(total_after), floor)
-        profile[LEVEL_KEY] = level_after  # persists the high-water mark
+        level_after = level_from_xp(total_after)
+        profile[LEVEL_KEY] = level_after
         return {
             "xp_total": total_after,
             "xp_awarded": amount,
@@ -192,7 +215,7 @@ def award_xp(profile: dict, amount: int, today_iso: str) -> dict:
     except Exception as e:  # never break the caller's primary write
         logger.warning("award_xp no-op (non-fatal): %s", e)
         cur = int((profile or {}).get(XP_KEY) or 0) if isinstance(profile, dict) else 0
-        lvl = max(level_from_xp(cur), _stored_level_floor(profile if isinstance(profile, dict) else {}))
+        lvl = level_from_xp(cur)
         return {"xp_total": cur, "xp_awarded": 0, "xp_earned_today": 0,
                 "level_before": lvl, "level_after": lvl, "level_gained": 0}
 
@@ -224,8 +247,9 @@ def gamification_payload(profile: dict, today_iso: str) -> dict:
     try:
         profile = profile or {}
         total = int(profile.get(XP_KEY) or 0)
-        # Same grandfathering floor as award_xp: never display a demotion.
-        level = max(level_from_xp(total), _stored_level_floor(profile))
+        # Level is a pure function of XP. (A stored-level floor used to keep
+        # levels minted by an older, looser curve — e.g. level 8 on 240 XP.)
+        level = level_from_xp(total)
         earned_today = (
             int(profile.get(EARNED_TODAY_KEY) or 0)
             if profile.get(LAST_AWARD_DATE_KEY) == today_iso else 0

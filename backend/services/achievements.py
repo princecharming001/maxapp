@@ -264,18 +264,19 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
         for a in candidates:
             db.add(UserAchievement(user_id=user.id, code=a.code, earned_at=now, seen=False))
             newly.append(_public(a, earned=True, seen=False))
-        # Grant XP for each freshly-earned badge (+50 each), awarded on the
+        # Grant XP for the freshly-earned badges (scaled by tier, see
+        # gamification.achievement_xp), awarded on the
         # FRESH profile under the same lock and merged as the XP keys only — so
         # the streak credit this very request just wrote, or a notification
         # tick landing now, keep their keys. Best-effort; a failure never
         # blocks the badge award.
         try:
-            from services.gamification import award_xp, XP_ACHIEVEMENT
+            from services.gamification import achievement_xp, award_xp
             today_iso = str((streak or {}).get("today_date") or "")
+            badge_xp = sum(achievement_xp(a.code, a.tier) for a in candidates)
 
             def _award(profile: dict) -> None:
-                for _ in newly:
-                    award_xp(profile, XP_ACHIEVEMENT, today_iso)
+                award_xp(profile, badge_xp, today_iso)
             await write_profile_keys(db, user, _award)
         except Exception as _xp_e:
             logger.debug("achievement XP award skipped: %s", _xp_e)
