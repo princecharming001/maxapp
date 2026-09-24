@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { COMPLETE_TASK_ACTION_ID, TASK_REMINDER_CATEGORY_ID } from '../lib/notificationDeepLink';
 
 const DEFAULT_CHANNEL_ID = 'max-schedule-reminders';
 
@@ -15,12 +16,30 @@ if (Platform.OS !== 'web') {
     });
 }
 
-export async function ensureAppNotificationPermission(): Promise<boolean> {
-    const existing = await Notifications.getPermissionsAsync();
-    if (existing.status === 'granted') return true;
+// NOTE: there is deliberately no "ensure permission" helper here any more. The
+// iOS prompt may only be shown from an explicit user tap — see
+// services/registerIosPushToken.requestIosPushPermissionAndToken.
 
-    const requested = await Notifications.requestPermissionsAsync();
-    return requested.status === 'granted';
+/**
+ * iOS action buttons for server pushes. Task reminders arrive with
+ * aps.category = "TASK_REMINDER"; registering the category is what makes iOS
+ * show a "Mark done" button on them (handled in App.tsx). Idempotent — call on
+ * every app start. Best-effort: without it the push still arrives, just
+ * without the button.
+ */
+export async function registerNotificationCategories(): Promise<void> {
+    if (Platform.OS !== 'ios') return;
+    try {
+        await Notifications.setNotificationCategoryAsync(TASK_REMINDER_CATEGORY_ID, [
+            {
+                identifier: COMPLETE_TASK_ACTION_ID,
+                buttonTitle: 'Mark done',
+                options: { opensAppToForeground: true },
+            },
+        ]);
+    } catch {
+        /* native module unavailable (web / Expo Go quirk) — ignore */
+    }
 }
 
 export async function ensureAndroidNotificationChannel() {

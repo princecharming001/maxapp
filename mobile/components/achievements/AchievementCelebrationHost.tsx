@@ -19,6 +19,7 @@ import { queryKeys } from '../../lib/queryClient';
 import { navigationRef } from '../../lib/navigationRef';
 import { useWalkthroughVisible } from '../../features/mainTour/useMainAppTour';
 import CelebrationOverlay from './CelebrationOverlay';
+import { setOverlayUp, useOverlayUp } from '../../lib/overlayTurns';
 
 // Screens where a full-screen celebration would interrupt — the camera/scan
 // flow, the onboarding + paywall funnel, auth, and setup flows. The badge still
@@ -82,7 +83,17 @@ export default function AchievementCelebrationHost() {
     // their first Max earns "First Steps" right as the task step shows; the
     // queue survives and promotes the moment the walkthrough closes).
     const walkthroughUp = useWalkthroughVisible();
-    const onSafeScreen = !!routeName && !SUPPRESS_ROUTES.has(routeName) && !walkthroughUp;
+    // Take turns with Home's reminders primer: never celebrate over it (it
+    // yields to a queued celebration before rising — lib/overlayTurns).
+    const primerUp = useOverlayUp('primer');
+    const onSafeScreen = !!routeName && !SUPPRESS_ROUTES.has(routeName) && !walkthroughUp && !primerUp;
+
+    // Publish "a celebration is queued or showing" so the primer waits its turn.
+    const celebrationBusy = !!showing || queue.length > 0;
+    useEffect(() => {
+        setOverlayUp('celebration', celebrationBusy);
+    }, [celebrationBusy]);
+    useEffect(() => () => setOverlayUp('celebration', false), []);
 
     // Promote the pending queue to a frozen "showing" batch once we're on a safe
     // screen and nothing is currently celebrating. Mark those seen now (they're

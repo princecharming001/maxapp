@@ -12,6 +12,7 @@ same task (cross-channel dedup).
 import asyncio
 import logging
 import re
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -239,6 +240,7 @@ async def send_due_notifications():
         return
     try:
         cfg = PlannerConfig.from_settings()
+        ecfg = _engine_config()
         lapse_days = int(getattr(settings, "notif_lapse_days", 4) or 4)
         user_ids = await _active_schedule_user_ids()
         # Fresh session per chunk: bounded identity map + released JSONB blobs,
@@ -262,7 +264,11 @@ async def send_due_notifications():
 
                 for user_id, user_schedules in by_user.items():
                     try:
-                        await _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days)
+                        user = await db.get(User, user_id)
+                        if user is not None and _engine_v3_for(user):
+                            await _engine_send_for_user(db, user, user_schedules, ecfg)
+                        else:
+                            await _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days)
                     except Exception as ue:
                         logger.warning("planner send failed for %s: %s", user_id, ue, exc_info=True)
                         # A failed statement leaves the session's transaction
@@ -280,6 +286,137 @@ async def send_due_notifications():
 
     except Exception as e:
         logger.error(f"Scheduler job error: {e}", exc_info=True)
+
+
+def _engine_v3_for(user) -> bool:
+    """Push users go through engine v3 (per-task pushes); SMS-only users and a
+    disabled flag keep the v2 planner."""
+    if not bool(getattr(settings, "notif_engine_v3_enabled", True)):
+        return False
+    return user_allows_proactive_push(user.onboarding, user.apns_device_token)
+
+
+def _engine_config():
+    from services.notification_engine import EngineConfig
+
+    return EngineConfig(
+        task_late_grace_min=int(getattr(settings, "notif_task_late_grace_min", 15) or 15),
+        ambient_daily_cap=int(getattr(settings, "notif_ambient_daily_cap", 5) or 5),
+        ambient_min_gap_min=int(getattr(settings, "notif_ambient_min_gap_min", 75) or 75),
+        lapse_pause_hours=int(getattr(settings, "notif_lapse_pause_hours", 48) or 48),
+    )
+
+
+# Last line of defence against a push repeating every tick: what APNs accepted
+# in THIS process, keyed like the ledger (user, logical day, key). The ledger
+# write normally makes this redundant — it only matters when that write fails
+# after the send, when the next tick would rebuild and resend the same push.
+_SENT_MEMO: dict[tuple[str, str, str], float] = {}
+_SENT_MEMO_TTL_S = 36 * 3600
+_SENT_MEMO_MAX = 50_000
+
+
+def _memo_keys(user_id, day_iso: str, push) -> list[tuple[str, str, str]]:
+    uid = str(user_id)
+    if push.lane == "task" and push.task_keys:
+        return [(uid, day_iso, f"task:{k}") for k in push.task_keys]
+    return [(uid, day_iso, push.dedup_key)]
+
+
+def _memo_blocks(user_id, day_iso: str, push, now_s: float) -> bool:
+    """True when every key of this push already went out from this process.
+    A task group that gained a new task still goes (the new task is unsent)."""
+    return all(
+        now_s - _SENT_MEMO.get(k, float("-inf")) < _SENT_MEMO_TTL_S
+        for k in _memo_keys(user_id, day_iso, push)
+    )
+
+
+def _memo_add(user_id, day_iso: str, push, now_s: float) -> None:
+    if len(_SENT_MEMO) >= _SENT_MEMO_MAX:
+        cutoff = now_s - _SENT_MEMO_TTL_S
+        for k in [k for k, t in _SENT_MEMO.items() if t < cutoff]:
+            _SENT_MEMO.pop(k, None)
+        if len(_SENT_MEMO) >= _SENT_MEMO_MAX:
+            _SENT_MEMO.clear()
+    for k in _memo_keys(user_id, day_iso, push):
+        _SENT_MEMO[k] = now_s
+
+
+def _reset_sent_memo() -> None:
+    _SENT_MEMO.clear()
+
+
+async def _engine_send_for_user(db, user, user_schedules, ecfg) -> list:
+    """Engine v3 for one push user: gather signals → decide → send → record.
+
+    Records only what APNs accepted, on the FRESH profile under the row lock
+    (write_profile_keys), so a failed send is retried next tick and a streak /
+    XP write landing meanwhile keeps its keys. Returns the pushes sent."""
+    from services.notification_engine import decide, record_push
+    from services.notification_signals import build_engine_input
+
+    now_utc = datetime.now(ZoneInfo("UTC"))
+    profile = await _fresh_profile(db, user)
+    inp = await build_engine_input(
+        db, user, user_schedules, profile=profile, now_utc=now_utc,
+        foreground_suppress_min=int(getattr(settings, "notif_foreground_suppress_min", 5) or 5),
+    )
+    if inp is None:
+        return []
+    pushes = decide(inp, ecfg)
+    if not pushes:
+        return []
+    token = (user.apns_device_token or "").strip()
+    day_iso = inp.logical_date.isoformat()
+    now_s = time.monotonic()
+    sent: list = []
+    token_dead = False
+    for p in pushes:
+        if _memo_blocks(user.id, day_iso, p, now_s):
+            logger.warning(
+                "notif v3 skipped %s for %s: already sent by this process (ledger write lost?)",
+                p.dedup_key, user.id,
+            )
+            continue
+        params = {k: v for k, v in (p.params or {}).items() if not str(k).startswith("_")}
+        custom = build_push_custom(p.category, p.route, params)
+        ok, http_status = await send_apns_alert(
+            token, p.title, p.body, custom=custom, thread_id=p.thread_id,
+            category=p.apns_category, expires_in_s=p.expires_in_s,
+        )
+        if apns_response_should_invalidate_token(http_status):
+            token_dead = True
+            break
+        if ok:
+            sent.append(p)
+            _memo_add(user.id, day_iso, p, now_s)
+            logger.info(
+                "notif v3 sent %s (%s) to %s at %s: %r",
+                p.category, p.lane, user.id, inp.now.strftime("%H:%M"), p.title,
+            )
+    if not sent and not token_dead:
+        return []
+    try:
+        if sent:
+            def _record(profile: dict) -> None:
+                st = ns.get_state(profile)
+                for p in sent:
+                    st = record_push(st, p, day_iso, inp.now)
+                profile["notif_state"] = st
+
+            await write_profile_keys(db, user, _record)
+        if token_dead:
+            user.apns_device_token = None
+            user.apns_token_updated_at = None
+        await db.commit()
+    except Exception as e:
+        logger.warning("notif v3 persist failed for %s: %s", user.id, e, exc_info=True)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+    return sent
 
 
 async def _fresh_profile(db, user) -> dict:
@@ -326,8 +463,11 @@ async def _plan_and_send_for_user(db, user_id, user_schedules, cfg, lapse_days):
     state = ns.get_state(profile)
 
     # Foreground suppression — never push while the app is open / just used.
+    # last_active_at is naive UTC (record_app_activity uses utcnow) — compare it
+    # with UTC. Comparing with the user's LOCAL clock suppressed every push for
+    # <utc offset> hours after each app visit west of UTC (7 h in Los Angeles).
     if channel == "push" and not _sms_fast_mode() and ns.foreground_recent(
-        state, local_naive, cfg.foreground_suppress_min
+        state, datetime.utcnow(), cfg.foreground_suppress_min
     ):
         return
 
@@ -1366,6 +1506,9 @@ def start_scheduler(app):
             )
 
         sched_m = 1 if fast else 5
+        # Task pushes fire at the task's own minute, so the notification tick
+        # runs every minute (engine v3 is idempotent per task via its ledger).
+        tick_s = max(20, int(getattr(settings, "notif_tick_seconds", 60) or 60))
         bed_m = 1 if fast else 10
         coach_m = 1 if fast else 30
         weekly_m = 1 if fast else 60
@@ -1384,7 +1527,7 @@ def start_scheduler(app):
         scheduler.add_job(
             send_due_notifications,
             "interval",
-            minutes=sched_m,
+            seconds=tick_s,
             id="schedule_notifications",
             **job_defaults,
         )

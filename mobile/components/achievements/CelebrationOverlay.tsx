@@ -20,9 +20,12 @@ import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { fonts, borderRadius, spacing } from '../../theme/dark';
 import AchievementBadge, { GLYPH, Tier } from './AchievementBadge';
+import { achievementXp } from '../../lib/achievementXp';
 
 export type EarnedAchievement = {
     code: string; title: string; description: string; tier: Tier; icon: string;
+    /** XP this badge pays, from the server (tiered). Absent on older servers. */
+    xp?: number | null;
 };
 
 // Warm, tonal confetti (gold / sand / ink) — no rainbow, stays premium.
@@ -30,8 +33,6 @@ const CONFETTI_COLORS = ['#C9A24E', '#E7CFA6', '#FBF6EE', '#D7B277', '#1C1A17', 
 const PIECES = 22;
 const GOLD = '#C9A24E';
 const CREAM = '#FBF6EE';
-// XP granted per achievement — mirrors backend XP_ACHIEVEMENT (services/gamification.py).
-const XP_PER_ACHIEVEMENT = 50;
 
 /**
  * CelebrationBadge — the achievement's matte-black clay 3D icon (the same
@@ -173,7 +174,7 @@ export default function CelebrationOverlay({
                         <Text style={styles.title}>{current.title}</Text>
                         <Text style={styles.desc}>{current.description}</Text>
                         <View style={styles.xpPill}>
-                            <Text style={styles.xpText}>+{XP_PER_ACHIEVEMENT} XP</Text>
+                            <Text style={styles.xpText}>+{achievementXp(current)} XP</Text>
                         </View>
                         {queue.length > 1 ? (
                             <Text style={styles.count}>{i + 1} of {queue.length}</Text>

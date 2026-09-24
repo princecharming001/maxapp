@@ -36,6 +36,16 @@ CAT_REENGAGE = "reengagement"        # 5. lapsed user
 CAT_MILESTONE = "milestone"          # 6. achievement / streak milestone unlocked
 CAT_BROADCAST = "broadcast"          # 7. admin-triggered, in-voice
 CAT_TIP = "tip"                      # 8. occasional midday quick win
+# --- engine v3 (services.notification_engine) --------------------------------
+CAT_MISSED = "missed_task"                  # overdue task(s) still open, recovery nudge
+CAT_STREAK_LAST_CALL = "streak_last_call"   # final pre-bed streak saver (mutes with CAT_STREAK)
+CAT_STREAK_FREEZE = "streak_freeze"         # morning after a freeze covered yesterday
+CAT_STREAK_MILESTONE = "streak_milestone"   # morning after a streak milestone day
+CAT_COMEBACK = "comeback"                   # fresh-start morning after a streak ended
+CAT_JOURNEY = "journey_milestone"           # day 7 / 14 / 30 / 60 / 90 / 180 / 365
+CAT_PROGRESS_PHOTO = "progress_photo"       # weekly progress photo
+CAT_SCAN_READY = "scan_ready"               # the next face scan just unlocked
+CAT_WEEKLY = "weekly_recap"                 # Sunday "your week with max"
 
 ALL_CATEGORIES = (
     CAT_TASK_DUE,
@@ -46,20 +56,38 @@ ALL_CATEGORIES = (
     CAT_MILESTONE,
     CAT_BROADCAST,
     CAT_TIP,
+    CAT_MISSED,
+    CAT_STREAK_LAST_CALL,
+    CAT_STREAK_FREEZE,
+    CAT_STREAK_MILESTONE,
+    CAT_COMEBACK,
+    CAT_JOURNEY,
+    CAT_PROGRESS_PHOTO,
+    CAT_SCAN_READY,
+    CAT_WEEKLY,
 )
 
-# Essential vs optional (review item 6 — per-category mute). Essential are the
-# task/plan reminders a user signed up for; optional can be muted independently.
-ESSENTIAL_CATEGORIES = frozenset({CAT_TASK_DUE, CAT_MORNING_PREVIEW, CAT_EVENING_RECAP})
+# Essential vs optional (per-category mute). Only the per-task reminder itself is
+# essential — it IS the plan the user signed up for; switching it off is the OS
+# toggle. Everything around it (briefs, nudges, streak, progress) can be muted
+# individually from the app's notification preferences.
+ESSENTIAL_CATEGORIES = frozenset({CAT_TASK_DUE})
 OPTIONAL_CATEGORIES = frozenset(
-    {CAT_STREAK, CAT_REENGAGE, CAT_MILESTONE, CAT_BROADCAST, CAT_TIP}
+    {
+        CAT_MORNING_PREVIEW, CAT_EVENING_RECAP, CAT_MISSED,
+        CAT_STREAK, CAT_STREAK_FREEZE, CAT_STREAK_MILESTONE, CAT_COMEBACK,
+        CAT_JOURNEY, CAT_PROGRESS_PHOTO, CAT_SCAN_READY, CAT_WEEKLY,
+        CAT_REENGAGE, CAT_MILESTONE, CAT_BROADCAST, CAT_TIP,
+    }
 )
+# A category muted by its parent's toggle (not listed on its own in the app).
+MUTE_PARENT: dict[str, str] = {CAT_STREAK_LAST_CALL: CAT_STREAK}
 
 # Deep-link route per category. Mirrors mobile/App.tsx NOTIFICATION_DEEP_LINK_ROUTES.
 # Each push opens the SPECIFIC thing it is about (review item 11).
 DEEP_LINK_ROUTES = frozenset(
     {"Home", "TaskGuide", "Achievements", "Profile", "ProgressArchive",
-     "CreatorFeed", "CreatorStudio"}
+     "CreatorFeed", "CreatorStudio", "WeeklyReview", "FaceScan", "Ranks", "DayPlanner"}
 )
 _CATEGORY_ROUTE: dict[str, str] = {
     CAT_TASK_DUE: "TaskGuide",        # the specific task's guide/detail
@@ -70,6 +98,15 @@ _CATEGORY_ROUTE: dict[str, str] = {
     CAT_MILESTONE: "Achievements",
     CAT_BROADCAST: "Home",
     CAT_TIP: "Home",
+    CAT_MISSED: "Home",
+    CAT_STREAK_LAST_CALL: "Home",
+    CAT_STREAK_FREEZE: "Home",
+    CAT_STREAK_MILESTONE: "Achievements",
+    CAT_COMEBACK: "Home",
+    CAT_JOURNEY: "ProgressArchive",
+    CAT_PROGRESS_PHOTO: "ProgressArchive",
+    CAT_SCAN_READY: "FaceScan",
+    CAT_WEEKLY: "WeeklyReview",
     # Creator platform: a "new update" opens THAT creator's feed (maxxId rides
     # in ScheduledNotification.deep_link_params); an application decision opens
     # the studio (approved creators land in their new home).
@@ -154,25 +191,30 @@ _BANKS: dict[str, list[_Tmpl]] = {
         _Tmpl("day {streak}: {task}", "{task}{name_c}. keeps day {streak} rolling.", frozenset({"streak"})),
     ],
     CAT_MORNING_PREVIEW: [
+        _Tmpl("today's plan", "{count} on deck{name_c}. first up: {task} at {time}.", frozenset({"count", "task", "time"})),
         _Tmpl("morning{name_c}", "today's lineup is short and doable. take a look."),
-        _Tmpl("today's plan", "{count} small things on deck{name_c}. open when ready.", frozenset({"count"})),
-        _Tmpl("good morning{name_c}", "{count} quick wins between you and {why}.", frozenset({"count", "why"})),
+        _Tmpl("today's plan", "{count} small things on deck{name_c}. open when ready.", frozenset({"count", "plural"})),
+        _Tmpl("good morning{name_c}", "{count} quick wins between you and {why}.", frozenset({"count", "why", "plural"})),
         _Tmpl("morning{name_c}", "fresh day, light list. peek at what's on it."),
         _Tmpl("today, briefly", "a few small moves toward {why}. they're in the app.", frozenset({"why"})),
     ],
     CAT_EVENING_RECAP: [
+        _Tmpl("before you wind down", "{tasks} still open{name_c}. about {mins} min.", frozenset({"tasks", "mins"})),
         _Tmpl("before you wind down", "{count} left{name_c}, if you've got a minute."),
         _Tmpl("quick recap{name_c}", "{count} still open. easy to close before bed."),
-        _Tmpl("evening check", "a couple things linger{name_c}. no rush, just here."),
-        _Tmpl("day {streak} still open", "{count} small thing(s) to round out day {streak}.", frozenset({"streak", "count"})),
+        _Tmpl("evening check", "a couple things linger{name_c}. no rush, just here.", frozenset({"plural"})),
+        _Tmpl("day {streak} still open", "{count} small things to round out day {streak}.", frozenset({"streak", "count", "plural"})),
     ],
     CAT_STREAK: [
+        _Tmpl("day {next} is close", "{needed} more and day {next} is yours{name_c}.", frozenset({"streak", "needed"})),
+        _Tmpl("day {next}, almost", "{needed} left to lock in day {next}{name_c}.", frozenset({"streak", "needed"})),
         _Tmpl("day {streak} looks good", "one small thing keeps the run going{name_c}.", frozenset({"streak"})),
         _Tmpl("nice run going", "day {streak}{name_c}. a quick task and it carries on.", frozenset({"streak"})),
         _Tmpl("day {streak}", "you're on a roll{name_c} — one tap keeps it that way.", frozenset({"streak"})),
         _Tmpl("momentum's yours", "day {streak} is right there for the taking{name_c}.", frozenset({"streak"})),
     ],
     CAT_REENGAGE: [
+        _Tmpl("we'll go quiet now", "last check-in from us{name_c}. the plan's here whenever.", frozenset({"final"})),
         _Tmpl("your plan's still here", "whenever you're ready{name_c} — one small thing today?"),
         _Tmpl("we kept your spot", "the plan's warm and waiting{name_c}. one tap back in."),
         _Tmpl("no pressure{name_c}", "the routine's here when you are. pick up anytime."),
@@ -188,11 +230,64 @@ _BANKS: dict[str, list[_Tmpl]] = {
         # Broadcast body is author-supplied; this bank is the in-voice fallback.
         _Tmpl("from max", "something new just landed{name_c}. worth a look."),
     ],
+    CAT_MISSED: [
+        _Tmpl("still on the list", "{task} is still open{name_c}. about {mins} min.", frozenset({"one", "mins"})),
+        _Tmpl("quick catch-up", "{task} can still happen today{name_c}.", frozenset({"one"})),
+        _Tmpl("later works too", "{task} hasn't happened yet{name_c}. still time today.", frozenset({"one"})),
+        _Tmpl("{count} still open", "{tasks}. about {mins} min all in{name_c}.", frozenset({"many", "mins", "count"})),
+        _Tmpl("quick catch-up", "{tasks} can still happen today{name_c}.", frozenset({"many"})),
+    ],
+    CAT_STREAK_LAST_CALL: [
+        _Tmpl("last call for day {next}", "{needed} to go{name_c}. two minutes before bed?", frozenset({"streak", "needed"})),
+        _Tmpl("day {next} is right there", "{needed} left{name_c}. close it out before bed.", frozenset({"streak", "needed"})),
+    ],
+    CAT_STREAK_FREEZE: [
+        _Tmpl("streak's safe", "a freeze covered yesterday{name_c}. day {streak} is still going.", frozenset({"streak"})),
+        _Tmpl("your freeze did its job", "yesterday's covered{name_c}. {count} on deck today.", frozenset({"count"})),
+        _Tmpl("streak's safe", "a freeze covered yesterday{name_c}. today counts again."),
+    ],
+    CAT_STREAK_MILESTONE: [
+        _Tmpl("day {streak}", "{streak} days straight{name_c}. that's not luck anymore.", frozenset({"streak"})),
+        _Tmpl("{streak} in a row", "{streak} days running{name_c}. the plan works because you do.", frozenset({"streak"})),
+    ],
+    CAT_COMEBACK: [
+        _Tmpl("fresh start{name_c}", "yesterday got away. today's list is short, start anywhere."),
+        _Tmpl("clean slate", "new day, new run{name_c}. first up: {task}.", frozenset({"task"})),
+        _Tmpl("today's a fresh one", "one task gets it going again{name_c}."),
+    ],
+    CAT_JOURNEY: [
+        _Tmpl("day {day} with max", "{day} days in{name_c}. put today's photo next to day 1.", frozenset({"day"})),
+        _Tmpl("{day} days of work", "worth a side-by-side{name_c}. your day 1 photo is waiting.", frozenset({"day"})),
+    ],
+    CAT_PROGRESS_PHOTO: [
+        _Tmpl("progress pic", "same light, same angle{name_c}. future you will want this one."),
+        _Tmpl("week {week} photo", "30 seconds now, a real before-and-after later{name_c}.", frozenset({"week"})),
+    ],
+    CAT_SCAN_READY: [
+        _Tmpl("new scan unlocked", "see what {days} days of work did{name_c}.", frozenset({"days"})),
+        _Tmpl("your next scan is ready", "same lighting as last time{name_c}, then compare."),
+    ],
+    CAT_WEEKLY: [
+        _Tmpl("your week with max", "{closed} of 7 days closed, {done} tasks done{name_c}.", frozenset({"closed", "done"})),
+        _Tmpl("week in review", "{done} tasks done this week{name_c}. see where you shined.", frozenset({"done"})),
+        _Tmpl("week in review", "your week's wrapped{name_c}. take a look at how it went."),
+    ],
     CAT_TIP: [
         _Tmpl("one thing today", "10s of cold water on the face tightens everything{name_c}."),
         _Tmpl("quick win", "two minutes of sun early sets your whole rhythm{name_c}."),
         _Tmpl("small tip{name_c}", "water before coffee. your face thanks you later."),
         _Tmpl("tiny upgrade", "stand tall for 30s{name_c} — posture reads before anything else."),
+    ],
+}
+
+
+# Task-due for SEVERAL tasks landing within a few minutes of each other — one
+# push that names them, instead of two buzzes seconds apart. Not a category of
+# its own (it mutes, routes and dedups as task_due); selected via variant="group".
+_VARIANT_BANKS: dict[str, list[_Tmpl]] = {
+    "task_due_group": [
+        _Tmpl("{task} + {more} more", "{tasks}. all quick{name_c}.", frozenset({"many"})),
+        _Tmpl("{task} + {more} more", "{tasks}, back to back{name_c}. knock them out.", frozenset({"many"})),
     ],
 }
 
@@ -243,6 +338,18 @@ def _active_bank(category: str, *, personalized: bool) -> list[_Tmpl]:
     return base
 
 
+def _join_tasks(tasks: Optional[list]) -> str:
+    """'a', 'a and b', 'a, b and 2 more' — lowercase, bounded length."""
+    items = [str(t).strip().lower() for t in (tasks or []) if str(t or "").strip()]
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return f"{items[0]}, {items[1]} and {len(items) - 2} more"
+
+
 def _slots(
     *,
     name: Optional[str],
@@ -251,6 +358,16 @@ def _slots(
     count: Optional[int],
     why: Optional[str],
     plan: Optional[str],
+    tasks: Optional[list] = None,
+    mins: Optional[int] = None,
+    needed: Optional[int] = None,
+    day: Optional[int] = None,
+    week: Optional[int] = None,
+    days: Optional[int] = None,
+    closed: Optional[int] = None,
+    done: Optional[int] = None,
+    time_label: Optional[str] = None,
+    final: bool = False,
 ) -> tuple[dict, set]:
     """Build the format-slot dict and the set of available signal keys."""
     available: set = set()
@@ -272,13 +389,55 @@ def _slots(
         available.add("streak")
     if isinstance(count, int) and count >= 1:
         available.add("count")
+        if count >= 2:
+            available.add("plural")   # plural nouns ("things", "wins") need count >= 2
+    task_list = [str(t).strip().lower() for t in (tasks or []) if str(t or "").strip()]
+    if len(task_list) == 1:
+        available.add("one")
+    elif len(task_list) >= 2:
+        available.add("many")
+    if task_list:
+        available.add("tasks")
+        if not tk:
+            tk = task_list[0]
+            available.add("task")
+    if isinstance(mins, int) and mins >= 1:
+        available.add("mins")
+    if isinstance(needed, int) and needed >= 1:
+        available.add("needed")
+    if isinstance(day, int) and day >= 1:
+        available.add("day")
+    if isinstance(week, int) and week >= 1:
+        available.add("week")
+    if isinstance(days, int) and days >= 1:
+        available.add("days")
+    if isinstance(closed, int) and closed >= 1:
+        available.add("closed")
+    if isinstance(done, int) and done >= 1:
+        available.add("done")
+    tl = (time_label or "").strip().lower()
+    if tl:
+        available.add("time")
+    if final:
+        available.add("final")
     slots = {
         "name_c": f", {nm}" if nm else "",
         "task": tk or "your routine",
         "streak": streak if isinstance(streak, int) else "",
+        "next": (streak + 1) if isinstance(streak, int) else "",
         "count": count if isinstance(count, int) else "",
         "why": wy or "your goal",
         "plan": pl or "your plan",
+        "tasks": _join_tasks(task_list) or (tk or "your routine"),
+        "more": max(0, len(task_list) - 1),
+        "mins": mins if isinstance(mins, int) else "",
+        "needed": needed if isinstance(needed, int) else "",
+        "day": day if isinstance(day, int) else "",
+        "week": week if isinstance(week, int) else "",
+        "days": days if isinstance(days, int) else "",
+        "closed": closed if isinstance(closed, int) else "",
+        "done": done if isinstance(done, int) else "",
+        "time": tl,
     }
     return slots, available
 
@@ -322,6 +481,17 @@ def compose(
     recent: Iterable[str] = (),
     coaching_tone: Optional[str] = None,
     personalized_copy: Optional[bool] = None,
+    tasks: Optional[list] = None,
+    mins: Optional[int] = None,
+    needed: Optional[int] = None,
+    day: Optional[int] = None,
+    week: Optional[int] = None,
+    days: Optional[int] = None,
+    closed: Optional[int] = None,
+    done: Optional[int] = None,
+    time_label: Optional[str] = None,
+    final: bool = False,
+    variant: Optional[str] = None,
 ) -> dict:
     """Compose a push for `category`. Returns
     ``{title, body, category, route, params, template_id}``.
@@ -340,8 +510,12 @@ def compose(
         raise ValueError(f"unknown notification category: {category}")
 
     slots, available = _slots(
-        name=name, task=task, streak=streak, count=count, why=why, plan=plan
+        name=name, task=task, streak=streak, count=count, why=why, plan=plan,
+        tasks=tasks, mins=mins, needed=needed, day=day, week=week, days=days,
+        closed=closed, done=done, time_label=time_label, final=final,
     )
+    # variant="group" on task_due → the "task_due_group" bank.
+    variant_bank = _VARIANT_BANKS.get(f"{category}_{variant}") if variant else None
 
     if category == CAT_BROADCAST and (broadcast_body or broadcast_title):
         title = (broadcast_title or "from max").strip()
@@ -349,7 +523,7 @@ def compose(
         tmpl_id = "broadcast:custom"
     else:
         use_personalized = _personalized_notif_enabled() if personalized_copy is None else personalized_copy
-        bank = _active_bank(category, personalized=use_personalized)
+        bank = variant_bank or _active_bank(category, personalized=use_personalized)
         tmpl = _pick(bank, available, rotation, recent)
         title = tmpl.title.format(**slots).strip()
         body = tmpl.body.format(**slots).strip()
@@ -357,7 +531,9 @@ def compose(
 
         # Persona restyle — speak in the active coach's voice when one is set and
         # the restyled line still clears the taste bar (else keep the base line).
-        if coaching_tone:
+        # Variant banks (e.g. several tasks in one push) have no persona lines:
+        # a single-task persona line would silently drop the other tasks.
+        if coaching_tone and variant_bank is None:
             try:
                 from services.persona_notifications import persona_push_copy
 
@@ -371,7 +547,10 @@ def compose(
     # weird user name/why), fall back to the safest line in the bank.
     if not (passes_taste_bar(title) and passes_taste_bar(body)):
         logger.warning("notification copy tripped taste bar (%s): %r / %r", category, title, body)
-        safe = next((t for t in _BANKS[category] if not t.requires), _BANKS[category][0])
+        safe_bank = variant_bank or _BANKS[category]
+        safe = next((t for t in safe_bank if not t.requires), None) or next(
+            (t for t in _BANKS[category] if not t.requires), _BANKS[category][0]
+        )
         title = safe.title.format(**{**slots, "task": "your routine", "why": "your goal"}).strip()
         body = safe.body.format(**{**slots, "task": "your routine", "why": "your goal"}).strip()
         tmpl_id = _tmpl_id(safe)
@@ -402,16 +581,20 @@ def validate_all_templates() -> list[str]:
     the taste bar and stay within length limits. Returns a list of problems
     (empty = all good). Used by tests and as an import-time guard."""
     problems: list[str] = []
-    rich = dict(name="anish", task="morning skincare", streak=6, count=3, why="a sharper jaw", plan="skinmax")
+    rich = dict(name="anish", task="morning skincare", streak=6, count=3, why="a sharper jaw", plan="skinmax",
+                tasks=["morning skincare", "10 min of sun"], mins=12, needed=2, day=30, week=4, days=7,
+                closed=5, done=38, time_label="7:30", final=True)
+    single = dict(name="anish", task="morning skincare", tasks=["morning skincare"], mins=7, count=1)
     bare: dict = {}
     # Validate the base banks AND the Phase-4 extras (regardless of flag) so a
     # bad new variant can never ship — the import-time guard always covers them.
     all_banks: dict[str, list[_Tmpl]] = {
         cat: _BANKS[cat] + _PERSONALIZED_EXTRA.get(cat, []) for cat in _BANKS
     }
+    all_banks.update(_VARIANT_BANKS)
     for cat, bank in all_banks.items():
         for t in bank:
-            for signals in (rich, bare):
+            for signals in (rich, single, bare):
                 slots, _ = _slots(
                     name=signals.get("name"),
                     task=signals.get("task"),
@@ -419,6 +602,16 @@ def validate_all_templates() -> list[str]:
                     count=signals.get("count"),
                     why=signals.get("why"),
                     plan=signals.get("plan"),
+                    tasks=signals.get("tasks"),
+                    mins=signals.get("mins"),
+                    needed=signals.get("needed"),
+                    day=signals.get("day"),
+                    week=signals.get("week"),
+                    days=signals.get("days"),
+                    closed=signals.get("closed"),
+                    done=signals.get("done"),
+                    time_label=signals.get("time_label"),
+                    final=bool(signals.get("final")),
                 )
                 try:
                     title = t.title.format(**slots)

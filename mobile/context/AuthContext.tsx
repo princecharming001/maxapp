@@ -19,7 +19,7 @@ import {
     getPersistedCacheUserId,
     setPersistUserId,
 } from '../lib/queryPersist';
-import { getIosApnsDeviceTokenForBackend } from '../services/registerIosPushToken';
+import { syncIosPushTokenIfGranted } from '../services/registerIosPushToken';
 
 type SubscriptionTier = 'basic' | 'premium' | null;
 
@@ -420,30 +420,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Auto-refresh iOS APNs push token on launch for users who've opted into push.
-    // Tokens can rotate (reinstall, restore, iOS refresh), so re-registering keeps
-    // the server's token fresh — otherwise push reminders silently stop arriving.
+    // Keep the server's iOS APNs token fresh — WITHOUT EVER PROMPTING.
+    //
+    // This effect used to REQUEST notification permission, and it ran the
+    // moment any user id existed: i.e. when the anonymous funnel account was
+    // minted on "Get started", before the user had seen anything. iOS shows
+    // that prompt once per install, so an early "Don't Allow" was permanent.
+    // The prompt now comes only from an explicit tap (the Home reminders
+    // primer, Settings → Notifications). Here we only READ the status: when
+    // it's already granted (incl. provisional), fetch the token and register
+    // it for ANY signed-in user — paid or not, anonymous included.
+    //
+    // Runs on sign-in / account switch AND on every foreground, so a user who
+    // turns notifications on in iOS Settings is registered without a cold
+    // start. Tokens rotate (reinstall, restore, iOS refresh); a recently
+    // registered (user, token) pair isn't re-POSTed (registerIosPushToken).
+    const appNotificationsOptIn = user?.onboarding?.app_notifications_opt_in;
     useEffect(() => {
         if (Platform.OS !== 'ios') return;
-        if (!user?.id) return;
-        const appOptIn = user.onboarding?.app_notifications_opt_in;
-        // Default-true: if unset, treat as opted-in (matches NotificationChannelsScreen).
-        if (appOptIn === false) return;
-        void (async () => {
-            try {
-                const token = await getIosApnsDeviceTokenForBackend();
-                if (token) {
-                    await api.registerPushToken(token);
-                }
-            } catch {
-                /* non-fatal — user can re-save prefs in Profile */
-            }
-        })();
-        // Re-run when entitlement flips: /users/push-token 403s for unpaid
-        // accounts, so a user who subscribes mid-session would otherwise have
-        // no token on the server until their next cold start — no reminders
-        // for their very first day.
-    }, [user?.id, user?.is_paid]);
+        const uid = user?.id;
+        if (!uid) return;
+        // Default-true: only an explicit server-side opt-out skips it (the
+        // backend never pushes those users anyway).
+        if (appNotificationsOptIn === false) return;
+        void syncIosPushTokenIfGranted(uid);
+        const sub = AppState.addEventListener('change', (s: AppStateStatus) => {
+            if (s === 'active') void syncIosPushTokenIfGranted(uid);
+        });
+        return () => sub.remove();
+        // is_paid: a backend that still 403s unpaid tokens gets a retry the
+        // moment the user subscribes (a failed POST is never memoised).
+    }, [user?.id, user?.is_paid, appNotificationsOptIn]);
 
     // The post-auth profile fetch. Tokens are ALREADY persisted when this
     // runs, so a transient blip here must not report "Couldn't sign in" for a

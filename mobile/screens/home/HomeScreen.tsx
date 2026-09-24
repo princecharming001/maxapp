@@ -25,6 +25,10 @@ import { usePersonalization } from '../../hooks/usePersonalization';
 import { CachedImage } from '../../components/CachedImage';
 import { StreakFireBadge } from '../../components/StreakFireBadge';
 import InboxBell from '../../components/notifications/InboxBell';
+import NotificationPrimerSheet from '../../components/notifications/NotificationPrimerSheet';
+import RemindersOffCard from '../../components/notifications/RemindersOffCard';
+import { useNotificationNudges } from '../../hooks/useNotificationNudges';
+import { addDaysISO } from '../../lib/notificationPermission';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
 
 /* ─── Progress Ring ─── */
@@ -514,6 +518,24 @@ export default function HomeScreen() {
         [byDate, today],
     );
 
+    // Push reminders: the value-moment permission primer (the user is looking
+    // at their own plan — it names their next task) and, when notifications are
+    // denied, the "reminders are off" card. Declared AFTER the walkthrough so
+    // the walkthrough always gets first claim on a visit.
+    const tomorrowRows = useMemo(() => {
+        const next = addDaysISO(today, 1);
+        return (next && byDate[next]) || [];
+    }, [byDate, today]);
+    const nudges = useNotificationNudges({
+        todayTasks: scheduleRows,
+        tomorrowTasks: tomorrowRows,
+        activePlanCount: (schedulesQuery.data?.schedules as unknown[] | undefined)?.length ?? 0,
+        planReady: !!schedulesQuery.data && !schedulesLoading,
+        redirectPending:
+            tourRedirectPending ||
+            !!(user?.onboarding as { post_subscription_onboarding?: boolean } | undefined)?.post_subscription_onboarding,
+    });
+
     const personalizedUI = useFlag('personalizedUI');
     const pers = usePersonalization();
     // The programs the user has actively STARTED and that are running right now
@@ -742,6 +764,14 @@ export default function HomeScreen() {
                         </ScrollView>
                     </View>
 
+                    {/* ── REMINDERS OFF (notification permission denied) ── */}
+                    {nudges.remindersOff.visible ? (
+                        <RemindersOffCard
+                            onOpenSettings={nudges.remindersOff.onOpenSettings}
+                            onDismiss={nudges.remindersOff.onDismiss}
+                        />
+                    ) : null}
+
                     {/* ── HABITS ── */}
                     <View style={s.section}>
                             <Text style={s.sectionLabel}>HABITS</Text>
@@ -855,6 +885,15 @@ export default function HomeScreen() {
                 onGoTo={walkthrough.goTo}
                 onDismiss={walkthrough.dismiss}
                 onFinish={walkthrough.finish}
+            />
+
+            <NotificationPrimerSheet
+                visible={nudges.primer.visible}
+                title={nudges.primer.title}
+                body={nudges.primer.body}
+                busy={nudges.primer.busy}
+                onEnable={() => { void nudges.primer.onEnable(); }}
+                onNotNow={nudges.primer.onNotNow}
             />
         </View>
     );

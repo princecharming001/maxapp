@@ -13,7 +13,17 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { getFlag } from './constants/featureFlags';
 import { parseReferralCode } from './lib/referralLink';
 import { RootNavigator } from './navigation/RootNavigator';
-import { queryClient } from './lib/queryClient';
+import { queryClient, queryKeys } from './lib/queryClient';
+import {
+    canNavigateTo,
+    claimNotificationResponse,
+    drainLastNotificationResponse,
+    FOREGROUND_DRAIN_DELAYS_MS,
+    notificationDataFromRequest,
+    resolveNotificationTarget,
+    taskCompletionFromResponse,
+    type NotificationNavTarget,
+} from './lib/notificationDeepLink';
 import { FeatureFlagsProvider } from './constants/featureFlags';
 import { hydrateQueryClient, startQueryPersistence } from './lib/queryPersist';
 import { ensureFirstRunClean } from './lib/firstRunGuard';
@@ -48,7 +58,7 @@ import {
 } from './lib/faceScanDraft';
 // Side-effect import: registers expo-notifications handler at cold-start so
 // remote pushes arriving while the app is foregrounded show a banner.
-import './services/localScheduleNotifications';
+import { registerNotificationCategories } from './services/localScheduleNotifications';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -59,25 +69,15 @@ installGlobalErrorHandlers();
 
 
 
-// Routes a push notification is allowed to deep-link into. Keep this an
-// explicit allow-list — we never navigate to an arbitrary route name handed
-// to us inside a notification payload. Mirrors backend
-// services/notification_copy.DEEP_LINK_ROUTES so every category's push opens
-// the right screen (task -> TaskGuide, milestone -> Achievements, etc.).
-const NOTIFICATION_DEEP_LINK_ROUTES = new Set<string>([
-    'Home',
-    'TaskGuide',
-    'Achievements',
-    'Profile',
-    'ProgressArchive',
-    // Creator platform: a "new update" push opens that creator's feed; an
-    // application decision opens the studio; community/course pushes open the
-    // member home. Params still come only from the payload's params object and
-    // route names stay allow-listed.
-    'CreatorFeed',
-    'CreatorStudio',
-    'CreatorMaxxHome',
-]);
+// Push deep links: the route ALLOW-LIST (we never navigate to an arbitrary
+// route name handed to us inside a notification payload), the Home → Main tab
+// mapping and the "Mark done" action parsing all live in
+// lib/notificationDeepLink (pure + unit-tested).
+
+/** One navigate action per target; `pop` returns to an existing route (Main) instead of stacking a duplicate. */
+function navigateActionFor(target: NotificationNavTarget) {
+    return CommonActions.navigate(target.name, target.params, target.pop ? { pop: true } : undefined);
+}
 
 function AppNavigator() {
     const { isAuthenticated, isPaid, refreshUser, user, isScanUser, logout, isAnonymous } = useAuth();
@@ -88,7 +88,7 @@ function AppNavigator() {
     // A deep-link target that arrived from a notification tap before the
     // navigator (or the stack screen it points at) was mounted — flushed once
     // navigation is ready. Covers the cold-start-from-tap case.
-    const pendingDeepLinkRef = useRef<{ route: string; params?: Record<string, unknown> } | null>(null);
+    const pendingDeepLinkRef = useRef<NotificationNavTarget | null>(null);
 
     // Flush a deferred deep link. ONE implementation, used by every flush site:
     // this previously existed twice and the copies diverged — the NavigationContainer
@@ -104,34 +104,63 @@ function AppNavigator() {
         // stack is up) is a dropped action AND loses the parked link. Keep it
         // parked instead; this re-runs on every auth/paid flip, which is
         // exactly when the right stack mounts.
-        const names: string[] = (navRef.getRootState()?.routeNames as string[] | undefined) ?? [];
-        if (!names.includes(pending.route)) return;
-        navRef.dispatch(CommonActions.navigate({ name: pending.route, params: pending.params }));
+        const names = (navRef.getRootState()?.routeNames as string[] | undefined) ?? [];
+        if (!canNavigateTo(pending, names)) return;
+        navRef.dispatch(navigateActionFor(pending));
         pendingDeepLinkRef.current = null;
     }, [navRef]);
 
-    /** Navigate now if the mounted stack has the route, else park for the flush. */
-    const navigateOrPark = useCallback((routeName: string, params?: Record<string, unknown>) => {
-        const names: string[] = navRef.isReady()
+    /** Navigate now if the mounted stack has the target, else park for the flush. */
+    const navigateOrPark = useCallback((target: NotificationNavTarget) => {
+        const names = navRef.isReady()
             ? ((navRef.getRootState()?.routeNames as string[] | undefined) ?? [])
             : [];
-        if (names.includes(routeName)) {
-            navRef.dispatch(CommonActions.navigate({ name: routeName, params }));
+        if (canNavigateTo(target, names)) {
+            navRef.dispatch(navigateActionFor(target));
         } else {
-            pendingDeepLinkRef.current = { route: routeName, params };
+            pendingDeepLinkRef.current = target;
         }
     }, [navRef]);
 
-    const goToNotificationData = useCallback(
-        (data: unknown) => {
-            const d = (data ?? {}) as { route?: unknown; params?: unknown };
-            const route = d.route;
-            if (typeof route !== 'string' || !NOTIFICATION_DEEP_LINK_ROUTES.has(route)) return;
-            const params =
-                d.params && typeof d.params === 'object' ? (d.params as Record<string, unknown>) : undefined;
+    // Every notification interaction funnels through here: the live listener
+    // AND the stored-response drain (which can see the SAME tap —
+    // claimNotificationResponse lets exactly one of them through, keyed on the
+    // request identifier + delivery date).
+    //   "Mark done" on a task reminder → complete the task in place (no guide),
+    //       refresh the day; if that fails, open the task's guide instead.
+    //   A normal tap → the payload's allow-listed deep link ('Home' → Main/Home).
+    const handleNotificationResponse = useCallback(
+        (response: Notifications.NotificationResponse | null | undefined) => {
+            if (!response) return;
+            if (!claimNotificationResponse(response)) return;
+            // NOT content.data alone: for our direct-APNs pushes that is null on
+            // iOS — route/params ride at the payload's top level (see helper).
+            const data = notificationDataFromRequest(response.notification?.request);
+            const completion = taskCompletionFromResponse(response.actionIdentifier, data);
+            if (completion) {
+                // An action button is an interaction too — feeds adaptive backoff.
+                void api.notificationOpened();
+                void (async () => {
+                    try {
+                        await api.completeScheduleTask(completion.scheduleId, completion.taskId);
+                        // Canonical day-state key (Home, planner, widget, badge
+                        // awards) + any per-maxx schedule a screen has cached.
+                        void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
+                        void queryClient.invalidateQueries({ queryKey: ['maxxSchedule'] });
+                    } catch {
+                        // Stale id after a regen, signed out, offline: let them
+                        // finish it from the guide rather than silently dropping it.
+                        const fallback = resolveNotificationTarget({ route: 'TaskGuide', params: completion.params });
+                        if (fallback) navigateOrPark(fallback);
+                    }
+                })();
+                return;
+            }
+            const target = resolveNotificationTarget(data);
+            if (!target) return;
             // Report the tap so the backend's adaptive backoff counts an "open".
             void api.notificationOpened();
-            navigateOrPark(route, params);
+            navigateOrPark(target);
         },
         [navigateOrPark],
     );
@@ -150,7 +179,7 @@ function AppNavigator() {
             // navigateOrPark: a logged-out user's guest stack doesn't register
             // ReferralCode, so navigating would silently drop the action AND
             // lose the code — park it until the funnel stack mounts instead.
-            navigateOrPark('ReferralCode', params);
+            navigateOrPark({ name: 'ReferralCode', params });
         };
         const sub = Linking.addEventListener('url', (e) => mounted && handle(e.url));
         void Linking.getInitialURL().then((u) => mounted && handle(u)).catch(() => undefined);
@@ -231,20 +260,49 @@ function AppNavigator() {
     useEffect(() => {
         let mounted = true;
         const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-            goToNotificationData(response?.notification?.request?.content?.data);
+            handleNotificationResponse(response);
         });
-        // Cold-start: the app was launched by tapping a notification while it
-        // wasn't running. The listener above won't fire for that tap.
-        void Notifications.getLastNotificationResponseAsync()
-            .then((response) => {
-                if (mounted) goToNotificationData(response?.notification?.request?.content?.data);
-            })
-            .catch(() => undefined);
+        // The live listener above never fires in the current native build
+        // (see drainLastNotificationResponse), so every tap — cold start, or a
+        // warm app brought forward by a tap / "Mark done" — is ALSO read from
+        // the response the native delegate stored. Whichever path sees it
+        // first handles it; claimNotificationResponse drops the other.
+        const timers = new Set<ReturnType<typeof setTimeout>>();
+        const drain = () =>
+            void drainLastNotificationResponse(
+                Notifications.getLastNotificationResponseAsync,
+                Notifications.clearLastNotificationResponseAsync,
+                (response) => {
+                    if (!mounted) return false;
+                    handleNotificationResponse(response);
+                },
+            );
+        const drainSoon = () => {
+            for (const ms of FOREGROUND_DRAIN_DELAYS_MS) {
+                const t = setTimeout(() => {
+                    timers.delete(t);
+                    drain();
+                }, ms);
+                timers.add(t);
+            }
+        };
+        drainSoon();
+        const appSub = AppState.addEventListener('change', (next: AppStateStatus) => {
+            if (next === 'active') drainSoon();
+        });
         return () => {
             mounted = false;
             sub.remove();
+            appSub.remove();
+            timers.forEach(clearTimeout);
         };
-    }, [goToNotificationData]);
+    }, [handleNotificationResponse]);
+
+    // iOS action buttons ("Mark done" on task reminders). Registered on every
+    // start — cheap and idempotent — so the category exists before the next push.
+    useEffect(() => {
+        void registerNotificationCategories();
+    }, []);
 
     // Flush a deferred deep-link once the navigator and its target stack are
     // mounted. Re-runs as auth/paid state resolves (the ProgressArchive screen

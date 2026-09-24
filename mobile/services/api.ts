@@ -7,6 +7,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { getItemAsync, setItemAsync, deleteItemAsync } from './storage';
 import { parseServerDate } from '../lib/faceScanDraft';
+import { sanitizeCategoryPrefs, type NotificationCategoryPrefs } from '../lib/notificationPrefs';
 
 /** GET /scans/latest — the newest row of ANY status plus the server's scan-limit decision. */
 export type LatestScan = {
@@ -1531,6 +1532,8 @@ class ApiService {
         return response.data;
     }
 
+    /** Native APNs device token (hex) for server push. Sent for ANY signed-in
+     *  user — paid or not, anonymous included. Callers: services/registerIosPushToken. */
     async registerPushToken(token: string) {
         const response = await this.client.post('users/push-token', { token });
         return response.data;
@@ -2918,6 +2921,21 @@ class ApiService {
     }
     async notificationActivity(): Promise<void> {
         try { await this.client.post('notifications/activity'); } catch { /* best-effort */ }
+    }
+
+    /** Per-category push toggles (optional categories only — essential task
+     *  reminders are governed by the OS permission, not listed here). The
+     *  server owns the category list; non-boolean entries are dropped. */
+    async getNotificationCategoryPrefs(): Promise<{ prefs: NotificationCategoryPrefs }> {
+        const response = await this.client.get('notifications/category-prefs');
+        return { prefs: sanitizeCategoryPrefs(response.data?.prefs) };
+    }
+
+    /** Mute / unmute optional categories, e.g. `{ tip: false }`. Returns the
+     *  full, server-normalized map (unknown/essential keys are ignored). */
+    async patchNotificationCategoryPrefs(prefs: NotificationCategoryPrefs): Promise<{ prefs: NotificationCategoryPrefs }> {
+        const response = await this.client.patch('notifications/category-prefs', { prefs });
+        return { prefs: sanitizeCategoryPrefs(response.data?.prefs) };
     }
 
     // ─────────────────────────────────────────────────────────────────────

@@ -46,23 +46,28 @@ async def build_master_view(
     *,
     days: int = 14,
     today_iso: Optional[str] = None,
+    actives: Optional[list] = None,
+    user_row: Optional[User] = None,
 ) -> list[dict]:
     """Return a flat per-date master schedule for the user.
 
     `days` controls the window length (default = 14 days starting today).
     `today_iso` lets callers anchor the window to a specific date (mobile
     can pass its local date in case the server's UTC differs from the
-    user's timezone).
+    user's timezone). `actives` / `user_row` let a caller that already holds
+    the user's active UserSchedule rows and user row (the notification tick)
+    skip re-reading them — the result is identical.
     """
     user_uuid = UUID(user_id)
 
-    res = await db.execute(
-        select(UserSchedule).where(
-            (UserSchedule.user_id == user_uuid)
-            & (UserSchedule.is_active.is_(True))
+    if actives is None:
+        res = await db.execute(
+            select(UserSchedule).where(
+                (UserSchedule.user_id == user_uuid)
+                & (UserSchedule.is_active.is_(True))
+            )
         )
-    )
-    actives = res.scalars().all()
+        actives = res.scalars().all()
     if not actives:
         return _empty_window(days, today_iso)
 
@@ -93,7 +98,8 @@ async def build_master_view(
     # read time (a purchased course's session could be trimmed from the very
     # surface the user sees). Date-keyed alignment inside reconcile handles
     # programs anchored on different start dates.
-    user_row = await db.get(User, user_uuid)
+    if user_row is None:
+        user_row = await db.get(User, user_uuid)
     user_ctx = None
     if user_row is not None:
         from services.user_context_service import merged_user_state

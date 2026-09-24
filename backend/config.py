@@ -413,6 +413,17 @@ class Settings(BaseSettings):
     # Kill switch: True pauses ALL outbound pushes instantly (ops lever).
     notif_kill_switch: bool = Field(default=False, description="Pause ALL push sends instantly")
 
+    # --- Push engine v3 (services.notification_engine) ----------------------
+    # Per-task pushes at the exact displayed time + an ambient lane (brief,
+    # missed-task follow-ups, streak saver, progress, weekly recap, ladder).
+    # False → push users fall back to the v2 planner (SMS always uses v2).
+    notif_engine_v3_enabled: bool = Field(default=True)
+    notif_tick_seconds: int = Field(default=60, description="Scheduler tick for task pushes")
+    notif_task_late_grace_min: int = Field(default=15, description="A task push may go at most this late")
+    notif_ambient_daily_cap: int = Field(default=5, description="Non-task pushes per day")
+    notif_ambient_min_gap_min: int = Field(default=75, description="Minutes between non-task pushes")
+    notif_lapse_pause_hours: int = Field(default=48, description="No app activity this long pauses task pushes")
+
     # Apple In-App Purchase -- App Store Server API v1 (transaction verification)
     apple_app_store_connect_issuer_id: str = Field(default="", description="Issuer ID from App Store Connect → Keys → In-App Purchase")
     apple_app_store_connect_key_id: str = Field(default="", description="Key ID for the In-App Purchase API key")

@@ -163,13 +163,23 @@ def test_mobile_allowlist_covers_every_backend_route():
     """Guard against the backend route map and the mobile App.tsx deep-link
     allow-list drifting apart — a route emitted by the server but missing from
     App.tsx would silently fail to deep-link (criterion 6)."""
-    app_tsx = os.path.join(os.path.dirname(__file__), "..", "..", "mobile", "App.tsx")
-    if not os.path.exists(app_tsx):
-        pytest.skip("mobile/App.tsx not present in this checkout")
-    with open(app_tsx, "r", encoding="utf-8") as f:
-        src = f.read()
-    m = re.search(r"NOTIFICATION_DEEP_LINK_ROUTES\s*=\s*new Set<string>\(\[(.*?)\]\)", src, re.S)
-    assert m, "could not find NOTIFICATION_DEEP_LINK_ROUTES in App.tsx"
+    mobile_dir = os.path.join(os.path.dirname(__file__), "..", "..", "mobile")
+    # The allow-list lives in lib/notificationDeepLink.ts (unit-tested there);
+    # older checkouts kept it inline in App.tsx.
+    candidates = [os.path.join(mobile_dir, "lib", "notificationDeepLink.ts"), os.path.join(mobile_dir, "App.tsx")]
+    candidates = [p for p in candidates if os.path.exists(p)]
+    if not candidates:
+        pytest.skip("mobile app not present in this checkout")
+    m = None
+    for path in candidates:
+        with open(path, "r", encoding="utf-8") as f:
+            src = f.read()
+        m = re.search(
+            r"NOTIFICATION_DEEP_LINK_ROUTES\s*(?::\s*[A-Za-z<>\[\] ]+)?=\s*new Set<string>\(\[(.*?)\]\)", src, re.S
+        )
+        if m:
+            break
+    assert m, "could not find NOTIFICATION_DEEP_LINK_ROUTES in the mobile app"
     mobile_routes = set(re.findall(r"['\"]([A-Za-z]+)['\"]", m.group(1)))
     # Every route the backend can emit must be handled by the mobile app.
     backend_routes = {compose(c, **SAMPLE)["route"] for c in ALL_CATEGORIES}

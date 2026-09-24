@@ -183,10 +183,18 @@ def _public(a: Achievement, *, earned: bool, seen: bool, stats: Optional[dict] =
             progress = {"current": int(cur), "target": int(tgt)}
         except Exception:
             progress = None
+    try:
+        from services.gamification import achievement_xp
+        xp = achievement_xp(a.code, a.tier)
+    except Exception:  # pragma: no cover
+        xp = None
     return {
         "code": a.code, "title": a.title, "description": a.description,
         "tier": a.tier, "category": a.category, "icon": a.icon,
         "earned": earned, "seen": seen, "progress": progress,
+        # The XP this badge actually pays (tiered since 2026-09-24) — the
+        # celebration used to hardcode +50 for every badge.
+        "xp": xp,
     }
 
 
@@ -343,7 +351,8 @@ async def _send_milestone_push(db: AsyncSession, user, streak: dict) -> None:
         return  # asleep — skip (milestones don't wake people)
 
     state = ns.get_state(user.profile)
-    if ns.foreground_recent(state, local_now.replace(tzinfo=None), cfg.foreground_suppress_min):
+    # last_active_at is naive UTC — compare with UTC, not the local clock.
+    if ns.foreground_recent(state, _dt.utcnow(), cfg.foreground_suppress_min):
         return  # they're in the app and will see the celebration anyway
     today_iso = local_now.date().isoformat()
     if "cat:milestone" in ns.sent_keys_today(state, today_iso):

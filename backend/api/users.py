@@ -225,14 +225,29 @@ async def register_push_token(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Store iOS APNs device token for server-driven push."""
-    if not current_user.get("is_paid"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Subscription required")
+    """Store iOS APNs device token for server-driven push.
+
+    Accepted for ANY signed-in account. This used to 403 unpaid accounts, so a
+    user who allowed notifications in the funnel (still anonymous/unpaid) had
+    the token thrown away, and whether it was ever re-sent after purchase
+    depended on a client effect re-running at the right moment — only 32 of
+    1,880 accounts ended up with a token. Storing a token grants nothing: the
+    sender only pushes users with an active plan."""
     user_uuid = UUID(current_user["id"])
     user = await db.get(User, user_uuid)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     normalized = _normalize_apns_device_token(body.token)
+    # One device token ↔ one account. A token is the PHONE, not the person: after
+    # a logout + new sign-in (or a new anonymous funnel account on the same
+    # phone) the previous account still held it and its task reminders kept
+    # arriving on someone else's lock screen. The latest registrant owns it.
+    if normalized:
+        await db.execute(
+            update(User)
+            .where(User.apns_device_token == normalized, User.id != user_uuid)
+            .values(apns_device_token=None, apns_token_updated_at=None)
+        )
     user.apns_device_token = normalized
     user.apns_token_updated_at = _utcnow()
     user.updated_at = datetime.utcnow()

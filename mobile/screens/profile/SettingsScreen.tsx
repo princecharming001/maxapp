@@ -21,6 +21,9 @@ import { manualReview } from '../../services/reviewService';
 import Constants from 'expo-constants';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
+import { enableIosPushFromUserTap } from '../../services/registerIosPushToken';
+import { useNotificationPermission } from '../../hooks/useNotificationPermission';
+import { notificationsRowAction, notificationsRowHint } from '../../lib/notificationPermission';
 import { colors, spacing, borderRadius, fonts } from '../../theme/dark';
 import type { LegalDocId } from '../legal/legalDocuments';
 import { LEGAL_SUPPORT_EMAIL } from '../legal/legalConstants';
@@ -81,6 +84,37 @@ export default function SettingsScreen() {
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
     const [deletePassword, setDeletePassword] = useState('');
     const [deleteBusy, setDeleteBusy] = useState(false);
+
+    // Notifications row (iOS, signed in). Reflects the live OS permission —
+    // re-read on every foreground, so it updates on return from iOS Settings.
+    const showNotificationsRow = Platform.OS === 'ios' && !!user;
+    const { state: notifState, refresh: refreshNotifState } = useNotificationPermission(showNotificationsRow);
+    const [notifBusy, setNotifBusy] = useState(false);
+    const onNotificationsPress = async () => {
+        if (notifBusy) return;
+        setNotifBusy(true);
+        try {
+            // Decide on a FRESH read — the cached state can predate a trip to iOS Settings.
+            const action = notificationsRowAction(await refreshNotifState());
+            if (action === 'request') {
+                // Never asked yet: this tap is the explicit opt-in → system prompt.
+                await enableIosPushFromUserTap(user?.id);
+                await refreshNotifState();
+            } else if (action === 'preferences') {
+                // The preferences screen lives in the full-app stack only.
+                const routeNames = (navigation.getState()?.routeNames as string[] | undefined) ?? [];
+                if (routeNames.includes('NotificationPreferences')) navigation.navigate('NotificationPreferences');
+                else await Linking.openSettings();
+            } else {
+                // Denied (iOS won't prompt again) or unreadable: the OS switch is the way back.
+                await Linking.openSettings();
+            }
+        } catch {
+            /* openSettings / prompt failure — nothing actionable to show */
+        } finally {
+            setNotifBusy(false);
+        }
+    };
 
     const openDoc = (document: LegalDocId) => navigation.navigate('LegalDocument', { document });
 
@@ -169,8 +203,14 @@ export default function SettingsScreen() {
                 {/* ── Coaching ────────────────────────────────────────── */}
                 <View style={st.section}>
                     <Text style={st.sectionLabel}>Coaching</Text>
-                    {/* Notification preferences row removed — push is on
-                        by default; users toggle device-level via OS. */}
+                    {showNotificationsRow ? (
+                        <Row
+                            label="Notifications"
+                            hint={notificationsRowHint(notifState)}
+                            onPress={() => { void onNotificationsPress(); }}
+                            trailing={notifBusy ? <ActivityIndicator size="small" color={colors.textMuted} /> : undefined}
+                        />
+                    ) : null}
                     <Row
                         label="Edit lifestyle"
                         hint="Your goals & habits"

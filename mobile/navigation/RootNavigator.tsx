@@ -22,6 +22,7 @@ import ReferralCodeScreen from '../screens/payment/ReferralCodeScreen';
 import CreateAccountScreen from '../screens/payment/CreateAccountScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
+import NotificationPreferencesScreen from '../screens/profile/NotificationPreferencesScreen';
 import EditPersonalScreen from '../screens/profile/EditPersonalScreen';
 import PersonalizationScreen from '../screens/profile/PersonalizationScreen';
 import AchievementsScreen from '../screens/profile/AchievementsScreen';
@@ -250,6 +251,7 @@ export function RootNavigator() {
                     <Stack.Screen name="Payment" component={PaymentScreen} />
                     <Stack.Screen name="Profile" component={ProfileScreen} />
                     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="EditPersonal" component={EditPersonalScreen} />
                     <Stack.Screen name="Personalization" component={PersonalizationScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="Achievements" component={AchievementsScreen} options={{ headerShown: false }} />
