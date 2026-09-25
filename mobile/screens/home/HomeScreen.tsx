@@ -16,6 +16,7 @@ import FirstRunWalkthrough from '../../features/mainTour/FirstRunWalkthrough';
 import { colors, spacing, typography, fonts, borderRadius } from '../../theme/dark';
 import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
 import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, moduleColorForSchedule, type MergedScheduleTask } from '../../utils/scheduleAggregation';
+import { dayCloses, journeyDayNumber, localDateISO, resolveTodayISO, xpToastLine } from '../../lib/dayProgress';
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { useReviewTriggers } from '../../hooks/useReviewTriggers';
 import { queryKeys } from '../../lib/queryClient';
@@ -89,15 +90,7 @@ const ring = StyleSheet.create({
 
 /* ─── Helpers ─── */
 
-type DayCell = { date: string; index: number; total: number; done: number; isToday: boolean };
-
-// Whole calendar days between two 'YYYY-MM-DD' dates (UTC-anchored so DST never
-// shifts the count). Used to turn the journey-start anchor into a day number.
-function diffDaysISO(fromISO: string, toISO: string): number {
-    return Math.round(
-        (Date.parse(`${toISO}T00:00:00Z`) - Date.parse(`${fromISO}T00:00:00Z`)) / 86400000,
-    );
-}
+type DayCell = { date: string; index: number; total: number; done: number; skipped: number; isToday: boolean };
 
 // Onboarding "Stoic" black-and-white palette (matches OnboardingV2Screen).
 const BW = {
@@ -219,10 +212,25 @@ function GradientHabit({
                 </TouchableOpacity>
                 <View style={gh.body}>
                     <Text style={[gh.title, { color: txt }]} numberOfLines={1}>{row.title}</Text>
-                    <Text style={[gh.sub, { color: subColor }]} numberOfLines={1}>
-                        {row.moduleLabel || formatTimeTo12Hour(row.time)}
-                    </Text>
+                    {row.moduleLabel ? (
+                        <Text style={[gh.sub, { color: subColor }]} numberOfLines={1}>
+                            {row.moduleLabel}
+                        </Text>
+                    ) : null}
                 </View>
+                {/* The time the plan gives this habit — the same minute its
+                    reminder fires. Right-aligned, quiet, tabular so a column
+                    of cards lines up. "late" only after a late completion. */}
+                {row.time ? (
+                    <View style={gh.when}>
+                        <Text style={[gh.time, { color: done ? 'rgba(255,255,255,0.9)' : '#111113' }]} numberOfLines={1}>
+                            {formatTimeTo12Hour(row.time)}
+                        </Text>
+                        {done && row.completed_on_time === false ? (
+                            <Text style={[gh.late, { color: subColor }]}>late</Text>
+                        ) : null}
+                    </View>
+                ) : null}
             </View>
         </TouchableOpacity>
     );
@@ -240,6 +248,9 @@ const gh = StyleSheet.create({
     body: { flex: 1, minWidth: 0 },
     title: { fontSize: 17, fontFamily: fonts.sansSemiBold, fontWeight: '600', letterSpacing: -0.3 },
     sub: { fontSize: 13.5, fontFamily: fonts.sans, marginTop: 3 },
+    when: { alignItems: 'flex-end', justifyContent: 'center', marginLeft: 4 },
+    time: { fontSize: 14, fontFamily: fonts.sansMedium, letterSpacing: -0.2, fontVariant: ['tabular-nums'] },
+    late: { fontSize: 11, fontFamily: fonts.sans, marginTop: 2, letterSpacing: 0.2 },
 });
 
 /* ─── Screen ─── */
@@ -314,10 +325,11 @@ export default function HomeScreen() {
         try {
             const { labels, colors: colorMap } = buildMaxxMaps(maxes);
             const merged = mergeSchedules(full.schedules || [], labels, colorMap);
-            const today =
-                full.today_date ||
-                full.schedule_streak?.today_date ||
-                new Date().toISOString().split('T')[0];
+            // The device's date wins over a cached payload's (see dayProgress).
+            const today = resolveTodayISO(
+                full.today_date || full.schedule_streak?.today_date,
+                localDateISO(),
+            );
             const streak = full.schedule_streak
                 ? {
                       current: full.schedule_streak.current ?? 0,
@@ -349,24 +361,31 @@ export default function HomeScreen() {
     // entry is one scheduled date with its completion tally.
     const { days, todayIndex, dayCount, byDate, today } = useMemo(() => {
         const full = schedulesQuery.data;
-        const fallbackToday = new Date().toISOString().split('T')[0];
+        const fallbackToday = localDateISO();
         if (!full) return { days: [] as DayCell[], todayIndex: 1, dayCount: 0, byDate: {} as Record<string, MergedScheduleTask[]>, today: fallbackToday };
         try {
             const { labels, colors: colorMap } = buildMaxxMaps(maxes);
             const merged = mergeSchedules(full.schedules || [], labels, colorMap);
-            const today =
-                full.today_date || full.schedule_streak?.today_date || fallbackToday;
-            // Stable Day-1 anchor from the backend (account/first-max date). When
-            // present, day numbers are real calendar days since onboarding —
-            // incrementing daily and immune to schedule regeneration. Falls back
-            // to positional indexing if an older backend isn't sending it yet.
+            // "Today" is the later of the server's local date and the device's:
+            // a payload cached from an earlier open must not hold the counter
+            // or the highlighted pill on that day (see lib/dayProgress).
+            const today = resolveTodayISO(
+                full.today_date || full.schedule_streak?.today_date,
+                fallbackToday,
+            );
+            // Stable Day-1 anchor from the backend (account/first-max date).
+            // Day numbers are real calendar days since then — advancing every
+            // day whether or not the app was opened, immune to regeneration —
+            // computed here from the anchor + today rather than read off the
+            // payload, so even stale cached data shows the current day. The
+            // payload's number and positional indexing are only fallbacks
+            // for an older backend that isn't sending the anchor yet.
             const f = full as any;
             const journeyStart: string | null =
                 f.journey_start_date || f.schedule_streak?.journey_start_date || null;
             const backendDayNumber: number | null =
                 f.day_number ?? f.schedule_streak?.day_number ?? null;
-            const dayNumberFor = (d: string) =>
-                journeyStart ? diffDaysISO(journeyStart, d) + 1 : null;
+            const dayNumberFor = (d: string) => journeyDayNumber(journeyStart, d);
             const dates = Object.keys(merged.byDate)
                 .filter((d) => (merged.byDate[d] || []).length > 0)
                 .sort();
@@ -374,11 +393,12 @@ export default function HomeScreen() {
                 const rows = merged.byDate[d] || [];
                 const total = rows.length;
                 const done = rows.filter((r) => r.status === 'completed').length;
-                return { date: d, index: dayNumberFor(d) ?? i + 1, total, done, isToday: d === today };
+                const skipped = rows.filter((r) => r.status === 'skipped').length;
+                return { date: d, index: dayNumberFor(d) ?? i + 1, total, done, skipped, isToday: d === today };
             });
             const tIndex =
-                backendDayNumber ??
                 dayNumberFor(today) ??
+                backendDayNumber ??
                 (dates.filter((d) => d <= today).length || 1);
             return { days: cells, todayIndex: tIndex, dayCount: dates.length, byDate: merged.byDate, today };
         } catch {
@@ -401,7 +421,7 @@ export default function HomeScreen() {
     // When there's no real schedule yet, synthesize a 30-day strip (today = 1).
     const stripDays: DayCell[] = days.length > 0
         ? days
-        : Array.from({ length: 30 }, (_, i) => ({ date: `synthetic-${i + 1}`, index: i + 1, total: 0, done: 0, isToday: i === 0 }));
+        : Array.from({ length: 30 }, (_, i) => ({ date: `synthetic-${i + 1}`, index: i + 1, total: 0, done: 0, skipped: 0, isToday: i === 0 }));
 
     const querySchedulesError =
         schedulesQuery.isError && schedulesQuery.error
@@ -412,10 +432,12 @@ export default function HomeScreen() {
 
     const todayDisplayLabel = useMemo(() => {
         const full = schedulesQuery.data;
-        const raw =
-            full?.today_date ||
-            full?.schedule_streak?.today_date ||
-            new Date().toISOString().split('T')[0];
+        // Same "today" as the strip/header — a cached payload's date must not
+        // caption the current day "Yesterday".
+        const raw = resolveTodayISO(
+            full?.today_date || full?.schedule_streak?.today_date,
+            localDateISO(),
+        );
         return (
             formatScheduleDayLabel(raw) ||
             new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
@@ -616,7 +638,12 @@ export default function HomeScreen() {
         void queryClient.cancelQueries({ queryKey: queryKeys.schedulesActiveFull });
         try {
             if (completing) {
-                await api.completeScheduleTask(row.scheduleId, row.task_id);
+                const res = await api.completeScheduleTask(row.scheduleId, row.task_id);
+                // What this tap earned ("+12 XP", "+6 XP · late") — the server
+                // decides on-time against the printed time; nothing when the
+                // task was already paid today or belongs to another day.
+                const earned = xpToastLine(res?.xp);
+                if (earned) showToast(earned);
                 // A COMPLETE can earn a streak/achievement/celebration → re-sync.
                 void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
             } else {
@@ -713,8 +740,11 @@ export default function HomeScreen() {
                         >
                             {stripDays.map((d) => {
                                 const onPill = selectedDate ? d.date === selectedDate : d.isToday;
-                                const complete = d.total > 0 && d.done >= d.total;
-                                const partial = d.done > 0 && d.done < d.total;
+                                // "Complete" = the day CLOSED under the streak's own rule
+                                // (most done, or most resolved), so a black pill and a
+                                // streak day always mean the same thing.
+                                const complete = dayCloses(d.total, d.done, d.skipped);
+                                const partial = d.done > 0 && !complete;
                                 // A past day that had tasks but zero completed — the day
                                 // elapsed unfulfilled and doesn't count toward the streak.
                                 // Marked with a dashed outline so it reads as "missed",

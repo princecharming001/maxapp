@@ -289,13 +289,16 @@ async def test_tick_replays_sends_onto_fresh_state_and_keeps_others_keys(Session
 async def test_complete_task_xp_is_awarded_on_the_fresh_profile(Session):
     today_iso = _today().isoformat()
     uid = await _seed_user(Session, {XP_KEY: 100, STREAK_KEY: 0})
-    sid = await _seed_schedule(Session, uid, [{"task_id": "t1", "title": "Task", "time": "08:00", "status": "pending"}], day=today_iso)
+    # 23:59: never past its slot + grace, so the award is the full on-time amount whenever this runs.
+    sid = await _seed_schedule(Session, uid, [{"task_id": "t1", "title": "Task", "time": "23:59", "status": "pending"}], day=today_iso)
     async with Session() as A:
         ua = await A.get(User, uid)  # stale snapshot: XP 100
         await _unlocked_whole_column_write(Session, uid, lambda p: p.__setitem__(XP_KEY, 150))
         with patch("services.gcal_mirror.kick_gcal_mirror", lambda *a, **k: None):
             res = await schedule_service.complete_task(str(uid), str(sid), "t1", A)
         assert res["status"] == "completed"
+        assert res["on_time"] is True
+        assert res["xp"] == {"awarded": 15, "on_time": True, "total": 165, "level_gained": 0}
         assert not A.in_transaction()
 
     stored = await _read_profile(Session, uid)
@@ -304,7 +307,30 @@ async def test_complete_task_xp_is_awarded_on_the_fresh_profile(Session):
     assert ua.profile[XP_KEY] == 165           # identity map coherent
     async with Session() as R:
         row = await R.get(UserSchedule, sid)
-        assert row.days[0]["tasks"][0]["status"] == "completed"
+        task = row.days[0]["tasks"][0]
+        assert task["status"] == "completed"
+        assert task["completed_on_time"] is True and re.match(r"^\d\d:\d\d$", task["completed_local_time"])
+
+
+@pytest.mark.asyncio
+async def test_complete_task_late_pays_half_and_stamps_it(Session):
+    today_iso = _today().isoformat()
+    uid = await _seed_user(Session, {XP_KEY: 0, STREAK_KEY: 0})
+    # 00:00 + 90 min grace is behind us for all but the first 90 minutes of the UTC day —
+    # inside that window the task is on time, and the assertion below allows for it.
+    sid = await _seed_schedule(Session, uid, [{"task_id": "t1", "title": "Task", "time": "00:00", "status": "pending"}], day=today_iso)
+    async with Session() as A:
+        with patch("services.gcal_mirror.kick_gcal_mirror", lambda *a, **k: None):
+            res = await schedule_service.complete_task(str(uid), str(sid), "t1", A)
+    now = datetime.now(ZoneInfo("UTC"))
+    expect_late = now.hour * 60 + now.minute > 90
+    assert res["on_time"] is (not expect_late)
+    assert res["xp"]["awarded"] == (8 if expect_late else 15)
+    stored = await _read_profile(Session, uid)
+    assert stored[XP_KEY] == res["xp"]["awarded"]
+    async with Session() as R:
+        row = await R.get(UserSchedule, sid)
+        assert row.days[0]["tasks"][0]["completed_on_time"] is (not expect_late)
 
 
 @pytest.mark.asyncio

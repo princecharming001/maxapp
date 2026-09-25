@@ -731,13 +731,18 @@ def _reengage(inp: EngineInput, cfg: EngineConfig) -> Optional[Push]:
 #  Streak arithmetic shared with the signal builder (pure)                    #
 # --------------------------------------------------------------------------- #
 
-def needed_to_close(total: int, completed: int, skipped: int, fraction: float) -> int:
-    """How many more tasks (done or skipped) close the day under the streak's
-    rule: >= `fraction` of tasks resolved AND at least one real completion."""
+def needed_to_close(
+    total: int, completed: int, skipped: int, fraction: float, completed_fraction: Optional[float] = None,
+) -> int:
+    """Fewest additional tasks (done or skipped) that close the day: >=
+    `fraction` resolved with at least one real completion, or — when
+    `completed_fraction` is given — that share of the day simply completed."""
     if total <= 0:
         return 0
     resolved = completed + skipped
     need = max(0, math.ceil(fraction * total - 1e-9) - resolved)
     if completed == 0:
         need = max(need, 1)
+    if completed_fraction is not None:
+        need = min(need, max(0, math.ceil(completed_fraction * total - 1e-9) - completed))
     return need

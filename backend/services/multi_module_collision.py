@@ -379,6 +379,11 @@ def reconcile_schedules(
         return (clock - _gap_wake) % (24 * 60) if _gap_overnight else clock
 
     for di in range(day_count):
+        # A task that arrived without a clock time (legacy LLM paths skip the
+        # validator) used to sort to 00:00 and get pushed to 00:14 here.
+        for _mx, task in by_day[di]:
+            if not _has_clock_time(task.get("time")):
+                task["time"] = from_minutes((_gap_wake + 60) % (24 * 60)).strftime("%H:%M")
         items = sorted(by_day[di], key=lambda x: _gap_work(_time_to_min(x[1].get("time"))))
         last_end = -1
         for maxx_id, task in items:
@@ -769,6 +774,16 @@ def _find_safe_day(by_day: list[list], catalog_id: str, *, start_after: int) -> 
         if catalog_id not in ids:
             return di
     return None
+
+
+def _has_clock_time(s: Any) -> bool:
+    if not isinstance(s, str) or ":" not in s:
+        return False
+    h, m = s.split(":", 1)
+    try:
+        return 0 <= int(h) <= 23 and 0 <= int(m[:2]) <= 59
+    except ValueError:
+        return False
 
 
 def _time_to_min(s: Any) -> int:

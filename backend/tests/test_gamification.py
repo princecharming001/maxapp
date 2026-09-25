@@ -236,3 +236,31 @@ def test_a_perfect_month_is_about_level_ten_not_thirty():
         streak += 1
     lvl = g.gamification_payload(p, (d0 + dt.timedelta(days=29)).isoformat())["current_level"]
     assert 9 <= lvl <= 13, lvl
+
+
+# ── on time vs late ───────────────────────────────────────────────────────────
+def test_is_on_time_early_exact_grace_and_missing():
+    assert g.is_on_time("09:00", 8 * 60)                         # early is fine
+    assert g.is_on_time("09:00", 9 * 60)                         # on the minute
+    assert g.is_on_time("09:00", 9 * 60 + g.ON_TIME_GRACE_MIN)   # last on-time minute
+    assert not g.is_on_time("09:00", 9 * 60 + g.ON_TIME_GRACE_MIN + 1)
+    assert g.is_on_time(None, 23 * 60) and g.is_on_time("", 0) and g.is_on_time("garbage", 0)
+
+
+def test_late_task_pays_half_and_is_still_paid_once():
+    p = {}
+    late = g.award_task_xp(p, "t1", 1, 0, "2026-09-25", on_time=False)
+    assert late["xp_awarded"] == round(15 * g.XP_LATE_FRACTION) and late["on_time"] is False
+    # re-completing on time later never pays again
+    again = g.award_task_xp(p, "t1", 1, 0, "2026-09-25", on_time=True)
+    assert again["xp_awarded"] == 0 and again["already_paid"] is True
+    on_time = g.award_task_xp(p, "t2", 1, 0, "2026-09-25")
+    assert on_time["xp_awarded"] == 15 and on_time["on_time"] is True
+    assert p[g.XP_KEY] == round(15 * g.XP_LATE_FRACTION) + 15
+
+
+def test_late_award_never_rounds_to_zero():
+    # the smallest per-task amount (floor 5 on a huge plan) still pays something late
+    p = {}
+    r = g.award_task_xp(p, "t1", 40, 0, "2026-09-25", on_time=False)
+    assert r["xp_awarded"] >= 1

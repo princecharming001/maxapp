@@ -83,22 +83,6 @@ def _isolate(monkeypatch):
     sig.reset_caches()
 
 
-def _view_with(tasks_for_view, day_iso):
-    """Stands in for master_schedule.build_master_view — like the real one, it
-    stamps each task with its program's schedule_id / maxx_id."""
-    async def _fake_view(uid, db, *, days=1, today_iso=None, actives=None, user_row=None):
-        sched = (actives or [None])[0]
-        out = []
-        for t in tasks_for_view:
-            t2 = dict(t)
-            if sched is not None:
-                t2.setdefault("schedule_id", str(sched.id))
-                t2.setdefault("maxx_id", sched.maxx_id)
-            out.append(t2)
-        return [{"date": day_iso, "tasks": out}]
-    return _fake_view
-
-
 def _db(user):
     db = MagicMock()
     db.get = AsyncMock(return_value=user)
@@ -112,15 +96,18 @@ async def _run(user, schedules):
 
 
 @pytest.mark.asyncio
-async def test_task_push_uses_the_displayed_time_not_the_stored_one():
+async def test_task_push_fires_at_the_time_printed_on_the_row():
+    # Home prints task.time straight off the stored row (mergeSchedules). A
+    # master-view repositioning nobody sees must not move the reminder.
     now = _now_local()
     day_iso = now.date().isoformat()
-    stored = _task(_hhmm(now - timedelta(minutes=40)))     # stored time: 40 min ago
-    shown = dict(stored, time=_hhmm(now))                  # collision pass moved it to now
+    t = _task(_hhmm(now))
+    moved = [{"date": day_iso, "tasks": [dict(t, time=_hhmm(now + timedelta(minutes=40)))]}]
     user = _user()
-    with patch("services.master_schedule.build_master_view", new=_view_with([shown], day_iso)), \
+    with patch("services.master_schedule.build_master_view", new=AsyncMock(return_value=moved)) as mv, \
          patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))) as push:
-        sent = await _run(user, [_schedule([stored], day_iso)])
+        sent = await _run(user, [_schedule([t], day_iso)])
+    assert mv.await_count == 0, "the notification tick no longer builds a master view"
     assert [p.lane for p in sent] == ["task"]
     args, kwargs = push.await_args
     assert "morning skincare" in (args[1] + " " + args[2]).lower()
@@ -137,13 +124,41 @@ async def test_task_push_uses_the_displayed_time_not_the_stored_one():
 
 
 @pytest.mark.asyncio
+async def test_duplicate_rows_collapse_like_the_app_does():
+    # Two active rows of the same program both carry "morning skincare" today
+    # (a stale duplicate row): the app shows ONE row and its best status wins.
+    now = _now_local()
+    day_iso = now.date().isoformat()
+    a = _task(_hhmm(now), n=1)
+    b = dict(_task(_hhmm(now), n=2), status="completed")
+    user = _user()
+    with patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))):
+        sent = await _run(user, [_schedule([a], day_iso), _schedule([b], day_iso)])
+    assert [p for p in sent if p.lane == "task"] == [], "the completed copy wins → nothing due"
+
+
+@pytest.mark.asyncio
+async def test_a_skin_task_inside_hairmax_is_dropped_like_the_app_does():
+    # collect_merged_tasks_for_date / mergeSchedules hide a skincare task that
+    # rides in a hairmax program; it must not be pushed either.
+    now = _now_local()
+    day_iso = now.date().isoformat()
+    t = _task(_hhmm(now), title="morning skincare")
+    s = _schedule([t], day_iso)
+    s.maxx_id = "hairmax"
+    user = _user()
+    with patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))):
+        sent = await _run(user, [s])
+    assert [p for p in sent if p.lane == "task"] == []
+
+
+@pytest.mark.asyncio
 async def test_same_task_is_not_pushed_twice_across_ticks():
     now = _now_local()
     day_iso = now.date().isoformat()
     t = _task(_hhmm(now))
     user = _user()
-    with patch("services.master_schedule.build_master_view", new=_view_with([t], day_iso)), \
-         patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))) as push:
+    with patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))) as push:
         await _run(user, [_schedule([t], day_iso)])
         await _run(user, [_schedule([t], day_iso)])
     assert push.await_count == 1
@@ -153,13 +168,14 @@ async def test_same_task_is_not_pushed_twice_across_ticks():
 async def test_task_completed_this_second_is_not_pushed():
     now = _now_local()
     day_iso = now.date().isoformat()
-    shown = _task(_hhmm(now))                      # cached view still says pending
-    row = dict(shown, status="completed")          # the row loaded this tick says done
+    row = dict(_task(_hhmm(now)), status="completed")   # the row loaded this tick says done
     user = _user()
-    with patch("services.master_schedule.build_master_view", new=_view_with([shown], day_iso)), \
-         patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))) as push:
+    with patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))) as push:
         sent = await _run(user, [_schedule([row], day_iso)])
-    assert sent == [] and push.await_count == 0
+    # No TASK reminder. (An ambient push — a tip in its afternoon window — may
+    # ride the same tick; that lane is exercised by the engine tests.)
+    assert [p for p in sent if p.lane == "task"] == []
+    assert push.await_count == len(sent)
 
 
 @pytest.mark.asyncio
@@ -171,8 +187,7 @@ async def test_task_the_v2_planner_already_pushed_today_is_not_pushed_again():
     row = dict(shown, notification_sent_push=True)
     other = _task(_hhmm(now), title="evening skincare", n=2)
     user = _user()
-    with patch("services.master_schedule.build_master_view", new=_view_with([shown, other], day_iso)), \
-         patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))) as push:
+    with patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))) as push:
         sent = await _run(user, [_schedule([row, other], day_iso)])
     assert [p.task_keys for p in sent] == [("uuid-2",)], sent
     assert push.await_count == 1
@@ -184,8 +199,7 @@ async def test_failed_send_is_not_recorded_so_the_next_tick_retries():
     day_iso = now.date().isoformat()
     t = _task(_hhmm(now))
     user = _user()
-    with patch("services.master_schedule.build_master_view", new=_view_with([t], day_iso)), \
-         patch.object(sj, "send_apns_alert", new=AsyncMock(side_effect=[(False, 503), (True, 200)])) as push:
+    with patch.object(sj, "send_apns_alert", new=AsyncMock(side_effect=[(False, 503), (True, 200)])) as push:
         first = await _run(user, [_schedule([t], day_iso)])
         second = await _run(user, [_schedule([t], day_iso)])
     assert first == [] and [p.lane for p in second] == ["task"] and push.await_count == 2
@@ -203,8 +217,7 @@ async def test_lost_ledger_write_does_not_resend_every_tick():
     async def _write_fails(*a, **k):
         raise RuntimeError("row lock timeout")
 
-    with patch("services.master_schedule.build_master_view", new=_view_with([t], day_iso)), \
-         patch.object(sj, "write_profile_keys", new=_write_fails), \
+    with patch.object(sj, "write_profile_keys", new=_write_fails), \
          patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))) as push:
         first = await _run(user, [_schedule([t], day_iso)])
         second = await _run(user, [_schedule([t], day_iso)])
@@ -236,26 +249,9 @@ async def test_dead_token_is_pruned():
     day_iso = now.date().isoformat()
     t = _task(_hhmm(now))
     user = _user()
-    with patch("services.master_schedule.build_master_view", new=_view_with([t], day_iso)), \
-         patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(False, 410))):
+    with patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(False, 410))):
         await _run(user, [_schedule([t], day_iso)])
     assert user.apns_device_token is None and user.apns_token_updated_at is None
-
-
-@pytest.mark.asyncio
-async def test_master_view_failure_falls_back_to_stored_times():
-    now = _now_local()
-    day_iso = now.date().isoformat()
-    t = _task(_hhmm(now))
-    user = _user()
-
-    async def _boom(*a, **k):
-        raise RuntimeError("collision pass exploded")
-
-    with patch("services.master_schedule.build_master_view", new=_boom), \
-         patch.object(sj, "send_apns_alert", new=AsyncMock(return_value=(True, 200))) as push:
-        sent = await _run(user, [_schedule([t], day_iso)])
-    assert [p.lane for p in sent] == ["task"] and push.await_count == 1
 
 
 def test_push_users_go_to_v3_and_sms_users_stay_on_the_planner(monkeypatch):

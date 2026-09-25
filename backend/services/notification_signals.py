@@ -23,14 +23,11 @@ import services.notification_state as ns
 
 logger = logging.getLogger(__name__)
 
-_PLAN_TTL_S = 10 * 60
 _PROGRESS_TTL_S = 30 * 60
-_plan_cache: dict[str, tuple[tuple, float, list[dict]]] = {}
 _progress_cache: dict[str, tuple[str, float, ne.ProgressView]] = {}
 
 
 def reset_caches() -> None:
-    _plan_cache.clear()
     _progress_cache.clear()
 
 
@@ -97,29 +94,6 @@ def _task_key(t: dict) -> Optional[str]:
     return None
 
 
-def _fresh_statuses(schedules: list, day_iso: str) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for s in schedules or []:
-        for d in (getattr(s, "days", None) or []):
-            if d.get("date") != day_iso:
-                continue
-            for t in d.get("tasks") or []:
-                st = str(t.get("status") or "pending").lower()
-                for k in ("task_uuid", "uuid", "task_id"):
-                    if t.get(k):
-                        out[str(t[k])] = st
-    return out
-
-
-def _fingerprint(schedules: list, day_iso: str) -> tuple:
-    rows = []
-    for s in schedules or []:
-        ua = getattr(s, "updated_at", None)
-        rows.append((str(getattr(s, "id", "")), ua.isoformat() if hasattr(ua, "isoformat") else str(ua),
-                     len(getattr(s, "days", None) or [])))
-    return (day_iso, tuple(sorted(rows)))
-
-
 def with_v2_push_marks(state: dict, schedules: list, day_iso: str) -> dict:
     """Tasks the v2 planner already pushed today (row flag
     `notification_sent_push`) count as sent, so switching engines mid-day — the
@@ -149,45 +123,54 @@ def with_v2_push_marks(state: dict, schedules: list, day_iso: str) -> dict:
 
 
 async def displayed_tasks(db, user, schedules: list, day_iso: str) -> list[dict]:
-    """Today's tasks exactly as the app shows them (master view), with FRESH
-    statuses. Falls back to the stored days if the master view fails."""
-    uid = str(user.id)
-    fp = _fingerprint(schedules, day_iso)
-    hit = _plan_cache.get(uid)
-    tasks: Optional[list[dict]] = None
-    if hit and hit[0] == fp and _time.monotonic() - hit[1] < _PLAN_TTL_S:
-        tasks = hit[2]
-    if tasks is None:
-        try:
-            from services.master_schedule import build_master_view
+    """Today's tasks with the times the app prints next to them.
 
-            view = await build_master_view(
-                uid, db, days=1, today_iso=day_iso, actives=list(schedules), user_row=user,
-            )
-            tasks = [dict(t) for t in (view[0]["tasks"] if view else [])]
-        except Exception as e:  # noqa: BLE001 — never lose reminders over the view
-            logger.warning("notif: master view failed for %s (%s); using stored times", uid, e)
-            tasks = []
-            for s in schedules or []:
-                for d in (getattr(s, "days", None) or []):
-                    if d.get("date") == day_iso:
-                        for t in d.get("tasks") or []:
-                            t2 = dict(t)
-                            t2.setdefault("maxx_id", getattr(s, "maxx_id", None))
-                            t2.setdefault("schedule_id", str(getattr(s, "id", "")))
-                            tasks.append(t2)
-        _plan_cache[uid] = (fp, _time.monotonic(), tasks)
-        if len(_plan_cache) > 20000:
-            _plan_cache.clear()
-    fresh = _fresh_statuses(schedules, day_iso)
-    out = []
-    for t in tasks:
-        t2 = dict(t)
-        k = _task_key(t2)
-        if k and k in fresh:
-            t2["status"] = fresh[k]
-        out.append(t2)
-    return out
+    Home renders the STORED days from /schedules/active/full (the app's
+    mergeSchedules reads task.time straight off the row), so the row IS the
+    contract for "when": a reminder lands at the minute the user sees, never
+    at a read-time master-view repositioning that no screen shows. Statuses
+    are this tick's too. Cross-program duplicates collapse the way the app's
+    dedupe does (best status wins).
+    """
+    from services.schedule_master_merge import (
+        _HAIR_TASK_RE,
+        _SKIN_TASK_RE,
+        _dedupe_key_for_task,
+        _display_module_label,
+        _status_rank,
+        normalize_maxx_id,
+    )
+
+    active_maxx_ids = {
+        normalize_maxx_id(getattr(s, "maxx_id", None)) for s in schedules or []
+    } - {None, ""}
+    best: dict[str, dict] = {}
+    order: list[str] = []
+    for s in schedules or []:
+        mid = normalize_maxx_id(getattr(s, "maxx_id", None))
+        base_label = str(getattr(s, "course_title", None) or getattr(s, "maxx_id", None) or "Program")
+        for d in (getattr(s, "days", None) or []):
+            if d.get("date") != day_iso:
+                continue
+            for t in d.get("tasks") or []:
+                blob = f"{t.get('title') or ''} {t.get('description') or ''}"
+                if mid == "hairmax" and _SKIN_TASK_RE.search(blob) and not _HAIR_TASK_RE.search(blob):
+                    continue  # the app hides a skincare task riding in a hair program
+                t2 = dict(t)
+                t2.setdefault("maxx_id", getattr(s, "maxx_id", None))
+                t2.setdefault("schedule_id", str(getattr(s, "id", "")))
+                try:
+                    label = _display_module_label(t2, mid, base_label, active_maxx_ids)
+                    key = _dedupe_key_for_task(label, t2.get("title") or "", t2.get("description") or "", t2.get("time") or "")
+                except Exception:  # noqa: BLE001 — never lose a reminder over a label
+                    key = _task_key(t2) or f"{t2.get('title')}|{t2.get('time')}"
+                prev = best.get(key)
+                if prev is None:
+                    best[key] = t2
+                    order.append(key)
+                elif _status_rank(t2) > _status_rank(prev):
+                    best[key] = t2
+    return [best[k] for k in order]
 
 
 def engine_tasks(raw: list[dict], wake_min: int, sleep_min: int) -> list[ne.EngineTask]:
@@ -225,6 +208,7 @@ def streak_view(profile: dict, sched_dicts: list[dict], today: date) -> ne.Strea
     (never written). Credits a yesterday that was completed but never synced,
     so a user who closed yesterday isn't told it 'got away'."""
     from services.schedule_master_merge import (
+        DAY_CLOSE_COMPLETED_FRACTION,
         DAY_CLOSE_RESOLVED_FRACTION,
         collect_merged_tasks_for_date,
         merged_day_all_completed,
@@ -257,7 +241,9 @@ def streak_view(profile: dict, sched_dicts: list[dict], today: date) -> ne.Strea
     return ne.StreakView(
         current=current,
         closed_today=bool(closed),
-        needed_to_close=0 if closed else ne.needed_to_close(len(tasks), completed, skipped, DAY_CLOSE_RESOLVED_FRACTION),
+        needed_to_close=0 if closed else ne.needed_to_close(
+            len(tasks), completed, skipped, DAY_CLOSE_RESOLVED_FRACTION, DAY_CLOSE_COMPLETED_FRACTION,
+        ),
         freeze_used_yesterday=view.get(FREEZE_USED_ON_KEY) == y_iso,
         fresh_start_today=view.get(RESET_ON_KEY) == today_iso,
         last_close_yesterday=last == y_iso,

@@ -29,6 +29,7 @@ Keys live in `profile` alongside the streak keys (zero new tables, OTA-safe).
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,8 @@ TASK_DAY_BUDGET = 90          # a fully-completed day is worth ~this much task X
 XP_ACHIEVEMENT = 25            # fallback for a badge code missing from the table below
 XP_PERFECT_DAY = 25
 XP_STREAK_MILESTONE = 100
+XP_LATE_FRACTION = 0.5        # finished the same day, but after its slot + grace
+ON_TIME_GRACE_MIN = 90        # minutes past the printed time that still count as on time
 STREAK_MILESTONE_EVERY = 7
 TASK_LEDGER_KEY = "xp_task_ledger"  # {"date": iso, "ids": [task ids already paid today]}
 
@@ -102,14 +105,31 @@ def task_xp_for_plan(n_tasks_today: int) -> int:
     return max(XP_TASK_FLOOR, min(XP_TASK_ON_TIME, round(TASK_DAY_BUDGET / n)))
 
 
+def is_on_time(task_time: Any, now_min: int, grace: int = ON_TIME_GRACE_MIN) -> bool:
+    """On time = done before the printed time, or within `grace` minutes after
+    it. A task with no clock time can't be late. Both are minutes of the
+    user's local day."""
+    try:
+        s = str(task_time or "").strip()
+        if not s or ":" not in s:
+            return True
+        h, m = s.split(":", 1)
+        slot = int(h) * 60 + int(m[:2])
+        return int(now_min) <= slot + int(grace)
+    except (TypeError, ValueError):
+        return True
+
+
 def award_task_xp(
-    profile: dict, task_id: str, n_tasks_today: int, streak: int, today_iso: str
+    profile: dict, task_id: str, n_tasks_today: int, streak: int, today_iso: str,
+    on_time: bool = True,
 ) -> dict:
     """Award XP for completing a task today — once per (task, day) EVER.
     The ledger makes toggle-farming (uncomplete → recomplete) worthless: a task
     id already paid today never pays again, and XP is additive-only so
     un-checking refunds nothing. Amount = plan-normalized per-task XP × the
-    streak multiplier. Mutates profile in place, never commits, never raises."""
+    streak multiplier; a late finish (past the slot + grace, still today) pays
+    XP_LATE_FRACTION of it. Mutates profile in place, never commits, never raises."""
     try:
         ledger = profile.get(TASK_LEDGER_KEY) or {}
         if ledger.get("date") != today_iso:
@@ -117,15 +137,17 @@ def award_task_xp(
         ids = list(ledger.get("ids") or [])
         tid = str(task_id)
         if tid in ids:
-            return award_xp(profile, 0, today_iso) | {"xp_awarded": 0, "already_paid": True}
+            return award_xp(profile, 0, today_iso) | {"xp_awarded": 0, "already_paid": True, "on_time": bool(on_time)}
         ids.append(tid)
         ledger["ids"] = ids[-200:]  # bound the ledger
         profile[TASK_LEDGER_KEY] = ledger
         amount = int(round(task_xp_for_plan(n_tasks_today) * streak_multiplier(streak)))
-        return award_xp(profile, amount, today_iso) | {"already_paid": False}
+        if not on_time:
+            amount = max(1, int(round(amount * XP_LATE_FRACTION)))
+        return award_xp(profile, amount, today_iso) | {"already_paid": False, "on_time": bool(on_time)}
     except Exception as e:  # pragma: no cover - never break task completion
         logger.warning("award_task_xp no-op (non-fatal): %s", e)
-        return award_xp(profile, 0, today_iso) | {"xp_awarded": 0, "already_paid": False}
+        return award_xp(profile, 0, today_iso) | {"xp_awarded": 0, "already_paid": False, "on_time": True}
 
 MAX_LEVEL = 100
 # Power curve: XP to REACH level n = round(100 · (n-1)^1.6). Early levels cost

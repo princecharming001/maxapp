@@ -204,20 +204,31 @@ def collect_merged_tasks_for_date(schedules: list[dict], target_date: str) -> li
 # (done or consciously skipped) with at least one real completion = the day
 # was lived with the plan. Duolingo-grade mechanics, Finch-grade tone.
 DAY_CLOSE_RESOLVED_FRACTION = 0.8
+# ...and on completions alone at this fraction: most of the plan actually done
+# closes the day even when the rest was never touched. The resolved bar alone
+# asked an 8-task day for 7 resolved; the owner's own week closed 1 day in 7
+# under it and 3 in 7 under this one (2026-09-25 audit of live schedules).
+DAY_CLOSE_COMPLETED_FRACTION = 0.6
+
+
+def day_closes(total: int, completed: int, skipped: int) -> bool:
+    """The one rule every surface uses (streak credit, the Home day strip, the
+    planner week, push copy): at least one real completion, and either >= 60%
+    of the day's tasks completed or >= 80% resolved (completed or skipped —
+    'not today' is a first-class choice per spec 3.6). A day of only skips
+    earns nothing; one straggler no longer kills a 9-task day."""
+    if total <= 0 or completed <= 0:
+        return False
+    if completed / total >= DAY_CLOSE_COMPLETED_FRACTION - 1e-9:
+        return True
+    return (completed + skipped) / total >= DAY_CLOSE_RESOLVED_FRACTION - 1e-9
 
 
 def merged_day_all_completed(schedules: list[dict], target_date: str) -> bool:
-    """A day closes when it was substantially lived: >=80% of tasks resolved
-    (completed or explicitly skipped - 'not today' is a first-class choice
-    per spec 3.6) AND at least one real completion. A day of only skips
-    earns nothing; one straggler no longer kills a 9-task day."""
+    """A day closes when it was substantially lived — see day_closes."""
     tasks = collect_merged_tasks_for_date(schedules, target_date)
     if not tasks:
         return False
     completed = sum(1 for t in tasks if t.get("status") == "completed")
-    if completed == 0:
-        return False
-    resolved = sum(
-        1 for t in tasks if t.get("status") in ("completed", "skipped")
-    )
-    return resolved / len(tasks) >= DAY_CLOSE_RESOLVED_FRACTION
+    skipped = sum(1 for t in tasks if t.get("status") == "skipped")
+    return day_closes(len(tasks), completed, skipped)

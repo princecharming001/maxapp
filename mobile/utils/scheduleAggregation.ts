@@ -119,6 +119,8 @@ export type MergedScheduleTask = {
   scheduleId: string;
   moduleLabel: string;
   moduleColor: string;
+  /** Stamped by the server on completion: false = finished past its slot + grace. */
+  completed_on_time?: boolean;
   /** Recurring identity shared across days. Used to remove a whole routine part. */
   catalog_id?: string;
 };

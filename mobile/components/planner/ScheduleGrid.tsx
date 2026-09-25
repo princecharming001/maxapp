@@ -50,7 +50,10 @@ type Ev = {
   sub?: string;
   accent: string;
   onPress?: () => void;
-  source?: 'calendar';
+  source?: 'calendar' | 'task';
+  done?: boolean;
+  /** Real length in minutes when the drawn block is padded (short habits). */
+  minutes?: number;
 };
 
 export type CalendarEventRow = {
@@ -60,6 +63,22 @@ export type CalendarEventRow = {
   label: string;
   all_day?: boolean;
 };
+
+/** One habit from the plan, placed on the grid at the minute its reminder fires. */
+export type GridTaskRow = {
+  key: string;
+  time: string;
+  duration_minutes?: number;
+  title: string;
+  color: string;
+  done: boolean;
+  onPress?: () => void;
+};
+
+// A 2-minute habit still needs a tappable card: draw it at least this long
+// (≈ MIN_CARD_H tall), so habits minutes apart stack into columns instead of
+// painting over each other. The label shows the real duration.
+const MIN_TASK_BLOCK_MIN = 32;
 
 type Seg = { s: number; e: number; y0: number; y1: number; compressed: boolean };
 
@@ -90,8 +109,27 @@ function buildEvents(
   onEditShape: (focus: ShapeFocus) => void,
   onEditObligation?: (index: number) => void,
   calendarEvents: CalendarEventRow[] = [],
+  tasks: GridTaskRow[] = [],
 ): Ev[] {
   const evs: Ev[] = [];
+
+  // The plan's habits — the same rows Home lists, at the same minutes.
+  for (const t of tasks) {
+    if (!t.time || !/^\d{1,2}:\d{2}$/.test(t.time)) continue;
+    const s = toMin(t.time);
+    const minutes = Math.max(1, Math.round(Number(t.duration_minutes) || 0) || 5);
+    evs.push({
+      key: `task-${t.key}`,
+      start: s,
+      end: s + Math.max(minutes, MIN_TASK_BLOCK_MIN),
+      label: t.title,
+      accent: t.color,
+      onPress: t.onPress,
+      source: 'task',
+      done: t.done,
+      minutes,
+    });
+  }
 
   // Wake
   {
@@ -249,7 +287,7 @@ function inCompressedGap(segs: Seg[], min: number): boolean {
 }
 
 export default function ScheduleGrid({
-  day, obligations, scope, onEditShape, onEditObligation, onAddAt, isToday = false, calendarEvents = [],
+  day, obligations, scope, onEditShape, onEditObligation, onAddAt, isToday = false, calendarEvents = [], tasks = [],
 }: {
   day: DayShape;
   obligations: Obligation[];
@@ -260,8 +298,10 @@ export default function ScheduleGrid({
   onAddAt?: (startMin: number) => void;
   isToday?: boolean;
   calendarEvents?: CalendarEventRow[];
+  /** The plan's habits for this date; a tap opens the habit. */
+  tasks?: GridTaskRow[];
 }) {
-  const evs = buildEvents(day, obligations, scope, onEditShape, onEditObligation, calendarEvents);
+  const evs = buildEvents(day, obligations, scope, onEditShape, onEditObligation, calendarEvents, tasks);
 
   // Live "now" — only ticks while viewing today (keeps the indicator current).
   const [now, setNow] = useState(nowMinutes);
@@ -381,7 +421,9 @@ export default function ScheduleGrid({
             const cardH = Math.max(yOf(e.end) - top, MIN_CARD_H);
             const tiny = cardH < 44;
             const narrow = cols > 1;
-            const past = isToday && e.end <= now;
+            // A padded habit block is "past" once its REAL minutes are over.
+            const realEnd = e.source === 'task' && e.minutes ? e.start + e.minutes : e.end;
+            const past = isToday && realEnd <= now;
             return (
               <View
                 key={e.key}
@@ -392,9 +434,10 @@ export default function ScheduleGrid({
                   activeOpacity={e.onPress ? 0.85 : 1}
                   onPress={e.onPress}
                   disabled={!e.onPress}
-                  style={[styles.card, past && styles.cardPast]}
+                  style={[styles.card, past && styles.cardPast, e.source === 'task' && e.done && styles.cardDone]}
                   accessibilityRole={e.onPress ? 'button' : undefined}
-                  accessibilityLabel={`${e.label}, ${fmt12Compact(min2hhmm(e.start))}`}
+                  accessibilityLabel={`${e.label}, ${fmt12Compact(min2hhmm(e.start))}${e.done ? ', done' : ''}`}
+                  testID={e.source === 'task' ? `planner-task-${e.key}` : undefined}
                 >
                   {/* Flat Craft card — the workout keeps a whisper of its
                       accent as a wash; everything else stays warm white. */}
@@ -408,12 +451,23 @@ export default function ScheduleGrid({
                     e.source === 'calendar' && { opacity: 0.4 },
                   ]} />
                   <View style={[styles.cardBody, tiny && styles.cardBodyTiny]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       {e.source === 'calendar' ? (
                         <Ionicons name="calendar-outline" size={10} color={CAL_ACCENT} />
                       ) : null}
+                      {e.source === 'task' ? (
+                        <View style={[styles.taskDot, { borderColor: e.accent }, e.done && { backgroundColor: e.accent }]}>
+                          {e.done ? <Ionicons name="checkmark" size={9} color="#FFFFFF" /> : null}
+                        </View>
+                      ) : null}
                       <Text
-                        style={[styles.cardTitle, narrow && styles.cardTitleNarrow, e.source === 'calendar' && { color: CAL_ACCENT }]}
+                        style={[
+                          styles.cardTitle,
+                          narrow && styles.cardTitleNarrow,
+                          e.source === 'calendar' && { color: CAL_ACCENT },
+                          e.source === 'task' && styles.cardTitleTask,
+                          e.source === 'task' && e.done && styles.cardTitleDone,
+                        ]}
                         numberOfLines={tiny ? 1 : 2}
                       >
                         {e.label}
@@ -421,7 +475,9 @@ export default function ScheduleGrid({
                     </View>
                     {!tiny && cardH >= 44 ? (
                       <Text style={styles.cardTime} numberOfLines={1}>
-                        {fmt12Compact(min2hhmm(e.start))} – {fmt12Compact(min2hhmm(e.end))}
+                        {e.source === 'task' && e.minutes
+                          ? `${fmt12Compact(min2hhmm(e.start))} · ${e.minutes} min`
+                          : `${fmt12Compact(min2hhmm(e.start))} – ${fmt12Compact(min2hhmm(e.end))}`}
                       </Text>
                     ) : null}
                   </View>
@@ -476,6 +532,8 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   cardPast: { opacity: 0.42 },
+  // A finished habit reads as settled: a touch lighter, title struck.
+  cardDone: { opacity: 0.7 },
   // The workout keeps a whisper of its accent.
   cardAccentWash: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(47,107,78,0.07)' },
   tick: { width: 3, marginVertical: 7, borderRadius: 2 },
@@ -483,6 +541,13 @@ const styles = StyleSheet.create({
   cardBodyTiny: { justifyContent: 'center', paddingVertical: 4 },
   cardTitle: { fontFamily: fonts.serif, fontSize: 15, color: colors.foreground, letterSpacing: -0.2 },
   cardTitleNarrow: { fontSize: 13.5 },
+  // Habits are the plan's own voice: the sans face Home uses, a shade smaller.
+  cardTitleTask: { fontFamily: fonts.sansMedium, fontSize: 13.5, letterSpacing: -0.1, flexShrink: 1 },
+  cardTitleDone: { textDecorationLine: 'line-through', color: colors.textMuted },
+  taskDot: {
+    width: 14, height: 14, borderRadius: 7, borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
+  },
   cardTime: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.textMuted, marginTop: 3, fontVariant: ['tabular-nums'] },
 
   nowRow: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center' },

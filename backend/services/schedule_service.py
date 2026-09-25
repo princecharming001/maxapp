@@ -2742,25 +2742,38 @@ class ScheduleService:
         updated = False
         already_completed = False
         task_day_date = None  # ISO date of the day the task lives in
-        xp_award = None  # (user, today_iso, n_today) once this completion is known to earn task XP
+        xp_award = None  # (user, today_iso, n_today, on_time) once this completion is known to earn task XP
+        hit: Optional[dict] = None
         days = schedule.days or []
         for day in days:
             for task in day.get("tasks", []):
                 if task.get("task_id") == task_id:
                     task_day_date = day.get("date")
-                    if task.get("status") == "completed":
-                        already_completed = True
-                        updated = True
-                        break
-                    task["status"] = "completed"
-                    task["completed_at"] = datetime.utcnow().isoformat()
+                    hit = task
+                    already_completed = task.get("status") == "completed"
                     updated = True
                     break
             if updated:
                 break
 
-        if not updated:
+        if not updated or hit is None:
             raise ValueError("Task not found in schedule")
+
+        user = await db.get(User, UUID(user_id))
+        if already_completed:
+            on_time = bool(hit.get("completed_on_time", True))
+        else:
+            # "On time" is judged on the USER'S clock against the time printed
+            # next to the task: early is fine, late is past the slot + grace.
+            # Stamped on the task so the app and the XP award agree.
+            from services.gamification import is_on_time
+            from services.schedule_streak import _user_tz
+            now_local = datetime.now(_user_tz(user.onboarding if user else None))
+            on_time = is_on_time(hit.get("time"), now_local.hour * 60 + now_local.minute)
+            hit["status"] = "completed"
+            hit["completed_at"] = datetime.utcnow().isoformat()
+            hit["completed_local_time"] = now_local.strftime("%H:%M")
+            hit["completed_on_time"] = on_time
 
         if already_completed:
             stats = self._recalc_completion_stats_from_days(days)
@@ -2788,7 +2801,6 @@ class ScheduleService:
             # discipline in schedule_streak.
             try:
                 from services.schedule_streak import local_today_date
-                user = await db.get(User, UUID(user_id))
                 if user is not None:
                     today_iso = local_today_date(user.onboarding).isoformat()
                     if task_day_date == today_iso:
@@ -2807,7 +2819,7 @@ class ScheduleService:
                                         n_today += len(d.get("tasks") or [])
                         except Exception:
                             n_today = 0
-                        xp_award = (user, today_iso, n_today)
+                        xp_award = (user, today_iso, n_today, on_time)
             except Exception as _xp_e:  # pragma: no cover - non-fatal
                 logger.warning("task-completion XP award failed (non-fatal): %s", _xp_e)
 
@@ -2825,6 +2837,7 @@ class ScheduleService:
         if not already_completed or feedback_logged:
             await db.commit()
 
+        xp_result: Optional[dict] = None
         if xp_award is not None:
             # The XP ledger lives in user.profile next to the streak and the
             # notification state. It used to ride the schedule commit above as
@@ -2836,11 +2849,12 @@ class ScheduleService:
             try:
                 from services.gamification import award_task_xp
                 from services.schedule_streak import STREAK_KEY, write_profile_keys
-                user, today_iso, n_today = xp_award
+                user, today_iso, n_today, on_time = xp_award
 
                 def _award(profile: dict) -> None:
+                    nonlocal xp_result
                     streak = int(profile.get(STREAK_KEY) or 0)
-                    award_task_xp(profile, task_id, n_today, streak, today_iso)
+                    xp_result = award_task_xp(profile, task_id, n_today, streak, today_iso, on_time=on_time)
 
                 await write_profile_keys(db, user, _award)
                 await db.commit()
@@ -2858,7 +2872,17 @@ class ScheduleService:
             kick_gcal_mirror(user_id)
         except Exception:
             pass
-        return {"status": "completed", "completion_stats": stats}
+        # `xp` is what THIS tap earned (None when nothing was paid: a past day,
+        # a re-complete, an XP write that failed) so the app can show it.
+        xp = None
+        if xp_result and int(xp_result.get("xp_awarded") or 0) > 0:
+            xp = {
+                "awarded": int(xp_result["xp_awarded"]),
+                "on_time": bool(xp_result.get("on_time", True)),
+                "total": int(xp_result.get("xp_total") or 0),
+                "level_gained": int(xp_result.get("level_gained") or 0),
+            }
+        return {"status": "completed", "completion_stats": stats, "on_time": on_time, "xp": xp}
 
     def _recalc_completion_stats_from_days(self, days: list) -> dict:
         """Derive completion_stats from task statuses (keeps totals accurate when uncompleting)."""
@@ -2890,6 +2914,8 @@ class ScheduleService:
                         raise ValueError("Task is not completed")
                     task["status"] = "pending"
                     task.pop("completed_at", None)
+                    task.pop("completed_local_time", None)
+                    task.pop("completed_on_time", None)
                     updated = True
                     break
             if updated:

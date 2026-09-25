@@ -162,6 +162,7 @@ async def generate_and_persist(
         "sleep_time": sleep_time,
         "calendar_busy_by_date": calendar_busy,
     })
+    from services.day_fence import fence_days
     other_actives = await _load_other_active_days(user_uuid, db, except_maxx=maxx_id)
     if other_actives:
         bundle = {**other_actives, maxx_id: days}
@@ -171,7 +172,9 @@ async def generate_and_persist(
         for other_max, other_days in bundle.items():
             if other_max == maxx_id:
                 continue
-            await _update_active_days(user_uuid, db, maxx_id=other_max, days=other_days)
+            await _update_active_days(user_uuid, db, maxx_id=other_max, days=fence_days(other_days, recon_ctx))
+    # Last word on placement: inside waking hours, clear of work, done by bed.
+    days = fence_days(days, recon_ctx)
 
     # Deactivate any prior active schedule for this same maxx_id.
     res = await db.execute(
@@ -399,6 +402,8 @@ async def generate_first_routine_if_absent(
         for i, d in enumerate(days):
             d["date"] = (today + _td(days=i)).isoformat()
         days = apply_calendar_busy(days, _starter_busy)
+        from services.day_fence import fence_days as _fence_days
+        days = _fence_days(days, state)
 
         doc_title = (doc.display_name if doc else maxx_id) + " Plan"
         schedule_row = UserSchedule(
@@ -584,6 +589,11 @@ async def regenerate_active_schedules(
             from services.task_fields import normalize_days as _normalize_days
             _normalize_days(fixed_new, mid)
 
+        # Last word on placement (waking hours, clear of work, done by bed) —
+        # BEFORE the user's own pins below, which always win.
+        from services.day_fence import fence_days as _fence_days
+        fixed_new = _fence_days(fixed_new, state)
+
         # Honor times the user explicitly moved (scope="series" edit) so a
         # silent re-expansion re-pins their chosen time instead of snapping
         # the part back to the skeleton default. Applied AFTER validate_and_fix
@@ -656,9 +666,10 @@ async def regenerate_active_schedules(
                 if _regen_busy:
                     recon_ctx["calendar_busy_by_date"] = _regen_busy
                 bundle = reconcile_schedules(bundle, user_ctx=recon_ctx, start_date=today)
+                from services.day_fence import fence_days as _fence_days
                 for s in actives:
                     if s.maxx_id in bundle:
-                        s.days = history_by_max.get(s.maxx_id, []) + bundle[s.maxx_id]
+                        s.days = history_by_max.get(s.maxx_id, []) + _fence_days(bundle[s.maxx_id], recon_ctx)
                         s.updated_at = datetime.utcnow()
         except Exception as e:
             logger.warning("post-regen reconcile failed (non-fatal): %s", e)

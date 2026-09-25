@@ -50,7 +50,9 @@ import { useFlag } from '../../constants/featureFlags';
 import { experienceTier } from '../../lib/personalization';
 import { colors, spacing, fonts } from '../../theme/dark';
 import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
-import ScheduleGrid, { CalendarEventRow } from '../../components/planner/ScheduleGrid';
+import ScheduleGrid, { CalendarEventRow, GridTaskRow } from '../../components/planner/ScheduleGrid';
+import { useActiveSchedulesFullQuery, useMaxxesQuery } from '../../hooks/useAppQueries';
+import { buildMaxxMaps, mergeSchedules, normalizeMaxxId } from '../../utils/scheduleAggregation';
 import ObligationsManager, { ObligationsManagerHandle } from '../../components/planner/ObligationsManager';
 import {
   DayShape,
@@ -447,6 +449,43 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
       all_day: s.all_day as boolean | undefined,
     }));
 
+  // The plan's habits for the highlighted date — the SAME cached rows Home
+  // lists (one fetch, one cache), placed on the grid at the minute their
+  // reminder fires. Tapping one opens the habit like the Home card does.
+  const schedulesQ = useActiveSchedulesFullQuery();
+  const maxesQ = useMaxxesQuery();
+  const dayTasks = useMemo<GridTaskRow[]>(() => {
+    const full = schedulesQ.data;
+    if (!full) return [];
+    try {
+      const { labels, colors: colorMap } = buildMaxxMaps(maxesQ.data?.maxes ?? []);
+      const merged = mergeSchedules(full.schedules || [], labels, colorMap);
+      const maxxBySchedule: Record<string, string> = {};
+      for (const s of (full.schedules || []) as any[]) maxxBySchedule[String(s.id)] = normalizeMaxxId(s.maxx_id);
+      return (merged.byDate[selectedIso] || []).map((row) => {
+        const done = row.status === 'completed';
+        return {
+          key: `${row.scheduleId}:${row.task_id}`,
+          time: row.time,
+          duration_minutes: row.duration_minutes,
+          title: row.title,
+          color: row.moduleColor,
+          done,
+          onPress: () => navigation.navigate('TaskGuide', {
+            scheduleId: row.scheduleId,
+            taskId: row.task_id,
+            maxxId: maxxBySchedule[row.scheduleId],
+            moduleColor: row.moduleColor,
+            moduleLabel: row.moduleLabel,
+            done,
+          }),
+        };
+      });
+    } catch {
+      return [];
+    }
+  }, [schedulesQ.data, maxesQ.data, selectedIso, navigation]);
+
   // Assistant (demoted): hidden behind a floating button, opened only on demand.
   const [chatInput, setChatInput] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
@@ -720,10 +759,13 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               obligationsRef.current?.openAdd({ start, end: start + 60 });
             }}
             calendarEvents={calendarEvents}
+            tasks={dayTasks}
           />
 
           <Text style={styles.gridHint}>
-            Tap a block to adjust it · tap empty space to add a commitment
+            {dayTasks.length > 0
+              ? 'Tap a habit to open it · tap a block to adjust it · tap empty space to add a commitment'
+              : 'Tap a block to adjust it · tap empty space to add a commitment'}
           </Text>
 
           <View style={{ height: 96 + insets.bottom }} />
