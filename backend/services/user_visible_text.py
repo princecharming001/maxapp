@@ -42,7 +42,7 @@ _EVIDENCE_NUMBER = re.compile(r"\s*(?:\[\d{1,2}\])+(?!\()")
 # Talk about the retrieval layer. Phrase-level where the rest of the sentence is still useful,
 # clause-level where the clause is only about the docs. "docs" here always means the app's own
 # knowledge base (the model's word for it); "your doc" (doctor) is never matched.
-_DOCS_REF = r"(?:your|the|my)\s+(?:current\s+)?(?:module\s+)?(?:docs|module\s+doc)\b"
+_DOCS_REF = r"(?:your|the|my)\s+(?:current\s+)?(?:[a-z]+max\s+)?(?:module\s+|protocol\s+)?(?:docs|module\s+doc)\b"
 _DOCS_LEAD_IN = re.compile(
     r"\b(?:here'?s\s+)?what\s+(?:the|your|my)\s+(?:module\s+)?(?:docs?|evidence|sources?|notes)\s+says?"
     r"(?:\s+plus\s+[^.!?:\n]*)?\s*[:,.]?[ \t]*",
@@ -57,22 +57,40 @@ _ACCORDING_TO_DOCS = re.compile(
     re.IGNORECASE,
 )
 # A clause (from a sentence start up to the next , ; . ! ? or line end) that is about the docs.
-_DOCS_CLAUSE = re.compile(
-    r"(?:(?<=^)|(?<=[.!?\n])[ \t]*)[^.!?\n,;]*\b(?:"
+_DOCS_TALK = (
     r"(?:in|on|from)\s+" + _DOCS_REF +
-    r"|(?:your|the|my)\s+(?:current\s+)?(?:module\s+)?docs\s+(?:say|says|mention|cover|covers|show|only|don'?t|do\s+not)"
-    r"|evidence\s+(?:is|was|looks)\s+(?:thin|limited|weak|sparse)"
+    r"|(?:your|the|my)\s+(?:current\s+)?(?:[a-z]+max\s+)?(?:module\s+)?docs\s+(?:say|says|mention|cover|covers|show|only|don'?t|do\s+not)"
+    r"|(?:evidence|docs)\s+(?:is|are|was|were|looks?)\s+(?:thin|limited|weak|sparse)"
     r"|(?:only\s+)?(?:one|1|a\s+single)\s+chunk"
     r"|(?:the|my)\s+retrieved\s+(?:evidence|docs?|chunks?)"
     r"|ask\s+if\s+you\s+want\s+me\s+to\s+pull\s+it"
     r"|working\s+with\s+what'?s\s+there"
     r"|thin\s+evidence"
-    r")\b[^.!?\n,;]*[,;.!?]?",
+    r"|(?:our|my|the)\s+internal\s+(?:protocol\s+)?(?:guides?|docs?|notes|library|database|material)"
+    r"|thin\s+docs|(?:^|\s)docs\s+(?:don'?t|do\s+not)\b|(?:coaching|product[- ]specific|protocol)\s+docs?\b"
+    r"|docs?\s+(?:i|we)\s+(?:just\s+)?pulled|i'?d\s+need\s+[^.!?\n,;]*\bdocs?\b|protocol\s+doc\s+if\s+you\s+have"
+)
+_DOCS_CLAUSE = re.compile(
+    r"(?:(?<=^)|(?<=[.!?\n])[ \t]*)[^.!?\n,;]*\b(?:" + _DOCS_TALK + r")\b[^.!?\n,;]*[,;.!?]?",
+    re.IGNORECASE | re.MULTILINE,
+)
+# The same talk as a later clause (", and i pull from our internal guides"): the clause goes, the
+# sentence's own ending stays.
+# Only pure meta-talk; a mid-sentence "in your docs" is renamed to "your protocol" below instead.
+_META_TALK = (
+    r"(?:evidence|docs)\s+(?:is|are|was|were|looks?)\s+(?:thin|limited|weak|sparse)|thin\s+evidence"
+    r"|(?:only\s+)?(?:one|1|a\s+single)\s+chunk|(?:the|my)\s+retrieved\s+(?:evidence|docs?|chunks?)"
+    r"|(?:our|my|the)\s+internal\s+(?:protocol\s+)?(?:guides?|docs?|notes|library|database|material)"
+    r"|thin\s+docs|(?:^|\s)docs\s+(?:don'?t|do\s+not)\b|(?:coaching|product[- ]specific|protocol)\s+docs?\b"
+    r"|docs?\s+(?:i|we)\s+(?:just\s+)?pulled|i'?d\s+need\s+[^.!?\n,;]*\bdocs?\b|protocol\s+doc\s+if\s+you\s+have"
+)
+_DOCS_MIDCLAUSE = re.compile(
+    r"[,;][ \t]*[^.!?\n,;]*\b(?:" + _META_TALK + r")\b[^.!?\n,;]*(?=[.!?,;\n]|$)",
     re.IGNORECASE | re.MULTILINE,
 )
 # Whatever still mentions the docs mid-sentence becomes "your protocol", the in-voice name the
 # answer prompt asks for, with the verb agreement fixed.
-_DOCS_NOUN = re.compile(r"\b(?:your|the|my)\s+(?:current\s+)?(?:module\s+)?docs\b", re.IGNORECASE)
+_DOCS_NOUN = re.compile(r"\b(?:(?:your|the|my)\s+(?:current\s+)?(?:[a-z]+max\s+)?(?:module\s+|protocol\s+)?docs|protocol\s+docs)\b", re.IGNORECASE)
 _PROTOCOL_VERB = re.compile(
     r"\b(your protocol)\s+(say|focus|cover|mention|show|include|list|recommend|suggest|don'?t|do not)\b",
     re.IGNORECASE,
@@ -137,9 +155,10 @@ def _scrub_prose(text: str) -> str:
     out = _DOCS_LEAD_IN.sub("", out)
     out = _ACCORDING_TO_DOCS.sub("", out)
     # Em dashes act as clause breaks for the clause rule ("docs—the evidence covers ...").
-    if _DOCS_CLAUSE.search(out):
+    if _DOCS_CLAUSE.search(out) or _DOCS_MIDCLAUSE.search(out):
         out = re.sub(r"\s*—\s*", ", ", out)
         out = _DOCS_CLAUSE.sub("", out)
+        out = _DOCS_MIDCLAUSE.sub("", out)
     out = re.sub(r"\b(?:the|your)\s+protocol\s+(?:in|from)\s+" + _DOCS_REF, "your protocol", out, flags=re.IGNORECASE)
     out = _DOCS_NOUN.sub("your protocol", out)
     out = _PROTOCOL_VERB.sub(lambda m: f"{m.group(1)} {_VERB_3SG.get(m.group(2).lower(), m.group(2))}", out)
