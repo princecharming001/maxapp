@@ -228,3 +228,13 @@ def test_multi_block_extraction_all_types():
     types = {b["type"] for b in blocks}
     assert types == {"table", "timeline", "checklist", "stat_cards"}
     assert "[VISUAL_BLOCK]" not in clean.upper()
+
+
+def test_list_data_is_wrapped_not_a_500():
+    # Seen in prod 2026-09-25: a timeline with "data": [...] crashed ChatResponse validation.
+    from models.leaderboard import ChatResponse
+    text = ('here you go [VISUAL_BLOCK]{"type":"timeline","title":"Minoxidil","data":'
+            '[{"label":"month 1-2","detail":"shedding"}]}[/VISUAL_BLOCK]')
+    _clean, blocks = _extract_visual_blocks(text)
+    assert blocks and blocks[0]["data"] == {"steps": [{"label": "month 1-2", "detail": "shedding"}]}
+    ChatResponse(response="x", visual_blocks=blocks)  # validates

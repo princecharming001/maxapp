@@ -719,6 +719,11 @@ _METHOD_CONF_RE = re.compile(r"\[METHOD_CONFIDENCE\]\s*(.*?)\s*\[/METHOD_CONFIDE
 _ALLOWED_BLOCK_TYPES = {"table", "comparison", "timeline", "flowchart", "stat_cards", "checklist"}
 
 
+# The list key mobile/components/MessageBlocks.tsx reads for each block type.
+_BLOCK_LIST_KEY = {"table": "rows", "comparison": "options", "timeline": "steps",
+                   "flowchart": "steps", "stat_cards": "cards", "checklist": "items"}
+
+
 def _extract_visual_blocks(text: str) -> tuple[str, list[dict]]:
     """Pull [VISUAL_BLOCK]{json}[/VISUAL_BLOCK] markers (JSON {type,title?,data})
     out of `text`. Invalid JSON or unknown type is dropped SILENTLY so the turn
@@ -742,11 +747,17 @@ def _extract_visual_blocks(text: str) -> tuple[str, list[dict]]:
                 continue  # malformed marker → skip it, keep prose clean
         try:
             btype = str(obj.get("type") or "").strip().lower()
-            if btype in _ALLOWED_BLOCK_TYPES and isinstance(obj.get("data"), (dict, list)):
+            data = obj.get("data")
+            # The model sometimes sends the list itself ("data": [{"label": ...}]) instead of
+            # {"steps": [...]}. ChatResponse.visual_blocks requires a dict, so a bare list used to
+            # 500 the whole turn. Wrap it under the key the app reads for that type.
+            if isinstance(data, list):
+                data = {_BLOCK_LIST_KEY.get(btype, "items"): data}
+            if btype in _ALLOWED_BLOCK_TYPES and isinstance(data, dict):
                 blocks.append({
                     "type": btype,
                     "title": (str(obj["title"]).strip() if obj.get("title") else None),
-                    "data": obj.get("data"),
+                    "data": data,
                 })
         except Exception:
             continue  # malformed marker → skip it, keep prose clean
