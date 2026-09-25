@@ -19,7 +19,7 @@ from models.sqlalchemy_models import ChatHistory, User
 from services.paywall_reply import generate_paywall_reply
 from services.sendblue_service import phone_lookup_candidates, sendblue_service
 from services.sms_mms_ingest import ingest_sendblue_media_progress_photo
-from api.chat import process_chat_message
+from api.chat import _render_history_assistant, process_chat_message
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +179,9 @@ async def _sendblue_inbound_core(
         if not (response_text or "").strip():
             response_text = "got it. open the app if you need more detail."
 
+    # A text message can't show chips, cards or tables: lift the markers out (as the app does)
+    # and scrub citations / internal refs so no JSON or file path is ever texted to someone.
+    response_text = _render_history_assistant(response_text or "")[0]
     combined = " ".join(p for p in [*parts, response_text.strip()] if p).strip()
     if not combined:
         combined = "got it."

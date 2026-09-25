@@ -24,6 +24,7 @@ from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import rate_limit
 from models.leaderboard import ChatRequest, ChatResponse
 from models.sqlalchemy_models import ChatConversation, ChatHistory, Scan, User, UserSchedule
+from services.user_visible_text import scrub_internal_refs, strip_em_dashes, user_visible
 from services.coaching_service import coaching_service
 from services.chat_telemetry import fast_path_snapshot, note_chat_turn
 from services.lc_agent import make_chat_tools, run_chat_agent
@@ -632,7 +633,7 @@ def _finalize_assistant_message(text: str, *, keep_links: bool = False) -> str:
     """User-facing chat: edge enforcer. Order matters:
        1. Tech-leak scrub (system prompt fragments, kwarg-shapes).
        2. AI-template lead-ins / sign-offs.
-       3. Em-dash cap (1 per response, rest become period/comma).
+       3. Em dashes out (comma or period), matching every Max prompt.
        4. Paragraph-break enforcement on wall-of-text answers.
        5. Numbered-list + bold-lead normalization for 3+ point answers.
        6. Strip inline amazon links (cards carry them) — UNLESS keep_links,
@@ -643,9 +644,10 @@ def _finalize_assistant_message(text: str, *, keep_links: bool = False) -> str:
     """
     if not text:
         return text
-    out = _scrub_tech_leak(text)
+    out = scrub_internal_refs(text)
+    out = _scrub_tech_leak(out)
     out = _strip_ai_leadins(out)
-    out = _strip_em_dashes(out)
+    out = strip_em_dashes(out)
     out = _enforce_paragraph_breaks(out)
     out = _normalize_list_formatting(out)
     if not keep_links:
@@ -655,7 +657,7 @@ def _finalize_assistant_message(text: str, *, keep_links: bool = False) -> str:
     # with. For degenerate or ambiguous inputs the model sometimes emits a
     # 1-liner ack; append a lightweight invite so the turn stays usable.
     if out and len(out) < 40 and not out.endswith("?"):
-        out = out.rstrip(".!,") + " — what are you working on?"
+        out = out.rstrip(".!,") + ". what are you working on?"
     return out
 
 
@@ -759,8 +761,8 @@ def _extract_visual_blocks(text: str) -> tuple[str, list[dict]]:
 def _extract_method_confidence(text: str, chunk_ids: "set[str] | None" = None) -> tuple[str, Optional[dict]]:
     """Pull a [METHOD_CONFIDENCE]{json}[/METHOD_CONFIDENCE] marker with payload
     {"methods":[{title,confidence,rationale?,sources?}]}. Confidence accepts a
-    0-1 float or 0-100 int → normalized to int 0-100. When RAG chunk ids are
-    known, sources not among them are dropped (anti-hallucination). Malformed →
+    0-1 float or 0-100 int → normalized to int 0-100. Sources are never sent to
+    the client (they are internal chunk ids; `chunk_ids` is kept for callers). Malformed →
     (clean_text, None). Returns (clean_text, dict|None)."""
     if not text or "[method_confidence]" not in text.lower():
         return text, None
@@ -781,19 +783,13 @@ def _extract_method_confidence(text: str, chunk_ids: "set[str] | None" = None) -
             except (TypeError, ValueError):
                 conf = 0
             conf = max(0, min(100, conf))
-            srcs = meth.get("sources")
-            if isinstance(srcs, list):
-                srcs = [str(s).strip() for s in srcs if str(s).strip()]
-                if chunk_ids:
-                    srcs = [s for s in srcs if s in chunk_ids]
-                srcs = srcs or None
-            else:
-                srcs = None
             methods.append({
-                "title": str(meth["title"]).strip()[:120],
+                "title": user_visible(str(meth["title"]).strip()[:120]),
                 "confidence": conf,
-                "rationale": (str(meth["rationale"]).strip()[:400] if meth.get("rationale") else None),
-                "sources": srcs,
+                "rationale": (user_visible(str(meth["rationale"]).strip()[:400]) if meth.get("rationale") else None),
+                # Sources are internal chunk ids (the only ones that survive the filter above); the
+                # app prints them under "Sources:", so they never leave the server.
+                "sources": None,
             })
     except Exception:
         methods = []
@@ -3445,7 +3441,7 @@ Ask ONE question at a time. Your very first response must ask the concern questi
     # Mirror the short-response guardrail from _finalize_assistant_message so
     # degenerate inputs (e.g. "??") always produce a usable ≥40-char response.
     if response_text and len(response_text) < 40 and not response_text.endswith("?"):
-        response_text = response_text.rstrip(".!,") + " — what are you working on?"
+        response_text = response_text.rstrip(".!,") + ". what are you working on?"
 
     # --- Save messages (app only; SMS is not stored) ---
     if _persist_chat_history(channel):
@@ -5224,7 +5220,7 @@ async def _send_message_locked_inner(
         )
         conv_id = await _response_conversation_id(db, user_id=user_id, data=data)
         return ChatResponse(
-            response=response_text,
+            response=user_visible(response_text),
             choices=choices,
             input_widget=iw,
             conversation_id=conv_id,
@@ -5307,7 +5303,7 @@ async def _send_message_locked_inner(
         # return directly with the canonical multi flag so chips render right.
         conv_id = await _response_conversation_id(db, user_id=user_id, data=data)
         return ChatResponse(
-            response=response_text.lower(),
+            response=user_visible(response_text.lower()),
             choices=choices,
             multi_choice=_broad_multi,
             conversation_id=conv_id,
@@ -5443,12 +5439,12 @@ async def _send_message_locked_inner(
     if visual_blocks and (not _prose_stripped or len(_prose_stripped) < 40) and not choices:
         block_type = visual_blocks[0].get("type", "")
         if block_type == "stat_cards":
-            response_text = "here are the key numbers — tap any card for details:"
+            response_text = "here are the key numbers, tap any card for details:"
         else:
-            response_text = "here's what i've got for you — take a look:"
+            response_text = "here's what i've got for you, take a look:"
 
     return ChatResponse(
-        response=response_text,
+        response=user_visible(response_text),  # last-mile: no citations, internal refs or em dashes
         choices=choices,
         multi_choice=multi_choice,
         input_widget=iw,
@@ -5518,7 +5514,7 @@ async def confirm_schedule_change(
             except Exception:
                 pass
 
-    return {"ok": ok, "applied": applied, "message": message}
+    return {"ok": ok, "applied": applied, "message": user_visible(message) if isinstance(message, str) else message}
 
 
 @router.post("/transcribe")
@@ -5598,7 +5594,10 @@ async def get_chat_nudge(
     """A proactive coaching nudge to open the chat with (or null). The client
     shows it as the first assistant bubble on chat open, then POSTs .../seen."""
     from services.proactive import get_proactive_nudge
-    return {"nudge": await get_proactive_nudge(current_user["id"], db)}
+    nudge = await get_proactive_nudge(current_user["id"], db)
+    if isinstance(nudge, dict) and isinstance(nudge.get("text"), str):
+        nudge = {**nudge, "text": user_visible(nudge["text"])}
+    return {"nudge": nudge}
 
 
 @router.post("/nudge/{insight_id}/seen")
@@ -5617,6 +5616,23 @@ async def mark_chat_nudge_seen(
     except Exception:
         await db.rollback()
     return {"ok": True}
+
+
+def _render_history_assistant(content: str) -> tuple[str, list, Optional[dict]]:
+    """Stored assistant text still carries the model's raw markers ([CHOICES], [VISUAL_BLOCK],
+    [METHOD_CONFIDENCE]) and whatever the old prompts let through. Run it through the same
+    extraction the live reply gets, so a reopened chat shows the same cards and never shows
+    JSON, citations or internal references. Returns (text, blocks, method_metadata)."""
+    # Only the explicit markers are lifted out. Prose stays prose (no table / stat-card
+    # conversion): the Fitmax calorie log and weight trend parse numbers out of history text.
+    text, _choices, _multi = _extract_inline_choices(content or "")
+    text, blocks = _extract_visual_blocks(text)
+    text, method_metadata = _extract_method_confidence(text)
+    blocks = blocks[:6]
+    text = user_visible(text)
+    if blocks and len(text.strip()) < 40:
+        text = text.strip() or "here's what i've got for you, take a look:"
+    return text, blocks, method_metadata
 
 
 @router.get("/history")
@@ -5783,7 +5799,8 @@ async def get_chat_history(
         target = by_id.get(target_id)
         if not target:
             return None  # quoted message is outside the loaded window
-        snippet = (target.content or "").strip().replace("\n", " ")
+        raw = target.content or ""
+        snippet = (_render_history_assistant(raw)[0] if target.role == "assistant" else raw).strip().replace("\n", " ")
         if len(snippet) > 120:
             snippet = snippet[:117].rstrip() + "..."
         return {
@@ -5792,18 +5809,27 @@ async def get_chat_history(
             "preview": snippet,
         }
 
+    def _message(r) -> dict:
+        msg = {
+            "id": str(r.id),
+            "role": r.role,
+            "content": r.content,
+            "created_at": r.created_at,
+            "reply_to": _reply_preview(r.reply_to_id),
+        }
+        if r.role == "assistant":
+            text, blocks, method_metadata = _render_history_assistant(r.content or "")
+            msg["content"] = text
+            # Same field names the app uses for a live reply, so the cards come back on reload.
+            if blocks:
+                msg["blocks"] = blocks
+            if method_metadata:
+                msg["methodMetadata"] = method_metadata
+        return msg
+
     return {
         "conversation_id": str(target_conv.id) if target_conv else None,
-        "messages": [
-            {
-                "id": str(r.id),
-                "role": r.role,
-                "content": r.content,
-                "created_at": r.created_at,
-                "reply_to": _reply_preview(r.reply_to_id),
-            }
-            for r in rows
-        ],
+        "messages": [_message(r) for r in rows],
         "pending_question": pending_question,
     }
 

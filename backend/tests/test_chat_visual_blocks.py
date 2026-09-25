@@ -76,11 +76,12 @@ def test_confidence_malformed_degrades():
     assert clean.strip() == "answer."
 
 
-def test_sources_grounded_against_chunk_ids():
+def test_sources_never_sent_to_client():
+    # Sources are internal chunk ids; the app prints whatever it gets under "Sources:".
     text = ('[METHOD_CONFIDENCE]{"methods":[{"title":"X","confidence":70,'
             '"sources":["chunk_1","hallucinated_9"]}]}[/METHOD_CONFIDENCE]')
     _clean, meta = _extract_method_confidence(text, chunk_ids={"chunk_1"})
-    assert meta["methods"][0]["sources"] == ["chunk_1"]  # hallucinated dropped
+    assert meta["methods"][0]["sources"] is None
 
 
 def test_method_without_title_skipped():

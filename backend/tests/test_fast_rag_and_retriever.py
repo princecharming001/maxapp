@@ -68,7 +68,9 @@ async def test_retrieve_chunks_respects_threshold(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_answer_from_chunks_preserves_clean_citations(monkeypatch):
+async def test_answer_from_chunks_never_shows_citations(monkeypatch):
+    # Product rule: users never see citations, file paths or "docs" talk (see
+    # services/user_visible_text.py). This used to assert the opposite.
     _install_fake_docs(monkeypatch)
     monkeypatch.setattr(fast_rag, "get_chat_llm_with_fallback", lambda **_kwargs: _FakeLLM())
     retrieved = await fast_rag.gather_rag_evidence(
@@ -80,5 +82,8 @@ async def test_answer_from_chunks_preserves_clean_citations(monkeypatch):
         message="what should i do for acne at night",
         retrieved=retrieved,
     )
-    assert "[source:" in answer
-    assert "skinmax" in answer.lower()
+    assert "[source" not in answer.lower()
+    assert "rag_documents" not in answer and ".md" not in answer
+    from services.user_visible_text import user_visible
+    shown = user_visible(answer)
+    assert "docs" not in shown.lower() and "[source" not in shown.lower()

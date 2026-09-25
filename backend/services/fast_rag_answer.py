@@ -189,7 +189,7 @@ def _expand_query(query: str, maxx: str) -> str:
         return query
     return f"{query} {' '.join(extras)}"
 
-_CITATION_RE = re.compile(r"\[(?:source|sources):[^\]]+\]", re.IGNORECASE)
+_CITATION_RE = re.compile(r"\[(?:source|sources)\s*[:=][^\]]+\]", re.IGNORECASE)
 
 
 def _pretty_citation_label(
@@ -344,18 +344,18 @@ _RESPONSE_LENGTH_BLOCKS: dict[str, str] = {
         "\n\n## USER RESPONSE LENGTH PREFERENCE: CONCISE  (overrides any other length rule above)\n"
         "- Hard cap: 1 sentence. 2 only if the question literally has two parts.\n"
         "- No bullets, no headers, no lists, no lead-ins.\n"
-        "- One inline citation is fine; skip others. Pick the single most useful specific."
+        "- Pick the single most useful specific. No citations or source labels."
     ),
     "medium": (
         "\n\n## USER RESPONSE LENGTH PREFERENCE: MEDIUM  (default)\n"
         "- 2-3 sentences. Or up to 4 short bullets if a list genuinely helps.\n"
-        "- Answer first, then one concrete specific (product, dose, timing, or timeframe) with inline citation."
+        "- Answer first, then one concrete specific (product, dose, timing, or timeframe). No citations or source labels."
     ),
     "detailed": (
         "\n\n## USER RESPONSE LENGTH PREFERENCE: DETAILED  (overrides any other length rule above)\n"
         "- Up to ~8 sentences, or a tight bulleted structure. Still lowercase, still Max's voice, length is not license to pad.\n"
-        "- Every specific you name (ingredient %, minutes, reps, macros) needs an inline citation.\n"
-        "- Structure: direct answer → specifics with citations → one sentence on why. No intros, no end-summaries."
+        "- Every specific you name (ingredient %, minutes, reps, macros) must come from the evidence. Never show citations or source labels.\n"
+        "- Structure: direct answer → specifics → one sentence on why. No intros, no end-summaries."
     ),
 }
 
@@ -520,10 +520,13 @@ async def answer_from_chunks(
     evidence_lines: list[str] = []
     for i, chunk in enumerate(retrieved, 1):
         meta = chunk.get("metadata") or {}
-        source = meta.get("source") or f"{chunk.get('_maxx')}/{chunk.get('doc_title')}.md"
         section = meta.get("section") or chunk.get("doc_title") or "section"
+        # Topic only, no file path: the model copies whatever label it sees into the answer
+        # ("[source=rag_documents/bonemax/...]"). The label helps it keep topics apart; the
+        # prompt says never to show it, and user_visible_text scrubs it if it slips through.
+        topic = str(section or "").replace("_", " ").strip() or str(chunk.get("doc_title") or "").strip()
         evidence_lines.append(
-            f"[{i}] source={source} | section={section}\n{chunk.get('content', '').strip()}"
+            f"--- evidence {i} (for you only, topic: {topic}) ---\n{chunk.get('content', '').strip()}"
         )
 
     # Fall back to chunk-origin maxx when caller didn't pass hints (e.g. graph
