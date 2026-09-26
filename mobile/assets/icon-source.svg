@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4F4F6"/><stop offset="1" stop-color="#E6E7EA"/>
+    </linearGradient>
+    <radialGradient id="ink" cx="0.40" cy="0.32" r="0.85">
+      <stop offset="0" stop-color="#2C2C30"/><stop offset="0.5" stop-color="#161618"/><stop offset="1" stop-color="#0B0B0C"/>
+    </radialGradient>
+    <radialGradient id="hairInk" cx="0.35" cy="0.2" r="0.9">
+      <stop offset="0" stop-color="#3A3A40"/><stop offset="0.45" stop-color="#101012"/><stop offset="1" stop-color="#050505"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#74747A"/><stop offset="0.45" stop-color="#2C2C30"/><stop offset="1" stop-color="#060606"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="20"/></filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <ellipse cx="512" cy="890" rx="190" ry="22" fill="#000" opacity="0.14" filter="url(#soft)"/>
+  <path d="M 512 168
+ C 610 168, 690 222, 700 320
+ C 706 370, 704 420, 708 462
+ C 732 462, 744 494, 738 532
+ C 734 562, 724 578, 714 582
+ C 718 640, 718 680, 712 712
+ C 708 732, 700 746, 686 760
+ L 620 840
+ C 608 853, 596 858, 578 858
+ L 446 858
+ C 428 858, 416 853, 404 840
+ L 338 760
+ C 324 746, 316 732, 312 712
+ C 306 680, 306 640, 310 582
+ C 300 578, 290 562, 286 532
+ C 280 494, 292 462, 316 462
+ C 320 420, 318 370, 324 320
+ C 334 222, 414 168, 512 168 Z" fill="url(#ink)" stroke="url(#rim)" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M 316 424
+ C 310 336, 318 258, 360 206
+ C 380 180, 400 150, 440 124
+ C 470 104, 516 98, 548 112
+ C 566 120, 574 134, 570 150
+ C 636 160, 688 204, 702 292
+ C 708 338, 708 384, 706 424
+ C 690 364, 652 320, 592 312
+ C 536 306, 480 322, 436 302
+ C 402 334, 352 362, 316 424 Z" fill="url(#hairInk)" stroke="url(#rim)" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M 384 206 C 420 160, 470 128, 520 124 C 548 122, 560 132, 556 146" fill="none" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="7" stroke-linecap="round"/>
+  <path d="M 590 176 C 632 188, 664 216, 680 262" fill="none" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="6" stroke-linecap="round"/>
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round"><path d="M 404 506 Q 436 500 468 510" stroke-width="17"/><path d="M 556 510 Q 588 500 620 506" stroke-width="17"/><path d="M 472 706 L 536 706 Q 556 705 566 692" stroke-width="13"/></g>
+</svg>
