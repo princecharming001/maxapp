@@ -114,7 +114,7 @@ export default function LoginScreen() {
                     style={[s.inner, { opacity: fade, transform: [{ translateY: slide }] }]}
                 >
                     {/* Wordmark + title */}
-                    <Text style={s.wordmark}>max</Text>
+                    <Text style={s.wordmark}>superpower</Text>
                     <Text style={s.title}>welcome back</Text>
 
                     {/* Fields */}

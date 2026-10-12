@@ -23,7 +23,7 @@ export default function RemindersOffCard({ onOpenSettings, onDismiss }: Props) {
                 <Ionicons name="notifications-off-outline" size={18} color={colors.foreground} style={s.icon} />
                 <View style={s.copy}>
                     <Text style={s.title}>reminders are off</Text>
-                    <Text style={s.body}>max can{'’'}t ping you at your task times.</Text>
+                    <Text style={s.body}>superpower can{'’'}t ping you at your task times.</Text>
                 </View>
                 <TouchableOpacity
                     onPress={onDismiss}

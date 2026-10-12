@@ -207,7 +207,7 @@ export default function SignupScreen() {
                     <Animated.View style={{ opacity: fade, transform: [{ translateY: slide }] }}>
 
                         {/* Wordmark + title */}
-                        <Text style={s.wordmark}>max</Text>
+                        <Text style={s.wordmark}>superpower</Text>
                         <Text style={s.title}>Create your account</Text>
 
                         {/* Fields */}

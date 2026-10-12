@@ -1,6 +1,6 @@
 """Hyper-personalization spine.
 
-One unified profile of everything Max knows about a user, merged from every
+One unified profile of everything Superpower knows about a user, merged from every
 source we have — explicit onboarding answers, durable facts the user tells the
 chat (``UserMemory``), Onairos inference, the legacy ``user_facts`` blob, and
 face scans — assembled into a per-dimension structure plus:
@@ -606,7 +606,7 @@ _LINE_BUILDERS = {
 }
 
 _BRIEF_HEADER = (
-    "## WHAT MAX KNOWS ABOUT THIS USER\n"
+    "## WHAT SUPERPOWER KNOWS ABOUT THIS USER\n"
     "Use this to personalize tone, examples, food & culture references, and timing. "
     "Treat it as background you already know — weave it in naturally, never recite it "
     "back as a list, and always prefer what they've told you directly over inferred signals.\n"

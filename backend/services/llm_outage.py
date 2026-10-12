@@ -23,7 +23,7 @@ import asyncio
 from typing import Optional
 
 OUTAGE_REPLY = (
-    "max is having trouble thinking right now. give it a minute and try again, "
+    "superpower is having trouble thinking right now. give it a minute and try again, "
     "your message is saved."
 )
 OUTAGE_REPLY_TIMEOUT = (

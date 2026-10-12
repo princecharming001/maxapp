@@ -44,7 +44,7 @@ CAT_STREAK_MILESTONE = "streak_milestone"   # morning after a streak milestone d
 CAT_COMEBACK = "comeback"                   # fresh-start morning after a streak ended
 CAT_JOURNEY = "journey_milestone"           # day 7 / 14 / 30 / 60 / 90 / 180 / 365
 CAT_PROGRESS_PHOTO = "progress_photo"       # weekly progress photo
-CAT_WEEKLY = "weekly_recap"                 # Sunday "your week with max"
+CAT_WEEKLY = "weekly_recap"                 # Sunday "your week with superpower"
 
 ALL_CATEGORIES = (
     CAT_TASK_DUE,
@@ -261,7 +261,7 @@ _BANKS: dict[str, list[_Tmpl]] = {
         _Tmpl("week {week} photo", "30 seconds now, a real before-and-after later{name_c}.", frozenset({"week"})),
     ],
     CAT_WEEKLY: [
-        _Tmpl("your week with max", "{closed} of 7 days closed, {done} tasks done{name_c}.", frozenset({"closed", "done"})),
+        _Tmpl("your week with superpower", "{closed} of 7 days closed, {done} tasks done{name_c}.", frozenset({"closed", "done"})),
         _Tmpl("week in review", "{done} tasks done this week{name_c}. see where you shined.", frozenset({"done"})),
         _Tmpl("week in review", "your week's wrapped{name_c}. take a look at how it went."),
     ],

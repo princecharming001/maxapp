@@ -80,7 +80,7 @@ export default function WeeklyReviewScreen() {
                     <Ionicons name="arrow-back" size={22} color={INK} />
                 </TouchableOpacity>
 
-                <Text style={styles.kicker}>THIS WEEK WITH MAX</Text>
+                <Text style={styles.kicker}>THIS WEEK WITH SUPERPOWER</Text>
                 <Text style={styles.title}>You showed up</Text>
 
                 <GlassCard radius={24} intensity={40} style={{ marginTop: 14 }}>

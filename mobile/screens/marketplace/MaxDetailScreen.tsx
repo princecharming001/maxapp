@@ -669,7 +669,7 @@ export default function MaxDetailScreen() {
                     <View style={styles.kickerRow}>
                         <View style={[styles.kickerDot, { backgroundColor: base }]} />
                         <Text style={styles.kicker}>
-                            {(item.category || (creatorMaxx ? 'Creator max' : isCourse ? 'Course' : 'Superpower')).toUpperCase()}
+                            {(item.category || (creatorMaxx ? 'Creator max' : isCourse ? 'Course' : 'Max')).toUpperCase()}
                         </Text>
                     </View>
                     <Text style={styles.heroTitle}>{item.title}</Text>

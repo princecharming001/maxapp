@@ -118,7 +118,7 @@ export function useFirstRunWalkthrough(opts: {
         if (cursor === null || cursor === 'done') return;
         const ob = user?.onboarding as Record<string, unknown> | undefined;
         if (ob?.main_app_tour_completed) return;          // finished on another device
-        if (ob?.post_subscription_onboarding) return;     // scan reveal still pending
+        if (ob?.post_subscription_onboarding) return;     // Home is still clearing the post-pay flag
         if (redirectPending || planLoading) return;
 
         // Which step does this visit need?
@@ -143,8 +143,8 @@ export function useFirstRunWalkthrough(opts: {
     }, [enabled, isPaid, isFocused, uid, cursor, user?.onboarding, redirectPending, hasPlan, planLoading, visible, persist]);
 
     // Hold badge celebrations for the WHOLE guided flow, not just while the
-    // card is on screen: "build it" → Explore → start a Max earns "First Steps"
-    // (and the scan already earned "Baseline Set"), and a badge Modal popping
+    // card is on screen: "build it" → Explore → start a Max earns "First Steps",
+    // and a badge Modal popping
     // over the very screen the walkthrough just sent them to breaks the thread.
     // The queue survives; everything promotes the moment they finish.
     const unfinished =

@@ -2,7 +2,7 @@
  * "What Superpower knows about you" — the user-facing window into the hyper-
  * personalization profile (services/personalization on the backend).
  *
- * Shows everything Max has learned — from onboarding, from things you've told
+ * Shows everything Superpower has learned — from onboarding, from things you've told
  * the chat, and from Onairos — grouped by dimension (food, culture, work,
  * rhythm, how-Superpower-talks-to-you, …). The user can ADD anything ("i'm vegetarian",
  * "my family's Tamil", "talk to me straight") and REMOVE anything that's wrong.

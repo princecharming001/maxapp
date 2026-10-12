@@ -239,14 +239,14 @@ export const tests: Record<string, () => void | Promise<void>> = {
         assert.strictEqual(c.title, 'want a ping at 7:30?');
         assert.strictEqual(
             c.body,
-            'max will nudge you when it’s time for morning skincare — and every task after it. no spam, just your plan.',
+            'superpower will nudge you when it’s time for morning skincare — and every task after it. no spam, just your plan.',
         );
     },
 
     'copy: no known next task → plan-level fallback; long titles are clipped': () => {
         const c = primerCopy(null);
         assert.strictEqual(c.title, 'want a ping at task time?');
-        assert.ok(c.body.startsWith('max will nudge you'));
+        assert.ok(c.body.startsWith('superpower will nudge you'));
         const long = primerCopy({ title: 'A'.repeat(120), time: '09:00' });
         assert.ok(long.body.length < 160, 'clipped');
         assert.ok(long.body.includes('…'));

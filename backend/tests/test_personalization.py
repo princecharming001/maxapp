@@ -186,7 +186,7 @@ def test_build_brief_renders_dimensions_and_none_when_empty():
     assert P.build_personalization_brief(P._blank_profile()) is None
     brief = P.build_personalization_brief(_rich_profile())
     assert brief is not None
-    assert "WHAT MAX KNOWS" in brief
+    assert "WHAT SUPERPOWER KNOWS" in brief
     assert "diet: vegetarian" in brief
     assert "allergic to peanuts" in brief
     assert "Tamil-American" in brief
@@ -222,7 +222,7 @@ def test_brief_voice_guidance_on_carries_human_voice_instruction():
     assert "holds them to it" in low
     assert "never invent facts" in low
     # …and the data-derived dimensions still assemble alongside it.
-    assert "WHAT MAX KNOWS" in brief
+    assert "WHAT SUPERPOWER KNOWS" in brief
     assert "diet: vegetarian" in brief
     assert "why: feel more confident" in brief  # goal `why` survives
 

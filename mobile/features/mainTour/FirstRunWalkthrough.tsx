@@ -10,7 +10,7 @@ import type { WalkthroughStep } from './useMainAppTour';
  *
  *   build  "build your first max"  → Explore (they pick; Superpower tailors it)
  *   task   "start with this"       → their first task in TaskGuide
- *   chat   "max is your coach"     → the chat tab
+ *   chat   "superpower is your coach"     → the chat tab
  *
  * The step is CONTROLLED by useFirstRunWalkthrough (persisted per user), so a
  * tap on "build it", a trip through Explore, and a return to Home resume at the

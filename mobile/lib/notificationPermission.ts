@@ -236,7 +236,7 @@ function taskPhrase(title: string): string {
 }
 
 /**
- * e.g. { title: 'want a ping at 7:30?', body: 'max will nudge you when it’s
+ * e.g. { title: 'want a ping at 7:30?', body: 'superpower will nudge you when it’s
  * time for morning skincare — and every task after it. no spam, just your plan.' }
  * Falls back to plan-level copy when no timed next task is known.
  */
@@ -246,8 +246,8 @@ export function primerCopy(next: NextTask | null): { title: string; body: string
     return {
         title: at ? `want a ping at ${at}?` : 'want a ping at task time?',
         body: task
-            ? `max will nudge you when it’s time for ${task} — and every task after it. no spam, just your plan.`
-            : 'max will nudge you when it’s time for each task in your plan. no spam, just your plan.',
+            ? `superpower will nudge you when it’s time for ${task} — and every task after it. no spam, just your plan.`
+            : 'superpower will nudge you when it’s time for each task in your plan. no spam, just your plan.',
     };
 }
 

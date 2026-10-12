@@ -45,7 +45,7 @@ export default function MaxLoadingView() {
 
     return (
         <View style={s.root} accessibilityLabel="Loading">
-            <Animated.Text style={[s.word, { opacity }]}>max</Animated.Text>
+            <Animated.Text style={[s.word, { opacity }]}>superpower</Animated.Text>
             <View style={s.trackWrap}>
                 <Animated.View style={[s.track, { opacity }]}>
                     <Animated.View style={[s.fill, { width: animatedWidth }]} />
@@ -68,7 +68,7 @@ const s = StyleSheet.create({
         fontSize: 32,
         fontWeight: '400',
         color: '#0A0A0A',
-        letterSpacing: 6,
+        letterSpacing: 3,
         textTransform: 'lowercase',
     },
     trackWrap: {

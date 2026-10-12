@@ -42,7 +42,7 @@ function isRenderableWidget(w: any): boolean {
  *  blank state from feeling bare. Short, in the app's blunt coach voice. */
 const EMPTY_STARTERS = [
     'Build my plan for today',
-    'What should I use on my skin?',
+    'Help me sleep better',
     'Rate my routine',
 ];
 

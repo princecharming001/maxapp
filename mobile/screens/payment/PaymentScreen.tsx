@@ -33,7 +33,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Alert } from '../../components/InAppAlert';
 import { LinearGradient } from 'expo-linear-gradient';
-const DUST = require('../../assets/paywall-dust.webp');
+// Same glass-DNA art as Landing and the account step.
+const DUST = require('../../assets/landing-hero.webp');
 import { LiquidGlass } from '../../components/glass/LiquidGlass';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
