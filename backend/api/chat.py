@@ -238,7 +238,8 @@ def _maxx_thread_title(maxx_id: str) -> str:
         "fitmax": "Fitmax",
         "bonemax": "Bonemax",
     }
-    label = pretty.get(maxx_id) or (maxx_id[:1].upper() + maxx_id[1:])
+    from services.ai_programs import AI_PROGRAMS
+    label = (AI_PROGRAMS.get(maxx_id) or {}).get("label") or pretty.get(maxx_id) or (maxx_id[:1].upper() + maxx_id[1:])
     return f"{label} plan"
 
 
@@ -5206,6 +5207,49 @@ async def _send_message_locked_inner(
                 await mark_onboarding_plan_dirty(user_id, db)
     except Exception as _e:
         logger.warning("fact extractor failed (non-fatal): %s", _e)
+
+    # AI programs (Sleepmax, Energymax, …): Claude-driven intake, planning and
+    # "change my plan" redo. Owns the turn when it belongs to one of them;
+    # otherwise falls through to the regular paths below.
+    try:
+        from services.ai_programs import chat_turn as _ai_program_turn
+        _ai_start = (
+            _coerce_chat_maxx_id(data.init_context)
+            if _coerce_chat_intent(data.chat_intent) == "start_schedule"
+            else None
+        )
+        await release_conn(db)
+        async with _CHAT_LLM_SEMAPHORE:
+            _ai_out = await _ai_program_turn(
+                user_id, data.message, db,
+                start_maxx=_ai_start,
+                conversation_id=str(_acid.get() or data.conversation_id or ""),
+            )
+    except Exception:
+        logger.exception("AI program turn failed; falling through")
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        _ai_out = None
+    if _ai_out is not None:
+        _ai_text, _ai_choices, _ai_multi = _ai_out
+        await _persist_turn(
+            db, user_id=user_id, user_message=data.message,
+            assistant_text=_ai_text, conversation_id=_acid.get(),
+        )
+        try:
+            from services.user_brief import invalidate_brief as _invalidate_brief
+            _invalidate_brief(user_id)
+        except Exception:
+            pass
+        conv_id = await _response_conversation_id(db, user_id=user_id, data=data)
+        return ChatResponse(
+            response=user_visible(_ai_text),
+            choices=_ai_choices,
+            multi_choice=_ai_multi,
+            conversation_id=conv_id,
+        )
 
     # Snapshot active schedules BEFORE any path runs, so after dispatch we can
     # tell whether a max's schedule was newly generated this turn and offer the

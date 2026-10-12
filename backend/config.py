@@ -123,6 +123,9 @@ class Settings(BaseSettings):
     # Anthropic Claude -- used for face-scan vision when LLM_PROVIDER=claude
     anthropic_api_key: str = Field(default="")
     anthropic_model: str = Field(default="claude-haiku-4-5")
+    # Model for the AI programs' intake + planner (services/ai_programs.py).
+    # Falls back to anthropic_model, then claude-haiku-4-5, if unavailable.
+    ai_program_model: str = Field(default="claude-sonnet-4-5")
 
     # --- Dynamic per-user onboarding (DYNAMIC_ONBOARDING_SPEC.md) ------------
     # All default OFF; the LLM path requires slot_prefill. With every flag off,

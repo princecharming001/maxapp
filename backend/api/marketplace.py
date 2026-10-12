@@ -38,10 +38,13 @@ router = APIRouter(prefix="/marketplace", tags=["Marketplace"])
 # user can run at once is the plan benefit instead: ChadLite (basic) = 2, Chad
 # (premium) = 3. Creator maxes/courses are still paid and do NOT count here.
 MAXX_PRICE_CENTS = 0
-_NATIVE_SLOTS_BY_TIER = {"premium": 3, "basic": 2}
+# Paid plans stack as many Maxes as they like — the onboarding time budget,
+# not a slot count, keeps the day realistic (the AI planner fits each new
+# program into the minutes left).
+_NATIVE_SLOTS_BY_TIER = {"premium": 99, "basic": 99}
 # Once added, a native max is locked on the schedule for a week before it can be
 # swapped out — users commit to a program instead of churning Maxes daily.
-_MAXX_SWAP_LOCK_DAYS = 7
+_MAXX_SWAP_LOCK_DAYS = 0  # no swap lock: stacking is unlimited
 
 
 def _native_slot_cap(current_user: dict) -> int:
@@ -49,7 +52,7 @@ def _native_slot_cap(current_user: dict) -> int:
     if not current_user.get("is_paid"):
         return 0
     tier = (current_user.get("subscription_tier") or "").strip().lower()
-    return _NATIVE_SLOTS_BY_TIER.get(tier, 2)  # default paid tier = basic (2)
+    return _NATIVE_SLOTS_BY_TIER.get(tier, 99)
 
 
 def _native_entered_ids(ob: dict) -> list[str]:
@@ -72,13 +75,14 @@ def _maxx_lock_until(ob: dict, maxx_id: str):
     until = dt + timedelta(days=_MAXX_SWAP_LOCK_DAYS)
     return until if until > datetime.now(timezone.utc) else None
 
-# Display copy for the native maxes (voice-safe: outcome-first, no body-threat).
+# Display copy for the native maxes — the AI programs (services/ai_programs.py).
+# The retired looks programs (skinmax, hairmax, heightmax, bonemax, fitmax) are
+# intentionally absent, which hides them from Explore and new starts.
+from services.ai_programs import AI_PROGRAMS as _AI_PROGRAMS
+
 _MAXX_DISPLAY: dict[str, dict[str, str]] = {
-    "skinmax":   {"label": "Skinmax",   "icon": "sparkles-outline", "color": "#8B5CF6", "tagline": "clearer, calmer skin"},
-    "fitmax":    {"label": "Fitmax",    "icon": "fitness-outline",  "color": "#10B981", "tagline": "build your best body"},
-    "hairmax":   {"label": "Hairmax",   "icon": "cut-outline",      "color": "#3B82F6", "tagline": "fuller, healthier hair"},
-    "heightmax": {"label": "Heightmax", "icon": "resize-outline",   "color": "#6366F1", "tagline": "posture, height, presence"},
-    "bonemax":   {"label": "Bonemax",   "icon": "body-outline",     "color": "#F59E0B", "tagline": "a sharper jaw and frame"},
+    mid: {"label": p["label"], "icon": p["icon"], "color": p["color"], "tagline": p["tagline"]}
+    for mid, p in _AI_PROGRAMS.items()
 }
 
 # Seeded creator courses (single-player supply so Explore isn't empty at launch).
@@ -161,13 +165,10 @@ _VID_LOOK = "https://download.samplelib.com/mp4/sample-10s.mp4"
 # Covers are aspirational male-face portraits (the "looksmaxxer" register the
 # Landing uses) — not product/gym stock — so browse reads as a face-first
 # marketplace. Each id is theme-matched (jaw, skin, hair, coloring, …).
-_MAXX_MEDIA: dict[str, dict[str, Any]] = {
-    "skinmax":   {"cover": _img("1506794778202-cad84cf45f1d"), "video": _VID_SAMPLE},  # clear-skin frontal
-    "fitmax":    {"cover": _img("1488161628813-04466f872be2"), "inside": _VID_PEXELS}, # lean/fashion full-body
-    "hairmax":   {"cover": _img("1535713875002-d1d0cf377fde")},                        # hair-forward
-    "heightmax": {"cover": _img("1564564321837-a57b7070ac4f")},                        # standing portrait
-    "bonemax":   {"cover": _img("1500648767791-00dcc994a43e")},                        # jaw / hand-on-chin
-}
+# The AI programs render their own glass 3D icon art in the app, so no stock
+# photo cover is attached (the old face-portrait covers belonged to the looks
+# programs).
+_MAXX_MEDIA: dict[str, dict[str, Any]] = {}
 _COURSE_MEDIA: dict[str, dict[str, Any]] = {
     "coloringmax":          {"cover": _img("1463453091185-61582044d556")},                         # brown/tan model — coloring
     "course_glowup_30":     {"cover": _img("1507003211169-0a1dd7228f2d"), "video": _VID_PEXELS},   # glowy frontal
@@ -188,22 +189,21 @@ _GALLERY_POOL: list[str] = [
 
 # Social proof for the native maxes (members already on the program + an
 # aggregate rating). Large numbers reduce perceived risk on browse + detail.
-_MAXX_SOCIAL: dict[str, dict[str, Any]] = {
-    "skinmax":   {"participants": 18200, "rating": 4.8},
-    "fitmax":    {"participants": 41000, "rating": 4.9},
-    "hairmax":   {"participants": 9300,  "rating": 4.6},
-    "heightmax": {"participants": 12700, "rating": 4.7},
-    "bonemax":   {"participants": 7100,  "rating": 4.5},
-}
+# No member counts or ratings for the new programs until there is real data.
+_MAXX_SOCIAL: dict[str, dict[str, Any]] = {}
 
 
-def _cover_for(item_id: str, is_course: bool) -> str:
+def _cover_for(item_id: str, is_course: bool) -> str | None:
+    if not is_course and item_id in _MAXX_DISPLAY:
+        return (_MAXX_MEDIA.get(item_id) or {}).get("cover")
     m = (_COURSE_MEDIA if is_course else _MAXX_MEDIA).get(item_id, {})
     return m.get("cover") or _GALLERY_POOL[0]
 
 
 def _detail_media(item_id: str, is_course: bool) -> dict[str, Any]:
     """Gallery + optional hero video for the full detail page."""
+    if not is_course and item_id in _MAXX_DISPLAY:
+        return {"gallery": []}
     m = (_COURSE_MEDIA if is_course else _MAXX_MEDIA).get(item_id, {})
     cover = m.get("cover") or _GALLERY_POOL[0]
     gallery = [cover] + [g for g in _GALLERY_POOL if g != cover][:3]
@@ -428,30 +428,33 @@ _COURSE_DETAIL: dict[str, dict[str, Any]] = {
 # Native maxes are ongoing programs (not week courses), so their detail is
 # outcomes + how-it-works + proof rather than a fixed syllabus.
 _MAXX_DETAIL: dict[str, dict[str, Any]] = {
-    "skinmax": {
-        "long_description": "Your skin, handled. A dermatology-grounded routine that adapts to your concern, skin type and barrier — fit into your real mornings and evenings by Superpower.",
-        "outcomes": ["A personalized AM + PM routine", "The right cleanser, serum, moisturizer and SPF for you", "Actives introduced without irritation", "Progress you can see in your photos"],
-        "reviews": [_rev("Ivy R.", 47, 5, "It just tells me what to do each morning and night. My skin's the best it's been."), _rev("Leo M.", 14, 4, "Cleared my forehead in a month.")],
+    "sleepmax": {
+        "long_description": "A steady body clock without overhauling your life. Superpower asks a couple of questions, then places small habits around your real wake and bed times: morning light, a caffeine cutoff, a short wind-down and a bedroom set up for sleep.",
+        "outcomes": ["A wind-down that starts at the right time for you", "Morning light and caffeine timed to your day", "Weekends that don't undo your week", "Change anything by just asking in chat"],
     },
-    "fitmax": {
-        "long_description": "Build your best body with training that fits the time you actually have. Superpower programs the sessions and slots them into your week.",
-        "outcomes": ["A plan matched to your goal and schedule", "Progression that keeps working", "Sessions that fit real life", "Strength + composition you can track"],
-        "reviews": [_rev("Dre K.", 13, 5, "Three days a week and I'm finally consistent."), _rev("Mara P.", 25, 5, "The plan flexes when my week blows up.")],
+    "energymax": {
+        "long_description": "Fewer afternoon slumps from the small things that move energy most: water and light after waking, smarter caffeine timing, movement snacks and a walk after meals, all fitted between your meetings.",
+        "outcomes": ["A morning start that sets the day up", "Caffeine timed so it helps, not hurts", "Movement snacks that fit a desk day", "A plan that flexes when your week does"],
     },
-    "hairmax": {
-        "long_description": "Fuller, healthier hair through a consistent, evidence-based routine — scalp care, the right actives, and habits that compound.",
-        "outcomes": ["A scalp + hair routine that fits your day", "The right actives for your situation", "Consistency that actually compounds", "Track shedding and regrowth honestly"],
-        "reviews": [_rev("Theo S.", 33, 4, "Less shedding within weeks. The reminders are everything."), _rev("Quinn L.", 44, 5, "Simple and consistent. Finally.")],
+    "focusmax": {
+        "long_description": "Protect the hours that matter. Plan your top three, guard one deep-work block, keep the phone out of reach and close the day with a shutdown ritual, placed inside your actual work hours.",
+        "outcomes": ["One protected deep-work block a day", "A two-minute plan for your top three", "Breaks that actually reset you", "A clean end to the workday"],
     },
-    "heightmax": {
-        "long_description": "Posture, height and presence — daily mobility and strength that help you stand taller and carry yourself with confidence.",
-        "outcomes": ["Taller, more open posture", "Less stiffness and tension", "Short daily resets that fit your day", "Presence you can feel"],
-        "reviews": [_rev("Owen R.", 12, 5, "Stand straighter without thinking about it now."), _rev("Bea T.", 49, 4, "Subtle but people noticed.")],
+    "calmmax": {
+        "long_description": "Quick resets for busy days: breathing you can do anywhere, walks outside, an evening brain dump and screen-free time before bed, short enough to fit between everything else.",
+        "outcomes": ["Breathing resets that take two minutes", "Time outside built into your week", "An evening routine that switches you off", "Gentle, never another thing to stress about"],
     },
-    "bonemax": {
-        "long_description": "A sharper jaw and frame through safe, consistent fundamentals — posture, breathing and the basics that compound over months.",
-        "outcomes": ["Correct tongue + jaw posture", "A safe, sustainable routine", "Consistency without overdoing it", "Fundamentals before anything advanced"],
-        "reviews": [_rev("Cy D.", 8, 4, "Done right, not the hype version."), _rev("Nia B.", 52, 5, "The cues make it a habit.")],
+    "trainmax": {
+        "long_description": "Strength and movement that fit the time you have. Two to four short sessions a week, a daily steps floor, mobility and posture work, scheduled around your real calendar.",
+        "outcomes": ["Short full-body sessions you can keep up", "A daily steps floor", "Mobility and posture work for desk days", "Rest days placed where they belong"],
+    },
+    "skinhairmax": {
+        "long_description": "Simple, evidence-based care: cleanse, moisturize and SPF in the morning, a calm evening routine, and gentle scalp care, introduced slowly and fitted around your showers.",
+        "outcomes": ["A short AM and PM routine", "Daily SPF that actually happens", "Gentle scalp and hair care", "New steps added slowly, never all at once"],
+    },
+    "longevitymax": {
+        "long_description": "The basics that compound: easy cardio, strength twice a week, daily steps, vegetables first and steady sleep, plus reminders to keep up your routine checkups.",
+        "outcomes": ["Zone-2 cardio that fits your week", "Strength twice a week", "A steps habit that sticks", "Checkup reminders, no medical advice"],
     },
 }
 
@@ -953,6 +956,10 @@ async def _generate_program_schedule(
     'N things landed on your week' is true the moment the sheet says it.
     Best-effort - a generation failure never blocks the purchase."""
     try:
+        if not is_course and item_id in _MAXX_DISPLAY:
+            # AI programs build their plan in chat after a short Claude intake
+            # (services/ai_programs.chat_turn) — nothing to pre-generate here.
+            return False
         if is_course and item_id not in _NATIVE_SCHEDULED_COURSES:
             course = next((c for c in _SEED_COURSES if c["id"] == item_id), None)
             if course is None:

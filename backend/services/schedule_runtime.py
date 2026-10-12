@@ -28,6 +28,11 @@ from services.schedule_validator import _ANTAGONISTIC, HARD_DAILY_TASK_CAP
 logger = logging.getLogger(__name__)
 
 
+class _AiExpanded(Exception):
+    """Internal control flow: an AI program's template was expanded, skip the
+    doc-engine validate/humanize steps for it."""
+
+
 class ScheduleLimitError(Exception):
     def __init__(self, active_labels: list[str]):
         self.active_labels = active_labels
@@ -525,16 +530,27 @@ async def regenerate_active_schedules(
         mid = sched.maxx_id or ""
         if only_max and mid != only_max:
             continue
-        if not has_skeleton(mid):
-            continue
-        doc = get_doc(mid)
-        if doc is None:
-            continue
-        sd = doc.schedule_design or {}
-        cadence_days = int(sd.get("cadence_days", 14))
-        budget = sd.get("daily_task_budget") or [2, 6]
+        from services.ai_programs import AI_PLAN_DAYS, expand_template, is_ai_program
+        ai_tmpl = (sched.schedule_context or {}).get("ai_plan") if is_ai_program(mid) else None
+        if ai_tmpl is None:
+            if not has_skeleton(mid):
+                continue
+            doc = get_doc(mid)
+            if doc is None:
+                continue
+            sd = doc.schedule_design or {}
+            cadence_days = int(sd.get("cadence_days", 14))
+            budget = sd.get("daily_task_budget") or [2, 6]
 
         try:
+            if ai_tmpl is not None:
+                # AI program: the stored Claude template IS the plan — re-expand
+                # it (no LLM) and let the shared tail below (overrides, fence,
+                # status-preserving merge) do the rest.
+                fixed_new = expand_template(mid, ai_tmpl, start_date=today, n_days=AI_PLAN_DAYS)
+                from services.task_fields import normalize_days as _nd_ai
+                _nd_ai(fixed_new, mid)
+                raise _AiExpanded()
             new_days = expand_skeleton(
                 maxx_id=mid, user_state=state, wake=wake, sleep=sleep,
                 cadence_days=cadence_days,
@@ -552,6 +568,8 @@ async def regenerate_active_schedules(
             )
             from services.human_time import humanize_days
             humanize_days(fixed_new, state)
+        except _AiExpanded:
+            pass
         except Exception as e:
             logger.warning("regen failed for max=%s user=%s: %s", mid, user_id, e)
             continue
@@ -578,7 +596,7 @@ async def regenerate_active_schedules(
 
         # Ensure habits the user explicitly WANTED stay present on every regen.
         wanted = set(sctx.get("wanted_catalog_ids") or []) - excluded
-        if wanted:
+        if wanted and ai_tmpl is None:
             fixed_new = _ensure_wanted_tasks(fixed_new, wanted, mid, state=state, wake=wake, sleep=sleep)
             # Re-space the injected tasks, then stamp canonical fields on them —
             # the single-program regen path has no later normalize/reconcile pass,

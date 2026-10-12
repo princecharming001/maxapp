@@ -49,8 +49,8 @@ _SCHEDULE_ADAPT_COMPACT_RETRY_SUFFIX = (
     "do not duplicate meal lists across tasks."
 )
 
-MAX_ACTIVE_SCHEDULES_BASIC = 2      # Chadlite tier
-MAX_ACTIVE_SCHEDULES_PREMIUM = 3    # Chad tier
+MAX_ACTIVE_SCHEDULES_BASIC = 99     # paid: unlimited stacking (time budget keeps days sane)
+MAX_ACTIVE_SCHEDULES_PREMIUM = 99   # paid: unlimited stacking
 
 # Default horizon for new schedules (~1 month). LLM + fallbacks must repeat weekly/biweekly
 # checkpoints across all generated days, not only in week 1.

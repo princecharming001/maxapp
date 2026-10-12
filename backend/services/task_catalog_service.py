@@ -68,6 +68,13 @@ async def _load() -> None:
             by_id={t.id: t for t in doc.tasks},
             info_schema=info_schema,
         )
+    # The AI programs (Sleepmax, Energymax, …) are research docs, not .md
+    # schedule docs — register their catalog entries alongside.
+    try:
+        from services.ai_programs import register_ai_program_docs
+        register_ai_program_docs()
+    except Exception:
+        logger.exception("task_catalog: AI program registration failed")
     _CACHE_LOAD_TS = time.time()
     logger.info(
         "task_catalog: loaded %d maxes (%d total tasks) in %.0fms",

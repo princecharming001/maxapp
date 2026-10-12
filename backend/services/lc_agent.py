@@ -1008,6 +1008,35 @@ def make_chat_tools(
             return f"could not update schedule: {e}"
 
     # ------------------------------------------------------------------ #
+    #  redo_program_plan (AI programs: Sleepmax, Energymax, Focusmax, ...) #
+    # ------------------------------------------------------------------ #
+    @tool
+    async def redo_program_plan(maxx_id: str, request: str) -> str:
+        """
+        Rebuild one of the user's AI programs (sleepmax, energymax, focusmax,
+        calmmax, trainmax = Fitmax, skinhairmax = Skin & Hair, longevitymax)
+        from what they asked: "make my sleep plan lighter", "move my workouts
+        to evenings", "swap the journaling for a walk", "redo my whole plan".
+        Pass the program id and the user's request in their own words. Use this
+        for ANY change to these programs instead of edit/modify tools.
+        """
+        from services.ai_programs import is_ai_program, plan_reply, redo_program_plan as _redo
+        mid = (maxx_id or "").strip().lower()
+        if not is_ai_program(mid):
+            return "that program is not an AI program; use the regular schedule tools."
+        try:
+            async with db_mutation_lock:
+                tmpl = await _redo(user_id, mid, request or "rebuild my plan", db)
+            if tmpl is None:
+                return "could not rebuild that plan right now (no active plan, or the planner was unavailable)."
+            coaching_service.invalidate_context_cache(user_id)
+            return "REBUILT. Show the user this plan, then ask if they want any other change:\n" + plan_reply(mid, tmpl, redo=True)
+        except Exception as e:
+            await _safe_rollback()
+            logger.exception("redo_program_plan tool failed: %s", e)
+            return f"could not rebuild the plan: {e}"
+
+    # ------------------------------------------------------------------ #
     #  generate_maxx_schedule                                              #
     # ------------------------------------------------------------------ #
     @tool
@@ -1043,6 +1072,13 @@ def make_chat_tools(
         maxx_id must be one of: skinmax, heightmax, hairmax, fitmax, bonemax.
         Returns a summary of day 1 tasks or an error message listing what is missing.
         """
+        from services.ai_programs import is_ai_program as _is_ai, program_label as _pl
+        if _is_ai((maxx_id or "").strip().lower()):
+            return (
+                f"{_pl(maxx_id.strip().lower())} is set up through a short chat intake. Tell the user to say "
+                f"'start {_pl(maxx_id.strip().lower()).lower()}' or tap Start my plan on its page in Explore. "
+                "To change an existing one, use redo_program_plan."
+            )
         # ---- New doc-driven path -------------------------------------------------
         # If a max-doc exists for this maxx_id, route to the new generator.
         # All required-field validation, prompt assembly, task picking, validation
@@ -2467,6 +2503,7 @@ def make_chat_tools(
 
     return [
         propose_schedule_change,
+        redo_program_plan,
         modify_schedule,
         generate_maxx_schedule,
         stop_schedule,

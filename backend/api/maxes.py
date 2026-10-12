@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_rds_db_optional
 from middleware.auth_middleware import get_current_user
 from models.rds_models import Maxx
+from services.ai_programs import AI_PROGRAMS
 from services.maxx_guidelines import MAXX_GUIDELINES, get_maxx_guideline
 
 router = APIRouter(prefix="/maxes", tags=["Maxes"])
@@ -54,18 +55,9 @@ async def list_maxes(
     if _list_cache is not None and (time.monotonic() - _list_cached_at) < _LIST_TTL_SECONDS:
         return _list_cache
 
-    payload: dict | None = None
-    if rds_db is not None:
-        try:
-            result = await rds_db.execute(select(Maxx).where(Maxx.is_active == True))
-            rows = result.scalars().all()
-            if rows:
-                payload = {"maxes": [_serialize_row(m) for m in rows]}
-        except Exception:
-            # Connection / query failure — degrade gracefully.
-            pass
-    if payload is None:
-        payload = {"maxes": [_serialize_fallback(mid) for mid in _DISPLAY]}
+    # The catalog is the AI programs (services/ai_programs.py). The RDS `maxes`
+    # rows describe the retired looks programs and are no longer listed.
+    payload = {"maxes": [_serialize_ai_program(mid) for mid in AI_PROGRAMS]}
 
     _list_cache = payload
     _list_cached_at = time.monotonic()
@@ -78,7 +70,9 @@ async def get_maxx(
     current_user: dict = Depends(get_current_user),
     rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
-    """Return a single maxx by id (e.g. 'fitmax')"""
+    """Return a single maxx by id (e.g. 'sleepmax')"""
+    if maxx_id in AI_PROGRAMS:
+        return _serialize_ai_program(maxx_id)
     if rds_db is not None:
         try:
             result = await rds_db.execute(select(Maxx).where(Maxx.id == maxx_id))
@@ -118,6 +112,16 @@ def _serialize_row(m: Maxx) -> dict[str, Any]:
         "concern_question": m.concern_question or fallback.get("concern_question"),
         "is_active": m.is_active,
         "created_at": m.created_at,
+    }
+
+
+def _serialize_ai_program(maxx_id: str) -> dict[str, Any]:
+    p = AI_PROGRAMS[maxx_id]
+    return {
+        "id": maxx_id, "label": p["label"], "description": p["description"],
+        "tagline": p["tagline"], "icon": p["icon"], "color": p["color"],
+        "modules": [], "protocols": {}, "concerns": [], "concern_question": None,
+        "is_active": True, "created_at": None, "ai_program": True,
     }
 
 

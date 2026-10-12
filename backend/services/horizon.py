@@ -118,7 +118,7 @@ async def ensure_plan_horizon(user: User, db: AsyncSession) -> dict[str, int]:
                     out["course_extensions"] += 1
             except Exception as e:
                 logger.warning("course horizon extend failed (non-fatal): %s", e)
-        elif has_skeleton(sched.maxx_id or ""):
+        elif has_skeleton(sched.maxx_id or "") or (sched.schedule_context or {}).get("ai_plan"):
             regen_targets.append(sched.maxx_id or "")
             attempted.append(sched)
 
