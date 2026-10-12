@@ -1,28 +1,19 @@
 /**
- * Onboarding v2 (flag `onboardingV2`) — a calm pass that learns the real shape
- * of someone's day so the scheduler can fit routines INTO their life instead of
- * on top of it.
+ * Onboarding — learns what the user wants to feel better at, how hard they want
+ * to go, and the real shape of their day, then shows a first stack of habits
+ * placed into that day BEFORE the paywall.
  *
  * Aesthetic: Cal AI × Stoic. Soft gray canvas, white soft-shadow pill cards,
  * black-fill selection, centered bold headlines, a compact centered "Continue"
- * pill. Content is centered horizontally AND vertically on every screen. Every
- * choice option carries an icon (Cal AI). Times are set with a Stoic-style
- * wheel picker that slides up from the bottom. One decision per screen.
+ * pill. One decision per screen. Times are set with a wheel picker.
  *
- * The questions:
- *   1. Goals       — 5 maxx tiles, first tap = #1 priority, up to 3.
- *   2. Motivation  — one tap; Life-Model `motivation` (tunes Superpower's voice).
- *   3. Day shape   — wake / get-ready / wind-down (wheel picker rows).
- *   4. Work hours  — set weekday hours (toggle + start/end wheel rows).
- *   5. Where       — office/hybrid/home + commute  (only when they work).
- *   6. Meals       — breakfast / lunch / dinner, each with a skip toggle.
- *   7. Workout     — workout time (wheel picker row).
- *   8. Weekends    — same rhythm or shift later, icon cards.
- *   9. Shower      — when they usually shower (AM / PM / both), icon cards.
- *  10. Your day    — a read-only recap of the day we just learned.
- *
- * Saving (completed=false) triggers the backend starter-routine generation,
- * then we push RoutineReveal (RevealV2 renders behind the same route name).
+ * Two phases (same screen, different slices):
+ *   intro    — goals (up to 2) · level (low / medium / high) · day shape ·
+ *              work or school · where you work (only when they work) ·
+ *              "your first stack" preview  → referral code → paywall → account
+ *   schedule — fine-tune after purchase: meals · workout · weekends · shower ·
+ *              recap → finish() → Main. Every fine-tune screen can be skipped
+ *              (defaults are sensible), so value never waits on them.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -39,17 +30,7 @@ import {
     View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Image as ExpoImage } from 'expo-image';
 
-// Per-Superpower glossy icons (the same art used on Explore). Shown in the focus picker
-// in place of flat glyphs.
-const MAXX_THUMBS: Record<string, any> = {
-    skinmax: require('../../assets/maxxThumbs/cut/skinmax.png'),
-    fitmax: require('../../assets/maxxThumbs/cut/fitmax.png'),
-    hairmax: require('../../assets/maxxThumbs/cut/hairmax.png'),
-    heightmax: require('../../assets/maxxThumbs/cut/heightmax.png'),
-    bonemax: require('../../assets/maxxThumbs/cut/bonemax.png'),
-};
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -69,18 +50,27 @@ import {
     seedAnswersFromServerOnboarding,
     firstUnansweredIntroStep,
 } from '../../lib/onboardingDraft';
+import {
+    BIOHACK_GOALS,
+    BIOHACK_LEVELS,
+    LEVEL_TO_EFFORT,
+    LEVEL_TO_INTENSITY,
+    MAX_GOALS,
+    buildStarterStack,
+    priorityTokensFor,
+    stackMinutes,
+    type BiohackLevel,
+} from '../../lib/starterStack';
 
 // Stable per-step keys for funnel analytics (title → slug), so step drop-off
 // is queryable regardless of copy edits. Keep in sync with the step titles.
 const STEP_KEYS: Record<string, string> = {
-    'How old\nare you?': 'age',
-    'You are…': 'gender',
-    'What are we\nworking on?': 'goals',
-    "What's pulling\nyou here?": 'motivation',
-    'How hard do you\nwant to go?': 'effort',
+    'What do you want to\nfeel better at?': 'goals',
+    'How hard do you want\nto biohack?': 'level',
     'The shape of\nyour day': 'day_shape',
     'Work or\nschool?': 'work',
     'Where do\nyou work?': 'work_location',
+    'Your first\nstack': 'first_stack',
     'When do\nyou eat?': 'meals',
     'When do you\nwork out?': 'workout',
     'Weekends?': 'weekend_rhythm',
@@ -158,42 +148,6 @@ function PrimaryButton({
         </TouchableOpacity>
     );
 }
-
-const MAXX_TILES = [
-    { id: 'skinmax', token: 'skin', label: 'Skinmax', tagline: 'clearer, calmer skin', icon: 'sparkles-outline' },
-    { id: 'fitmax', token: 'body', label: 'Fitmax', tagline: 'build your best body', icon: 'fitness-outline' },
-    { id: 'hairmax', token: 'hair', label: 'Hairmax', tagline: 'fuller, healthier hair', icon: 'cut-outline' },
-    { id: 'heightmax', token: 'height', label: 'Heightmax', tagline: 'posture and presence', icon: 'resize-outline' },
-    { id: 'bonemax', token: 'face_structure', label: 'Bonemax', tagline: 'a sharper jaw and frame', icon: 'body-outline' },
-] as const;
-
-// Identity brackets (funnel V4). Multiple choice — a slider begs for lies;
-// brackets are one honest tap.
-const AGE_BANDS = ['Under 18', '18–24', '25–34', '35+'] as const;
-
-const GENDERS = [
-    { id: 'male', label: 'Male' },
-    { id: 'female', label: 'Female' },
-] as const;
-
-// How hard they want to go — sets expectations before the paywall and feeds
-// the scheduler's daily load.
-const EFFORTS = [
-    { id: 'light', label: 'Light touch', sub: 'some tips and tricks' },
-    { id: 'steady', label: 'Steady', sub: 'tweaking my daily routine' },
-    { id: 'all_in', label: 'All in', sub: 'becoming a new person' },
-] as const;
-
-const MOTIVATIONS = [
-    { id: 'heartbreak', label: 'Someone broke my heart' },
-    { id: 'no_respect', label: 'No one respects me' },
-    { id: 'event', label: 'An upcoming date or event' },
-    { id: 'mog', label: 'I just want to mog' },
-    { id: 'curious', label: 'Just curious' },
-    // Open-ended escape hatch — picking this reveals a text box so the real
-    // reason isn't forced into one of the buckets above.
-    { id: 'other', label: 'Something else' },
-] as const;
 
 // Each choice option carries its own icon (Cal AI style). When the user usually
 // showers tells the scheduler where to anchor hygiene/skin routines — the AM
@@ -543,12 +497,8 @@ function Slider({
     );
 }
 
-// Funnel V4 phases. The scan capture is the FIRST thing after "Get started"
-// (RootNavigator boots new users into FaceScan), so the whole question run
-// doubles as loading time for the analysis:
-//   intro    — age, gender, goals, motivation, effort (scan analyzes behind
-//              them) → results gate → paywall → account
-//   schedule — day-shape/work/meals/… after purchase + account → finish → Main
+// The two phases this screen runs (see the header comment). The paywall and
+// account steps sit between them.
 export type OnboardingPhase = 'intro' | 'schedule';
 
 export default function OnboardingV2Screen() {
@@ -560,25 +510,8 @@ export default function OnboardingV2Screen() {
     const [step, setStep] = useState(0);
     const [dir, setDir] = useState(1); // +1 forward, -1 back — drives slide direction
     const [phase, setPhase] = useState<OnboardingPhase>(route?.params?.phase ?? 'intro');
-    // Set when the user declined the scan at the offer screen — the intro run
-    // then ends at the paywall instead of the (scan-less) results gate. An
-    // EXPLICIT boolean param is authoritative either way: FaceScan hands off
-    // with scanSkipped:false after a capture, and that must beat a stale
-    // scanSkipped:true in the draft (skipped once, scanned on a later launch)
-    // — otherwise the scan they just took was never shown pre-pay.
-    const paramScanSkipped: boolean | undefined =
-        typeof route?.params?.scanSkipped === 'boolean' ? route.params.scanSkipped : undefined;
-    const [scanSkipped, setScanSkipped] = useState<boolean>(paramScanSkipped ?? false);
-    // Latched once the server says a scan row exists — a draft restore that
-    // resolves later must not flip scanSkipped back to true.
-    const scanExistsRef = useRef<boolean>(user?.first_scan_completed === true);
-    const [ageBand, setAgeBand] = useState<string | null>(null);
-    const [gender, setGender] = useState<string | null>(null);
-    const [effort, setEffort] = useState<string | null>(null);
     const [goals, setGoals] = useState<string[]>([]);
-    const [motivation, setMotivation] = useState<string | null>(null);
-    // Free-text reason when motivation === 'other' (the custom answer path).
-    const [motivationOther, setMotivationOther] = useState('');
+    const [level, setLevel] = useState<BiohackLevel | null>(null);
     const [wakeMin, setWakeMin] = useState(7 * 60);
     // Get-ready (AM routine) + wind-down (PM routine) are WINDOWS, not a time +
     // duration / a single bedtime. The wind-down window's END is bedtime.
@@ -600,6 +533,11 @@ export default function OnboardingV2Screen() {
     const [showerTime, setShowerTime] = useState<string | null>(null);
     const [workoutMin, setWorkoutMin] = useState(7 * 60); // 7 AM default
     const [weekendShift, setWeekendShift] = useState(true);
+    // First-stack preview: which habit is expanded, and which ones the user
+    // already did right there ("Do it now"). Local only — the real plan is
+    // built after purchase.
+    const [openHabit, setOpenHabit] = useState<string | null>(null);
+    const [doneHabits, setDoneHabits] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     // finish(): the schedule answers are committed server-side; only the
@@ -618,16 +556,12 @@ export default function OnboardingV2Screen() {
         let cancelled = false;
         const uid = user?.id;
         // Server-saved answers come first (a new phone / reinstall has no
-        // local draft, but the intro save landed goals/age/gender/motivation
-        // server-side — never ask those twice, and never let finish() re-send
-        // them empty). The local draft, when present, overrides on top.
+        // local draft, but the intro save landed them server-side — never ask
+        // twice, and never let finish() re-send them empty). The local draft,
+        // when present, overrides on top.
         const seed = seedAnswersFromServerOnboarding(user?.onboarding);
         if (seed.goals) setGoals(seed.goals);
-        if (seed.ageBand) setAgeBand(seed.ageBand);
-        if (seed.gender) setGender(seed.gender);
-        if (seed.motivation) setMotivation(seed.motivation);
-        if (typeof seed.motivationOther === 'string') setMotivationOther(seed.motivationOther);
-        if (seed.effort) setEffort(seed.effort);
+        if (seed.level) setLevel(seed.level as BiohackLevel);
         void (uid ? loadOnboardingDraft(uid) : Promise.resolve(null))
             .then((d) => {
                 if (cancelled) return;
@@ -641,17 +575,8 @@ export default function OnboardingV2Screen() {
                     return;
                 }
                 const a = d.answers || {};
-                if (
-                    typeof a.scanSkipped === 'boolean'
-                    && paramScanSkipped === undefined
-                    && !scanExistsRef.current
-                ) setScanSkipped(a.scanSkipped);
-                if (typeof a.ageBand === 'string') setAgeBand(a.ageBand);
-                if (typeof a.gender === 'string') setGender(a.gender);
-                if (typeof a.effort === 'string') setEffort(a.effort);
-                if (Array.isArray(a.goals)) setGoals(a.goals);
-                if (a.motivation === null || typeof a.motivation === 'string') setMotivation(a.motivation);
-                if (typeof a.motivationOther === 'string') setMotivationOther(a.motivationOther);
+                if (Array.isArray(a.goals)) setGoals(a.goals.slice(0, MAX_GOALS));
+                if (a.level === 'low' || a.level === 'medium' || a.level === 'high') setLevel(a.level);
                 if (typeof a.wakeMin === 'number') setWakeMin(a.wakeMin);
                 if (typeof a.grStart === 'number') setGrStart(a.grStart);
                 if (typeof a.grEnd === 'number') setGrEnd(a.grEnd);
@@ -678,23 +603,19 @@ export default function OnboardingV2Screen() {
                 }
                 // Only restore the step INDEX when the draft's phase matches the
                 // phase we're actually resuming into: step indices are relative
-                // to a phase's own slice, so an intro draft's step applied to
-                // the schedule phase (post-claim hand-off) silently skipped its
-                // first questions (day-shape / work / meals).
+                // to a phase's own slice.
                 const effectivePhase =
                     route?.params?.phase ?? (d.phase === 'intro' || d.phase === 'schedule' ? d.phase : 'intro');
                 if (typeof d.step === 'number' && d.step >= 0 && d.phase === effectivePhase) {
                     setStep(d.step);
                 }
-                // Funnel checkpoint past the intro (gate / referral / paywall):
-                // when this wizard is the stack's INITIAL route (relaunch with a
-                // completed scan boots straight here, bypassing ScanOffer's
-                // resume guard) forward to that step instead of re-asking the
-                // last question. A hand-off with an explicit phase param is a
-                // real re-entry and is left alone.
+                // Funnel checkpoint past the intro (referral / paywall): when
+                // this wizard is the stack's INITIAL route (a relaunch), forward
+                // to that step instead of re-asking the last question. A
+                // hand-off with an explicit phase param is a real re-entry and
+                // is left alone.
                 if (!route?.params?.phase && effectivePhase === 'intro') {
-                    if (d.stage === 'gate') resumeForwardRef.current = { route: 'FaceScanResults', params: { gateV4: true } };
-                    else if (d.stage === 'referral') resumeForwardRef.current = { route: 'ReferralCode' };
+                    if (d.stage === 'referral') resumeForwardRef.current = { route: 'ReferralCode' };
                     else if (d.stage === 'paywall') resumeForwardRef.current = { route: 'Payment' };
                 }
             })
@@ -730,22 +651,21 @@ export default function OnboardingV2Screen() {
     useEffect(() => {
         if (!draftLoaded || !user?.id) return;
         void saveOnboardingDraft(user.id, step, {
-            scanSkipped, ageBand, gender, effort,
-            goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
+            goals, level, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
             workStartMin, workEndMin, workLocation, commuteMin,
             breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
             showerTime, workoutMin, weekendShift,
         }, phase);
     }, [
-        draftLoaded, user?.id, step, phase, scanSkipped, ageBand, gender, effort,
-        goals, motivation, motivationOther, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
+        draftLoaded, user?.id, step, phase,
+        goals, level, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
         workStartMin, workEndMin, workLocation, commuteMin,
         breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
         showerTime, workoutMin, weekendShift,
     ]);
 
-    // Hand-offs back into the wizard (FaceScan → effort, CreateAccount →
-    // schedule) arrive as a route-param change on the already-mounted screen.
+    // Hand-off back into the wizard (CreateAccount → schedule) arrives as a
+    // route-param change on the already-mounted screen.
     useEffect(() => {
         const p = route?.params?.phase;
         if ((p === 'intro' || p === 'schedule') && p !== phase) {
@@ -755,34 +675,6 @@ export default function OnboardingV2Screen() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [route?.params?.phase]);
-
-    // An explicit scanSkipped param on an already-mounted wizard (FaceScan
-    // re-handing off after a retake) is authoritative — see above.
-    useEffect(() => {
-        if (paramScanSkipped !== undefined) setScanSkipped(paramScanSkipped);
-    }, [paramScanSkipped]);
-
-    // scanSkipped can never be true while a scan exists: the offer was
-    // declined on an earlier launch, but this launch took one (the resume
-    // guard re-offers when no row exists). Server truth wins over the draft.
-    useEffect(() => {
-        if (user?.first_scan_completed) {
-            scanExistsRef.current = true;
-            setScanSkipped(false);
-            return;
-        }
-        let cancelled = false;
-        void api.getLatestScan()
-            .then((s: { processing_status?: string } | null) => {
-                if (cancelled || !s) return;
-                if (s.processing_status === 'processing' || s.processing_status === 'completed') {
-                    scanExistsRef.current = true;
-                    setScanSkipped(false);
-                }
-            })
-            .catch(() => undefined);
-        return () => { cancelled = true; };
-    }, [user?.first_scan_completed]);
 
     // Wheel picker — `picker` holds the field currently being edited. A bumping
     // key forces a fresh sheet (correct initial scroll) every time one opens.
@@ -801,7 +693,7 @@ export default function OnboardingV2Screen() {
 
     const toggleGoal = (id: string) => {
         setGoals((g) =>
-            g.includes(id) ? g.filter((x) => x !== id) : g.length < 3 ? [...g, id] : g,
+            g.includes(id) ? g.filter((x) => x !== id) : g.length < MAX_GOALS ? [...g, id] : g,
         );
     };
 
@@ -827,50 +719,51 @@ export default function OnboardingV2Screen() {
     const onGrStart = (v: number) => { const s = clampGr(v); setGrStart(s); setGrEnd(clampGr(s + GR_DUR)); };
     const onWdStart = (v: number) => { const se = clampWdEve(v); setWdStart(fromEve(se)); setWdEnd(fromEve(Math.min(WD_HI, se + WD_DUR))); };
 
-    // Funnel V4: everything before the scan hand-off, persisted early so the
-    // scan analysis + paywall personalization can read it (fire-and-forget —
-    // a transient failure must never block the funnel; finish() re-sends it all).
+    // Answers shared by the intro save and finish(). Level maps onto the
+    // scheduler's existing intensity ramp (low = chill … high = sweatmode) and
+    // the legacy effort token, so every downstream reader stays in step.
+    const levelFields = () => ({
+        biohack_level: level,
+        intensity_preference: level ? LEVEL_TO_INTENSITY[level] : null,
+        effort_level: level ? LEVEL_TO_EFFORT[level] : null,
+    });
+    const dayFields = () => ({
+        wake_time: hhmm(wakeMin),
+        // Get-ready (AM routine) window — keep legacy scalars in sync.
+        get_ready_window: [hhmm(grStart), hhmm(grEnd)],
+        get_ready_time: hhmm(grStart),
+        get_ready_minutes: Math.max(5, ((grEnd - grStart + 1440) % 1440) || 30),
+        // Wind-down (PM routine) window — bedtime is its end.
+        wind_down_window: [hhmm(wdStart), hhmm(wdEnd)],
+        sleep_window: [hhmm(wdStart), hhmm(wdEnd)],
+        sleep_time: hhmm(wdEnd),
+        obligations: works
+            ? [{ label: 'Work', start: hhmm(workStartMin), end: hhmm(workEndMin), days: 'weekdays' }]
+            : [],
+        work_location: works ? workLocation : 'home',
+        commute_minutes: hasCommute ? commuteMin : 0,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    });
+
+    // Everything the intro learned, persisted before the paywall so a relaunch
+    // or a new phone never re-asks it (fire-and-forget — a transient failure
+    // must never block the funnel; finish() re-sends it all).
     const introPayload = () => ({
         goals,
-        priority_order: goals
-            .map((id) => MAXX_TILES.find((t) => t.id === id)?.token)
-            .filter(Boolean) as string[],
-        motivation,
-        motivation_other: motivation === 'other' ? motivationOther.trim() : null,
-        age_band: ageBand,
-        gender,
+        priority_order: priorityTokensFor(goals),
+        ...levelFields(),
+        ...dayFields(),
         completed: false,
     });
 
     const finish = async () => {
         setSaving(true);
         setError(null);
-        const tokens = goals
-            .map((id) => MAXX_TILES.find((t) => t.id === id)?.token)
-            .filter(Boolean) as string[];
         const payload = {
-                age_band: ageBand,
-                gender,
-                effort_level: effort,
                 goals,
-                priority_order: tokens,
-                motivation,
-                // Free-text reason when "Something else" was picked (custom path).
-                motivation_other: motivation === 'other' ? motivationOther.trim() : null,
-                wake_time: hhmm(wakeMin),
-                // Get-ready (AM routine) window — keep legacy scalars in sync.
-                get_ready_window: [hhmm(grStart), hhmm(grEnd)],
-                get_ready_time: hhmm(grStart),
-                get_ready_minutes: Math.max(5, ((grEnd - grStart + 1440) % 1440) || 30),
-                // Wind-down (PM routine) window — bedtime is its end.
-                wind_down_window: [hhmm(wdStart), hhmm(wdEnd)],
-                sleep_window: [hhmm(wdStart), hhmm(wdEnd)],
-                sleep_time: hhmm(wdEnd),
-                obligations: works
-                    ? [{ label: 'Work', start: hhmm(workStartMin), end: hhmm(workEndMin), days: 'weekdays' }]
-                    : [],
-                work_location: works ? workLocation : 'home',
-                commute_minutes: hasCommute ? commuteMin : 0,
+                priority_order: priorityTokensFor(goals),
+                ...levelFields(),
+                ...dayFields(),
                 breakfast_time: skipBreakfast ? null : hhmm(breakfastMin),
                 lunch_time: skipLunch ? null : hhmm(lunchMin),
                 dinner_time: skipDinner ? null : hhmm(dinnerMin),
@@ -882,7 +775,6 @@ export default function OnboardingV2Screen() {
                 shower_time: showerTime,
                 workout_time: hhmm(workoutMin),
                 weekend_shift: weekendShift,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
                 // V4: the schedule questions are the LAST funnel step (post-pay,
                 // post-account), so finishing them completes onboarding outright —
                 // the navigator remounts onto Main. No reveal step.
@@ -894,7 +786,7 @@ export default function OnboardingV2Screen() {
             track('onboarding_step', {
                 step: 'completed',
                 goals,
-                motivation,
+                level,
                 has_work: works,
             });
             // Onboarding is done — drop the resume draft so a later relaunch
@@ -989,69 +881,46 @@ export default function OnboardingV2Screen() {
 
     // One idea per screen. The "Where you work" step only exists when the user
     // works — it's spread in conditionally; the progress bar adapts to length.
-    const allSteps = [
-        // 0 — age (identity bracket)
+    // The first-stack preview: the user's own goals + level, placed into the
+    // day they just described (today's weekday shape).
+    const stack = buildStarterStack(goals, level ?? 'medium', {
+        wakeMin,
+        getReadyMin: grStart,
+        windDownMin: wdStart,
+        bedMin: wdEnd,
+        works,
+        workStartMin,
+        workEndMin,
+        commuteMin: hasCommute ? commuteMin : 0,
+        lunchMin: 12 * 60 + 30,
+    });
+    const stackTotal = stackMinutes(stack);
+    const toggleDone = (id: string) => {
+        if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        setDoneHabits((d) => (d.includes(id) ? d.filter((x) => x !== id) : [...d, id]));
+    };
+
+    // One idea per screen. Each step is tagged with the phase it belongs to;
+    // the "Where you work" step only exists when the user works (the progress
+    // bar adapts to the length).
+    const allSteps: {
+        phase: OnboardingPhase;
+        title: string;
+        sub: string;
+        canNext: boolean;
+        auto?: boolean;
+        cta?: string;
+        body: React.ReactNode;
+    }[] = [
+        // goals (up to 2)
         {
-            title: 'How old\nare you?',
-            sub: 'Your plan is calibrated to where you are.',
-            canNext: !!ageBand,
-            auto: true,
-            body: (
-                <View style={{ gap: 10 }}>
-                    {AGE_BANDS.map((a) => {
-                        const active = ageBand === a;
-                        return (
-                            <TouchableOpacity
-                                key={a}
-                                style={[styles.tile, active && styles.tileActive]}
-                                onPress={() => { setAgeBand(a); autoNext(); }}
-                                activeOpacity={0.85}
-                                accessibilityRole="button"
-                                accessibilityState={{ selected: active }}
-                                accessibilityLabel={a}
-                            >
-                                <Text style={[styles.tileLabel, styles.tileLabelCenter, active && styles.tileLabelActive]}>{a}</Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-            ),
-        },
-        // 1 — gender
-        {
-            title: 'You are…',
-            sub: 'Facial analysis differs by bone structure.',
-            canNext: !!gender,
-            auto: true,
-            body: (
-                <View style={{ gap: 10 }}>
-                    {GENDERS.map((g) => {
-                        const active = gender === g.id;
-                        return (
-                            <TouchableOpacity
-                                key={g.id}
-                                style={[styles.tile, active && styles.tileActive]}
-                                onPress={() => { setGender(g.id); autoNext(); }}
-                                activeOpacity={0.85}
-                                accessibilityRole="button"
-                                accessibilityState={{ selected: active }}
-                                accessibilityLabel={g.label}
-                            >
-                                <Text style={[styles.tileLabel, styles.tileLabelCenter, active && styles.tileLabelActive]}>{g.label}</Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-            ),
-        },
-        // 2 — goals
-        {
-            title: 'What are we\nworking on?',
-            sub: 'Pick up to 3.',
+            phase: 'intro',
+            title: 'What do you want to\nfeel better at?',
+            sub: `Pick up to ${MAX_GOALS}.`,
             canNext: goals.length > 0,
             body: (
                 <View style={{ gap: 10 }}>
-                    {MAXX_TILES.map((t) => {
+                    {BIOHACK_GOALS.map((t) => {
                         const idx = goals.indexOf(t.id);
                         const active = idx >= 0;
                         return (
@@ -1065,11 +934,7 @@ export default function OnboardingV2Screen() {
                                 accessibilityLabel={t.label}
                             >
                                 <View style={styles.tileIcon}>
-                                    {MAXX_THUMBS[t.id] ? (
-                                        <ExpoImage source={MAXX_THUMBS[t.id]} style={styles.tileThumb} contentFit="contain" />
-                                    ) : (
-                                        <Ionicons name={t.icon as any} size={19} color={INK} />
-                                    )}
+                                    <Ionicons name={t.icon as any} size={19} color={INK} />
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={[styles.tileLabel, active && styles.tileLabelActive]}>{t.label}</Text>
@@ -1086,72 +951,30 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 2 — motivation
+        // level — how hard they want to go (low / medium / high)
         {
-            title: "What's pulling\nyou here?",
-            sub: 'It helps Superpower talk to you straight.',
-            // When "Something else" is picked, require a non-empty typed reason.
-            canNext: !!motivation && (motivation !== 'other' || motivationOther.trim().length > 0),
-            // Auto-advance on a bucket tap; "Something else" needs the text box
-            // + an explicit Continue.
-            auto: motivation !== 'other',
-            body: (
-                <View style={{ gap: 10 }}>
-                    {MOTIVATIONS.map((m) => {
-                        const active = motivation === m.id;
-                        return (
-                            <TouchableOpacity
-                                key={m.id}
-                                style={[styles.tile, active && styles.tileActive]}
-                                onPress={() => { setMotivation(m.id); if (m.id !== 'other') autoNext(); }}
-                                activeOpacity={0.85}
-                                accessibilityRole="button"
-                                accessibilityState={{ selected: active }}
-                                accessibilityLabel={m.label}
-                            >
-                                <Text style={[styles.tileLabel, styles.tileLabelCenter, active && styles.tileLabelActive]}>{m.label}</Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                    {motivation === 'other' && (
-                        <TextInput
-                            style={styles.otherInput}
-                            value={motivationOther}
-                            onChangeText={setMotivationOther}
-                            placeholder="Tell Superpower in your own words…"
-                            placeholderTextColor={MUTE}
-                            autoFocus
-                            multiline
-                            maxLength={140}
-                            accessibilityLabel="Your reason"
-                        />
-                    )}
-                </View>
-            ),
-        },
-        // 4 — effort (asked while the scan analyzes in the background)
-        {
-            title: 'How hard do you\nwant to go?',
-            sub: 'The plan flexes to match — you can change this later.',
-            canNext: !!effort,
+            phase: 'intro',
+            title: 'How hard do you want\nto biohack?',
+            sub: 'Your plan fits this. You can change it anytime.',
+            canNext: !!level,
             auto: true,
             body: (
                 <View style={{ gap: 10 }}>
-                    {EFFORTS.map((e) => {
-                        const active = effort === e.id;
+                    {BIOHACK_LEVELS.map((l) => {
+                        const active = level === l.id;
                         return (
                             <TouchableOpacity
-                                key={e.id}
+                                key={l.id}
                                 style={[styles.tile, active && styles.tileActive]}
-                                onPress={() => { setEffort(e.id); autoNext(); }}
+                                onPress={() => { setLevel(l.id); autoNext(); }}
                                 activeOpacity={0.85}
                                 accessibilityRole="button"
                                 accessibilityState={{ selected: active }}
-                                accessibilityLabel={e.label}
+                                accessibilityLabel={`${l.label}, ${l.sub}`}
                             >
                                 <View style={{ flex: 1 }}>
-                                    <Text style={[styles.tileLabel, active && styles.tileLabelActive]}>{e.label}</Text>
-                                    <Text style={[styles.tileTag, active && styles.tileTagActive]}>{e.sub}</Text>
+                                    <Text style={[styles.tileLabel, active && styles.tileLabelActive]}>{l.label}</Text>
+                                    <Text style={[styles.tileTag, active && styles.tileTagActive]}>{l.sub}</Text>
                                 </View>
                             </TouchableOpacity>
                         );
@@ -1159,8 +982,9 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 5 — day shape
+        // day shape
         {
+            phase: 'intro',
             title: 'The shape of\nyour day',
             sub: 'Superpower builds around your real hours, not over them.',
             canNext: true,
@@ -1174,8 +998,9 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 4 — work hours
+        // work hours
         {
+            phase: 'intro',
             title: 'Work or\nschool?',
             sub: 'So nothing ever gets scheduled over it.',
             canNext: true,
@@ -1206,9 +1031,10 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 5 — where you work (only when they work)
+        // where you work (only when they work)
         ...(works
             ? [{
+                phase: 'intro' as OnboardingPhase,
                 title: 'Where do\nyou work?',
                 sub: 'Your commute becomes real protected time, not a guess.',
                 canNext: true,
@@ -1259,8 +1085,69 @@ export default function OnboardingV2Screen() {
                 ),
             }]
             : []),
-        // 6 — meals
+        // the first stack — the intro's payoff, shown before the paywall
         {
+            phase: 'intro',
+            title: 'Your first\nstack',
+            sub: stack.length
+                ? `${stack.length} habits, about ${stackTotal} min a day, placed around your real day. Tap one to start it now.`
+                : 'Pick a goal to see your first habits.',
+            canNext: stack.length > 0,
+            cta: 'Looks right',
+            body: (
+                <>
+                    <View style={styles.recapList}>
+                        {stack.map((h, i) => {
+                            const open = openHabit === h.id;
+                            const done = doneHabits.includes(h.id);
+                            return (
+                                <View key={h.id}>
+                                    {i > 0 ? <View style={styles.hairline} /> : null}
+                                    <TouchableOpacity
+                                        style={styles.stackRow}
+                                        activeOpacity={0.75}
+                                        onPress={() => setOpenHabit(open ? null : h.id)}
+                                        accessibilityRole="button"
+                                        accessibilityState={{ expanded: open }}
+                                        accessibilityLabel={`${h.title}, ${fmt12(h.timeMin)}, ${h.minutes} minutes`}
+                                    >
+                                        <View style={[styles.stackCheck, done && styles.stackCheckDone]}>
+                                            {done ? <Ionicons name="checkmark" size={14} color={ON_INK} /> : null}
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.stackTitle, done && styles.stackTitleDone]}>{h.title}</Text>
+                                            <Text style={styles.stackWhy}>{h.minutes} min · {h.why}</Text>
+                                        </View>
+                                        <Text style={styles.stackTime}>{fmt12(h.timeMin)}</Text>
+                                    </TouchableOpacity>
+                                    {open ? (
+                                        <View style={styles.stackDetail}>
+                                            <Text style={styles.stackHow}>{h.how}</Text>
+                                            <TouchableOpacity
+                                                style={[styles.stackDoBtn, done && styles.stackDoBtnDone]}
+                                                onPress={() => toggleDone(h.id)}
+                                                accessibilityRole="button"
+                                                accessibilityLabel={done ? `Undo ${h.title}` : `Do ${h.title} now`}
+                                            >
+                                                <Text style={[styles.stackDoText, done && styles.stackDoTextDone]}>
+                                                    {done ? 'Done' : 'Do it now'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ) : null}
+                                </View>
+                            );
+                        })}
+                    </View>
+                    <Text style={styles.wellnessNote}>
+                        General wellness only — not medical advice. Follow routines at your own risk.
+                    </Text>
+                </>
+            ),
+        },
+        // meals
+        {
+            phase: 'schedule',
             title: 'When do\nyou eat?',
             sub: 'Superpower keeps your routines clear of the meals you keep.',
             canNext: true,
@@ -1297,8 +1184,9 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 7 — workout time
+        // workout time
         {
+            phase: 'schedule',
             title: 'When do you\nwork out?',
             sub: 'So things land when they actually happen.',
             canNext: true,
@@ -1319,8 +1207,9 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 8 — weekend rhythm
+        // weekend rhythm
         {
+            phase: 'schedule',
             title: 'Weekends?',
             sub: 'Do you keep the same schedule, or shift things later?',
             canNext: true,
@@ -1339,8 +1228,9 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 9 — shower timing (single-select; anchors hygiene/skin routines)
+        // shower timing (single-select; anchors hygiene/skin routines)
         {
+            phase: 'schedule',
             title: 'When do you\nusually shower?',
             sub: 'So Superpower anchors your skin and hygiene routines at the right time.',
             canNext: !!showerTime,
@@ -1359,8 +1249,9 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // 10 — recap
+        // recap
         {
+            phase: 'schedule',
             title: "Here's\nyour day",
             sub: 'Superpower fits your routines into the gaps. You can drag any of this later in Plan.',
             canNext: true,
@@ -1388,15 +1279,9 @@ export default function OnboardingV2Screen() {
         },
     ];
 
-    // Funnel V4 phase slices over the single ordered list above. The scan
-    // capture ran BEFORE the wizard, so the whole intro run (incl. effort) is
-    // background-loading time for the analysis:
-    //   intro    = age, gender, goals, motivation, effort → results gate
-    //   schedule = day-shape … recap                      → finish() → Main
-    // The conditional work-location step lives in `schedule`, so slice from the
-    // END for that phase and by fixed index for the fixed-size front.
-    const INTRO_LEN = 5;
-    const steps = phase === 'intro' ? allSteps.slice(0, INTRO_LEN) : allSteps.slice(INTRO_LEN);
+    const introSteps = allSteps.filter((st) => st.phase === 'intro');
+    const scheduleSteps = allSteps.filter((st) => st.phase === 'schedule');
+    const steps = phase === 'intro' ? introSteps : scheduleSteps;
 
     // A step removed beneath the current index (e.g. toggling work off while
     // past the Work step) would leave `step` dangling — clamp it so we never
@@ -1405,12 +1290,11 @@ export default function OnboardingV2Screen() {
     const current = steps[safeStep];
     const isLast = safeStep === steps.length - 1;
 
-    // Continuous funnel progress across phases + the screens between them
-    // (scan first, then results/paywall/account between the phases), so the
-    // bar never jumps backwards.
-    const PHASE_OFFSET = { intro: 1, schedule: INTRO_LEN + 4 } as const;
-    const FUNNEL_TOTAL = allSteps.length + 4;
-    const progressIndex = PHASE_OFFSET[phase] + safeStep;
+    // Continuous funnel progress across both phases and the three screens
+    // between them (referral, paywall, account), so the bar never jumps back.
+    const BETWEEN = 3;
+    const FUNNEL_TOTAL = introSteps.length + BETWEEN + scheduleSteps.length;
+    const progressIndex = phase === 'intro' ? safeStep : introSteps.length + BETWEEN + safeStep;
 
     const goNext = () => {
         if (Platform.OS !== 'web') {
@@ -1418,22 +1302,24 @@ export default function OnboardingV2Screen() {
         }
         if (isLast) {
             if (phase === 'intro') {
-                // Persist identity + goals now so the paywall personalization can
-                // read them (best-effort), then on to the results gate — the
-                // classic results page reduced to its hero. It shows the
-                // processing loader if the background analysis hasn't landed.
+                // Persist the intro answers now (best-effort) so a relaunch or a
+                // new phone never re-asks them, then the referral/promo step and
+                // the paywall (a full comp like CASH99 redeems there and routes
+                // past Payment entirely).
                 void api.saveOnboarding(introPayload() as any).catch(() => {});
-                track('onboarding_step', { step: 'intro_done' });
+                track('onboarding_step', {
+                    step: 'intro_done',
+                    goals,
+                    level,
+                    habits: stack.length,
+                    tried_now: doneHabits.length,
+                });
                 // Funnel checkpoint: a relaunch from here on resumes at the
-                // gate / referral step, not at this question (ScanOffer reads it).
+                // referral step, not at this screen.
                 if (user?.id) {
-                    void setOnboardingFunnelStage(user.id, scanSkipped ? 'referral' : 'gate').catch(() => undefined);
+                    void setOnboardingFunnelStage(user.id, 'referral').catch(() => undefined);
                 }
-                // Skipped the scan → nothing to gate on; referral/promo step,
-                // then the paywall (a full comp like CASH99 redeems there and
-                // routes past Payment entirely).
-                if (scanSkipped) navigation.navigate('ReferralCode');
-                else navigation.navigate('FaceScanResults', { gateV4: true });
+                navigation.navigate('ReferralCode');
                 return;
             }
             finish();
@@ -1532,20 +1418,33 @@ export default function OnboardingV2Screen() {
                 <View style={{ paddingBottom: insets.bottom + 16 }}>
                     {/* Single-choice steps auto-advance on tap — no Continue button
                         (the tap IS the continue). Multi-select / compound steps keep it. */}
-                    {(current as any).auto ? (
+                    {current.auto ? (
                         <View style={{ height: 52 }} />
                     ) : (
                         <PrimaryButton
                             label={
                                 isLast && phase === 'schedule'
                                     ? finishing ? 'Finishing up…' : saved ? 'Try again' : 'Build my day'
-                                    : 'Continue'
+                                    : current.cta ?? 'Continue'
                             }
                             loading={saving}
                             disabled={!current.canNext}
                             onPress={goNext}
                         />
                     )}
+                    {/* Fine-tune answers all have sensible defaults — never make
+                        value wait on them. */}
+                    {phase === 'schedule' && !isLast ? (
+                        <TouchableOpacity
+                            onPress={() => { if (picker) setPicker(null); finish(); }}
+                            disabled={saving}
+                            style={styles.skipLink}
+                            accessibilityRole="button"
+                            accessibilityLabel="Skip and use my defaults"
+                        >
+                            <Text style={styles.skipLinkText}>Skip, use my defaults</Text>
+                        </TouchableOpacity>
+                    ) : null}
                 </View>
             </View>
 
@@ -1691,6 +1590,22 @@ const styles = StyleSheet.create({
     recapIcon: { width: 24, alignItems: 'center', marginRight: 14, marginTop: 1 },
     recapLabel: { fontFamily: 'Matter-Regular', fontSize: 15.5, color: SUB, marginRight: 12 },
     recapValue: { fontFamily: 'Matter-Medium', fontSize: 15.5, color: INK, flex: 1, textAlign: 'right', lineHeight: 21 },
+    // first stack — same white card; each row expands to a how-to + "Do it now"
+    stackRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
+    stackCheck: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: TRACK, alignItems: 'center', justifyContent: 'center' },
+    stackCheckDone: { backgroundColor: INK, borderColor: INK },
+    stackTitle: { fontFamily: 'Matter-SemiBold', fontSize: 15.5, color: INK, letterSpacing: -0.2 },
+    stackTitleDone: { color: SUB },
+    stackWhy: { fontFamily: 'Matter-Regular', fontSize: 12.5, color: MUTE, marginTop: 2, lineHeight: 16 },
+    stackTime: { fontFamily: 'Matter-Medium', fontSize: 14.5, color: INK, textAlign: 'right', minWidth: 72 },
+    stackDetail: { paddingLeft: 34, paddingBottom: 14, gap: 12 },
+    stackHow: { fontFamily: 'Matter-Regular', fontSize: 14, color: SUB, lineHeight: 20 },
+    stackDoBtn: { alignSelf: 'flex-start', paddingVertical: 9, paddingHorizontal: 18, borderRadius: 999, backgroundColor: INK },
+    stackDoBtnDone: { backgroundColor: TRACK },
+    stackDoText: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: ON_INK },
+    stackDoTextDone: { color: INK },
+    skipLink: { alignSelf: 'center', marginTop: 12, paddingVertical: 6, paddingHorizontal: 12 },
+    skipLinkText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: SUB },
     wellnessNote: {
         fontFamily: 'Matter-Regular',
         fontSize: 11,

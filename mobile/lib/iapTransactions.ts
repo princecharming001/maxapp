@@ -346,7 +346,9 @@ export function classifyVerify(
         if (status === 401 || status === 403 || status === 408 || status === 429) {
             return { kind: 'unreachable', tid, productId, detail };
         }
-        if (/different max account|another max account|account_token_mismatch/i.test(detail || '')) {
+        // The server names the brand in this message; match both the old and
+        // the current name so a client and server on different releases agree.
+        if (/(different|another) (max|superpower) account|account_token_mismatch/i.test(detail || '')) {
             return { kind: 'other_account', tid, productId, detail };
         }
         return { kind: 'rejected', tid, productId, detail };
