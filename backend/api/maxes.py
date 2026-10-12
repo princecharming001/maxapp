@@ -1,5 +1,5 @@
 """
-Superpowers API - Looksmaxxing programs (fitmax, skinmax, etc.)
+Maxes API - Looksmaxxing programs (fitmax, skinmax, etc.)
 
 The canonical source of truth lives in `services.maxx_guidelines.MAXX_GUIDELINES`.
 The RDS `maxes` table is a denormalized cache for the mobile UI; if RDS is
@@ -22,7 +22,7 @@ from middleware.auth_middleware import get_current_user
 from models.rds_models import Maxx
 from services.maxx_guidelines import MAXX_GUIDELINES, get_maxx_guideline
 
-router = APIRouter(prefix="/maxes", tags=["Superpowers"])
+router = APIRouter(prefix="/maxes", tags=["Maxes"])
 
 # The maxx catalog is GLOBAL (5 rows, identical for every user) and only changes
 # on a deploy or an RDS seed. Home, Explore, Profile and the prefetcher all pull

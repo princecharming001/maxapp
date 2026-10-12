@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # Pydantic models
 # --------------------------------------------------------------------------- #
 class InfoSlot(BaseModel):
-    """One canonical, cross-Superpower information requirement declared by a doc."""
+    """One canonical, cross-Max information requirement declared by a doc."""
 
     slot: str
     # `field` -> existing required_fields[].id in the same doc. None => the slot
@@ -76,7 +76,7 @@ class QuestionPlan(BaseModel):
 
 @dataclass
 class InfoSchema:
-    """Compiled, cached per-Superpower info schema."""
+    """Compiled, cached per-Max info schema."""
 
     maxx_id: str
     slots: list[InfoSlot] = dc_field(default_factory=list)

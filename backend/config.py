@@ -129,7 +129,7 @@ class Settings(BaseSettings):
     # onboarding stays byte-for-byte today's fixed-question state machine.
     slot_prefill_enabled: bool = Field(
         default=False,
-        description="Deterministic cross-Superpower dedup (prefill + missing_required). Ship/enable first.",
+        description="Deterministic cross-Max dedup (prefill + missing_required). Ship/enable first.",
     )
     dynamic_questions_enabled: bool = Field(
         default=False,

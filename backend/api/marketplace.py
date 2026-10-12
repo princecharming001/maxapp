@@ -40,7 +40,7 @@ router = APIRouter(prefix="/marketplace", tags=["Marketplace"])
 MAXX_PRICE_CENTS = 0
 _NATIVE_SLOTS_BY_TIER = {"premium": 3, "basic": 2}
 # Once added, a native max is locked on the schedule for a week before it can be
-# swapped out — users commit to a program instead of churning Superpowers daily.
+# swapped out — users commit to a program instead of churning Maxes daily.
 _MAXX_SWAP_LOCK_DAYS = 7
 
 
@@ -315,7 +315,7 @@ _COURSE_DETAIL: dict[str, dict[str, Any]] = {
         "long_description": (
             "Eight weeks of beginner strength built around the gaps you actually "
             "have. Three sessions a week, real progression, and form you can trust — "
-            "Superpower slots each one into your week so you never have to plan it."
+            "Max slots each one into your week so you never have to plan it."
         ),
         "outcomes": [
             "Confident barbell basics — squat, hinge, press, pull",
@@ -1103,15 +1103,15 @@ async def enter(
     if item_id in _MAXX_DISPLAY and not is_course:
         cap = _native_slot_cap(current_user)
         if cap <= 0:
-            raise HTTPException(status_code=403, detail="Subscribe to add Superpowers to your schedule.")
+            raise HTTPException(status_code=403, detail="Subscribe to add Maxes to your schedule.")
         used = len(_native_entered_ids(dict(user.onboarding or {})))
         if used >= cap:
             plan = "Chad" if cap >= 3 else "ChadLite"
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"You're using all {cap} of your {plan} Superpower slots. Swap one out to add this — "
-                    "a Superpower can be changed after it's been on your schedule for a week."
+                    f"You're using all {cap} of your {plan} Max slots. Swap one out to add this — "
+                    "a Max can be changed after it's been on your schedule for a week."
                 ),
             )
         await fulfill_marketplace_purchase(db, str(uid), item_id, "included", None)
@@ -1253,14 +1253,14 @@ async def cancel(
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"This Superpower is locked until {locked_until.date().isoformat()}. "
+                    f"This Max is locked until {locked_until.date().isoformat()}. "
                     "You can swap it once it's been on your schedule for a week."
                 ),
             )
         _set_entitlement(user, item_id, is_course=False, granted=False)
         # Deactivate the generated UserSchedule too — otherwise its tasks stay in
         # the master view (no entitlement filter there) and, because fulfill skips
-        # regeneration when an active schedule exists, the user can't re-add the Superpower.
+        # regeneration when an active schedule exists, the user can't re-add the Max.
         from services.schedule_service import schedule_service
         await schedule_service.deactivate_schedule_by_maxx(str(uid), item_id, db)
         for row in (await db.execute(

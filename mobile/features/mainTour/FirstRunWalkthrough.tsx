@@ -27,7 +27,7 @@ type Props = {
     step: WalkthroughStep;
     /** Today's first pending task, when the user's plan has landed. */
     firstTask: WalkthroughFirstTask;
-    /** 'build' primary: take them to Explore to start their first Superpower. */
+    /** 'build' primary: take them to Explore to start their first Max. */
     onBuildFirstMax: () => void;
     /** 'task' primary: open the first task in TaskGuide. */
     onOpenFirstTask: () => void;

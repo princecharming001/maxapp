@@ -641,7 +641,7 @@ async def generate_voice_draft(creator: Creator, sample: CreatorVoiceSample, db:
 
 
 async def ensure_voice_draft(creator: Creator, sample: CreatorVoiceSample, db: AsyncSession) -> None:
-    """Phase 2/3 questions always open with a Superpower draft — never a blank text box."""
+    """Phase 2/3 questions always open with a Max draft — never a blank text box."""
     if sample_voice_phase(sample) < 2:
         return
     if sample.draft_answer:

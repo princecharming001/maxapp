@@ -59,7 +59,7 @@ appId: com.cannon.mobile
 - waitForAnimationToEnd:
     timeout: 4000
 - assertWithAI:
-    assertion: "After backing out of a Superpower detail screen, the Explore list is back and scroll position is either preserved or restored to near-top. No blank content area."
+    assertion: "After backing out of a Max detail screen, the Explore list is back and scroll position is either preserved or restored to near-top. No blank content area."
 - assertNoDefectsWithAI
 - takeScreenshot: discovery_nh_explore_back_restore
 

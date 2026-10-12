@@ -971,11 +971,11 @@ export default function CreatorOnboardingScreen() {
                 key: 'test_drive',
                 title: (
                     <Text style={s.title}>
-                        Try your{'\n'}<Text style={s.titleItalic}>own Superpower</Text>
+                        Try your{'\n'}<Text style={s.titleItalic}>own Max</Text>
                     </Text>
                 ),
                 sub: testMode === 'chat'
-                    ? 'Chat as a subscriber — see how your Superpower responds.'
+                    ? 'Chat as a subscriber — see how your Max responds.'
                     : state?.test_drive?.complete
                         ? 'Here\'s the routine Superpower built for this subscriber.'
                         : 'Stress-test onboarding — answer as a real subscriber would.',

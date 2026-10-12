@@ -1672,7 +1672,7 @@ class ApiService {
         return response.data;
     }
 
-    // Superpowers
+    // Maxes
     async getMaxxes() {
         const response = await this.client.get('maxes');
         return response.data;

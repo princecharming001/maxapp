@@ -496,7 +496,7 @@ def test_all_docs_compile_no_dead_required():
                 f"{required_ids - slot_fields}"
             )
 
-    # The cross-Superpower sleep_hours slot exists in both and carries the span derive.
+    # The cross-Max sleep_hours slot exists in both and carries the span derive.
     for mx in ("fitmax", "heightmax"):
         sch = compile_info_schema(docs[mx])
         sleep = next((s for s in sch.slots if s.slot == "sleep_hours"), None)

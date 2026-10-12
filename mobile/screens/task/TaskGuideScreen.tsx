@@ -475,7 +475,7 @@ export default function TaskGuideScreen() {
             {/* Global ✕ — closes from any step */}
             <CloseButton onPress={() => navigation.goBack()} top={insets.top} />
 
-            {/* Constant per-Superpower icon, pinned top-right. Rendered once at the
+            {/* Constant per-Max icon, pinned top-right. Rendered once at the
                 screen level so it never changes or moves between steps. */}
             {maxImg ? <MaxBadge icon={maxImg} top={insets.top} /> : null}
 
@@ -508,7 +508,7 @@ function CloseButton({ onPress, top, dark }: { onPress: () => void; top: number;
     );
 }
 
-// ── Constant per-Superpower icon (top-right, never changes between steps) ───────────
+// ── Constant per-Max icon (top-right, never changes between steps) ───────────
 function MaxBadge({ icon, top }: { icon: any; top: number }) {
     return (
         <View style={[s.maxBadge, { top: top + 4 }]} pointerEvents="none">

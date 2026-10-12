@@ -870,9 +870,9 @@ async def save_onboarding(
         wt["saturday"] = {**weekend, **(wt.get("saturday") or {})}
         wt["sunday"] = {**weekend, **(wt.get("sunday") or {})}
         onboarding_data["weekly_timings"] = wt
-    # The first Superpower is built by the USER through the guided walkthrough
+    # The first Max is built by the USER through the guided walkthrough
     # (Home → Explore → start a schedule), never pre-built here: a plan the
-    # user didn't choose read as "a Superpower already built in" and skipped the
+    # user didn't choose read as "a Max already built in" and skipped the
     # onboarding that makes it theirs. Likewise nothing is seeded into chat.
     user.onboarding = onboarding_data
     user.updated_at = datetime.utcnow()

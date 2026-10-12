@@ -857,7 +857,7 @@ async def _answer_from_web(
     coaching_tone: Optional[str] = None,
 ) -> str:
     """Last-resort failsafe: when both targeted and broad RAG return nothing,
-    fetch web snippets and ground a Superpower-voiced answer in them.
+    fetch web snippets and ground a Max-voiced answer in them.
 
     Returns "" on web-search failure or empty results — caller falls through
     to the strict miss message.

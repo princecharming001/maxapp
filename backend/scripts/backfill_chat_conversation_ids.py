@@ -15,7 +15,7 @@ before any repair is run.
 HEURISTIC (per user, rows in time order): a NULL row belongs to the thread that
 was active when it was written — the thread holding the most recent threaded
 row at or before the NULL row's created_at (the intake's opener always went
-through the agent path, so it IS threaded and sits in the "<Superpower> plan" thread
+through the agent path, so it IS threaded and sits in the "<Max> plan" thread
 seconds before the intake rows). A NULL row with no threaded row before it
 takes the earliest thread created at or before it; failing that the user's
 earliest thread; failing that it is reported as UNASSIGNABLE (the user has no

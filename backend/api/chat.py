@@ -3972,7 +3972,7 @@ def _filter_actives_by_name(actives: list, message_text: str) -> list:
     return hit
 
 
-# Superpowers that have an in-app habit picker (mobile data/habitCatalog.ts). The
+# Maxes that have an in-app habit picker (mobile data/habitCatalog.ts). The
 # post-generation picker is offered only for these.
 _HABIT_PICKER_MAXES = {"skinmax", "hairmax", "fitmax", "heightmax", "bonemax", "coloringmax"}
 
@@ -4039,7 +4039,7 @@ async def _apply_slot_prefill(
 
     Resolve cross-source known-context for `maxx_id` and merge confidently-known
     values into the user_state used to drive the next question, so already-known
-    fields are not re-asked (cross-Superpower dedup). Only fills keys genuinely missing
+    fields are not re-asked (cross-Max dedup). Only fills keys genuinely missing
     in `state` — never overrides a real answer. Persists filled values into
     context + user_facts so the generator and future maxes see them.
 
@@ -4477,7 +4477,7 @@ async def _run_onboarding_questioner_impl(
         await merge_context(user_id, clear_pending(), db)
         return None
 
-    # Deterministic cross-Superpower prefill (no-op unless slot_prefill_enabled): merge
+    # Deterministic cross-Max prefill (no-op unless slot_prefill_enabled): merge
     # already-known values into state so the continuing intake skips them.
     state = await _apply_slot_prefill(user_id, maxx_id, state, db)
 
@@ -5005,7 +5005,7 @@ def _pending_belongs_to_thread(
     True when its stamped thread still exists, False when that thread is gone.
     A stamped, live intake belongs ONLY to its own thread. An unstamped or
     orphaned one is anchored to the best guess — the max's dedicated
-    "<Superpower> plan" thread when one exists, else the user's most-recent thread —
+    "<Max> plan" thread when one exists, else the user's most-recent thread —
     so it still surfaces once, in one place, instead of under every thread.
     """
     if target_id is None:
@@ -5019,7 +5019,7 @@ def _pending_belongs_to_thread(
 
 
 async def _find_maxx_thread_id(db: AsyncSession, *, user_id: str, maxx_id: str) -> Optional[str]:
-    """Read-only lookup of a max's dedicated "<Superpower> plan" thread (no create)."""
+    """Read-only lookup of a max's dedicated "<Max> plan" thread (no create)."""
     try:
         stmt = (
             select(ChatConversation.id)

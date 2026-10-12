@@ -893,7 +893,7 @@ export default function HomeScreen() {
                     ? { title: walkthroughFirstRow.title, time: formatTimeTo12Hour(walkthroughFirstRow.time) }
                     : null}
                 onBuildFirstMax={() => {
-                    // Cursor stays at 'build': if they come back without a Superpower
+                    // Cursor stays at 'build': if they come back without a Max
                     // the card asks again; with one, it moves on to the task.
                     walkthrough.dismiss();
                     navigation.navigate('Explore');

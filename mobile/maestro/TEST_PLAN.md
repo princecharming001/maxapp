@@ -385,7 +385,7 @@
 
 ### P2 — profile_render.yaml
 - **Preconditions:** paid app; on Profile.
-- **Steps:** `assertVisible "Your Superpowers"`, `assertVisible "Trophy Case"`.
+- **Steps:** `assertVisible "Your Maxes"`, `assertVisible "Trophy Case"`.
 - **Source changes:** none for render.
 
 ---

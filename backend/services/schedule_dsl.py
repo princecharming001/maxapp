@@ -605,7 +605,7 @@ def _wake_plus(minutes: int) -> str:
     return f"wake+{minutes // 60}:{minutes % 60:02d}"
 
 
-# Superpowers whose evening (`pm_active`) block is PHYSICAL TRAINING — for these the
+# Maxes whose evening (`pm_active`) block is PHYSICAL TRAINING — for these the
 # workout anchor also re-times that block (HeightMax's dead-hang / foam-roll,
 # FitMax's form-check). For skin/hair the `pm_active` alias means evening
 # *skincare*, which must stay anchored to sleep — so we never move it there.

@@ -80,7 +80,7 @@ export default function AchievementCelebrationHost() {
     // Hold the celebration until the user is on a calm screen (not mid-scan etc.)
     // — and never underneath/on top of the first-run walkthrough, nor in the
     // tick it is about to appear (the hold covers "pending" too — starting
-    // their first Superpower earns "First Steps" right as the task step shows; the
+    // their first Max earns "First Steps" right as the task step shows; the
     // queue survives and promotes the moment the walkthrough closes).
     const walkthroughUp = useWalkthroughVisible();
     // Take turns with Home's reminders primer: never celebrate over it (it

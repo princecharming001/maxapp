@@ -627,13 +627,13 @@ export default function MaxDetailScreen() {
             setItem({ ...item, entered: true });
             if (isCourse) goToSchedule(); else goToChat(item.id);
         } catch (e: any) {
-            // Slot cap reached or a Superpower is still in its weekly lock — the backend
+            // Slot cap reached or a Max is still in its weekly lock — the backend
             // sends a clear 409 message; surface it instead of silently failing.
             const detail = e?.response?.data?.detail;
             const msg = typeof detail === 'string' && detail
                 ? detail
-                : "Couldn't add this Superpower right now. Please try again.";
-            Alert.alert('Superpower slots', msg);
+                : "Couldn't add this Max right now. Please try again.";
+            Alert.alert('Max slots', msg);
         } finally {
             setBusy(false);
         }
