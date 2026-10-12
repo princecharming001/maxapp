@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Slide 7 · CTA</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  .btw { position: absolute; left: 0; right: 0; top: 122px; text-align: center;
+    font-size: 56px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+
+  /* Two phones, fading out into the white like the original. */
+  .stage { position: absolute; left: 0; top: 190px; width: 1080px; height: 590px; overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 99%); }
+  .phone { position: absolute; width: 400px; height: 840px; border-radius: 66px;
+    background: #1c1c1e; padding: 12px;
+    box-shadow: 0 0 0 3px #d4d4d8, 0 30px 60px rgba(0,0,0,0.18); }
+  .phone .screen { width: 100%; height: 100%; border-radius: 54px; background: #fff; overflow: hidden; position: relative; }
+  .phone .status { height: 54px; display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 34px 0 44px; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 17px; }
+  .phone .island { position: absolute; top: 12px; left: 50%; width: 118px; height: 34px; margin-left: -59px;
+    border-radius: 20px; background: #000; }
+  .phone .icons { display: flex; gap: 6px; align-items: center; }
+  .phone .bars { display: flex; gap: 2px; align-items: flex-end; }
+  .phone .bars i { display: block; width: 3.5px; background: #111; border-radius: 1px; }
+  .phone .batt { width: 26px; height: 13px; border-radius: 4px; background: #111; }
+  .phone .chat { padding: 4px 18px 0; }
+  .phone .chat .chat-head { margin: 6px 0 12px; }
+  .phone .chat .avatar { width: 46px; height: 46px; }
+  .phone .chat .name { font-size: 15px; }
+  .phone .chat .time { font-size: 12px; }
+  .phone .msg { font-size: 16.5px; line-height: 1.38; padding: 10px 14px; margin-bottom: 9px; border-radius: 19px; }
+  .phone .msg p + p { margin-top: 8px; }
+
+  .front { left: 505px; top: 30px; transform: rotate(8deg); }
+  .back { left: 150px; top: 95px; transform: rotate(-9deg) scale(0.9); filter: blur(7px); opacity: 0.75; }
+
+  .line { position: absolute; left: 0; right: 0; text-align: center;
+    font-size: 55px; font-weight: 700; letter-spacing: -0.035em; line-height: 52px; }
+  .l1 { top: 778px; }
+  .l2 { top: 1052px; }
+  .word { position: absolute; left: 50%; top: 918px; transform: translateX(-50%);
+    background: #111113; color: #fff; padding: 0 22px; height: 104px; line-height: 104px;
+    font-size: 100px; font-weight: 800; letter-spacing: -0.02em; }
+  .continue { position: absolute; left: 0; right: 0; top: 1228px; text-align: center;
+    font-size: 27px; color: #111; letter-spacing: -0.01em; }
+</style></head>
+<body>
+  <div class="btw">btw...</div>
+
+  <div class="stage">
+    <div class="phone back"><div class="screen">
+      <div class="island"></div>
+      <div class="status"><span>7:40</span><span class="icons"><span class="bars"><i style="height:5px"></i><i style="height:8px"></i><i style="height:11px"></i><i style="height:14px"></i></span><span class="batt"></span></span></div>
+      <div class="chat" data-chat></div>
+    </div></div>
+    <div class="phone front"><div class="screen">
+      <div class="island"></div>
+      <div class="status"><span>7:40</span><span class="icons"><span class="bars"><i style="height:5px"></i><i style="height:8px"></i><i style="height:11px"></i><i style="height:14px"></i></span><span class="batt"></span></span></div>
+      <div class="chat" data-chat></div>
+    </div></div>
+  </div>
+
+  <div class="line l1">If you wanna try it out,<br>just comment the word</div>
+  <div class="word">MAX</div>
+  <div class="line l2">and I'll DM you the<br>link right now.</div>
+
+  <div class="continue">Continue →</div>
+  <script src="chat.js"></script>
+</body></html>

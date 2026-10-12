@@ -1,0 +1,41 @@
+/* Shared look for the remixed slides. Matches the original carousel:
+   1080x1380, white canvas, Inter Display, grey body copy. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1080px; height: 1380px; overflow: hidden; background: #fff; }
+body {
+  position: relative;
+  font-family: 'Inter Display', 'Inter', system-ui, sans-serif;
+  color: #0b0b0b;
+  -webkit-font-smoothing: antialiased;
+}
+
+@font-face {
+  font-family: 'Fraunces';
+  src: url('../../../mobile/assets/fonts/Fraunces-Regular.ttf') format('truetype');
+}
+
+.app-icon {
+  width: 92px; height: 92px; border-radius: 21px;
+  background: url('max-icon.png') center / cover;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
+}
+
+/* ── Max chat UI (mirrors mobile/screens/chat/MaxChatScreen.tsx) ── */
+.chat { background: #fff; font-family: 'Inter', system-ui, sans-serif; }
+.chat-head {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.chat-head .avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: url('max-icon.png') center / 150% no-repeat;
+}
+.chat-head .name {
+  font-weight: 600; font-size: 13px; padding: 3px 10px; border-radius: 999px;
+  background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+.chat-head .time { font-size: 10.5px; color: #9a9a9a; }
+.msg { width: fit-content; max-width: 82%; padding: 9px 13px; border-radius: 16px; font-size: 13.5px; line-height: 1.42; }
+.msg p + p { margin-top: 9px; }
+.msg.user { margin-left: auto; background: #111113; color: #fff; border-bottom-right-radius: 5px; }
+.msg.max { background: #fff; color: #111113; border: 1px solid rgba(0,0,0,0.09); border-bottom-left-radius: 5px; }
+.read { text-align: right; font-size: 10px; color: #b5b5b5; margin-top: 3px; }
