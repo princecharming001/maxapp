@@ -24,7 +24,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { ReferralCodeField, ReferralCodeHandle } from '../../components/ReferralCodeField';
 import { useAuth } from '../../context/AuthContext';
 import { useFlag } from '../../constants/featureFlags';
-import { markPostPayPending } from '../../lib/postPayNav';
 import { fonts } from '../../theme/dark';
 
 const INK = '#15130F';
@@ -106,10 +105,6 @@ export default function ReferralCodeScreen() {
                             if (res.valid && res.free) void fieldRef.current?.redeem();
                         }}
                         onComped={() => {
-                            // Set the same one-shot post-pay flag the real IAP
-                            // purchase path uses (so a stack remount, if one
-                            // happens, also routes to the reveal).
-                            markPostPayPending();
                             // ALWAYS route actively — never wait for a navigator
                             // remount. A remount only happens when treatAsFull
                             // FLIPS; a user who was already in the full stack
@@ -122,14 +117,9 @@ export default function ReferralCodeScreen() {
                                 nav.navigate('CreateAccount', route?.params);
                                 return;
                             }
-                            // Onboarded: straight to the post-pay reveal (the
-                            // screen is registered in BOTH stacks, so this works
-                            // whether or not a remount follows; if one does, the
-                            // post-pay flag re-routes to the same place).
+                            // Onboarded: back into the app.
                             const names: string[] = ((nav.getState?.() as any)?.routeNames) ?? [];
-                            if (names.includes('FaceScanResults')) {
-                                nav.navigate('FaceScanResults', { postPay: true });
-                            } else if (names.includes('Main')) {
+                            if (names.includes('Main')) {
                                 nav.navigate('Main');
                             } else if (nav.canGoBack()) {
                                 nav.goBack();

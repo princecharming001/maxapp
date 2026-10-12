@@ -15,7 +15,6 @@ import { StreakMilestoneCallout } from '../../components/StreakMilestoneCallout'
 import XpProgressCard from '../../components/XpProgressCard';
 import GlassBar from '../../components/glass/GlassBar';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
-import { formatFaceRatingLabel } from '../../utils/faceRatingLabel';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
@@ -36,22 +35,6 @@ function formatProgressDate(dateStr: string): string {
     return `${months[d.getMonth()]} ${day}${suffix} ${d.getFullYear()}`;
 }
 
-// Pull a clean ascending time-series of face scores out of the (untyped) scan
-// history payload, defending against the several shapes the score can take.
-function parseScanPoints(raw: any): { score: number; at?: string }[] {
-    const list = raw?.scans ?? raw?.history ?? (Array.isArray(raw) ? raw : []) ?? [];
-    const pts = (list as any[])
-        .map((s) => {
-            const score = Number(
-                s?.overall_score ?? s?.rating ?? s?.score ?? s?.analysis?.psl_rating?.appeal ?? s?.psl_rating?.appeal,
-            );
-            return Number.isFinite(score) ? { score, at: s?.created_at as string | undefined } : null;
-        })
-        .filter(Boolean) as { score: number; at?: string }[];
-    pts.sort((a, b) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime());
-    return pts;
-}
-
 // ── Onboarding light black/white palette (Cal AI × Stoic) ──────────────────────
 const BG = '#F1F1EF';
 const CARD = '#FFFFFF';
@@ -66,14 +49,13 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 
 function ProgressCalendar({
     progressPhotos,
-    scanPts,
     onPhotoPress,
-    onScanDay,
+    onAddPhoto,
 }: {
     progressPhotos: any[];
-    scanPts: { score: number; at?: string }[];
     onPhotoPress: (photo: any) => void;
-    onScanDay: () => void;
+    /** Tapping today with no photo yet adds one. */
+    onAddPhoto: () => void;
 }) {
     const today = useMemo(() => new Date(), []);
     const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -102,12 +84,6 @@ function ProgressCalendar({
         });
         return map;
     }, [progressPhotos]);
-
-    const scanDateSet = useMemo(() => {
-        const s = new Set<string>();
-        scanPts.forEach(pt => { if (pt.at) s.add(pt.at.split('T')[0]); });
-        return s;
-    }, [scanPts]);
 
     const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
     const startOffset = (firstWeekday + 6) % 7;
@@ -140,9 +116,8 @@ function ProgressCalendar({
                     if (!day) return <View key={`e${i}`} style={cal.cell} />;
                     const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const photo = photoByDate[dateStr];
-                    const hasScan = scanDateSet.has(dateStr);
                     const isToday = dateStr === todayStr;
-                    const hasContent = !!photo || hasScan;
+                    const hasContent = !!photo;
 
                     return (
                         <TouchableOpacity
@@ -150,7 +125,7 @@ function ProgressCalendar({
                             style={cal.cell}
                             onPress={() => {
                                 if (photo) onPhotoPress(photo);
-                                else if (isToday) onScanDay();
+                                else if (isToday) onAddPhoto();
                             }}
                             activeOpacity={hasContent || isToday ? 0.7 : 1}
                         >
@@ -165,7 +140,6 @@ function ProgressCalendar({
                             ) : (
                                 <View style={[cal.dayNum, isToday && cal.dayNumToday]}>
                                     <Text style={[cal.dayText, isToday && cal.dayTextToday]}>{day}</Text>
-                                    {hasScan && !photo ? <View style={cal.scanDot} /> : null}
                                 </View>
                             )}
                         </TouchableOpacity>
@@ -190,7 +164,6 @@ const cal = StyleSheet.create({
     dayNumToday: { backgroundColor: INK },
     dayText: { fontFamily: 'Matter-Regular', fontSize: 11.5, color: INK },
     dayTextToday: { color: ON_INK, fontFamily: 'Matter-SemiBold' },
-    scanDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#2E7D52', marginTop: 1 },
 });
 
 const p = StyleSheet.create({
@@ -259,7 +232,6 @@ export default function ProfileScreen() {
     const { width: winWidth } = useWindowDimensions();
     const imageModalWidth = getImageModalWidth(winWidth);
     const { user, refreshUser, isPaid, isPremium, isCreator } = useAuth();
-    // Face-scan kill switch: hides the FACE SCORE card / scan entry points.
     const maxxesQuery = useMaxxesQuery();
     const schedulesFullQuery = useActiveSchedulesFullQuery();
     // Live weekly completion — same source as the Weekly Review screen — so the
@@ -281,7 +253,7 @@ export default function ProfileScreen() {
         return allMaxxes.filter((m: any) => m.id && enrolledIds.has(String(m.id).toLowerCase()));
     }, [maxxesQuery.data, schedulesFullQuery.data]);
     const queryClient = useQueryClient();
-    // Photos / achievements / scan history via React Query (was manual
+    // Photos / achievements via React Query (was manual
     // useState+useEffect that cold-refetched every mount and never revalidated).
     // Now cached, and focus/foreground revalidation comes free from the RQ config.
     const photosQuery = useQuery({
@@ -295,16 +267,9 @@ export default function ProfileScreen() {
         queryFn: () => api.getAchievements(),
         staleTime: 60 * 1000,
     });
-    const scanQuery = useQuery({
-        queryKey: queryKeys.profileScanHistory,
-        queryFn: () => api.getScanHistory(),
-        select: (d: any) => parseScanPoints(d),
-        staleTime: 60 * 1000,
-    });
     const progressPhotos: any[] = photosQuery.data ?? [];
     const achievements = achievementsQuery.data ?? null;
-    const scanPts = scanQuery.data ?? [];
-    const loading = photosQuery.isLoading || achievementsQuery.isLoading || scanQuery.isLoading;
+    const loading = photosQuery.isLoading || achievementsQuery.isLoading;
     const [progressModalVisible, setProgressModalVisible] = useState(false);
     const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number>(0);
     const [uploadingProgress, setUploadingProgress] = useState(false);
@@ -708,25 +673,22 @@ export default function ProfileScreen() {
                     <View style={p.card}>
                         <View style={p.cardHead}>
                             <Text style={p.cardTitle}>Progress</Text>
-                            <TouchableOpacity onPress={() => navigation.navigate('FaceScanArchive')} hitSlop={8} activeOpacity={0.7}>
-                                <Text style={p.seeAll}>All scans →</Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('WeeklyReview')} hitSlop={8} activeOpacity={0.7}>
+                                <Text style={p.seeAll}>What's working →</Text>
                             </TouchableOpacity>
                         </View>
                         <ProgressCalendar
                             progressPhotos={progressPhotos}
-                            scanPts={scanPts}
                             onPhotoPress={(photo) => {
                                 const idx = progressPhotos.findIndex(p => p.id === photo.id);
                                 setSelectedPhotoIndex(idx >= 0 ? idx : 0);
                                 setProgressModalVisible(true);
                             }}
-                            onScanDay={() => navigation.navigate('FaceScan')}
+                            onAddPhoto={() => { if (!uploadingProgress) void uploadProgressImage(); }}
                         />
-                        {isPaid && !isPremium && (
-                            <Text style={styles.chadliteNote}>
-                                Snap photos any day, they track here. A daily face rating is a Chad feature.
-                            </Text>
-                        )}
+                        <Text style={styles.chadliteNote}>
+                            Snap a photo any day and it tracks here. Tap today to add one.
+                        </Text>
                     </View>
 
                     {/* ── Trophy Case (achievements) ─────────────────── */}
@@ -845,20 +807,6 @@ export default function ProfileScreen() {
                                     style={{ width: imageModalWidth, height: imageModalWidth * (4 / 3) }}
                                     contentFit="contain"
                                 />
-                                {/* Daily face rating is a Chad (premium) feature.
-                                    ChadLite still keeps the photo, just no score. */}
-                                {isPremium
-                                    ? (progressPhotos[selectedPhotoIndex].face_rating != null &&
-                                        Number.isFinite(Number(progressPhotos[selectedPhotoIndex].face_rating)) ? (
-                                            <Text style={styles.progressModalRatingBadge}>
-                                                {formatFaceRatingLabel(Number(progressPhotos[selectedPhotoIndex].face_rating))}
-                                            </Text>
-                                        ) : null)
-                                    : (
-                                        <Text style={styles.progressModalRatingLocked}>
-                                            Daily rating · Chad only
-                                        </Text>
-                                    )}
                             </View>
                         )}
                         {progressPhotos[selectedPhotoIndex] && (

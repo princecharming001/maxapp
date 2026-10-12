@@ -6,32 +6,7 @@ import axios, { AxiosInstance } from 'axios';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { getItemAsync, setItemAsync, deleteItemAsync } from './storage';
-import { parseServerDate } from '../lib/faceScanDraft';
 import { sanitizeCategoryPrefs, type NotificationCategoryPrefs } from '../lib/notificationPrefs';
-
-/** GET /scans/latest — the newest row of ANY status plus the server's scan-limit decision. */
-export type LatestScan = {
-    id: string;
-    created_at: string;
-    images?: { front?: string; left?: string; right?: string };
-    is_unlocked?: boolean;
-    processing_status?: 'processing' | 'completed' | 'failed' | string;
-    is_first_scan?: boolean;
-    analysis?: unknown;
-    /** Whether POST /scans/upload-triple would accept a scan right now (same rule, server-computed). */
-    can_scan_now?: boolean;
-    /** ISO UTC timestamp when the next scan is allowed, or null when unlimited / never (free tier used up). */
-    next_scan_allowed_at?: string | null;
-    scan_limit_reason?: 'free_limit' | 'weekly_limit' | 'daily_limit' | null;
-};
-
-/** POST /scans/upload-triple. `recovered` marks a row adopted from /scans/latest after a timeout/409. */
-export type ScanUploadResult = {
-    scan_id: string;
-    analysis?: unknown;
-    processing_status?: string;
-    recovered?: boolean;
-};
 
 export interface PersonalMemory {
     id: string;
@@ -1012,7 +987,7 @@ class ApiService {
         return response.data;
     }
 
-    async uploadProgressPhoto(imageUri: string, opts?: { faceRating?: number | null }) {
+    async uploadProgressPhoto(imageUri: string) {
         const formData = new FormData();
         if (Platform.OS === 'web') {
             const blob = await fetch(imageUri).then((r) => r.blob());
@@ -1024,10 +999,6 @@ class ApiService {
                 name: 'progress.jpg',
                 type: 'image/jpeg',
             });
-        }
-        const fr = opts?.faceRating;
-        if (fr != null && Number.isFinite(fr)) {
-            formData.append('face_rating', String(fr));
         }
         const response = await this.client.post('users/me/progress-photo', formData, {
             transformRequest: [(data: unknown, headers?: Record<string, string>) => {
@@ -1255,226 +1226,6 @@ class ApiService {
         return response.data;
     }
 
-    /** Base URL without trailing slash, for fetch() (avoids RN axios + multipart 422). */
-    private scansTripleUploadUrl() {
-        return `${API_BASE_URL.replace(/\/?$/, '')}/scans/upload-triple`;
-    }
-
-    /**
-     * A scan row from THIS submit that the server already holds, or null.
-     *
-     * Used after a client-side abort (the 110s per-attempt timeout does NOT
-     * cancel the server's analysis) and after a 409 (the server is still
-     * analyzing this user's previous upload): re-uploading in either case
-     * created a duplicate row and a second vision call — or hit the daily
-     * limit while the first scan had actually succeeded, which the user then
-     * saw as "You already completed a face scan today" over a good scan.
-     */
-    private async findScanSince(sinceMs: number): Promise<ScanUploadResult | null> {
-        try {
-            const latest = (await this.getLatestScan()) as LatestScan | null;
-            const st = latest?.processing_status;
-            if (!latest || (st !== 'processing' && st !== 'completed')) return null;
-            const createdMs = parseServerDate(latest.created_at);
-            if (!Number.isFinite(createdMs) || createdMs < sinceMs - 60_000) return null;
-            return { scan_id: String(latest.id), analysis: latest.analysis, processing_status: st, recovered: true };
-        } catch {
-            return null;
-        }
-    }
-
-    /**
-     * Three-photo scan — uses fetch() so React Native sets multipart boundary correctly.
-     * Axios + default JSON Content-Type often yields FastAPI 422 even with interceptors.
-     *
-     * Failures carry an axios-shaped `response: { status, data: { detail } }`
-     * so callers route them through userFacingError() — the raw server detail
-     * used to become Error.message and was alerted verbatim.
-     */
-    async uploadScanTriple(frontUri: string, leftUri: string, rightUri: string): Promise<ScanUploadResult> {
-        const url = this.scansTripleUploadUrl();
-        const submittedAt = Date.now();
-        const uploadError = (status: number, detail: string): Error => {
-            const err = new Error(detail) as Error & {
-                statusCode?: number;
-                response?: { status: number; data: { detail: string } };
-            };
-            err.statusCode = status;
-            err.response = { status, data: { detail } };
-            return err;
-        };
-        const buildForm = async (): Promise<FormData> => {
-            const formData = new FormData();
-            if (Platform.OS === 'web') {
-                const fd = new FormData();
-                fd.append('front', await fetch(frontUri).then((r) => r.blob()), 'front.jpg');
-                fd.append('left', await fetch(leftUri).then((r) => r.blob()), 'left.jpg');
-                fd.append('right', await fetch(rightUri).then((r) => r.blob()), 'right.jpg');
-                return fd;
-            }
-            // @ts-ignore RN file shape
-            formData.append('front', { uri: frontUri, type: 'image/jpeg', name: 'front.jpg' });
-            // @ts-ignore
-            formData.append('left', { uri: leftUri, type: 'image/jpeg', name: 'left.jpg' });
-            // @ts-ignore
-            formData.append('right', { uri: rightUri, type: 'image/jpeg', name: 'right.jpg' });
-            return formData;
-        };
-
-        // Per-attempt hard timeout. This request runs the FULL vision analysis
-        // server-side (~75s ceiling), so give it headroom — but never infinity:
-        // a stalled cellular connection used to hang this fetch forever, which
-        // left the user trapped on the full-screen AnalyzingScreen.
-        const ATTEMPT_TIMEOUT_MS = 110_000;
-        const doFetch = async (formData: FormData) => {
-            const token = await this.getToken();
-            const headers: Record<string, string> = {};
-            if (token) headers.Authorization = `Bearer ${token}`;
-            const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), ATTEMPT_TIMEOUT_MS);
-            try {
-                return await fetch(url, {
-                    method: 'POST', headers, body: formData, signal: ctrl.signal,
-                });
-            } finally {
-                clearTimeout(timer);
-            }
-        };
-
-        const RETRY_DELAYS = [1000, 2000];
-        let lastError: unknown;
-        for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
-            if (attempt > 0) {
-                // The previous attempt timed out / dropped client-side, but the
-                // server may have finished it. Adopt that row instead of
-                // uploading a duplicate.
-                const landed = await this.findScanSince(submittedAt);
-                if (landed) return landed;
-                await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt - 1]));
-            }
-            try {
-                let form = await buildForm();
-                let res = await doFetch(form);
-                if (res.status === 401) {
-                    await this.refreshToken();
-                    form = await buildForm();
-                    res = await doFetch(form);
-                }
-                if (!res.ok) {
-                    if (res.status >= 500 && attempt < RETRY_DELAYS.length) {
-                        lastError = uploadError(res.status, `Upload failed (${res.status})`);
-                        continue;
-                    }
-                    const text = await res.text();
-                    let msg = text;
-                    try {
-                        const j = JSON.parse(text);
-                        msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail ?? j);
-                    } catch { /* keep text */ }
-                    if (res.status === 409) {
-                        // Server-side in-flight guard: our own earlier attempt (or a
-                        // double-tap) is still being analyzed. Hand back that row so
-                        // the caller polls it rather than surfacing an error.
-                        const landed = await this.findScanSince(submittedAt - 3 * 60_000);
-                        if (landed) return landed;
-                    }
-                    throw uploadError(res.status, msg);
-                }
-                return (await res.json()) as ScanUploadResult;
-            } catch (e: any) {
-                lastError = e;
-                const code = e?.statusCode;
-                if (code && code >= 400 && code < 500) throw e;
-                if (attempt < RETRY_DELAYS.length) continue;
-            }
-        }
-        throw lastError;
-    }
-
-    async uploadScanTripleBlobs(front: Blob, left: Blob, right: Blob) {
-        const url = this.scansTripleUploadUrl();
-        const buildForm = () => {
-            const fd = new FormData();
-            fd.append('front', front, 'front.jpg');
-            fd.append('left', left, 'left.jpg');
-            fd.append('right', right, 'right.jpg');
-            return fd;
-        };
-        // Per-attempt hard timeout. Same endpoint as uploadScanTriple: the request
-        // runs the FULL vision analysis server-side (~75s ceiling), so give it
-        // headroom — but never infinity: a stalled connection must not hang the
-        // upload (and the screen waiting on it) forever.
-        const ATTEMPT_TIMEOUT_MS = 110_000;
-        const doFetch = async (formData: FormData) => {
-            const token = await this.getToken();
-            const headers: Record<string, string> = {};
-            if (token) headers.Authorization = `Bearer ${token}`;
-            const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), ATTEMPT_TIMEOUT_MS);
-            try {
-                return await fetch(url, { method: 'POST', headers, body: formData, signal: ctrl.signal });
-            } finally {
-                clearTimeout(timer);
-            }
-        };
-        let form = buildForm();
-        let res = await doFetch(form);
-        if (res.status === 401) {
-            await this.refreshToken();
-            form = buildForm();
-            res = await doFetch(form);
-        }
-        if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`Upload failed (${res.status}): ${text}`);
-        }
-        return res.json() as Promise<unknown>;
-    }
-
-    async uploadScanVideo(videoUri: string) {
-        const formData = new FormData();
-        // @ts-ignore
-        formData.append('video', {
-            uri: videoUri,
-            type: 'video/mp4',
-            name: 'scan.mp4',
-        });
-
-        // Large multipart upload — allow 60s for slow cellular connections.
-        const response = await this.client.post('scans/upload-video', formData, { timeout: 60_000 });
-        return response.data;
-    }
-
-    async uploadScanVideoBlob(blob: Blob) {
-        const formData = new FormData();
-        formData.append('video', blob, 'scan.webm');
-        const response = await this.client.post('scans/upload-video', formData, { timeout: 60_000 });
-        return response.data;
-    }
-
-    async analyzeScan(scanId: string) {
-        // Kicks off async analysis — the POST itself should return quickly,
-        // but allow 30s for backend to enqueue.
-        const response = await this.client.post(`scans/${scanId}/analyze`, undefined, { timeout: 30_000 });
-        return response.data;
-    }
-
-    async getLatestScan() {
-        // Treat 404/204/null as "no scan yet" (a normal state for fresh users)
-        // so screens can render an empty/CTA state instead of getting wedged
-        // on a perpetual loading spinner.
-        try {
-            const response = await this.client.get('scans/latest');
-            if (response.status === 204 || response.data === '' || response.data === null) {
-                return null;
-            }
-            return response.data;
-        } catch (e: any) {
-            if (e?.response?.status === 404) return null;
-            throw e;
-        }
-    }
-
     async dismissPostSubscriptionOnboarding() {
         const response = await this.client.post('users/post-subscription-onboarding/dismiss');
         return response.data;
@@ -1507,12 +1258,6 @@ class ApiService {
                 onboarding_completed: boolean;
             };
         };
-    }
-
-    /** DEBUG: mark scan completed without an actual face scan upload. */
-    async devMarkScanCompleted() {
-        const response = await this.client.post('users/dev/mark-scan-completed');
-        return response.data;
     }
 
     /** Curated catalog products tailored to this user's onboarding signals. */
@@ -1559,21 +1304,11 @@ class ApiService {
         return response.data as { message: string; length: string };
     }
 
-    async getScanHistory() {
-        const response = await this.client.get('scans/history');
-        return response.data;
-    }
-
     /** Sync the device's IANA timezone (hooks/useTimezoneSync) so the server's
      *  "today" — streak credit, date stamping, reminders — follows the user's
      *  clock instead of falling back to UTC. Unchanged → changed:false, no write. */
     async patchTimezone(timezone: string): Promise<{ message: string; timezone: string; changed: boolean }> {
         const response = await this.client.patch('users/timezone', { timezone });
-        return response.data;
-    }
-
-    async getScanById(scanId: string) {
-        const response = await this.client.get(`scans/${scanId}`);
         return response.data;
     }
 
@@ -2559,17 +2294,6 @@ class ApiService {
 
     async markForumV2NotificationRead(notificationId: string) {
         const response = await this.client.post(`forums/v2/notifications/${encodeURIComponent(notificationId)}/read`);
-        return response.data;
-    }
-
-    // Leaderboard
-    async getLeaderboard() {
-        const response = await this.client.get('leaderboard');
-        return response.data;
-    }
-
-    async getMyRank() {
-        const response = await this.client.get('leaderboard/me');
         return response.data;
     }
 

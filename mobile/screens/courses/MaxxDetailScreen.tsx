@@ -6,7 +6,6 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
-import { useFlag } from '../../constants/featureFlags';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { useMaxxQuery, useMaxxScheduleQuery, useActiveSchedulesSummaryQuery, fetchChatHistory } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
@@ -739,7 +738,6 @@ function CourseLockedCard({
     accent: string;
     onUpgrade: () => void;
 }) {
-    const faceScanEnabled = useFlag('faceScan');
     return (
         <View style={styles.lockedCard}>
             <View style={[styles.lockedIcon, { backgroundColor: `${accent}1F` }]}>
@@ -747,9 +745,7 @@ function CourseLockedCard({
             </View>
             <Text style={styles.lockedTitle}>Course library is Chad-only</Text>
             <Text style={styles.lockedSubtitle}>
-                {faceScanEnabled
-                    ? 'Chadlite gives you the chatbot, 1 active program, and weekly face scans. Upgrade to Chad to unlock all chapters across every module + daily face scans.'
-                    : 'Chadlite gives you the chatbot and 1 active program. Upgrade to Chad to unlock all chapters across every module.'}
+                Chadlite gives you the chatbot and 1 active program. Upgrade to Chad to unlock all chapters across every module.
             </Text>
             <TouchableOpacity
                 style={[styles.lockedCta, { backgroundColor: accent }]}

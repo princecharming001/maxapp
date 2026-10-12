@@ -5,7 +5,6 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
-import { useFlag } from '../../constants/featureFlags';
 import { useAuth } from '../../context/AuthContext';
 import { useAppleSubscription } from '../../hooks/useAppleSubscription';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
@@ -14,11 +13,11 @@ import { userFacingError } from '../../lib/userFacingError';
 // Chad Lite is RETIRED (single-plan pivot, 2026-07): Chad is the only plan.
 // Legacy Chadlite subscribers are grandfathered — same price, full Chad access.
 const PREMIUM_FEATURES = [
-    'Chatbot Pro: deeper, sharper coaching',
-    '3 active programs',
-    'Daily face scans',
+    'Routines placed around your real day',
+    'Unlimited Superpower coaching',
+    'Up to 3 programs at once',
+    'Google Calendar sync',
     'Full course library',
-    'Priority support',
 ];
 
 function formatPeriodEnd(iso: string | null | undefined): string | null {
@@ -64,10 +63,7 @@ export default function ManageSubscriptionScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const { user, refreshUser, subscriptionTier } = useAuth();
-    const faceScanEnabled = useFlag('faceScan');
-    // When the face-scan feature is off, strip every scan-related perk/line so the
-    // paywall makes no promise the app can't keep. Flip the flag to fully restore.
-    const premiumFeatures = faceScanEnabled ? PREMIUM_FEATURES : PREMIUM_FEATURES.filter((p) => !/scan/i.test(p));
+    const premiumFeatures = PREMIUM_FEATURES;
     const apple = useAppleSubscription();
     const appleRestoring = 'restoring' in apple ? !!apple.restoring : false;
     const [loading, setLoading] = useState(true);
@@ -146,9 +142,7 @@ export default function ManageSubscriptionScreen() {
             tier: 'premium' as const,
             name: 'Chad',
             tag: 'Full stack',
-            sub: faceScanEnabled
-                ? 'Deeper coaching, daily scans, and the full library.'
-                : 'Deeper coaching and the full library.',
+            sub: 'Routines that fit your day, unlimited coaching, and the full library.',
             features: premiumFeatures,
             price: '$5.99',
         },

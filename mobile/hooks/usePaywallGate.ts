@@ -20,17 +20,17 @@ import { track } from '../lib/analytics';
 import { navigationRef } from '../lib/navigationRef';
 
 export function usePaywallGate(): (source?: string) => boolean {
-    const { isPaid, isScanUser } = useAuth();
+    const { isPaid } = useAuth();
 
     return useCallback(
         (source?: string) => {
-            if (isPaid || isScanUser) return false;
+            if (isPaid) return false;
             track('paywall_view', { from: source ?? 'gate' });
             if (navigationRef.isReady()) {
                 (navigationRef as any).navigate('Payment');
             }
             return true;
         },
-        [isPaid, isScanUser],
+        [isPaid],
     );
 }

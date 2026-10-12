@@ -12,11 +12,7 @@ import { colors } from '../theme/dark';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignupScreen from '../screens/auth/SignupScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
-import FeaturesIntroScreen from '../screens/onboarding/FeaturesIntroScreen';
-import FaceScanScreen from '../screens/scan/FaceScanScreen';
-import FaceScanResultsScreen from '../screens/scan/FaceScanResultsScreen';
 import GoogleCalendarConnectScreen from '../screens/integrations/GoogleCalendarConnectScreen';
-import ScanDetailScreen from '../screens/scan/ScanDetailScreen';
 import PaymentScreen from '../screens/payment/PaymentScreen';
 import ReferralCodeScreen from '../screens/payment/ReferralCodeScreen';
 import CreateAccountScreen from '../screens/payment/CreateAccountScreen';
@@ -34,7 +30,6 @@ import MyProductsScreen from '../screens/profile/MyProductsScreen';
 import ManageSubscriptionScreen from '../screens/profile/ManageSubscriptionScreen';
 import PersonalInfoScreen from '../screens/profile/PersonalInfoScreen';
 import ProgressArchiveScreen from '../screens/profile/ProgressArchiveScreen';
-import FaceScanArchiveScreen from '../screens/profile/FaceScanArchiveScreen';
 import ScheduleScreen from '../screens/courses/ScheduleScreen';
 import MaxxDetailScreen from '../screens/courses/MaxxDetailScreen';
 import MaxDetailScreen from '../screens/marketplace/MaxDetailScreen';
@@ -52,11 +47,8 @@ import TabNavigator from './TabNavigator';
 import LandingScreen from '../screens/onboarding/LandingScreen';
 import LegalDocumentScreen from '../screens/legal/LegalDocumentScreen';
 import AdminNavigator from './AdminNavigator';
-import ScanOnlyNavigator from './ScanOnlyNavigator';
 import { userHasSignupPhone } from '../utils/userPhone';
 import OnboardingV2Screen from '../screens/onboarding/OnboardingV2Screen';
-import ScanOfferScreen from '../screens/onboarding/ScanOfferScreen';
-import RevealV2Screen from '../screens/onboarding/RevealV2Screen';
 import CreatorFeedScreen from '../screens/creator/CreatorFeedScreen';
 import CreatorPaywallScreen from '../screens/creator/CreatorPaywallScreen';
 import CreatorCourseScreen from '../screens/creator/CreatorCourseScreen';
@@ -72,18 +64,11 @@ import ChannelChatScreen from '../screens/forums/ChannelChatScreen';
 import WeeklyReviewScreen from '../screens/review/WeeklyReviewScreen';
 import DaySetupScreen from '../screens/you/DaySetupScreen';
 import { isLapsedUser } from '../lib/lapsed';
-import { useFlag } from '../constants/featureFlags';
 
 const Stack = createNativeStackNavigator();
 
 export function RootNavigator() {
-    const { user, isLoading, isAuthenticated, isPaid, isScanUser, isFreeTier, sessionRestorePending } = useAuth();
-    // Face-scan kill switch: when off, the legacy pre-pay funnel skips
-    // FeaturesIntro + FaceScan and sends a completed-but-unpaid user straight
-    // to the paywall (Payment). Flip the flag on to restore the scan funnel.
-    const faceScan = useFlag('faceScan');
-    const OnboardingComponent = OnboardingV2Screen;
-    const RevealComponent = RevealV2Screen;
+    const { user, isLoading, isAuthenticated, isPaid, isFreeTier, sessionRestorePending } = useAuth();
 
     if (isLoading) {
         return <MaxLoadingView />;
@@ -98,18 +83,10 @@ export function RootNavigator() {
     }
 
     const onboardingCompleted = user?.onboarding?.completed === true;
-    const firstScanDone = user?.first_scan_completed === true;
-    // The V2 wizard saves its full payload (completed:false) BEFORE the reveal,
-    // so "finished the quiz but hasn't accepted/skipped the scan yet" is visible
-    // server-side. Relaunching in that window resumes at the reveal → scan-offer
-    // step instead of dropping the user back to step 0 of the wizard.
-    const wizardFinished =
-        typeof (user?.onboarding as any)?.wake_time === 'string' &&
-        Array.isArray((user?.onboarding as any)?.priority_order);
 
     /**
-     * Pre-pay:  Onboarding -> FeaturesIntro -> FaceScan -> FaceScanResults (locked) -> Payment.
-     * Post-pay: Main (HomeScreen redirects to FaceScanResults postPay) -> Main.
+     * Funnel: Landing → Onboarding (intro + first stack) → ReferralCode →
+     * Payment → CreateAccount → Onboarding (fine-tune) → Main.
      *
      * Push notifications default to ON for paid users; they can toggle
      * device-level permissions via OS settings. (The old SMS-coaching opt-in
@@ -128,22 +105,16 @@ export function RootNavigator() {
 
     // A LAPSED subscriber: finished onboarding, no entitlement now, but the
     // server remembers a plan (expired / cancelled / refunded status, or a
-    // past end date). They used to boot into the locked teaser of their OLD
-    // scan (or FeaturesIntro asking for a new scan) with no explanation and
-    // no way to sign in — the owner's "why is it showing me this". They go
-    // straight to the paywall in its "welcome back" state instead, which
-    // carries Restore, a referral code and a sign-in link. Never-paid legacy
-    // accounts keep the scan-teaser path.
+    // past end date). They go straight to the paywall in its "welcome back"
+    // state, which carries Restore, a referral code and a sign-in link.
     const isLapsed = isAuthenticated && !treatAsFull && isLapsedUser(user);
 
     const initialRoute = !isAuthenticated
         // New users land on the Landing 'Get started' funnel (which mints the
-        // anonymous account + starts the scan flow), not the Login form. Login is
-        // still reachable via the 'Sign in' link on Landing.
+        // anonymous account + starts the questions), not the Login form. Login
+        // is still reachable via the 'Sign in' link on Landing.
         ? 'Landing'
-        : isScanUser
-            ? 'ScanOnly'
-            : user?.is_admin
+        : user?.is_admin
                 ? 'Admin'
                 : !treatAsFull
                     ? !onboardingCompleted
@@ -152,44 +123,30 @@ export function RootNavigator() {
                         // transient boot-restore failure): they are PAID but have no
                         // credentials yet. Resume at the account-claim step — never at
                         // the front of the funnel. Plain isPaid, NOT a quiz-progress
-                        // marker: the quiz draft is client-side only, so the server's
-                        // onboarding is empty at purchase time (verified live — the
-                        // priority_order gate never fired and buyers resumed at
-                        // ScanOffer). CreateAccountScreen handles every sub-state:
+                        // marker: the quiz draft may be client-side only, so the
+                        // server's onboarding can be empty at purchase time.
+                        // CreateAccountScreen handles every sub-state:
                         // unclaimed anons get the form; already-claimed users are
                         // forwarded into Onboarding{phase:'schedule'}, which defaults
                         // sanely even with no local draft (reinstall + entitlement
                         // adopted by the launch reconciler before any quiz).
                         ? isPaid
                             ? 'CreateAccount'
-                            : wizardFinished
-                                ? 'RoutineReveal'
-                            // Funnel V4: first thing after "Get started" is the
-                            // scan OFFER (yes → capture, whose analysis then loads
-                            // behind the question run; no → straight to questions).
-                            // Once a scan exists (resume paths), the wizard picks
-                            // up from its draft.
-                            : faceScan && !firstScanDone
-                                ? 'ScanOffer'
-                                : 'Onboarding'
+                            // The wizard resumes from its own draft (and forwards
+                            // to the referral / paywall step it was killed on).
+                            : 'Onboarding'
                         : isLapsed
                             ? 'Payment'
-                            : !faceScan
-                                ? 'ReferralCode'
-                                : firstScanDone
-                                    ? 'FaceScanResults'
-                                    : 'FeaturesIntro'
+                            : 'ReferralCode'
                     : 'Main';
 
     const stackKey = !isAuthenticated
         ? 'guest'
-        : isScanUser
-            ? 'scan'
-            : user?.is_admin
-                ? 'admin'
-                : treatAsFull
-                    ? 'auth-paid'
-                    : 'auth-unpaid';
+        : user?.is_admin
+            ? 'admin'
+            : treatAsFull
+                ? 'auth-paid'
+                : 'auth-unpaid';
 
     return (
         <>
@@ -210,29 +167,16 @@ export function RootNavigator() {
                     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} options={{ headerShown: false }} />
                 </>
-            ) : isScanUser ? (
-                <Stack.Screen name="ScanOnly" component={ScanOnlyNavigator} />
             ) : user?.is_admin ? (
                 <>
                     <Stack.Screen name="Admin" component={AdminNavigator} />
                 </>
             ) : !treatAsFull ? (
                 <>
-                    {/* gestureEnabled:false — the intro quiz sits on top of the still-mounted
-                        FaceScan capture; an iOS swipe-back exposed it with the photos still
-                        in state (a second Analyze = a second scan row). The wizard has its own
-                        Back control. */}
-                    <Stack.Screen name="Onboarding" component={OnboardingComponent} options={{ gestureEnabled: false }} />
-                    {/* Funnel V4 front door: yes/no scan offer. */}
-                    <Stack.Screen name="ScanOffer" component={ScanOfferScreen} />
-                    <Stack.Screen name="RoutineReveal" component={RevealComponent} />
-                    <Stack.Screen name="FeaturesIntro" component={FeaturesIntroScreen} />
-                    {/* gestureEnabled:false prevents backing out of the scan flow
-                        into a state where the user could circumvent the paywall. */}
-                    <Stack.Screen name="FaceScan" component={FaceScanScreen} options={{ gestureEnabled: false }} />
-                    <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} options={{ gestureEnabled: false }} />
-                    <Stack.Screen name="ScanDetail" component={ScanDetailScreen} />
-                    {/* Account-after-scan: claim the anon account before the paywall. */}
+                    {/* gestureEnabled:false — the wizard has its own Back control, and
+                        a swipe-back from the first question would leave the funnel. */}
+                    <Stack.Screen name="Onboarding" component={OnboardingV2Screen} options={{ gestureEnabled: false }} />
+                    {/* Account claim after purchase (anon → real login). */}
                     <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
                     <Stack.Screen name="ReferralCode" component={ReferralCodeScreen} />
                     <Stack.Screen name="Payment" component={PaymentScreen} />
@@ -242,10 +186,8 @@ export function RootNavigator() {
             ) : (
                 <>
                     <Stack.Screen name="Main" component={TabNavigator} />
-                    <Stack.Screen name="FaceScan" component={FaceScanScreen} />
-                    <Stack.Screen name="FaceScanResults" component={FaceScanResultsScreen} />
                     <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
-                    {/* Locked scan results can show "Unlock full results" here too, so
+                    {/* Paid-gated actions (usePaywallGate) bounce free-tier users here, so
                         Payment must be reachable from this stack — not just the funnel. */}
                     <Stack.Screen name="ReferralCode" component={ReferralCodeScreen} />
                     <Stack.Screen name="Payment" component={PaymentScreen} />
@@ -262,10 +204,8 @@ export function RootNavigator() {
                     <Stack.Screen name="ManageSubscription" component={ManageSubscriptionScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="PersonalInfo" component={PersonalInfoScreen} />
                     <Stack.Screen name="ProgressArchive" component={ProgressArchiveScreen} options={{ headerShown: false }} />
-                    <Stack.Screen name="FaceScanArchive" component={FaceScanArchiveScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="WeeklyReview" component={WeeklyReviewScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="DaySetup" component={DaySetupScreen} options={{ headerShown: false }} />
-                    <Stack.Screen name="RoutineReveal" component={RevealComponent} />
 
                     <Stack.Screen name="Schedule" component={ScheduleScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="TaskGuide" component={TaskGuideScreen} options={{ headerShown: false, presentation: 'modal' }} />

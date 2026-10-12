@@ -8,7 +8,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getItemAsync } from '../services/storage';
 import { ensureFirstRunClean } from '../lib/firstRunGuard';
 import api, { subscribeAuthLost, subscribeEntitlementLost } from '../services/api';
-import { clearFaceScanDraft, clearPendingFaceScanSubmit } from '../lib/faceScanDraft';
 import { clearOnboardingDraft } from '../lib/onboardingDraft';
 import { clearPendingChat } from '../lib/pendingChat';
 import { clearRestoredTab } from '../lib/navState';
@@ -86,9 +85,7 @@ interface User {
         master_schedule_streak?: number;
         master_schedule_streak_last_perfect_date?: string | null;
     };
-    first_scan_completed: boolean;
     is_admin: boolean;
-    is_scan_user: boolean;
     /** True for an approved+provisioned creator (unlocks the Creator Studio tab). */
     is_creator?: boolean;
     /** Bot tone preference. Drawer surfaces this as hardcore/mediumcore/softcore. */
@@ -111,7 +108,6 @@ interface AuthContextType {
     isAuthenticated: boolean;
     isPaid: boolean;
     isPremium: boolean;
-    isScanUser: boolean;
     /** True for an approved creator — unlocks the Creator Studio. */
     isCreator: boolean;
     /** True for an unclaimed anonymous "guest" account — must claim an account before the paywall/app. */
@@ -387,8 +383,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 /* ignore */
             }
             clearTodayWidget();
-            void clearPendingFaceScanSubmit().catch(() => undefined);
-            void clearFaceScanDraft().catch(() => undefined);
             void clearOnboardingDraft().catch(() => undefined);
             void clearRestoredTab().catch(() => undefined);
             void clearPersistedQueryCache().catch(() => undefined);
@@ -611,8 +605,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // sees user A's tasks/streak.
         clearTodayWidget();
         await clearFreeTierChoice().catch(() => undefined);
-        await clearPendingFaceScanSubmit().catch(() => undefined);
-        await clearFaceScanDraft().catch(() => undefined);
         await clearOnboardingDraft().catch(() => undefined);
         await clearRestoredTab().catch(() => undefined);
         await clearPersistedQueryCache().catch(() => undefined);
@@ -633,8 +625,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTodayWidget();
         await resetGoogleNativeSession();
         await clearFreeTierChoice().catch(() => undefined);
-        await clearPendingFaceScanSubmit().catch(() => undefined);
-        await clearFaceScanDraft().catch(() => undefined);
         await clearOnboardingDraft().catch(() => undefined);
         await clearRestoredTab().catch(() => undefined);
         await clearPersistedQueryCache().catch(() => undefined);
@@ -658,11 +648,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             isAuthenticated: !!user,
             isPaid: user?.is_paid ?? false,
             isPremium: user?.is_admin || (user?.is_paid && subscriptionTier === 'premium') || false,
-            // Scan-only is a LIMITED tier; a full paid subscription supersedes it
-            // (same principle as isFreeTier below). Without this, a scan-tier user
-            // who later subscribes stays locked in the ScanOnly navigator with no
-            // main app — RootNavigator checks isScanUser before Main/Admin/paid.
-            isScanUser: (user?.is_scan_user ?? false) && !(user?.is_paid ?? false),
             isCreator: user?.is_creator ?? false,
             isAnonymous: !!user?.email && String(user.email).endsWith('@anon.trymax.app'),
             // Never "free tier" once actually paid — paying supersedes the choice.

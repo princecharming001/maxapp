@@ -49,7 +49,6 @@ import { setOnboardingFunnelStage } from '../../lib/onboardingDraft';
 import { isLapsedUser } from '../../lib/lapsed';
 import { userFacingError } from '../../lib/userFacingError';
 import { APPLE_IAP_PREMIUM_SKU } from '../../constants/appleIap';
-import { useFlag } from '../../constants/featureFlags';
 
 /* ── Palette ── dark paywall (near-black, white ink, brand-blue accent) ── */
 const WHITE   = '#FFFFFF';
@@ -66,17 +65,11 @@ const SHOW_DEV_BYPASS = __DEV__;
 type Feature = { title: string; sub: string };
 
 const CHAD_FEATURES: Feature[] = [
-    { title: 'Superpower Chat Pro',        sub: 'Unlimited AI coaching conversations'          },
-    { title: '3 Active Routines',   sub: 'Run up to 3 looksmaxxing programs at once'    },
-    { title: 'Daily Face Scans',    sub: 'AI face analysis every single day'            },
-    { title: 'Full Course Library', sub: 'Every creator course and piece of content'    },
-    { title: 'Priority Support',    sub: 'Faster responses and dedicated help'          },
-];
-const CHAD_FEATURES_NO_SCAN: Feature[] = [
-    { title: 'Superpower Chat Pro',        sub: 'Unlimited AI coaching conversations'          },
-    { title: '3 Active Routines',   sub: 'Run up to 3 looksmaxxing programs at once'    },
-    { title: 'Full Course Library', sub: 'Every creator course and piece of content'    },
-    { title: 'Priority Support',    sub: 'Faster responses and dedicated help'          },
+    { title: 'Routines that fit your day', sub: 'Placed around your work, commute and sleep'  },
+    { title: 'Superpower coach',           sub: 'Unlimited chat to tune or move anything'      },
+    { title: 'Up to 3 programs at once',   sub: 'Stack sleep, energy, training and more'       },
+    { title: 'Calendar sync',              sub: 'Works around your Google Calendar events'     },
+    { title: 'Full course library',        sub: 'Every creator course and piece of content'    },
 ];
 // Chad Lite is retired (funnel V4): one plan, one price, 3-day free trial.
 // Existing Lite subscribers are grandfathered INTO Chad server-side.
@@ -102,16 +95,14 @@ export default function PaymentScreen() {
 
     useEffect(() => {
         track('paywall_view', { lapsed: isLapsed });
-        // Funnel checkpoint: a kill behind the Apple sheet (jetsam) used to
-        // resume at ScanOffer and the last quiz question. ScanOffer's resume
-        // guard forwards straight to the stamped stage.
+        // Funnel checkpoint: a kill behind the Apple sheet (jetsam) resumes
+        // here — the onboarding wizard forwards straight to the stamped stage.
         if (!onboardingCompleted && !isPaid && user?.id) {
             void setOnboardingFunnelStage(String(user.id), 'paywall').catch(() => undefined);
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const faceScanEnabled = useFlag('faceScan');
-    const chadFeatures = faceScanEnabled ? CHAD_FEATURES : CHAD_FEATURES_NO_SCAN;
+    const chadFeatures = CHAD_FEATURES;
 
     const stripe = useStripeSubscription();
     const apple  = useAppleSubscription();
@@ -160,27 +151,10 @@ export default function PaymentScreen() {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Where a successful purchase goes. Mid-funnel (onboarding incomplete) the
-    // payoff for paying is the FULL scan reveal — shown right here, before the
-    // account step ("Save your results" then reads literally). A skipper has no
-    // scan and goes straight to the account. A completed user hitting this as
-    // an in-app gate rides the paid-stack remount instead.
-    //
-    // Previously the reveal was left to Home's focus effect after the schedule
-    // questions — a push that the paid-stack remount swallowed on first
-    // arrival, so it only ever appeared after a relaunch.
+    // next step is claiming the account; a completed user hitting this as an
+    // in-app gate goes back to what they were doing.
     const afterPurchase = async () => {
         if (!onboardingCompleted) {
-            let hasScan = !!user?.first_scan_completed;
-            if (!hasScan && faceScanEnabled) {
-                // The funnel scan may still be analyzing (first_scan_completed
-                // flips only when analysis lands); the row itself exists from
-                // the upload, and the reveal screen polls it to completion.
-                try { hasScan = !!(await api.getLatestScan()); } catch { hasScan = false; }
-            }
-            if (hasScan && faceScanEnabled) {
-                navigation.navigate('FaceScanResults', { postPay: true, funnel: true });
-                return;
-            }
             navigation.navigate('CreateAccount');
         } else if (navigation.canGoBack()) {
             navigation.goBack();
@@ -350,13 +324,13 @@ export default function PaymentScreen() {
                 {/* Title — sits just below the mark, no dead space */}
                 {isLapsed
                     ? <Text style={s.title}>Welcome <Text style={s.titleI}>back</Text></Text>
-                    : <Text style={s.title}>Unlock your <Text style={s.titleI}>potential</Text></Text>}
+                    : <Text style={s.title}>Unlock your <Text style={s.titleI}>stack</Text></Text>}
                 <View style={s.proPill}>
                     <Text style={s.proPillText}>PREMIUM</Text>
                 </View>
                 {isLapsed && (
                     <Text style={s.lapsedNote}>
-                        Your plan ended. Your habits and scans are saved — restart to pick up where you left off.
+                        Your plan ended. Your habits and progress are saved — restart to pick up where you left off.
                     </Text>
                 )}
 

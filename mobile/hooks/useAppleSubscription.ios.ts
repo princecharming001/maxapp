@@ -14,7 +14,6 @@ import { APPLE_IAP_BASIC_SKU, APPLE_IAP_PREMIUM_SKU } from '../constants/appleIa
 import { useAuth } from '../context/AuthContext';
 import { prefetchMainTabData } from '../lib/prefetchMainTabData';
 import { queryKeys } from '../lib/queryClient';
-import { markPostPayPending } from '../lib/postPayNav';
 import { signOutToLogin } from '../lib/signOutToLogin';
 import {
     claimOtherAccountPrompt,
@@ -126,14 +125,6 @@ export function useAppleSubscription() {
 
     /** The account now holds an entitlement: refresh + warm the paid app. */
     const onEntitled = useCallback(async (userInitiated: boolean) => {
-        // Mark BEFORE refreshUser: refreshUser flips isPaid, which remounts the
-        // navigator and runs App.tsx's post-pay effect — the flag must already
-        // be set when that effect reads it. Only for a purchase the user just
-        // made INSIDE the funnel (onboarding not finished): that reveal is the
-        // payoff for paying. A lapsed subscriber restarting their plan, or an
-        // onboarded user paying at an in-app gate, goes straight back to the
-        // app — not to a "reveal" of a months-old scan.
-        if (userInitiated && user?.onboarding?.completed !== true) markPostPayPending();
         // The entitlement is server-confirmed at this point. A refresh blip
         // must not turn into "purchase failed" for someone Apple just charged:
         // retry once, then let the paywall's isPaid exit / the launch sweep

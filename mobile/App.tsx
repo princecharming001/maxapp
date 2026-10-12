@@ -32,7 +32,6 @@ import { installGlobalErrorHandlers } from './lib/globalErrorHandlers';
 import AppErrorBoundary from './components/AppErrorBoundary';
 import { loadRestoredTab, persistActiveTab, extractActiveTab } from './lib/navState';
 import { navigationRef } from './lib/navigationRef';
-import { consumePostPayPending } from './lib/postPayNav';
 import { colors } from './theme/dark';
 import MaxLoadingView from './components/MaxLoadingView';
 import { StripeProviderGate } from './components/StripeProviderGate';
@@ -50,12 +49,6 @@ import { signOutToLogin } from './lib/signOutToLogin';
 import { Alert, InAppAlertHost } from './components/InAppAlert';
 import DevDrawer from './components/DevDrawer';
 import api from './services/api';
-import { useFlag } from './constants/featureFlags';
-import {
-    getPendingFaceScanSubmit,
-    clearPendingFaceScanSubmit,
-    clearFaceScanDraft,
-} from './lib/faceScanDraft';
 // Side-effect import: registers expo-notifications handler at cold-start so
 // remote pushes arriving while the app is foregrounded show a banner.
 import { registerNotificationCategories } from './services/localScheduleNotifications';
@@ -80,11 +73,8 @@ function navigateActionFor(target: NotificationNavTarget) {
 }
 
 function AppNavigator() {
-    const { isAuthenticated, isPaid, refreshUser, user, isScanUser, logout, isAnonymous } = useAuth();
-    const faceScanEnabled = useFlag('faceScan');
+    const { isAuthenticated, isPaid, refreshUser, user, logout, isAnonymous } = useAuth();
     const navRef = navigationRef;
-    const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-    const recoveryRunning = useRef(false);
     // A deep-link target that arrived from a notification tap before the
     // navigator (or the stack screen it points at) was mounted — flushed once
     // navigation is ready. Covers the cold-start-from-tap case.
@@ -312,38 +302,6 @@ function AppNavigator() {
         flushPendingDeepLink();
     }, [isAuthenticated, isPaid, user?.id, flushPendingDeepLink]);
 
-    // Post-purchase routing: when a verified purchase flips isPaid, the paid
-    // stack remounts and we drop the user straight into the post-pay flow
-    // (FaceScanResults). Driven by a one-shot flag set in the IAP success
-    // handler — NOT the isPaid transition alone — so existing subscribers
-    // opening the app are never sent here. Retries briefly while the freshly
-    // remounted paid stack finishes mounting its FaceScanResults route.
-    useEffect(() => {
-        if (!isPaid) return;
-        if (!consumePostPayPending()) return;   // one-shot; only right after a purchase
-        if (!faceScanEnabled) return;            // face-scan kill switch
-        let tries = 0;
-        const go = () => {
-            if (navRef.isReady()) {
-                // Funnel V4 buys MID-funnel (onboarding incomplete), so the
-                // mounted stack can be the funnel stack — which has no 'Main'.
-                // FaceScanResults' postPay exit resets to 'Main'; dispatching it
-                // there makes that reset a silent no-op and strands the user on
-                // an unescapable spinner over the account form. Only dispatch
-                // when the PAID stack (with 'Main') is actually mounted;
-                // otherwise HomeScreen's post_subscription_onboarding redirect
-                // runs the reveal after onboarding completes and the stack
-                // remounts.
-                const names: string[] = (navRef.getRootState()?.routeNames as string[] | undefined) ?? [];
-                if (!names.includes('Main') || !names.includes('FaceScanResults')) return;
-                navRef.dispatch(CommonActions.navigate({ name: 'FaceScanResults', params: { postPay: true } }));
-            } else if (tries++ < 20) {
-                setTimeout(go, 150);
-            }
-        };
-        go();
-    }, [isPaid, faceScanEnabled, navRef]);
-
     // The IAP service is keyed by account: verifies are memoised per
     // (user, transaction), so switching accounts re-verifies everything and a
     // new account gets an immediate, unthrottled entitlement sweep.
@@ -447,7 +405,6 @@ function AppNavigator() {
             }
             if (tries++ < 30) setTimeout(go, 200);
         };
-        // Let the post-pay reveal (if any) dispatch first.
         setTimeout(go, 400);
     }, [isPaid, isAnonymous, user?.id, user?.onboarding?.completed, navRef]);
 
@@ -471,130 +428,6 @@ function AppNavigator() {
         };
         go();
     }, [isAuthenticated, navRef]);
-
-    // Root-level face scan recovery: runs whenever the app comes back to the
-    // foreground so a pending upload that was interrupted in the background
-    // (or while on a different screen) still resolves correctly.
-    useEffect(() => {
-        if (!isAuthenticated || !user?.id) return;
-        // Scan-only users don't have a FeaturesIntro route and don't need pending-scan recovery
-        // (unlimited scans, no queued upload lifecycle). Skip entirely.
-        if (isScanUser) return;
-        // Face-scan kill switch: with the scan removed there are no pending
-        // uploads to recover, so this whole effect is inert when the flag is off.
-        if (!faceScanEnabled) return;
-
-        const runRecovery = async () => {
-            if (recoveryRunning.current) return;
-            // Mid-funnel (V4), the wizard's own gate polls the scan while the
-            // quiz runs — this reset would destroy quiz progress AND land on
-            // FaceScanResults with no params, whose legacy routing then skipped
-            // the paywall for anon users. Recovery is for COMPLETED users whose
-            // upload got orphaned outside the funnel.
-            if (user?.onboarding?.completed !== true) return;
-            const pending = await getPendingFaceScanSubmit().catch(() => null);
-            if (!pending || pending.userId !== user.id) return;
-
-            // A repeat scanner already has first_scan_completed=true and an OLD
-            // completed row, so neither proves THIS upload landed — recovery
-            // used to declare success, delete the captured photos and show
-            // yesterday's scan. Require a row created after the flag was set
-            // (2-min clock-skew allowance). A flag without a timestamp keeps
-            // the old test.
-            const pendingAt = Date.parse(String((pending as { at?: string }).at ?? ''));
-            const newerThanPending = (scan: unknown): boolean => {
-                if (!Number.isFinite(pendingAt)) return true;
-                const c = Date.parse(String((scan as { created_at?: string } | null)?.created_at ?? ''));
-                return Number.isFinite(c) && c >= pendingAt - 120_000;
-            };
-            const landedAfterPending = async (): Promise<boolean> => {
-                if (!Number.isFinite(pendingAt)) return true;
-                try { return newerThanPending(await api.getLatestScan()); } catch { return false; }
-            };
-
-            // Reset target must come from the MOUNTED stack, not from isPaid:
-            // (a) this effect's closure captured a stale isPaid (it's not in the
-            // dep array), and (b) stack membership is keyed on treatAsFull —
-            // a paid-mid-funnel or free-tier user has no 'Main' route, so an
-            // isPaid-based reset was a silent no-op and the recovery never
-            // landed anywhere.
-            const homeRoute = () => {
-                const names: string[] = (navRef.getRootState()?.routeNames as string[] | undefined) ?? [];
-                return names.includes('Main') ? 'Main' : 'FeaturesIntro';
-            };
-
-            recoveryRunning.current = true;
-            try {
-                const delays = [0, 1500, 3000, 4500];
-                for (const ms of delays) {
-                    if (ms > 0) await new Promise((r) => setTimeout(r, ms));
-                    try {
-                        const u = await refreshUser();
-                        if (u?.first_scan_completed && await landedAfterPending()) {
-                            await clearPendingFaceScanSubmit();
-                            await clearFaceScanDraft();
-                            navRef.dispatch(
-                                // FeaturesIntro only exists in the UNPAID stack; a paid
-                            // user's stack has 'Main' instead. Resetting to a route
-                            // absent from the active stack no-ops/errors, so branch.
-                            CommonActions.reset({ index: 1, routes: [{ name: homeRoute() }, { name: 'FaceScanResults' }] }),
-                            );
-                            return;
-                        }
-                    } catch { /* continue */ }
-                    try {
-                        const latest = await api.getLatestScan();
-                        const st = (latest as { processing_status?: string })?.processing_status;
-                        if (st === 'completed' && newerThanPending(latest)) {
-                            await refreshUser();
-                            await clearPendingFaceScanSubmit();
-                            await clearFaceScanDraft();
-                            navRef.dispatch(
-                                // FeaturesIntro only exists in the UNPAID stack; a paid
-                            // user's stack has 'Main' instead. Resetting to a route
-                            // absent from the active stack no-ops/errors, so branch.
-                            CommonActions.reset({ index: 1, routes: [{ name: homeRoute() }, { name: 'FaceScanResults' }] }),
-                            );
-                            return;
-                        }
-                        if (st === 'failed' && newerThanPending(latest)) {
-                            await clearPendingFaceScanSubmit();
-                            return;
-                        }
-                    } catch { /* 404 = no scan row yet */ }
-                }
-                // Still processing — clear flag and let FaceScanResultsScreen poll
-                try {
-                    const latest = await api.getLatestScan();
-                    const st = (latest as { processing_status?: string })?.processing_status;
-                    if (st === 'processing' && newerThanPending(latest)) {
-                        await clearPendingFaceScanSubmit();
-                        navRef.dispatch(
-                            // FeaturesIntro only exists in the UNPAID stack; a paid
-                            // user's stack has 'Main' instead. Resetting to a route
-                            // absent from the active stack no-ops/errors, so branch.
-                            CommonActions.reset({ index: 1, routes: [{ name: homeRoute() }, { name: 'FaceScanResults' }] }),
-                        );
-                    }
-                } catch { /* no scan */ }
-                await clearPendingFaceScanSubmit().catch(() => undefined);
-            } finally {
-                recoveryRunning.current = false;
-            }
-        };
-
-        // Run once on mount (covers cold-start after OS kill)
-        void runRecovery();
-
-        const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
-            const prev = appStateRef.current;
-            appStateRef.current = next;
-            if (prev.match(/inactive|background/) && next === 'active') {
-                void runRecovery();
-            }
-        });
-        return () => sub.remove();
-    }, [isAuthenticated, user?.id, isScanUser, faceScanEnabled, refreshUser, navRef]);
 
     return (
         <NavigationContainer

@@ -287,7 +287,7 @@ export default function HomeScreen() {
         chadNoticeShown.current = true;
         Alert.alert(
             'You’ve been upgraded to Chad',
-            'Everything Chad has — unlimited coaching, 3 active routines, daily scans, the full library — is now yours, at no extra cost. Thanks for being one of our loyal customers.',
+            'Everything Chad has — unlimited coaching, 3 active routines, calendar sync, the full library — is now yours, at no extra cost. Thanks for being one of our loyal customers.',
             [{ text: 'Let’s go', style: 'default' }],
         );
         void api.ackChadUpgrade().catch(() => undefined);
@@ -458,67 +458,31 @@ export default function HomeScreen() {
         return stripDays.find((d) => d.date === selectedDate)?.index ?? todayIndex;
     }, [selectedDate, stripDays, todayIndex]);
 
-    // Face-scan kill switch: when off, a just-paid user is NOT redirected into
-    // the scan-results flow (the scan is removed). Flip the flag to restore it.
-    const faceScan = useFlag('faceScan');
-
     useEffect(() => {
         if (!(user?.onboarding as { post_subscription_onboarding?: boolean })?.post_subscription_onboarding) {
             postPayRedirected.current = false;
         }
     }, [user?.onboarding]);
 
+    // The server marks a fresh purchase with post_subscription_onboarding.
+    // There is no post-pay screen any more, so Home just clears it — the
+    // first-run walkthrough waits on that flag and starts once it's gone.
     useFocusEffect(
         React.useCallback(() => {
-            if (!faceScan) return;
             const ob = user?.onboarding as { post_subscription_onboarding?: boolean } | undefined;
             if (!ob?.post_subscription_onboarding || postPayRedirected.current) return;
             postPayRedirected.current = true;
-            // The scan is OPTIONAL. A skipper has no scan row, so the reveal
-            // redirect would just transit FaceScanResults' no-scan spinner (or
-            // its 8s "Couldn't load your scan" watchdog screen) before bouncing
-            // back here. Skip the reveal entirely: clear the server flag so the
-            // first-run walkthrough can start, and never show a scan-results
-            // surface to someone who chose not to scan.
-            if (!user?.first_scan_completed) {
-                void api.dismissPostSubscriptionOnboarding()
-                    .then(() => refreshUser())
-                    .catch(() => { postPayRedirected.current = false; });   // retry next focus
-                return;
-            }
-            // FALLBACK only — the reveal now happens inline right after the
-            // paywall (PaymentScreen → FaceScanResults{funnel}). This path
-            // remains for the rare miss (kill-switch flipped mid-funnel, a
-            // crash between verify and reveal). Deferred one macrotask on
-            // purpose: on the treatAsFull remount this effect runs in the SAME
-            // commit the re-keyed root navigator mounts, and that navigator's
-            // own mount effect re-publishes its render-time state ([Main])
-            // AFTER us, discarding a push dispatched synchronously here. That
-            // was why the reveal only ever appeared after a relaunch (a cold
-            // start gets a fresh container and no overwrite).
-            setTimeout(() => {
-                navigation.navigate('FaceScanResults', { postPay: true });
-                // Confirm the push actually landed in the ROOT stack; if the
-                // remount swallowed it, release the latch so the next focus
-                // retries instead of going permanently dead.
-                setTimeout(() => {
-                    const root = (navigation.getParent() as { getState?: () => { routes?: { name: string }[] } } | undefined)?.getState?.();
-                    const names = root?.routes?.map((r) => r.name) ?? [];
-                    if (!names.includes('FaceScanResults')) postPayRedirected.current = false;
-                }, 100);
-            }, 0);
-            // No timer cleanup on purpose: this callback's identity changes on
-            // every setUser, and a cleanup would cancel the deferred push.
-        }, [user?.onboarding, user?.first_scan_completed, navigation, faceScan, refreshUser]),
+            void api.dismissPostSubscriptionOnboarding()
+                .then(() => refreshUser())
+                .catch(() => { postPayRedirected.current = false; });   // retry next focus
+        }, [user?.onboarding, refreshUser]),
     );
 
-    // First-run walkthrough (replaced the spotlight tour): shows only when Home
-    // is focused and no post-pay redirect is pending. Anchor-free — see
+    // First-run walkthrough: shows only when Home is focused and the post-pay
+    // flag above has been cleared. Anchor-free — see
     // features/mainTour/FirstRunWalkthrough.
     const tourRedirectPending =
-        faceScan &&
-        !!(user?.onboarding as { post_subscription_onboarding?: boolean } | undefined)?.post_subscription_onboarding &&
-        !postPayRedirected.current;
+        !!(user?.onboarding as { post_subscription_onboarding?: boolean } | undefined)?.post_subscription_onboarding;
     const hasPlan = ((schedulesQuery.data?.schedules as unknown[] | undefined)?.length ?? 0) > 0;
     const walkthrough = useFirstRunWalkthrough({
         redirectPending: tourRedirectPending,

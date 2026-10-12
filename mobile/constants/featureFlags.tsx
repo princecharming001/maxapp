@@ -13,13 +13,11 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 
 export type FlagName =
-    | 'faceScan'
     | 'personalizedUI'
     | 'referrals'
     | 'mainAppTour';
 
 const DEFAULT_FLAGS: Record<FlagName, boolean> = {
-    faceScan: true,
     // Referral / promo codes. Must match the backend `referrals_enabled` flag.
     referrals: true,
     // Tasteful, additive on-screen personalization; each surface degrades to

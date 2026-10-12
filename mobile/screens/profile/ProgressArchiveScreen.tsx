@@ -22,7 +22,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
 import { CachedImage } from '../../components/CachedImage';
 import { colors, spacing, borderRadius, fonts } from '../../theme/dark';
-import { formatFaceRatingLabel } from '../../utils/faceRatingLabel';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -46,14 +45,6 @@ function buildCalendarDays(year: number, month: number): (number | null)[] {
     return days;
 }
 
-function scoreAccentColor(score: number | null | undefined): string {
-    if (score == null || !Number.isFinite(score)) return colors.textMuted;
-    if (score >= 8) return '#D4A017';
-    if (score >= 6.5) return '#4A9EFF';
-    if (score >= 5) return '#E8804A';
-    return '#E05050';
-}
-
 function formatProgressDate(dateStr: string): string {
     const d = new Date(dateStr);
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -65,12 +56,6 @@ function formatProgressDate(dateStr: string): string {
 function formatShortDate(dateStr: string): string {
     const d = new Date(dateStr);
     return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear().toString().slice(2)}`;
-}
-
-function getScoreColor(score: number) {
-    if (score >= 7) return colors.foreground;
-    if (score >= 5) return '#E8804A';
-    return '#E05050';
 }
 
 const getImageWidth = (width: number) =>
@@ -87,7 +72,6 @@ export default function ProgressArchiveScreen() {
     const insets = useSafeAreaInsets();
 
     const [photos, setPhotos] = useState<any[]>([]);
-    const [scanHistory, setScanHistory] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     // calendar nav
@@ -98,9 +82,6 @@ export default function ProgressArchiveScreen() {
     // viewer
     const [viewerVisible, setViewerVisible] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
-    const [expandedScan, setExpandedScan] = useState<any>(null);
-    const [statsExpanded, setStatsExpanded] = useState(false);
-    const [loadingScan, setLoadingScan] = useState(false);
 
     // compare
     const [compareMode, setCompareMode] = useState(false);
@@ -118,12 +99,8 @@ export default function ProgressArchiveScreen() {
 
     const loadPhotos = async () => {
         try {
-            const [photosRes, scansRes] = await Promise.all([
-                api.getProgressPhotos().catch(() => ({ photos: [] })),
-                api.getScanHistory().catch(() => ({ scans: [] })),
-            ]);
+            const photosRes = await api.getProgressPhotos().catch(() => ({ photos: [] }));
             setPhotos(photosRes.photos || []);
-            setScanHistory(scansRes.scans || []);
         } catch (e) {
             console.error(e);
         } finally {
@@ -147,21 +124,6 @@ export default function ProgressArchiveScreen() {
         return map;
     }, [displayPhotos]);
 
-    // map photo id → nearest scan id (within 5 min)
-    const photoScanMap = useMemo(() => {
-        const map: Record<string, string> = {};
-        for (const photo of photos) {
-            const pTime = new Date(photo.created_at).getTime();
-            let best: any = null, bestDiff = Infinity;
-            for (const scan of scanHistory) {
-                const diff = Math.abs(new Date(scan.created_at).getTime() - pTime);
-                if (diff < bestDiff) { bestDiff = diff; best = scan; }
-            }
-            if (best && bestDiff < 5 * 60 * 1000) map[photo.id] = best.id;
-        }
-        return map;
-    }, [photos, scanHistory]);
-
     // calendar days for current view
     const calDays = useMemo(() => buildCalendarDays(calYear, calMonth), [calYear, calMonth]);
 
@@ -183,8 +145,6 @@ export default function ProgressArchiveScreen() {
     const openViewer = (photo: any) => {
         const idx = displayPhotos.findIndex(p => p.id === photo.id);
         setSelectedIndex(idx >= 0 ? idx : 0);
-        setStatsExpanded(false);
-        setExpandedScan(null);
         setViewerVisible(true);
     };
 
@@ -215,26 +175,6 @@ export default function ProgressArchiveScreen() {
         setComparePicks([null, null]);
         setCompareVisible(false);
     };
-
-    const fetchScanDetails = useCallback(async (scanId: string) => {
-        setLoadingScan(true);
-        try { setExpandedScan(await api.getScanById(scanId)); }
-        catch { setExpandedScan(null); }
-        finally { setLoadingScan(false); }
-    }, []);
-
-    const getRatingDelta = useCallback((currentPhoto: any): { text: string; color: string } | null => {
-        if (currentPhoto?.face_rating == null || !Number.isFinite(Number(currentPhoto.face_rating))) return null;
-        const currentDate = new Date(currentPhoto.created_at).getTime();
-        const earlier = photos
-            .filter(p => p.id !== currentPhoto.id && p.face_rating != null && Number.isFinite(Number(p.face_rating)) && new Date(p.created_at).getTime() < currentDate)
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        if (!earlier.length) return null;
-        const delta = Number(currentPhoto.face_rating) - Number(earlier[0].face_rating);
-        if (delta > 0) return { text: `+${delta.toFixed(1)}`, color: '#4A9EFF' };
-        if (delta < 0) return { text: delta.toFixed(1), color: '#E05050' };
-        return { text: '0.0', color: colors.textMuted };
-    }, [photos]);
 
     const handleShare = async (photo: any) => {
         if (!photo?.image_url) return;
@@ -297,7 +237,6 @@ export default function ProgressArchiveScreen() {
     }
 
     const currentViewerPhoto = displayPhotos[selectedIndex];
-    const delta = currentViewerPhoto ? getRatingDelta(currentViewerPhoto) : null;
     const todayKey = toDateKey(today);
 
     // ─── main render ──────────────────────────────────────────────────────
@@ -368,8 +307,6 @@ export default function ProgressArchiveScreen() {
                         const isPick2 = compareMode && pickIdx >= 0 && comparePicks[1] === pickIdx;
                         const isComparePicked = isPick1 || isPick2;
 
-                        const accent = photo ? scoreAccentColor(photo.face_rating) : null;
-
                         return (
                             <TouchableOpacity
                                 key={dayKey}
@@ -410,10 +347,6 @@ export default function ProgressArchiveScreen() {
                                     )}
                                 </View>
 
-                                {/* Score accent bar */}
-                                {accent && (
-                                    <View style={[s.accentBar, { backgroundColor: accent }]} />
-                                )}
                             </TouchableOpacity>
                         );
                     })}
@@ -461,101 +394,11 @@ export default function ProgressArchiveScreen() {
                                         style={[s.slideImage, { width: imageWidth, height: imageWidth * (4 / 3) }]}
                                         contentFit="contain"
                                     />
-                                    {currentViewerPhoto.face_rating != null && Number.isFinite(Number(currentViewerPhoto.face_rating)) && (
-                                        <View style={s.viewerRatingRow}>
-                                            <Text style={s.viewerRatingBadge}>
-                                                {formatFaceRatingLabel(Number(currentViewerPhoto.face_rating))}
-                                            </Text>
-                                            {delta && (
-                                                <Text style={[s.viewerDeltaBadge, { color: delta.color }]}>
-                                                    ({delta.text})
-                                                </Text>
-                                            )}
-                                        </View>
-                                    )}
                                 </View>
                             )}
 
                             {currentViewerPhoto && (
                                 <Text style={s.dateText}>{formatProgressDate(currentViewerPhoto.created_at)}</Text>
-                            )}
-
-                            {currentViewerPhoto && photoScanMap[currentViewerPhoto.id] && (
-                                <View style={s.scanStatsSection}>
-                                    <TouchableOpacity
-                                        style={s.expandStatsBtn}
-                                        activeOpacity={0.7}
-                                        onPress={() => {
-                                            if (statsExpanded) { setStatsExpanded(false); return; }
-                                            const scanId = photoScanMap[currentViewerPhoto.id];
-                                            if (expandedScan?.id === scanId) { setStatsExpanded(true); return; }
-                                            setStatsExpanded(true);
-                                            void fetchScanDetails(scanId);
-                                        }}
-                                    >
-                                        <Ionicons name={statsExpanded ? 'chevron-up' : 'analytics-outline'} size={16} color={colors.foreground} />
-                                        <Text style={s.expandStatsBtnText}>
-                                            {statsExpanded ? 'Hide scan details' : 'View scan details'}
-                                        </Text>
-                                    </TouchableOpacity>
-
-                                    {statsExpanded && (
-                                        loadingScan ? (
-                                            <ActivityIndicator color={colors.foreground} style={{ marginTop: spacing.sm }} />
-                                        ) : expandedScan?.analysis ? (
-                                            <View style={s.scanStatsGrid}>
-                                                {(() => {
-                                                    const pr = expandedScan.analysis?.psl_rating || {};
-                                                    const pi = expandedScan.analysis?.profile_insights;
-                                                    const tier = typeof pr.psl_tier === 'string' ? pr.psl_tier.trim() : '';
-                                                    const appeal = typeof pr.appeal === 'number' ? pr.appeal : parseFloat(String(pr.appeal || ''));
-                                                    const arch = (typeof pr.archetype === 'string' ? pr.archetype.trim() : '') || (typeof pi?.archetype === 'string' ? pi.archetype.trim() : '');
-                                                    const ascMonths = typeof pr.ascension_time_months === 'number' ? pr.ascension_time_months : parseInt(String(pr.ascension_time_months || '0'), 10) || 0;
-                                                    const ageSc = typeof pr.age_score === 'number' ? pr.age_score : parseInt(String(pr.age_score || '0'), 10) || 0;
-                                                    const potential = typeof pr.potential === 'number' ? pr.potential : parseFloat(String(pr.potential || ''));
-                                                    const mogPct = typeof pr.mog_percentile === 'number' ? pr.mog_percentile : null;
-                                                    const glowUp = typeof pr.glow_up_potential === 'number' ? pr.glow_up_potential : null;
-                                                    const weakest = typeof pr.weakest_link === 'string' ? pr.weakest_link.trim() : '';
-                                                    const auraTags: string[] = Array.isArray(pr.aura_tags) ? pr.aura_tags : [];
-                                                    const featureScores = pr.feature_scores || {};
-                                                    return (
-                                                        <>
-                                                            {tier ? <ScanRow label="Tier" value={tier} /> : null}
-                                                            {!Number.isNaN(appeal) ? <ScanRow label="Appeal" value={`${appeal.toFixed(1)}/10`} score={appeal} /> : null}
-                                                            {!Number.isNaN(potential) ? <ScanRow label="Potential" value={`${potential.toFixed(1)}/10`} score={potential} /> : null}
-                                                            {arch ? <ScanRow label="Archetype" value={arch} /> : null}
-                                                            {ascMonths > 0 ? <ScanRow label="Ascension time" value={`${ascMonths} months`} /> : null}
-                                                            {ageSc > 0 ? <ScanRow label="Facial age" value={String(ageSc)} /> : null}
-                                                            {mogPct !== null ? <ScanRow label="Mog percentile" value={`${mogPct}%`} /> : null}
-                                                            {glowUp !== null ? <ScanRow label="Glow-up potential" value={`${glowUp.toFixed(1)}/10`} score={glowUp} /> : null}
-                                                            {weakest ? <ScanRow label="Weakest link" value={weakest} /> : null}
-                                                            {auraTags.length > 0 ? <ScanRow label="Aura tags" value={auraTags.join(', ')} /> : null}
-                                                            {Object.keys(featureScores).length > 0 && (
-                                                                <>
-                                                                    <Text style={s.featureScoresHeader}>Feature Scores</Text>
-                                                                    {Object.entries(featureScores).map(([key, val]: [string, any]) => {
-                                                                        const sc = typeof val?.score === 'number' ? val.score : null;
-                                                                        const tag = typeof val?.tag === 'string' ? val.tag : '';
-                                                                        const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                                                                        return (
-                                                                            <View key={key} style={s.featureRow}>
-                                                                                <Text style={s.featureLabel}>{label}</Text>
-                                                                                <View style={s.featureRight}>
-                                                                                    {sc !== null && <Text style={[s.featureScore, { color: getScoreColor(sc) }]}>{sc.toFixed(1)}</Text>}
-                                                                                    {tag ? <Text style={s.featureTag}>{tag}</Text> : null}
-                                                                                </View>
-                                                                            </View>
-                                                                        );
-                                                                    })}
-                                                                </>
-                                                            )}
-                                                        </>
-                                                    );
-                                                })()}
-                                            </View>
-                                        ) : null
-                                    )}
-                                </View>
                             )}
 
                             <View style={s.actionRow}>
@@ -573,7 +416,7 @@ export default function ProgressArchiveScreen() {
                                 <View style={[s.navRow, { width: imageWidth }]}>
                                     <TouchableOpacity
                                         style={[s.navButton, selectedIndex === 0 && s.navButtonDisabled]}
-                                        onPress={() => { setSelectedIndex(p => Math.max(0, p - 1)); setStatsExpanded(false); setExpandedScan(null); }}
+                                        onPress={() => setSelectedIndex(p => Math.max(0, p - 1))}
                                         disabled={selectedIndex === 0} activeOpacity={0.7}
                                     >
                                         <Ionicons name="chevron-back" size={22} color={selectedIndex === 0 ? colors.textMuted : colors.foreground} />
@@ -582,7 +425,7 @@ export default function ProgressArchiveScreen() {
                                     <Text style={s.counterText}>{selectedIndex + 1} / {displayPhotos.length}</Text>
                                     <TouchableOpacity
                                         style={[s.navButton, selectedIndex >= displayPhotos.length - 1 && s.navButtonDisabled]}
-                                        onPress={() => { setSelectedIndex(p => Math.min(displayPhotos.length - 1, p + 1)); setStatsExpanded(false); setExpandedScan(null); }}
+                                        onPress={() => setSelectedIndex(p => Math.min(displayPhotos.length - 1, p + 1))}
                                         disabled={selectedIndex >= displayPhotos.length - 1} activeOpacity={0.7}
                                     >
                                         <Text style={[s.navText, selectedIndex >= displayPhotos.length - 1 && s.navTextDisabled]}>Next</Text>
@@ -612,7 +455,6 @@ export default function ProgressArchiveScreen() {
                             {[comparePicks[0], comparePicks[1]].map((pickIdx, i) => {
                                 const photo = pickIdx !== null ? displayPhotos[pickIdx] : null;
                                 if (!photo) return <View key={i} style={[s.compareSlot, { width: compareImageWidth }]} />;
-                                const hasRating = photo.face_rating != null && Number.isFinite(Number(photo.face_rating));
                                 return (
                                     <View key={i} style={[s.compareSlot, { width: compareImageWidth }]}>
                                         <View style={[s.compareImageBox, { width: compareImageWidth, height: compareImageWidth * (4 / 3) }]}>
@@ -623,39 +465,13 @@ export default function ProgressArchiveScreen() {
                                             />
                                         </View>
                                         <Text style={s.compareDate}>{formatShortDate(photo.created_at)}</Text>
-                                        {hasRating && <Text style={s.compareRating}>{formatFaceRatingLabel(Number(photo.face_rating))}</Text>}
                                     </View>
                                 );
                             })}
                         </View>
-                        {comparePicks[0] !== null && comparePicks[1] !== null && (() => {
-                            const p1 = displayPhotos[comparePicks[0]!];
-                            const p2 = displayPhotos[comparePicks[1]!];
-                            if (!p1 || !p2) return null;
-                            const r1 = Number(p1.face_rating), r2 = Number(p2.face_rating);
-                            if (!Number.isFinite(r1) || !Number.isFinite(r2)) return null;
-                            const diff = r2 - r1;
-                            return (
-                                <Text style={[s.compareDelta, { color: diff > 0 ? '#4A9EFF' : diff < 0 ? '#E05050' : colors.textMuted }]}>
-                                    {diff > 0 ? '+' : ''}{diff.toFixed(1)} rating change
-                                </Text>
-                            );
-                        })()}
                     </Pressable>
                 </Pressable>
             </Modal>
-        </View>
-    );
-}
-
-// ─── small helpers ───────────────────────────────────────────────────────────
-
-function ScanRow({ label, value, score }: { label: string; value: string; score?: number }) {
-    const col = score != null ? getScoreColor(score) : colors.foreground;
-    return (
-        <View style={s.scanStatRow}>
-            <Text style={s.scanStatLabel}>{label}</Text>
-            <Text style={[s.scanStatValue, { color: col }]}>{value}</Text>
         </View>
     );
 }
