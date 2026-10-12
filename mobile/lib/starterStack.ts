@@ -87,6 +87,27 @@ export const GOAL_TO_PROGRAM_TOKENS: Record<BiohackGoal, string[]> = {
     longevity: [],
 };
 
+/**
+ * The AI program (maxx id) that serves each onboarding goal — what the app
+ * opens when it nudges a user toward their #1 goal (e.g. the Home empty state
+ * → that program's detail page). Ids match GET /api/maxes.
+ */
+export const GOAL_TO_MAXX: Record<BiohackGoal, string> = {
+    sleep: 'sleepmax',
+    energy: 'energymax',
+    focus: 'focusmax',
+    stress: 'calmmax',
+    training: 'trainmax',
+    skin_hair: 'skinhairmax',
+    longevity: 'longevitymax',
+};
+
+/** The program for a raw goal id, or undefined for unknown/legacy goals. */
+export function maxxForGoal(goal: unknown): string | undefined {
+    const g = String(goal ?? '').toLowerCase().trim();
+    return Object.prototype.hasOwnProperty.call(GOAL_TO_MAXX, g) ? GOAL_TO_MAXX[g as BiohackGoal] : undefined;
+}
+
 export function priorityTokensFor(goals: string[]): string[] {
     const out: string[] = [];
     for (const g of goals) {

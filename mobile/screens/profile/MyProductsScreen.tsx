@@ -47,6 +47,14 @@ type Product = {
 };
 
 const MODULE_LABEL: Record<string, string> = {
+    sleepmax: 'Sleep',
+    energymax: 'Energy',
+    focusmax: 'Focus',
+    calmmax: 'Calm',
+    trainmax: 'Fitness',
+    skinhairmax: 'Skin & Hair',
+    longevitymax: 'Longevity',
+    // Legacy looks programs.
     skinmax: 'Skin',
     hairmax: 'Hair',
     fitmax: 'Fit',

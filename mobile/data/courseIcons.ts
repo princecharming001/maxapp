@@ -16,19 +16,11 @@
  * gradient, transparent background) and reused across the ~50 distinct section
  * icon names via theme buckets.
  */
-import { normalizeMaxxId } from '../utils/scheduleAggregation';
-
-const JELLY_BY_MAXX: Record<string, any> = {
-    skinmax: require('../assets/maxxThumbs/cut/skinmax.png'),
-    hairmax: require('../assets/maxxThumbs/cut/hairmax.png'),
-    fitmax: require('../assets/maxxThumbs/cut/fitmax.png'),
-    bonemax: require('../assets/maxxThumbs/cut/bonemax.png'),
-    heightmax: require('../assets/maxxThumbs/cut/heightmax.png'),
-};
+import { maxxThumbCut } from './maxxThumbs';
 
 /** The course's own jelly mascot (null for creator courses w/ no native icon). */
 export function courseJellyIcon(maxxId?: string): any | null {
-    return JELLY_BY_MAXX[normalizeMaxxId(maxxId)] || null;
+    return maxxThumbCut(maxxId);
 }
 
 /* ── Generated section icons (P3) — glossy 3D jelly objects, transparent ──── */

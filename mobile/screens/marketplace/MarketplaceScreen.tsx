@@ -34,6 +34,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import api, { isCreatorMaxx, type MarketplaceItem } from '../../services/api';
 import { maxMeta, hexA, registerMaxMeta } from '../../utils/scheduleAggregation';
+import { maxxThumb, maxxThumbCut } from '../../data/maxxThumbs';
 import { useFlag } from '../../constants/featureFlags';
 import { usePersonalization } from '../../hooks/usePersonalization';
 import { useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
@@ -84,31 +85,17 @@ const SERIF_I = 'Fraunces-Italic';
 const GUTTER = 22;
 const THUMB_BG = '#EFEFEF';     // matches the generated thumbnail backdrops
 
-// Glossy 3D gradient thumbnails for the native maxes (warm→cool jelly objects).
-const NATIVE_THUMBS: Record<string, any> = {
-    skinmax: require('../../assets/maxxThumbs/skinmax.png'),
-    heightmax: require('../../assets/maxxThumbs/heightmax.png'),
-    hairmax: require('../../assets/maxxThumbs/hairmax.png'),
-    fitmax: require('../../assets/maxxThumbs/fitmax.png'),
-    bonemax: require('../../assets/maxxThumbs/bonemax.png'),
-};
+// Glossy 3D glass thumbnails for the native programs (shared map — see
+// data/maxxThumbs.ts). Opaque for poster tiles; the background-removed cut is
+// used on the New carousel so the figure floats on one continuous surface with
+// the text (no backdrop seam).
 function nativeThumb(item: MarketplaceItem): any | null {
     if (!item.native) return null;
-    return NATIVE_THUMBS[String(item.id || '').toLowerCase()] || null;
+    return maxxThumb(item.id);
 }
-
-// Background-removed (transparent) figures — used on the New carousel so the
-// figure floats on one continuous surface with the text (no backdrop seam).
-const NATIVE_THUMBS_CUT: Record<string, any> = {
-    skinmax: require('../../assets/maxxThumbs/cut/skinmax.png'),
-    heightmax: require('../../assets/maxxThumbs/cut/heightmax.png'),
-    hairmax: require('../../assets/maxxThumbs/cut/hairmax.png'),
-    fitmax: require('../../assets/maxxThumbs/cut/fitmax.png'),
-    bonemax: require('../../assets/maxxThumbs/cut/bonemax.png'),
-};
 function nativeThumbCut(item: MarketplaceItem): any | null {
     if (!item.native) return null;
-    return NATIVE_THUMBS_CUT[String(item.id || '').toLowerCase()] || null;
+    return maxxThumbCut(item.id);
 }
 
 type Tab = 'mine' | 'all' | 'native' | 'creator';
@@ -688,7 +675,7 @@ export default function MarketplaceScreen() {
 /** My Maxxes row card — onboarded max with today's progress + a Tune entry (SC5/SC4). */
 function MyMaxCard({ mx, onPress, onTune }: { mx: MyMax; onPress: () => void; onTune: () => void }) {
     const meta = maxMeta(mx.maxxId);
-    const thumb = NATIVE_THUMBS[mx.maxxId] || null;
+    const thumb = maxxThumb(mx.maxxId);
     const allDone = mx.todayCount > 0 && mx.todayDone >= mx.todayCount;
     const progress = mx.todayCount === 0
         ? 'No tasks today'

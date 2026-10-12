@@ -2,12 +2,15 @@
  * Shared merge + colors for master schedule and Home "today" tasks.
  */
 
-import { normalizeMaxxNameSuffix, stripMaxxTitlePrefix } from './maxxDisplay';
+import { BIOHACK_PROGRAMS, normalizeMaxxNameSuffix, stripMaxxTitlePrefix } from './maxxDisplay';
 
 export const FALLBACK_MODULE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f97316', '#8b5cf6', '#0ea5e9'];
 
 /** Must match backend seed_rds_maxes / app naming so tasks never pick up the wrong program from course_title alone. */
 const DEFAULT_MAXX_LABELS: Record<string, string> = {
+  // The 7 biohacking programs (trainmax → "Fitmax", skinhairmax → "Skin & Hair").
+  ...Object.fromEntries(BIOHACK_PROGRAMS.map((p) => [p.id, p.label])),
+  // Legacy looks programs — old schedule rows may still carry these ids.
   skinmax: 'Skinmax',
   hairmax: 'Hairmax',
   fitmax: 'Fitmax',
@@ -17,6 +20,7 @@ const DEFAULT_MAXX_LABELS: Record<string, string> = {
 };
 
 const DEFAULT_MAXX_COLORS: Record<string, string> = {
+  ...Object.fromEntries(BIOHACK_PROGRAMS.map((p) => [p.id, p.color])),
   skinmax: '#8B5CF6',
   hairmax: '#3B82F6',
   fitmax: '#10B981',
@@ -24,6 +28,8 @@ const DEFAULT_MAXX_COLORS: Record<string, string> = {
   heightmax: '#6366F1',
   coloringmax: '#BC7A3C',
 };
+
+const BIOHACK_PROGRAM_IDS = new Set(BIOHACK_PROGRAMS.map((p) => p.id));
 
 /** Normalize DB/API maxx id (spacing, casing). */
 export function normalizeMaxxId(raw: unknown): string {
@@ -36,6 +42,11 @@ export function normalizeMaxxId(raw: unknown): string {
   if (s === 'bone-max' || s === 'bonemax') return 'bonemax';
   if (s === 'height-max' || s === 'heightmax') return 'heightmax';
   if (s === 'coloring-max' || s === 'coloringmax') return 'coloringmax';
+  // Biohacking programs: exact ids only (plus dash-separated spellings like
+  // "sleep-max" / "skin-hair-max"). Never fuzzy — trainmax must stay trainmax
+  // (not fitmax) and skinhairmax must stay skinhairmax (not skinmax/hairmax).
+  const dashless = s.replace(/-/g, '');
+  if (BIOHACK_PROGRAM_IDS.has(dashless)) return dashless;
   return s;
 }
 
@@ -47,6 +58,7 @@ export function fallbackColor(key: string): string {
 
 /** Each maxx's representative Ionicons glyph (the "color pocket" icon). */
 const DEFAULT_MAXX_ICONS: Record<string, string> = {
+  ...Object.fromEntries(BIOHACK_PROGRAMS.map((p) => [p.id, p.icon])),
   skinmax: 'sparkles-outline',
   hairmax: 'cut-outline',
   fitmax: 'fitness-outline',

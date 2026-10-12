@@ -68,7 +68,7 @@ type Feature = { title: string; sub: string };
 const CHAD_FEATURES: Feature[] = [
     { title: 'Routines that fit your day', sub: 'Placed around your work, commute and sleep'  },
     { title: 'Superpower coach',           sub: 'Unlimited chat to tune or move anything'      },
-    { title: 'Up to 3 programs at once',   sub: 'Stack sleep, energy, training and more'       },
+    { title: 'Stack every program',        sub: 'Sleep, energy, training and more, together'   },
     { title: 'Calendar sync',              sub: 'Works around your Google Calendar events'     },
     { title: 'Full course library',        sub: 'Every creator course and piece of content'    },
 ];

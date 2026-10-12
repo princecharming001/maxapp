@@ -15,7 +15,7 @@ import { userFacingError } from '../../lib/userFacingError';
 const PREMIUM_FEATURES = [
     'Routines placed around your real day',
     'Unlimited Superpower coaching',
-    'Up to 3 programs at once',
+    'Stack as many programs as you like',
     'Google Calendar sync',
     'Full course library',
 ];

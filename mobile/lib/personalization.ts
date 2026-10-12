@@ -18,6 +18,15 @@ import { normalizePersonaId, toneCopy, type PersonaId } from './toneCopy';
 
 /** Presentable labels for the canonical maxxes; fall back to the shared helper. */
 const GOAL_LABELS: Record<string, string> = {
+    // The 7 AI biohacking programs.
+    sleepmax: 'Sleepmax',
+    energymax: 'Energymax',
+    focusmax: 'Focusmax',
+    calmmax: 'Calmmax',
+    trainmax: 'Fitmax',
+    skinhairmax: 'Skin & Hair',
+    longevitymax: 'Longevitymax',
+    // Legacy looks programs.
     skinmax: 'Skinmax',
     fitmax: 'Fitmax',
     hairmax: 'Hairmax',

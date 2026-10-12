@@ -9,7 +9,8 @@ import api from '../../services/api';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { useMaxxQuery, useMaxxScheduleQuery, useActiveSchedulesSummaryQuery, fetchChatHistory } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
-import { getMaxxDisplayDescription, getMaxxDisplayLabel } from '../../utils/maxxDisplay';
+import { BIOHACK_PROGRAMS, getMaxxDisplayDescription, getMaxxDisplayLabel, isBiohackProgramId } from '../../utils/maxxDisplay';
+import { maxActiveSchedulesForUser } from '../../utils/maxxLimits';
 import { useAuth } from '../../context/AuthContext';
 import { defaultFitmaxMacroSummary, deriveCalorieLogFromMessages } from '../../features/fitmax/fitmax';
 import { buildModuleReaderContent, modulePreviewFromContent, isFitmaxCourseShape } from '../../utils/maxxModuleReader';
@@ -20,7 +21,12 @@ import CourseTimeline from '../../components/CourseTimeline';
 import { maxColor, hexA } from '../../utils/scheduleAggregation';
 import SectionLabel from '../../components/SectionLabel';
 
-const SCHEDULE_CAPABLE_MAXXES = ['skinmax', 'heightmax', 'hairmax', 'fitmax', 'bonemax'];
+// The 7 AI biohacking programs (intake + scheduling run in chat) plus the
+// legacy looks programs, which old schedule rows may still reference.
+const SCHEDULE_CAPABLE_MAXXES = [
+    ...BIOHACK_PROGRAMS.map((p) => p.id),
+    'skinmax', 'heightmax', 'hairmax', 'fitmax', 'bonemax',
+];
 
 /**
  * Modules at the tail end of each maxx are premium-only.
@@ -84,7 +90,8 @@ function getModuleStatusLine(maxxId: string, moduleTitle: string, activeSchedule
     const ctx = activeSchedule.schedule_context || {};
     const dateStr = formatStartedDate(activeSchedule.created_at);
 
-    if (maxxId === 'fitmax') {
+    // AI programs and fitmax: one schedule covers the whole program.
+    if (maxxId === 'fitmax' || isBiohackProgramId(maxxId)) {
         return dateStr ? `Started ${dateStr}` : 'Started';
     }
 
@@ -136,7 +143,7 @@ export default function MaxxDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const queryClient = useQueryClient();
-    const { isPremium } = useAuth() as any;
+    const { isPremium, user } = useAuth() as any;
     const { maxxId } = route.params || {};
 
     const isFitmax = maxxId === 'fitmax';
@@ -168,10 +175,9 @@ export default function MaxxDetailScreen() {
     const activeLabels = activeSummaryQuery.data?.labels ?? [];
 
     const loading = !!maxxId && maxxQuery.isPending && !maxxQuery.data && !isCreatorCourse;
-    // Mirror backend: Chad=3, Chadlite=2. Was hardcoded basic=1 here, which
-    // hid the Start Schedule button after the first add even though the
-    // backend would have accepted a second.
-    const maxActiveModules = isPremium ? 3 : 2;
+    // Mirror backend (MAX_ACTIVE_SCHEDULES_*): paid users stack any number of
+    // programs now, so the limit banner effectively never shows.
+    const maxActiveModules = maxActiveSchedulesForUser(user);
     const atLimit = !activeSchedule && activeCount >= maxActiveModules;
 
     /* Course reader (full-screen modal pager). null = closed. */
@@ -286,7 +292,7 @@ export default function MaxxDetailScreen() {
         const tail = remaining > 0
             ? ` Today's remaining ${remaining} task${remaining === 1 ? '' : 's'} will be removed.`
             : '';
-        const msg = `This deactivates your ${maxxId} schedule. You can restart it anytime.${tail}`;
+        const msg = `This deactivates your ${getMaxxDisplayLabel({ id: maxxId })} schedule. You can restart it anytime.${tail}`;
         if (Platform.OS === 'web') {
             const ok = window.confirm(msg);
             if (ok) doStopSchedule();
@@ -407,7 +413,7 @@ export default function MaxxDetailScreen() {
                             <View style={styles.limitBanner}>
                                 <Ionicons name="alert-circle-outline" size={16} color={colors.textSecondary} />
                                 <Text style={styles.limitBannerText}>
-                                    You're at your limit of {maxActiveModules} active programs ({activeLabels.join(', ')}). Stop one first to start this.{!isPremium ? ' Or upgrade to Chad for a 3rd slot.' : ''}
+                                    You're at your limit of {maxActiveModules} active programs ({activeLabels.join(', ')}). Stop one first to start this.
                                 </Text>
                             </View>
                         ) : (
@@ -527,7 +533,7 @@ export default function MaxxDetailScreen() {
                             <View style={styles.limitBanner}>
                                 <Ionicons name="alert-circle-outline" size={16} color={colors.textSecondary} />
                                 <Text style={styles.limitBannerText}>
-                                    You're at your limit of {maxActiveModules} active programs ({activeLabels.join(', ')}). Stop one first to start this.{!isPremium ? ' Or upgrade to Chad for a 3rd slot.' : ''}
+                                    You're at your limit of {maxActiveModules} active programs ({activeLabels.join(', ')}). Stop one first to start this.
                                 </Text>
                             </View>
                         ) : (
@@ -573,7 +579,7 @@ export default function MaxxDetailScreen() {
                             <View style={styles.limitBanner}>
                                 <Ionicons name="alert-circle-outline" size={18} color={colors.textSecondary} />
                                 <Text style={styles.limitBannerText}>
-                                    You're at your limit of {maxActiveModules} active programs ({activeLabels.join(', ')}). Stop one first to start this.{!isPremium ? ' Or upgrade to Chad for a 3rd slot.' : ''}
+                                    You're at your limit of {maxActiveModules} active programs ({activeLabels.join(', ')}). Stop one first to start this.
                                 </Text>
                             </View>
                         ) : (

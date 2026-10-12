@@ -25,6 +25,8 @@ import { usePaywallGate } from '../../hooks/usePaywallGate';
 import { useAuth } from '../../context/AuthContext';
 import { savePendingChat, loadPendingChat, clearPendingChat, newClientTurnId } from '../../lib/pendingChat';
 import { userFacingError } from '../../lib/userFacingError';
+import { isBiohackProgramId } from '../../utils/maxxDisplay';
+import { maxMeta } from '../../utils/scheduleAggregation';
 
 // The in-flight message that survives a kill/offline blip lives in
 // lib/pendingChat.ts, scoped to the user id (the old device-wide
@@ -320,7 +322,8 @@ function pickTypingMode(
 ): ChatTypingMode {
     const ic = (initContext || '').toLowerCase();
     const lower = (msg || '').toLowerCase();
-    if (ic.startsWith('skinmax') || ic.startsWith('hairmax') || ic.startsWith('fitmax') ||
+    if (isBiohackProgramId(ic.split(/[^a-z]/)[0]) ||
+        ic.startsWith('skinmax') || ic.startsWith('hairmax') || ic.startsWith('fitmax') ||
         ic.startsWith('heightmax') || ic.startsWith('bonemax') ||
         /\b(schedule|routine|plan)\b/.test(lower)) {
         return 'schedule';
@@ -659,7 +662,9 @@ export default function MaxChatScreen() {
             navigation.setParams({ initSchedule: undefined, setup: undefined });
         } catch { /* nav not ready */ }
         initScheduleHandled.current = initSchedule;
-        const maxxLabel = initSchedule.charAt(0).toUpperCase() + initSchedule.slice(1).replace('max', 'Max');
+        // Proper display label: "Skin & Hair" for skinhairmax, "Fitmax" for
+        // trainmax, "Sleepmax" … (legacy ids keep their old labels).
+        const maxxLabel = maxMeta(initSchedule).label;
         // NOTE: keep an action verb ("set up" / "start") + the max name in the
         // opener — services.onboarding_questioner.detect_max_start_intent gates
         // the personalization-question flow on exactly that.
@@ -670,7 +675,7 @@ export default function MaxChatScreen() {
         sendMessageWithContext(
             setup
                 ? `Let's set up my ${maxxLabel}. Ask me what you need to tailor it to me.`
-                : `I want to start my ${maxxLabel} schedule.`,
+                : `I want to start my ${maxxLabel} plan.`,
             initSchedule,
             'start_schedule',
             true,

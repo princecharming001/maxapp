@@ -39,6 +39,7 @@ import { fetchChatHistory } from '../../hooks/useAppQueries';
 import { getCourseForMaxx, isCreatorCourse } from '../../data/courseContent';
 import { hexA, maxMeta } from '../../utils/scheduleAggregation';
 import { HABIT_CATALOG } from '../../data/habitCatalog';
+import { maxxThumbCut } from '../../data/maxxThumbs';
 import { track } from '../../lib/analytics';
 import { usePaywallGate } from '../../hooks/usePaywallGate';
 
@@ -57,18 +58,11 @@ function fmtK(n?: number): string {
     return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${n}`;
 }
 
-// Glossy 3D "jelly" icons (background-removed) for the native maxes — the brand
-// visual language. 1:1 by lowercased id. Creator courses have no jelly icon and
-// fall back to a brand-tinted serif monogram (NO photos anywhere).
-const NATIVE_THUMBS_CUT: Record<string, any> = {
-    skinmax: require('../../assets/maxxThumbs/cut/skinmax.png'),
-    heightmax: require('../../assets/maxxThumbs/cut/heightmax.png'),
-    hairmax: require('../../assets/maxxThumbs/cut/hairmax.png'),
-    fitmax: require('../../assets/maxxThumbs/cut/fitmax.png'),
-    bonemax: require('../../assets/maxxThumbs/cut/bonemax.png'),
-};
+// Glossy 3D glass icons (background-removed) for the native programs — the
+// brand visual language (shared map: data/maxxThumbs.ts). Creator courses have
+// no glass icon and fall back to a brand-tinted serif monogram (NO photos).
 function jellyThumb(id?: string): any | null {
-    return NATIVE_THUMBS_CUT[String(id || '').toLowerCase()] || null;
+    return maxxThumbCut(id);
 }
 
 /** Brand-tinted serif initial — replaces every avatar/photo on this page. */
@@ -332,8 +326,11 @@ function StatsGrid({ item, isCourse, creatorMaxx, postCount }: {
             { value: item.rating ? item.rating.toFixed(1) : '—', label: 'Rating' },
         ];
     } else {
+        // AI programs (sleepmax, …) have no static habit catalog — their plan is
+        // built in chat — so there is nothing honest to show; hide the grid.
+        if (!habits.length) return null;
         stats = [
-            { value: habits.length ? String(habits.length) : '—', label: 'Routines' },
+            { value: String(habits.length), label: 'Routines' },
             { value: areas ? String(areas) : '—', label: 'Focus areas' },
             { value: 'Daily', label: 'Cadence' },
         ];
@@ -409,7 +406,9 @@ function SessionTimeline({ item, base }: { item: MarketplaceItem; base: string }
                 return { title: t.title, time: t.time, state, countdownMs };
             });
         }
-        // Preview from the curated routine catalog (not started yet).
+        // Preview from the curated routine catalog (not started yet). The AI
+        // programs have no static catalog, so this is empty for them and the
+        // whole section hides (`!nodes.length` below).
         const habits = HABIT_CATALOG[String(item.id || '').toLowerCase()] || [];
         return habits.slice(0, 6).map((h, i) => ({ title: h.label, state: i === 0 ? 'current' : 'locked' } as SessionNode));
     }, [q.data, now, item.id]);
@@ -511,17 +510,19 @@ export default function MaxDetailScreen() {
     const isOwner = !!byMaxx?.is_owner;
     const creatorArt = creatorMaxx && item.image_url ? api.resolveAttachmentUrl(item.image_url) : undefined;
     const creatorAvatar = item.creator?.avatar ? api.resolveAttachmentUrl(item.creator.avatar) : undefined;
-    // Brief, looksmax-native description of what this max actually is. Honest —
-    // describes the real target areas in the community's own vocabulary. Falls
-    // back to the item's own copy for courses / unknown maxes.
-    const LOOKSMAX_BLURB: Record<string, string> = {
-        skinmax: 'Skin is your #1 halo — clear, even, glassy skin lifts how your whole face reads. Skinmax repairs your barrier, kills texture, redness and marks, and dials in that lit-from-within glow.',
-        hairmax: 'Hair frames the entire face — one of the highest-impact halos there is. Hairmax works your density, hairline and scalp health so you keep, and grow, a thick, frame-defining mane.',
-        fitmax: 'Body fat hides your bone structure; leanness reveals it. Fitmax leans you out and builds the right muscle so your jaw, cheekbones and frame come forward and mog.',
-        bonemax: 'Bone structure sets your ceiling. Bonemax trains your jaw, masseter, neck and posture — mewing and tension work — to sharpen your profile and harden your frame.',
-        heightmax: 'Height and posture carry presence. Heightmax is decompression, posture and frame work to decompress your spine, stand taller and own more space.',
+    // Short, plain description of what each program actually does day to day.
+    // Routines and timing only — no appearance framing, no medical claims.
+    // Falls back to the item's own copy for courses / creator / unknown ids.
+    const PROGRAM_BLURB: Record<string, string> = {
+        sleepmax: 'A wind-down, a steady bedtime and morning light, timed around your real day. Small habits that make falling asleep easier and mornings less groggy.',
+        energymax: 'Light, movement, meals and caffeine timing spread through your day, so your energy holds steady instead of crashing mid-afternoon.',
+        focusmax: 'Protected deep-work blocks, smart breaks and fewer distractions, scheduled into the gaps you actually have.',
+        calmmax: 'Short breathing resets, walks and wind-down moments placed through your day, so stress has somewhere to go.',
+        trainmax: 'Workouts, daily movement and recovery that fit your week, whether you have twenty minutes or an hour.',
+        skinhairmax: 'A simple morning and evening care routine for skin and hair, kept short enough to stick.',
+        longevitymax: 'The basics that compound over years: sleep, movement, daylight, good food and connection, built into your routine.',
     };
-    const maxBlurb = LOOKSMAX_BLURB[String(item.id || '').toLowerCase()] || d.long_description || item.tagline || '';
+    const maxBlurb = PROGRAM_BLURB[String(item.id || '').toLowerCase()] || d.long_description || item.tagline || '';
     // Price anchor — a weekly sub framed per day reads far smaller than "/wk".
     const perDay = item.price_cents ? `$${((item.price_cents / 100) / 7).toFixed(2)}` : null;
 
@@ -627,13 +628,9 @@ export default function MaxDetailScreen() {
             setItem({ ...item, entered: true });
             if (isCourse) goToSchedule(); else goToChat(item.id);
         } catch (e: any) {
-            // Slot cap reached or a Max is still in its weekly lock — the backend
-            // sends a clear 409 message; surface it instead of silently failing.
-            const detail = e?.response?.data?.detail;
-            const msg = typeof detail === 'string' && detail
-                ? detail
-                : "Couldn't add this Max right now. Please try again.";
-            Alert.alert('Max slots', msg);
+            // Paid users can stack any number of programs (no slot cap / swap
+            // lock server-side any more), so this is only a generic failure.
+            Alert.alert("Couldn't start this plan", 'Please try again in a moment.');
         } finally {
             setBusy(false);
         }
@@ -669,7 +666,7 @@ export default function MaxDetailScreen() {
                     <View style={styles.kickerRow}>
                         <View style={[styles.kickerDot, { backgroundColor: base }]} />
                         <Text style={styles.kicker}>
-                            {(item.category || (creatorMaxx ? 'Creator max' : isCourse ? 'Course' : 'Max')).toUpperCase()}
+                            {(item.native ? 'Max' : item.category || (creatorMaxx ? 'Creator max' : isCourse ? 'Course' : 'Max')).toUpperCase()}
                         </Text>
                     </View>
                     <Text style={styles.heroTitle}>{item.title}</Text>
@@ -677,7 +674,7 @@ export default function MaxDetailScreen() {
                     <Text style={styles.heroTagline}>{item.tagline}</Text>
                 </View>
 
-                {/* Brief, looksmax-native description of what this max is. */}
+                {/* Brief, plain description of what this program is. */}
                 {maxBlurb ? <Text style={styles.lead}>{maxBlurb}</Text> : null}
 
                 {/* Identity — creator maxxes get the real avatar in an accent ring. */}

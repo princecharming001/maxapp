@@ -47,6 +47,7 @@ import { useTaskGuide, type TaskGuideStep, type TaskGuideIngredient } from '../.
 import { fonts } from '../../theme/dark';
 import api from '../../services/api';
 import { queryKeys } from '../../lib/queryClient';
+import { maxxThumbCut } from '../../data/maxxThumbs';
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
@@ -56,18 +57,11 @@ const CREAM = '#F7F6F2';
 const MUTE = '#9A9A9A';
 const HAIRLINE = '#E2E0DA';
 
-// One constant icon per Superpower (same glossy art as Explore). Pinned top-right of
-// the guide and identical for every step — same icon for all skin maxes, all
-// height maxes, etc.
-const MAXX_ICON: Record<string, any> = {
-    skinmax: require('../../assets/maxxThumbs/cut/skinmax.png'),
-    heightmax: require('../../assets/maxxThumbs/cut/heightmax.png'),
-    hairmax: require('../../assets/maxxThumbs/cut/hairmax.png'),
-    fitmax: require('../../assets/maxxThumbs/cut/fitmax.png'),
-    bonemax: require('../../assets/maxxThumbs/cut/bonemax.png'),
-};
+// One constant icon per program (same glossy art as Explore — shared map in
+// data/maxxThumbs.ts). Pinned top-right of the guide and identical for every
+// step of that program.
 function maxxIcon(id?: string): any | null {
-    return MAXX_ICON[String(id || '').toLowerCase()] || null;
+    return maxxThumbCut(id);
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────

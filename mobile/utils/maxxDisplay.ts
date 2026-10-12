@@ -1,17 +1,49 @@
 /**
  * List/detail labels for maxxes — normalizes stale API/RDS rows
- * (e.g. SkinMax, long skin descriptions) and surfaces a curated set
- * of short looksmaxx-coded descriptions per module.
+ * (e.g. SkinMax, long skin descriptions) and surfaces a short curated
+ * description per program.
  */
 
 /**
- * Per-maxx display description. Lowercase, terse, slightly cocky —
- * no corporate hedges, no "for clearer brighter skin" copy.
- *
- * Tone target: looksmaxx forum confidence, not influencer. Each line
- * is ≤ 60 chars so it fits the editorial hero comfortably.
+ * The 7 AI-powered biohacking programs (the backend serves these ids from
+ * GET /api/maxes and the marketplace). Intake + scheduling for each happens in
+ * chat. Internal ids are stable; `label` is what the user sees — note
+ * `trainmax` displays as "Fitmax" and `skinhairmax` as "Skin & Hair".
+ */
+export type BiohackProgram = {
+    id: string;
+    label: string;
+    tagline: string;
+    icon: string;
+    color: string;
+};
+
+export const BIOHACK_PROGRAMS: BiohackProgram[] = [
+    { id: 'sleepmax', label: 'Sleepmax', tagline: 'fall asleep faster, wake up rested', icon: 'moon-outline', color: '#5B6CD9' },
+    { id: 'energymax', label: 'Energymax', tagline: 'steadier energy all day', icon: 'flash-outline', color: '#E0A21B' },
+    { id: 'focusmax', label: 'Focusmax', tagline: 'longer stretches of deep work', icon: 'locate-outline', color: '#2F8F83' },
+    { id: 'calmmax', label: 'Calmmax', tagline: 'calmer days, quicker resets', icon: 'leaf-outline', color: '#4F9D5D' },
+    { id: 'trainmax', label: 'Fitmax', tagline: 'move more, recover better', icon: 'barbell-outline', color: '#D9534F' },
+    { id: 'skinhairmax', label: 'Skin & Hair', tagline: 'simple daily care that adds up', icon: 'water-outline', color: '#C77DBA' },
+    { id: 'longevitymax', label: 'Longevitymax', tagline: 'the habits that compound', icon: 'infinite-outline', color: '#7A5CC7' },
+];
+
+export const BIOHACK_PROGRAM_BY_ID: Record<string, BiohackProgram> = Object.fromEntries(
+    BIOHACK_PROGRAMS.map((p) => [p.id, p]),
+);
+
+export function isBiohackProgramId(id: unknown): boolean {
+    return Object.prototype.hasOwnProperty.call(BIOHACK_PROGRAM_BY_ID, String(id ?? '').toLowerCase().trim());
+}
+
+/**
+ * Per-maxx display description — short, plain, ≤ 60 chars so it fits the
+ * editorial hero. The legacy looks-program rows stay only so an old schedule
+ * row (pre-migration) still renders something sensible.
  */
 const MAXX_DESCRIPTIONS: Record<string, string> = {
+    ...Object.fromEntries(BIOHACK_PROGRAMS.map((p) => [p.id, `${p.tagline}.`])),
+    // Legacy (pre-biohacking) programs.
     skinmax:   'skin care for clarity and glow.',
     hairmax:   'hairline maintenance and scalp density.',
     fitmax:    'frame building and aesthetic leanness.',
@@ -41,13 +73,19 @@ export function normalizeMaxxNameSuffix(label: string): string {
  */
 export function stripMaxxTitlePrefix(title: string): string {
     const s = String(title || '');
-    const out = s.replace(/^\s*(?:skin|fit|hair|height|bone|coloring)\s*max+\s*(?:—|–|-|:|,|\|)\s*/i, '').trim();
+    const out = s
+        .replace(
+            /^\s*(?:(?:skin|fit|hair|height|bone|coloring|sleep|energy|focus|calm|train|longevity|skinhair)\s*max+|skin\s*(?:&|and)\s*hair)\s*(?:—|–|-|:|,|\|)\s*/i,
+            '',
+        )
+        .trim();
     return out || s;
 }
 
 export function getMaxxDisplayLabel(maxx: { id?: string; label?: string }): string {
     const id = String(maxx.id || '').toLowerCase().trim();
     const raw = String(maxx.label ?? maxx.id ?? '').trim();
+    if (isBiohackProgramId(id)) return BIOHACK_PROGRAM_BY_ID[id].label;
     if (id === 'skinmax') return 'Skinmax';
     if (id === 'coloringmax') return 'Coloring Max';
     return normalizeMaxxNameSuffix(raw || id);
@@ -57,5 +95,5 @@ export function getMaxxDisplayDescription(
     maxx: { id?: string; description?: string },
 ): string | undefined {
     const id = String(maxx.id || '').toLowerCase().trim();
-    return MAXX_DESCRIPTIONS[id] ?? maxx.description;
+    return (Object.prototype.hasOwnProperty.call(MAXX_DESCRIPTIONS, id) ? MAXX_DESCRIPTIONS[id] : undefined) ?? maxx.description;
 }

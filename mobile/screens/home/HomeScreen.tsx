@@ -23,6 +23,7 @@ import { queryKeys } from '../../lib/queryClient';
 import { userFacingError } from '../../lib/userFacingError';
 import { useFlag } from '../../constants/featureFlags';
 import { usePersonalization } from '../../hooks/usePersonalization';
+import { maxxForGoal } from '../../lib/starterStack';
 import { CachedImage } from '../../components/CachedImage';
 import { StreakFireBadge } from '../../components/StreakFireBadge';
 import InboxBell from '../../components/notifications/InboxBell';
@@ -287,7 +288,7 @@ export default function HomeScreen() {
         chadNoticeShown.current = true;
         Alert.alert(
             'You’ve been upgraded to Chad',
-            'Everything Chad has — unlimited coaching, 3 active routines, calendar sync, the full library — is now yours, at no extra cost. Thanks for being one of our loyal customers.',
+            'Everything Chad has — unlimited coaching, unlimited programs, calendar sync, the full library — is now yours, at no extra cost. Thanks for being one of our loyal customers.',
             [{ text: 'Let’s go', style: 'default' }],
         );
         void api.ackChadUpgrade().catch(() => undefined);
@@ -820,7 +821,13 @@ export default function HomeScreen() {
                     {activeMaxxes.length === 0 && !schedulesLoading && (
                         <TouchableOpacity
                             style={s.emptyPrograms}
-                            onPress={() => navigation.navigate('Explore')}
+                            onPress={() => {
+                                // #1 onboarding goal → its program's detail page
+                                // (Start my plan lives there); else browse Explore.
+                                const goalMaxx = personalizedUI ? maxxForGoal(pers.goalIds[0]) : undefined;
+                                if (goalMaxx) navigation.navigate('MaxDetail', { itemId: goalMaxx });
+                                else navigation.navigate('Explore');
+                            }}
                             activeOpacity={0.72}
                         >
                             <Ionicons name="compass-outline" size={20} color={BW.mute} />
