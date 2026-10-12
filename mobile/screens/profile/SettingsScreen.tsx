@@ -128,7 +128,7 @@ export default function SettingsScreen() {
     const showCalendarRow = googleStatusQ.data?.calendar_link_enabled !== false;
 
     const openSupport = () => {
-        const q = `subject=${encodeURIComponent('Max support')}`;
+        const q = `subject=${encodeURIComponent('Superpower support')}`;
         void Linking.openURL(`mailto:${encodeURIComponent(supportEmail)}?${q}`);
     };
 

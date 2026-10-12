@@ -10,7 +10,7 @@ Three jobs in Phase 0 form (no LLM anywhere):
      becomes a visible, streak-safe reschedule suggestion into the next
      viable free slot (never silently moved, never guilt).
   3. insight ledger: dated, true, used-once facts that feed the day-2/3
-     "Max learned" cards and the weekly review.
+     "Superpower learned" cards and the weekly review.
 """
 
 from __future__ import annotations

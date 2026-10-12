@@ -33,7 +33,7 @@ def test_strips_leading_brand(raw, expected):
 @pytest.mark.parametrize("raw", [
     "Morning skincare",
     "Fitmax",                       # the whole title IS the brand — leave it
-    "Max out your sleep",           # "max" inside a word is not a brand prefix
+    "Superpower out your sleep",           # "max" inside a word is not a brand prefix
     "Climax stretch",
     "",
 ])

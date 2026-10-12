@@ -141,14 +141,14 @@ async def main() -> int:
         else:
             ok("Phase 1 voice answers", "8 cold answers")
 
-        # 8b. Voice phase 2 — Max drafts, creator corrects
+        # 8b. Voice phase 2 — Superpower drafts, creator corrects
         sample = state.get("current_voice_sample")
         if not sample:
             bad("Phase 2 sample", "no current sample after phase 1")
         elif sample.get("sample_phase") != 2:
             bad("Phase 2 sample phase", f"got {sample.get('sample_phase')}")
         elif not sample.get("draft_answer"):
-            bad("Phase 2 draft", "expected Max draft on sample 9")
+            bad("Phase 2 draft", "expected Superpower draft on sample 9")
         else:
             r = await client.post(
                 f"{BASE}/creators/me/onboarding/voice/feedback",

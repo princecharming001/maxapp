@@ -113,7 +113,7 @@ class StreakView:
 
 @dataclass(frozen=True)
 class ProgressView:
-    journey_day: int = 0             # 1 on the first day with Max
+    journey_day: int = 0             # 1 on the first day with Superpower
     has_scanned: bool = False
     days_since_scan: Optional[int] = None
     scan_ready: bool = False         # a new scan is allowed now AND >= 7 days since the last

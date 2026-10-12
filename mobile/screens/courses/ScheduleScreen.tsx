@@ -312,7 +312,7 @@ export default function ScheduleScreen() {
       // The adapted days now live on the server — refresh the canonical copy
       // (which wins over localSchedule whenever this schedule is active).
       void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
-      Alert.alert('Schedule Adapted', 'Max adjusted your schedule.');
+      Alert.alert('Schedule Adapted', 'Superpower adjusted your schedule.');
     } catch (e) {
       Alert.alert('Error', userFacingError(e, 'Failed to adapt schedule'));
     }
@@ -328,7 +328,7 @@ export default function ScheduleScreen() {
     }
     Alert.prompt(
       'Adapt Schedule',
-      'Tell Max what to change. Try too intense or more morning tasks.',
+      'Tell Superpower what to change. Try too intense or more morning tasks.',
       (feedback: string) => {
         if (!feedback) return;
         void runAdapt(feedback);

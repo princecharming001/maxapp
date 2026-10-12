@@ -159,7 +159,7 @@ async def send_apns_alert(
     # Voice gate: every push that leaves the server passes the copy filter.
     from services.copy_filter import filter_text
 
-    title = filter_text(title, fallback="Max", context="apns_title")
+    title = filter_text(title, fallback="Superpower", context="apns_title")
     body = filter_text(body, context="apns_body")
 
     aps: dict[str, Any] = {"alert": {"title": title, "body": body}, "sound": "default"}

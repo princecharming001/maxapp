@@ -42,7 +42,7 @@ class LeaderboardInDB(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    """Chat message for Max Chat"""
+    """Chat message for Superpower Chat"""
     role: str = Field(description="user or assistant")
     content: str
     attachment_url: Optional[str] = None
@@ -122,7 +122,7 @@ class ChatResponse(BaseModel):
     # Mobile client interprets `type` and renders a slider + Submit button that
     # sends the chosen value back as the next user message.
     input_widget: Optional[dict] = Field(default=None)
-    # Optional plan-progress hint for the dynamic per-Max onboarding question
+    # Optional plan-progress hint for the dynamic per-Superpower onboarding question
     # stream: {"index": 2, "total": 5} (1-based). Present only when an
     # LLM/plan-driven intake is active; the client ignores it when absent.
     progress: Optional[dict] = Field(default=None)

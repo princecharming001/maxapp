@@ -219,7 +219,7 @@ async def build_life_model(user: User, db: AsyncSession) -> dict[str, Any]:
     return {
         "degraded": degraded,
         "degraded_line": (
-            "Still getting to know you. The model fills in as you use Max."
+            "Still getting to know you. The model fills in as you use Superpower."
             if degraded else None
         ),
         "time_skeleton": time_skeleton,

@@ -134,7 +134,7 @@ def test_early_morning_after_cutoff_stays_on_its_own_date():
 
 
 def test_overlapping_durations_are_clamped():
-    """Two Max events must never overlap, whatever the durations claim."""
+    """Two Superpower events must never overlap, whatever the durations claim."""
     d = build_desired(view(day("2026-03-03", [
         task(title="A", time="07:00", dur=90, catalog_id="a"),
         task(title="B", time="07:30", dur=15, catalog_id="b"),

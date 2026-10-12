@@ -26,7 +26,7 @@ export default function AdminSupportScreen() {
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
             <Text style={styles.title}>Dispatch Support</Text>
-            <Text style={styles.subtitle}>Send messages as the Max Coach persona.</Text>
+            <Text style={styles.subtitle}>Send messages as the Superpower Coach persona.</Text>
 
             <View style={styles.typeSelector}>
                 <TouchableOpacity style={[styles.typeBtn, !isBroadcast && styles.activeType]} onPress={() => setIsBroadcast(false)}>

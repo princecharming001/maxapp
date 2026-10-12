@@ -560,7 +560,7 @@ export default function FaceScanScreen() {
         // stuck. Send them to Settings instead. We know this up front via
         // canAskAgain === false, or after a fresh request still isn't granted.
         if (permission?.canAskAgain === false) {
-            Alert.alert('Camera is off', 'Turn on camera access for Max in Settings to scan your face.', [
+            Alert.alert('Camera is off', 'Turn on camera access for Superpower in Settings to scan your face.', [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Open Settings', onPress: () => Linking.openSettings() },
             ]);
@@ -568,7 +568,7 @@ export default function FaceScanScreen() {
         }
         const res = await requestPermission();
         if (!res?.granted && res?.canAskAgain === false) {
-            Alert.alert('Camera is off', 'Turn on camera access for Max in Settings to scan your face.', [
+            Alert.alert('Camera is off', 'Turn on camera access for Superpower in Settings to scan your face.', [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Open Settings', onPress: () => Linking.openSettings() },
             ]);

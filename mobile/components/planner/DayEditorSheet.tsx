@@ -487,7 +487,7 @@ export default function DayEditorSheet({
                       </>
                     ) : (
                       <Text style={styles.autoInCard}>
-                        Max anchors your AM skincare, hair & routine just after you wake.
+                        Superpower anchors your AM skincare, hair & routine just after you wake.
                       </Text>
                     )}
                   </Card>
@@ -530,13 +530,13 @@ export default function DayEditorSheet({
                       </>
                     ) : (
                       <Text style={styles.autoInCard}>
-                        Max slots lifts, stretches & post-workout fuel into a free part of your day.
+                        Superpower slots lifts, stretches & post-workout fuel into a free part of your day.
                       </Text>
                     )}
                   </Card>
                   {workoutWin ? (
                     <Text style={styles.hint}>
-                      Max fits your workout between {fmt12Compact(workoutWin[0])} and {fmt12Compact(workoutWin[1])}.
+                      Superpower fits your workout between {fmt12Compact(workoutWin[0])} and {fmt12Compact(workoutWin[1])}.
                     </Text>
                   ) : null}
                 </>

@@ -127,11 +127,11 @@ export const tests: Record<string, () => void | Promise<void>> = {
     },
 
     'the verify memo is scoped to the signed-in account': async () => {
-        const f = setup({ verify: async () => { throw httpError(400, 'This subscription belongs to a different Max account. Sign in with the account you originally subscribed on to keep using it.'); } });
+        const f = setup({ verify: async () => { throw httpError(400, 'This subscription belongs to a different Superpower account. Sign in with the account you originally subscribed on to keep using it.'); } });
         const p = { id: 't3', productId: SKU };
         const r1 = await verifyTransaction(p);
         assert.strictEqual(r1.kind, 'other_account');
-        assert.ok(r1.detail && /different Max account/.test(r1.detail));
+        assert.ok(r1.detail && /different Superpower account/.test(r1.detail));
         f.verify = async () => ({ status: 'ok', tier: 'premium' });
         setIapUser('user-b');
         const r2 = await verifyTransaction(p);
@@ -209,15 +209,15 @@ export const tests: Record<string, () => void | Promise<void>> = {
         assert.ok(f.log.includes('getAvailablePurchases'));
     },
 
-    'purchase(): duplicate-purchase held by another Max account → other_account with the server copy': async () => {
+    'purchase(): duplicate-purchase held by another Superpower account → other_account with the server copy': async () => {
         const f = setup({
             available: [{ id: 'existing', productId: SKU }],
-            verify: async () => { throw httpError(400, 'This subscription belongs to a different Max account. Sign in with the account you originally subscribed on to keep using it.'); },
+            verify: async () => { throw httpError(400, 'This subscription belongs to a different Superpower account. Sign in with the account you originally subscribed on to keep using it.'); },
         });
         f.onRequest = () => { setTimeout(() => f.emitError({ code: 'duplicate-purchase', message: 'Duplicate purchase update skipped', productId: SKU }), 0); };
         const r = await purchase(SKU, 'user-a');
         assert.strictEqual(r.kind, 'other_account');
-        assert.ok(r.kind === 'other_account' && /different Max account/.test(r.detail || ''));
+        assert.ok(r.kind === 'other_account' && /different Superpower account/.test(r.detail || ''));
     },
 
     'purchase(): duplicate-purchase with nothing active on the Apple ID → owned copy, never the library string': async () => {

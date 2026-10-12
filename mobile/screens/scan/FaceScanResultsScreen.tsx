@@ -1346,7 +1346,7 @@ export default function FaceScanResultsScreen() {
 
     const onSaveScanPhoto = async () => {
         if (Platform.OS === 'web') {
-            Alert.alert('Save on web', 'Open Max on your phone to save your results to Photos.');
+            Alert.alert('Save on web', 'Open Superpower on your phone to save your results to Photos.');
             return;
         }
         setShareCaptureBusy(true);
@@ -1364,37 +1364,37 @@ export default function FaceScanResultsScreen() {
     const onShareRating = async () => {
         const tierLine = pslTier ? ` · Tier: ${pslTier}` : '';
         const r = ratingDisplay != null ? ratingDisplay.toFixed(1) : '—';
-        const msg = `My facial analysis on Max: ${r}/10 · Potential: ${potentialDisplay.toFixed(1)}/10${tierLine}`;
+        const msg = `My facial analysis on Superpower: ${r}/10 · Potential: ${potentialDisplay.toFixed(1)}/10${tierLine}`;
         if (Platform.OS === 'web') {
             try {
                 const nav = typeof globalThis !== 'undefined' ? (globalThis as any).navigator : undefined;
-                if (nav?.share) { await nav.share({ title: 'My Max results', text: msg }); return; }
+                if (nav?.share) { await nav.share({ title: 'My Superpower results', text: msg }); return; }
                 if (nav?.clipboard?.writeText) { await nav.clipboard.writeText(msg); Alert.alert('Copied', 'Results text copied to clipboard.'); return; }
             } catch { /* fall through */ }
-            Alert.alert('My Max results', msg);
+            Alert.alert('My Superpower results', msg);
             return;
         }
         setShareCaptureBusy(true);
         try {
             const uris = await captureBothViews();
-            if (!uris.length) { await Share.share({ message: msg, title: 'My Max results' }); return; }
+            if (!uris.length) { await Share.share({ message: msg, title: 'My Superpower results' }); return; }
             const canShareFiles = await Sharing.isAvailableAsync();
             if (canShareFiles) {
                 // expo-sharing sends one file per sheet — share each view in turn.
                 for (const u of uris) {
                     try {
-                        await Sharing.shareAsync(u, { mimeType: 'image/png', dialogTitle: 'Share your Max results' });
+                        await Sharing.shareAsync(u, { mimeType: 'image/png', dialogTitle: 'Share your Superpower results' });
                     } catch (e: any) {
                         if (e?.message === 'User did not share') break; // user cancelled — stop
                         throw e;
                     }
                 }
             } else {
-                await Share.share({ title: 'My Max results', message: msg, url: uris[0] } as any);
+                await Share.share({ title: 'My Superpower results', message: msg, url: uris[0] } as any);
             }
         } catch (e: any) {
             if (e?.message !== 'User did not share') console.error(e);
-            try { await Share.share({ message: msg, title: 'My Max results' }); } catch { /* ignore */ }
+            try { await Share.share({ message: msg, title: 'My Superpower results' }); } catch { /* ignore */ }
         } finally { setShareCaptureBusy(false); }
     };
 

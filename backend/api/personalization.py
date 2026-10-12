@@ -1,7 +1,7 @@
 """Personalization API — the user-facing surface over the hyper-personalization
 spine (services.personalization).
 
-    GET    /api/personalization/profile        the assembled "what Max knows" view
+    GET    /api/personalization/profile        the assembled "what Superpower knows" view
     POST   /api/personalization/remember       add/correct a durable fact
     DELETE /api/personalization/memory/{id}     retract a fact the user disowns
     POST   /api/personalization/refresh         rebuild the profile read-model
@@ -64,7 +64,7 @@ async def get_profile(
     user_id = str(current_user["id"])
     built = await pers.get_profile(db, user_id)
     memories = await pers.get_memories(db, user_id)
-    # Group facts by dimension for a tidy "what Max knows" UI.
+    # Group facts by dimension for a tidy "what Superpower knows" UI.
     by_dim: dict[str, list[dict[str, Any]]] = {}
     for m in memories:
         by_dim.setdefault(m.dimension, []).append(_memory_dict(m))
@@ -138,6 +138,6 @@ async def reminder(
 ) -> dict[str, str]:
     """Personalized reminder copy for a routine — voice + goal keyed to the
     user's profile. The client schedules its local notifications with this so
-    every nudge sounds like Max actually knows them."""
+    every nudge sounds like Superpower actually knows them."""
     from services.notification_copy import reminder_copy
     return await reminder_copy(db, str(current_user["id"]), maxx_label=maxx, slot=slot)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # setup_simulator.sh — put the iOS Simulator into a known-good state before
-# running the Max Maestro suite.
+# running the Superpower Maestro suite.
 #
 # Usage:
 #   ./setup_simulator.sh                 # auto-detect the booted sim

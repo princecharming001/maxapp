@@ -118,7 +118,7 @@ appId: com.cannon.mobile
 
 # ── Assistant / chat sheet: open → close ────────────────────────
 - tapOn:
-    point: "77%,12%"          # chat bubble (Ask Max)
+    point: "77%,12%"          # chat bubble (Ask Superpower)
 - waitForAnimationToEnd:
     timeout: 2000
 - tapOn:

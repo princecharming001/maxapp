@@ -89,7 +89,7 @@ export function maxMeta(raw: unknown): { id: string; color: string; icon: string
     id,
     color: rt?.color || DEFAULT_MAXX_COLORS[id] || fallbackColor(id || 'x'),
     icon: rt?.icon || DEFAULT_MAXX_ICONS[id] || 'ellipse-outline',
-    label: rt?.label || DEFAULT_MAXX_LABELS[id] || (id ? id.charAt(0).toUpperCase() + id.slice(1) : 'Max'),
+    label: rt?.label || DEFAULT_MAXX_LABELS[id] || (id ? id.charAt(0).toUpperCase() + id.slice(1) : 'Superpower'),
   };
 }
 

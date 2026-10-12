@@ -246,7 +246,7 @@ export function daysKey(days: DayRecurrence): string {
 /**
  * Commitments all render in one graphite ink. The planner is intentionally
  * monochrome — a single green accent is reserved for the things you actively
- * add (your workout, Max's suggestions), so fixed commitments read as quiet,
+ * add (your workout, Superpower's suggestions), so fixed commitments read as quiet,
  * neutral structure and are told apart by their label, not by colour. Kept as a
  * function so the list and the week canvas share one source of truth.
  */

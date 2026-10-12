@@ -7,7 +7,7 @@ look like" logic lives in `gcal_mirror`.
 
 Scope note: every call here targets a calendar THIS APP CREATED
 (`calendar.app.created`). We can never touch the user's own events, so a bug in
-the reconcile can lose Max's mirror but not the user's real calendar.
+the reconcile can lose Superpower's mirror but not the user's real calendar.
 """
 
 from __future__ import annotations
@@ -30,9 +30,9 @@ BATCH_MAX_OPS = 50
 _HTTP_TIMEOUT = 30.0
 _BACKOFF_SECONDS = (1.0, 2.0, 4.0)
 
-MAX_CALENDAR_SUMMARY = "Max"
+MAX_CALENDAR_SUMMARY = "Superpower"
 _MANAGED_NOTE = (
-    "Managed by Max — this updates automatically when your routine changes."
+    "Managed by Superpower — this updates automatically when your routine changes."
 )
 
 
@@ -50,13 +50,13 @@ class GcalAuthExpired(RuntimeError):
 
 async def create_calendar(access_token: str, *, tz_name: str,
                           summary: str = MAX_CALENDAR_SUMMARY) -> str | None:
-    """Create the dedicated Max calendar; returns its id."""
+    """Create the dedicated Superpower calendar; returns its id."""
     async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
         r = await client.post(
             f"{CALENDAR_BASE}/calendars",
             headers={"Authorization": f"Bearer {access_token}"},
             json={"summary": summary, "timeZone": tz_name,
-                  "description": "Your Max routine. " + _MANAGED_NOTE},
+                  "description": "Your Superpower routine. " + _MANAGED_NOTE},
         )
     if r.status_code == 401:
         raise GcalAuthExpired("create_calendar got 401")
@@ -67,7 +67,7 @@ async def create_calendar(access_token: str, *, tz_name: str,
 
 
 async def delete_calendar(access_token: str, calendar_id: str) -> bool:
-    """Remove the Max calendar entirely. Already-gone counts as success."""
+    """Remove the Superpower calendar entirely. Already-gone counts as success."""
     if not calendar_id:
         return True
     async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
@@ -92,7 +92,7 @@ def event_body(
     event_key: str,
     description: str = "",
 ) -> dict:
-    """A Google event for one Max task.
+    """A Google event for one Superpower task.
 
     Times are sent as naive local wall-clock plus an explicit IANA `timeZone`,
     never as UTC instants — that is the convention the whole schedule uses, and

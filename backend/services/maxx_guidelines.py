@@ -1159,7 +1159,7 @@ def build_hairmax_prompt_section(
             "Merge **AM**: cleanser → **minoxidil on scalp** → **15 min** → skin actives → moisturizer → SPF in **one** notification when windows align. "
             "Merge **PM**: minox → **30 min dry** → PM skincare. "
             "**Do not** schedule scalp microneedling same day as **face** microneedling, stagger (e.g. scalp Sunday, face Wednesday). "
-            "Ketoconazole wash can double as dandruff control. **Max 10** notifications/day total.\n"
+            "Ketoconazole wash can double as dandruff control. **Superpower 10** notifications/day total.\n"
         )
 
     engine_body = coaching_ref if for_coaching else full_ref

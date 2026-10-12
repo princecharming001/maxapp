@@ -32,7 +32,7 @@ appId: com.cannon.mobile
     timeout: 15000
 
 # CORRECT BEHAVIOR: must see paywall / payment screen
-- assertVisible: "Max Pro"
+- assertVisible: "Superpower Pro"
 
 # CORRECT BEHAVIOR: must NOT see the home dashboard (which only paid users should reach)
 - assertNotVisible: "HABITS"

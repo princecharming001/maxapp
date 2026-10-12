@@ -10,14 +10,14 @@ appId: com.cannon.mobile
     text: "Coach"
 - waitForAnimationToEnd:
     timeout: 8000
-- assertVisible: "Ask Max anything"
+- assertVisible: "Ask Superpower anything"
 - tapOn:
-    text: "Ask Max anything"
-- inputText: "Hello Max"
+    text: "Ask Superpower anything"
+- inputText: "Hello Superpower"
 - tapOn:
     accessibilityId: "Send"
 - waitForAnimationToEnd:
     timeout: 5000
-- assertVisible: "Hello Max"
+- assertVisible: "Hello Superpower"
 - assertNotVisible: "Something went wrong"
 - takeScreenshot: chat_send_message_pass

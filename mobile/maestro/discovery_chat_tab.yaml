@@ -15,7 +15,7 @@ appId: com.cannon.mobile
 
 # --- CHAT INITIAL STATE ---
 - assertWithAI:
-    assertion: "The Coach/Chat tab shows a conversation interface. Either an empty state with 'Ask Max anything' placeholder and some prompt chips, OR an existing conversation thread is shown. The bottom input bar with a text field is visible. No error message or loading spinner stuck."
+    assertion: "The Coach/Chat tab shows a conversation interface. Either an empty state with 'Ask Superpower anything' placeholder and some prompt chips, OR an existing conversation thread is shown. The bottom input bar with a text field is visible. No error message or loading spinner stuck."
 - assertNoDefectsWithAI
 - takeScreenshot: discovery_chat_initial
 
@@ -36,13 +36,13 @@ appId: com.cannon.mobile
 - waitForAnimationToEnd:
     timeout: 4000
 - assertWithAI:
-    assertion: "A new empty chat is active showing the 'Ask Max anything' placeholder in the input bar and prompt suggestion chips."
+    assertion: "A new empty chat is active showing the 'Ask Superpower anything' placeholder in the input bar and prompt suggestion chips."
 - assertNoDefectsWithAI
 - takeScreenshot: discovery_chat_new_empty
 
 # Type a short message to see the send state
 - tapOn:
-    text: "Ask Max anything"
+    text: "Ask Superpower anything"
     optional: true
 - inputText: "Hello"
 - waitForAnimationToEnd:

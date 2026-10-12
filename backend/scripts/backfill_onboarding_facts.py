@@ -5,7 +5,7 @@ WHY: new per-maxx intake answers are mirrored to facts live (see
 `_mirror_intake_to_facts`), but users who onboarded BEFORE dynamic onboarding
 shipped have answers sitting only in `User.onboarding`. The `onboarding:<id>`
 slot alias already reads those directly, but replaying them as keyed facts also
-populates the profile / `facts:<id>` surface so cross-Max dedup is uniform.
+populates the profile / `facts:<id>` surface so cross-Superpower dedup is uniform.
 
 IDEMPOTENT: every fact is keyed `onboarding.<field>` with source `onboarding`.
 `remember_fact`'s keyed-conflict resolution dedupes a re-run at equal source

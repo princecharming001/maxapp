@@ -483,7 +483,7 @@ export default function EditPersonalScreen() {
                 </View>
               ) : null}
 
-              {/* What Max knows — the unified personalization profile across
+              {/* What Superpower knows — the unified personalization profile across
                   food, culture, work, rhythm, personality and comms style. */}
               <TouchableOpacity
                 style={styles.card}
@@ -493,7 +493,7 @@ export default function EditPersonalScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <View style={{ flex: 1, paddingRight: 12 }}>
                     {sectionKicker('PERSONALIZATION')}
-                    <Text style={styles.cardTitle}>What Max knows about you</Text>
+                    <Text style={styles.cardTitle}>What Superpower knows about you</Text>
                     <Text style={styles.cardHint}>
                       Food, culture, work, how you like to be coached. Add or fix anything.
                     </Text>

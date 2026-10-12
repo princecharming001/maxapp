@@ -103,9 +103,9 @@ export const tests: Record<string, () => void | Promise<void>> = {
 
     'upload-failed flag is user-scoped and cleared on a foreign read': async () => {
         store.clear();
-        await lib.setFaceScanUploadFailed('u1', 'Could not reach Max.');
+        await lib.setFaceScanUploadFailed('u1', 'Could not reach Superpower.');
         const mine = await lib.getFaceScanUploadFailed('u1');
-        assert.ok(mine && mine.message === 'Could not reach Max.');
+        assert.ok(mine && mine.message === 'Could not reach Superpower.');
         // Another account must never see (or keep) it.
         assert.strictEqual(await lib.getFaceScanUploadFailed('u2'), null);
         assert.strictEqual(await lib.getFaceScanUploadFailed('u1'), null, 'foreign read clears the flag');

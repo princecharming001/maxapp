@@ -274,7 +274,7 @@ Use `task_type` **`checkpoint`** for weekly/biweekly/monthly items. Keep descrip
 11. Include brief motivational messages for each day.
 12. **IMPORTANT:** Every day MUST have at least the minimum number of tasks specified above. Read the NOTIFICATION ENGINE reference and include ALL mandatory daily tasks it lists. Short schedules with 1–2 tasks/day are wrong.
 13. Task descriptions should include specific product names, step-by-step instructions, or actionable copy from the notification engine reference, not vague one-liners.
-14. **SMS / push tone:** Titles and descriptions are used as the basis for text reminders. Write like a casual text from Max, not a dashboard. **Do not** use stiff patterns like `Category: Name — 2:22pm` or `Midday Tip: Hydration Goal` in titles. Prefer short titles (e.g. `water check`, `PM routine`, `sprint warm-up`) and put the real detail in **description** as plain, conversational sentences (lowercase ok). The app shows exact times; SMS copy should read like a normal reminder text (no explicit time prefix).
+14. **SMS / push tone:** Titles and descriptions are used as the basis for text reminders. Write like a casual text from Superpower, not a dashboard. **Do not** use stiff patterns like `Category: Name — 2:22pm` or `Midday Tip: Hydration Goal` in titles. Prefer short titles (e.g. `water check`, `PM routine`, `sprint warm-up`) and put the real detail in **description** as plain, conversational sentences (lowercase ok). The app shows exact times; SMS copy should read like a normal reminder text (no explicit time prefix).
 
 ## OUTPUT FORMAT
 Return ONLY valid JSON matching this structure (no markdown fences).
@@ -797,7 +797,7 @@ class ScheduleService:
                 "\n## BONEMAX + SKINMAX\n"
                 "Merge morning mewing reset + Skinmax AM into **one** notification when both would land near wake; "
                 "merge mewing night check (bed−30) + Skinmax PM when both land in the pre-bed window. "
-                "**Max 10 notifications/day** across modules, drop lowest-priority tasks first per BoneMax engine.\n"
+                "**Superpower 10 notifications/day** across modules, drop lowest-priority tasks first per BoneMax engine.\n"
             )
         elif maxx_id == "skinmax" and "bonemax" in other_maxx_ids:
             multi_module_instruction += (
@@ -809,7 +809,7 @@ class ScheduleService:
             multi_module_instruction += (
                 "\n## HEIGHTMAX + BONEMAX\n"
                 "Merge **posture** notifications where exercises overlap; merge **evening sleep/posture** windows (bed−45 / bed−30) into one pre-bed block when possible; "
-                "one combined **supplement** reminder if both stacks apply. **Max 10** notifications/day.\n"
+                "one combined **supplement** reminder if both stacks apply. **Superpower 10** notifications/day.\n"
             )
         elif maxx_id == "bonemax" and "heightmax" in other_maxx_ids:
             multi_module_instruction += (
@@ -830,7 +830,7 @@ class ScheduleService:
             multi_module_instruction += (
                 "\n## HAIRMAX + SKINMAX\n"
                 "Merge AM/PM routines: **scalp (minoxidil) first**, then skin steps with required wait times (15 min AM after minox; 30 min PM). "
-                "**Never** scalp + face microneedling same day, stagger. **Max 10** notifications/day.\n"
+                "**Never** scalp + face microneedling same day, stagger. **Superpower 10** notifications/day.\n"
             )
         elif maxx_id == "skinmax" and "hairmax" in other_maxx_ids:
             multi_module_instruction += (

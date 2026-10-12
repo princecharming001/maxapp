@@ -9,7 +9,7 @@
  *
  * Commitments and the natural-language assistant are merged behind one floating
  * button: it opens a sheet that lists your commitments, lets you add one, and tucks
- * an "or just tell Max in words" chat row at the very bottom.
+ * an "or just tell Superpower in words" chat row at the very bottom.
  *
  * Layout: a warm cream canvas with floating white cards — a serif display title,
  * the day strip, then the day on its own soft-shadow card — matching the "Craft"
@@ -673,8 +673,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           <GlassButton onPress={() => openEditor('all')} accessibilityLabel="Your usual day">
             <Ionicons name="repeat" size={20} color={colors.foreground} />
           </GlassButton>
-          {/* Chatbot — opens the "tell Max" assistant. */}
-          <GlassButton onPress={() => setChatOpen(true)} accessibilityLabel="Ask Max">
+          {/* Chatbot — opens the "tell Superpower" assistant. */}
+          <GlassButton onPress={() => setChatOpen(true)} accessibilityLabel="Ask Superpower">
             <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.foreground} />
           </GlassButton>
           {/* Commitments — opens the commitments sheet (list + add). */}
@@ -786,7 +786,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             <View style={styles.grabber} />
             <Text style={styles.chatHeadline}>Commitments</Text>
             <Text style={styles.commitSub}>
-              Work, classes, a commute — anything that recurs. Max plans your routines around them.
+              Work, classes, a commute — anything that recurs. Superpower plans your routines around them.
             </Text>
 
             <ScrollView
@@ -796,7 +796,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             >
               {orderedObligations.length === 0 ? (
                 <Text style={styles.commitEmpty}>
-                  No commitments yet. Add work, a class or a commute so Max keeps your routines clear
+                  No commitments yet. Add work, a class or a commute so Superpower keeps your routines clear
                   of them.
                 </Text>
               ) : (
@@ -861,7 +861,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         onChange={changeObligations}
       />
 
-      {/* Minimal "tell Max" change sheet — serif prompt + quick chips + a clean
+      {/* Minimal "tell Superpower" change sheet — serif prompt + quick chips + a clean
           borderless composer. Opened only from the floating button. */}
       <Modal
         visible={chatOpen}
@@ -906,7 +906,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                   style={styles.composerInput}
                   value={chatInput}
                   onChangeText={setChatInput}
-                  placeholder={chatLoading ? 'Reshaping your week…' : 'Tell Max in plain words…'}
+                  placeholder={chatLoading ? 'Reshaping your week…' : 'Tell Superpower in plain words…'}
                   placeholderTextColor={colors.textMuted}
                   multiline
                   returnKeyType="send"
@@ -963,8 +963,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                 <Text style={styles.calTitle}>Google Calendar</Text>
                 <Text style={styles.calSub}>
                   {calConnected
-                    ? 'Max plans your routine around your calendar events.'
-                    : 'Max plans around your real events instead of on top of them.'}
+                    ? 'Superpower plans your routine around your calendar events.'
+                    : 'Superpower plans around your real events instead of on top of them.'}
                 </Text>
               </View>
             </View>
@@ -1000,7 +1000,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                     <View style={{ flex: 1, paddingRight: 12 }}>
                       <Text style={styles.calToggleLabel}>Add routine to Google Calendar</Text>
                       <Text style={styles.calToggleSub}>
-                        Puts your Max tasks on their own "Max" calendar, and keeps them
+                        Puts your Superpower tasks on their own "Superpower" calendar, and keeps them
                         in step when your plan changes.
                       </Text>
                     </View>
@@ -1031,7 +1031,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             ) : (
               <>
                 <Text style={styles.calBody}>
-                  Max reads your primary calendar (next 60 days) and builds your routine around what's already there. Syncs every 30 minutes. Data stays on Max servers.
+                  Superpower reads your primary calendar (next 60 days) and builds your routine around what's already there. Syncs every 30 minutes. Data stays on Superpower servers.
                 </Text>
 
                 <TouchableOpacity

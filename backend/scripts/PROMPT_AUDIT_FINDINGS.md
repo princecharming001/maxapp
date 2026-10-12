@@ -63,7 +63,7 @@ pytest green. Each fix committed separately (hashes below).
 - **Fix:** `_smart_lowercase` — lowercases ordinary Title-case prose but
   preserves all-caps acronyms (SPF, AM, PSL), units (D3, K2, SPF30), internal-cap
   brands (CeraVe, EltaMD), known multi-word brands (La Roche-Posay, The Ordinary),
-  and the pronoun "I". Max's lowercase voice intact. Tests:
+  and the pronoun "I". Superpower's lowercase voice intact. Tests:
   `tests/test_finalize_casing.py`. Commit `0f7791e3`.
 
 ## P4 — Cold-start dangling placeholder blocks (RC6)
@@ -100,7 +100,7 @@ pytest green. Each fix committed separately (hashes below).
 ## Live user-POV results (RC4)
 Keys were present, so the harness also generated + LLM-judged real replies for
 all 36 persona×intent×edge cells (judge = a general model with the assembled
-prompt; production uses the fine-tuned Max model).
+prompt; production uses the fine-tuned Superpower model).
 
 - **Deterministic gate: 0/36 problems** — every assembled prompt satisfies all
   invariants (em-dash once, persona present, length honored, persona↔length

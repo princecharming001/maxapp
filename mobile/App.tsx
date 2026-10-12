@@ -387,7 +387,7 @@ function AppNavigator() {
     // launch, on every foreground and on every account change while unpaid:
     //   granted        → refreshUser flips isPaid, navigator remounts into Main
     //                    ("if I have a plan, take me home");
-    //   other account  → the plan lives on a different Max account: offer to
+    //   other account  → the plan lives on a different Superpower account: offer to
     //                    sign in ("…or ask me to log in"), once per account.
     useEffect(() => {
         if (Platform.OS !== 'ios' || !isAuthenticated || isPaid || !user?.id) return;

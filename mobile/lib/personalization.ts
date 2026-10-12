@@ -1,5 +1,5 @@
 /**
- * personalization — pure, deterministic derivations of the *safe* things Max
+ * personalization — pure, deterministic derivations of the *safe* things Superpower
  * knows about a user, for tasteful on-screen personalization.
  *
  * GUARDRAILS (see RALPH_PERSONALIZE.md):

@@ -1,4 +1,4 @@
-# Max API — local / `docker build -f backend/Dockerfile backend`
+# Superpower API — local / `docker build -f backend/Dockerfile backend`
 # Render uses repo-root ../Dockerfile  context `.` (see render.yaml).
 FROM python:3.12-slim-bookworm
 

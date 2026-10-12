@@ -1,4 +1,4 @@
-"""Proactive coaching — let Max open a conversation with something it noticed.
+"""Proactive coaching — let Superpower open a conversation with something it noticed.
 
 The learner already computes real-behavior insights (learned wake time vs stated,
 best workout window, etc.) and detects slipped tasks, but they mostly live in the

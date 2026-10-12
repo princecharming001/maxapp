@@ -256,7 +256,7 @@ async def voice_answer(
     if onboarding.sample_voice_phase(sample) >= 2:
         raise HTTPException(
             status_code=422,
-            detail="Max drafts this one — approve it or correct what's off.",
+            detail="Superpower drafts this one — approve it or correct what's off.",
         )
     sample.creator_answer = body.answer.strip()
     sample.status = "answered"

@@ -6,7 +6,7 @@ XP accrues from real, repeated behaviour:
   • a perfect day (all of today's tasks done)          -> +25
   • a streak milestone (every 7 days)                  -> +100
   • unlocking a badge — scaled by what it took: setup badges (first routine,
-    first scan, second max, telling Max about yourself) +10, bronze +25,
+    first scan, second max, telling Superpower about yourself) +10, bronze +25,
     silver +75, gold +200, Centurion +500
 
 Calibration (2026-09-24, simulated over two years for four archetypes):

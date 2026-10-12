@@ -161,7 +161,7 @@ async def send_test_message(
         )
     success = await sendblue_service.send_whatsapp(
         caller_phone,
-        "🧪 Test from Max — Sendblue iMessage/SMS is connected. ✅",
+        "🧪 Test from Superpower — Sendblue iMessage/SMS is connected. ✅",
     )
     if not success:
         raise HTTPException(

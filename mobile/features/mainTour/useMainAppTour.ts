@@ -8,7 +8,7 @@ import api from '../../services/api';
 
 /**
  * First-run walkthrough: the guided path from an empty Home to the user's OWN
- * first Max, then their first task, then chat.
+ * first Superpower, then their first task, then chat.
  *
  *   build → (user goes to Explore and starts a schedule) → task → chat → done
  *
@@ -122,8 +122,8 @@ export function useFirstRunWalkthrough(opts: {
         if (redirectPending || planLoading) return;
 
         // Which step does this visit need?
-        //   no plan            → build (whatever the cursor says: they need a Max)
-        //   plan, cursor build → task  (their Max landed since last time)
+        //   no plan            → build (whatever the cursor says: they need a Superpower)
+        //   plan, cursor build → task  (their Superpower landed since last time)
         //   otherwise          → the cursor
         const next: WalkthroughStep = !hasPlan ? 'build' : cursor === 'build' ? 'task' : cursor;
         if (decidedThisFocus.current && decidedFor.current === next) return;
@@ -143,7 +143,7 @@ export function useFirstRunWalkthrough(opts: {
     }, [enabled, isPaid, isFocused, uid, cursor, user?.onboarding, redirectPending, hasPlan, planLoading, visible, persist]);
 
     // Hold badge celebrations for the WHOLE guided flow, not just while the
-    // card is on screen: "build it" → Explore → start a Max earns "First Steps"
+    // card is on screen: "build it" → Explore → start a Superpower earns "First Steps"
     // (and the scan already earned "Baseline Set"), and a badge Modal popping
     // over the very screen the walkthrough just sent them to breaks the thread.
     // The queue survives; everything promotes the moment they finish.

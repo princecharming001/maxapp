@@ -6,7 +6,7 @@ chat (``UserMemory``), Onairos inference, the legacy ``user_facts`` blob, and
 face scans — assembled into a per-dimension structure plus:
 
   * a natural-language **brief** the in-app chat injects into its system prompt
-    ("what Max knows about this user"), and
+    ("what Superpower knows about this user"), and
   * structured **signals** the scheduler + program content read
     (diet, culture, work, communication style, personality).
 
@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 # Taxonomy
 # ---------------------------------------------------------------------------
 
-# The dimensions of a person Max personalizes against. Order = brief order.
+# The dimensions of a person Superpower personalizes against. Order = brief order.
 DIMENSIONS: tuple[str, ...] = (
     "identity",      # name, age, gender, location, timezone, languages
     "culture",       # culture/ethnicity, religion, observances
@@ -61,7 +61,7 @@ DIMENSIONS: tuple[str, ...] = (
     "work",          # role, workplace, location type, hours, commute
     "lifestyle",     # chronotype, sleep, activity, workout window, stress
     "personality",   # Big-5-ish traits, motivations, values
-    "comms_style",   # how they want Max to talk to them
+    "comms_style",   # how they want Superpower to talk to them
     "goals",         # the maxxes they're chasing + why
     "interests",     # topics, brands, hobbies
     "constraints",   # conditions, injuries, medications, equipment
@@ -72,7 +72,7 @@ _DIMENSION_SET = set(DIMENSIONS)
 # Provenance ranking — higher beats lower when a keyed fact conflicts. What the
 # user states explicitly always wins over what we infer.
 _SOURCE_RANK: dict[str, int] = {
-    "chat": 5,        # the user told Max directly
+    "chat": 5,        # the user told Superpower directly
     "onboarding": 4,  # the user answered a form
     "scan": 3,        # derived from a face scan
     "onairos": 2,     # inferred from connected apps
@@ -615,7 +615,7 @@ _BRIEF_HEADER = (
 # Phase 2 (personalized_framing, default OFF): explicit guidance that turns the
 # already-collected positive signals (goal why/timeline, values, motivations,
 # interests) into a warm, human, accountable voice. Purely additive prompt text
-# — it changes HOW Max talks, never WHAT data is gathered. The banned-phrasing
+# — it changes HOW Superpower talks, never WHAT data is gathered. The banned-phrasing
 # line keeps it from sliding into AI-assistant / hollow-affirmation cadence.
 _BRIEF_VOICE_GUIDANCE = (
     "How to use what you know:\n"
@@ -732,7 +732,7 @@ def profile_to_state_signals(profile: dict, *, brief: Optional[str] = None) -> d
 
 
 # Map a free-text communication style onto the app's existing coaching_tone +
-# response_length enums so Max's voice adapts even where only those are read.
+# response_length enums so Superpower's voice adapts even where only those are read.
 _TONE_WORDS = {
     "hardcore": "hardcore", "blunt": "hardcore", "tough": "hardcore", "direct": "hardcore",
     "drill": "hardcore", "aggressive": "hardcore", "no-nonsense": "hardcore",

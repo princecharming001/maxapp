@@ -51,7 +51,7 @@ SCOPE_CALENDAR = "https://www.googleapis.com/auth/calendar.readonly"
 SCOPE_GMAIL = "https://www.googleapis.com/auth/gmail.readonly"
 # Write access to calendars THIS APP CREATED — never the user's own.
 # Narrower than calendar.events (which grants write on `primary`), so a bug
-# in the mirror can only ever damage the "Max" calendar we made.
+# in the mirror can only ever damage the "Superpower" calendar we made.
 SCOPE_CALENDAR_APP = "https://www.googleapis.com/auth/calendar.app.created"
 
 SYNC_WINDOW_DAYS = 60   # ~2 months; re-sync nudge fires when < RESYNC_NUDGE_DAYS remain

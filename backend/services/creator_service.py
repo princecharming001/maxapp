@@ -195,7 +195,7 @@ def build_creator_maxdoc(creator: Creator, habits: "Optional[list[CreatorHabit]]
     return MaxDoc(
         maxx_id=mid,
         display_name=creator.display_name,
-        short_description=creator.tagline or f"{creator.display_name} on Max.",
+        short_description=creator.tagline or f"{creator.display_name} on Superpower.",
         schedule_design=schedule_design,
         required_fields=[],
         optional_context=[],

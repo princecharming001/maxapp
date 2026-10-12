@@ -11,7 +11,7 @@
  *
  * The questions:
  *   1. Goals       — 5 maxx tiles, first tap = #1 priority, up to 3.
- *   2. Motivation  — one tap; Life-Model `motivation` (tunes Max's voice).
+ *   2. Motivation  — one tap; Life-Model `motivation` (tunes Superpower's voice).
  *   3. Day shape   — wake / get-ready / wind-down (wheel picker rows).
  *   4. Work hours  — set weekday hours (toggle + start/end wheel rows).
  *   5. Where       — office/hybrid/home + commute  (only when they work).
@@ -41,7 +41,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 
-// Per-Max glossy icons (the same art used on Explore). Shown in the focus picker
+// Per-Superpower glossy icons (the same art used on Explore). Shown in the focus picker
 // in place of flat glyphs.
 const MAXX_THUMBS: Record<string, any> = {
     skinmax: require('../../assets/maxxThumbs/cut/skinmax.png'),
@@ -1089,7 +1089,7 @@ export default function OnboardingV2Screen() {
         // 2 — motivation
         {
             title: "What's pulling\nyou here?",
-            sub: 'It helps Max talk to you straight.',
+            sub: 'It helps Superpower talk to you straight.',
             // When "Something else" is picked, require a non-empty typed reason.
             canNext: !!motivation && (motivation !== 'other' || motivationOther.trim().length > 0),
             // Auto-advance on a bucket tap; "Something else" needs the text box
@@ -1118,7 +1118,7 @@ export default function OnboardingV2Screen() {
                             style={styles.otherInput}
                             value={motivationOther}
                             onChangeText={setMotivationOther}
-                            placeholder="Tell Max in your own words…"
+                            placeholder="Tell Superpower in your own words…"
                             placeholderTextColor={MUTE}
                             autoFocus
                             multiline
@@ -1162,7 +1162,7 @@ export default function OnboardingV2Screen() {
         // 5 — day shape
         {
             title: 'The shape of\nyour day',
-            sub: 'Max builds around your real hours, not over them.',
+            sub: 'Superpower builds around your real hours, not over them.',
             canNext: true,
             body: (
                 <View style={styles.shapeCard}>
@@ -1262,7 +1262,7 @@ export default function OnboardingV2Screen() {
         // 6 — meals
         {
             title: 'When do\nyou eat?',
-            sub: 'Max keeps your routines clear of the meals you keep.',
+            sub: 'Superpower keeps your routines clear of the meals you keep.',
             canNext: true,
             body: (
                 <View>
@@ -1342,7 +1342,7 @@ export default function OnboardingV2Screen() {
         // 9 — shower timing (single-select; anchors hygiene/skin routines)
         {
             title: 'When do you\nusually shower?',
-            sub: 'So Max anchors your skin and hygiene routines at the right time.',
+            sub: 'So Superpower anchors your skin and hygiene routines at the right time.',
             canNext: !!showerTime,
             auto: true,
             body: (
@@ -1362,7 +1362,7 @@ export default function OnboardingV2Screen() {
         // 10 — recap
         {
             title: "Here's\nyour day",
-            sub: 'Max fits your routines into the gaps. You can drag any of this later in Plan.',
+            sub: 'Superpower fits your routines into the gaps. You can drag any of this later in Plan.',
             canNext: true,
             body: (
                 <>

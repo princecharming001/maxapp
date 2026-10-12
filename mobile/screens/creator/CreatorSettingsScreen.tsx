@@ -244,7 +244,7 @@ export default function CreatorSettingsScreen() {
                             <Text style={s.liveText}>Go live</Text>
                         </TouchableOpacity>
                     ) : null}
-                    <Text style={s.note}>Manage your subscription price with the Max team. Payouts are sent monthly.</Text>
+                    <Text style={s.note}>Manage your subscription price with the Superpower team. Payouts are sent monthly.</Text>
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>

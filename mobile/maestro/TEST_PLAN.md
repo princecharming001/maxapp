@@ -1,4 +1,4 @@
-# Max — Maestro Test Plan (iOS Simulator, Fabric / New Architecture)
+# Superpower — Maestro Test Plan (iOS Simulator, Fabric / New Architecture)
 
 > Hand-off spec for an execution agent. Every selector below is grounded in the
 > real codebase (`/Users/home/maxapp/mobile`). App id: **`com.cannon.mobile`**.
@@ -256,7 +256,7 @@
   ```
   tapOn "Coach"
   assertVisible "What can I help with?"
-  assertVisible "Ask Max anything"          # input placeholder
+  assertVisible "Ask Superpower anything"          # input placeholder
   assertVisible "Build my plan for today"   # starter chip
   ```
 - **Pass:** chat empty-state renders.
@@ -266,7 +266,7 @@
 - **Preconditions:** on MaxChat, backend up.
 - **Steps:**
   ```
-  tapOn "Ask Max anything"; inputText "hi"
+  tapOn "Ask Superpower anything"; inputText "hi"
   tapOn "Send"                              # MorphSend a11y "Send" — already labeled
   waitForAnimationToEnd timeout=20000
   assertNotVisible "Something went wrong"
@@ -328,7 +328,7 @@
   ```
   tapOn "Unlock full results"                # NEEDS LABEL on the CTA
   waitForAnimationToEnd
-  assertVisible "Max Pro"                     # PaymentScreen header
+  assertVisible "Superpower Pro"                     # PaymentScreen header
   ```
 - **Pass:** navigates to Payment.
 - **Source changes:** `accessibilityLabel="Unlock full results"` on the FaceScanResults primary CTA + the in-overlay unlock button (§5).
@@ -340,7 +340,7 @@
   launchApp; waitForAnimationToEnd
   assertVisible "HABITS"                      # i.e. landed on Main/Home, unpaid
   ```
-- **Expected result TODAY:** **PASS** — which proves the soft gate: an unpaid user is inside the full app. This test is written to *document* the bypass. Once a hard entitlement gate is added, flip it to `assertNotVisible "HABITS"` / `assertVisible "Max Pro"`.
+- **Expected result TODAY:** **PASS** — which proves the soft gate: an unpaid user is inside the full app. This test is written to *document* the bypass. Once a hard entitlement gate is added, flip it to `assertNotVisible "HABITS"` / `assertVisible "Superpower Pro"`.
 - **Limitations:** Requires seeding a user in that exact state (onboarding done, unpaid). Do it via backend test fixture or a faux-signup dev endpoint.
 - **Source changes:** none in the app for the test; the FIX (separate `entitled` from `onboardingCompleted` in `RootNavigator.tsx:98`) is the dev action this test exists to motivate.
 
@@ -358,7 +358,7 @@
 - **Preconditions:** reach Payment (via scan-unlock CTA or unpaid funnel).
 - **Steps:**
   ```
-  assertVisible "Max Pro"
+  assertVisible "Superpower Pro"
   assertVisible "Daily Face Scans"
   assertVisible "Chad"
   assertVisible "Restore Purchases"
@@ -385,7 +385,7 @@
 
 ### P2 — profile_render.yaml
 - **Preconditions:** paid app; on Profile.
-- **Steps:** `assertVisible "Your Maxes"`, `assertVisible "Trophy Case"`.
+- **Steps:** `assertVisible "Your Superpowers"`, `assertVisible "Trophy Case"`.
 - **Source changes:** none for render.
 
 ---
@@ -432,7 +432,7 @@ The app has **two different gates**, and only one is real:
      the finding*: the shell is not entitlement-gated.
    - **Will FAIL to protect revenue until** `RootNavigator` separates an
      `entitled` flag from `onboardingCompleted`. After the fix, invert the assertion
-     to `assertNotVisible "HABITS"` + `assertVisible "Max Pro"`.
+     to `assertNotVisible "HABITS"` + `assertVisible "Superpower Pro"`.
 
 3. **TabNavigator `PremiumGateModal` — DEAD CODE.**
    The "Premium Feature" modal exists but its `showGate` state is never set true.

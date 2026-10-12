@@ -274,7 +274,7 @@ function AppleCalendarSync() {
             <View style={styles.deviceNote}>
                 <Ionicons name="logo-apple" size={14} color={MUTE} />
                 <Text style={styles.deviceNoteText}>
-                    Apple Calendar reads stay on your phone. Only busy times reach Max.
+                    Apple Calendar reads stay on your phone. Only busy times reach Superpower.
                 </Text>
             </View>
             <GlassButton
@@ -326,7 +326,7 @@ export default function DaySetupScreen() {
         },
         onSuccess: () => {
             setBlockTitle('');
-            setNote('Added. Max plans around it.');
+            setNote('Added. Superpower plans around it.');
             setTimeout(() => setNote(null), 2500);
             queryClient.invalidateQueries({ queryKey: ['plannerToday'] });
         },
@@ -377,7 +377,7 @@ export default function DaySetupScreen() {
 
                 <Text style={styles.title}>Your real day</Text>
                 <Text style={styles.sub}>
-                    Max stops scheduling over your life when it knows what your day
+                    Superpower stops scheduling over your life when it knows what your day
                     actually holds.
                 </Text>
 

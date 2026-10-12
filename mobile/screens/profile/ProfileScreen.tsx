@@ -546,7 +546,7 @@ export default function ProfileScreen() {
     const fullName = user?.first_name
         ? `${user.first_name} ${user.last_name || ''}`.trim()
         : (user?.username || (user?.email ? user.email.split('@')[0] : 'You'));
-    // Maxes the user is actively running vs. the full catalog — the card tracks
+    // Superpowers the user is actively running vs. the full catalog — the card tracks
     // how many they have right now.
     const allMaxes = maxxesQuery.data?.maxes ?? [];
     const totalMaxes = Math.max(allMaxes.length || 5, activeMaxxes.length);
@@ -613,10 +613,10 @@ export default function ProfileScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* ── Your Maxes — tracks how many you're running now ── */}
+                    {/* ── Your Superpowers — tracks how many you're running now ── */}
                     <View style={p.card}>
                         <View style={p.cardHead}>
-                            <Text style={p.cardTitle}>Your Maxes</Text>
+                            <Text style={p.cardTitle}>Your Superpowers</Text>
                             <TouchableOpacity onPress={goExplore} hitSlop={8} activeOpacity={0.7}>
                                 <Text style={p.seeAll}>See all →</Text>
                             </TouchableOpacity>

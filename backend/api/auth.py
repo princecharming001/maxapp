@@ -833,7 +833,7 @@ async def _find_or_create_google_user(
     user = User(
         email=email or f"google_{sub[:12]}@placeholder.max",
         password_hash=hash_password(secrets.token_urlsafe(32)),  # unusable
-        first_name=(given_name or "").strip() or "Max",
+        first_name=(given_name or "").strip() or "Superpower",
         last_name=(family_name or "").strip() or "User",
         username=username,
         google_sub=sub,
@@ -926,7 +926,7 @@ async def _find_or_create_apple_user(
     user = User(
         email=email or f"apple_{sub[:12]}@placeholder.max",
         password_hash=hash_password(secrets.token_urlsafe(32)),  # unusable
-        first_name=(given_name or "").strip() or "Max",
+        first_name=(given_name or "").strip() or "Superpower",
         last_name=(family_name or "").strip() or "User",
         username=username,
         apple_sub=sub,

@@ -21,7 +21,7 @@ const MAXX_DESCRIPTIONS: Record<string, string> = {
 };
 
 /**
- * Lowercase the "m" in *Max product names (FitMax → Fitmax, HAIRMAX → HAIRmax).
+ * Lowercase the "m" in *Superpower product names (FitMax → Fitmax, HAIRMAX → HAIRmax).
  * Also handles "FitMax — …" style titles.
  */
 export function normalizeMaxxNameSuffix(label: string): string {

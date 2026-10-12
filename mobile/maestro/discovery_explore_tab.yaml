@@ -15,7 +15,7 @@ appId: com.cannon.mobile
 
 # --- EXPLORE MAIN ---
 - assertWithAI:
-    assertion: "The Explore tab shows a marketplace / discovery screen with a list or grid of 'Maxes' (programs or routines). Each card should have a title, color accent, and some metadata. No error banner and no 'Could not load Explore' message visible."
+    assertion: "The Explore tab shows a marketplace / discovery screen with a list or grid of 'Superpowers' (programs or routines). Each card should have a title, color accent, and some metadata. No error banner and no 'Could not load Explore' message visible."
 - assertNoDefectsWithAI
 - takeScreenshot: discovery_explore_main
 
@@ -38,7 +38,7 @@ appId: com.cannon.mobile
 - waitForAnimationToEnd:
     timeout: 8000
 - assertWithAI:
-    assertion: "A detail screen for a Max/program is open showing a title, description, and at least one CTA button (Unlock, Start, View Course, or similar). A back button is visible."
+    assertion: "A detail screen for a Superpower/program is open showing a title, description, and at least one CTA button (Unlock, Start, View Course, or similar). A back button is visible."
 - assertNoDefectsWithAI
 - takeScreenshot: discovery_max_detail
 

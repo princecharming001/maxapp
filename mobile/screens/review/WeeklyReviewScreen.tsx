@@ -1,5 +1,5 @@
 /**
- * Weekly review - "This week with Max" (spec 3.7). Completion hero framed by
+ * Weekly review - "This week with Superpower" (spec 3.7). Completion hero framed by
  * what got DONE (never a miss ratio), the 7-day ring row, confirm-first
  * WHAT I LEARNED cards ([Yep] / [Not quite] - the ONLY way inference changes
  * the plan), and the standing promise in the footer.
@@ -55,7 +55,7 @@ export default function WeeklyReviewScreen() {
               ? 'Strongest midday. That is your slot.'
               : data?.strongest_window === 'evening'
                 ? 'Strongest right after dinner. That is your slot.'
-                : 'Close a few days and Max finds your slot.';
+                : 'Close a few days and Superpower finds your slot.';
 
     const openFacts = (data?.facts ?? []).filter((f) => !answered[f.id]);
 

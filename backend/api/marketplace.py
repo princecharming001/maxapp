@@ -40,7 +40,7 @@ router = APIRouter(prefix="/marketplace", tags=["Marketplace"])
 MAXX_PRICE_CENTS = 0
 _NATIVE_SLOTS_BY_TIER = {"premium": 3, "basic": 2}
 # Once added, a native max is locked on the schedule for a week before it can be
-# swapped out — users commit to a program instead of churning Maxes daily.
+# swapped out — users commit to a program instead of churning Superpowers daily.
 _MAXX_SWAP_LOCK_DAYS = 7
 
 
@@ -275,7 +275,7 @@ _COURSE_DETAIL: dict[str, dict[str, Any]] = {
             "A board-certified dermatologist's 30-day reset. We strip your routine "
             "back to what actually works, rebuild your barrier first, then layer in "
             "one active at a time so your skin never gets overwhelmed. Every step is "
-            "fit into your real evenings by Max."
+            "fit into your real evenings by Superpower."
         ),
         "outcomes": [
             "Calmer, clearer skin in four weeks",
@@ -301,13 +301,13 @@ _COURSE_DETAIL: dict[str, dict[str, Any]] = {
         "credentials": ["Board-certified dermatologist", "12 years clinical practice", "150k+ on Instagram"],
         "reviews": [
             _rev("Maya R.", 32, 5, "My skin calmed down in the first week. I finally threw out the 9 products that were wrecking my barrier."),
-            _rev("Devon T.", 15, 5, "Simple, no fluff, and Max put each step right when I'm already in the bathroom. Stuck with it the whole month."),
+            _rev("Devon T.", 15, 5, "Simple, no fluff, and Superpower put each step right when I'm already in the bathroom. Stuck with it the whole month."),
             _rev("Priya S.", 45, 4, "Wish week 3 went deeper on hyperpigmentation, but my texture is noticeably smoother."),
         ],
         "faqs": [
             {"q": "Do I need to buy specific products?", "a": "No. Each step tells you what TYPE of product to use for your skin — use what you have or any drugstore option."},
             {"q": "Will this work for sensitive skin?", "a": "Yes — it's barrier-first by design and eases actives in slowly. You can flag sensitive skin and it adjusts."},
-            {"q": "What if I miss a day?", "a": "Max reflows the plan around your real days. Missing one night won't break anything."},
+            {"q": "What if I miss a day?", "a": "Superpower reflows the plan around your real days. Missing one night won't break anything."},
         ],
         "guarantee": "Not feeling it in the first week? Cancel in two taps, no questions.",
     },
@@ -315,7 +315,7 @@ _COURSE_DETAIL: dict[str, dict[str, Any]] = {
         "long_description": (
             "Eight weeks of beginner strength built around the gaps you actually "
             "have. Three sessions a week, real progression, and form you can trust — "
-            "Max slots each one into your week so you never have to plan it."
+            "Superpower slots each one into your week so you never have to plan it."
         ),
         "outcomes": [
             "Confident barbell basics — squat, hinge, press, pull",
@@ -347,7 +347,7 @@ _COURSE_DETAIL: dict[str, dict[str, Any]] = {
         "faqs": [
             {"q": "Do I need a full gym?", "a": "A barbell, rack and some plates cover everything. There's a dumbbell substitution for each lift if that's what you have."},
             {"q": "I've never lifted — is this safe?", "a": "It's built for total beginners. Every lift starts with form before load, and the cues keep you safe."},
-            {"q": "What if I can only do 2 days some weeks?", "a": "Max reflows the week. Two solid days beats a missed three every time."},
+            {"q": "What if I can only do 2 days some weeks?", "a": "Superpower reflows the week. Two solid days beats a missed three every time."},
         ],
         "guarantee": "Cancel anytime — it's weekly. Stay as long as it's working.",
     },
@@ -391,7 +391,7 @@ _COURSE_DETAIL: dict[str, dict[str, Any]] = {
         "long_description": (
             "The fundamentals of jaw and tongue training, done safely and "
             "consistently. No gimmicks — just the basics that matter, spaced through "
-            "your day by Max."
+            "your day by Superpower."
         ),
         "outcomes": [
             "Correct tongue posture, on autopilot",
@@ -429,12 +429,12 @@ _COURSE_DETAIL: dict[str, dict[str, Any]] = {
 # outcomes + how-it-works + proof rather than a fixed syllabus.
 _MAXX_DETAIL: dict[str, dict[str, Any]] = {
     "skinmax": {
-        "long_description": "Your skin, handled. A dermatology-grounded routine that adapts to your concern, skin type and barrier — fit into your real mornings and evenings by Max.",
+        "long_description": "Your skin, handled. A dermatology-grounded routine that adapts to your concern, skin type and barrier — fit into your real mornings and evenings by Superpower.",
         "outcomes": ["A personalized AM + PM routine", "The right cleanser, serum, moisturizer and SPF for you", "Actives introduced without irritation", "Progress you can see in your photos"],
         "reviews": [_rev("Ivy R.", 47, 5, "It just tells me what to do each morning and night. My skin's the best it's been."), _rev("Leo M.", 14, 4, "Cleared my forehead in a month.")],
     },
     "fitmax": {
-        "long_description": "Build your best body with training that fits the time you actually have. Max programs the sessions and slots them into your week.",
+        "long_description": "Build your best body with training that fits the time you actually have. Superpower programs the sessions and slots them into your week.",
         "outcomes": ["A plan matched to your goal and schedule", "Progression that keeps working", "Sessions that fit real life", "Strength + composition you can track"],
         "reviews": [_rev("Dre K.", 13, 5, "Three days a week and I'm finally consistent."), _rev("Mara P.", 25, 5, "The plan flexes when my week blows up.")],
     },
@@ -580,7 +580,7 @@ def _maxx_card(maxx_id: str, entered: set[str]) -> dict[str, Any]:
         "price_cents": 0,
         "price_model": "included",
         "price_label": "Included",
-        "creator": {"name": "Max", "handle": "max", "verified": True},
+        "creator": {"name": "Superpower", "handle": "max", "verified": True},
         "native": True,
         "entered": maxx_id in entered,
         "image_url": _cover_for(maxx_id, False),
@@ -1103,15 +1103,15 @@ async def enter(
     if item_id in _MAXX_DISPLAY and not is_course:
         cap = _native_slot_cap(current_user)
         if cap <= 0:
-            raise HTTPException(status_code=403, detail="Subscribe to add Maxes to your schedule.")
+            raise HTTPException(status_code=403, detail="Subscribe to add Superpowers to your schedule.")
         used = len(_native_entered_ids(dict(user.onboarding or {})))
         if used >= cap:
             plan = "Chad" if cap >= 3 else "ChadLite"
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"You're using all {cap} of your {plan} Max slots. Swap one out to add this — "
-                    "a Max can be changed after it's been on your schedule for a week."
+                    f"You're using all {cap} of your {plan} Superpower slots. Swap one out to add this — "
+                    "a Superpower can be changed after it's been on your schedule for a week."
                 ),
             )
         await fulfill_marketplace_purchase(db, str(uid), item_id, "included", None)
@@ -1127,7 +1127,7 @@ async def enter(
         from models.sqlalchemy_models import Purchase
         price_data: dict[str, Any] = {
             "currency": "usd",
-            "product_data": {"name": f"Max - {title}"},
+            "product_data": {"name": f"Superpower - {title}"},
             "unit_amount": price_cents,
         }
         mode = "payment"
@@ -1253,14 +1253,14 @@ async def cancel(
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"This Max is locked until {locked_until.date().isoformat()}. "
+                    f"This Superpower is locked until {locked_until.date().isoformat()}. "
                     "You can swap it once it's been on your schedule for a week."
                 ),
             )
         _set_entitlement(user, item_id, is_course=False, granted=False)
         # Deactivate the generated UserSchedule too — otherwise its tasks stay in
         # the master view (no entitlement filter there) and, because fulfill skips
-        # regeneration when an active schedule exists, the user can't re-add the Max.
+        # regeneration when an active schedule exists, the user can't re-add the Superpower.
         from services.schedule_service import schedule_service
         await schedule_service.deactivate_schedule_by_maxx(str(uid), item_id, db)
         for row in (await db.execute(

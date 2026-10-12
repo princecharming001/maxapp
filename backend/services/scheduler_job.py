@@ -835,7 +835,7 @@ async def send_bedtime_progress_picture_prompts():
                             str(user_uuid), None, None, channel="push"
                         )
                         ok, http_status = await send_apns_alert(
-                            apns_tok, "Max", push_msg, custom={"route": "ProgressArchive"}
+                            apns_tok, "Superpower", push_msg, custom={"route": "ProgressArchive"}
                         )
                         if apns_response_should_invalidate_token(http_status):
                             async with AsyncSessionLocal() as db2:
@@ -1028,7 +1028,7 @@ async def send_coaching_check_ins():
                 if want_sms and phone:
                     delivered = bool(await sendblue_service.send_coaching_sms(phone, msg_text))
                 if want_push and apns_tok:
-                    ok, http_status = await send_apns_alert(apns_tok, "Max", msg_text)
+                    ok, http_status = await send_apns_alert(apns_tok, "Superpower", msg_text)
                     if apns_response_should_invalidate_token(http_status):
                         async with AsyncSessionLocal() as db2:
                             u2 = await db2.get(User, uid)
@@ -1202,7 +1202,7 @@ async def send_weekly_resets():
                 if want_sms and phone:
                     delivered = bool(await sendblue_service.send_coaching_sms(phone, msg_text))
                 if want_push and apns_tok:
-                    ok, http_status = await send_apns_alert(apns_tok, "Max", msg_text)
+                    ok, http_status = await send_apns_alert(apns_tok, "Superpower", msg_text)
                     if apns_response_should_invalidate_token(http_status):
                         async with AsyncSessionLocal() as db2:
                             u2 = await db2.get(User, uid)

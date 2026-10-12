@@ -3,7 +3,7 @@
  *
  * Layout:
  *   ┌──────────────────────┐
- *   │ Max            ✕ │   ← Playfair serif title
+ *   │ Superpower            ✕ │   ← Playfair serif title
  *   ├──────────────────────┤
  *   │ + New chat           │
  *   │ ─ Recent ─           │
@@ -386,7 +386,7 @@ export default function ChatConversationsDrawer({
                 >
                 {/* ── Header ─────────────────────────────────────────── */}
                 <View style={s.header}>
-                    <Text style={s.title}>Max</Text>
+                    <Text style={s.title}>Superpower</Text>
                     <TouchableOpacity
                         onPress={onClose}
                         style={s.closeBtn}

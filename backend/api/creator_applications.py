@@ -40,7 +40,7 @@ _ACTIVE_STATUSES = ("pending", "approved")
 
 
 def _normalize_max_name(name: str) -> str:
-    """Lowercase, collapse whitespace, drop a trailing 'max' so 'Chess Max',
+    """Lowercase, collapse whitespace, drop a trailing 'max' so 'Chess Superpower',
     'chessmax' and 'chess' all collide on the same niche."""
     n = re.sub(r"\s+", " ", (name or "").strip().lower())
     n = re.sub(r"\s*max$", "", n).strip()
@@ -123,7 +123,7 @@ async def submit_application(
     if len(body.applicant_name) > 120:
         raise HTTPException(status_code=422, detail="Name is too long.")
     if len(body.max_name) > 80:
-        raise HTTPException(status_code=422, detail="Max name is too long.")
+        raise HTTPException(status_code=422, detail="Superpower name is too long.")
     if len(body.max_description) > 1500:
         raise HTTPException(status_code=422, detail="Description is too long (1500 char max).")
     if len(body.max_differentiator) > 1500:

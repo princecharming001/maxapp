@@ -589,7 +589,7 @@ export default function MaxChatScreen() {
             setActiveConversationId(resolvedId);
         }
 
-        // Proactive opener: on an empty thread, if Max noticed something worth
+        // Proactive opener: on an empty thread, if Superpower noticed something worth
         // raising (a learner insight), open with it — once. Additive + guarded:
         // never fires on a thread that already has messages.
         if (msgs.length === 0 && !nudgeTriedRef.current) {
@@ -650,7 +650,7 @@ export default function MaxChatScreen() {
         if (loading) return;
         // `setup` = arriving straight from onboarding for the forced "tailor
         // your #1 max" walkthrough. Same start_schedule intent, but the opener
-        // asks Max to run the personalization questions the starter is missing.
+        // asks Superpower to run the personalization questions the starter is missing.
         const setup = route.params?.setup === true;
         // Clear the route params so a back-navigate-and-return doesn't
         // re-fire (the in-mount ref doesn't survive remount, so the same param
@@ -1337,7 +1337,7 @@ export default function MaxChatScreen() {
 
         const replyQuote = item.reply_to ? (
             <View style={cg.replyQuote}>
-                <Text style={cg.replyQuoteRole}>{item.reply_to.role === 'user' ? 'You' : 'Max'}</Text>
+                <Text style={cg.replyQuoteRole}>{item.reply_to.role === 'user' ? 'You' : 'Superpower'}</Text>
                 <Text style={cg.replyQuoteText} numberOfLines={2}>{item.reply_to.preview}</Text>
             </View>
         ) : null;
@@ -1452,7 +1452,7 @@ export default function MaxChatScreen() {
                     >
                         <Ionicons name="menu" size={22} color={CG_INK} />
                     </TouchableOpacity>
-                    <Text style={cg.headerTitle}>Max</Text>
+                    <Text style={cg.headerTitle}>Superpower</Text>
                     <TouchableOpacity
                         style={cg.headerBtn}
                         onPress={newChat}
@@ -1747,7 +1747,7 @@ export default function MaxChatScreen() {
                             <View style={styles.replyPreviewAccent} />
                             <View style={styles.replyPreviewBody}>
                                 <Text style={styles.replyPreviewRole}>
-                                    Replying to {replyTarget.role === 'user' ? 'yourself' : 'Max'}
+                                    Replying to {replyTarget.role === 'user' ? 'yourself' : 'Superpower'}
                                 </Text>
                                 <Text style={styles.replyPreviewText} numberOfLines={1}>
                                     {replyTarget.preview}
@@ -1770,7 +1770,7 @@ export default function MaxChatScreen() {
                             ref={inputRef}
                             testID="chat-composer"
                             style={cg.input}
-                            placeholder={replyTarget ? 'Reply…' : 'Ask Max anything'}
+                            placeholder={replyTarget ? 'Reply…' : 'Ask Superpower anything'}
                             placeholderTextColor={CG_MUTE}
                             value={input}
                             onChangeText={setInput}
@@ -2183,7 +2183,7 @@ const cg = StyleSheet.create({
     // The pill (alignItems:'center') vertically centers this field; a single
     // line of text/placeholder must therefore sit centered WITHIN the field.
     // lineHeight + symmetric padding + textAlignVertical:'center' keeps the
-    // "Ask Max anything" placeholder on the pill's centerline across web,
+    // "Ask Superpower anything" placeholder on the pill's centerline across web,
     // iOS (multiline UITextView inset) and Android (includeFontPadding).
     input: {
         flex: 1,

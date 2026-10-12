@@ -10,7 +10,7 @@ appId: com.cannon.mobile
     text: "Coach"
 - waitForAnimationToEnd:
     timeout: 8000
-- assertVisible: "Ask Max anything"
+- assertVisible: "Ask Superpower anything"
 - assertNotVisible: "Something went wrong"
 - assertNotVisible: "Error"
 - takeScreenshot: chat_entry_render_pass

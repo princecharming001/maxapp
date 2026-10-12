@@ -24,11 +24,11 @@ export function userFacingError(
               ? d.map((x: { msg?: string }) => x?.msg).filter(Boolean).join('\n')
               : '';
 
-    if (status === 402) return "Your subscription isn't active. Subscribe to keep using Max.";
+    if (status === 402) return "Your subscription isn't active. Subscribe to keep using Superpower.";
     if (status === 401 || status === 403) return "You're signed out. Sign in again to continue.";
     if (status === 408 || status === 504) return 'That took too long. Please try again.';
     if (status === 429) return 'Too many requests right now. Give it a minute and try again.';
-    if (status && status >= 500) return 'Max is having trouble right now. Please try again in a moment.';
+    if (status && status >= 500) return 'Superpower is having trouble right now. Please try again in a moment.';
     if (status && status >= 400 && detail) {
         const looksInternal = /traceback|exception|error code|\bnull\b|undefined|\{|\}/i.test(detail);
         if (detail.length <= 220 && !looksInternal) return detail;
@@ -38,7 +38,7 @@ export function userFacingError(
         err?.code === 'ECONNABORTED' ||
         /network error|timeout|timed out|failed to fetch|socket|econnrefused|enotfound/i.test(msg)
     ) {
-        return "Couldn't reach Max. Check your connection and try again.";
+        return "Couldn't reach Superpower. Check your connection and try again.";
     }
     return fallback;
 }

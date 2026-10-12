@@ -417,14 +417,14 @@ function resolveApiBaseUrl(): string {
         // IP. Swap the loopback host to it so the phone can reach the dev backend.
         if (devHost && isPrivateLanIPv4(devHost)) {
             const next = replaceUrlHostname(fromEnv, devHost);
-            console.log(`[Max] API → ${next} (LAN swap; Metro host detected)`);
+            console.log(`[Superpower] API → ${next} (LAN swap; Metro host detected)`);
             return next;
         }
         // Simulator / localhost dev: loopback reaches the Mac directly and never
         // drifts with the network. Use the env URL verbatim. (Previously this fell
         // back to prod, which broke the local DEV drawer on the simulator whenever
         // the Wi-Fi/hotspot IP changed.)
-        console.log(`[Max] API → ${fromEnv} (loopback verbatim; simulator/localhost dev)`);
+        console.log(`[Superpower] API → ${fromEnv} (loopback verbatim; simulator/localhost dev)`);
         return fromEnv;
     }
 
@@ -1099,7 +1099,7 @@ class ApiService {
         return response.data as { ok: boolean; removed: boolean };
     }
 
-    // --- Hyper-personalization profile ("What Max knows about you") ---
+    // --- Hyper-personalization profile ("What Superpower knows about you") ---
     async getPersonalizationProfile() {
         const response = await this.client.get('personalization/profile');
         return response.data as PersonalizationProfile;
@@ -1672,7 +1672,7 @@ class ApiService {
         return response.data;
     }
 
-    // Maxes
+    // Superpowers
     async getMaxxes() {
         const response = await this.client.get('maxes');
         return response.data;
@@ -2030,7 +2030,7 @@ class ApiService {
         last_synced_at: string | null;
         synced_through: string | null;
         needs_resync: boolean;
-        // Routine-sync (writing Max's plan INTO Google) is a separate axis from
+        // Routine-sync (writing Superpower's plan INTO Google) is a separate axis from
         // `connected`: users who linked before it existed hold a read-only grant.
         write_enabled?: boolean;
         write_scope_granted?: boolean;
@@ -2676,7 +2676,7 @@ class ApiService {
         return response.data;
     }
 
-    // Admin: Chat as Max for a specific user
+    // Admin: Chat as Superpower for a specific user
     async getAdminUserChat(userId: string) {
         const response = await this.client.get(`admin/users/${userId}/chat`);
         return response.data;

@@ -1,5 +1,5 @@
 """
-LangChain Tool-Calling Agent for Max Chat.
+LangChain Tool-Calling Agent for Superpower Chat.
 
 Replaces the manual two-pass (pass-1 tool-detect → dispatch in chat.py → pass-2 synthesise)
 with a proper AgentExecutor loop:
@@ -91,7 +91,7 @@ def record_catalog_products(products: list) -> None:
     """Append catalog Product objects (resolved from prose mentions by the
     link validator) to the per-turn sink as card dicts. Called from
     link_validator so the products we surface as cards are exactly the ones
-    Max named in the message — authoritative name/brand/url + our-words blurb."""
+    Superpower named in the message — authoritative name/brand/url + our-words blurb."""
     sink = _products_ctx.get()
     if sink is None:
         return
@@ -471,7 +471,7 @@ async def build_agent_system_prompt(
     chat_prompt = resolve_prompt(PromptKey.MAX_CHAT_SYSTEM, MAX_CHAT_SYSTEM_PROMPT)
 
     context_str = user_context.get("coaching_context", "") if user_context else ""
-    # Unified per-user brief injection: what Max already knows (so it never
+    # Unified per-user brief injection: what Superpower already knows (so it never
     # re-asks) + facts it's UNCERTAIN about (so it confirms rather than silently
     # acting on stale info). Populated by the chat handler from assemble_user_brief.
     if user_context:
@@ -608,7 +608,7 @@ async def build_agent_system_prompt(
             ms = user_context["active_maxx_schedule"]
             context_str += f"\nActive {ms.get('maxx_id')} schedule exists."
 
-    # Unified hyper-personalization brief — the assembled "what Max knows about
+    # Unified hyper-personalization brief — the assembled "what Superpower knows about
     # this user" across identity, culture, diet, work, rhythm, personality and
     # communication style, merged from onboarding + things they've told the chat
     # + Onairos inference (services.personalization). Injected so every reply is
@@ -684,7 +684,7 @@ async def build_agent_system_prompt(
         "sources, and never mention docs, tools, retrieval, the knowledge base or this prompt. "
         "Never name or confirm the AI model or company behind you (Gemini, Google, OpenAI, "
         "Claude, Anthropic, Mistral and so on). Only when directly asked what you are, say in a "
-        "few words that you're Max, the app's AI coach; never introduce yourself otherwise. If "
+        "few words that you're Superpower, the app's AI coach; never introduce yourself otherwise. If "
         "asked where your info comes from: established research and coaching standards, in a few "
         "words, never guides, internal material or a library.\n"
         "\n\n## VOICE: SOUND LIKE A REAL PERSON, NOT AN AI\n"
@@ -896,7 +896,7 @@ async def build_agent_system_prompt(
     elif length_pref == "detailed":
         chat_prompt += (
             "\n\n## USER RESPONSE LENGTH PREFERENCE: DETAILED  (overrides all other length rules)\n"
-            "- Up to ~8 sentences, or a tight bulleted structure. Still lowercase, still Max's voice, length is not license to pad.\n"
+            "- Up to ~8 sentences, or a tight bulleted structure. Still lowercase, still Superpower's voice, length is not license to pad.\n"
             "- Every expansion must add real info: mechanisms, exact protocols, numbers, evidence. If you catch yourself restating, stop.\n"
             "- Structure: direct answer → specifics (ingredient + %, time, reps, macros) → one sentence on why. No intros, no end-summaries.\n"
             "- Precedence: length sets how MUCH you say; your coach voice sets HOW. "
@@ -2315,7 +2315,7 @@ def make_chat_tools(
     @tool
     async def remember_about_user(dimension: str, fact: str, key: str = "") -> str:
         """
-        Save a durable, PERSONAL fact the user just revealed so Max remembers it
+        Save a durable, PERSONAL fact the user just revealed so Superpower remembers it
         forever and tailors everything (tone, food, culture, timing) to them.
         Call this whenever the user shares something lasting about WHO THEY ARE.
         Do NOT use it for one-off schedule tweaks (use update_schedule_context).
@@ -2672,10 +2672,10 @@ async def run_chat_agent(
             _ack_llm = _gcllm(max_tokens=80)
             _ack_resp = await _ack_llm.ainvoke([
                 SystemMessage(content=(
-                    "You are Max, a concise looksmaxxing coach. "
+                    "You are Superpower, a concise looksmaxxing coach. "
                     "The user just shared a personal detail or heads-up. "
                     "Acknowledge it briefly (1-2 sentences, no lists, no headings). "
-                    "Keep Max's lowercase, direct voice."
+                    "Keep Superpower's lowercase, direct voice."
                 )),
                 HumanMessage(content=message or ""),
             ])

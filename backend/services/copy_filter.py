@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
-SAFE_GENERIC_FALLBACK = "Quick check-in from Max. Your plan is in the app."
+SAFE_GENERIC_FALLBACK = "Quick check-in from Superpower. Your plan is in the app."
 
 # --- mechanical fixes -------------------------------------------------------
 

@@ -188,7 +188,7 @@ async def callback(
     except Exception:
         pass
 
-    # First populate of the Max calendar (no-op unless they've opted in and
+    # First populate of the Superpower calendar (no-op unless they've opted in and
     # granted write scope).
     try:
         from services.gcal_mirror import kick_gcal_mirror
@@ -198,12 +198,12 @@ async def callback(
 
     if return_url:
         # 302 to cannon://google-connected — ASWebAuthenticationSession sees the
-        # app-scheme redirect and dismisses itself, handing control back to Max.
+        # app-scheme redirect and dismisses itself, handing control back to Superpower.
         sep = "&" if "?" in return_url else "?"
         return RedirectResponse(url=f"{return_url}{sep}connected=1", status_code=302)
     return HTMLResponse(
         "<html><body style='font-family: sans-serif; padding: 40px; text-align: center;'>"
-        "<h3>Google connected.</h3><p>You can close this window and return to Max.</p>"
+        "<h3>Google connected.</h3><p>You can close this window and return to Superpower.</p>"
         "<script>setTimeout(function(){ window.close(); }, 1500);</script>"
         "</body></html>"
     )
@@ -271,7 +271,7 @@ async def disconnect(
     if conn is None:
         return {"disconnected": True}
 
-    # Tear the Max calendar down FIRST — it needs a live token, and the revoke
+    # Tear the Superpower calendar down FIRST — it needs a live token, and the revoke
     # below kills that. Leaving it behind would strand a calendar the user can
     # no longer have us clean up.
     try:

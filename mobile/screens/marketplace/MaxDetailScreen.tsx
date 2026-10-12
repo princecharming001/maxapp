@@ -109,7 +109,7 @@ function Feasibility({ id, color }: { id: string; color: string }) {
                 <Text style={[styles.feasVerdict, { color: meta.color }]}>{meta.line}</Text>
             </View>
             <Text style={styles.feasLine}>
-                Max fits {d.fits_n_of_m.fits} of {d.fits_n_of_m.of} weekly sessions into your real week.
+                Superpower fits {d.fits_n_of_m.fits} of {d.fits_n_of_m.of} weekly sessions into your real week.
             </Text>
             <View style={styles.ghostRow}>
                 {d.ghost_week.map((g) => {
@@ -627,13 +627,13 @@ export default function MaxDetailScreen() {
             setItem({ ...item, entered: true });
             if (isCourse) goToSchedule(); else goToChat(item.id);
         } catch (e: any) {
-            // Slot cap reached or a Max is still in its weekly lock — the backend
+            // Slot cap reached or a Superpower is still in its weekly lock — the backend
             // sends a clear 409 message; surface it instead of silently failing.
             const detail = e?.response?.data?.detail;
             const msg = typeof detail === 'string' && detail
                 ? detail
-                : "Couldn't add this Max right now. Please try again.";
-            Alert.alert('Max slots', msg);
+                : "Couldn't add this Superpower right now. Please try again.";
+            Alert.alert('Superpower slots', msg);
         } finally {
             setBusy(false);
         }
@@ -669,7 +669,7 @@ export default function MaxDetailScreen() {
                     <View style={styles.kickerRow}>
                         <View style={[styles.kickerDot, { backgroundColor: base }]} />
                         <Text style={styles.kicker}>
-                            {(item.category || (creatorMaxx ? 'Creator max' : isCourse ? 'Course' : 'Max')).toUpperCase()}
+                            {(item.category || (creatorMaxx ? 'Creator max' : isCourse ? 'Course' : 'Superpower')).toUpperCase()}
                         </Text>
                     </View>
                     <Text style={styles.heroTitle}>{item.title}</Text>

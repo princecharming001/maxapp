@@ -328,8 +328,8 @@ function DocUploader({ docs, onChange }: {
     return (
         <View style={{ gap: 12 }}>
             <Text style={styles.docHint}>
-                Pasted links are reference-only for our review — Max doesn't read them. Upload a .txt, .md,
-                PDF, or .docx file for content Max actually learns from. Max reads up to ~12,000 characters
+                Pasted links are reference-only for our review — Superpower doesn't read them. Upload a .txt, .md,
+                PDF, or .docx file for content Superpower actually learns from. Superpower reads up to ~12,000 characters
                 per doc (start and end of longer ones), so lead with your core protocols.
             </Text>
             {docs.map((d, i) => (

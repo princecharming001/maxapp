@@ -1,6 +1,6 @@
 """Smart-casing of user-facing chat replies (RALPH_PROMPT_AUDIT RC3).
 
-Max's voice is lowercase, but the old blanket .lower() mangled acronyms, brands,
+Superpower's voice is lowercase, but the old blanket .lower() mangled acronyms, brands,
 units, and the pronoun "I". These lock the smarter behavior: ordinary prose goes
 lowercase, meaning-bearing casing survives.
 """

@@ -94,7 +94,7 @@ export default function XpProgressCard({ data }: { data: Gamification | null | u
 
             <Text style={s.progressText}>
                 {is_max_level
-                    ? 'Max rank reached'
+                    ? 'Superpower rank reached'
                     : `${xp_into_level.toLocaleString()} / ${xp_for_next_level.toLocaleString()} XP to level ${current_level + 1}`}
             </Text>
         </View>

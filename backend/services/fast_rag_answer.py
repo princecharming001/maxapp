@@ -353,7 +353,7 @@ _RESPONSE_LENGTH_BLOCKS: dict[str, str] = {
     ),
     "detailed": (
         "\n\n## USER RESPONSE LENGTH PREFERENCE: DETAILED  (overrides any other length rule above)\n"
-        "- Up to ~8 sentences, or a tight bulleted structure. Still lowercase, still Max's voice, length is not license to pad.\n"
+        "- Up to ~8 sentences, or a tight bulleted structure. Still lowercase, still Superpower's voice, length is not license to pad.\n"
         "- Every specific you name (ingredient %, minutes, reps, macros) must come from the evidence. Never show citations or source labels.\n"
         "- Structure: direct answer → specifics → one sentence on why. No intros, no end-summaries."
     ),
@@ -396,7 +396,7 @@ ANSWER QUALITY:
 - Specific numbers (sets x reps, %, mg, minutes, days/week), give them.
 - Industry-accepted protocols only. If a topic has multiple valid
   approaches, pick the most evidence-backed one and commit.
-- Lowercase, direct, in Max's voice. No filler. No motivational closing.
+- Lowercase, direct, in Superpower's voice. No filler. No motivational closing.
 - Use any user context provided (their goals, preferences, schedule) to
   personalize the answer, just like you would for a doc-grounded reply."""
 
@@ -485,7 +485,7 @@ def _scrub_leakage(text: str) -> str:
     out = re.sub(r"[ \t]{2,}", " ", out)
     out = re.sub(r"\n{3,}", "\n\n", out)
     out = out.strip()
-    # Capitalize-first-word-after-strip is unwanted in Max's lowercase voice,
+    # Capitalize-first-word-after-strip is unwanted in Superpower's lowercase voice,
     # but if the strip leaves a stray dangling punctuation, clean it.
     out = re.sub(r"^[\s,;:\-—]+", "", out)
     return out
@@ -656,7 +656,7 @@ The user asked for external product links (Amazon, Google Shopping, etc.). You c
     # Tone preamble — same one the agent path uses. Must come BEFORE the
     # module system prompt so persona shapes the whole reply, not just
     # the closer. Without this, a user who selected "hardcore" gets the
-    # default Max voice on every KNOWLEDGE turn that hits fast_rag.
+    # default Superpower voice on every KNOWLEDGE turn that hits fast_rag.
     tone_block = ""
     if coaching_tone:
         try:
@@ -857,7 +857,7 @@ async def _answer_from_web(
     coaching_tone: Optional[str] = None,
 ) -> str:
     """Last-resort failsafe: when both targeted and broad RAG return nothing,
-    fetch web snippets and ground a Max-voiced answer in them.
+    fetch web snippets and ground a Superpower-voiced answer in them.
 
     Returns "" on web-search failure or empty results — caller falls through
     to the strict miss message.
@@ -878,7 +878,7 @@ async def _answer_from_web(
 ## WEB EVIDENCE MODE (failsafe)
 The user asked something the loaded module docs don't cover. Fresh web
 snippets are provided below. Treat them as your evidence, ground the
-answer in them, but rewrite in Max's voice (lowercase, direct, short).
+answer in them, but rewrite in Superpower's voice (lowercase, direct, short).
 
 ABSOLUTE RULES, these are user-visible product issues if violated:
 - NEVER mention "web search", "search results", "web", "internet",

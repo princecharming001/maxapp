@@ -721,7 +721,7 @@ export default function CreatorOnboardingScreen() {
                 body: (
                     <View style={{ gap: 12 }}>
                         <Text style={s.docHint}>
-                            Upload guides, PDFs, or paste Google Drive links. Set sharing to "Anyone with the link can view" so Max can read them.
+                            Upload guides, PDFs, or paste Google Drive links. Set sharing to "Anyone with the link can view" so Superpower can read them.
                         </Text>
                         {(state?.knowledge_docs || []).map((d, i) => (
                             <View key={`${d.url}-${i}`} style={s.docRow}>
@@ -793,9 +793,9 @@ export default function CreatorOnboardingScreen() {
                 body: (
                     <View style={{ gap: 12 }}>
                         {[
-                            ['Phase 1', 'You write. Max just listens.', 'First ~8 answers — no draft. Max learns your patterns silently.'],
-                            ['Phase 2', 'Max tries, you correct.', 'Once it has enough samples, it drafts — you fix what\'s off.'],
-                            ['Phase 3', 'Max drafts, you approve.', 'Eventually it handles it and you spot-check.'],
+                            ['Phase 1', 'You write. Superpower just listens.', 'First ~8 answers — no draft. Superpower learns your patterns silently.'],
+                            ['Phase 2', 'Superpower tries, you correct.', 'Once it has enough samples, it drafts — you fix what\'s off.'],
+                            ['Phase 3', 'Superpower drafts, you approve.', 'Eventually it handles it and you spot-check.'],
                         ].map(([phase, title, desc]) => (
                             <LiquidGlass key={phase} radius={18} intensity={58} noShadow style={s.glassShell} contentStyle={s.phaseCard}>
                                 <Text style={s.phaseKicker}>{phase}</Text>
@@ -823,10 +823,10 @@ export default function CreatorOnboardingScreen() {
                 ),
                 sub: sample
                     ? samplePhase === 1
-                        ? `Phase 1 · Question ${sample.index || 1} of ${state?.voice_samples_total || 0} — you write, Max listens`
+                        ? `Phase 1 · Question ${sample.index || 1} of ${state?.voice_samples_total || 0} — you write, Superpower listens`
                         : samplePhase === 2
-                            ? `Phase 2 · Question ${sample.index || 1} — Max tries, you correct`
-                            : `Phase 3 · Question ${sample.index || 1} — spot-check Max's drafts`
+                            ? `Phase 2 · Question ${sample.index || 1} — Superpower tries, you correct`
+                            : `Phase 3 · Question ${sample.index || 1} — spot-check Superpower's drafts`
                     : 'Loading questions…',
                 canNext: (state?.voice_samples_answered || 0) >= Math.min(8, state?.voice_samples_total || 8),
                 body: sample ? (
@@ -971,13 +971,13 @@ export default function CreatorOnboardingScreen() {
                 key: 'test_drive',
                 title: (
                     <Text style={s.title}>
-                        Try your{'\n'}<Text style={s.titleItalic}>own Max</Text>
+                        Try your{'\n'}<Text style={s.titleItalic}>own Superpower</Text>
                     </Text>
                 ),
                 sub: testMode === 'chat'
-                    ? 'Chat as a subscriber — see how your Max responds.'
+                    ? 'Chat as a subscriber — see how your Superpower responds.'
                     : state?.test_drive?.complete
-                        ? 'Here\'s the routine Max built for this subscriber.'
+                        ? 'Here\'s the routine Superpower built for this subscriber.'
                         : 'Stress-test onboarding — answer as a real subscriber would.',
                 // Gate on the sticky testEngaged latch, not the currently-selected tab —
                 // once the creator has run the gauntlet or sent a chat message, Continue

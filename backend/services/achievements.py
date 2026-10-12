@@ -96,10 +96,10 @@ CATALOG: list[Achievement] = [
                 "silver", "progress", "camera",
                 lambda s: s["scans"] >= 3, lambda s: (min(s["scans"], 3), 3)),
     # ── Discovery — investing in the coaching relationship ────────────────
-    Achievement("knows_me", "Open Book", "Max knows three things about you, and counting.",
+    Achievement("knows_me", "Open Book", "Superpower knows three things about you, and counting.",
                 "bronze", "discovery", "book",
                 lambda s: s["facts"] >= 3, lambda s: (min(s["facts"], 3), 3)),
-    Achievement("well_known", "Hyper-Personal", "Max knows eight-plus things about your life.",
+    Achievement("well_known", "Hyper-Personal", "Superpower knows eight-plus things about your life.",
                 "silver", "discovery", "book",
                 lambda s: s["facts"] >= 8, lambda s: (min(s["facts"], 8), 8)),
 ]

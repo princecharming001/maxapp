@@ -4,7 +4,7 @@ Until this module existed, generation only knew the busy windows the user typed
 during onboarding (work hours, obligations, meals — see
 `schedule_validator._busy_intervals_from_ctx`). Their actual Google Calendar was
 read, stored in `calendar_events`, rendered on the planner… and then ignored when
-the plan was built, so Max would happily place a skincare task on top of a
+the plan was built, so Superpower would happily place a skincare task on top of a
 meeting. `/planner/today` even told the user "Packed calendar. Plan fits around
 it." — which was not true. This module makes it true.
 
@@ -48,17 +48,17 @@ _BUSY_LABEL = "busy"
 
 
 # --------------------------------------------------------------------------- #
-#  Max-authored detection (write-mirror echo guard)                            #
+#  Superpower-authored detection (write-mirror echo guard)                            #
 # --------------------------------------------------------------------------- #
 
 def _is_max_authored(ev: Any) -> bool:
     """True when this event is one WE wrote into the user's calendar.
 
-    Belt-and-braces. The mirror writes to a dedicated app-created "Max"
+    Belt-and-braces. The mirror writes to a dedicated app-created "Superpower"
     calendar while the ingest reads only `primary`
     (`google_integration.CALENDAR_EVENTS_URL`), so our own events structurally
     never reach `calendar_events` in the first place. If the read path ever
-    widens to all calendars, this stops Max's own routine from being re-ingested
+    widens to all calendars, this stops Superpower's own routine from being re-ingested
     as busy time — which would make the plan collide with itself and shrink a
     little more on every regeneration.
     """

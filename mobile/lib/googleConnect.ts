@@ -14,7 +14,7 @@ import api from '../services/api';
 // (SFSafariViewController), which reliably opens; the caller's status poll then
 // detects the connection. Either way the button always DOES something rather
 // than silently no-op-ing.
-// `includeWrite` additionally requests permission to create a "Max" calendar
+// `includeWrite` additionally requests permission to create a "Superpower" calendar
 // and put the routine in it. Existing users linked before routine-sync existed
 // and hold a read-only grant, so enabling it re-runs consent — Google always
 // re-prompts here (the backend sends prompt=consent), and the extra scope is

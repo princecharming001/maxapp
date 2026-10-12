@@ -154,7 +154,7 @@ export default function GoogleCalendarConnectScreen() {
                 <Ionicons name="calendar" size={40} color={colors.foreground} style={{ marginBottom: 12 }} />
                 <Text style={styles.title}>Google Calendar</Text>
                 <Text style={styles.subtitle}>
-                    Max builds your routine around what's already on your calendar — instead of on top of it.
+                    Superpower builds your routine around what's already on your calendar — instead of on top of it.
                 </Text>
             </View>
 
@@ -169,7 +169,7 @@ export default function GoogleCalendarConnectScreen() {
                             <View style={{ flex: 1, paddingRight: 12 }}>
                                 <Text style={styles.toggleLabel}>Add routine to Google Calendar</Text>
                                 <Text style={styles.toggleSub}>
-                                    Your Max tasks get their own "Max" calendar, kept in step
+                                    Your Superpower tasks get their own "Superpower" calendar, kept in step
                                     with your plan.
                                 </Text>
                             </View>
@@ -204,7 +204,7 @@ export default function GoogleCalendarConnectScreen() {
             ) : (
                 <View style={styles.card}>
                     <Text style={styles.hint}>
-                        Max reads your primary calendar (next 60 days) and plans your routine around your events. Syncs every 30 minutes. Calendar data stays on Max servers — not shared.
+                        Superpower reads your primary calendar (next 60 days) and plans your routine around your events. Syncs every 30 minutes. Calendar data stays on Superpower servers — not shared.
                     </Text>
                     <TouchableOpacity
                         style={[styles.btn, connecting && styles.btnDisabled]}

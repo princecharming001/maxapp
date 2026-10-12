@@ -11,6 +11,6 @@ appId: com.cannon.mobile
     accessibilityId: "Unlock full results"
 - waitForAnimationToEnd:
     timeout: 5000
-- assertVisible: "Max Pro"
+- assertVisible: "Superpower Pro"
 - assertNotVisible: "Something went wrong"
 - takeScreenshot: paywall_scan_unlock_cta_pass

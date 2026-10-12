@@ -91,7 +91,7 @@ def _protocol_grounding(maxx_id: Optional[str], task_title: str, task_descriptio
 # LLM prompt + call
 # ---------------------------------------------------------------------------
 
-_SYSTEM = """You are Max's step-by-step guide writer. Given a habit task, output a JSON
+_SYSTEM = """You are Superpower's step-by-step guide writer. Given a habit task, output a JSON
 guide that breaks it into 3-5 simple, do-this-now steps a real person can follow, with
 the specific items (ingredients/products) each step uses. Keep it plain and practical.
 

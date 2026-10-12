@@ -119,7 +119,7 @@ export default function RevealV2Screen() {
 
     const taskCount = rows.filter((r) => r.kind === 'task').length;
     const closeLine =
-        'Just a taste. Pick your maxes in Explore and Max builds the real plan around your day.';
+        'Just a taste. Pick your maxes in Explore and Superpower builds the real plan around your day.';
 
     // `dest` is where to go after onboarding saves. "Skip for now" → ReferralCode
     // (the referral step that leads on to the paywall). "Scan now" → FaceScan
@@ -168,7 +168,7 @@ export default function RevealV2Screen() {
                             <Text style={styles.title}>Here's your{'\n'}<Text style={{ fontFamily: 'Fraunces-Italic' }}>first</Text> day</Text>
                             {taskCount === 0 ? (
                                 <Text style={[styles.sub, { marginTop: 22 }]}>
-                                    Your day is set. Pick the maxes you want in Explore and Max builds each
+                                    Your day is set. Pick the maxes you want in Explore and Superpower builds each
                                     one around it.
                                 </Text>
                             ) : (

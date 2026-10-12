@@ -281,7 +281,7 @@ async def test_push_notification(
 
     ok, http_code = await send_apns_alert(
         token,
-        "Max",
+        "Superpower",
         "Push notifications are working! You're all set.",
         badge=1,
     )
@@ -682,7 +682,7 @@ async def complete_sendblue_connect(
     ):
         raise HTTPException(
             status_code=400,
-            detail="We have not received a message from your number yet. Text the Max line from the phone on your account, wait a few seconds, then try again.",
+            detail="We have not received a message from your number yet. Text the Superpower line from the phone on your account, wait a few seconds, then try again.",
         )
     # Dev-only escape hatch so local/dev builds can proceed without texting.
     if settings.debug and dev_skip:
@@ -870,9 +870,9 @@ async def save_onboarding(
         wt["saturday"] = {**weekend, **(wt.get("saturday") or {})}
         wt["sunday"] = {**weekend, **(wt.get("sunday") or {})}
         onboarding_data["weekly_timings"] = wt
-    # The first Max is built by the USER through the guided walkthrough
+    # The first Superpower is built by the USER through the guided walkthrough
     # (Home → Explore → start a schedule), never pre-built here: a plan the
-    # user didn't choose read as "a Max already built in" and skipped the
+    # user didn't choose read as "a Superpower already built in" and skipped the
     # onboarding that makes it theirs. Likewise nothing is seeded into chat.
     user.onboarding = onboarding_data
     user.updated_at = datetime.utcnow()

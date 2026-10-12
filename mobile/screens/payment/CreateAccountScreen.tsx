@@ -239,7 +239,7 @@ export default function CreateAccountScreen() {
         }
         if (isPaid) {
             // An App Store subscription belongs to the Apple ID: the launch
-            // sweep adopts it onto whichever Max account signs in next (the
+            // sweep adopts it onto whichever Superpower account signs in next (the
             // server releases an unclaimed anon holder). Say so, then go.
             Alert.alert(
                 'Sign in to an existing account?',

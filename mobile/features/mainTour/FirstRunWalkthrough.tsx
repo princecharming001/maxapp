@@ -8,7 +8,7 @@ import type { WalkthroughStep } from './useMainAppTour';
  * First-run walkthrough card: a bottom ink card with ONE real action per step,
  * guiding a brand-new account from an empty Home to their own first Max.
  *
- *   build  "build your first max"  → Explore (they pick; Max tailors it)
+ *   build  "build your first max"  → Explore (they pick; Superpower tailors it)
  *   task   "start with this"       → their first task in TaskGuide
  *   chat   "max is your coach"     → the chat tab
  *
@@ -27,7 +27,7 @@ type Props = {
     step: WalkthroughStep;
     /** Today's first pending task, when the user's plan has landed. */
     firstTask: WalkthroughFirstTask;
-    /** 'build' primary: take them to Explore to start their first Max. */
+    /** 'build' primary: take them to Explore to start their first Superpower. */
     onBuildFirstMax: () => void;
     /** 'task' primary: open the first task in TaskGuide. */
     onOpenFirstTask: () => void;

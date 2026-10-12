@@ -28,7 +28,7 @@ type Props = {
  *   2. A rotating phrase above the dots that swaps every ~1.6s with a quick
  *      cross-fade. Phrases are mode-aware: "schedule" mode lists what's
  *      happening behind a schedule generation (since those waits are long),
- *      "default" rotates short coach-vocab phrases so the user feels Max
+ *      "default" rotates short coach-vocab phrases so the user feels Superpower
  *      is actually thinking, not just hung.
  *
  * Phrases are deliberately short and substantive — no "please wait" filler.

@@ -2,7 +2,7 @@ App Store Connect → App Privacy: use this as a checklist. Adjust if your produ
 
 Data types you likely collect (verify against your privacy policy and backend):
 - Contact info: email, phone (signup / account).
-- User content: forum/channel messages, chat with Max (AI), profile bio, progress photos, face scan media.
+- User content: forum/channel messages, chat with Superpower (AI), profile bio, progress photos, face scan media.
 - Identifiers: account ID, auth tokens (device).
 - Usage: course progress, schedules, leaderboard if applicable.
 

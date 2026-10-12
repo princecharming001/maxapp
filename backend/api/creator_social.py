@@ -238,7 +238,7 @@ async def connect(
 def _done_html(message: str) -> HTMLResponse:
     return HTMLResponse(
         "<html><body style='font-family:-apple-system,sans-serif;padding:40px;text-align:center;'>"
-        f"<h3>{message}</h3><p>You can close this window and return to Max.</p>"
+        f"<h3>{message}</h3><p>You can close this window and return to Superpower.</p>"
         "<script>setTimeout(function(){ window.close(); }, 1500);</script>"
         "</body></html>"
     )

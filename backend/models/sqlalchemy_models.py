@@ -572,7 +572,7 @@ class CalendarConnection(Base):
     # Fernet-encrypted token blob (replaces plaintext tokens). Nullable so
     # legacy rows (plaintext) still work via the tokens_decrypted property.
     tokens_encrypted = Column(LargeBinary, nullable=True)
-    # Id of the dedicated "Max" calendar we create in the user's account for the
+    # Id of the dedicated "Superpower" calendar we create in the user's account for the
     # routine mirror. Null until the user opts in. Kept here (not on the user)
     # because it dies with the connection.
     app_calendar_id = Column(String(255), nullable=True)
@@ -625,7 +625,7 @@ class CalendarEvent(Base):
 
 
 class GcalEventLink(Base):
-    """One row per Max task we have mirrored into the user's Google Calendar.
+    """One row per Superpower task we have mirrored into the user's Google Calendar.
 
     This is the memory that makes the mirror idempotent. `event_key` is a uuid5
     of (user, program, catalog_id, date) — deliberately NOT the task's

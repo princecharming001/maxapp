@@ -1,5 +1,5 @@
 """
-Max - Configuration Management
+Superpower - Configuration Management
 Loads environment variables with validation using Pydantic Settings
 """
 
@@ -129,7 +129,7 @@ class Settings(BaseSettings):
     # onboarding stays byte-for-byte today's fixed-question state machine.
     slot_prefill_enabled: bool = Field(
         default=False,
-        description="Deterministic cross-Max dedup (prefill + missing_required). Ship/enable first.",
+        description="Deterministic cross-Superpower dedup (prefill + missing_required). Ship/enable first.",
     )
     dynamic_questions_enabled: bool = Field(
         default=False,
@@ -313,7 +313,7 @@ class Settings(BaseSettings):
     gcal_write_enabled: bool = Field(
         default=False,
         description=(
-            "Mirror the Max routine into a dedicated app-created Google calendar "
+            "Mirror the Superpower routine into a dedicated app-created Google calendar "
             "(calendar.app.created scope). Ships dark; set GCAL_WRITE_ENABLED=true "
             "once verified against a real account."
         ),
@@ -440,7 +440,7 @@ class Settings(BaseSettings):
     aws_s3_bucket: str = Field(default="cannon-app-uploads")
     aws_s3_region: str = Field(default="us-east-1")
     # Application
-    app_name: str = Field(default="Max")
+    app_name: str = Field(default="Superpower")
     app_env: str = Field(default="development")
     # Default OFF. When True, the global exception handler returns raw exception
     # text to clients (stack traces, DB schema, file paths) — never in production.

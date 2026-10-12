@@ -644,7 +644,7 @@ async def apple_verify(
                 # literal "account_token_mismatch".
                 _VERIFY_ERROR_COPY = {
                     "account_token_mismatch": (
-                        "This subscription belongs to a different Max account. "
+                        "This subscription belongs to a different Superpower account. "
                         "Sign in with the account you originally subscribed on "
                         "to keep using it."
                     ),

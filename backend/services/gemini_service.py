@@ -1135,7 +1135,7 @@ class GeminiService:
         delivery_channel: str = "app",
     ) -> str:
         """
-        Chat with Max persona
+        Chat with Superpower persona
         Uses conversation history for context, supports vision
         """
         # Build context — prefer coaching_context (full context from coaching service)

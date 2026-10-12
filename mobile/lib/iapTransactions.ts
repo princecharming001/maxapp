@@ -54,7 +54,7 @@ export type PurchaseErrorLike = {
 export type VerifyKind =
     | 'granted'        // active entitlement now on THIS account
     | 'expired'        // Apple says the transaction's period is over
-    | 'other_account'  // held by a different, claimed Max account
+    | 'other_account'  // held by a different, claimed Superpower account
     | 'rejected'       // server refused for another reason (unknown product…)
     | 'unreachable';   // network / 5xx / timeout — nothing decided
 
@@ -78,7 +78,7 @@ export type PurchaseResult =
 export type ReconcileOutcome = {
     /** An active entitlement was granted to the signed-in account. */
     granted: boolean;
-    /** The Apple ID's active subscription is held by another Max account. */
+    /** The Apple ID's active subscription is held by another Superpower account. */
     otherAccount: boolean;
     /** Only expired transactions were found. */
     expiredOnly: boolean;
@@ -146,7 +146,7 @@ function loadDeps(): Deps {
     return { iap, api, isIos: rn.Platform.OS === 'ios', now: () => Date.now(), managedSkus: [...skus], emissionWindowMs: EMISSION_WINDOW_MS };
 }
 
-/** Is this a base Max subscription (vs. a creator product owned elsewhere)?
+/** Is this a base Superpower subscription (vs. a creator product owned elsewhere)?
  *  A transaction with no product id is treated as ours — StoreKit always
  *  sets it, so the only way to see none is a shape we don't recognise, and
  *  ignoring it would lose a real purchase. */
@@ -716,13 +716,13 @@ export const purchaseCopy = {
     inFlight: 'A purchase is already in progress. Give it a moment.',
     timeout: "The App Store didn't confirm a purchase. If you were charged, tap Restore purchases and it will activate.",
     staleTransaction: "The App Store didn't start a new subscription. Please try again, or tap Restore purchases if you already subscribed.",
-    noActiveEntitlement: "We couldn't find an active Max subscription on this Apple ID. Nothing was charged — please try again.",
-    unreachableAfterPurchase: "You're subscribed, but Max couldn't be reached to activate it. It will activate automatically in a moment — tap Restore purchases if it doesn't.",
+    noActiveEntitlement: "We couldn't find an active Superpower subscription on this Apple ID. Nothing was charged — please try again.",
+    unreachableAfterPurchase: "You're subscribed, but Superpower couldn't be reached to activate it. It will activate automatically in a moment — tap Restore purchases if it doesn't.",
     rejected: "That purchase couldn't be activated. If you were charged, contact support and we'll sort it out.",
     otherAccountTitle: 'Subscription on another account',
-    otherAccount: 'Your Apple ID already has an active Max subscription, but it belongs to a different Max account. Sign in with that account to keep using it.',
+    otherAccount: 'Your Apple ID already has an active Superpower subscription, but it belongs to a different Superpower account. Sign in with that account to keep using it.',
     pendingTitle: 'Waiting for approval',
-    pending: 'Your purchase needs approval (Ask to Buy). Max will unlock as soon as it goes through.',
+    pending: 'Your purchase needs approval (Ask to Buy). Superpower will unlock as soon as it goes through.',
     forCode(code: string): string {
         switch (code) {
             case 'network-error':

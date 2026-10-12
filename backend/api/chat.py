@@ -1,5 +1,5 @@
 """
-Chat API - Max LLM Chat
+Chat API - Superpower LLM Chat
 Handles AI chat with tool-calling, coaching state, check-in parsing, and memory.
 The core logic lives in process_chat_message() so it can be reused by the SMS webhook.
 """
@@ -583,7 +583,7 @@ def _normalize_list_formatting(text: str) -> str:
     return "\n".join(lines)
 
 
-# Max's voice is lowercase, but a blanket .lower() mangles acronyms (SPF, AM,
+# Superpower's voice is lowercase, but a blanket .lower() mangles acronyms (SPF, AM,
 # PSL), units (D3, K2, SPF30), brand/proper nouns (CeraVe, EltaMD), and the
 # pronoun "I" — "use SPF in the AM" became "use spf in the am", which reads
 # sloppy/wrong to a user. _smart_lowercase lowercases ordinary prose but
@@ -633,13 +633,13 @@ def _finalize_assistant_message(text: str, *, keep_links: bool = False) -> str:
     """User-facing chat: edge enforcer. Order matters:
        1. Tech-leak scrub (system prompt fragments, kwarg-shapes).
        2. AI-template lead-ins / sign-offs.
-       3. Em dashes out (comma or period), matching every Max prompt.
+       3. Em dashes out (comma or period), matching every Superpower prompt.
        4. Paragraph-break enforcement on wall-of-text answers.
        5. Numbered-list + bold-lead normalization for 3+ point answers.
        6. Strip inline amazon links (cards carry them) — UNLESS keep_links,
           which the explicit "give me links" fast path sets (its whole answer
           IS the links, and they're amazon SEARCH links with no catalog card).
-       7. Keep **bold**, drop stray asterisks, smart-lowercase to Max voice
+       7. Keep **bold**, drop stray asterisks, smart-lowercase to Superpower voice
           (preserves acronyms/brands/units/"I").
     """
     if not text:
@@ -2091,7 +2091,7 @@ async def process_chat_message(
         "user_facts": user_facts,
     }
 
-    # Hyper-personalization brief — the unified "what Max knows about this user"
+    # Hyper-personalization brief — the unified "what Superpower knows about this user"
     # (identity, culture, diet, work, rhythm, personality, comms style) assembled
     # from onboarding + durable facts the user told the chat + Onairos inference.
     # Injected into the system prompt so every reply is tailored to the real person.
@@ -3445,7 +3445,7 @@ Ask ONE question at a time. Your very first response must ask the concern questi
         logger.warning("[chat] empty agent output for user=%s msg=%.80s; using fallback", user_id, message_text)
 
     # --- Numbered-list+bold normalization, strip inline amazon links
-    #     (cards carry them), keep **bold**, lowercase to Max voice ---
+    #     (cards carry them), keep **bold**, lowercase to Superpower voice ---
     response_text = _normalize_list_formatting(response_text)
     response_text = _strip_amazon_links(response_text)
     response_text = _keep_bold_drop_stray_asterisks(response_text).lower()
@@ -3972,7 +3972,7 @@ def _filter_actives_by_name(actives: list, message_text: str) -> list:
     return hit
 
 
-# Maxes that have an in-app habit picker (mobile data/habitCatalog.ts). The
+# Superpowers that have an in-app habit picker (mobile data/habitCatalog.ts). The
 # post-generation picker is offered only for these.
 _HABIT_PICKER_MAXES = {"skinmax", "hairmax", "fitmax", "heightmax", "bonemax", "coloringmax"}
 
@@ -4039,7 +4039,7 @@ async def _apply_slot_prefill(
 
     Resolve cross-source known-context for `maxx_id` and merge confidently-known
     values into the user_state used to drive the next question, so already-known
-    fields are not re-asked (cross-Max dedup). Only fills keys genuinely missing
+    fields are not re-asked (cross-Superpower dedup). Only fills keys genuinely missing
     in `state` — never overrides a real answer. Persists filled values into
     context + user_facts so the generator and future maxes see them.
 
@@ -4477,7 +4477,7 @@ async def _run_onboarding_questioner_impl(
         await merge_context(user_id, clear_pending(), db)
         return None
 
-    # Deterministic cross-Max prefill (no-op unless slot_prefill_enabled): merge
+    # Deterministic cross-Superpower prefill (no-op unless slot_prefill_enabled): merge
     # already-known values into state so the continuing intake skips them.
     state = await _apply_slot_prefill(user_id, maxx_id, state, db)
 
@@ -5005,7 +5005,7 @@ def _pending_belongs_to_thread(
     True when its stamped thread still exists, False when that thread is gone.
     A stamped, live intake belongs ONLY to its own thread. An unstamped or
     orphaned one is anchored to the best guess — the max's dedicated
-    "<Max> plan" thread when one exists, else the user's most-recent thread —
+    "<Superpower> plan" thread when one exists, else the user's most-recent thread —
     so it still surfaces once, in one place, instead of under every thread.
     """
     if target_id is None:
@@ -5019,7 +5019,7 @@ def _pending_belongs_to_thread(
 
 
 async def _find_maxx_thread_id(db: AsyncSession, *, user_id: str, maxx_id: str) -> Optional[str]:
-    """Read-only lookup of a max's dedicated "<Max> plan" thread (no create)."""
+    """Read-only lookup of a max's dedicated "<Superpower> plan" thread (no create)."""
     try:
         stmt = (
             select(ChatConversation.id)
@@ -5051,7 +5051,7 @@ async def send_message(
     db: AsyncSession = Depends(get_db),
     rds_db: AsyncSession | None = Depends(get_rds_db_optional),
 ):
-    """Send message to Max AI (in-app)"""
+    """Send message to Superpower AI (in-app)"""
     from services import chat_conversations_service as _conv
 
     user_id = current_user["id"]

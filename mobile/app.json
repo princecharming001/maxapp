@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Max",
+    "name": "Superpower",
     "slug": "cannon-mobile",
     "version": "3.1.4",
     "runtimeVersion": {
@@ -35,8 +35,8 @@
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "Max uses your photo library to attach images in community channels, chat, and profile or progress photos.",
-        "NSPhotoLibraryAddUsageDescription": "Max saves your face scan from results to your photo library when you choose Save to photos.",
+        "NSPhotoLibraryUsageDescription": "Superpower uses your photo library to attach images in community channels, chat, and profile or progress photos.",
+        "NSPhotoLibraryAddUsageDescription": "Superpower saves your face scan from results to your photo library when you choose Save to photos.",
         "UIBackgroundModes": [
           "remote-notification"
         ]
@@ -67,15 +67,15 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Max to access your camera for face scans.",
-          "microphonePermission": "Allow Max to access your microphone for face scan video recording."
+          "cameraPermission": "Allow Superpower to access your camera for face scans.",
+          "microphonePermission": "Allow Superpower to access your microphone for face scan video recording."
         }
       ],
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow Max to access photos to save your scan from results.",
-          "savePhotosPermission": "Allow Max to save your face scan to your photo library.",
+          "photosPermission": "Allow Superpower to access photos to save your scan from results.",
+          "savePhotosPermission": "Allow Superpower to save your face scan to your photo library.",
           "isAccessMediaLocationEnabled": false
         }
       ],

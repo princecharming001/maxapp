@@ -1154,7 +1154,7 @@ async def adapt_and_persist(
     )
 
     # An adapt is an EXPLICIT user request, so unlike a silent regen it must
-    # NOT strip parts. Instead reconcile the durable exclusion set: if Max
+    # NOT strip parts. Instead reconcile the durable exclusion set: if Superpower
     # brought a previously-pruned part back into the schedule, the user clearly
     # wants it, so stop excluding it. Parts still absent stay excluded so the
     # next regen won't resurrect them.

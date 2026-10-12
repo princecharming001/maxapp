@@ -445,7 +445,7 @@ def _megadoc() -> str:
         ("Emergency fund sizing", "3-6 months of essential expenses, held in a boring high-yield account, not invested."),
         ("Automating savings", "Move money the day it lands, before you see it in checking — willpower is not a savings strategy."),
         ("Investing basics", "Low-cost index funds first; individual stock picking is a hobby, not a plan."),
-        ("Tax-advantaged accounts", "Max the employer match before anything else — it's an immediate 100% return."),
+        ("Tax-advantaged accounts", "Superpower the employer match before anything else — it's an immediate 100% return."),
         ("Lifestyle creep", "Every raise, bank half of it before your spending adjusts upward to match it."),
         ("Time-blocking", "Calendar the deep work before the meetings fill every gap by default."),
         ("The two-minute rule", "If it takes less than two minutes, do it now instead of adding it to a list."),
@@ -643,7 +643,7 @@ STEP 2 — THE PRIORITY ORDER (do these in order, not all at once)
 2. High-interest debt (anything above ~7%) — pay this down aggressively,
    it's a guaranteed "return."
 3. Emergency fund to 3-6 months.
-4. Max tax-advantaged accounts (401k/IRA equivalents).
+4. Superpower tax-advantaged accounts (401k/IRA equivalents).
 5. Taxable brokerage — low-cost index funds, not stock picking.
 
 STEP 3 — THE 30-MINUTE MONTHLY REVIEW

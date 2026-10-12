@@ -1,10 +1,10 @@
-"""Mirror the user's Max routine into a dedicated Google calendar.
+"""Mirror the user's Superpower routine into a dedicated Google calendar.
 
 Three promises drive every decision here:
 
   1. The calendar shows the routine at its real times.
   2. It follows the app — edit a task, the event moves.
-  3. Never a duplicate, never two Max events on top of each other.
+  3. Never a duplicate, never two Superpower events on top of each other.
 
 How duplicates are made impossible
 ----------------------------------
@@ -147,7 +147,7 @@ def build_desired(view: list[dict], user_id: str, tz_name: str) -> dict[str, Des
         rows.sort(key=lambda r: r[0])
 
         # Defensive clamp: the master view is already collision-resolved, but a
-        # malformed duration must never produce two overlapping Max events.
+        # malformed duration must never produce two overlapping Superpower events.
         for i, (start, dur, _t) in enumerate(rows):
             if i + 1 < len(rows):
                 next_start = rows[i + 1][0]
@@ -166,7 +166,7 @@ def build_desired(view: list[dict], user_id: str, tz_name: str) -> dict[str, Des
             event_date = base + timedelta(days=1) if start < _OVERNIGHT_CUTOFF_MIN else base
             ev_iso = event_date.isoformat()
 
-            title = str(t.get("title") or "Max task")
+            title = str(t.get("title") or "Superpower task")
             if str(t.get("status") or "") == "completed":
                 title = _DONE_PREFIX + title
 
@@ -206,7 +206,7 @@ def diff_desired_vs_links(
 # --------------------------------------------------------------------------- #
 
 async def mirror_user_calendar(user_id: str, db) -> dict[str, int]:
-    """Bring the user's Max calendar in line with their plan."""
+    """Bring the user's Superpower calendar in line with their plan."""
     from models.sqlalchemy_models import CalendarConnection, GcalEventLink, User
     from services.gcal_write import (
         BatchOp, GcalAuthExpired, GcalRateLimited,
@@ -375,7 +375,7 @@ async def _prune_past_links(db, uid: str, today: _date) -> None:
 
 
 async def teardown_mirror(user_id: str, conn, access_token: str | None, db) -> None:
-    """Remove the Max calendar and forget every link. Best-effort throughout."""
+    """Remove the Superpower calendar and forget every link. Best-effort throughout."""
     from models.sqlalchemy_models import GcalEventLink
     from sqlalchemy import delete as _delete
     from services.gcal_write import delete_calendar

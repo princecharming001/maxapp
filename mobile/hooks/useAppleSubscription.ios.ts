@@ -149,7 +149,7 @@ export function useAppleSubscription() {
         prefetchMainTabData(queryClient);
     }, [refreshUser, queryClient, user?.onboarding?.completed]);
 
-    /** "Your Apple ID's subscription belongs to another Max account" — with
+    /** "Your Apple ID's subscription belongs to another Superpower account" — with
      *  the way out, not just the news. Sign in drops this session (the
      *  funnel stack has no Login route; App.tsx forwards after logout). */
     const showOtherAccount = useCallback((detail?: string) => {
@@ -281,16 +281,16 @@ export function useAppleSubscription() {
             } else if (o.rejected) {
                 Alert.alert('Subscription found', o.detail || purchaseCopy.rejected);
             } else if (o.transient) {
-                Alert.alert('Try again in a moment', "Max couldn't be reached to check your subscription. Your purchase is safe — please try again shortly.");
+                Alert.alert('Try again in a moment', "Superpower couldn't be reached to check your subscription. Your purchase is safe — please try again shortly.");
             } else if (o.checked === 0) {
                 Alert.alert(
                     'Nothing to restore',
-                    'No active Max subscription was found for the Apple ID signed in to the App Store on this device. If that seems wrong, check Settings › Apple ID › Subscriptions.',
+                    'No active Superpower subscription was found for the Apple ID signed in to the App Store on this device. If that seems wrong, check Settings › Apple ID › Subscriptions.',
                 );
             } else {
                 Alert.alert(
                     'No active subscription',
-                    "This Apple ID's Max subscription has ended. Subscribe again to pick up where you left off.",
+                    "This Apple ID's Superpower subscription has ended. Subscribe again to pick up where you left off.",
                 );
             }
             return false;

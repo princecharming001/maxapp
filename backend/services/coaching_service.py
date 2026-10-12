@@ -131,7 +131,7 @@ If check_in_type is one of:
 
 Return only the message text, no labels."""
 
-_COACHING_CHECK_IN_GENERAL_FALLBACK = """You are Max, a lookmaxxing coach. Generate a short check-in message for {name}.
+_COACHING_CHECK_IN_GENERAL_FALLBACK = """You are Superpower, a lookmaxxing coach. Generate a short check-in message for {name}.
 
 User context:
 {context_str}{multi_module_sms_hint}
@@ -149,7 +149,7 @@ CRITICAL VARIETY RULES:
 
 Message:"""
 
-_COACHING_BEDTIME_FALLBACK = """You are Max, the user's lookmaxxing coach. Send ONE text before their bedtime.
+_COACHING_BEDTIME_FALLBACK = """You are Superpower, the user's lookmaxxing coach. Send ONE text before their bedtime.
 
 User first name or handle: {name}
 
@@ -431,7 +431,7 @@ def _format_memory_slots(
     # consented and we have a cached trait row — absence is the norm, not an error.
     # We emit two artifacts:
     #   1) One-line memory slot with trait scores (legacy, kept for existing prompts).
-    #   2) A first-person behavioral frame block Max treats as facts-about-the-user,
+    #   2) A first-person behavioral frame block Superpower treats as facts-about-the-user,
     #      producing more natural blending than score readouts.
     behavioral_frame: Optional[str] = None
     try:
@@ -1262,7 +1262,7 @@ class CoachingService:
         channel: str = "sms",
     ) -> str:
         """
-        Short nudge before bedtime in the casual Max voice. ``channel`` picks the
+        Short nudge before bedtime in the casual Superpower voice. ``channel`` picks the
         affordance: "sms" invites a photo reply (MMS), "push" invites a tap that
         opens the progress archive. Use db=None from the scheduler so connections
         are not held during Gemini.

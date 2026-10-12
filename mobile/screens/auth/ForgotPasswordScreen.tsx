@@ -113,7 +113,7 @@ export default function ForgotPasswordScreen() {
                     <Text style={styles.title}>reset password</Text>
                     <Text style={styles.sub}>
                         {step === 1
-                            ? "We'll text a code to the phone number on your Max account."
+                            ? "We'll text a code to the phone number on your Superpower account."
                             : 'Enter the code and choose a new password.'}
                     </Text>
 

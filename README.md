@@ -1,4 +1,4 @@
-# Max - Premium Lookmaxxing Platform
+# Superpower - Premium Lookmaxxing Platform
 
 A comprehensive facial analysis and self-improvement platform with mobile app, backend API, and AI-powered facial analysis service
 

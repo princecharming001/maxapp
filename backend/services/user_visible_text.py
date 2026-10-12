@@ -1,4 +1,4 @@
-"""Last-mile scrub for anything the user reads from Max (chat replies, chat history, SMS).
+"""Last-mile scrub for anything the user reads from Superpower (chat replies, chat history, SMS).
 
 The model sees retrieval evidence labelled with file paths and section names, and older
 prompts asked it to cite them, so internal references sometimes reach the user:
@@ -102,7 +102,7 @@ _VERB_3SG = {"say": "says", "focus": "focuses", "cover": "covers", "mention": "m
 # Links and URLs contain dots, which would end a "sentence" mid-link. They are swapped out while
 # the clause rules run.
 _LINK = re.compile(r"\[[^\]\n]*\]\([^)\s]*\)|https?://\S+")
-# Vendor / model identity. Max is an AI coach; which model runs it is not the user's concern.
+# Vendor / model identity. Superpower is an AI coach; which model runs it is not the user's concern.
 _MODEL_IDENTITY = re.compile(
     r"\bi'?\s*a?m\s+a\s+large\s+language\s+model,?\s+(?:trained|made|built|developed)\s+by\s+[\w .]+?(?:[.!]|$)",
     re.IGNORECASE | re.MULTILINE,
@@ -176,7 +176,7 @@ def _scrub_prose(text: str) -> str:
 
 
 def strip_em_dashes(text: str) -> str:
-    """Max never uses em dashes (every Max prompt bans them as the clearest bot tell).
+    """Superpower never uses em dashes (every Superpower prompt bans them as the clearest bot tell).
     "a — b" becomes "a, b"; after a sentence end or colon it becomes a period."""
     if not text or "—" not in text:
         return text

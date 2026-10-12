@@ -1,10 +1,10 @@
 /**
- * "What Max knows about you" — the user-facing window into the hyper-
+ * "What Superpower knows about you" — the user-facing window into the hyper-
  * personalization profile (services/personalization on the backend).
  *
  * Shows everything Max has learned — from onboarding, from things you've told
  * the chat, and from Onairos — grouped by dimension (food, culture, work,
- * rhythm, how-Max-talks-to-you, …). The user can ADD anything ("i'm vegetarian",
+ * rhythm, how-Superpower-talks-to-you, …). The user can ADD anything ("i'm vegetarian",
  * "my family's Tamil", "talk to me straight") and REMOVE anything that's wrong.
  * Everything here flows straight into Max's coaching + your schedule.
  */
@@ -36,7 +36,7 @@ const DIMS: DimMeta[] = [
     { key: 'culture', label: 'Culture & background', icon: 'globe-outline', placeholder: 'Tamil family · speak Spanish' },
     { key: 'work', label: 'Work & schedule', icon: 'briefcase-outline', placeholder: 'nurse · night shifts downtown' },
     { key: 'lifestyle', label: 'Daily rhythm', icon: 'time-outline', placeholder: 'night owl · travel a lot' },
-    { key: 'comms_style', label: 'How Max talks to you', icon: 'chatbubble-ellipses-outline', placeholder: 'blunt, skip the pep talk' },
+    { key: 'comms_style', label: 'How Superpower talks to you', icon: 'chatbubble-ellipses-outline', placeholder: 'blunt, skip the pep talk' },
     { key: 'goals', label: 'Goals', icon: 'flag-outline', placeholder: 'wedding in June' },
     { key: 'interests', label: 'Interests', icon: 'heart-outline', placeholder: 'climbing · specialty coffee' },
     { key: 'personality', label: 'Personality', icon: 'sparkles-outline', placeholder: 'competitive · hate strict routines' },
@@ -125,14 +125,14 @@ export default function PersonalizationScreen() {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <Ionicons name="chevron-back" size={24} color={colors.foreground} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>What Max knows</Text>
+                <Text style={styles.headerTitle}>What Superpower knows</Text>
                 <View style={{ width: 24 }} />
             </View>
 
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={8}>
                 <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
                     <Text style={styles.intro}>
-                        This is what makes Max's coaching yours. Add anything about your life,
+                        This is what makes Superpower's coaching yours. Add anything about your life,
                         and remove anything that's off.
                     </Text>
 
@@ -144,7 +144,7 @@ export default function PersonalizationScreen() {
                         <>
                             {/* Add composer */}
                             <View style={styles.card}>
-                                <Text style={styles.cardTitle}>Tell Max something</Text>
+                                <Text style={styles.cardTitle}>Tell Superpower something</Text>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dimRow}>
                                     {DIMS.map((d) => {
                                         const on = addDim === d.key;
@@ -177,7 +177,7 @@ export default function PersonalizationScreen() {
 
                             {shownDims.length === 0 ? (
                                 <Text style={styles.empty}>
-                                    Max doesn't know much yet. Tell it anything above, or just chat —
+                                    Superpower doesn't know much yet. Tell it anything above, or just chat —
                                     it remembers what you share.
                                 </Text>
                             ) : null}
@@ -210,7 +210,7 @@ export default function PersonalizationScreen() {
                             })}
 
                             <Text style={styles.foot}>
-                                Solid chips are things you told Max (tap to remove). Faded chips are
+                                Solid chips are things you told Superpower (tap to remove). Faded chips are
                                 learned from your setup and connected apps.
                             </Text>
                         </>

@@ -66,14 +66,14 @@ const SHOW_DEV_BYPASS = __DEV__;
 type Feature = { title: string; sub: string };
 
 const CHAD_FEATURES: Feature[] = [
-    { title: 'Max Chat Pro',        sub: 'Unlimited AI coaching conversations'          },
+    { title: 'Superpower Chat Pro',        sub: 'Unlimited AI coaching conversations'          },
     { title: '3 Active Routines',   sub: 'Run up to 3 looksmaxxing programs at once'    },
     { title: 'Daily Face Scans',    sub: 'AI face analysis every single day'            },
     { title: 'Full Course Library', sub: 'Every creator course and piece of content'    },
     { title: 'Priority Support',    sub: 'Faster responses and dedicated help'          },
 ];
 const CHAD_FEATURES_NO_SCAN: Feature[] = [
-    { title: 'Max Chat Pro',        sub: 'Unlimited AI coaching conversations'          },
+    { title: 'Superpower Chat Pro',        sub: 'Unlimited AI coaching conversations'          },
     { title: '3 Active Routines',   sub: 'Run up to 3 looksmaxxing programs at once'    },
     { title: 'Full Course Library', sub: 'Every creator course and piece of content'    },
     { title: 'Priority Support',    sub: 'Faster responses and dedicated help'          },
@@ -199,7 +199,7 @@ export default function PaymentScreen() {
     // Belt and braces for "I have a plan but I'm being asked to pay": before
     // the user can even tap Subscribe, re-check the Apple ID's entitlements
     // with the server. A grant flips isPaid and the effect below leaves the
-    // paywall; a subscription held by ANOTHER Max account gets the sign-in
+    // paywall; a subscription held by ANOTHER Superpower account gets the sign-in
     // prompt instead of a Subscribe button that can only bounce.
     useEffect(() => {
         if (!IS_IOS || isPaid) return;
@@ -437,7 +437,7 @@ export default function PaymentScreen() {
 
                 {/* The funnel stack registers no Login route, so this is the ONLY
                     way a returning customer who tapped "Get started" (or a device
-                    signed into the wrong Max account) can reach their own plan.
+                    signed into the wrong Superpower account) can reach their own plan.
                     Restore's "belongs to another account" alert offers the same
                     action. */}
                 {!isPaid && (

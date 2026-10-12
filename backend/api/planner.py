@@ -476,7 +476,7 @@ async def life_model(
     db: AsyncSession = Depends(get_db),
 ):
     """The assembled Life Model (spec 4.1) - every field with value,
-    confidence, and provenance. Doubles as the trust surface ('what Max
+    confidence, and provenance. Doubles as the trust surface ('what Superpower
     knows about you') for Settings > Privacy."""
     from services.life_model import build_life_model
 
@@ -968,7 +968,7 @@ async def weekly_review(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """'This week with Max' - completion framed by what got DONE, plus
+    """'This week with Superpower' - completion framed by what got DONE, plus
     confirm-first learned facts (T1 schedule facts only in Phase 0; deeper
     inference joins with the Learner). I never change the plan without asking.
     """
