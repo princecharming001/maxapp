@@ -94,10 +94,10 @@ export const tests: Record<string, () => void | Promise<void>> = {
     // ── server seeding ───────────────────────────────────────────────────
     'seedAnswersFromServerOnboarding maps the intro save back to wizard fields': () => {
         const a = lib.seedAnswersFromServerOnboarding({
-            goals: ['sleep', 'focus'], priority_order: [], biohack_level: 'high',
+            goals: ['sleep', 'focus'], priority_order: [], biohack_level: 'high', daily_minutes: 45,
             intensity_preference: 'sweatmode', completed: false,
         });
-        assert.deepStrictEqual(a, { goals: ['sleep', 'focus'], level: 'high' });
+        assert.deepStrictEqual(a, { goals: ['sleep', 'focus'], level: 'high', dailyMinutes: 45 });
         assert.deepStrictEqual(lib.seedAnswersFromServerOnboarding(null), {});
         assert.deepStrictEqual(lib.seedAnswersFromServerOnboarding({ goals: [1, null] }), {});
     },

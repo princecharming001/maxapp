@@ -23,8 +23,10 @@ const DRAFT_VERSION = 5;
 
 export type OnboardingAnswers = {
     goals: string[];
-    /** How hard they want to biohack: 'low' | 'medium' | 'high'. */
+    /** Coarse level derived from the minutes: 'low' | 'medium' | 'high'. */
     level: string | null;
+    /** Minutes a day the user commits (time slider). */
+    dailyMinutes: number | null;
     wakeMin: number;
     grStart: number;
     grEnd: number;
@@ -165,6 +167,7 @@ export function seedAnswersFromServerOnboarding(ob: unknown): Partial<Onboarding
         if (goals.length) out.goals = goals.slice(0, 2);
     }
     if (typeof o.biohack_level === 'string' && VALID_LEVELS.has(o.biohack_level)) out.level = o.biohack_level;
+    if (typeof o.daily_minutes === 'number' && o.daily_minutes >= 5 && o.daily_minutes <= 60) out.dailyMinutes = o.daily_minutes;
     return out;
 }
 

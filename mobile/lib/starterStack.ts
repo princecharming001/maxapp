@@ -41,6 +41,23 @@ export const BIOHACK_LEVELS: { id: BiohackLevel; label: string; sub: string; min
     { id: 'high', label: 'Hard', sub: 'the full stack, for days you can give it more', minutes: 45, habits: 6 },
 ];
 
+/** The time slider: minutes a day the user commits, continuous within this range. */
+export const MINUTES_MIN = 5;
+export const MINUTES_MAX = 60;
+export const DEFAULT_MINUTES = 25;
+
+/** Coarse level for a minute budget (drives the scheduler's intensity ramp). */
+export function levelForMinutes(m: number): BiohackLevel {
+    if (m <= 15) return 'low';
+    if (m <= 35) return 'medium';
+    return 'high';
+}
+
+/** How many habits a minute budget holds (5 min → 1 … 50+ min → 6). */
+export function habitsForMinutes(m: number): number {
+    return Math.max(1, Math.min(6, 1 + Math.floor(m / 10)));
+}
+
 /** Scheduler intensity token each level maps onto (backend `intensity_preference`). */
 export const LEVEL_TO_INTENSITY: Record<BiohackLevel, 'chill' | 'standard' | 'sweatmode'> = {
     low: 'chill',
@@ -212,15 +229,17 @@ const WORK_BREAK_OK = new Set<Anchor>(['lunch', 'afternoon']);
  * share the budget, keeps adding while the level's habit count and minute
  * budget allow, then resolves each card to a real time in the user's day.
  */
-export function buildStarterStack(goals: string[], level: BiohackLevel, day: DayShape): StackItem[] {
-    const lvl = BIOHACK_LEVELS.find((l) => l.id === level) ?? BIOHACK_LEVELS[1];
+export function buildStarterStack(goals: string[], budgetIn: BiohackLevel | number, day: DayShape): StackItem[] {
+    // A level ('low' | 'medium' | 'high') or an exact minutes-a-day budget.
+    const preset = typeof budgetIn === 'string' ? BIOHACK_LEVELS.find((l) => l.id === budgetIn) ?? BIOHACK_LEVELS[1] : null;
+    const lvl = preset ?? { minutes: budgetIn as number, habits: habitsForMinutes(budgetIn as number) };
     const picked = goals.filter((g): g is BiohackGoal => g in CARDS).slice(0, MAX_GOALS);
     if (picked.length === 0) return [];
 
     const queues = picked.map((g) => [...CARDS[g]].sort((a, b) => b.value - a.value));
     const chosen: Card[] = [];
     let minutes = 0;
-    // A little headroom so a high-value 30-minute session still fits "high".
+    // A little headroom so a high-value 30-minute session still fits a 25+ budget.
     const budget = lvl.minutes * 1.25;
 
     let progressed = true;

@@ -12,6 +12,8 @@ import {
     LEVEL_TO_EFFORT,
     LEVEL_TO_INTENSITY,
     buildStarterStack,
+    habitsForMinutes,
+    levelForMinutes,
     priorityTokensFor,
     stackMinutes,
     type DayShape,
@@ -102,6 +104,23 @@ export const tests = {
     'no goals, or unknown goals, gives an empty stack': () => {
         assert.deepStrictEqual(buildStarterStack([], 'high', NINE_TO_FIVE), []);
         assert.deepStrictEqual(buildStarterStack(['skinmax'], 'high', NINE_TO_FIVE), []);
+    },
+
+    'a minutes budget from the slider sizes the stack continuously': () => {
+        let prevCount = 0;
+        for (const m of [5, 10, 15, 20, 25, 30, 40, 50, 60]) {
+            const items = buildStarterStack(['sleep', 'training'], m, NINE_TO_FIVE);
+            assert.ok(items.length >= 1 && items.length <= habitsForMinutes(m), `${m} min -> ${items.length}`);
+            if (items.length > 1) assert.ok(stackMinutes(items) <= m * 1.25, `${m} min over budget`);
+            assert.ok(items.length >= prevCount, 'more time never means fewer habits');
+            prevCount = items.length;
+        }
+        assert.strictEqual(levelForMinutes(5), 'low');
+        assert.strictEqual(levelForMinutes(15), 'low');
+        assert.strictEqual(levelForMinutes(25), 'medium');
+        assert.strictEqual(levelForMinutes(36), 'high');
+        assert.strictEqual(habitsForMinutes(5), 1);
+        assert.strictEqual(habitsForMinutes(60), 6);
     },
 
     'level and goals map onto the scheduler vocabulary': () => {

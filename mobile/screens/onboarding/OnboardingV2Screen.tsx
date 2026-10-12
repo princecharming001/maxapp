@@ -52,11 +52,14 @@ import {
 } from '../../lib/onboardingDraft';
 import {
     BIOHACK_GOALS,
-    BIOHACK_LEVELS,
+    DEFAULT_MINUTES,
     LEVEL_TO_EFFORT,
     LEVEL_TO_INTENSITY,
     MAX_GOALS,
+    MINUTES_MAX,
+    MINUTES_MIN,
     buildStarterStack,
+    levelForMinutes,
     priorityTokensFor,
     stackMinutes,
     type BiohackLevel,
@@ -512,6 +515,9 @@ export default function OnboardingV2Screen() {
     const [phase, setPhase] = useState<OnboardingPhase>(route?.params?.phase ?? 'intro');
     const [goals, setGoals] = useState<string[]>([]);
     const [level, setLevel] = useState<BiohackLevel | null>(null);
+    // Minutes a day they'll give this (continuous slider). The level above is
+    // derived from it — kept because the scheduler's intensity ramp reads it.
+    const [dailyMinutes, setDailyMinutes] = useState<number | null>(null);
     const [wakeMin, setWakeMin] = useState(7 * 60);
     // Get-ready (AM routine) + wind-down (PM routine) are WINDOWS, not a time +
     // duration / a single bedtime. The wind-down window's END is bedtime.
@@ -562,6 +568,7 @@ export default function OnboardingV2Screen() {
         const seed = seedAnswersFromServerOnboarding(user?.onboarding);
         if (seed.goals) setGoals(seed.goals);
         if (seed.level) setLevel(seed.level as BiohackLevel);
+        if (typeof seed.dailyMinutes === 'number') setDailyMinutes(seed.dailyMinutes);
         void (uid ? loadOnboardingDraft(uid) : Promise.resolve(null))
             .then((d) => {
                 if (cancelled) return;
@@ -577,6 +584,7 @@ export default function OnboardingV2Screen() {
                 const a = d.answers || {};
                 if (Array.isArray(a.goals)) setGoals(a.goals.slice(0, MAX_GOALS));
                 if (a.level === 'low' || a.level === 'medium' || a.level === 'high') setLevel(a.level);
+                if (typeof a.dailyMinutes === 'number') setDailyMinutes(a.dailyMinutes);
                 if (typeof a.wakeMin === 'number') setWakeMin(a.wakeMin);
                 if (typeof a.grStart === 'number') setGrStart(a.grStart);
                 if (typeof a.grEnd === 'number') setGrEnd(a.grEnd);
@@ -651,14 +659,14 @@ export default function OnboardingV2Screen() {
     useEffect(() => {
         if (!draftLoaded || !user?.id) return;
         void saveOnboardingDraft(user.id, step, {
-            goals, level, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
+            goals, level, dailyMinutes, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
             workStartMin, workEndMin, workLocation, commuteMin,
             breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
             showerTime, workoutMin, weekendShift,
         }, phase);
     }, [
         draftLoaded, user?.id, step, phase,
-        goals, level, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
+        goals, level, dailyMinutes, wakeMin, grStart, grEnd, wdStart, wdEnd, works,
         workStartMin, workEndMin, workLocation, commuteMin,
         breakfastMin, lunchMin, dinnerMin, skipBreakfast, skipLunch, skipDinner,
         showerTime, workoutMin, weekendShift,
@@ -723,6 +731,7 @@ export default function OnboardingV2Screen() {
     // scheduler's existing intensity ramp (low = chill … high = sweatmode) and
     // the legacy effort token, so every downstream reader stays in step.
     const levelFields = () => ({
+        daily_minutes: dailyMinutes,
         biohack_level: level,
         intensity_preference: level ? LEVEL_TO_INTENSITY[level] : null,
         effort_level: level ? LEVEL_TO_EFFORT[level] : null,
@@ -883,7 +892,7 @@ export default function OnboardingV2Screen() {
     // works — it's spread in conditionally; the progress bar adapts to length.
     // The first-stack preview: the user's own goals + level, placed into the
     // day they just described (today's weekday shape).
-    const stack = buildStarterStack(goals, level ?? 'medium', {
+    const stack = buildStarterStack(goals, dailyMinutes ?? DEFAULT_MINUTES, {
         wakeMin,
         getReadyMin: grStart,
         windDownMin: wdStart,
@@ -900,13 +909,17 @@ export default function OnboardingV2Screen() {
         setDoneHabits((d) => (d.includes(id) ? d.filter((x) => x !== id) : [...d, id]));
     };
 
-    // Level slider: Medium until the user moves it.
-    const levelIdx = Math.max(0, BIOHACK_LEVELS.findIndex((l) => l.id === (level ?? 'medium')));
-    const levelInfo = BIOHACK_LEVELS[levelIdx];
-    const pickLevel = (i: number) => {
-        const next = BIOHACK_LEVELS[Math.max(0, Math.min(BIOHACK_LEVELS.length - 1, i))].id;
-        if (next !== level && Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
-        setLevel(next);
+    // Time slider: continuous minutes a day, 25 until the user moves it.
+    const minutesShown = dailyMinutes ?? DEFAULT_MINUTES;
+    const lastTick = useRef(minutesShown);
+    const pickMinutes = (m: number) => {
+        // A light tick every 5 minutes so the drag feels physical, not buzzy.
+        if (Platform.OS !== 'web' && Math.floor(m / 5) !== Math.floor(lastTick.current / 5)) {
+            Haptics.selectionAsync().catch(() => {});
+        }
+        lastTick.current = m;
+        setDailyMinutes(m);
+        setLevel(levelForMinutes(m));
     };
 
     // One idea per screen. Each step is tagged with the phase it belongs to;
@@ -961,44 +974,31 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // level — how much time they'll commit (3-stop slider: low / medium / hard)
+        // time — how many minutes a day they'll commit (continuous slider)
         {
             phase: 'intro',
             title: 'How much time can\nyou give this?',
             sub: 'Your plan fits inside it. You can change it anytime.',
             canNext: true,
-            // The slider always shows a position (Medium until moved), so
-            // Continue commits it even if the user never drags.
-            onContinue: () => { if (!level) setLevel(levelInfo.id); },
+            // The slider always shows a value (25 until moved), so Continue
+            // commits it even if the user never drags.
+            onContinue: () => { if (dailyMinutes == null) pickMinutes(minutesShown); },
             body: (
                 <View>
                     <View style={styles.levelReadout}>
-                        <Text style={styles.levelName}>{levelInfo.label}</Text>
-                        <Text style={styles.levelMinutes}>
-                            {levelInfo.id === 'high' ? `${levelInfo.minutes}+` : `about ${levelInfo.minutes}`} min a day
-                        </Text>
-                        <Text style={styles.levelSub}>{levelInfo.sub}</Text>
+                        <Text style={styles.levelNumber}>{minutesShown}</Text>
+                        <Text style={styles.levelUnit}>min a day</Text>
                     </View>
                     <Slider
-                        value={levelIdx}
-                        min={0}
-                        max={BIOHACK_LEVELS.length - 1}
+                        value={minutesShown}
+                        min={MINUTES_MIN}
+                        max={MINUTES_MAX}
                         step={1}
-                        onChange={pickLevel}
+                        onChange={pickMinutes}
                     />
-                    <View style={styles.levelStops}>
-                        {BIOHACK_LEVELS.map((l, i) => (
-                            <TouchableOpacity
-                                key={l.id}
-                                onPress={() => pickLevel(i)}
-                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                accessibilityRole="button"
-                                accessibilityState={{ selected: levelIdx === i }}
-                                accessibilityLabel={`${l.label}, ${l.minutes} minutes a day`}
-                            >
-                                <Text style={[styles.levelStop, levelIdx === i && styles.levelStopActive]}>{l.label}</Text>
-                            </TouchableOpacity>
-                        ))}
+                    <View style={styles.sliderEnds}>
+                        <Text style={styles.sliderEndText}>{MINUTES_MIN} min</Text>
+                        <Text style={styles.sliderEndText}>{MINUTES_MAX} min</Text>
                     </View>
                 </View>
             ),
@@ -1626,14 +1626,10 @@ const styles = StyleSheet.create({
     stackDoBtnDone: { backgroundColor: TRACK },
     stackDoText: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: ON_INK },
     stackDoTextDone: { color: INK },
-    // level slider
-    levelReadout: { alignItems: 'center', marginBottom: 22 },
-    levelName: { fontFamily: 'Matter-SemiBold', fontSize: 30, color: INK, letterSpacing: -0.6 },
-    levelMinutes: { fontFamily: 'Matter-Medium', fontSize: 16, color: INK, marginTop: 4 },
-    levelSub: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: SUB, marginTop: 6, textAlign: 'center' },
-    levelStops: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-    levelStop: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: MUTE },
-    levelStopActive: { color: INK, fontFamily: 'Matter-SemiBold' },
+    // time slider
+    levelReadout: { alignItems: 'center', marginBottom: 28 },
+    levelNumber: { fontFamily: 'Matter-SemiBold', fontSize: 64, lineHeight: 70, color: INK, letterSpacing: -2 },
+    levelUnit: { fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, marginTop: 2 },
     skipLink: { alignSelf: 'center', marginTop: 12, paddingVertical: 6, paddingHorizontal: 12 },
     skipLinkText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: SUB },
     wellnessNote: {
