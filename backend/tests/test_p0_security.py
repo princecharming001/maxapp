@@ -100,60 +100,53 @@ class TestSubscriptionExpiry:
         assert _subscription_expired(0) is False
 
 
-class TestScanUserBypass:
-    """is_scan_user bypasses the paid gate (expected, per the audit)."""
+class TestScanUserBypassRemoved:
+    """The legacy is_scan_user flag (scan-only accounts from the retired face
+    scan) must NOT bypass the paid/premium gates any more. Calls the REAL
+    dependencies, not a re-implementation."""
 
-    def test_scan_user_skips_require_paid_user(self):
-        """require_paid_user must return the user for is_scan_user=True
-        even when is_paid=False — scan users are a separate entitlement class.
-        This tests the documented bypass is intentional, not accidental."""
+    _scan_user = {
+        "is_paid": False,
+        "is_admin": False,
+        "is_scan_user": True,
+        "subscription_tier": None,
+        "subscription_end_date": None,
+    }
+
+    def test_scan_user_gets_402_from_require_paid_user(self):
         import asyncio
         from fastapi import HTTPException
-        from middleware.auth_middleware import _subscription_expired
-
-        scan_user = {
-            "is_paid": False,
-            "is_admin": False,
-            "is_scan_user": True,
-            "subscription_end_date": None,
-        }
-
-        async def _simulate_require_paid(user: dict) -> dict:
-            if user.get("is_admin") or user.get("is_scan_user"):
-                return user
-            if not user.get("is_paid"):
-                raise HTTPException(status_code=402, detail="Payment required")
-            if _subscription_expired(user.get("subscription_end_date")):
-                raise HTTPException(status_code=402, detail="Subscription expired")
-            return user
-
-        result = asyncio.get_event_loop().run_until_complete(_simulate_require_paid(scan_user))
-        assert result is scan_user
-
-    def test_non_paid_non_scan_user_gets_402(self):
-        import asyncio
-        from fastapi import HTTPException
-        from middleware.auth_middleware import _subscription_expired
-
-        regular_user = {
-            "is_paid": False,
-            "is_admin": False,
-            "is_scan_user": False,
-            "subscription_end_date": None,
-        }
-
-        async def _simulate_require_paid(user: dict) -> dict:
-            if user.get("is_admin") or user.get("is_scan_user"):
-                return user
-            if not user.get("is_paid"):
-                raise HTTPException(status_code=402)
-            if _subscription_expired(user.get("subscription_end_date")):
-                raise HTTPException(status_code=402)
-            return user
+        from middleware.auth_middleware import require_paid_user
 
         with pytest.raises(HTTPException) as exc:
-            asyncio.get_event_loop().run_until_complete(_simulate_require_paid(regular_user))
+            asyncio.run(require_paid_user(dict(self._scan_user)))
         assert exc.value.status_code == 402
+
+    def test_scan_user_gets_402_from_require_premium_user(self):
+        import asyncio
+        from fastapi import HTTPException
+        from middleware.auth_middleware import require_premium_user
+
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(require_premium_user(dict(self._scan_user)))
+        assert exc.value.status_code == 402
+
+    def test_non_paid_regular_user_gets_402(self):
+        import asyncio
+        from fastapi import HTTPException
+        from middleware.auth_middleware import require_paid_user
+
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(require_paid_user({**self._scan_user, "is_scan_user": False}))
+        assert exc.value.status_code == 402
+
+    def test_admin_still_allowed(self):
+        import asyncio
+        from middleware.auth_middleware import require_paid_user, require_premium_user
+
+        admin = {**self._scan_user, "is_scan_user": False, "is_admin": True}
+        assert asyncio.run(require_paid_user(admin)) is admin
+        assert asyncio.run(require_premium_user(admin)) is admin
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +180,7 @@ class TestOnboardingEntitlementStripping:
 # ---------------------------------------------------------------------------
 
 class TestCrossUserIsolation:
-    """User A must not be able to read or write User B's conversations/scans."""
+    """User A must not be able to read or write User B's conversations."""
 
     @pytest.mark.asyncio
     async def test_list_conversations_scoped_to_caller(self):
@@ -374,67 +367,3 @@ class TestAuthEdgeCases:
         assert payload.get("sub") is None, "Expected sub to be absent"
         # Middleware: `if user_id is None or token_type != 'access': raise 401`
         assert payload.get("sub") is None  # would trigger 401
-
-
-# ---------------------------------------------------------------------------
-# P0-3: _redacted_analysis regression (already fixed)
-# ---------------------------------------------------------------------------
-
-class TestRedactedAnalysisRegression:
-    """Regressions ensuring _redacted_analysis never ships premium fields."""
-
-    def test_umax_metrics_absent(self):
-        from api.scans import _redacted_analysis
-
-        result = _redacted_analysis({
-            "overall_score": 7.0,
-            "potential_score": 9.0,
-            "scan_summary": {},
-            "umax_metrics": {"skin": 8.1},
-            "preview_blurb": "Strong cheekbones.",
-            "psl_rating": {
-                "psl_score": 7.0, "potential": 9.0, "appeal": 6.5,
-                "psl_tier": "B", "ascension_time_months": 18,
-                "age_score": 24, "archetype": "Rugged",
-            },
-        })
-        assert "umax_metrics" not in result
-        assert result["locked"] is True
-
-    def test_preview_blurb_absent(self):
-        from api.scans import _redacted_analysis
-
-        result = _redacted_analysis({
-            "overall_score": 6.0,
-            "potential_score": 8.0,
-            "scan_summary": {},
-            "umax_metrics": {},
-            "preview_blurb": "Hidden premium content.",
-            "psl_rating": {
-                "psl_score": 6.0, "potential": 8.0, "appeal": 5.5,
-                "psl_tier": "C", "ascension_time_months": 24,
-                "age_score": 22, "archetype": "Natural",
-            },
-        })
-        assert "preview_blurb" not in result
-
-    def test_safe_fields_remain(self):
-        """overall_score, potential_score, scan_summary, psl_rating must survive."""
-        from api.scans import _redacted_analysis
-
-        result = _redacted_analysis({
-            "overall_score": 7.5,
-            "potential_score": 9.0,
-            "scan_summary": {"overall_score": 7.5},
-            "umax_metrics": {},
-            "preview_blurb": "x",
-            "psl_rating": {
-                "psl_score": 7.5, "potential": 9.0, "appeal": 7.0,
-                "psl_tier": "B", "ascension_time_months": 18,
-                "age_score": 25, "archetype": "Classic",
-            },
-        })
-        assert result["overall_score"] == 7.5
-        assert result["potential_score"] == 9.0
-        assert "scan_summary" in result
-        assert "psl_rating" in result

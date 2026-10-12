@@ -338,7 +338,6 @@ async def test_achievements_concurrent_evaluate_awards_each_badge_once(Session, 
     # Two /active/full in flight both see "first_routine" unearned. Under the
     # lock the loser re-reads and finds the winner's row: one badge row, its XP
     # once, and no unique-constraint rollback of the loser's day-state.
-    monkeypatch.setattr(ach, "_scan_count", AsyncMock(return_value=0))
     monkeypatch.setattr(ach, "_fact_count", AsyncMock(return_value=0))
     monkeypatch.setattr(ach, "_send_milestone_push", AsyncMock())
     today_iso = _today().isoformat()

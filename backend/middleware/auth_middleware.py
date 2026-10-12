@@ -83,7 +83,7 @@ def _user_dict(user: User) -> dict:
     """Build the standard user dict returned by auth dependencies."""
     # Effective entitlement: a paid subscription that has passed its end date is
     # NOT entitled. Compute it once here so EVERY is_paid reader (/users/me,
-    # /scans/latest, treat_as_paid, push-token) agrees with require_paid_user
+    # treat_as_paid, push-token) agrees with require_paid_user
     # instead of trusting a stale is_paid=True when an EXPIRED webhook was missed.
     raw_is_paid = bool(user.is_paid)
     is_entitled = raw_is_paid and not _subscription_expired(user.subscription_end_date)
@@ -184,9 +184,11 @@ async def get_optional_user(token: Optional[str] = Depends(oauth2_scheme)) -> Op
 
 async def require_paid_user(current_user: dict = Depends(get_current_user)) -> dict:
     """
-    Verify user has active subscription — any tier (admins and scan users always allowed).
+    Verify user has active subscription — any tier (admins always allowed).
     """
-    if current_user.get("is_admin", False) or current_user.get("is_scan_user", False):
+    # Admins only. The legacy `is_scan_user` flag (scan-only accounts from the
+    # retired face scan) no longer grants access.
+    if current_user.get("is_admin", False):
         return current_user
         
     if not current_user.get("is_paid", False):
@@ -206,10 +208,12 @@ async def require_paid_user(current_user: dict = Depends(get_current_user)) -> d
 
 async def require_premium_user(current_user: dict = Depends(get_current_user)) -> dict:
     """
-    Verify user has a *premium* subscription (admins and scan users always allowed).
+    Verify user has a *premium* subscription (admins always allowed).
     Basic-tier users get a 403 pointing them to upgrade.
     """
-    if current_user.get("is_admin", False) or current_user.get("is_scan_user", False):
+    # Admins only. The legacy `is_scan_user` flag (scan-only accounts from the
+    # retired face scan) no longer grants access.
+    if current_user.get("is_admin", False):
         return current_user
 
     if not current_user.get("is_paid", False):

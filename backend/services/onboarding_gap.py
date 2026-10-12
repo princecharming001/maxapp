@@ -391,7 +391,7 @@ _IMPORTANCE_RANK = {"high": 3, "medium": 2, "low": 1}
 
 # Static system prompt = the cacheable prefix (ephemeral prompt-cache target).
 _PLAN_SYSTEM_PROMPT = (
-    "You phrase onboarding questions for a looksmaxxing coach. You are given an "
+    "You phrase onboarding questions for a biohacking coach for busy people. You are given an "
     "EXACT set of information slots that are genuinely missing for this user and "
     "must be collected. Produce an ORDERED question plan using ONLY the provided "
     "slot ids — never invent a slot. For each slot choose action 'ask' (normal) "

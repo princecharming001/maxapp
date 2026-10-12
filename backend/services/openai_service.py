@@ -125,11 +125,6 @@ class OpenAIService:
         # turns should go through the vision pipeline (face-scan endpoints).
         context_str = user_context.get("coaching_context", "") if user_context else ""
         if not context_str and user_context:
-            if user_context.get("latest_scan"):
-                scan = user_context["latest_scan"]
-                context_str += f"\nLATEST SCAN: score={scan.get('overall_score', '?')}/10"
-                if scan.get("focus_areas"):
-                    context_str += f", focus={scan['focus_areas']}"
             if user_context.get("onboarding"):
                 ob = user_context["onboarding"]
                 bits = [

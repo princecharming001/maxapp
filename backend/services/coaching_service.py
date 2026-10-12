@@ -24,7 +24,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from config import settings
 from services.chat_telemetry import log_context_build
 from services.llm_sync import sync_llm_plain_text
-from models.sqlalchemy_models import User, UserCoachingState, UserSchedule, ChatHistory, Scan
+from models.sqlalchemy_models import User, UserCoachingState, UserSchedule, ChatHistory
 from db.sqlalchemy import AsyncSessionLocal
 from services.prompt_loader import PromptKey, resolve_prompt
 from services.sms_reply_style import (
@@ -50,7 +50,7 @@ COACHING_CONFIG = {
 # Per-user TTL cache for build_full_context. Rebuilding costs 3-6 DB queries +
 # guideline S3/in-memory lookups, so caching it for 30s cuts ~50-150ms off every
 # chat/SMS turn when the user sends multiple messages back-to-back. Cache is
-# invalidated explicitly on schedule/profile/scan writes via invalidate_context_cache().
+# invalidated explicitly on schedule/profile writes via invalidate_context_cache().
 _CONTEXT_CACHE: dict[str, tuple[float, str]] = {}
 _CONTEXT_CACHE_TTL_SEC = 30.0
 _CONTEXT_CACHE_MAX = 10_000  # prevents unbounded growth at 100K MAU
@@ -131,7 +131,7 @@ If check_in_type is one of:
 
 Return only the message text, no labels."""
 
-_COACHING_CHECK_IN_GENERAL_FALLBACK = """You are Superpower, a lookmaxxing coach. Generate a short check-in message for {name}.
+_COACHING_CHECK_IN_GENERAL_FALLBACK = """You are Superpower, a biohacking coach for busy people. Generate a short check-in message for {name}.
 
 User context:
 {context_str}{multi_module_sms_hint}
@@ -141,15 +141,16 @@ Check-in type: {check_in_type}{missed_line}
 Generate ONE short message (1-2 sentences max). Be casual, direct, no fluff. Match your tone to their situation: if they're slacking, call it out; if they're on a streak, hype them. Sound like a real person texting, not GPT.
 Do not say you're texting, reaching out, or sending a reminder. jump straight into the check-in.
 Never use em-dashes (the long dash); use a comma or a period. they're the #1 tell that a bot wrote it.
+No emoji. Routines and habits only: no medical diagnosis or treatment claims, no supplement dosing.
 
 CRITICAL VARIETY RULES:
 - Do NOT open with "yo just checking in", "checking in", "how's it going", "how are you" or any other generic check-in opener. those are banned phrasings.
-- Anchor the message in something specific from their context (a current program, a missed task, a streak, a recent scan, the time of day) instead of being generic.
+- Anchor the message in something specific from their context (a current routine, a missed task, a streak, the time of day) instead of being generic.
 - Vary your opener every time: a question, an observation, a callout, a one-word reaction, an instruction. not always the same shape.
 
 Message:"""
 
-_COACHING_BEDTIME_FALLBACK = """You are Superpower, the user's lookmaxxing coach. Send ONE text before their bedtime.
+_COACHING_BEDTIME_FALLBACK = """You are Superpower, the user's biohacking coach. Send ONE text before their bedtime.
 
 User first name or handle: {name}
 
@@ -161,7 +162,8 @@ Rules:
 - Never use em-dashes (the long dash); use a comma or a period.
 - Wind-down / almost-bed vibe in a natural way. don't announce "this is your bedtime text".
 - If you mention a progress photo, one casual clause only (e.g. "pic back if you want today logged"). do not explain MMS or "this thread".
-- Do not analyze their face; archive-only vibe.
+- Never comment on their appearance; archive-only vibe.
+- Routines and habits only: no medical diagnosis or treatment claims, no supplement dosing.
 - Under 300 characters if you can.
 
 Output ONLY the message body, no quotes."""
@@ -172,7 +174,7 @@ _CHECK_IN_FALLBACKS_BY_TYPE: dict[str, list[str]] = {
         "morning. one rep at a time today.",
         "up early matters. what's the first move?",
         "today's the day you stop snoozing the routine.",
-        "skincare → posture → out the door. go.",
+        "light, water, move. then out the door.",
     ],
     "midday": [
         "halfway through. how's the day stacking?",
@@ -183,7 +185,7 @@ _CHECK_IN_FALLBACKS_BY_TYPE: dict[str, list[str]] = {
     "night": [
         "wind down. what'd you actually finish today?",
         "before bed: skincare, then phone down.",
-        "scan back in tomorrow. consistency over intensity.",
+        "show up again tomorrow. consistency over intensity.",
         "one log before sleep, even if today wasn't perfect.",
     ],
     "missed_task": [
@@ -645,7 +647,7 @@ class CoachingService:
     ) -> str:
         """
         Build the complete user context string for the AI prompt.
-        Pulls: onboarding, coaching state, schedule, scans, AI memory, maxx guidelines.
+        Pulls: onboarding, coaching state, schedule, AI memory, maxx guidelines.
 
         Cached per user for 30s — a user sending 3 messages in 30s would
         otherwise re-query the same rows three times.
@@ -850,16 +852,6 @@ class CoachingService:
         sections.append("memory_slots")
         if onairos_traits:
             sections.append("onairos_traits")
-
-        # --- Latest scan ---
-        scan_result = await db.execute(
-            select(Scan).where(Scan.user_id == user_uuid).order_by(Scan.created_at.desc()).limit(1)
-        )
-        scan = scan_result.scalar_one_or_none()
-        if scan and scan.analysis:
-            a = scan.analysis
-            parts.append(f"LATEST SCAN: score={a.get('overall_score', '?')}/10, focus={a.get('focus_areas', [])}")
-            sections.append("latest_scan")
 
         # --- Active schedules ---
         schedules = []

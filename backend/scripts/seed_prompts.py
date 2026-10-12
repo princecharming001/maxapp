@@ -61,11 +61,6 @@ from services.heightmax_notification_engine import (
     HEIGHTMAX_JSON_DIRECTIVES,
     HEIGHTMAX_NOTIFICATION_ENGINE_REFERENCE,
 )
-from services.langgraph_face_prompts import (
-    LANGGRAPH_ANALYZE_FACE_METRICS_FALLBACK,
-    LANGGRAPH_IMPROVEMENTS_FALLBACK,
-    LANGGRAPH_VALIDATE_IMAGES_FALLBACK,
-)
 from services.lc_maxx_intent import _SYSTEM_PROMPT as _MAXX_INTENT_FALLBACK
 from services.schedule_service import (
     MAXX_SCHEDULE_PROMPT,
@@ -119,13 +114,8 @@ _PROMPTS: dict[str, tuple[str, str]] = {
     "fitmax_coaching_reference":              (FITMAX_COACHING_REFERENCE,                     "FitMax coaching reference snippet"),
     "fitmax_notification_engine_reference":   (FITMAX_NOTIFICATION_ENGINE_REFERENCE,          "FitMax full notification engine reference"),
     "fitmax_json_directives":                 (FITMAX_JSON_DIRECTIVES,                        "FitMax JSON output directives"),
-    # LangGraph face pipeline
-    "langgraph_validate_images":              (LANGGRAPH_VALIDATE_IMAGES_FALLBACK,            "LangGraph face scan: validate uploaded images"),
-    "langgraph_analyze_face_metrics":         (LANGGRAPH_ANALYZE_FACE_METRICS_FALLBACK,       "LangGraph face scan: analyse facial metrics"),
-    "langgraph_improvements":                 (LANGGRAPH_IMPROVEMENTS_FALLBACK,               "LangGraph face scan: generate improvement recommendations"),
     # Previously hardcoded-only prompts
     "maxx_intent_system":                     (_MAXX_INTENT_FALLBACK,                         "LangChain Maxx module intent router/classifier"),
-    "groq_face_analyzer":                     ("You are a helpful assistant that outputs JSON.", "Groq LLM system message for facial analysis recommendations"),
 }
 
 

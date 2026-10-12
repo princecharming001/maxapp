@@ -44,7 +44,6 @@ CAT_STREAK_MILESTONE = "streak_milestone"   # morning after a streak milestone d
 CAT_COMEBACK = "comeback"                   # fresh-start morning after a streak ended
 CAT_JOURNEY = "journey_milestone"           # day 7 / 14 / 30 / 60 / 90 / 180 / 365
 CAT_PROGRESS_PHOTO = "progress_photo"       # weekly progress photo
-CAT_SCAN_READY = "scan_ready"               # the next face scan just unlocked
 CAT_WEEKLY = "weekly_recap"                 # Sunday "your week with max"
 
 ALL_CATEGORIES = (
@@ -63,7 +62,6 @@ ALL_CATEGORIES = (
     CAT_COMEBACK,
     CAT_JOURNEY,
     CAT_PROGRESS_PHOTO,
-    CAT_SCAN_READY,
     CAT_WEEKLY,
 )
 
@@ -76,7 +74,7 @@ OPTIONAL_CATEGORIES = frozenset(
     {
         CAT_MORNING_PREVIEW, CAT_EVENING_RECAP, CAT_MISSED,
         CAT_STREAK, CAT_STREAK_FREEZE, CAT_STREAK_MILESTONE, CAT_COMEBACK,
-        CAT_JOURNEY, CAT_PROGRESS_PHOTO, CAT_SCAN_READY, CAT_WEEKLY,
+        CAT_JOURNEY, CAT_PROGRESS_PHOTO, CAT_WEEKLY,
         CAT_REENGAGE, CAT_MILESTONE, CAT_BROADCAST, CAT_TIP,
     }
 )
@@ -87,7 +85,7 @@ MUTE_PARENT: dict[str, str] = {CAT_STREAK_LAST_CALL: CAT_STREAK}
 # Each push opens the SPECIFIC thing it is about (review item 11).
 DEEP_LINK_ROUTES = frozenset(
     {"Home", "TaskGuide", "Achievements", "Profile", "ProgressArchive",
-     "CreatorFeed", "CreatorStudio", "WeeklyReview", "FaceScan", "Ranks", "DayPlanner"}
+     "CreatorFeed", "CreatorStudio", "WeeklyReview", "Ranks", "DayPlanner"}
 )
 _CATEGORY_ROUTE: dict[str, str] = {
     CAT_TASK_DUE: "TaskGuide",        # the specific task's guide/detail
@@ -105,7 +103,6 @@ _CATEGORY_ROUTE: dict[str, str] = {
     CAT_COMEBACK: "Home",
     CAT_JOURNEY: "ProgressArchive",
     CAT_PROGRESS_PHOTO: "ProgressArchive",
-    CAT_SCAN_READY: "FaceScan",
     CAT_WEEKLY: "WeeklyReview",
     # Creator platform: a "new update" opens THAT creator's feed (maxxId rides
     # in ScheduledNotification.deep_link_params); an application decision opens
@@ -262,10 +259,6 @@ _BANKS: dict[str, list[_Tmpl]] = {
     CAT_PROGRESS_PHOTO: [
         _Tmpl("progress pic", "same light, same angle{name_c}. future you will want this one."),
         _Tmpl("week {week} photo", "30 seconds now, a real before-and-after later{name_c}.", frozenset({"week"})),
-    ],
-    CAT_SCAN_READY: [
-        _Tmpl("new scan unlocked", "see what {days} days of work did{name_c}.", frozenset({"days"})),
-        _Tmpl("your next scan is ready", "same lighting as last time{name_c}, then compare."),
     ],
     CAT_WEEKLY: [
         _Tmpl("your week with max", "{closed} of 7 days closed, {done} tasks done{name_c}.", frozenset({"closed", "done"})),

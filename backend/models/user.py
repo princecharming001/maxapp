@@ -39,7 +39,12 @@ _INTENSITY_ALIASES = {
     "sweatmode": "sweatmode", "sweat": "sweatmode", "sweat_mode": "sweatmode",
     "intense": "sweatmode", "hardcore": "sweatmode", "beast": "sweatmode",
     "full": "sweatmode", "max": "sweatmode",
+    # Biohacking onboarding sends biohack_level low/medium/high; the client may
+    # mirror it into intensity_preference ("medium" already maps to standard).
+    "low": "chill", "high": "sweatmode",
 }
+
+_BIOHACK_LEVELS = frozenset({"low", "medium", "high"})
 
 
 def normalize_intensity_preference(value: Any) -> Optional[str]:
@@ -52,7 +57,7 @@ def normalize_intensity_preference(value: Any) -> Optional[str]:
 
 
 class ExperienceLevel(str, Enum):
-    """User experience level with lookmaxxing"""
+    """User experience level with routines / biohacking"""
     BEGINNER = "beginner"
     INTERMEDIATE = "intermediate"
     ADVANCED = "advanced"
@@ -73,6 +78,14 @@ class GoalType(str, Enum):
     SKINMAX = "skinmax"
     HAIRMAX = "hairmax"
     FITMAX = "fitmax"
+    # Biohacking onboarding goal IDs (2026-10 pivot)
+    ENERGY = "energy"
+    SLEEP = "sleep"
+    FOCUS = "focus"
+    STRESS = "stress"
+    TRAINING = "training"
+    SKIN_HAIR = "skin_hair"
+    LONGEVITY = "longevity"
 
 
 class OnboardingData(BaseModel):
@@ -108,6 +121,12 @@ class OnboardingData(BaseModel):
     intensity_preference: Optional[str] = Field(
         default=None,
         description="'chill' | 'standard' | 'sweatmode' — how aggressively to ramp the routine in week 1.",
+    )
+    # How deep into biohacking the user already is (biohacking onboarding).
+    # Anything other than low/medium/high is stored as None.
+    biohack_level: Optional[str] = Field(
+        default=None,
+        description="'low' | 'medium' | 'high' — the user's current biohacking experience.",
     )
     equipment: List[str] = Field(default_factory=list)
     unit_system: str = Field(default="imperial", description="metric or imperial")
@@ -267,6 +286,14 @@ class OnboardingData(BaseModel):
     @classmethod
     def _normalize_intensity_preference(cls, v: Any) -> Optional[str]:
         return normalize_intensity_preference(v)
+
+    @field_validator("biohack_level", mode="before")
+    @classmethod
+    def _normalize_biohack_level(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        s = str(v).strip().lower()
+        return s if s in _BIOHACK_LEVELS else None
 
 
 class UserProfile(BaseModel):

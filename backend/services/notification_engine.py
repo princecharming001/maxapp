@@ -26,7 +26,7 @@ unless stated:
   * streak saver — the evening before the day closes, when a real streak is at
     stake and something earlier is still open; streak last call before bed
   * evening close — end-of-day wrap of what's still open
-  * weekly recap (Sunday), progress photo (weekly), new scan unlocked
+  * weekly recap (Sunday), progress photo (weekly)
   * re-engagement ladder for lapsed users (day 3/6/10/14/21/30, then quiet)
   * tip (Mon/Wed/Fri, only on otherwise quiet days)
 Governed by a daily budget, a minimum gap between ambient pushes, a buffer
@@ -54,7 +54,6 @@ from services.notification_copy import (
     CAT_MORNING_PREVIEW,
     CAT_PROGRESS_PHOTO,
     CAT_REENGAGE,
-    CAT_SCAN_READY,
     CAT_STREAK,
     CAT_STREAK_FREEZE,
     CAT_STREAK_LAST_CALL,
@@ -75,7 +74,7 @@ MORNING_KEY = f"cat:{CAT_MORNING_PREVIEW}"   # one morning push a day, whichever
 # notif_state keys owned by the engine (alongside notification_state's `sent`).
 TASK_SENT_KEY = "task_sent"       # {logical_date: {task_key: iso}}
 MISSED_SENT_KEY = "missed_sent"   # {logical_date: {task_key: iso}}
-ONCE_KEY = "once"                 # {event_key: iso} — weekly recap, scan unlock, photo
+ONCE_KEY = "once"                 # {event_key: iso} — weekly recap, photo
 REENGAGE_KEY = "reengage"         # {"anchor": last-active date, "days": [ladder stages sent]}
 _KEEP_DAYS = 3
 
@@ -114,9 +113,6 @@ class StreakView:
 @dataclass(frozen=True)
 class ProgressView:
     journey_day: int = 0             # 1 on the first day with Superpower
-    has_scanned: bool = False
-    days_since_scan: Optional[int] = None
-    scan_ready: bool = False         # a new scan is allowed now AND >= 7 days since the last
     days_since_photo: Optional[int] = None   # None = never took one
 
 
@@ -440,7 +436,7 @@ def _ambient_lane(inp: EngineInput, cfg: EngineConfig) -> Optional[Push]:
         return None
     for build in (
         _streak_last_call, _streak_saver, _evening_close, _missed_followup,
-        _morning, _weekly, _progress_photo, _scan_ready, _tip,
+        _morning, _weekly, _progress_photo, _tip,
     ):
         p = build(inp, cfg, amb)
         if p is not None and not _muted(p.category, inp.muted):
@@ -669,23 +665,6 @@ def _progress_photo(inp: EngineInput, cfg: EngineConfig, amb: dict) -> Optional[
                    coaching_tone=inp.coaching_tone)
     return _ambient(inp, CAT_PROGRESS_PHOTO, f"cat:{CAT_PROGRESS_PHOTO}", copy, once_key="photo",
                     expires_in_s=6 * 3600)
-
-
-def _scan_ready(inp: EngineInput, cfg: EngineConfig, amb: dict) -> Optional[Push]:
-    pr = inp.progress
-    if not (pr.has_scanned and pr.scan_ready and pr.days_since_scan is not None):
-        return None
-    # One per unlock: the unlock is identified by the last scan's date.
-    scan_date = inp.logical_date - timedelta(days=pr.days_since_scan)
-    once_key = f"scan:{scan_date.isoformat()}"
-    if once_key in ((inp.state or {}).get(ONCE_KEY) or {}):
-        return None
-    if not (inp.wake_min + 180 <= inp.now_ext <= inp.sleep_ext - 120):
-        return None
-    copy = compose(CAT_SCAN_READY, name=inp.name, days=pr.days_since_scan, rotation=inp.rotation,
-                   coaching_tone=inp.coaching_tone)
-    return _ambient(inp, CAT_SCAN_READY, f"cat:{CAT_SCAN_READY}", copy, once_key=once_key,
-                    expires_in_s=12 * 3600)
 
 
 def _tip(inp: EngineInput, cfg: EngineConfig, amb: dict) -> Optional[Push]:

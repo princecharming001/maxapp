@@ -101,50 +101,45 @@ def _clear():
 # Gated endpoint authz — FastAPI integration
 # ---------------------------------------------------------------------------
 
+# A paid-gated (require_paid_user) GET that rejects before touching the DB.
+# Was /api/scans/history until the face scan API was removed.
+GATED_PATH = "/api/courses/progress/current"
+
+
 class TestGatedEndpoints:
     """Selected endpoints must return the correct HTTP status for free/paid users."""
 
     def teardown_method(self):
         _clear()
 
-    def test_scan_history_free_user_gets_402(self):
+    def test_paid_route_free_user_gets_402(self):
         client = _override(_free_user())
-        resp = client.get("/api/scans/history")
+        resp = client.get(GATED_PATH)
         assert resp.status_code == 402
 
-    def test_scan_history_paid_user_gets_through(self):
+    def test_paid_route_paid_user_gets_through(self):
         """Paid user reaches the handler (may 500 without DB, but not 401/402/403)."""
         client = _override(_paid_user())
-        resp = client.get("/api/scans/history")
+        resp = client.get(GATED_PATH)
         # 200 or 500 (DB not wired in tests) — what must NOT happen is 402/401/403
         assert resp.status_code not in (401, 402, 403), (
-            f"Paid user blocked from /scans/history: {resp.status_code}"
+            f"Paid user blocked from {GATED_PATH}: {resp.status_code}"
         )
 
     def test_no_token_returns_401(self):
         _clear()
         client = TestClient(app, raise_server_exceptions=False)
-        resp = client.get("/api/scans/history")
+        resp = client.get(GATED_PATH)
         assert resp.status_code == 401
 
     def test_malformed_token_returns_401(self):
         _clear()
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.get(
-            "/api/scans/history",
+            GATED_PATH,
             headers={"Authorization": "Bearer garbage.token.here"},
         )
         assert resp.status_code == 401
-
-    def test_scan_latest_free_user_not_blocked_by_paywall(self):
-        """Free users CAN call /scans/latest (not a paid-gated route).
-        The test-env DB may be unavailable, so 200 or 500 are both acceptable;
-        what must NOT happen is 401/402/403."""
-        client = _override(_free_user())
-        resp = client.get("/api/scans/latest")
-        assert resp.status_code not in (401, 402, 403), (
-            f"/scans/latest should not paywall/auth-block a free user: {resp.status_code}"
-        )
 
     def test_chat_list_conversations_returns_200(self):
         """Conversation list is auth-gated (not paid-gated); free users can call it."""
@@ -165,7 +160,7 @@ class TestAdminEndpointGuard:
 
     def test_admin_stats_rejects_regular_user(self):
         """GET /api/admin/stats must return 403 for a non-admin user.
-        The exact path varies — we use the leaderboard admin endpoint as proxy."""
+        We use /api/admin/users as the proxy."""
         client = _override(_free_user())
         resp = client.get("/api/admin/users")
         assert resp.status_code in (401, 403, 404), (
@@ -256,31 +251,6 @@ class TestLlmFallbackBehavior:
 
 class TestLlmResponseHandling:
     """LLM response shapes — graceful handling of malformed / empty output."""
-
-    def test_redacted_analysis_handles_empty_analysis(self):
-        """_redacted_analysis must not crash on a minimal/empty input."""
-        from api.scans import _redacted_analysis
-
-        result = _redacted_analysis({})
-        # Must always set locked=True
-        assert result.get("locked") is True
-        # Must not raise
-
-    def test_redacted_analysis_handles_missing_psl_rating(self):
-        """Missing psl_rating fields should not crash the helper."""
-        from api.scans import _redacted_analysis
-
-        result = _redacted_analysis({
-            "overall_score": 5.0,
-            "potential_score": 7.0,
-            "scan_summary": {},
-            "umax_metrics": {},
-            "preview_blurb": "",
-            # psl_rating has no archetype, age_score etc
-            "psl_rating": {"psl_score": 5.0},
-        })
-        assert result.get("locked") is True
-        assert "psl_rating" in result
 
     def test_auto_title_handles_empty_and_whitespace(self):
         """_auto_title_from_message must return a non-empty placeholder for blank input."""

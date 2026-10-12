@@ -44,11 +44,6 @@ from services.fitmax_notification_engine import (
     FITMAX_JSON_DIRECTIVES,
     FITMAX_NOTIFICATION_ENGINE_REFERENCE,
 )
-from services.langgraph_face_prompts import (
-    LANGGRAPH_ANALYZE_FACE_METRICS_FALLBACK,
-    LANGGRAPH_IMPROVEMENTS_FALLBACK,
-    LANGGRAPH_VALIDATE_IMAGES_FALLBACK,
-)
 from services.gemini_service import (
     FACE_ANALYSIS_SYSTEM_PROMPT,
 )
@@ -108,10 +103,6 @@ _PROMPTS: dict[str, str] = {
     "fitmax_coaching_reference": FITMAX_COACHING_REFERENCE,
     "fitmax_notification_engine_reference": FITMAX_NOTIFICATION_ENGINE_REFERENCE,
     "fitmax_json_directives": FITMAX_JSON_DIRECTIVES,
-    # LangGraph face pipeline
-    "langgraph_validate_images": LANGGRAPH_VALIDATE_IMAGES_FALLBACK,
-    "langgraph_analyze_face_metrics": LANGGRAPH_ANALYZE_FACE_METRICS_FALLBACK,
-    "langgraph_improvements": LANGGRAPH_IMPROVEMENTS_FALLBACK,
 }
 
 
@@ -134,7 +125,6 @@ def main() -> None:
 
     print(f"\nDone: {len(_PROMPTS)} files -> {out_dir}")
     print("Upload each file to s3://<bucket>/<prefix>/<name>.md (filenames match PromptKey / keys above).")
-    print("Note: langgraph_improvements.md uses {overall_score} and doubled {{ }} for JSON literals - keep that if you edit in S3.")
 
 
 if __name__ == "__main__":

@@ -374,8 +374,10 @@ _NATIVE_KNOWLEDGE_SUFFIX = """
 
 ## NATIVE KNOWLEDGE MODE (this turn)
 You have no module-specific docs to cite for this question. Answer directly
-using your foundational knowledge of fitness, dermatology, hair science,
-skeletal/jaw protocols, and lookmaxxing best practices.
+using your foundational knowledge of sleep, light, energy, focus, stress,
+training and recovery, skin and hair, and longevity basics. Routines and habits
+only: no medical diagnosis or treatment claims, no supplement dosing, no
+prescription compounds or peptides.
 
 ABSOLUTE RULES, these are user-visible product issues if violated:
 - NEVER say "no protocol on file", "no protocol for that", "i don't have

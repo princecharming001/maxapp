@@ -1,44 +1,11 @@
 """
-Leaderboard Models
+Chat request/response models (file name is historical: the scan-score
+leaderboard models that used to live here were removed with the face scan).
 """
 
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
-
-
-class LeaderboardEntry(BaseModel):
-    """Single leaderboard entry"""
-    rank: int
-    user_id: str
-    user_email: Optional[str] = None
-    score: float
-    streak_days: int
-    scan_count: int
-    level: float
-    improvement_percentage: float
-
-
-class LeaderboardResponse(BaseModel):
-    """Leaderboard API response"""
-    entries: list[LeaderboardEntry] = Field(default_factory=list)
-    total_users: int = 0
-    user_rank: Optional[LeaderboardEntry] = None
-
-
-class LeaderboardInDB(BaseModel):
-    """Full leaderboard entry as stored in database"""
-    user_id: str
-    score: float = 0.0
-    streak_days: int = 0
-    scan_count: int = 0
-    course_completion_rate: float = 0.0
-    activity_score: float = 0.0
-    forum_posts: int = 0
-    rank: int = 0
-    level: float = 0.0
-    improvement_percentage: float = 0.0
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class ChatMessage(BaseModel):

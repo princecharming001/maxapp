@@ -38,7 +38,7 @@ def test_count_completed_tasks_and_active_count():
 def test_checks_fire_at_thresholds():
     base = {"streak": 0, "armed_freezes": 0, "fresh_start_today": False,
             "perfect_day": False, "active_count": 0, "tasks_completed": 0,
-            "scans": 0, "facts": 0}
+            "facts": 0}
     by = A.CATALOG_BY_CODE
     assert not by["streak_7"].check(base)
     assert by["streak_3"].check({**base, "streak": 3})
@@ -47,7 +47,8 @@ def test_checks_fire_at_thresholds():
     assert by["first_routine"].check({**base, "active_count": 1})
     assert by["two_maxxes"].check({**base, "active_count": 2})
     assert by["tasks_50"].check({**base, "tasks_completed": 50})
-    assert by["first_scan"].check({**base, "scans": 1})
+    # the face-scan badges were retired with the scan
+    assert "first_scan" not in by and "three_scans" not in by
     assert by["comeback"].check({**base, "fresh_start_today": True})
     assert by["knows_me"].check({**base, "facts": 3})
     assert by["perfect_day"].check({**base, "perfect_day": True})
@@ -56,7 +57,7 @@ def test_checks_fire_at_thresholds():
 def test_public_serialization_shows_progress_only_when_locked():
     stats = {"streak": 4, "armed_freezes": 0, "fresh_start_today": False,
              "perfect_day": False, "active_count": 1, "tasks_completed": 0,
-             "scans": 0, "facts": 0}
+             "facts": 0}
     a = A.CATALOG_BY_CODE["streak_7"]
     locked = A._public(a, earned=False, seen=False, stats=stats)
     assert locked["progress"] == {"current": 4, "target": 7}

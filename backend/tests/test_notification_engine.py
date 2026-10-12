@@ -20,7 +20,6 @@ from services.notification_copy import (
     CAT_MORNING_PREVIEW,
     CAT_PROGRESS_PHOTO,
     CAT_REENGAGE,
-    CAT_SCAN_READY,
     CAT_STREAK,
     CAT_STREAK_FREEZE,
     CAT_STREAK_LAST_CALL,
@@ -323,23 +322,19 @@ def test_weekly_recap_on_sunday_once():
     assert CAT_WEEKLY not in [p.category for _, p in _ambient(sent)]
 
 
-def test_progress_photo_weekly_and_scan_ready_once_per_unlock():
+def test_progress_photo_weekly():
     spec = [("09:00", "a", 5)]
-    progress = ne.ProgressView(journey_day=12, has_scanned=True, days_since_scan=8,
-                               scan_ready=True, days_since_photo=9)
+    progress = ne.ProgressView(journey_day=12, days_since_photo=9)
     sent, state = simulate(WED, spec, progress=progress, done={"t0": (0, "completed")})
     cats = [p.category for _, p in _ambient(sent)]
-    assert cats.count(CAT_PROGRESS_PHOTO) == 1 and cats.count(CAT_SCAN_READY) == 1
-    scan = next(p for _, p in _ambient(sent) if p.category == CAT_SCAN_READY)
-    assert scan.route == "FaceScan" and "8 days" in scan.body
+    assert cats.count(CAT_PROGRESS_PHOTO) == 1
+    assert "scan_ready" not in cats  # the face-scan unlock push is retired
     photo = next(p for _, p in _ambient(sent) if p.category == CAT_PROGRESS_PHOTO)
     assert photo.route == "ProgressArchive"
-    # the next day (every count one higher): the photo prompt is weekly and the
-    # scan unlock was already announced
-    tomorrow = ne.ProgressView(journey_day=13, has_scanned=True, days_since_scan=9,
-                               scan_ready=True, days_since_photo=10)
+    # the next day (every count one higher): the photo prompt is weekly
+    tomorrow = ne.ProgressView(journey_day=13, days_since_photo=10)
     next_day, _ = simulate(THU, spec, progress=tomorrow, done={"t0": (0, "completed")}, state=state)
-    assert {CAT_PROGRESS_PHOTO, CAT_SCAN_READY}.isdisjoint(p.category for _, p in _ambient(next_day))
+    assert CAT_PROGRESS_PHOTO not in [p.category for _, p in _ambient(next_day)]
 
 
 def test_reengagement_ladder_is_sparse_and_ends():

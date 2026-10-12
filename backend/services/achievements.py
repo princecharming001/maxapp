@@ -3,14 +3,14 @@
 The catalog (titles, criteria, tiers, icons) lives here in code; per-user earned
 state lives in the ``user_achievements`` table. ``evaluate()`` computes the
 user's current stats from data already on hand at the day-state endpoint (the
-streak payload + active schedules) plus two cheap counts (scans, profile facts),
+streak payload + active schedules) plus one cheap count (profile facts),
 awards any newly-met achievements, and returns the freshly-earned ones so the
 client can fire a celebration.
 
 Ethics: every badge rewards SHOWING UP and real progress — consistency,
-accumulated work, tracking your own change, letting the coach know you — never
-appearance, never ranking against other people. The "comeback" badge explicitly
-rewards returning after a miss: the opposite of shaming a broken streak.
+accumulated work, letting the coach know you — never appearance, never
+ranking against other people. The "comeback" badge explicitly rewards
+returning after a miss: the opposite of shaming a broken streak.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.sqlalchemy_models import Scan, UserAchievement, UserMemory
+from models.sqlalchemy_models import UserAchievement, UserMemory
 from services.schedule_streak import lock_user_row, write_profile_keys
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class Achievement:
     title: str
     description: str
     tier: str          # bronze | silver | gold
-    category: str      # consistency | milestones | progress | discovery
+    category: str      # consistency | milestones | discovery
     icon: str          # key the client maps to a custom SVG badge
     check: Callable[[dict], bool]
     # Optional (current, target) for showing progress on a still-locked badge.
@@ -88,13 +88,9 @@ CATALOG: list[Achievement] = [
     Achievement("two_maxxes", "Stacking", "Two maxxes running at once.",
                 "silver", "milestones", "layers",
                 lambda s: s["active_count"] >= 2),
-    # ── Progress — visible change ─────────────────────────────────────────
-    Achievement("first_scan", "Baseline Set", "Your first scan. Now we can measure.",
-                "bronze", "progress", "camera",
-                lambda s: s["scans"] >= 1),
-    Achievement("three_scans", "Receipts", "Three scans logged. The timeline tells the story.",
-                "silver", "progress", "camera",
-                lambda s: s["scans"] >= 3, lambda s: (min(s["scans"], 3), 3)),
+    # (The face-scan "progress" badges first_scan / three_scans were retired
+    # with the scan in the biohacking pivot. Earned rows stay in
+    # user_achievements; codes outside the catalog are ignored on read.)
     # ── Discovery — investing in the coaching relationship ────────────────
     Achievement("knows_me", "Open Book", "Superpower knows three things about you, and counting.",
                 "bronze", "discovery", "book",
@@ -123,24 +119,6 @@ def _active_count(schedules: list[dict]) -> int:
     return len(maxxes) if maxxes else (1 if schedules else 0)
 
 
-async def _scan_count(db: AsyncSession, user_id: str) -> int:
-    # Count only COMPLETED scans. A scan row is created the instant photos are
-    # uploaded (status "processing") and only flipped to "completed" once the
-    # analysis lands. Counting pending/failed rows would award "Baseline Set"
-    # for a scan that was started-then-abandoned — or even when the user skipped
-    # the scan after a stray processing row was left behind.
-    try:
-        return int((await db.execute(
-            select(func.count(Scan.id)).where(
-                Scan.user_id == UUID(str(user_id)),
-                Scan.processing_status == "completed",
-            )
-        )).scalar() or 0)
-    except Exception as e:
-        logger.debug("scan count failed: %s", e)
-        return 0
-
-
 async def _fact_count(db: AsyncSession, user_id: str) -> int:
     try:
         return int((await db.execute(
@@ -156,7 +134,7 @@ async def _fact_count(db: AsyncSession, user_id: str) -> int:
 
 async def compute_stats(db: AsyncSession, user, *, streak: dict, schedules: list[dict]) -> dict:
     """All achievement inputs, computed from the day-state already in hand plus
-    two cheap counts. Pure-ish — only reads."""
+    one cheap count. Pure-ish — only reads."""
     return {
         "streak": int((streak or {}).get("current") or 0),
         "armed_freezes": int((streak or {}).get("armed_freezes") or 0),
@@ -168,7 +146,6 @@ async def compute_stats(db: AsyncSession, user, *, streak: dict, schedules: list
         ),
         "active_count": _active_count(schedules),
         "tasks_completed": _count_completed_tasks(schedules),
-        "scans": await _scan_count(db, str(user.id)),
         "facts": await _fact_count(db, str(user.id)),
     }
 
@@ -229,7 +206,7 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
             for code, seen in rows
             if not seen and code in CATALOG_BY_CODE
         ]
-        if len(earned) >= len(CATALOG):
+        if len(earned & CATALOG_BY_CODE.keys()) >= len(CATALOG):
             return unseen
         stats = await compute_stats(db, user, streak=streak, schedules=schedules)
         candidates: list[Achievement] = []
@@ -405,9 +382,10 @@ async def list_for_user(db: AsyncSession, user, *, streak: dict, schedules: list
     ]
     return {
         "achievements": items,
-        "earned_count": len(earned_map),
+        # Retired codes (e.g. the old scan badges) stay stored but never count.
+        "earned_count": sum(1 for code in earned_map if code in CATALOG_BY_CODE),
         "total": len(CATALOG),
-        "categories": ["consistency", "milestones", "progress", "discovery"],
+        "categories": ["consistency", "milestones", "discovery"],
     }
 
 

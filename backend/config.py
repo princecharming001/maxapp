@@ -283,9 +283,6 @@ class Settings(BaseSettings):
         description="How long to trust the cached Onairos trait snapshot before re-fetching (12h default).",
     )
 
-    # External Facial Analysis API (cannon_facial_analysis service)
-    facial_analysis_api_url: str = Field(default="http://13.236.183.141:8001/api")
-    
     # Google integrations (Calendar / Gmail OAuth + Maps Platform). All
     # default-empty: every Google feature no-ops gracefully until keys land.
     google_client_id: str = Field(default="")

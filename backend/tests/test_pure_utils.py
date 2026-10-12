@@ -10,7 +10,6 @@ Functions tested here were verified to be pure by reading their source:
   - human_time._window (window parsing)
   - middleware.auth_middleware._subscription_expired (date compare)
   - services.chat_conversations_service._auto_title_from_message (string trim)
-  - api.scans._redacted_analysis (dict transformation)
   - services.copy_filter (if present and pure)
 
 Functions NOT tested here (impure / non-deterministic, flagged for future work):
@@ -154,74 +153,6 @@ def test_auto_title_preserves_real_message():
     msg = "How do I improve my skin routine?"
     out = _auto_title_from_message(msg)
     assert out.startswith("How do I improve")
-
-
-# ---------------------------------------------------------------------------
-# api.scans._redacted_analysis — dict transformation
-# ---------------------------------------------------------------------------
-
-_FULL_ANALYSIS = {
-    "overall_score": 7.5,
-    "potential_score": 9.0,
-    "scan_summary": {"overall_score": 7.5},
-    "umax_metrics": {"symmetry": 8.1, "skin": 7.2},
-    "preview_blurb": "You have strong cheekbones.",
-    "psl_rating": {
-        "psl_score": 7.5,
-        "potential": 9.0,
-        "appeal": 7.0,
-        "psl_tier": "B",
-        "ascension_time_months": 18,
-        "age_score": 25,
-        "archetype": "Classic",
-    },
-}
-
-
-def test_redacted_analysis_locked_true():
-    from api.scans import _redacted_analysis
-    assert _redacted_analysis(_FULL_ANALYSIS)["locked"] is True
-
-
-def test_redacted_analysis_excludes_umax_metrics():
-    from api.scans import _redacted_analysis
-    assert "umax_metrics" not in _redacted_analysis(_FULL_ANALYSIS)
-
-
-def test_redacted_analysis_excludes_preview_blurb():
-    from api.scans import _redacted_analysis
-    assert "preview_blurb" not in _redacted_analysis(_FULL_ANALYSIS)
-
-
-def test_redacted_analysis_includes_overall_score():
-    from api.scans import _redacted_analysis
-    assert _redacted_analysis(_FULL_ANALYSIS)["overall_score"] == 7.5
-
-
-def test_redacted_analysis_includes_potential_score():
-    from api.scans import _redacted_analysis
-    assert _redacted_analysis(_FULL_ANALYSIS)["potential_score"] == 9.0
-
-
-def test_redacted_analysis_includes_psl_rating():
-    from api.scans import _redacted_analysis
-    result = _redacted_analysis(_FULL_ANALYSIS)
-    assert "psl_rating" in result
-    assert result["psl_rating"]["psl_tier"] == "B"
-
-
-def test_redacted_analysis_empty_input_no_crash():
-    from api.scans import _redacted_analysis
-    result = _redacted_analysis({})
-    assert result["locked"] is True
-
-
-def test_redacted_analysis_does_not_mutate_input():
-    """_redacted_analysis must not mutate the original analysis dict."""
-    from api.scans import _redacted_analysis
-    original = dict(_FULL_ANALYSIS)
-    _redacted_analysis(original)
-    assert "umax_metrics" in original  # original untouched
 
 
 # ---------------------------------------------------------------------------

@@ -8,16 +8,15 @@ facial_scan_summary defaults to None) and only _SERVER_OWNED keys survive —
 the scan headline was not in that set, so the very next quiz save wiped it
 and the AI coach behaved as if the user had never scanned.
 
+(The scan-completion half of this file was retired with the face scan API in
+the 2026-10 biohacking pivot; the server-owned-key guard below stays.)
+
 Run:
     pytest tests/test_onboarding_server_owned.py -v
 """
 from __future__ import annotations
 
 import inspect
-import json
-import uuid
-
-from sqlalchemy.dialects import postgresql
 
 
 # ---------------------------------------------------------------------------
@@ -80,79 +79,3 @@ def test_quiz_save_keeps_the_scan_headline():
     assert merged["scan_completed_at"] == existing["scan_completed_at"]
     assert merged["post_subscription_onboarding"] is True
     assert merged["goals"] == ["skinmax"]  # the client's own answers still land
-
-
-# ---------------------------------------------------------------------------
-# scans.py — atomic first-scan completion (no stale-object write-back)
-# ---------------------------------------------------------------------------
-
-class _ExecResult:
-    def __init__(self, rowcount):
-        self.rowcount = rowcount
-
-
-class _CaptureDB:
-    def __init__(self, rowcount=1):
-        self.calls = []
-        self.commits = 0
-        self._rowcount = rowcount
-
-    async def execute(self, stmt, params=None):
-        self.calls.append((stmt, params))
-        return _ExecResult(self._rowcount)
-
-    async def commit(self):
-        self.commits += 1
-
-
-def _run(coro):
-    import asyncio
-    return asyncio.run(coro)
-
-
-def test_completion_sql_merges_instead_of_replacing_onboarding():
-    from api.scans import _FIRST_SCAN_COMPLETION_SQL
-
-    sql = str(_FIRST_SCAN_COMPLETION_SQL.compile(dialect=postgresql.asyncpg.dialect()))
-    # Server-side merge of the existing column, never `onboarding = <blob>`.
-    assert "onboarding::jsonb" in sql and "||" in sql
-    assert "onboarding = (" in sql and "onboarding = $" not in sql
-    # A racing duplicate upload must not become a second "first scan".
-    assert "first_scan_completed IS NOT TRUE" in sql
-    # A chosen avatar is never clobbered.
-    assert "avatar_url" in sql and "ELSE profile" in sql
-
-
-def test_complete_first_scan_patches_only_the_scan_keys():
-    from api.scans import _complete_first_scan
-
-    db = _CaptureDB(rowcount=1)
-    uid = uuid.uuid4()
-    summary = {"archetype": "Rugged", "psl_score": 6.1, "first_move": ["skinmax"]}
-    claimed = _run(_complete_first_scan(db, uid, summary, "https://x/front.jpg"))
-
-    assert claimed is True
-    assert db.commits == 1
-    (_stmt, params), = db.calls
-    patch = json.loads(params["patch"])
-    # ONLY the scan headline rides in the patch — the quiz's goals/age/gender
-    # written during the 75s analysis are untouched by the merge.
-    assert set(patch.keys()) == {"facial_scan_summary"}
-    assert patch["facial_scan_summary"] == summary
-    assert params["avatar_url"] == "https://x/front.jpg"
-    assert params["uid"] == str(uid)
-
-
-def test_complete_first_scan_reports_when_another_upload_won():
-    from api.scans import _complete_first_scan
-
-    db = _CaptureDB(rowcount=0)
-    assert _run(_complete_first_scan(db, uuid.uuid4(), {}, None)) is False
-
-
-def test_upload_handler_no_longer_writes_onboarding_from_the_orm_object():
-    from api import scans as scans_module
-
-    src = inspect.getsource(scans_module.upload_scan_triple)
-    assert "user.onboarding = " not in src, "stale-object onboarding write-back is back"
-    assert "_complete_first_scan(" in src

@@ -182,7 +182,8 @@ def test_curve_milestones_are_pinned():
 
 def test_badge_xp_scales_with_tier_and_setup_badges_are_tokens():
     assert g.achievement_xp("first_routine") == 10
-    assert g.achievement_xp("first_scan") == 10
+    # the retired scan badge is no longer a setup token (or in the catalog)
+    assert "first_scan" not in g._SETUP_BADGES
     assert g.achievement_xp("two_maxxes") == 10
     assert g.achievement_xp("knows_me") == 10
     assert g.achievement_xp("streak_3") == 25        # bronze
@@ -197,9 +198,9 @@ def test_badge_xp_scales_with_tier_and_setup_badges_are_tokens():
 
 
 def test_onboarding_alone_never_levels_up():
-    # finishing onboarding (all four setup badges) without doing a task
+    # finishing onboarding (all three setup badges) without doing a task
     p = {}
-    for code in ("first_routine", "first_scan", "two_maxxes", "knows_me"):
+    for code in ("first_routine", "two_maxxes", "knows_me"):
         g.award_xp(p, g.achievement_xp(code), "2026-09-24")
     assert g.gamification_payload(p, "2026-09-24")["current_level"] == 1
 
@@ -207,7 +208,7 @@ def test_onboarding_alone_never_levels_up():
 def test_one_fully_completed_first_day_is_level_two_not_five():
     p = {}
     today = "2026-09-24"
-    g.award_xp(p, g.achievement_xp("first_routine") + g.achievement_xp("first_scan"), today)
+    g.award_xp(p, g.achievement_xp("first_routine"), today)
     for i in range(7):
         g.award_task_xp(p, f"t{i}", 7, 0, today)
     g.award_streak_xp(p, 0, 1, today)

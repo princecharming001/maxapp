@@ -13,8 +13,7 @@ Keys (match the `key` column in system_prompts and the PromptKey constants below
   coaching_check_in_general, coaching_bedtime,
   skinmax_*, bonemax_*, heightmax_*, hairmax_*, fitmax_* with suffixes
     _coaching_reference, _notification_engine_reference, _json_directives,
-  langgraph_validate_images, langgraph_analyze_face_metrics, langgraph_improvements,
-  maxx_intent_system, groq_face_analyzer
+  maxx_intent_system
 """
 
 from __future__ import annotations
@@ -61,13 +60,8 @@ class PromptKey:
     FITMAX_COACHING_REFERENCE = "fitmax_coaching_reference"
     FITMAX_NOTIFICATION_ENGINE_REFERENCE = "fitmax_notification_engine_reference"
     FITMAX_JSON_DIRECTIVES = "fitmax_json_directives"
-    # LangGraph face workflow
-    LANGGRAPH_VALIDATE_IMAGES = "langgraph_validate_images"
-    LANGGRAPH_ANALYZE_FACE_METRICS = "langgraph_analyze_face_metrics"
-    LANGGRAPH_IMPROVEMENTS = "langgraph_improvements"
     # Previously hardcoded-only prompts — now DB-managed
     MAXX_INTENT_SYSTEM = "maxx_intent_system"
-    GROQ_FACE_ANALYZER = "groq_face_analyzer"
     # RAG answer system prompt — the grounding rules for KNOWLEDGE turns that
     # bypass the full agent. Loaded from Supabase; the module-specific coaching
     # reference is appended at runtime based on the query classification.

@@ -1143,12 +1143,6 @@ class GeminiService:
 
         # Fallback: build from individual fields if coaching_context not provided
         if not context_str and user_context:
-            if user_context.get("latest_scan"):
-                scan = user_context["latest_scan"]
-                context_str += f"\nLATEST SCAN: score={scan.get('overall_score', '?')}/10"
-                if scan.get("focus_areas"):
-                    context_str += f", focus={scan['focus_areas']}"
-
             if user_context.get("onboarding"):
                 ob = user_context["onboarding"]
                 bits = [f"{k}: {', '.join(v) if isinstance(v, list) else v}" for k, v in ob.items() if v and k in ("skin_type", "goals", "gender", "age")]

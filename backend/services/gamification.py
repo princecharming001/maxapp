@@ -57,7 +57,7 @@ TASK_LEDGER_KEY = "xp_task_ledger"  # {"date": iso, "ids": [task ids already pai
 # on their own. Keyed by services.achievements CATALOG code.
 XP_BADGE_SETUP = 10
 XP_BADGE_BY_TIER = {"bronze": 25, "silver": 75, "gold": 200}
-_SETUP_BADGES = frozenset({"first_routine", "first_scan", "two_maxxes", "knows_me"})
+_SETUP_BADGES = frozenset({"first_routine", "two_maxxes", "knows_me"})
 _BADGE_OVERRIDES = {"streak_100": 500}
 
 

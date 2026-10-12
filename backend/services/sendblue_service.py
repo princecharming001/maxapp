@@ -134,19 +134,6 @@ class SendblueService:
         """Same as send_message with text only (SMS/iMessage). Voice-gated."""
         return await self.send_message(to_phone, filter_text(message, context="sms"))
 
-    async def send_scan_complete(
-        self,
-        phone: str,
-        email: str,
-        overall_score: float | None,
-    ) -> bool:
-        score_txt = f"{overall_score:.1f}" if overall_score is not None else "ready"
-        msg = (
-            f"your scan results are in (~{score_txt}/10 ballpark). "
-            f"open max for the full breakdown when you have a sec."
-        )
-        return bool(await self.send_sms(phone, msg))
-
     async def send_whatsapp(self, phone: str, message: str) -> bool:
         """Admin/test helper — Sendblue delivers iMessage/SMS, not WhatsApp."""
         return bool(await self.send_sms(phone, message))

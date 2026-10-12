@@ -102,6 +102,11 @@ def _client_as(user_dict: dict) -> TestClient:
     return client
 
 
+# A paid-gated (require_paid_user) GET that rejects before touching the DB.
+# Was /api/scans/history until the face scan API was removed.
+GATED_PATH = "/api/courses/progress/current"
+
+
 def _clear_overrides():
     app.dependency_overrides.clear()
 
@@ -109,72 +114,6 @@ def _clear_overrides():
 # ---------------------------------------------------------------------------
 # P0 — known bugs (EXPECT FAIL until fixed)
 # ---------------------------------------------------------------------------
-
-class TestUmaxMetricsNotLeakedToFreeUser:
-    """
-    P0-3: _redacted_analysis includes umax_metrics for free users.
-    The response for a non-paid user should NOT contain umax_metrics.
-    EXPECT FAIL until _redacted_analysis drops the field.
-    """
-
-    def test_umax_metrics_absent_in_redacted_analysis(self):
-        """
-        CORRECT BEHAVIOR: the redacted helper must not include umax_metrics.
-        Currently FAILS because the field is passed through.
-        """
-        from api.scans import _redacted_analysis
-
-        fake_analysis = {
-            "overall_score": 7.5,
-            "potential_score": 9.0,
-            "scan_summary": {"overall_score": 7.5},
-            "umax_metrics": {"symmetry": 8.1, "skin": 7.2, "jaw": 6.9},
-            "preview_blurb": "Strong bone structure.",
-            "psl_rating": {
-                "psl_score": 7.5,
-                "potential": 9.0,
-                "appeal": 7.0,
-                "psl_tier": "B",
-                "ascension_time_months": 18,
-                "age_score": 25,
-                "archetype": "Classic",
-            },
-        }
-        result = _redacted_analysis(fake_analysis)
-
-        # The response must be locked
-        assert result["locked"] is True
-
-        # CORRECT: premium breakdown must NOT reach a free user
-        assert "umax_metrics" not in result, (
-            "umax_metrics leaked to a free user via _redacted_analysis — "
-            "this is P0-3 from the production audit"
-        )
-
-    def test_preview_blurb_absent_in_redacted_analysis(self):
-        """
-        CORRECT BEHAVIOR: preview_blurb must also be absent (it may contain
-        premium analytical content).
-        """
-        from api.scans import _redacted_analysis
-
-        fake_analysis = {
-            "overall_score": 6.0,
-            "potential_score": 8.0,
-            "scan_summary": {},
-            "umax_metrics": {},
-            "preview_blurb": "You are a Masculine Ideal.",
-            "psl_rating": {
-                "psl_score": 6.0, "potential": 8.0, "appeal": 5.5,
-                "psl_tier": "C", "ascension_time_months": 24,
-                "age_score": 22, "archetype": "Natural",
-            },
-        }
-        result = _redacted_analysis(fake_analysis)
-        assert "preview_blurb" not in result, (
-            "preview_blurb leaked to a free user — P0-3 sibling"
-        )
-
 
 class TestOnboardingMassAssignment:
     """
@@ -248,11 +187,11 @@ class TestGatedEndpointsReturn402:
     def teardown_method(self):
         _clear_overrides()
 
-    def test_scan_history_requires_payment(self):
-        """GET /api/scans/history → 402 for a non-paid user."""
-        resp = self.client.get("/api/scans/history")
+    def test_paid_route_requires_payment(self):
+        """A require_paid_user GET → 402 for a non-paid user."""
+        resp = self.client.get(GATED_PATH)
         assert resp.status_code == 402, (
-            f"Expected 402 from /scans/history for a free user, got {resp.status_code}"
+            f"Expected 402 from {GATED_PATH} for a free user, got {resp.status_code}"
         )
 
 
@@ -317,14 +256,14 @@ class TestAuthTokenRejection:
         _clear_overrides()
 
     def test_missing_token_returns_401(self):
-        resp = self.client.get("/api/scans/history")
+        resp = self.client.get(GATED_PATH)
         assert resp.status_code == 401, (
             f"Expected 401 for missing token, got {resp.status_code}"
         )
 
     def test_malformed_token_returns_401(self):
         resp = self.client.get(
-            "/api/scans/history",
+            GATED_PATH,
             headers={"Authorization": "Bearer this.is.garbage"},
         )
         assert resp.status_code == 401

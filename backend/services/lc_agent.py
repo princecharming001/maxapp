@@ -488,15 +488,6 @@ async def build_agent_system_prompt(
             _rc = " | ".join(str(r) for r in _recall[:3])
             context_str += ("\nFROM EARLIER CHATS (recall naturally, don't make them repeat): " + _rc)
     if not context_str and user_context:
-        if user_context.get("latest_scan"):
-            scan = user_context["latest_scan"]
-            # Only surface the scan line when there's a real score — a truthy-but
-            # -empty scan dict otherwise leaks "LATEST SCAN: score=?/10".
-            scan_score = scan.get("overall_score")
-            if scan_score not in (None, "", "?"):
-                context_str += f"\nLATEST SCAN: score={scan_score}/10"
-                if scan.get("focus_areas"):
-                    context_str += f", focus={scan['focus_areas']}"
         if user_context.get("onboarding"):
             ob = user_context["onboarding"]
             bits = [
@@ -2672,7 +2663,7 @@ async def run_chat_agent(
             _ack_llm = _gcllm(max_tokens=80)
             _ack_resp = await _ack_llm.ainvoke([
                 SystemMessage(content=(
-                    "You are Superpower, a concise looksmaxxing coach. "
+                    "You are Superpower, a concise biohacking coach for busy people. "
                     "The user just shared a personal detail or heads-up. "
                     "Acknowledge it briefly (1-2 sentences, no lists, no headings). "
                     "Keep Superpower's lowercase, direct voice."

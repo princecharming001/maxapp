@@ -292,21 +292,15 @@ async def progress_view(db, user, profile: dict, today: date, tz: ZoneInfo) -> n
     hit = _progress_cache.get(uid)
     if hit and hit[0] == today.isoformat() and _time.monotonic() - hit[1] < _PROGRESS_TTL_S:
         return hit[2]
-    from models.sqlalchemy_models import Scan, UserProgressPhoto
+    from models.sqlalchemy_models import UserProgressPhoto
 
-    days_since_scan = days_since_photo = None
     try:
-        last_scan = (await db.execute(
-            select(func.max(Scan.created_at)).where(
-                Scan.user_id == user.id, Scan.processing_status == "completed",
-            )
-        )).scalar()
         last_photo = (await db.execute(
             select(func.max(UserProgressPhoto.created_at)).where(UserProgressPhoto.user_id == user.id)
         )).scalar()
     except Exception as e:  # noqa: BLE001
         logger.debug("notif progress view degraded for %s: %s", uid, e)
-        last_scan = last_photo = None
+        last_photo = None
 
     def _days(ts) -> Optional[int]:
         if ts is None:
@@ -315,15 +309,9 @@ async def progress_view(db, user, profile: dict, today: date, tz: ZoneInfo) -> n
             ts = ts.replace(tzinfo=ZoneInfo("UTC"))
         return max(0, (today - ts.astimezone(tz).date()).days)
 
-    days_since_scan, days_since_photo = _days(last_scan), _days(last_photo)
     pv = ne.ProgressView(
         journey_day=journey_day(user, profile, today, tz),
-        has_scanned=days_since_scan is not None,
-        days_since_scan=days_since_scan,
-        # Basic plans allow one scan per 7 days (premium: daily) — a weekly
-        # "your next scan is ready" fits both without nagging premium daily.
-        scan_ready=bool(getattr(user, "is_paid", False)) and days_since_scan is not None and days_since_scan >= 7,
-        days_since_photo=days_since_photo,
+        days_since_photo=_days(last_photo),
     )
     _progress_cache[uid] = (today.isoformat(), _time.monotonic(), pv)
     if len(_progress_cache) > 20000:

@@ -23,7 +23,7 @@ from db import get_db, get_rds_db_optional, release_conn
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import rate_limit
 from models.leaderboard import ChatRequest, ChatResponse
-from models.sqlalchemy_models import ChatConversation, ChatHistory, Scan, User, UserSchedule
+from models.sqlalchemy_models import ChatConversation, ChatHistory, User, UserSchedule
 from services.user_visible_text import scrub_internal_refs, strip_em_dashes, user_visible
 from services.coaching_service import coaching_service
 from services.chat_telemetry import fast_path_snapshot, note_chat_turn
@@ -2425,7 +2425,7 @@ async def process_chat_message(
                     from langchain_core.messages import HumanMessage, SystemMessage
                     _tbl_llm = get_chat_llm_with_fallback(max_tokens=800, temperature=0.2)
                     _tbl_system = (
-                        "You are a looksmaxxing coach. The user asked for a table. "
+                        "You are Superpower, a biohacking coach for busy people. The user asked for a table. "
                         "Emit ONLY a [VISUAL_BLOCK] type=table JSON marker — nothing else. "
                         "No prose, no preamble, no explanation. "
                         "Format: [VISUAL_BLOCK]{\"type\":\"table\",\"title\":\"...\","
@@ -2493,7 +2493,7 @@ async def process_chat_message(
                             from langchain_core.messages import HumanMessage, SystemMessage
                             _mb_llm = get_chat_llm_with_fallback(max_tokens=1200, temperature=0.2)
                             _mb_system = (
-                                "You are a looksmaxxing coach. The user's answer was cut short. "
+                                "You are Superpower, a biohacking coach for busy people. The user's answer was cut short. "
                                 "Emit ONLY the missing [VISUAL_BLOCK] markers (one per missing type) — no prose, no preamble. "
                                 "Each block: [VISUAL_BLOCK]{...}[/VISUAL_BLOCK]. Start immediately with [VISUAL_BLOCK]."
                             )
@@ -3280,7 +3280,7 @@ Ask ONE question at a time. Your very first response must ask the concern questi
                         if _uf else "User profile: not available — use sensible defaults"
                     )
                     _table_system = (
-                        "You are a looksmaxxing coach. Emit ONLY a [VISUAL_BLOCK] type=table "
+                        "You are Superpower, a biohacking coach for busy people. Emit ONLY a [VISUAL_BLOCK] type=table "
                         "JSON marker — nothing else. No prose, no preamble, no explanation. "
                         "The marker format is: "
                         '[VISUAL_BLOCK]{"type":"table","title":"12-Week Plan","data":{"columns":["Week","Skin","Hair","Gym","Notes"],'
@@ -3364,7 +3364,7 @@ Ask ONE question at a time. Your very first response must ask the concern questi
                         if user_facts:
                             _uf_summary = f"\nKNOWN USER FACTS: {json.dumps({k: v for k, v in user_facts.items() if k != 'raw'})}"
                         _timing_system = (
-                            "You are a looksmaxxing coach. The user asked a timing follow-up "
+                            "You are Superpower, a biohacking coach for busy people. The user asked a timing follow-up "
                             "question. Answer ONLY the timing — give a specific time or window "
                             "based on facts the user stated in the conversation. 2-3 sentences max. "
                             "No product names. No markdown. Lowercase casual voice."
@@ -3614,7 +3614,7 @@ async def _broad_question_mcq(
     FACT-FIRST: every clarifier here first consults the unified per-user context
     layer (assemble_user_brief — recent turns + user_facts + durable memory +
     onboarding) and SKIPS the question when the answer is already known, so no
-    clarifier re-asks what another chat / onboarding / a scan already told us."""
+    clarifier re-asks what another chat / onboarding already told us."""
     msg = (message_text or "").strip().lower()
     if not msg or len(msg) > 160:
         return None
@@ -3668,7 +3668,7 @@ async def _broad_question_mcq(
     for domain_re, specific_re, q, choices, multi in _BROAD_DOMAINS:
         if domain_re.search(msg) and not specific_re.search(msg):
             # Skip the ask when the brief already names a specific for this domain
-            # (across chats + onboarding + scans) — the agent answers directly.
+            # (across chats + onboarding) — the agent answers directly.
             if (await _brief()).knows(specific_re):
                 return None
             return (q, list(choices), multi)

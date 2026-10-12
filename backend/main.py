@@ -17,8 +17,8 @@ import logging
 from config import settings
 from db import init_db, close_db, init_rds_db, close_rds_db
 from api import (
-    auth_router, users_router, scans_router, payments_router, payments_web_router,
-    courses_router, events_router, forums_router, chat_router, leaderboard_router,
+    auth_router, users_router, payments_router, payments_web_router,
+    courses_router, events_router, forums_router, chat_router,
     admin_router, admin_forums_v2_router, notifications_router, admin_notifications_router, schedules_router, maxes_router,
     forums_v2_router,
     sendblue_webhook_router,
@@ -224,7 +224,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Include routers
 app.include_router(auth_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
-app.include_router(scans_router, prefix="/api")
 app.include_router(payments_router, prefix="/api")
 app.include_router(payments_web_router, prefix="/api")
 app.include_router(courses_router, prefix="/api")
@@ -232,7 +231,6 @@ app.include_router(events_router, prefix="/api")
 app.include_router(forums_router, prefix="/api")
 app.include_router(forums_v2_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
-app.include_router(leaderboard_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(admin_forums_v2_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
