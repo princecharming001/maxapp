@@ -36,9 +36,9 @@ export const BIOHACK_GOALS: { id: BiohackGoal; label: string; tagline: string; i
 export const MAX_GOALS = 2;
 
 export const BIOHACK_LEVELS: { id: BiohackLevel; label: string; sub: string; minutes: number; habits: number }[] = [
-    { id: 'low', label: 'Low', sub: 'about 10 min a day, two small habits', minutes: 10, habits: 2 },
-    { id: 'medium', label: 'Medium', sub: 'about 25 min a day, a few habits', minutes: 25, habits: 4 },
-    { id: 'high', label: 'High', sub: '45+ min a day, the full stack', minutes: 45, habits: 6 },
+    { id: 'low', label: 'Low', sub: 'two small habits, easy to keep on busy days', minutes: 10, habits: 2 },
+    { id: 'medium', label: 'Medium', sub: 'a few habits spread through your day', minutes: 25, habits: 4 },
+    { id: 'high', label: 'Hard', sub: 'the full stack, for days you can give it more', minutes: 45, habits: 6 },
 ];
 
 /** Scheduler intensity token each level maps onto (backend `intensity_preference`). */

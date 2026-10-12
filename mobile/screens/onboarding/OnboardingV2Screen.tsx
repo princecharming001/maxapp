@@ -66,7 +66,7 @@ import {
 // is queryable regardless of copy edits. Keep in sync with the step titles.
 const STEP_KEYS: Record<string, string> = {
     'What do you want to\nfeel better at?': 'goals',
-    'How hard do you want\nto biohack?': 'level',
+    'How much time can\nyou give this?': 'level',
     'The shape of\nyour day': 'day_shape',
     'Work or\nschool?': 'work',
     'Where do\nyou work?': 'work_location',
@@ -900,6 +900,15 @@ export default function OnboardingV2Screen() {
         setDoneHabits((d) => (d.includes(id) ? d.filter((x) => x !== id) : [...d, id]));
     };
 
+    // Level slider: Medium until the user moves it.
+    const levelIdx = Math.max(0, BIOHACK_LEVELS.findIndex((l) => l.id === (level ?? 'medium')));
+    const levelInfo = BIOHACK_LEVELS[levelIdx];
+    const pickLevel = (i: number) => {
+        const next = BIOHACK_LEVELS[Math.max(0, Math.min(BIOHACK_LEVELS.length - 1, i))].id;
+        if (next !== level && Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
+        setLevel(next);
+    };
+
     // One idea per screen. Each step is tagged with the phase it belongs to;
     // the "Where you work" step only exists when the user works (the progress
     // bar adapts to the length).
@@ -910,6 +919,7 @@ export default function OnboardingV2Screen() {
         canNext: boolean;
         auto?: boolean;
         cta?: string;
+        onContinue?: () => void;
         body: React.ReactNode;
     }[] = [
         // goals (up to 2)
@@ -951,34 +961,45 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // level — how hard they want to go (low / medium / high)
+        // level — how much time they'll commit (3-stop slider: low / medium / hard)
         {
             phase: 'intro',
-            title: 'How hard do you want\nto biohack?',
-            sub: 'Your plan fits this. You can change it anytime.',
-            canNext: !!level,
-            auto: true,
+            title: 'How much time can\nyou give this?',
+            sub: 'Your plan fits inside it. You can change it anytime.',
+            canNext: true,
+            // The slider always shows a position (Medium until moved), so
+            // Continue commits it even if the user never drags.
+            onContinue: () => { if (!level) setLevel(levelInfo.id); },
             body: (
-                <View style={{ gap: 10 }}>
-                    {BIOHACK_LEVELS.map((l) => {
-                        const active = level === l.id;
-                        return (
+                <View>
+                    <View style={styles.levelReadout}>
+                        <Text style={styles.levelName}>{levelInfo.label}</Text>
+                        <Text style={styles.levelMinutes}>
+                            {levelInfo.id === 'high' ? `${levelInfo.minutes}+` : `about ${levelInfo.minutes}`} min a day
+                        </Text>
+                        <Text style={styles.levelSub}>{levelInfo.sub}</Text>
+                    </View>
+                    <Slider
+                        value={levelIdx}
+                        min={0}
+                        max={BIOHACK_LEVELS.length - 1}
+                        step={1}
+                        onChange={pickLevel}
+                    />
+                    <View style={styles.levelStops}>
+                        {BIOHACK_LEVELS.map((l, i) => (
                             <TouchableOpacity
                                 key={l.id}
-                                style={[styles.tile, active && styles.tileActive]}
-                                onPress={() => { setLevel(l.id); autoNext(); }}
-                                activeOpacity={0.85}
+                                onPress={() => pickLevel(i)}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                 accessibilityRole="button"
-                                accessibilityState={{ selected: active }}
-                                accessibilityLabel={`${l.label}, ${l.sub}`}
+                                accessibilityState={{ selected: levelIdx === i }}
+                                accessibilityLabel={`${l.label}, ${l.minutes} minutes a day`}
                             >
-                                <View style={{ flex: 1 }}>
-                                    <Text style={[styles.tileLabel, active && styles.tileLabelActive]}>{l.label}</Text>
-                                    <Text style={[styles.tileTag, active && styles.tileTagActive]}>{l.sub}</Text>
-                                </View>
+                                <Text style={[styles.levelStop, levelIdx === i && styles.levelStopActive]}>{l.label}</Text>
                             </TouchableOpacity>
-                        );
-                    })}
+                        ))}
+                    </View>
                 </View>
             ),
         },
@@ -1300,6 +1321,7 @@ export default function OnboardingV2Screen() {
         if (Platform.OS !== 'web') {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         }
+        current.onContinue?.();
         if (isLast) {
             if (phase === 'intro') {
                 // Persist the intro answers now (best-effort) so a relaunch or a
@@ -1604,6 +1626,14 @@ const styles = StyleSheet.create({
     stackDoBtnDone: { backgroundColor: TRACK },
     stackDoText: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: ON_INK },
     stackDoTextDone: { color: INK },
+    // level slider
+    levelReadout: { alignItems: 'center', marginBottom: 22 },
+    levelName: { fontFamily: 'Matter-SemiBold', fontSize: 30, color: INK, letterSpacing: -0.6 },
+    levelMinutes: { fontFamily: 'Matter-Medium', fontSize: 16, color: INK, marginTop: 4 },
+    levelSub: { fontFamily: 'Matter-Regular', fontSize: 13.5, color: SUB, marginTop: 6, textAlign: 'center' },
+    levelStops: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+    levelStop: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: MUTE },
+    levelStopActive: { color: INK, fontFamily: 'Matter-SemiBold' },
     skipLink: { alignSelf: 'center', marginTop: 12, paddingVertical: 6, paddingHorizontal: 12 },
     skipLinkText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: SUB },
     wellnessNote: {
