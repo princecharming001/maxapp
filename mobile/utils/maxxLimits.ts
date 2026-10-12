@@ -1,12 +1,11 @@
 /**
  * Per-tier feature limits.
  *
- *   Chadlite (basic):   2 active programs, 1 face scan / week, no course docs
- *   Chad (premium):     3 active programs, 1 face scan / day, full course docs
+ *   Chadlite (basic):   2 active programs, no course docs
+ *   Chad (premium):     3 active programs, full course docs
  *
  * Keep mobile limits in sync with backend enforcement (the source of truth):
  *   - backend/services/schedule_service.py MAX_ACTIVE_SCHEDULES_BASIC / PREMIUM
- *   - backend/api/scans.py for scan rate-limiting
  *   - PaymentScreen.tsx for the user-facing feature copy
  */
 

@@ -73,8 +73,8 @@ export default function LandingScreen() {
                 />
 
                 <View style={styles.bottom}>
-                    <Text style={styles.headline}>Your looks,{'\n'}maxed.</Text>
-                    <Text style={styles.sub}>Scan your face. Get your plan. Glow up.</Text>
+                    <Text style={styles.headline}>Your day,{'\n'}upgraded.</Text>
+                    <Text style={styles.sub}>Small habits for sleep, energy and focus, placed around your real schedule.</Text>
 
                     <TouchableOpacity
                         style={styles.primaryBtn}
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
         width: '100%',
         position: 'relative',
         overflow: 'hidden',
-        backgroundColor: '#A99A88',
+        backgroundColor: '#2A2827',
         ...(isWeb && { maxWidth: WEB_MAX_WIDTH }),
     },
     heroImg: {

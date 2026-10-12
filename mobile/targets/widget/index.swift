@@ -369,7 +369,7 @@ struct TodayListView: View {
                     Text("No maxes today")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(ink)
-                    Text("Plan your day in Max to see it here.")
+                    Text("Plan your day in Superpower to see it here.")
                         .font(.system(size: 11.5, weight: .regular))
                         .foregroundColor(mute)
                 }

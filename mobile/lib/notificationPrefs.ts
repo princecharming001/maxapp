@@ -22,7 +22,6 @@ export const NOTIFICATION_CATEGORY_LABELS: Readonly<Record<string, string>> = {
     comeback: 'fresh-start mornings',
     journey_milestone: 'journey milestones',
     progress_photo: 'weekly progress photo',
-    scan_ready: 'new scan unlocked',
     weekly_recap: 'weekly recap',
     milestone: 'achievements',
     reengagement: 'check-ins when you’re away',
@@ -34,7 +33,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Readonly<Record<string, string>> = {
 const GROUPS: { title: string; keys: string[] }[] = [
     { title: 'Your day', keys: ['morning_preview', 'evening_recap', 'missed_task'] },
     { title: 'Streaks', keys: ['streak_protection', 'streak_freeze', 'streak_milestone', 'comeback'] },
-    { title: 'Progress', keys: ['journey_milestone', 'progress_photo', 'scan_ready', 'weekly_recap', 'milestone'] },
+    { title: 'Progress', keys: ['journey_milestone', 'progress_photo', 'weekly_recap', 'milestone'] },
     { title: 'Everything else', keys: ['reengagement', 'tip', 'broadcast'] },
 ];
 

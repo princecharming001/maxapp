@@ -2,7 +2,7 @@
  * usePersonalization — the single safe source of on-screen personalization.
  *
  * Exposes only *safe, derived* values from AuthContext (name, time-of-day
- * greeting, chosen coach persona, goals, scan archetype, streak, experience).
+ * greeting, chosen coach persona, goals, streak, experience).
  * It NEVER reads constraints (conditions/injuries/medications) or inferred
  * negatives — see lib/personalization.ts for the guardrails. Everything is
  * optional and falls back to undefined → generic copy, so cold start renders

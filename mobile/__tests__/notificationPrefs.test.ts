@@ -22,7 +22,6 @@ const SERVER_PREFS = {
     morning_preview: true,
     progress_photo: true,
     reengagement: true,
-    scan_ready: true,
     streak_freeze: true,
     streak_milestone: true,
     streak_protection: true,

@@ -2,13 +2,13 @@ App Store Connect → App Privacy: use this as a checklist. Adjust if your produ
 
 Data types you likely collect (verify against your privacy policy and backend):
 - Contact info: email, phone (signup / account).
-- User content: forum/channel messages, chat with Superpower (AI), profile bio, progress photos, face scan media.
+- User content: forum/channel messages, chat with Superpower (AI), profile bio, progress photos.
 - Identifiers: account ID, auth tokens (device).
-- Usage: course progress, schedules, leaderboard if applicable.
+- Usage: course progress, schedules and task completions.
 
 Sensitive:
-- Photos/video: face scan, profile avatar, progress archive, channel attachments.
-- If you store health/fitness onboarding (height, weight, goals), disclose Health & Fitness or similar as appropriate.
+- Photos: profile avatar, progress archive, channel and chat attachments. (The face scan was removed in the biohacking release — remove any face / biometric data answers and Photos-or-Videos entries that only existed for it.)
+- Health & Fitness: onboarding goals (sleep, energy, focus, stress, training, skin and hair, longevity), routine level, wake/bed times and workout time — disclose as Health & Fitness if you treat these as fitness data.
 
 Third-party SDKs (scan package.json / native projects before submitting):
 - This repo’s mobile app did not include a dedicated analytics SDK in the dependency list at time of writing; confirm before you declare “Data Not Collected” for analytics.

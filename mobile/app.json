@@ -36,7 +36,6 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Superpower uses your photo library to attach images in community channels, chat, and profile or progress photos.",
-        "NSPhotoLibraryAddUsageDescription": "Superpower saves your face scan from results to your photo library when you choose Save to photos.",
         "UIBackgroundModes": [
           "remote-notification"
         ]
@@ -65,18 +64,11 @@
       "expo-apple-authentication",
       "./plugins/withModularHeaders",
       [
-        "expo-camera",
+        "expo-image-picker",
         {
-          "cameraPermission": "Allow Superpower to access your camera for face scans.",
-          "microphonePermission": "Allow Superpower to access your microphone for face scan video recording."
-        }
-      ],
-      [
-        "expo-media-library",
-        {
-          "photosPermission": "Allow Superpower to access photos to save your scan from results.",
-          "savePhotosPermission": "Allow Superpower to save your face scan to your photo library.",
-          "isAccessMediaLocationEnabled": false
+          "photosPermission": "Superpower uses your photo library to attach images in community channels, chat, and profile or progress photos.",
+          "cameraPermission": "Allow Superpower to use your camera to take photos for posts and progress.",
+          "microphonePermission": "Allow Superpower to use your microphone for voice messages."
         }
       ],
       "expo-video",

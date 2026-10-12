@@ -62,37 +62,8 @@ function DevDrawerInner() {
         }
     }, [currentState, logout, fauxSkipSignup, fauxFreshSignup]);
 
-    // Jump straight to the day-one reveal (the "Scan now / Skip for now" page,
-    // right before the face scan) with MOCK onboarding answers — so you can test
-    // that screen + the scan/paywall flow without filling in the 10 questions.
-    const goToReveal = useCallback(async () => {
-        setOpen(false);
-        const MOCK_OB = {
-            goals: ['skinmax', 'fitmax', 'hairmax'],
-            motivation: 'confidence',
-            wake_time: '07:00',
-            sleep_time: '23:00',
-            completed: false,
-        };
-        const navToReveal = () => {
-            const { navigationRef } = require('../lib/navigationRef');
-            if (navigationRef.isReady()) navigationRef.navigate('RoutineReveal', { ob: MOCK_OB });
-        };
-        try {
-            // RoutineReveal only exists in the unpaid stack — get there first.
-            if (currentState !== 'unpaid') {
-                await fauxFreshSignup?.();
-                setTimeout(navToReveal, 450); // let the unpaid stack remount
-            } else {
-                navToReveal();
-            }
-        } catch (e: any) {
-            Alert.alert('Dev reveal failed', String(e?.message || e || 'Could not open the reveal.'));
-        }
-    }, [currentState, fauxFreshSignup]);
-
-    // Jump straight to CreateAccount ("Save your results") — the account-after-scan
-    // claim step — bypassing the camera-gated scan, so the claim -> referral flow
+    // Jump straight to CreateAccount — the post-purchase account claim step —
+    // so the claim flow
     // (and the returning-user "Sign in instead" path) can be tested on a simulator.
     const goToCreateAccount = useCallback(async () => {
         setOpen(false);
@@ -165,9 +136,6 @@ function DevDrawerInner() {
                                 </Pressable>
                             ))}
                         </View>
-                        <Pressable onPress={() => void goToReveal()} style={s.actionBtn}>
-                            <Text style={s.actionText}>Reveal → scan (mock data)</Text>
-                        </Pressable>
                         <Pressable onPress={() => void goToCreateAccount()} style={s.actionBtn}>
                             <Text style={s.actionText}>→ Create account (claim)</Text>
                         </Pressable>

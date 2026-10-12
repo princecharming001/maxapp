@@ -8,7 +8,7 @@
  * it never double-fires. Mount once inside the authenticated app.
  *
  * Timing: the badge is captured immediately, but the overlay is HELD while the
- * user is in a focused flow (mid face-scan, onboarding, auth) so it never pops
+ * user is in a focused flow (onboarding, paywall, auth) so it never pops
  * over the camera. It appears once they land on a calm screen.
  */
 import React, { useEffect, useRef, useState } from 'react';
@@ -21,12 +21,12 @@ import { useWalkthroughVisible } from '../../features/mainTour/useMainAppTour';
 import CelebrationOverlay from './CelebrationOverlay';
 import { setOverlayUp, useOverlayUp } from '../../lib/overlayTurns';
 
-// Screens where a full-screen celebration would interrupt — the camera/scan
+// Screens where a full-screen celebration would interrupt — the
 // flow, the onboarding + paywall funnel, auth, and setup flows. The badge still
 // gets captured + marked seen; the overlay just waits until the user is elsewhere.
 const SUPPRESS_ROUTES = new Set<string>([
-    'FaceScan', 'FaceScanResults', 'FaceScanArchive', 'ModuleSelect',
-    'Onboarding', 'RoutineReveal', 'FeaturesIntro', 'Payment',
+    'ModuleSelect',
+    'Onboarding', 'Payment',
     'Landing', 'Login', 'Signup', 'ForgotPassword',
     // TaskGuide is a fullScreenModal: presenting the celebration's transparent
     // RN Modal while it is mid-presentation collides on iOS and can strand an
@@ -77,7 +77,7 @@ export default function AchievementCelebrationHost() {
         // (the promote effect below), not fired here at capture.
     }, [fresh]);
 
-    // Hold the celebration until the user is on a calm screen (not mid-scan etc.)
+    // Hold the celebration until the user is on a calm screen (not mid-onboarding etc.)
     // — and never underneath/on top of the first-run walkthrough, nor in the
     // tick it is about to appear (the hold covers "pending" too — starting
     // their first Max earns "First Steps" right as the task step shows; the

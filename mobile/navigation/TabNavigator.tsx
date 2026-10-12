@@ -1,14 +1,12 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Platform, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, Platform, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { LiquidGlassFill } from '../components/glass/LiquidGlass';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, spacing, shadows } from '../theme/dark';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
 import { queryClient } from '../lib/queryClient';
 import { prefetchMainTabData } from '../lib/prefetchMainTabData';
 import HomeScreen from '../screens/home/HomeScreen';
@@ -29,65 +27,7 @@ import { useTimezoneSync } from '../hooks/useTimezoneSync';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-function ScanPlaceholder() { return null; }
-
-function ScanCenterButton() {
-    const scanNav = useNavigation<any>();
-    return (
-        <TouchableOpacity
-            onPress={() => scanNav.navigate('FaceScan')}
-            style={scanBtnStyles.touch}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Scan"
-            testID="tab-scan"
-        >
-            {/* Same canonical liquid-glass optics as the Planner top-bar buttons:
-                outer carrier holds the float shadow (un-clipped), inner clips the
-                LiquidGlassFill material. */}
-            <View style={scanBtnStyles.shadowWrap}>
-                <View style={scanBtnStyles.circleWrap}>
-                    <LiquidGlassFill idSuffix="scanTab" />
-                    <Ionicons name="scan" size={22} color={colors.foreground} />
-                </View>
-            </View>
-        </TouchableOpacity>
-    );
-}
-
-const scanBtnStyles = StyleSheet.create({
-    touch: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    // Outer carrier: casts the soft warm float shadow (matches the Planner glass
-    // buttons). NOT clipped — overflow stays visible.
-    // Stronger float shadow than the Planner buttons — the scan button sits on
-    // the near-white tab bar, so it needs a deeper drop shadow to read as a
-    // distinct glass disc instead of blending in.
-    shadowWrap: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: 'transparent',
-        shadowColor: '#1C1E26',
-        shadowOpacity: 0.30,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 8 },
-        elevation: 10,
-        ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
-    },
-    // Inner: clips the LiquidGlassFill material. More body + a crisper rim than the
-    // Planner buttons so it stays visible on the white bar while still reading as glass.
-    circleWrap: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        overflow: 'hidden',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.42)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.95)',
-        ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
-    },
+const tabBarStyles = StyleSheet.create({
     // Bright top edge of the frosted tab bar.
     tabTopRim: {
         position: 'absolute', top: 0, left: 0, right: 0,
@@ -97,7 +37,7 @@ const scanBtnStyles = StyleSheet.create({
 });
 
 // Frosted-glass tab bar background — real blur + milky fill + soft top sheen
-// and a crisp bright top rim, matching the glass scan button.
+// and a crisp bright top rim.
 function TabBarFrost() {
     return (
         // Purely decorative — must never intercept touches meant for the bar
@@ -120,7 +60,7 @@ function TabBarFrost() {
                 pointerEvents="none"
             />
             {/* Crisp bright top rim — the glass edge */}
-            <View style={scanBtnStyles.tabTopRim} pointerEvents="none" />
+            <View style={tabBarStyles.tabTopRim} pointerEvents="none" />
         </View>
     );
 }
@@ -186,7 +126,7 @@ export default function TabNavigator() {
                 // Home when there's nothing valid to restore.
                 initialRouteName={tourDone
                     ? pickInitialTab(getRestoredTab(), [
-                        'Home', 'MasterScheduleTab', 'ScanCenter', 'Explore', 'Chat', 'Forums',
+                        'Home', 'MasterScheduleTab', 'Explore', 'Chat', 'Forums',
                     ])
                     : 'Home'}
                 screenOptions={{
@@ -231,14 +171,6 @@ export default function TabNavigator() {
                         tabBarIcon: ({ color }) => (
                             <Ionicons name="map-outline" size={22} color={color} />
                         ),
-                    }}
-                />
-                <Tab.Screen
-                    name="ScanCenter"
-                    component={ScanPlaceholder}
-                    options={{
-                        tabBarLabel: 'Scan',
-                        tabBarButton: () => <ScanCenterButton />,
                     }}
                 />
                 <Tab.Screen

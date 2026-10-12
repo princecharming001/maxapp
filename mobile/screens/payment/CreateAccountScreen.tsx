@@ -1,14 +1,13 @@
 /**
- * CreateAccountScreen — "Save your results". Sits between the locked scan results
- * and the referral/paywall screens (account-after-scan, Approach A). It CLAIMS the
- * anonymous account minted at "Get started" — sets a real email + password + name —
- * then routes to ReferralCode. A returning user who lands here gets a clear "email
- * already registered" error (they sign in from Landing instead).
+ * CreateAccountScreen — "Save your stack". Sits right after the paywall. It
+ * CLAIMS the anonymous account minted at "Get started" (real email + password +
+ * name, or Apple / Google), then hands off to the onboarding fine-tune phase.
+ * A returning user who lands here gets a clear "email already registered" error
+ * (they sign in from Landing instead).
  *
- * Visual: mirrors the paywall (Unlock your potential) — a dark, full-bleed canvas
- * with the SAME landing-hero avatar drifting behind a near-black gradient, a small
- * "ALMOST THERE" pill under a serif headline, glass input fields, and a white pill
- * CTA. The background image itself is unchanged; only the treatment went dark.
+ * Visual: mirrors the paywall — a dark, full-bleed canvas with the landing hero
+ * drifting behind a near-black gradient, an "ALMOST THERE" pill under a serif
+ * headline, glass input fields, and a white pill CTA.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -284,11 +283,11 @@ export default function CreateAccountScreen() {
                     showsVerticalScrollIndicator={false}
                 >
                     {/* Headline + pill + sub — centered, mirroring the paywall. */}
-                    <Text style={styles.title}>Save your <Text style={styles.titleItalic}>results</Text></Text>
+                    <Text style={styles.title}>Save your <Text style={styles.titleItalic}>stack</Text></Text>
                     <View style={styles.pill}>
                         <Text style={styles.pillText}>ALMOST THERE</Text>
                     </View>
-                    <Text style={styles.sub}>Create your account to keep your scan and your plan.</Text>
+                    <Text style={styles.sub}>Create your account to keep your plan and your progress.</Text>
 
                     <View style={styles.form}>
                         <TextInput

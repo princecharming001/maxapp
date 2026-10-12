@@ -30,8 +30,8 @@ import {
 } from '../lib/notificationDeepLink';
 
 // Root routeNames of the full (paid / free-tier) stack vs the unpaid funnel.
-const PAID_ROOT = ['Main', 'FaceScan', 'TaskGuide', 'Achievements', 'Ranks', 'DayPlanner', 'WeeklyReview', 'Profile', 'ProgressArchive', 'Settings'];
-const FUNNEL_ROOT = ['Onboarding', 'ScanOffer', 'FaceScan', 'FaceScanResults', 'CreateAccount', 'Payment', 'Settings'];
+const PAID_ROOT = ['Main', 'TaskGuide', 'Achievements', 'Ranks', 'DayPlanner', 'WeeklyReview', 'Profile', 'ProgressArchive', 'Settings'];
+const FUNNEL_ROOT = ['Onboarding', 'ReferralCode', 'CreateAccount', 'Payment', 'Settings'];
 
 const SID = '0f8c2a52-2b3c-4a8e-9a55-1c2d3e4f5a6b';
 const TID = '9e1d2c3b-4a5f-4e6d-8c7b-6a5f4e3d2c1b';
@@ -62,8 +62,13 @@ export const tests: Record<string, () => void | Promise<void>> = {
 
     /* ── allow-list ── */
 
-    'new targets are allow-listed root routes: WeeklyReview, Ranks, FaceScan, DayPlanner': () => {
-        for (const r of ['WeeklyReview', 'Ranks', 'FaceScan', 'DayPlanner']) {
+    'an old push pointing at the removed face scan is not routed': () => {
+        assert.strictEqual(NOTIFICATION_DEEP_LINK_ROUTES.has('FaceScan'), false);
+        assert.strictEqual(NOTIFICATION_DEEP_LINK_ROUTES.has('FaceScanResults'), false);
+    },
+
+    'new targets are allow-listed root routes: WeeklyReview, Ranks, DayPlanner': () => {
+        for (const r of ['WeeklyReview', 'Ranks', 'DayPlanner']) {
             assert.ok(NOTIFICATION_DEEP_LINK_ROUTES.has(r), r);
             const t = resolveNotificationTarget({ route: r, params: { category: 'x' } });
             assert.deepStrictEqual(t, { name: r, params: { category: 'x' } });

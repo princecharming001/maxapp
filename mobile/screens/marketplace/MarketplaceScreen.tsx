@@ -465,8 +465,8 @@ export default function MarketplaceScreen() {
             >
                 {/* Title + sliding search */}
                 <View style={styles.head}>
-                    <Animated.Text style={[styles.h1, { opacity: titleOpacity }]} numberOfLines={1}>
-                        Find your <Text style={styles.h1i}>max</Text>
+                    <Animated.Text style={[styles.h1, { opacity: titleOpacity }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                        Add to your <Text style={styles.h1i}>stack</Text>
                     </Animated.Text>
 
                     <Animated.View style={[styles.searchWrap, { width: searchWidth }]}>

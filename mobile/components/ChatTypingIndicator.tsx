@@ -77,7 +77,6 @@ const PHRASES_REFLECTION = [
 ];
 
 const PHRASES_ANALYSIS = [
-  'parsing your scan',
   'cross-checking the numbers',
   'reading the patterns',
   'putting it together',

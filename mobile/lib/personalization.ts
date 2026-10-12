@@ -4,7 +4,7 @@
  *
  * GUARDRAILS (see RALPH_PERSONALIZE.md):
  *  - Known, not watched: only data the user gave us or earned (name, goals,
- *    chosen coach persona, streak, scan archetype, experience level).
+ *    chosen coach persona, streak, experience level).
  *  - Positive framing only: NEVER read or surface constraints (conditions,
  *    injuries, medications) or inferred negatives (personality.to_improve).
  *  - Degrade gracefully: every field is optional; absent → undefined → the
@@ -24,6 +24,14 @@ const GOAL_LABELS: Record<string, string> = {
     heightmax: 'Heightmax',
     bonemax: 'Bonemax',
     coloringmax: 'Coloring Max',
+    // Onboarding goals (biohacking)
+    energy: 'Energy',
+    sleep: 'Sleep',
+    focus: 'Focus',
+    stress: 'Stress',
+    training: 'Training and recovery',
+    skin_hair: 'Skin and hair',
+    longevity: 'Longevity basics',
 };
 
 function goalLabel(id: string): string {
@@ -39,7 +47,6 @@ export interface PersonalizationUserLike {
         experience_level?: string | null;
         values?: unknown;
         motivations?: unknown;
-        facial_scan_summary?: { archetype?: string | null } | null;
         [key: string]: unknown;
     } | null;
     profile?: { streak_days?: number | null } | null;
@@ -62,8 +69,6 @@ export interface Personalization {
     topValue?: string;
     /** Only when the user explicitly stated it; never inferred. */
     topMotivation?: string;
-    /** Face-scan archetype, only when a scan produced one. */
-    archetype?: string;
     /** Earned streak in days (0 when unknown). */
     streakDays: number;
     /** beginner | intermediate | advanced | … when known. */
@@ -123,24 +128,6 @@ export function streakMilestoneCopy(personaId: unknown, days: number): string {
         hardcore: `${days} days locked in. Don't you dare break it tomorrow.`,
         influencer: `${days} days straight 🔥 momentum's yours now — keep it rolling.`,
     });
-}
-
-/**
- * A short, factual one-liner tying a face-scan score to the user's archetype.
- * Returns undefined when no archetype is present (caller renders nothing).
- * Makes NO new claims — "read closest to" mirrors the existing archetype
- * definition. Pure.
- */
-export function archetypeLine(
-    archetype: string | null | undefined,
-    rating?: number | null,
-): string | undefined {
-    const a = typeof archetype === 'string' ? archetype.trim() : '';
-    if (!a) return undefined;
-    if (typeof rating === 'number' && Number.isFinite(rating)) {
-        return `Your features read closest to ${a} — that's the look your ${rating.toFixed(1)}/10 is built on.`;
-    }
-    return `Your features read closest to ${a}.`;
 }
 
 export type ExperienceTier = 'beginner' | 'intermediate' | 'advanced' | 'unknown';
@@ -222,7 +209,6 @@ export function derivePersonalization(
         goalIds,
         topValue: firstExplicit(ob?.values),
         topMotivation: firstExplicit(ob?.motivations),
-        archetype: cleanString(ob?.facial_scan_summary?.archetype),
         streakDays: typeof streak === 'number' && Number.isFinite(streak) ? streak : 0,
         experienceLevel: cleanString(ob?.experience_level),
     };

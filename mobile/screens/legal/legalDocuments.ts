@@ -5,7 +5,7 @@ import { APPLE_APP_REVIEW_BUSINESS, APPLE_APP_REVIEW_LEGAL, APPLE_APP_REVIEW_SAF
 export const privacyBlocks: LegalBlock[] = [
     {
         type: 'meta',
-        text: 'Effective March 23, 2026 · Last updated April 21, 2026 · App: Superpower (iOS/Android bundle: com.cannon.mobile)',
+        text: 'Effective March 23, 2026 · Last updated October 12, 2026 · App: Superpower (iOS/Android bundle: com.cannon.mobile)',
     },
     {
         type: 'p',
@@ -57,7 +57,7 @@ export const privacyBlocks: LegalBlock[] = [
         items: [
             'Account and profile: email address; password (stored using one-way hashing—we do not store your plain-text password); first and last name; username; optional bio; phone number where required for account or SMS features; profile and progress photos you choose to upload.',
             'Community and messaging: text, images, and other content you post in channels, chat, or similar features.',
-            'Camera and media: when you use camera, photo library, or microphone permissions, you may submit images, video, or audio for features such as face scans, progress tracking, or attachments. Submission is voluntary except where a feature cannot function without it.',
+            'Camera and media: when you use camera, photo library, or microphone permissions, you may submit images, video, or audio for features such as progress photos, posts, or attachments. Submission is voluntary except where a feature cannot function without it.',
             'Payments: when you pay through Apple, Google, or our card processor, we receive transaction-related identifiers and status from the payment provider—not your full card number on our servers.',
             'Support: information you include in emails, forms, or in-app support requests.',
             'Onboarding and preferences: answers or settings you provide in questionnaires (for example goals, experience level, lifestyle fields) where the product collects them.',
@@ -99,7 +99,7 @@ export const privacyBlocks: LegalBlock[] = [
             'Create and maintain your account, authenticate you, and provide core app functionality.',
             'Operate community features, including moderation, safety, reporting, and enforcement of our Terms of Service and Community Guidelines.',
             'Process purchases and subscriptions, prevent fraud, and comply with tax or accounting obligations.',
-            'Provide AI-assisted or automated features (for example coaching, scan-related insights, or content suggestions) where enabled, including by sending necessary inputs to subprocessors described below.',
+            'Provide AI-assisted or automated features (for example coaching, routine planning, or content suggestions) where enabled, including by sending necessary inputs to subprocessors described below.',
             'Store and deliver files you upload (for example images) using cloud storage.',
             'Send service-related messages (for example security alerts, receipts, or important policy updates) and, where you opt in, marketing or product updates.',
             'Improve reliability, security, and performance of the Services; conduct analytics in aggregated or de-identified form where permitted.',
@@ -136,7 +136,7 @@ export const privacyBlocks: LegalBlock[] = [
             'File storage: for example Amazon S3 or comparable object storage for uploads (avatars, progress photos, attachments).',
             'Payments: Apple App Store / Google Play billing for in-app purchases; Stripe (or similar) for web or non-store payments where used.',
             'Messaging: Twilio or similar SMS providers for verification, password reset, or notifications where enabled.',
-            'AI and analysis: Google (Gemini) or other model providers for generating or processing text; separate facial or image analysis services where you use scan features that depend on an external API.',
+            'AI and analysis: Anthropic, Google (Gemini), OpenAI or other model providers for generating or processing text and images you send to the coach.',
             'Analytics, logging, and security: tools used to monitor errors, performance, or abuse, subject to configuration and consent where required.',
         ],
     },
@@ -151,46 +151,23 @@ export const privacyBlocks: LegalBlock[] = [
             'Sale / sharing (U.S. state laws): We do not sell personal information for money in the traditional sense. Where state laws define “sale” or “sharing” to include certain advertising or analytics disclosures, we honor applicable opt-out rights and describe choices below.',
     },
 
-    { type: 'h2', text: '7. Face scans, images, and AI processing' },
+    { type: 'h2', text: '7. Photos, images, and AI processing' },
     {
         type: 'p',
         text:
-            'This section explains, in detail, how Superpower handles face data. It applies whenever you use the in-app face-scan feature (front, left, and right photos of your face) or otherwise upload facial images. It is intended to address Apple App Review Guideline 2.1 and 5.1.1 requirements for transparency about face data.',
+            'You can choose to upload progress photos, a profile picture, or images in chat and community features. These images are stored as private objects in cloud storage (Amazon S3) under our account and are used only to show them back to you (and, for posts, to the people you share them with) and, when you send an image to the coach, to generate the reply you asked for. When you send content to the coach, it may be processed by a large language model provider acting as our subprocessor strictly for that request; those providers do not receive it for training general models on our behalf. Images are never shared with advertising networks, data brokers, or analytics providers.',
     },
-    { type: 'h3', text: '7.1 What face data we collect' },
+    { type: 'h3', text: '7.1 No face scans or biometric data' },
     {
         type: 'p',
         text:
-            'When you initiate a face scan, the app captures three still photographs of your face (front, left profile, and right profile). These photographs are uploaded to our servers. From those photographs we derive numerical facial landmark coordinates (using Google’s on-server MediaPipe Face Landmarker model — up to 478 non-identifying (x, y, z) coordinate points per image) and a set of derived geometric measurements (for example proportions, symmetry, and angle scores). We do not compute or store a biometric “faceprint,” template, or other unique identifier intended to identify a specific individual from the image, and we do not use Apple’s Face ID, the TrueDepth API, or any Apple biometric framework. The face-scan feature is entirely optional; you can use the rest of the app without submitting any face images.',
+            'Superpower does not offer a face-scan feature and does not collect facial landmark, geometry, or other biometric data. We do not compute or store a biometric “faceprint,” template, or identifier, and we do not use Apple’s Face ID, the TrueDepth API, or any Apple biometric framework. If you used an earlier version of the app that offered a face scan, any scan images and derived measurements linked to your account are deleted when you delete your account (subject to the limited backup and legal-retention exceptions in section 8 Retention), and you can ask us to delete them sooner using the contact details in section 1.',
     },
-    { type: 'h3', text: '7.2 How we use face data' },
+    { type: 'h3', text: '7.2 Routines and wellness information' },
     {
         type: 'p',
         text:
-            'We use face photographs and the derived landmark and measurement data solely to generate the wellness, aesthetic, and coaching feedback you request inside Superpower — for example symmetry scores, proportion feedback, posture or facial-training suggestions, and AI-generated coaching content about your own scan. We do not use face data to identify, authenticate, track, or recognize you across services; we do not use it for advertising, marketing, or profiling; we do not sell it; and we do not use it to train general-purpose machine-learning models for third parties.',
-    },
-    { type: 'h3', text: '7.3 Third parties and where face data is stored' },
-    {
-        type: 'p',
-        text:
-            'Face images are stored as private objects in Amazon Web Services S3 (Amazon S3) under our account, accessible only to Max backend services and authenticated administrative access. The derived landmark coordinates and measurement scores are stored alongside your user record in our primary application database (PostgreSQL, hosted with Supabase; some shared or forum data on AWS RDS). Face landmark detection runs server-side on our own infrastructure using the MediaPipe Face Landmarker model. To produce natural-language feedback about a scan, we may send the face image and/or its derived measurement values to a large language model provider (currently Google Gemini; where configured, OpenAI) strictly for per-request inference; those providers act as subprocessors under their published terms and do not receive the data for training general models on our behalf. Face data is not shared with any advertising network, data broker, or analytics provider.',
-    },
-    { type: 'h3', text: '7.4 Retention of face data' },
-    {
-        type: 'p',
-        text:
-            'Face images and the derived landmark and measurement data are retained only while your account is active and the scan remains in your history. You can delete an individual scan at any time from within the app; deletion removes the associated images from our storage and the scan record from our database (subject to limited backup retention described in section 8 Retention). When you delete your Max account, all face images, landmark data, and derived scan measurements associated with your account are deleted or anonymized, subject to the same limited backup and legal-retention exceptions.',
-    },
-    { type: 'h3', text: '7.5 Consent, disclosure, and user control' },
-    {
-        type: 'p',
-        text:
-            'Before you take a face scan, Max requests camera permission with a clear on-device prompt that explains the data will be used for face analysis and wellness feedback, and the scan flow in the app shows what will be submitted. You can revoke camera access at any time in your device settings, delete individual scans from the app, and delete your account and all face data as described in section 9.1 Account deletion. We do not use HealthKit or Apple health APIs for the face-scan feature.',
-    },
-    {
-        type: 'p',
-        text:
-            'Max does not provide medical diagnosis or treatment. Outputs from face scans are general wellness and aesthetic feedback only and must not be relied on for medical purposes. Do not use the Services to obtain regulated medical measurements that the app does not support.',
+            'To place routines in your day, we use the schedule details you give us (for example wake and bed times, work hours, commute, meals, workout time, and goals such as sleep, energy, or focus) and, if you connect it, your Google Calendar availability. We use this only to build and adjust your plan and reminders. Superpower does not provide medical diagnosis or treatment; routines are general wellness habits, not medical advice. We do not use HealthKit or Apple health APIs.',
     },
 
     { type: 'h2', text: '8. Retention' },
@@ -330,19 +307,19 @@ export const termsBlocks: LegalBlock[] = [
     {
         type: 'p',
         text:
-            'You are solely responsible for deciding whether any routine, plan, schedule, habit, exercise, workout, diet, supplement, product, or other recommendation offered or scheduled in Max is appropriate for you, and you follow it at your own risk. Consult a qualified health professional before starting or changing any routine, exercise program, diet, supplement, or skincare or hair regimen — especially if you are pregnant or nursing, under 18, have a medical condition or injury, or take medication. Stop and seek care if you experience pain, injury, an adverse reaction, or other concerning symptoms. You voluntarily assume all risks arising from your use of, or reliance on, the routines, plans, and recommendations in the Services.',
+            'You are solely responsible for deciding whether any routine, plan, schedule, habit, exercise, workout, diet, supplement, product, or other recommendation offered or scheduled in Superpower is appropriate for you, and you follow it at your own risk. Consult a qualified health professional before starting or changing any routine, exercise program, diet, supplement, or skincare or hair regimen — especially if you are pregnant or nursing, under 18, have a medical condition or injury, or take medication. Stop and seek care if you experience pain, injury, an adverse reaction, or other concerning symptoms. You voluntarily assume all risks arising from your use of, or reliance on, the routines, plans, and recommendations in the Services.',
     },
 
     { type: 'h2', text: '4. App Store and Play Store distribution' },
     {
         type: 'p',
         text:
-            'If you download Max from the Apple App Store, you acknowledge that these Terms are between you and Max, not Apple. Apple is not responsible for the Services or their content. Apple has no obligation to furnish maintenance or support for Max. To the maximum extent permitted by law, Apple has no warranty obligation regarding Max. Apple is not responsible for addressing claims by you or third parties relating to Max (including product liability, legal or regulatory failure, or consumer protection claims). In the event of a third-party claim that Max infringes intellectual property rights, Max (not Apple) is responsible for investigation, defense, settlement, and discharge of that claim. Apple and its subsidiaries are third-party beneficiaries of these Terms solely as they relate to your use of the iOS version obtained through the App Store, and Apple may enforce those provisions. You must also comply with applicable third-party terms when using the Services (for example store rules and payment terms).',
+            'If you download Superpower from the Apple App Store, you acknowledge that these Terms are between you and Superpower, not Apple. Apple is not responsible for the Services or their content. Apple has no obligation to furnish maintenance or support for Superpower. To the maximum extent permitted by law, Apple has no warranty obligation regarding Superpower. Apple is not responsible for addressing claims by you or third parties relating to Superpower (including product liability, legal or regulatory failure, or consumer protection claims). In the event of a third-party claim that Superpower infringes intellectual property rights, Superpower (not Apple) is responsible for investigation, defense, settlement, and discharge of that claim. Apple and its subsidiaries are third-party beneficiaries of these Terms solely as they relate to your use of the iOS version obtained through the App Store, and Apple may enforce those provisions. You must also comply with applicable third-party terms when using the Services (for example store rules and payment terms).',
     },
     {
         type: 'p',
         text:
-            'If you obtain Max from Google Play, Google may apply additional terms; where those terms address distribution, billing, or refunds through Google Play, they may govern those specific topics.',
+            'If you obtain Superpower from Google Play, Google may apply additional terms; where those terms address distribution, billing, or refunds through Google Play, they may govern those specific topics.',
     },
 
     { type: 'h2', text: '5. Subscriptions and payments' },
@@ -436,7 +413,7 @@ export const termsBlocks: LegalBlock[] = [
     {
         type: 'p',
         text:
-            'You will defend and indemnify Max and its affiliates against claims, damages, losses, and expenses (including reasonable attorneys’ fees) arising from your User Content, your use of the Services, or your violation of these Terms or law.',
+            'You will defend and indemnify Superpower and its affiliates against claims, damages, losses, and expenses (including reasonable attorneys’ fees) arising from your User Content, your use of the Services, or your violation of these Terms or law.',
     },
 
     { type: 'h2', text: '15. Termination' },

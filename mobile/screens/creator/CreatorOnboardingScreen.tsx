@@ -837,7 +837,7 @@ export default function CreatorOnboardingScreen() {
                         </LiquidGlass>
                         {samplePhase === 1 ? (
                             <>
-                                <Text style={s.phaseLead}>No draft — write from scratch so Max learns your voice, not the other way around.</Text>
+                                <Text style={s.phaseLead}>No draft — write from scratch so Superpower learns your voice, not the other way around.</Text>
                                 <Field value={voiceAnswer} onChangeText={setVoiceAnswer} placeholder="Type your answer from scratch…" multiline />
                                 {voiceAnswer.trim() ? (
                                     <TouchableOpacity style={s.secondaryPill} onPress={submitVoice} disabled={busy} activeOpacity={0.85}>
@@ -910,7 +910,7 @@ export default function CreatorOnboardingScreen() {
                         {maxLabel}'s habit{'\n'}<Text style={s.titleItalic}>library</Text>
                     </Text>
                 ),
-                sub: `${habits.filter((h) => h.enabled !== false).length} habits Max personalizes from — tap to edit who sees each one`,
+                sub: `${habits.filter((h) => h.enabled !== false).length} habits Superpower personalizes from — tap to edit who sees each one`,
                 canNext: habits.filter((h) => h.enabled !== false).length >= 2,
                 body: (
                     <View style={{ gap: 12 }}>

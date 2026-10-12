@@ -6,7 +6,7 @@
  * table for an older server that doesn't. The celebration used to show +50
  * for every badge; setup badges now pay 10.
  */
-const SETUP_BADGES = new Set(['first_routine', 'first_scan', 'two_maxxes', 'knows_me']);
+const SETUP_BADGES = new Set(['first_routine', 'two_maxxes', 'knows_me']);
 const TIER_XP: Record<string, number> = { bronze: 25, silver: 75, gold: 200 };
 
 export function achievementXp(a: { code: string; tier?: string | null; xp?: number | null }): number {

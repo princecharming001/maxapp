@@ -6,7 +6,6 @@ import {
     experienceTier,
     streakMilestone,
     streakMilestoneCopy,
-    archetypeLine,
 } from '../lib/personalization';
 
 // RC12: personalized copy must read like a human accountability partner, never
@@ -52,17 +51,6 @@ export const tests = {
         }
         // gentle differs from hardcore (persona actually flavors the copy)
         assert.notEqual(streakMilestoneCopy('gentle', 7), streakMilestoneCopy('hardcore', 7));
-    },
-
-    'archetypeLine only when archetype present; factual': () => {
-        assert.equal(archetypeLine('', 7), undefined);
-        assert.equal(archetypeLine(undefined), undefined);
-        assert.equal(archetypeLine(null, 5), undefined);
-        const withScore = archetypeLine('The Striker', 7.2);
-        assert.ok(withScore && withScore.includes('The Striker'));
-        assert.ok(withScore && withScore.includes('7.2/10'));
-        const noScore = archetypeLine('The Striker');
-        assert.equal(noScore, 'Your features read closest to The Striker.');
     },
 
     'streakMilestone fires only on 3/7/30/100': () => {
@@ -120,9 +108,14 @@ export const tests = {
         assert.deepEqual(p.goalIds, []);
         assert.equal(p.topValue, undefined);
         assert.equal(p.topMotivation, undefined);
-        assert.equal(p.archetype, undefined);
         assert.equal(p.streakDays, 0);
         assert.equal(p.experienceLevel, undefined);
+    },
+
+    'biohacking onboarding goals get readable labels': () => {
+        const p = derivePersonalization({ onboarding: { goals: ['sleep', 'skin_hair'] }, profile: {} }, 9);
+        assert.equal(p.primaryGoalLabel, 'Sleep');
+        assert.deepEqual(p.goalLabels, ['Sleep', 'Skin and hair']);
     },
 
     'empty onboarding object behaves like cold start': () => {
@@ -133,7 +126,7 @@ export const tests = {
         assert.equal(p.personaId, 'default');
     },
 
-    'derives name, persona, goals, streak, archetype, experience': () => {
+    'derives name, persona, goals, streak, experience': () => {
         const p = derivePersonalization(
             {
                 first_name: '  Anish ',
@@ -141,7 +134,6 @@ export const tests = {
                 onboarding: {
                     goals: ['skinmax', 'fitmax', 'skinmax'],
                     experience_level: 'advanced',
-                    facial_scan_summary: { archetype: 'The Striker' },
                 },
                 profile: { streak_days: 7 },
             },
@@ -153,7 +145,6 @@ export const tests = {
         assert.deepEqual(p.goalIds, ['skinmax', 'fitmax']); // deduped, ordered
         assert.equal(p.primaryGoalLabel, 'Skinmax');
         assert.equal(p.goalLabels[1], 'Fitmax');
-        assert.equal(p.archetype, 'The Striker');
         assert.equal(p.streakDays, 7);
         assert.equal(p.experienceLevel, 'advanced');
     },

@@ -329,7 +329,7 @@ function pickTypingMode(
     if (chatIntent === 'product' || /\b(product|brand|recommend|buy|amazon|link)\b/.test(lower)) {
         return 'product';
     }
-    if (/\b(scan|score|analysis|metric|harmony|symmetry)\b/.test(lower)) return 'analysis';
+    if (/\b(score|analysis|metric|data|numbers|sleep score|hrv)\b/.test(lower)) return 'analysis';
     if (/\b(how|what|why|protocol|dose|study)\b/.test(lower)) return 'protocol';
     if (/\b(feel|stuck|tired|down|frustrated|honest|opinion)\b/.test(lower)) return 'reflection';
     return 'default';

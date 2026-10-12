@@ -826,8 +826,8 @@ export default function HomeScreen() {
                             <Ionicons name="compass-outline" size={20} color={BW.mute} />
                             <Text style={s.emptyProgramText}>
                                 {personalizedUI && pers.primaryGoalLabel
-                                    ? `Ready to start on ${pers.primaryGoalLabel}? Explore has a plan.`
-                                    : 'Browse maxes in Explore'}
+                                    ? `Ready to work on ${pers.primaryGoalLabel.toLowerCase()}? Add a Max to your stack.`
+                                    : 'Add a Max to your stack in Explore'}
                             </Text>
                         </TouchableOpacity>
                     )}

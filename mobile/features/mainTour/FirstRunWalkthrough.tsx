@@ -65,7 +65,7 @@ export default function FirstRunWalkthrough({
     if (step === 'build') {
         card = {
             title: 'build your first max',
-            body: 'pick what you want to work on. max builds the routine around your real hours.',
+            body: 'pick what you want to work on. superpower builds it around your real hours.',
             primary: 'build it',
             secondary: 'later',
         };
@@ -74,7 +74,7 @@ export default function FirstRunWalkthrough({
         card = firstTask
             ? {
                 title: 'start with this',
-                body: `“${firstTask.title.toLowerCase()}”${when ? ` at ${when}` : ''}. open it and max walks you through.`,
+                body: `“${firstTask.title.toLowerCase()}”${when ? ` at ${when}` : ''}. open it and superpower walks you through.`,
                 primary: 'open it',
                 secondary: 'skip',
             }
@@ -85,8 +85,8 @@ export default function FirstRunWalkthrough({
             };
     } else {
         card = {
-            title: 'max is your coach',
-            body: 'ask max anything, or tell it to move any part of your day. it already knows your setup.',
+            title: 'superpower is your coach',
+            body: 'ask superpower anything, or tell it to move any part of your day. it already knows your setup.',
             primary: 'open chat',
             secondary: 'i’m set',
         };

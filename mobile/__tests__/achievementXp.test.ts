@@ -7,7 +7,7 @@ export const tests = {
         assert.equal(achievementXp({ code: 'first_routine', tier: 'bronze', xp: 10 }), 10);
     },
     'setup badges pay 10 (they used to show +50)': () => {
-        for (const code of ['first_routine', 'first_scan', 'two_maxxes', 'knows_me']) {
+        for (const code of ['first_routine', 'two_maxxes', 'knows_me']) {
             assert.equal(achievementXp({ code, tier: 'bronze' }), 10);
         }
     },

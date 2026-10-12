@@ -9,7 +9,7 @@
  * navigate to an arbitrary route name handed to us inside a notification
  * payload. Mirrors backend services/notification_copy.DEEP_LINK_ROUTES so
  * every category's push opens the right screen (task → TaskGuide, milestone →
- * Achievements, weekly recap → WeeklyReview, scan unlocked → FaceScan, …).
+ * Achievements, weekly recap → WeeklyReview, …).
  * Creator platform: a "new update" push opens that creator's feed; an
  * application decision opens the studio; community/course pushes open the
  * member home. Params only ever come from the payload's `params` object.
@@ -22,7 +22,6 @@ export const NOTIFICATION_DEEP_LINK_ROUTES: ReadonlySet<string> = new Set<string
     'ProgressArchive',
     'WeeklyReview',
     'Ranks',
-    'FaceScan',
     'DayPlanner',
     'CreatorFeed',
     'CreatorStudio',
