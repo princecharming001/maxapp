@@ -162,17 +162,22 @@ _LEVEL_TABLE: tuple[int, ...] = tuple(
     int(round(_CURVE_SCALE * (n - 1) ** _CURVE_EXP)) for n in range(1, MAX_LEVEL + 1)
 )
 
-# Named ranks over the 1..100 ladder — themed to the app's disciplined,
-# self-improvement vibe. (min_level inclusive, ascending.)
-# Ascension ladder — the self-improvement arc from mortal to god.
+# Named ranks over the 1..100 ladder — "Olympus": the twelve Olympians, from
+# Hestia at the hearth up to Zeus. (min_level inclusive, ascending.) Rank is
+# always derived from level, never stored, so renaming is safe for old users.
 RANKS = [
-    (1, "Mortal"),
-    (10, "Aspirant"),
-    (25, "Champion"),
-    (40, "Hero"),
-    (60, "Demigod"),
-    (80, "Titan"),
-    (100, "Olympian"),
+    (1, "Hestia"),
+    (3, "Dionysus"),
+    (6, "Demeter"),
+    (10, "Hephaestus"),
+    (15, "Hermes"),
+    (22, "Artemis"),
+    (30, "Ares"),
+    (40, "Apollo"),
+    (52, "Athena"),
+    (65, "Hades"),
+    (80, "Poseidon"),
+    (100, "Zeus"),
 ]
 
 

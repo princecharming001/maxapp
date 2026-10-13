@@ -8,7 +8,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from db import get_db, get_rds_db
+from db import get_db, get_rds_db, get_rds_db_optional
+from typing import Optional
 from middleware.auth_middleware import require_paid_user, get_current_admin_user
 from models.course import CourseCreate, CourseResponse, ChapterCompletionRequest
 from models.rds_models import Course
@@ -20,9 +21,11 @@ router = APIRouter(prefix="/courses", tags=["Courses"])
 @router.get("")
 async def list_courses(
     current_user: dict = Depends(require_paid_user),
-    rds_db: AsyncSession = Depends(get_rds_db)
+    rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
     """List all active courses"""
+    if rds_db is None:  # shared DB unconfigured/unreachable → empty catalog, not a 500
+        return {"courses": []}
     result = await rds_db.execute(select(Course).where(Course.is_active == True))
     courses = result.scalars().all()
     return {"courses": [

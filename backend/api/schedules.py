@@ -9,7 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from db import get_db, get_rds_db
+from db import get_db, get_rds_db, get_rds_db_optional
 from models.schedule import (
     GenerateScheduleRequest,
     GenerateMaxxScheduleRequest,
@@ -60,7 +60,13 @@ async def generate_schedule(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Schedule generation failed: {e}")
+        # Transient (LLM/DB) failure: a retryable 503 with a human message —
+        # never a 500 echoing the raw exception text to the client.
+        logging.getLogger(__name__).exception("Schedule generation failed: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail="We couldn't build your schedule just now. Please try again in a moment.",
+        )
 
 
 @router.post("/generate-maxx")
@@ -69,7 +75,9 @@ async def generate_maxx_schedule(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    rds_db: AsyncSession = Depends(get_rds_db),
+    # Optional: the maxx guideline falls back to the built-in code copy when
+    # RDS is unconfigured/unreachable, so a degraded RDS must not block this.
+    rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
     """Generate a personalised AI schedule for a maxx module (e.g. Skinmax)"""
     try:
@@ -98,7 +106,13 @@ async def generate_maxx_schedule(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Maxx schedule generation failed: {e}")
+        # Transient (LLM/DB) failure: a retryable 503 with a human message —
+        # never a 500 echoing the raw exception text to the client.
+        logging.getLogger(__name__).exception("Maxx schedule generation failed: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail="We couldn't build your schedule just now. Please try again in a moment.",
+        )
 
 
 @router.get("/maxx/{maxx_id}")
@@ -436,6 +450,16 @@ async def adapt_schedule(
     db: AsyncSession = Depends(get_db),
 ):
     """Ask AI to adapt the schedule based on feedback"""
+    # AI programs store a habit template, not LLM-authored day JSON — the legacy
+    # adapt prompt can't round-trip them. Rebuild through the program planner.
+    from services.ai_programs import is_ai_program, redo_program_plan
+    current = await schedule_service.get_schedule_by_id(schedule_id, current_user["id"], db=db)
+    if current and is_ai_program(current.get("maxx_id")):
+        tmpl = await redo_program_plan(current_user["id"], current["maxx_id"], data.feedback, db)
+        if tmpl is None:
+            raise HTTPException(status_code=400, detail="Couldn't rebuild your plan just now. Try again in a moment.")
+        background_tasks.add_task(pregenerate_for_schedule, schedule_id, str(current_user["id"]))
+        return {"schedule": await schedule_service.get_schedule_by_id(schedule_id, current_user["id"], db=db)}
     try:
         schedule = await schedule_service.adapt_schedule(
             user_id=current_user["id"],

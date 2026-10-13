@@ -842,6 +842,15 @@ async def feasibility(
 
     req = _NATIVE_REQUIREMENTS.get(program_id)
     if req is None:
+        # AI programs are daily habit stacks placed one habit at a time, and the
+        # planner sizes each habit down to its doc minimum to fit the day. Sim
+        # the longest starter habit at that minimum instead of 404ing.
+        from services.ai_programs import is_ai_program, get_program_doc
+        if is_ai_program(program_id):
+            pd = get_program_doc(program_id)
+            mins = max((int(h.minutes_min or 0) for h in (pd.habits[:3] if pd else [])), default=0)
+            req = {"sessions_per_week": 7, "minutes": max(5, mins), "window": "any"}
+    if req is None:
         for c in _SEED_COURSES:
             if c["id"] == program_id:
                 req = c.get("schedule_hints") or {"sessions_per_week": 3, "minutes": 20, "window": "any"}

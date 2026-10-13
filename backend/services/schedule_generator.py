@@ -44,6 +44,7 @@ from services.task_catalog_service import (
     warm_catalog,
 )
 from services.user_context_service import get_context, merged_user_state
+from services.schedule_streak import local_today_date
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +200,6 @@ async def generate_schedule(
     # drops from ~60s LLM call to <100ms pure-Python pass.
     try:
         from services.schedule_skeleton import expand_skeleton, has_skeleton
-        from services.schedule_streak import local_today_date
         if has_skeleton(maxx_id):
             days = expand_skeleton(
                 maxx_id=maxx_id,

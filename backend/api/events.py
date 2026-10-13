@@ -7,7 +7,8 @@ from datetime import datetime
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from db import get_rds_db
+from typing import Optional
+from db import get_rds_db, get_rds_db_optional
 from middleware.auth_middleware import require_paid_user, get_current_admin_user
 from models.event import EventCreate
 from models.rds_models import Event
@@ -18,9 +19,11 @@ router = APIRouter(prefix="/events", tags=["Events"])
 @router.get("")
 async def list_events(
     current_user: dict = Depends(require_paid_user),
-    rds_db: AsyncSession = Depends(get_rds_db),
+    rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
     """List upcoming events"""
+    if rds_db is None:  # shared DB unconfigured/unreachable → nothing scheduled
+        return {"events": []}
     result = await rds_db.execute(
         select(Event).where(Event.scheduled_at >= datetime.utcnow()).order_by(Event.scheduled_at).limit(20)
     )
@@ -44,9 +47,11 @@ async def list_events(
 @router.get("/live")
 async def get_live_events(
     current_user: dict = Depends(require_paid_user),
-    rds_db: AsyncSession = Depends(get_rds_db),
+    rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
     """Get currently live events"""
+    if rds_db is None:
+        return {"events": []}
     result = await rds_db.execute(select(Event).where(Event.is_live == True))
     events = result.scalars().all()
     return {"events": [
@@ -60,7 +65,7 @@ async def get_calendar(
     month: int = None,
     year: int = None,
     current_user: dict = Depends(require_paid_user),
-    rds_db: AsyncSession = Depends(get_rds_db),
+    rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
     """Get events for calendar view"""
     now = datetime.utcnow()
@@ -73,6 +78,9 @@ async def get_calendar(
         raise HTTPException(status_code=422, detail="month must be between 1 and 12")
     if not (2000 <= year <= 2100):
         raise HTTPException(status_code=422, detail="year must be between 2000 and 2100")
+
+    if rds_db is None:
+        return {"events": [], "month": month, "year": year}
 
     start = datetime(year, month, 1)
     end = datetime(year, month + 1, 1) if month < 12 else datetime(year + 1, 1, 1)

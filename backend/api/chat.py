@@ -717,12 +717,12 @@ def _extract_inline_choices(text: str) -> tuple[str, list[str], bool]:
 # Regex spans brackets/braces (JSON), case-insensitive (survives smart-lowercase).
 _VISUAL_BLOCK_RE = re.compile(r"\[VISUAL_BLOCK\]\s*(.*?)\s*\[/VISUAL_BLOCK\]", re.IGNORECASE | re.DOTALL)
 _METHOD_CONF_RE = re.compile(r"\[METHOD_CONFIDENCE\]\s*(.*?)\s*\[/METHOD_CONFIDENCE\]", re.IGNORECASE | re.DOTALL)
-_ALLOWED_BLOCK_TYPES = {"table", "comparison", "timeline", "flowchart", "stat_cards", "checklist"}
+_ALLOWED_BLOCK_TYPES = {"table", "comparison", "timeline", "flowchart", "stat_cards", "checklist", "plan"}
 
 
 # The list key mobile/components/MessageBlocks.tsx reads for each block type.
 _BLOCK_LIST_KEY = {"table": "rows", "comparison": "options", "timeline": "steps",
-                   "flowchart": "steps", "stat_cards": "cards", "checklist": "items"}
+                   "flowchart": "steps", "stat_cards": "cards", "checklist": "items", "plan": "items"}
 
 
 def _extract_visual_blocks(text: str) -> tuple[str, list[dict]]:
@@ -4522,7 +4522,7 @@ async def _run_onboarding_questioner_impl(
             logger.info("[onboarding] free-text switch %s -> %s (own thread)", maxx_id, new_max)
             payload = field_to_question_payload(next_field)
             text = (
-                f"switching to your {get_doc(new_max).display_name.lower()} schedule. "
+                f"switching to your {(getattr(get_doc(new_max), 'display_name', None) or new_max).lower()} schedule. "
                 + payload["text"].lower()
             )
             return _finish_onboarding_turn(text, payload)
@@ -4629,7 +4629,7 @@ def _start_intake_leadin(new_max: str, msg: str) -> str:
     from services.onboarding_questioner import detect_max_switch_source
     from services.task_catalog_service import get_doc
 
-    name = get_doc(new_max).display_name.lower()
+    name = (getattr(get_doc(new_max), "display_name", None) or new_max).lower()
     source = detect_max_switch_source(msg, new_max)
     if source:
         src_doc = get_doc(source)
@@ -5156,8 +5156,15 @@ async def _send_message_locked_inner(
         if _new_maxx:
             # Idempotent: re-entering a max's setup (double-tap / remount re-fire)
             # reuses its existing "Xmax plan" thread instead of duplicating it.
+            from services.ai_programs import is_ai_program as _is_ai, active_ai_plan as _active_ai_plan
+            # AI programs: a fresh start gets a clean thread; a program that is
+            # already running goes back to its own thread.
+            _reuse = None
+            if _is_ai(_new_maxx) and await _active_ai_plan(str(user_id), _new_maxx, db) is None:
+                _reuse = 120
             _new_conv = await _conv.get_or_create_maxx_conversation(
                 db, user_id=user_id, title=_maxx_thread_title(_new_maxx), channel="app",
+                reuse_within_s=_reuse,
             )
             data.conversation_id = str(_new_conv.id)
             _acid.set(_new_conv.id)
@@ -5219,6 +5226,7 @@ async def _send_message_locked_inner(
             else None
         )
         await release_conn(db)
+        _ai_t0 = time.monotonic()
         async with _CHAT_LLM_SEMAPHORE:
             _ai_out = await _ai_program_turn(
                 user_id, data.message, db,
@@ -5233,6 +5241,7 @@ async def _send_message_locked_inner(
             pass
         _ai_out = None
     if _ai_out is not None:
+        logger.info("[chat] AI program turn took %.2fs", time.monotonic() - _ai_t0)
         _ai_text, _ai_choices, _ai_multi = _ai_out
         await _persist_turn(
             db, user_id=user_id, user_message=data.message,
@@ -5244,11 +5253,15 @@ async def _send_message_locked_inner(
         except Exception:
             pass
         conv_id = await _response_conversation_id(db, user_id=user_id, data=data)
+        # The plan travels as a [VISUAL_BLOCK] marker (persisted with the text so
+        # history re-renders it); lift it out into a native card for the app.
+        _ai_clean, _ai_blocks = _extract_visual_blocks(_ai_text)
         return ChatResponse(
-            response=user_visible(_ai_text),
+            response=user_visible(_ai_clean),
             choices=_ai_choices,
             multi_choice=_ai_multi,
             conversation_id=conv_id,
+            visual_blocks=_ai_blocks,
         )
 
     # Snapshot active schedules BEFORE any path runs, so after dispatch we can

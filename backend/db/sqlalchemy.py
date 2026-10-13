@@ -3,11 +3,14 @@ SQLAlchemy Database Connection Manager
 Async PostgreSQL via Supabase (user-specific data)
 """
 
+import logging
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import text
 from typing import AsyncGenerator
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def _clean_asyncpg_url(raw_url: str) -> str:

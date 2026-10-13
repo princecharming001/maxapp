@@ -163,3 +163,30 @@ async def test_intake_asks_claudes_questions_then_builds_the_plan(driver):
 @pytest.mark.asyncio
 async def test_non_program_starts_are_ignored(driver):
     assert await ap.chat_turn("u1", "start skinmax", _FakeDB(), start_maxx="skinmax", conversation_id="c1") is None
+
+
+@pytest.mark.asyncio
+async def test_prefetched_first_question_is_served_without_calling_claude(driver, monkeypatch):
+    from datetime import datetime as _dt
+    profile = ap.build_profile({"wake_time": "07:00", "sleep_time": "23:00"})
+    pre = {"done": False, "ack": "", "question": "warm q?", "options": ["x", "y"], "multi": False, "fact_key": "kw"}
+    driver["ctx"][ap.PREFETCH_KEY] = {"sleepmax": {"step": pre, "sig": ap._profile_sig(profile), "at": _dt.utcnow().timestamp()}}
+
+    async def boom(*a, **k):
+        raise AssertionError("Claude should not be called for a prefetched opener")
+    monkeypatch.setattr(ap, "next_intake_step", boom)
+
+    text, choices, _ = await ap.chat_turn("u1", "I want to start my Sleepmax plan.", _FakeDB(), start_maxx="sleepmax", conversation_id="c9")
+    assert "warm q?" in text and choices == ["x", "y"]
+    assert "sleepmax" not in driver["ctx"][ap.PREFETCH_KEY]          # one-shot
+    assert driver["ctx"][ap.INTAKE_KEY]["asked"][0]["fact_key"] == "kw"
+
+
+def test_stale_or_mismatched_prefetch_is_ignored():
+    step = {"question": "q?", "options": []}
+    ctx = {ap.PREFETCH_KEY: {"sleepmax": {"step": step, "sig": "abc", "at": 0}}}
+    assert ap._cached_first_step(ctx, "sleepmax", "abc") is None      # expired
+    from datetime import datetime as _dt
+    ctx[ap.PREFETCH_KEY]["sleepmax"]["at"] = _dt.utcnow().timestamp()
+    assert ap._cached_first_step(ctx, "sleepmax", "zzz") is None      # profile changed
+    assert ap._cached_first_step(ctx, "sleepmax", "abc") == step

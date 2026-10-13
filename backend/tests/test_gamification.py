@@ -33,11 +33,13 @@ def test_level_from_xp_boundaries():
 
 
 def test_ranks_ascend():
-    assert g.rank_for_level(1) == "Mortal"
-    assert g.rank_for_level(10) == "Aspirant"
-    assert g.rank_for_level(24) == "Aspirant"
-    assert g.rank_for_level(25) == "Champion"
-    assert g.rank_for_level(100) == "Olympian"
+    assert g.rank_for_level(1) == "Hestia"
+    assert g.rank_for_level(2) == "Hestia"
+    assert g.rank_for_level(3) == "Dionysus"
+    assert g.rank_for_level(14) == "Hephaestus"
+    assert g.rank_for_level(15) == "Hermes"
+    assert g.rank_for_level(99) == "Poseidon"
+    assert g.rank_for_level(100) == "Zeus"
 
 
 # ── award_xp ─────────────────────────────────────────────────────────────────
@@ -105,7 +107,7 @@ def test_payload_shape_and_stale_today():
     p = {g.XP_KEY: g.xp_for_level(2), g.EARNED_TODAY_KEY: 40, g.LAST_AWARD_DATE_KEY: "2026-07-03"}
     pay = g.gamification_payload(p, "2026-07-04")
     assert pay["current_level"] == 2
-    assert pay["rank"] == "Mortal"
+    assert pay["rank"] == "Hestia"
     assert pay["xp_earned_today"] == 0          # stale (yesterday) → not shown
     assert pay["xp_for_next_level"] >= 1
     assert pay["current_xp"] == g.xp_for_level(2)

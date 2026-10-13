@@ -26,6 +26,7 @@ both say so, and validation drops anything outside the library.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -804,24 +805,147 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db) -> Opt
     return tmpl
 
 
-def plan_reply(maxx_id: str, tmpl: dict, *, redo: bool = False) -> str:
+# ── first-question prefetch ──────────────────────────────────────────────────
+# Opening a program's page warms Claude's first intake question so tapping
+# "Start" answers instantly instead of waiting on a model call. One cached step
+# per program, keyed to a hash of the profile it was asked against; the start
+# turn consumes it (one-shot). Same-process starts that land while the prefetch
+# is still running await it instead of making a second call.
+PREFETCH_KEY = "_ai_intake_prefetch"
+PREFETCH_TTL_S = 12 * 3600
+_INFLIGHT: dict[tuple[str, str], "asyncio.Task"] = {}
+
+
+def _profile_sig(profile: dict) -> str:
+    import hashlib
+    return hashlib.sha1(json.dumps(profile, sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
+def _cached_first_step(ctx: dict, maxx_id: str, sig: str) -> Optional[dict]:
+    entry = ((ctx.get(PREFETCH_KEY) or {}) if isinstance(ctx.get(PREFETCH_KEY), dict) else {}).get(maxx_id)
+    if not isinstance(entry, dict) or entry.get("sig") != sig:
+        return None
+    try:
+        age = datetime.utcnow().timestamp() - float(entry.get("at") or 0)
+    except (TypeError, ValueError):
+        return None
+    step = entry.get("step")
+    if age > PREFETCH_TTL_S or not isinstance(step, dict) or not step.get("question"):
+        return None
+    return step
+
+
+async def _prefetch(user_id: str, maxx_id: str) -> Optional[dict]:
+    from db.sqlalchemy import AsyncSessionLocal
+    from services.user_context_service import get_context, merge_context
+    async with AsyncSessionLocal() as db:
+        if await active_ai_plan(user_id, maxx_id, db) is not None:
+            return None
+        _, _, state = await _user_state(user_id, db)
+        profile = build_profile(state)
+        sig = _profile_sig(profile)
+        ctx = await get_context(user_id, db)
+        cached = _cached_first_step(ctx, maxx_id, sig)
+        if cached:
+            return cached
+        await db.commit()  # hand the connection back while Claude thinks
+        step = await next_intake_step(maxx_id, profile, {}, [])
+        if step.get("done") or not step.get("question"):
+            return None  # Claude unavailable (or nothing to ask) — the start turn decides live
+        ctx = await get_context(user_id, db)
+        cache = dict(ctx.get(PREFETCH_KEY) or {}) if isinstance(ctx.get(PREFETCH_KEY), dict) else {}
+        cache[maxx_id] = {"step": step, "sig": sig, "at": datetime.utcnow().timestamp()}
+        await merge_context(user_id, {PREFETCH_KEY: cache}, db)
+        await db.commit()
+        return step
+
+
+def prefetch_first_step(user_id: str, maxx_id: str) -> bool:
+    """Fire-and-forget warm of the first intake question. False if not an AI
+    program or one is already running for this user+program."""
+    if not is_ai_program(maxx_id):
+        return False
+    key = (str(user_id), maxx_id)
+    task = _INFLIGHT.get(key)
+    if task is not None and not task.done():
+        return True
+
+    async def _run():
+        try:
+            return await _prefetch(str(user_id), maxx_id)
+        except Exception:
+            logger.exception("ai_programs: prefetch failed for %s", maxx_id)
+            return None
+        finally:
+            _INFLIGHT.pop(key, None)
+
+    _INFLIGHT[key] = asyncio.create_task(_run())
+    return True
+
+
+async def _first_step(user_id: str, maxx_id: str, profile: dict, ctx: dict) -> Optional[dict]:
+    """The prefetched first question if there is one (consuming it), else None."""
+    task = _INFLIGHT.get((str(user_id), maxx_id))
+    if task is not None and not task.done():
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=30)
+        except Exception:
+            pass
+    return _cached_first_step(ctx, maxx_id, _profile_sig(profile))
+
+
+_DAY_ABBR = {"mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat", "sun": "Sun"}
+
+
+def _days_label(days: list) -> str:
+    days = [d for d in WEEKDAYS if d in (days or [])]
+    if len(days) == 7:
+        return "Daily"
+    if days == WEEKDAYS[:5]:
+        return "Weekdays"
+    if days == WEEKDAYS[5:]:
+        return "Weekends"
+    return " · ".join(_DAY_ABBR.get(d, d) for d in days)
+
+
+def plan_block(maxx_id: str, tmpl: dict, *, note: str = "") -> str:
+    """The plan as a [VISUAL_BLOCK] marker the app renders as a native card
+    (time · habit · minutes · days). Lives in the stored text, so a reopened
+    chat re-renders the same card."""
+    meta = AI_PROGRAMS.get(maxx_id) or {}
+    habits = sorted(tmpl.get("habits") or [], key=lambda h: _to_min(_hm(h.get("time"), "12:00")))
+    items = [{
+        "time": _pretty_time(h.get("time") or ""),
+        "title": str(h.get("title") or "").strip()[:60],
+        "minutes": int(h.get("minutes") or 0),
+        "days": _days_label(h.get("days") or []),
+    } for h in habits if h.get("title")]
+    block = {
+        "type": "plan",
+        "title": f"{program_label(maxx_id)} plan",
+        "data": {
+            "program": maxx_id,
+            "color": meta.get("color") or "",
+            "total_minutes": sum(i["minutes"] for i in items if i["days"] == "Daily"),
+            "note": note,
+            "items": items,
+        },
+    }
+    return "[VISUAL_BLOCK]" + json.dumps(block, separators=(",", ":")) + "[/VISUAL_BLOCK]"
+
+
+def plan_reply(maxx_id: str, tmpl: dict, *, redo: bool = False, include_summary: bool = True) -> str:
     """The chat message that presents a plan and invites changes."""
-    lines = []
+    parts = []
     summary = (tmpl.get("summary") or "").strip()
-    if summary:
-        lines.append(summary)
-    lines.append("")
-    for h in tmpl.get("habits") or []:
-        days = h.get("days") or []
-        when = "daily" if len(days) == 7 else ("weekdays" if days == WEEKDAYS[:5] else ", ".join(days))
-        lines.append(f"- {_pretty_time(h['time'])} · {h['title'].lower()} · {h['minutes']} min · {when}")
-    lines.append("")
-    lines.append(
-        "it's on your home screen and planner now."
-        if not redo else "updated. your home screen and planner already show it."
-    )
-    lines.append("anything you want to change? move a time, swap a habit, make it lighter or harder, just tell me.")
-    return "\n".join(lines)
+    if summary and include_summary:
+        parts.append(summary)
+    parts.append(plan_block(
+        maxx_id, tmpl,
+        note="Updated on your Home and Planner" if redo else "Added to your Home and Planner",
+    ))
+    parts.append("anything you want to change? move a time, swap a habit, make it lighter or harder, just tell me.")
+    return "\n\n".join(parts)
 
 
 def _pretty_time(hm: str) -> str:
@@ -891,8 +1015,10 @@ async def chat_turn(
     if pending and not is_ai_program(pending.get("max")):
         pending = None
 
+    typed_start = False
     if not start_maxx and not pending:
         start_maxx = detect_program_start(msg)
+        typed_start = bool(start_maxx)
 
     if start_maxx and is_ai_program(start_maxx):
         existing = await active_ai_plan(user_id, start_maxx, db)
@@ -900,7 +1026,7 @@ async def chat_turn(
             tmpl = existing.schedule_context["ai_plan"]
             return (
                 f"you're already running {program_label(start_maxx).lower()}. here's your plan:\n\n"
-                + plan_reply(start_maxx, tmpl, redo=False).split("\n\n", 1)[-1],
+                + plan_reply(start_maxx, tmpl, redo=False, include_summary=False),
                 AFTER_PLAN_CHOICES, False,
             )
         pending = {"max": start_maxx, "conv": conv, "answers": {}, "asked": []}
@@ -939,14 +1065,29 @@ async def chat_turn(
     mid = pending["max"]
     _, _, state = await _user_state(user_id, db)
     profile = build_profile(state)
-    step = await next_intake_step(mid, profile, pending.get("answers") or {}, pending.get("asked") or [])
+    step = None
+    if is_opener:
+        if (str(user_id), mid) in _INFLIGHT:
+            # Still warming: let it finish rather than asking Claude twice.
+            await _first_step(user_id, mid, profile, ctx)
+            ctx = await get_context(user_id, db)
+        step = _cached_first_step(ctx, mid, _profile_sig(profile))
+        logger.info("ai_programs: opener for %s %s", mid, "served prefetched question" if step else "asking Claude live")
+        if step is not None:
+            cache = dict(ctx.get(PREFETCH_KEY) or {})
+            cache.pop(mid, None)
+            await merge_context(user_id, {PREFETCH_KEY: cache}, db)
+    if step is None:
+        step = await next_intake_step(mid, profile, pending.get("answers") or {}, pending.get("asked") or [])
 
     if not step["done"]:
         pending.setdefault("asked", []).append({"question": step["question"], "fact_key": step["fact_key"]})
         await merge_context(user_id, {INTAKE_KEY: pending}, db)
         await db.commit()
         lead = ""
-        if is_opener:
+        if is_opener and typed_start:
+            # A Start tap opens the program's own thread, where the app shows a
+            # setup card that already says this; only a typed start needs it.
             lead = (f"let's set up {program_label(mid).lower()}. i already know your day, so just "
                     f"{'a couple' if MAX_INTAKE_QUESTIONS > 1 else 'one'} quick things.\n\n")
         elif step["ack"]:

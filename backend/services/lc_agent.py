@@ -1030,7 +1030,8 @@ def make_chat_tools(
             if tmpl is None:
                 return "could not rebuild that plan right now (no active plan, or the planner was unavailable)."
             coaching_service.invalidate_context_cache(user_id)
-            return "REBUILT. Show the user this plan, then ask if they want any other change:\n" + plan_reply(mid, tmpl, redo=True)
+            return ("REBUILT. Reply with this message VERBATIM, keeping the [VISUAL_BLOCK]...[/VISUAL_BLOCK] marker exactly as is "
+                    "(the app renders it as the plan card):\n" + plan_reply(mid, tmpl, redo=True))
         except Exception as e:
             await _safe_rollback()
             logger.exception("redo_program_plan tool failed: %s", e)

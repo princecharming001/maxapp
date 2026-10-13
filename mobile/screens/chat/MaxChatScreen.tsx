@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { AppState, type AppStateStatus, View, Text, StyleSheet, TextInput, TouchableOpacity, Pressable, PanResponder, Animated, KeyboardAvoidingView, Platform, ActivityIndicator, Linking, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
@@ -12,7 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import api, { type VisualBlock, type MethodConfidence } from '../../services/api';
 import MessageBlocks from '../../components/MessageBlocks';
 import ConfidenceInfoButton from '../../components/ConfidenceInfoButton';
-import { useChatHistoryQuery, isPendingQuestionForThread } from '../../hooks/useAppQueries';
+import { useChatHistoryQuery, useChatConversationsQuery, isPendingQuestionForThread } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
 import { ChatTypingIndicator, ChatTypingMode } from '../../components/ChatTypingIndicator';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
@@ -25,7 +25,9 @@ import { usePaywallGate } from '../../hooks/usePaywallGate';
 import { useAuth } from '../../context/AuthContext';
 import { savePendingChat, loadPendingChat, clearPendingChat, newClientTurnId } from '../../lib/pendingChat';
 import { userFacingError } from '../../lib/userFacingError';
-import { isBiohackProgramId } from '../../utils/maxxDisplay';
+import { isBiohackProgramId, BIOHACK_PROGRAMS, BIOHACK_PROGRAM_BY_ID } from '../../utils/maxxDisplay';
+import { maxxThumbCut } from '../../data/maxxThumbs';
+import { Image as ExpoImage } from 'expo-image';
 import { maxMeta } from '../../utils/scheduleAggregation';
 
 // The in-flight message that survives a kill/offline blip lives in
@@ -338,6 +340,48 @@ function pickTypingMode(
     return 'default';
 }
 
+// ─── AI-program setup threads ─────────────────────────────────────────────────
+// Starting a program (Sleepmax, …) opens its own thread, titled "<Label> plan"
+// by the backend. Those threads get a quieter variant of the chat: the
+// program's glass icon + name in the header, a faint wash of its colour, and a
+// setup card in place of the auto-sent "I want to start my … plan." line.
+function programForThreadTitle(title?: string | null): string | null {
+    const t = String(title || '').trim().toLowerCase();
+    if (!t) return null;
+    const hit = BIOHACK_PROGRAMS.find((p) => t === `${p.label.toLowerCase()} plan`);
+    return hit ? hit.id : null;
+}
+const PROGRAM_OPENER_RE = /^(i want to start my .+ plan\.|let's set up my .+\. ask me what you need to tailor it to me\.)$/i;
+
+function ProgramSetupCard({ programId }: { programId: string }) {
+    const p = BIOHACK_PROGRAM_BY_ID[programId];
+    const bob = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(bob, { toValue: 1, duration: 1600, useNativeDriver: true }),
+            Animated.timing(bob, { toValue: 0, duration: 1600, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [bob]);
+    if (!p) return null;
+    const thumb = maxxThumbCut(programId);
+    return (
+        <View style={cg.setupCard}>
+            {thumb ? (
+                <Animated.View style={{ transform: [{ translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }}>
+                    <ExpoImage source={thumb} style={cg.setupThumb} contentFit="contain" />
+                </Animated.View>
+            ) : null}
+            <Text style={cg.setupEyebrow}>SETTING UP</Text>
+            <Text style={cg.setupTitle}>{p.label}</Text>
+            <Text style={cg.setupBody}>
+                I already know your day. A couple of quick questions, then I'll build {p.label} around it.
+            </Text>
+        </View>
+    );
+}
+
 // ─── ChatGPT look & animations ────────────────────────────────────────────────
 const CG_BG = '#FFFFFF';
 const CG_INK = '#0D0D0D';
@@ -365,11 +409,14 @@ function ThinkingShimmer() {
 // Typewriter reveal with a blinking caret while streaming; swaps to the fully
 // formatted (rich) text once complete. Mirrors ChatGPT's token streaming.
 function StreamingText({
-  text, animate, plainStyle, renderRich, onShown,
+  text, animate, plainStyle, renderRich, onShown, onDone,
 }: {
   text: string; animate: boolean; plainStyle: any; renderRich: (t: string) => React.ReactNode;
   /** Fired once when this message begins its (one and only) reveal. */
   onShown?: () => void;
+  /** Fired once the reveal finishes — the parent re-renders so anything gated
+   *  on "done animating" (visual blocks like the plan card) appears right away. */
+  onDone?: () => void;
 }) {
   const [n, setN] = useState(animate ? 0 : text.length);
   const blink = useRef(new Animated.Value(0)).current;
@@ -387,7 +434,7 @@ function StreamingText({
     const id = setInterval(() => {
       i = Math.min(total, i + per);
       setN(i);
-      if (i >= total) clearInterval(id);
+      if (i >= total) { clearInterval(id); onDone?.(); }
     }, 18);
     return () => clearInterval(id);
   }, [animate, text]);
@@ -502,6 +549,8 @@ export default function MaxChatScreen() {
      *  NOT auto-load the most-recent conversation (which is what the null-id
      *  history query resolves to). Cleared once a real conversation is adopted. */
     const [pendingNewChat, setPendingNewChat] = useState(false);
+    // Program whose setup this screen just started (before the thread exists).
+    const [setupProgram, setSetupProgram] = useState<string | null>(null);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     // Lets the Stop button cancel an in-flight reply. A fresh controller is
@@ -553,6 +602,8 @@ export default function MaxChatScreen() {
     // scrolls back into view. A ref (not state) so marking it shown can't
     // re-render and interrupt the in-flight animation.
     const shownMsgKeysRef = useRef<Set<string>>(new Set());
+    // Bumped when a reveal finishes, so blocks gated on !animate render then.
+    const [revealTick, setRevealTick] = useState(0);
     /** Voice dictation (Web Speech API on web; keyboard-dictation fallback on native). */
     const [listening, setListening] = useState(false);
     const recognitionRef = useRef<any>(null);
@@ -648,9 +699,20 @@ export default function MaxChatScreen() {
 
     useEffect(() => {
         const initSchedule = route.params?.initSchedule;
-        if (!initSchedule || !historyReady) return;
+        if (!initSchedule) return;
+        // AI programs open a brand-new thread, so there is no history to wait
+        // for: start at once instead of first painting the previous chat.
+        const isProgram = isBiohackProgramId(initSchedule);
+        if (!isProgram && !historyReady) return;
         if (initScheduleHandled.current === initSchedule) return;
         if (loading) return;
+        if (isProgram) {
+            setPendingNewChat(true);
+            setSetupProgram(String(initSchedule).toLowerCase());
+            setServerChoices([]);
+            setInputWidget(null);
+            setReplyTarget(null);
+        }
         // `setup` = arriving straight from onboarding for the forced "tailor
         // your #1 max" walkthrough. Same start_schedule intent, but the opener
         // asks Superpower to run the personalization questions the starter is missing.
@@ -1075,7 +1137,17 @@ export default function MaxChatScreen() {
         return renderRichText(text, { baseStyle, onLinkPress: openUrl });
     }, [openUrl]);
 
+    const conversationsQ = useChatConversationsQuery();
+    const titleProgram = useMemo(() => {
+        if (!activeConversationId) return null;
+        const conv = (conversationsQ.data as any[] | undefined)?.find((c: any) => String(c?.id) === String(activeConversationId));
+        return programForThreadTitle(conv?.title);
+    }, [conversationsQ.data, activeConversationId]);
+    const programThread = setupProgram ?? titleProgram;
+    const programColor = programThread ? BIOHACK_PROGRAM_BY_ID[programThread]?.color : undefined;
+
     const newChat = () => {
+        setSetupProgram(null);
         setPendingNewChat(true);
         setActiveConversationId(null);
         setSeededForConversation(null);
@@ -1318,6 +1390,9 @@ export default function MaxChatScreen() {
     };
 
     const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+        if (programThread && item.role === 'user' && PROGRAM_OPENER_RE.test(String(item.content || '').trim())) {
+            return null;
+        }
         if (item.isTyping) {
             return (
                 <View style={cg.assistantRow}>
@@ -1373,6 +1448,7 @@ export default function MaxChatScreen() {
                             plainStyle={cg.assistantText}
                             renderRich={(t) => renderLinkedText(t, [cg.assistantText])}
                             onShown={() => shownMsgKeysRef.current.add(msgKey)}
+                            onDone={() => setRevealTick((t) => t + 1)}
                         />
                     ) : null}
                     {productCards.length > 0 && (
@@ -1448,7 +1524,17 @@ export default function MaxChatScreen() {
                 full tab-bar of empty space above the keyboard. Offset must be
                 0 under the pill bar. (Sim-verified after the redesign.) */}
             <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-                <View style={[cg.header, { paddingTop: Math.max(insets.top + 6, 44) }]}>
+                {programColor ? (
+                    // Program threads: a faint wash of the program's colour behind
+                    // the header + first messages. Subtle on purpose.
+                    <LinearGradient
+                        pointerEvents="none"
+                        colors={[`${programColor}1F`, `${programColor}08`, 'rgba(255,255,255,0)']}
+                        locations={[0, 0.35, 1]}
+                        style={cg.programWash}
+                    />
+                ) : null}
+                <View style={[cg.header, programColor ? { backgroundColor: 'transparent' } : null, { paddingTop: Math.max(insets.top + 6, 44) }]}>
                     <TouchableOpacity
                         style={cg.headerBtn}
                         onPress={() => setDrawerOpen(true)}
@@ -1457,7 +1543,16 @@ export default function MaxChatScreen() {
                     >
                         <Ionicons name="menu" size={22} color={CG_INK} />
                     </TouchableOpacity>
-                    <Text style={cg.headerTitle}>Superpower</Text>
+                    {programThread && BIOHACK_PROGRAM_BY_ID[programThread] ? (
+                        <View style={cg.headerProgram}>
+                            {maxxThumbCut(programThread) ? (
+                                <ExpoImage source={maxxThumbCut(programThread)} style={cg.headerProgramIcon} contentFit="contain" />
+                            ) : null}
+                            <Text style={cg.headerTitle}>{BIOHACK_PROGRAM_BY_ID[programThread].label}</Text>
+                        </View>
+                    ) : (
+                        <Text style={cg.headerTitle}>Superpower</Text>
+                    )}
                     <TouchableOpacity
                         style={cg.headerBtn}
                         onPress={newChat}
@@ -1473,6 +1568,7 @@ export default function MaxChatScreen() {
                     activeConversationId={activeConversationId}
                     onClose={() => setDrawerOpen(false)}
                     onSelect={(id) => {
+                        setSetupProgram(null);
                         // Empty id means the active conversation was deleted — clear
                         // state and let useChatHistoryQuery route to the newest thread
                         // (or show empty state on first-ever use).
@@ -1487,6 +1583,7 @@ export default function MaxChatScreen() {
                         });
                     }}
                     onCreated={(id) => {
+                        setSetupProgram(null);
                         setActiveConversationId(id);
                         setSeededForConversation(null);
                         setMessages([]);
@@ -1495,7 +1592,7 @@ export default function MaxChatScreen() {
                     }}
                 />
 
-                {!historyReady && chatHistoryQuery.isPending && !route.params?.initSchedule ? (
+                {!historyReady && chatHistoryQuery.isPending && !route.params?.initSchedule && !setupProgram ? (
                     // Full-screen spinner only for a normal cold Chat-tab entry.
                     // For the Start-schedule onboarding entry, render the list so
                     // the optimistic user line + typing shimmer show immediately
@@ -1508,6 +1605,10 @@ export default function MaxChatScreen() {
                         ref={flatListRef}
                         data={messages}
                         renderItem={renderMessage}
+                        // Rows read refs/state outside `data` (finished reveals,
+                        // the program thread); re-render them when those change.
+                        extraData={`${revealTick}:${programThread ?? ''}`}
+                        ListHeaderComponent={programThread ? <ProgramSetupCard programId={programThread} /> : undefined}
                         keyExtractor={(item, i) =>
                             item.isTyping ? `typing-${item.typingMode ?? 'default'}` : i.toString()
                         }
@@ -2158,6 +2259,14 @@ const cg = StyleSheet.create({
     },
     headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
     headerTitle: { fontFamily: fonts.sansSemiBold, fontSize: 17, color: CG_INK, letterSpacing: -0.2 },
+    headerProgram: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    headerProgramIcon: { width: 24, height: 24 },
+    programWash: { position: 'absolute', top: 0, left: 0, right: 0, height: 360 },
+    setupCard: { alignItems: 'center', paddingTop: 18, paddingBottom: 22, paddingHorizontal: 28 },
+    setupThumb: { width: 104, height: 104, marginBottom: 10 },
+    setupEyebrow: { fontFamily: fonts.sansSemiBold, fontSize: 11, letterSpacing: 1.4, color: '#8A8A8E', marginBottom: 4 },
+    setupTitle: { fontFamily: fonts.serif, fontSize: 30, color: CG_INK, letterSpacing: -0.4, marginBottom: 8 },
+    setupBody: { fontFamily: fonts.sans, fontSize: 15, lineHeight: 21, color: '#5C5C60', textAlign: 'center', maxWidth: 300 },
 
     assistantRow: { paddingHorizontal: 4, paddingTop: 6, paddingBottom: 8, marginBottom: 2 },
     assistantFooterRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

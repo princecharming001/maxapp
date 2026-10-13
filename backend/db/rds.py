@@ -96,13 +96,35 @@ async def get_rds_db() -> AsyncGenerator[AsyncSession, None]:
     failed" connection error) when RDS is not configured. Endpoints that
     can degrade gracefully should use `get_rds_db_optional` instead.
     """
+    from fastapi import HTTPException
+
     if not (settings.aws_rds_password or "").strip():
-        from fastapi import HTTPException
         raise HTTPException(
             status_code=503,
             detail="This feature requires the shared (RDS) database, which is not configured in this environment.",
         )
-    async with RDSSessionLocal() as session:
+    # Unreachable RDS (circuit open, or the eager connect below fails) is a
+    # clean "try again later" 503 — never an unhandled TimeoutError/OSError
+    # that the global handler would turn into a generic 500. Same eager-connect
+    # + breaker contract as get_rds_db_optional, so required and optional
+    # callers share one view of RDS health.
+    _unavailable = HTTPException(
+        status_code=503,
+        detail="This feature is temporarily unavailable. Please try again in a few minutes.",
+    )
+    if _rds_circuit_open():
+        raise _unavailable
+    session = RDSSessionLocal()
+    try:
+        await session.connection()
+    except Exception as e:
+        _trip_rds_circuit(e)
+        try:
+            await session.close()
+        except Exception:
+            pass
+        raise _unavailable
+    async with session:
         yield session
 
 

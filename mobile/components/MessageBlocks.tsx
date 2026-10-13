@@ -11,6 +11,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '../theme/dark';
 import LiquidGlass from './glass/LiquidGlass';
 import type { VisualBlock } from '../services/api';
+import { Image as ExpoImage } from 'expo-image';
+import { maxxThumbCut } from '../data/maxxThumbs';
 
 const INK = colors.foreground;      // #111113
 const SUB = colors.textSecondary;   // #555
@@ -203,6 +205,59 @@ function ChecklistBlock({ block }: { block: VisualBlock }) {
     );
 }
 
+// "5am" / "5:30pm" → "5:00 AM" / "5:30 PM" (anything else passes through).
+function clockLabel(v: any): string {
+    const t = txt(v).trim();
+    const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i.exec(t);
+    if (!m) return t;
+    return `${m[1]}:${m[2] ?? '00'} ${m[3].toUpperCase()}`;
+}
+
+// An AI program's plan (Sleepmax, …): one calm card — program icon + name,
+// then a slim timeline of time · habit · minutes · days. Replaces the old
+// bullet list so the plan reads like the planner, not a wall of text.
+function PlanBlock({ block }: { block: VisualBlock }) {
+    const d: any = block.data || {};
+    const items: any[] = (Array.isArray(d.items) ? d.items : []).filter((it: any) => it && typeof it === 'object' && txt(it.title));
+    if (!items.length) return null;
+    const accent = /^#[0-9a-f]{6}$/i.test(txt(d.color)) ? txt(d.color) : CHAT_INK;
+    const thumb = maxxThumbCut(txt(d.program));
+    const perDay = Number(d.total_minutes) || 0;
+    return (
+        <View style={s.planCard}>
+            <View style={s.planHead}>
+                {thumb ? <ExpoImage source={thumb} style={s.planIcon} contentFit="contain" /> : null}
+                <Text style={s.planTitle} numberOfLines={1}>{txt(block.title) || 'Your plan'}</Text>
+                {perDay > 0 ? <Text style={s.planMeta}>{perDay} min a day</Text> : null}
+            </View>
+            {items.map((it, i) => {
+                const last = i === items.length - 1;
+                const mins = Number(it.minutes) || 0;
+                const sub = [mins ? `${mins} min` : '', txt(it.days)].filter(Boolean).join(' · ');
+                return (
+                    <View key={i} style={s.planRow}>
+                        <Text style={s.planTime}>{clockLabel(it.time)}</Text>
+                        <View style={s.planRail}>
+                            <View style={[s.planDot, { backgroundColor: accent }]} />
+                            {!last ? <View style={s.planLine} /> : null}
+                        </View>
+                        <View style={[s.planBody, !last && s.planBodyGap]}>
+                            <Text style={s.planHabit}>{txt(it.title)}</Text>
+                            {sub ? <Text style={s.planSub}>{sub}</Text> : null}
+                        </View>
+                    </View>
+                );
+            })}
+            {txt(d.note) ? (
+                <View style={s.planFoot}>
+                    <Ionicons name="checkmark-circle" size={14} color={accent} />
+                    <Text style={s.planNote}>{txt(d.note)}</Text>
+                </View>
+            ) : null}
+        </View>
+    );
+}
+
 function OneBlock({ block }: { block: VisualBlock }) {
     switch (block?.type) {
         case 'table': return <TableBlock block={block} />;
@@ -211,6 +266,7 @@ function OneBlock({ block }: { block: VisualBlock }) {
         case 'flowchart': return <FlowchartBlock block={block} />;
         case 'stat_cards': return <StatCardsBlock block={block} />;
         case 'checklist': return <ChecklistBlock block={block} />;
+        case 'plan': return <PlanBlock block={block} />;
         default: return null;
     }
 }
@@ -226,6 +282,36 @@ export default function MessageBlocks({ blocks }: { blocks?: VisualBlock[] | nul
 
 const s = StyleSheet.create({
     wrap: { marginTop: 8, gap: 8 },
+    // plan
+    planCard: {
+        backgroundColor: CARD, borderRadius: 18, borderCurve: 'continuous',
+        paddingHorizontal: 14, paddingTop: 12, paddingBottom: 12,
+        borderWidth: StyleSheet.hairlineWidth, borderColor: HAIR,
+        shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
+    },
+    planHead: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        paddingBottom: 10, marginBottom: 12,
+        borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: HAIR,
+    },
+    planIcon: { width: 26, height: 26 },
+    planTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: CHAT_INK, letterSpacing: -0.2 },
+    planMeta: { fontSize: 12.5, color: CHAT_MUTE, fontVariant: ['tabular-nums'] },
+    planRow: { flexDirection: 'row' },
+    planTime: { width: 70, fontSize: 13, color: CHAT_INK, fontWeight: '500', fontVariant: ['tabular-nums'], paddingTop: 1 },
+    planRail: { width: 16, alignItems: 'center' },
+    planDot: { width: 7, height: 7, borderRadius: 4, marginTop: 6 },
+    planLine: { flex: 1, width: StyleSheet.hairlineWidth * 2, backgroundColor: 'rgba(0,0,0,0.10)', marginTop: 4, marginBottom: -2 },
+    planBody: { flex: 1, paddingLeft: 6 },
+    planBodyGap: { paddingBottom: 14 },
+    planHabit: { fontSize: 15, color: CHAT_INK, lineHeight: 20 },
+    planSub: { fontSize: 12.5, color: CHAT_MUTE, marginTop: 2 },
+    planFoot: {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        marginTop: 12, paddingTop: 10,
+        borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: HAIR,
+    },
+    planNote: { fontSize: 12.5, color: CHAT_MUTE },
     card: {
         backgroundColor: CARD, borderRadius: 14, borderCurve: 'continuous',
         padding: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: HAIR,

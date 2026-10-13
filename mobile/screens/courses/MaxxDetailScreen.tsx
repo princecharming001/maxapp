@@ -445,7 +445,7 @@ export default function MaxxDetailScreen() {
                                     style={styles.primaryCtaSheen}
                                 />
                                 <Text style={styles.primaryCtaText}>
-                                    {canSchedule ? (activeSchedule ? 'Update schedule' : 'Start schedule') : 'Start course'}
+                                    {canSchedule ? (isBiohackProgramId(maxxId) ? (activeSchedule ? 'Change my plan' : 'Start my plan') : (activeSchedule ? 'Update schedule' : 'Start schedule')) : 'Start course'}
                                 </Text>
                                 <Ionicons name="arrow-forward" size={16} color={colors.buttonText} />
                             </TouchableOpacity>

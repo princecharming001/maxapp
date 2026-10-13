@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_rds_db_optional
 from middleware.auth_middleware import get_current_user
 from models.rds_models import Maxx
-from services.ai_programs import AI_PROGRAMS
+from services.ai_programs import AI_PROGRAMS, prefetch_first_step
 from services.maxx_guidelines import MAXX_GUIDELINES, get_maxx_guideline
 
 router = APIRouter(prefix="/maxes", tags=["Maxes"])
@@ -62,6 +62,13 @@ async def list_maxes(
     _list_cache = payload
     _list_cached_at = time.monotonic()
     return payload
+
+
+@router.post("/{maxx_id}/prefetch-intake", status_code=202)
+async def prefetch_intake(maxx_id: str, current_user: dict = Depends(get_current_user)):
+    """Warm Claude's first setup question for this program while the user reads
+    its page, so "Start" answers instantly. Fire-and-forget; always 202."""
+    return {"queued": prefetch_first_step(str(current_user["id"]), maxx_id)}
 
 
 @router.get("/{maxx_id}")

@@ -58,7 +58,10 @@ export type CourseModule = {
      * are self-contained and supply their own title / subtitle / icon / creator
      * below, so they render with no backend row.
      */
-    maxxId: 'skinmax' | 'hairmax' | 'fitmax' | 'bonemax' | 'heightmax' | 'coloringmax';
+    maxxId:
+        | 'skinmax' | 'hairmax' | 'fitmax' | 'bonemax' | 'heightmax' | 'coloringmax'
+        // AI biohacking programs (biohack pivot).
+        | 'sleepmax' | 'energymax' | 'focusmax' | 'calmmax' | 'trainmax' | 'skinhairmax' | 'longevitymax';
     /** Creator-course display title (used when there is no API maxx row). */
     title?: string;
     /** Creator-course one-line description for the header. */
@@ -88,6 +91,13 @@ import { FITMAX_COURSE } from './courses/fitmax';
 import { BONEMAX_COURSE } from './courses/bonemax';
 import { HEIGHTMAX_COURSE } from './courses/heightmax';
 import { COLORINGMAX_COURSE } from './courses/coloringmax';
+import { SLEEPMAX_COURSE } from './courses/sleepmax';
+import { ENERGYMAX_COURSE } from './courses/energymax';
+import { FOCUSMAX_COURSE } from './courses/focusmax';
+import { CALMMAX_COURSE } from './courses/calmmax';
+import { TRAINMAX_COURSE } from './courses/trainmax';
+import { SKINHAIRMAX_COURSE } from './courses/skinhairmax';
+import { LONGEVITYMAX_COURSE } from './courses/longevitymax';
 
 const COURSES: Record<string, CourseModule> = {
     skinmax: SKINMAX_COURSE,
@@ -97,6 +107,14 @@ const COURSES: Record<string, CourseModule> = {
     heightmax: HEIGHTMAX_COURSE,
     // First creator course — authored by Clay, self-contained (no API row).
     coloringmax: COLORINGMAX_COURSE,
+    // AI biohacking programs. trainmax displays as "Fitmax"; skinhairmax as "Skin & Hair".
+    sleepmax: SLEEPMAX_COURSE,
+    energymax: ENERGYMAX_COURSE,
+    focusmax: FOCUSMAX_COURSE,
+    calmmax: CALMMAX_COURSE,
+    trainmax: TRAINMAX_COURSE,
+    skinhairmax: SKINHAIRMAX_COURSE,
+    longevitymax: LONGEVITYMAX_COURSE,
 };
 
 /** True when this course is creator-authored rather than a native maxx. */
@@ -129,4 +147,8 @@ export function flattenSections(course: CourseModule): Array<{
 }
 
 /* Re-export the bundled modules so callers can grab a specific one. */
-export { SKINMAX_COURSE, HAIRMAX_COURSE, FITMAX_COURSE, BONEMAX_COURSE, HEIGHTMAX_COURSE, COLORINGMAX_COURSE };
+export {
+    SKINMAX_COURSE, HAIRMAX_COURSE, FITMAX_COURSE, BONEMAX_COURSE, HEIGHTMAX_COURSE, COLORINGMAX_COURSE,
+    SLEEPMAX_COURSE, ENERGYMAX_COURSE, FOCUSMAX_COURSE, CALMMAX_COURSE, TRAINMAX_COURSE,
+    SKINHAIRMAX_COURSE, LONGEVITYMAX_COURSE,
+};

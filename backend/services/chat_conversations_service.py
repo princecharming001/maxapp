@@ -102,8 +102,13 @@ async def get_or_create_maxx_conversation(
     user_id: str,
     title: str,
     channel: str = "app",
+    reuse_within_s: Optional[int] = None,
 ) -> ChatConversation:
     """Idempotently return the dedicated thread for a max's onboarding.
+
+    `reuse_within_s` (AI programs): only reuse a thread created that recently —
+    enough to absorb a double-tap / remount re-fire — so starting a program
+    again later opens a clean chat instead of resuming an old one.
 
     A max's plan is ONE logical chat ("Fitmax plan"), so re-entering its setup —
     whether from a double-tap, a screen remount that re-fires the start_schedule
@@ -127,7 +132,13 @@ async def get_or_create_maxx_conversation(
         )
         existing = (await db.execute(stmt)).scalar_one_or_none()
         if existing is not None:
-            return existing
+            created = getattr(existing, "created_at", None)
+            if reuse_within_s is None or created is None:
+                return existing
+            if created.tzinfo is not None:
+                created = created.replace(tzinfo=None)
+            if (_utcnow().replace(tzinfo=None) - created).total_seconds() <= reuse_within_s:
+                return existing
     return await create_conversation(
         db, user_id=user_id, title=clean, channel=channel, commit=True
     )

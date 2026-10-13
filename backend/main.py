@@ -177,6 +177,13 @@ _DB_CONN_ERROR_HINTS = (
     "OperationalError",
     "connection rejected",
     "the database system is",
+    # DNS / socket-level failures reaching the DB host (asyncpg raises these
+    # raw, unwrapped by SQLAlchemy) — a network blip, not a server bug.
+    "gaierror",
+    "nodename nor servname",
+    "Name or service not known",
+    "Temporary failure in name resolution",
+    "Connect call failed",
 )
 
 

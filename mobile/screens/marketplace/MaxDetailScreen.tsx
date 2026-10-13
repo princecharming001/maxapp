@@ -40,6 +40,7 @@ import { getCourseForMaxx, isCreatorCourse } from '../../data/courseContent';
 import { hexA, maxMeta } from '../../utils/scheduleAggregation';
 import { HABIT_CATALOG } from '../../data/habitCatalog';
 import { maxxThumbCut } from '../../data/maxxThumbs';
+import { isBiohackProgramId } from '../../utils/maxxDisplay';
 import { track } from '../../lib/analytics';
 import { usePaywallGate } from '../../hooks/usePaywallGate';
 
@@ -481,6 +482,9 @@ export default function MaxDetailScreen() {
         if (!itemId) return;
         api.getMarketplaceItem(itemId).then((full) => { if (alive) setItem(full); }).catch(() => {});
         track('paywall_view', { item: itemId });
+        // AI programs: have Claude draft the first setup question now, while
+        // the user reads, so tapping Start opens straight onto it.
+        if (isBiohackProgramId(itemId)) void api.prefetchProgramIntake(String(itemId).toLowerCase());
         return () => { alive = false; };
     }, [itemId]);
 
@@ -553,6 +557,16 @@ export default function MaxDetailScreen() {
     // Native maxes that happen to have a bundled course (skinmax) keep their
     // normal paid enroll flow — gate on isCreatorCourse, not mere existence.
     const readerCourseId = isCreatorCourse(getCourseForMaxx(item.id)) ? item.id : null;
+    // AI programs ship a native swipeable course (data/courses/<id>.ts) that
+    // opens in the course screen's chapter timeline + reader.
+    const programCourse = isBiohackProgramId(item.id) ? getCourseForMaxx(String(item.id).toLowerCase()) : null;
+    const programCourseLessons = programCourse ? programCourse.chapters.reduce((n, c) => n + c.sections.length, 0) : 0;
+    const openProgramCourse = () => {
+        try {
+            const { navigationRef } = require('../../lib/navigationRef');
+            if (navigationRef.isReady()) navigationRef.navigate('MaxxDetail', { maxxId: String(item.id).toLowerCase() });
+        } catch { /* noop */ }
+    };
     const openReader = () => {
         try {
             const { navigationRef } = require('../../lib/navigationRef');
@@ -784,6 +798,31 @@ export default function MaxDetailScreen() {
                     </View>
                 ) : null}
 
+                {/* AI programs — the swipeable course that comes with the plan. */}
+                {programCourse ? (
+                    <View style={styles.block}>
+                        <Text style={styles.sectionLabel}>The course</Text>
+                        <TouchableOpacity style={styles.cardHair} activeOpacity={0.85} onPress={openProgramCourse}>
+                            {programCourse.chapters.slice(0, 4).map((ch, i) => (
+                                <View key={ch.id} style={[styles.courseChRow, i > 0 && styles.courseChRowRule]}>
+                                    <Text style={[styles.courseChNum, { color: base }]}>{String(ch.number).padStart(2, '0')}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.courseChTitle} numberOfLines={1}>{ch.title}</Text>
+                                        <Text style={styles.courseChSub} numberOfLines={1}>{ch.sections.length} lessons</Text>
+                                    </View>
+                                </View>
+                            ))}
+                            <View style={[styles.courseChRow, styles.courseChRowRule]}>
+                                <Ionicons name="book-outline" size={16} color={base} />
+                                <Text style={[styles.openCourseText, { flex: 1 }]}>
+                                    Open the course · {programCourse.chapters.length} chapters · {programCourseLessons} lessons
+                                </Text>
+                                <Ionicons name="arrow-forward" size={15} color={base} />
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                ) : null}
+
                 {/* ── Course-only depth ─────────────────────────────────── */}
                 {isCourse && d.for_you_if?.length ? (
                     <View style={styles.block}>
@@ -1005,6 +1044,11 @@ const styles = StyleSheet.create({
         marginTop: 14, marginBottom: 2, paddingVertical: 13,
         borderRadius: 14, borderWidth: 1.5, backgroundColor: CARD,
     },
+    courseChRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
+    courseChRowRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(0,0,0,0.08)' },
+    courseChNum: { width: 22, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },
+    courseChTitle: { fontSize: 15, color: INK, fontWeight: '500' },
+    courseChSub: { fontSize: 12.5, color: MUTE, marginTop: 1 },
     openCourseText: { fontFamily: 'Matter-SemiBold', fontSize: 14.5, color: INK, letterSpacing: 0.1 },
     sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: INK, marginBottom: 15 },
 

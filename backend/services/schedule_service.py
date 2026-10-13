@@ -3456,10 +3456,15 @@ class ScheduleService:
         result = await db.execute(
             select(UserSchedule).where((UserSchedule.user_id == user_uuid) & (UserSchedule.is_active == True))
         )
-        schedule = result.scalar_one_or_none()
-        if schedule:
-            schedule.preferences = preferences
-            schedule.updated_at = datetime.utcnow()
+        # Users stack several programs, so there can be many active rows —
+        # scalar_one_or_none() raised MultipleResultsFound (a 500) for anyone
+        # with 2+. Preferences are user-level: apply to every active schedule.
+        schedules = result.scalars().all()
+        if schedules:
+            now = datetime.utcnow()
+            for schedule in schedules:
+                schedule.preferences = preferences
+                schedule.updated_at = now
             await db.commit()
         else:
             user = await db.get(User, user_uuid)

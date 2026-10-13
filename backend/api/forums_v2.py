@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db import get_db, get_rds_db
+from db import get_db, get_rds_db, get_rds_db_optional
 from middleware.auth_middleware import get_current_user
 from models.forum_v2 import (
     ForumPostCreate,
@@ -114,8 +114,10 @@ def _extract_entities(text: str, *, quote_post_id: str | None = None) -> dict:
 
 @router.get("/categories")
 async def list_categories(
-    rds_db: AsyncSession = Depends(get_rds_db),
+    rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
+    if rds_db is None:  # shared DB unconfigured/unreachable → empty board
+        return {"categories": []}
     res = await rds_db.execute(select(ForumCategory).order_by(ForumCategory.order.asc()))
     cats = res.scalars().all()
     return {
@@ -136,8 +138,10 @@ async def list_categories(
 @router.get("/subforums")
 async def list_subforums(
     category_id: str | None = None,
-    rds_db: AsyncSession = Depends(get_rds_db),
+    rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
+    if rds_db is None:
+        return {"subforums": []}
     q = select(ForumSubforum)
     if category_id:
         cid = _coerce_uuid(category_id, label="category_id")
@@ -803,8 +807,10 @@ async def list_notifications(
     limit: int = Query(40, ge=1, le=120),
     offset: int = Query(0, ge=0),
     current_user: dict = Depends(get_current_user),
-    rds_db: AsyncSession = Depends(get_rds_db),
+    rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
+    if rds_db is None:
+        return {"notifications": [], "limit": limit, "offset": offset}
     uid = _coerce_uuid(current_user["id"], label="user_id")
     nq = select(ForumNotification).where(ForumNotification.user_id == uid)
     if unread_only:

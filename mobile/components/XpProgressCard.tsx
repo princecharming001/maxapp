@@ -1,6 +1,6 @@
 /**
  * XpProgressCard — the primary XP + rank surface (Profile). Shows the earned
- * RANK (with its ivory-marble + gold 3D icon, gently floating), the current
+ * RANK (with its clear-glass Olympus emblem, gently floating), the current
  * level, a progress bar toward the next level, and today's XP. Craft palette:
  * cream card, ink text, glassy-black progress fill (shared with the Profile
  * maxes bar). Renders nothing until the gamification block loads (cold-start
@@ -23,15 +23,20 @@ const MUTE = '#9A9A9A';
 const CARD = '#F1F1EF';
 const TRACK = '#E4E3E0';
 
-// The 3D rank icons (Higgsfield ivory-marble + gold, keyed to transparent).
+// The Olympus rank emblems (clear glass, same material as the DNA logo).
 const RANK_ICONS: Record<string, any> = {
-    Mortal: require('../assets/ranks/mortal.webp'),
-    Aspirant: require('../assets/ranks/aspirant.webp'),
-    Champion: require('../assets/ranks/champion.webp'),
-    Hero: require('../assets/ranks/hero.webp'),
-    Demigod: require('../assets/ranks/demigod.webp'),
-    Titan: require('../assets/ranks/titan.webp'),
-    Olympian: require('../assets/ranks/olympian.webp'),
+    Hestia: require('../assets/ranks/hestia.webp'),
+    Dionysus: require('../assets/ranks/dionysus.webp'),
+    Demeter: require('../assets/ranks/demeter.webp'),
+    Hephaestus: require('../assets/ranks/hephaestus.webp'),
+    Hermes: require('../assets/ranks/hermes.webp'),
+    Artemis: require('../assets/ranks/artemis.webp'),
+    Ares: require('../assets/ranks/ares.webp'),
+    Apollo: require('../assets/ranks/apollo.webp'),
+    Athena: require('../assets/ranks/athena.webp'),
+    Hades: require('../assets/ranks/hades.webp'),
+    Poseidon: require('../assets/ranks/poseidon.webp'),
+    Zeus: require('../assets/ranks/zeus.webp'),
 };
 
 export default function XpProgressCard({ data }: { data: Gamification | null | undefined }) {
@@ -59,7 +64,7 @@ export default function XpProgressCard({ data }: { data: Gamification | null | u
     const pct = is_max_level
         ? 1
         : Math.max(0, Math.min(1, xp_for_next_level > 0 ? xp_into_level / xp_for_next_level : 0));
-    const icon = RANK_ICONS[rank] ?? RANK_ICONS.Mortal;
+    const icon = RANK_ICONS[rank] ?? RANK_ICONS.Hestia;
 
     return (
         <View style={s.card}>

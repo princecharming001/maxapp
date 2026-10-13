@@ -1,6 +1,6 @@
 /**
- * RanksScreen — "The Ascension". The full rank ladder (Mortal → Olympian), each
- * with its ivory-marble 3D icon and level threshold. The user's current rank is
+ * RanksScreen — "Olympus". The full rank ladder (Hestia → Zeus), each
+ * with its clear-glass 3D emblem and level threshold. The user's current rank is
  * highlighted with a gold ring + progress; future ranks sit dimmed until earned.
  * Reached from tapping the rank icon on the Profile XP card.
  */
@@ -23,13 +23,18 @@ const TRACK = '#E4E3E0';
 
 // Mirrors backend RANKS + xp_for_level (services/gamification.py).
 const LADDER = [
-    { name: 'Mortal', minLevel: 1, icon: require('../../assets/ranks/mortal.webp'), line: 'Everyone starts here.' },
-    { name: 'Aspirant', minLevel: 10, icon: require('../../assets/ranks/aspirant.webp'), line: 'The fire is lit.' },
-    { name: 'Champion', minLevel: 25, icon: require('../../assets/ranks/champion.webp'), line: 'Proven in the arena.' },
-    { name: 'Hero', minLevel: 40, icon: require('../../assets/ranks/hero.webp'), line: 'Songs get written.' },
-    { name: 'Demigod', minLevel: 60, icon: require('../../assets/ranks/demigod.webp'), line: 'Half of you is legend.' },
-    { name: 'Titan', minLevel: 80, icon: require('../../assets/ranks/titan.webp'), line: 'You hold up worlds.' },
-    { name: 'Olympian', minLevel: 100, icon: require('../../assets/ranks/olympian.webp'), line: 'The summit.' },
+    { name: 'Hestia', minLevel: 1, icon: require('../../assets/ranks/hestia.webp'), line: 'Keeper of the hearth. Everyone starts here.' },
+    { name: 'Dionysus', minLevel: 3, icon: require('../../assets/ranks/dionysus.webp'), line: 'The ritual has begun.' },
+    { name: 'Demeter', minLevel: 6, icon: require('../../assets/ranks/demeter.webp'), line: 'What you plant starts to grow.' },
+    { name: 'Hephaestus', minLevel: 10, icon: require('../../assets/ranks/hephaestus.webp'), line: 'Forged at the anvil, day by day.' },
+    { name: 'Hermes', minLevel: 15, icon: require('../../assets/ranks/hermes.webp'), line: 'Quick, light, always moving.' },
+    { name: 'Artemis', minLevel: 22, icon: require('../../assets/ranks/artemis.webp'), line: 'Every habit hits its mark.' },
+    { name: 'Ares', minLevel: 30, icon: require('../../assets/ranks/ares.webp'), line: 'Discipline as a weapon.' },
+    { name: 'Apollo', minLevel: 40, icon: require('../../assets/ranks/apollo.webp'), line: 'Sun-up energy, every day.' },
+    { name: 'Athena', minLevel: 52, icon: require('../../assets/ranks/athena.webp'), line: 'Wisdom earned the hard way.' },
+    { name: 'Hades', minLevel: 65, icon: require('../../assets/ranks/hades.webp'), line: 'Master of the deep work.' },
+    { name: 'Poseidon', minLevel: 80, icon: require('../../assets/ranks/poseidon.webp'), line: 'You move oceans now.' },
+    { name: 'Zeus', minLevel: 100, icon: require('../../assets/ranks/zeus.webp'), line: 'The summit of Olympus.' },
 ];
 
 export default function RanksScreen() {
@@ -49,7 +54,7 @@ export default function RanksScreen() {
                 <TouchableOpacity onPress={() => nav.goBack()} hitSlop={12} style={s.back} accessibilityLabel="Back">
                     <Ionicons name="chevron-back" size={24} color={INK} />
                 </TouchableOpacity>
-                <Text style={s.topTitle}>The Ascension</Text>
+                <Text style={s.topTitle}>Olympus</Text>
                 <View style={{ width: 32 }} />
             </View>
 

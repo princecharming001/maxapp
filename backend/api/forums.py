@@ -8,7 +8,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
-from db import get_db, get_rds_db
+from typing import Optional
+from db import get_db, get_rds_db, get_rds_db_optional
 from middleware.auth_middleware import require_paid_user, get_user_by_access_token
 from services.forum_ws import forum_channel_broker
 from models.forum import ChannelCreate, MessageCreate, MessageReportCreate
@@ -96,11 +97,13 @@ async def list_channels(
     limit: int = 200,
     offset: int = 0,
     current_user: dict = Depends(require_paid_user),
-    rds_db: AsyncSession = Depends(get_rds_db),
+    rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
     db: AsyncSession = Depends(get_db),
 ):
     limit = min(max(limit, 1), 500)
     offset = max(offset, 0)
+    if rds_db is None:  # shared DB unconfigured/unreachable → no channels, not a 500
+        return {"forums": [], "total": 0, "limit": limit, "offset": offset}
 
     if maxx_id:
         # Creator-maxx channels: members-only. Gate BEFORE listing — the list

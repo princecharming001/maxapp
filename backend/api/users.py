@@ -29,7 +29,7 @@ def _as_utc_aware(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-from db import get_db, get_rds_db, best_effort
+from db import get_db, get_rds_db, get_rds_db_optional, best_effort
 from middleware import get_current_user
 from services.storage_service import storage_service, delete_by_url
 from models.user import (
@@ -1854,7 +1854,7 @@ async def delete_my_account(
     body: DeleteAccountRequest,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    rds_db: AsyncSession = Depends(get_rds_db),
+    rds_db: Optional[AsyncSession] = Depends(get_rds_db_optional),
 ):
     """Permanently delete the signed-in account (App Store Guideline 5.1.1)."""
     user_uuid = UUID(current_user["id"])
@@ -1876,17 +1876,29 @@ async def delete_my_account(
         if not verify_password(body.password, user.password_hash):
             raise HTTPException(status_code=400, detail="Incorrect password")
 
-    await rds_db.execute(
-        update(ChannelMessage)
-        .where(ChannelMessage.user_id == user_uuid)
-        .values(
-            content="[deleted]",
-            attachment_url=None,
-            attachment_type=None,
-            reactions={},
-        )
-    )
-    await rds_db.commit()
+    # Scrub the user's community messages in the shared (RDS) database. Best
+    # effort: an unreachable forum database must never make an account
+    # undeletable (App Store 5.1.1(v)) — the account row below is the part
+    # that has to succeed.
+    if rds_db is not None:
+        try:
+            await rds_db.execute(
+                update(ChannelMessage)
+                .where(ChannelMessage.user_id == user_uuid)
+                .values(
+                    content="[deleted]",
+                    attachment_url=None,
+                    attachment_type=None,
+                    reactions={},
+                )
+            )
+            await rds_db.commit()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("delete_my_account: channel message scrub failed (non-fatal): %s", e)
+            try:
+                await rds_db.rollback()
+            except Exception:
+                pass
 
     # Collect every stored image BEFORE the row delete (the FK cascade removes
     # the scan/progress-photo rows that hold the URLs). Face photos of a

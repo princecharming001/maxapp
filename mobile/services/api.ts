@@ -62,7 +62,7 @@ export interface EarnedAchievement {
 
 /** A structured visual emitted by the assistant (rendered natively in chat). */
 export interface VisualBlock {
-    type: 'table' | 'comparison' | 'timeline' | 'flowchart' | 'stat_cards' | 'checklist';
+    type: 'table' | 'comparison' | 'timeline' | 'flowchart' | 'stat_cards' | 'checklist' | 'plan';
     title?: string | null;
     data: Record<string, any>;
 }
@@ -1416,6 +1416,14 @@ class ApiService {
     async getMaxx(maxxId: string) {
         const response = await this.client.get(`maxes/${maxxId}`);
         return response.data;
+    }
+
+    /** Warm Claude's first setup question for an AI program while its page is
+     *  open, so "Start" answers instantly. Fire-and-forget; never throws. */
+    async prefetchProgramIntake(maxxId: string): Promise<void> {
+        try {
+            await this.client.post(`maxes/${encodeURIComponent(maxxId)}/prefetch-intake`);
+        } catch { /* best effort */ }
     }
 
     // Marketplace

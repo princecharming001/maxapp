@@ -540,6 +540,14 @@ async def get_task_guide(
     to the same specific product for a user across every guide (SC5), filtered by
     that user's facts.
     """
+    # A malformed id can't match any schedule — answer "not found" instead of
+    # letting Postgres reject the uuid cast (which surfaced as a 500).
+    try:
+        from uuid import UUID as _UUID
+        _UUID(str(schedule_id))
+    except (ValueError, TypeError):
+        return _error_guide("Schedule not found")
+
     await _ensure_table(db)
 
     # Fetch the schedule and find the task in its days JSON

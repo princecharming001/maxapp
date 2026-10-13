@@ -34,7 +34,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import api, { isCreatorMaxx, type MarketplaceItem } from '../../services/api';
 import { maxMeta, hexA, registerMaxMeta } from '../../utils/scheduleAggregation';
-import { maxxThumb, maxxThumbCut } from '../../data/maxxThumbs';
+import { maxxThumbCut } from '../../data/maxxThumbs';
 import { useFlag } from '../../constants/featureFlags';
 import { usePersonalization } from '../../hooks/usePersonalization';
 import { useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
@@ -83,7 +83,9 @@ const GOLD = '#000000';         // neutral fallback for image-less posters
 const SERIF = 'Fraunces';
 const SERIF_I = 'Fraunces-Italic';
 const GUTTER = 22;
-const THUMB_BG = '#EFEFEF';     // matches the generated thumbnail backdrops
+// One soft tone for every program tile (image + label). The art is a
+// transparent glass cutout, so nothing boxes it off from the tile or page.
+const THUMB_BG = '#F7F7F5';
 
 // Glossy 3D glass thumbnails for the native programs (shared map — see
 // data/maxxThumbs.ts). Opaque for poster tiles; the background-removed cut is
@@ -91,7 +93,7 @@ const THUMB_BG = '#EFEFEF';     // matches the generated thumbnail backdrops
 // the text (no backdrop seam).
 function nativeThumb(item: MarketplaceItem): any | null {
     if (!item.native) return null;
-    return maxxThumb(item.id);
+    return maxxThumbCut(item.id);
 }
 function nativeThumbCut(item: MarketplaceItem): any | null {
     if (!item.native) return null;
@@ -675,7 +677,7 @@ export default function MarketplaceScreen() {
 /** My Maxxes row card — onboarded max with today's progress + a Tune entry (SC5/SC4). */
 function MyMaxCard({ mx, onPress, onTune }: { mx: MyMax; onPress: () => void; onTune: () => void }) {
     const meta = maxMeta(mx.maxxId);
-    const thumb = maxxThumb(mx.maxxId);
+    const thumb = maxxThumbCut(mx.maxxId);
     const allDone = mx.todayCount > 0 && mx.todayDone >= mx.todayCount;
     const progress = mx.todayCount === 0
         ? 'No tasks today'
@@ -691,7 +693,7 @@ function MyMaxCard({ mx, onPress, onTune }: { mx: MyMax; onPress: () => void; on
         >
             <View style={[styles.myThumb, { backgroundColor: thumb ? THUMB_BG : meta.color + '22' }]}>
                 {thumb ? (
-                    <Image source={thumb} style={styles.myThumbImg} contentFit="cover" />
+                    <Image source={thumb} style={styles.myThumbImg} contentFit="contain" />
                 ) : (
                     <Ionicons name={meta.icon as any} size={24} color={meta.color} />
                 )}
@@ -764,12 +766,6 @@ function FeatureCard({ item, width, onPress }: { item: MarketplaceItem; width: n
     if (thumb) {
         return (
             <TouchableOpacity style={[styles.featureNative, { width }]} activeOpacity={0.85} onPress={onPress} testID={`explore-card-${item.id}`}>
-                <LinearGradient
-                    colors={['#D8D9DB', '#E1E1E3', '#ECECEE']}
-                    locations={[0, 0.5, 1]}
-                    style={StyleSheet.absoluteFill}
-                    pointerEvents="none"
-                />
                 <Image source={nativeThumbCut(item) || thumb} style={styles.featureNativeImg} contentFit="contain" transition={200} />
                 <View style={styles.featureNativeBody}>
                     <Text style={styles.nativeTitle} numberOfLines={1}>{item.title}</Text>
@@ -801,7 +797,7 @@ function GridCard({ item, width, onPress }: { item: MarketplaceItem; width: numb
     if (thumb) {
         return (
             <TouchableOpacity style={[styles.gridCardNative, { width }]} activeOpacity={0.85} onPress={onPress} testID={`explore-card-${item.id}`}>
-                <Image source={thumb} style={styles.gridNativeImg} contentFit="cover" transition={200} />
+                <Image source={thumb} style={styles.gridNativeImg} contentFit="contain" transition={200} />
                 <View style={styles.gridNativeBody}>
                     <Text style={styles.gridNativeTitle} numberOfLines={1}>{item.title}</Text>
                     <Text style={styles.gridNativeSub} numberOfLines={1}>{item.price_label}</Text>
@@ -883,7 +879,7 @@ const styles = StyleSheet.create({
         borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
     },
     myThumb: { width: 56, height: 56, borderRadius: 13, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-    myThumbImg: { width: '100%', height: '100%' },
+    myThumbImg: { width: '86%', height: '86%' },
     myTitle: { fontFamily: SERIF, fontSize: 19, color: INK, letterSpacing: -0.3 },
     mySub: { fontFamily: 'Matter-Regular', fontSize: 13, color: SUB, marginTop: 3 },
     tuneBtn: {
@@ -934,7 +930,7 @@ const styles = StyleSheet.create({
         height: 208, borderRadius: 18, overflow: 'hidden', backgroundColor: THUMB_BG,
         borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
     },
-    gridNativeImg: { width: '100%', height: 148, backgroundColor: THUMB_BG },
+    gridNativeImg: { width: '76%', height: 132, marginTop: 12, alignSelf: 'center', backgroundColor: 'transparent' },
     gridNativeBody: { flex: 1, paddingHorizontal: 14, paddingTop: 9 },
     gridNativeTitle: { fontFamily: SERIF, fontSize: 19, color: INK, letterSpacing: -0.3 },
     gridNativeSub: { fontFamily: 'Matter-Medium', fontSize: 12.5, color: SUB, marginTop: 2 },
