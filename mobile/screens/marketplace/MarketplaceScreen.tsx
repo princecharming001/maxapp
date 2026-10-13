@@ -83,6 +83,8 @@ const GOLD = '#000000';         // neutral fallback for image-less posters
 const SERIF = 'Fraunces';
 const SERIF_I = 'Fraunces-Italic';
 const GUTTER = 22;
+// Shown first in the "New" carousel.
+const NEWEST_PROGRAMS = ['suppmax', 'peptidemax'];
 // One soft tone for every program tile (image + label). The art is a
 // transparent glass cutout, so nothing boxes it off from the tile or page.
 const THUMB_BG = '#F7F7F5';
@@ -411,7 +413,12 @@ export default function MarketplaceScreen() {
                 : baseCombined,
         [personalizedUI, goalIds, baseCombined],
     );
-    const suggested = useMemo(() => combined.slice(0, 5), [combined]);
+    // The newest programs lead the "New" carousel, then the rest in order.
+    const suggested = useMemo(() => {
+        const fresh = combined.filter((it) => NEWEST_PROGRAMS.includes(String(it.id)));
+        const rest = combined.filter((it) => !NEWEST_PROGRAMS.includes(String(it.id)));
+        return [...fresh, ...rest].slice(0, 5);
+    }, [combined]);
     // Creator tab with NO live creators keeps the "coming soon" block as its
     // genuine empty state (below) — the search empty-message only applies once
     // creator cards actually exist.

@@ -87,9 +87,31 @@ AI_PROGRAMS: dict[str, dict[str, str]] = {
         "description": "Zone-2 cardio, strength twice a week, daily steps and the basics done consistently.",
         "icon": "infinite-outline", "color": "#7A5CC7",
     },
+    "suppmax": {
+        "label": "Suppmax", "goal": "", "doc": "suppmax.md",
+        "tagline": "supplements that match your stack",
+        "description": "The few supplements worth taking for your goals, timed around your day and kept in sync with your other programs.",
+        "icon": "medical-outline", "color": "#0E9AA7",
+    },
+    "peptidemax": {
+        "label": "Peptidemax", "goal": "", "doc": "peptidemax.md",
+        "tagline": "your peptide protocol, organized",
+        "description": "Dose reminders, site rotation, storage, side-effect logs and check-ins for the protocol your clinician set.",
+        "icon": "flask-outline", "color": "#6C63FF",
+    },
 }
 
-GOAL_TO_PROGRAM = {v["goal"]: k for k, v in AI_PROGRAMS.items()}
+# Onboarding goals map to the habit programs only; Suppmax / Peptidemax are
+# added from Explore.
+GOAL_TO_PROGRAM = {v["goal"]: k for k, v in AI_PROGRAMS.items() if v["goal"]}
+
+# Suppmax mirrors the user's other programs: each active program brings its
+# "primary" supplement in, and removing the program takes it back out (unless
+# the user chose that supplement for their own goal). Peptidemax never syncs:
+# getting peptides is its own process, so it only ever tracks what the user has.
+SUPP_PROGRAM = "suppmax"
+PEPTIDE_PROGRAM = "peptidemax"
+NO_SYNC_PROGRAMS = (SUPP_PROGRAM, PEPTIDE_PROGRAM)
 
 # The retired looks programs. Their docs stay loaded (old rows + tests), but
 # they are hidden from Explore, /api/maxes and new starts.
@@ -123,6 +145,12 @@ class Habit:
     tier: str
     why: str
     how: str
+    # Suppmax only: the programs this supplement serves, the one program it is
+    # the default pick for, and plain contraindication keywords.
+    programs: list[str] = field(default_factory=list)
+    primary_for: str = ""
+    avoid: list[str] = field(default_factory=list)
+    timing: str = ""
 
 
 @dataclass
@@ -188,6 +216,17 @@ def parse_program_doc(maxx_id: str, text: str) -> ProgramDoc:
             h.why = val
         elif key == "how":
             h.how = val
+        elif key == "programs":
+            h.programs = [x.strip().lower() for x in val.split(",")
+                          if x.strip() and x.strip().lower() != "none"]
+        elif key == "primary for":
+            v = val.split(",")[0].strip().lower()
+            h.primary_for = "" if v in ("", "none") else v
+        elif key == "avoid if":
+            h.avoid = [x.strip().lower() for x in val.split(",")
+                       if x.strip() and x.strip().lower() != "none"]
+        elif key == "timing":
+            h.timing = val
     if cur:
         habits.append(cur["h"])
     return ProgramDoc(maxx_id=maxx_id, text=text, habits=habits)
@@ -307,6 +346,36 @@ _SAFETY = (
     "check with a professional (for self-harm: US 988, UK Samaritans 116 123)."
 )
 
+_SUPP_SAFETY = (
+    "Safety rules (never break): this is the supplement program. Only schedule supplements from the "
+    "library. Never go above the label serving; describe amounts only as 'the serving on your label' "
+    "plus the doc's dose note as information. Respect every 'avoid if' against the user's answers: if "
+    "they are pregnant or breastfeeding, on blood thinners, antidepressants, blood pressure, thyroid or "
+    "diabetes medication, or have kidney or liver disease, leave out anything flagged for that and tell "
+    "them to ask their doctor or pharmacist. Never add iron without bloodwork showing it is low. No "
+    "stimulant stacking. Never claim a supplement treats, cures or prevents a disease. For self-harm: "
+    "US 988, UK Samaritans 116 123."
+)
+
+_PEPTIDE_SAFETY = (
+    "Safety rules (never break): this program organizes a peptide protocol the user ALREADY has. "
+    "Never recommend a peptide, never suggest, calculate or change a dose, never explain how or where to "
+    "get peptides. Schedule only peptides the user named, at the frequency and with the instructions "
+    "they said their prescriber or clinic gave, in their own words. If they are self-sourcing or unsure "
+    "of their protocol, still organize tracking, but add a 'confirm your protocol with a clinician' "
+    "task and say why plainly. Point to emergency care for severe abdominal pain, allergic reactions "
+    "or an infected injection site. No outcome promises. For self-harm: US 988, UK Samaritans 116 123."
+)
+
+
+def _safety(maxx_id: str) -> str:
+    if maxx_id == SUPP_PROGRAM:
+        return _SUPP_SAFETY
+    if maxx_id == PEPTIDE_PROGRAM:
+        return _PEPTIDE_SAFETY
+    return _SAFETY
+
+
 _VOICE = (
     "Voice: Superpower, a calm, direct coach for busy people. Lowercase, short, "
     "texting style, no emoji, no em dashes, no hype."
@@ -376,7 +445,7 @@ async def next_intake_step(maxx_id: str, profile: dict, answers: dict, asked: li
     system = (
         f"You set up the {program_label(maxx_id)} program inside the Superpower app. "
         "You ask the fewest questions needed to personalize it, then stop.\n"
-        f"{_VOICE}\n{_SAFETY}\n\n"
+        f"{_VOICE}\n{_safety(maxx_id)}\n\n"
         "Rules for intake:\n"
         "- The user's day (wake, bed, work hours, commute, meals, workout time) and their "
         "minutes-per-day budget are already known. Never ask about those.\n"
@@ -464,6 +533,7 @@ async def build_plan(
     *,
     current_plan: Optional[dict] = None,
     request: Optional[str] = None,
+    sync_required: Optional[list[str]] = None,
 ) -> Optional[dict]:
     """Claude builds (or rebuilds) the weekly template. Returns the validated
     template dict, or None if Claude was unavailable / produced nothing usable."""
@@ -476,7 +546,7 @@ async def build_plan(
     system = (
         f"You are the planner for the {program_label(maxx_id)} program in the Superpower app. "
         "You build a weekly plan of small habits that fits into this specific person's real day.\n"
-        f"{_VOICE}\n{_SAFETY}\n\n"
+        f"{_VOICE}\n{_safety(maxx_id)}\n\n"
         "Planning rules:\n"
         "- Only use habits from the habit library below (use their exact ids). A custom_<slug> habit is "
         "allowed only when the user explicitly asked for that habit.\n"
@@ -495,7 +565,8 @@ async def build_plan(
         "- Weekends: if the user shifts later on weekends, set weekend_time accordingly.\n"
         "- Use the user's answers to tailor which habits, how, and when. Tailor the 'how' text to them.\n"
         "- If this is a redo, start from the current plan and change what the request asks for, keeping "
-        "the rest stable.\n\n"
+        "the rest stable.\n"
+        + _program_rules(maxx_id, sync_required) + "\n"
         "Program research doc:\n" + pd.text
     )
     user = json.dumps({
@@ -519,6 +590,30 @@ async def build_plan(
         logger.warning("ai_programs: plan for %s had no valid habits", maxx_id)
         return None
     return tmpl
+
+
+def _program_rules(maxx_id: str, sync_required: Optional[list[str]]) -> str:
+    if maxx_id == SUPP_PROGRAM:
+        req = ", ".join(sync_required or []) or "none"
+        return (
+            "- Supplement program: each supplement is a ~1 minute task placed by its timing rule (with a "
+            "meal, before bed, around training). Group items taken together at the same meal 5 minutes "
+            "apart rather than spreading reminders across the day.\n"
+            f"- Synced from the user's other programs (include these unless an 'avoid if' matches their "
+            f"answers): {req}.\n"
+            "- Then add at most 1-3 more for the user's own goals from their answers. Week 1 holds no more "
+            "than 5 supplements in total. Skip anything they said they already take elsewhere.\n"
+        )
+    if maxx_id == PEPTIDE_PROGRAM:
+        return (
+            "- Peptide program: for EACH peptide the user named, add one dose reminder with habit_id "
+            "custom_dose_<slug> (e.g. custom_dose_semaglutide), title '<name> dose', 'how' = the "
+            "instructions they said their prescriber gave, in their words, never a dose you chose, and "
+            "days matching their stated frequency. Add the library's support habits that fit (site "
+            "rotation, storage check, side-effect log, weekly review, bloodwork/prescriber check-in). "
+            "Never add a peptide they did not name.\n"
+        )
+    return ""
 
 
 def validate_template(maxx_id: str, raw: dict, profile: dict) -> dict:
@@ -685,6 +780,247 @@ async def active_ai_plan(user_id: str, maxx_id: str, db):
     return res.scalars().first()
 
 
+# ── Suppmax sync ────────────────────────────────────────────────────────────
+# Each Suppmax habit carries `linked_to` (the active programs it is there for)
+# and `keep` (the user chose it for their own goal / asked for it). A synced
+# supplement leaves when every program it is linked to is gone; a kept one
+# stays. `declined` on the template holds synced picks the user removed, so a
+# later sync never forces them back.
+
+_NO_ANSWERS = re.compile(r"^\s*(no|none|nope|n/?a|not really|nothing|prefer not to say)\b", re.IGNORECASE)
+_AVOID_SYNONYMS = {
+    "blood thinners": ("thinner", "warfarin", "anticoag", "eliquis", "xarelto", "apixaban", "blood thin"),
+    "ssris": ("ssri", "antidepress", "sertraline", "fluoxetine", "lexapro", "zoloft", "prozac"),
+    "antidepressants": ("ssri", "antidepress", "sertraline", "fluoxetine", "lexapro", "zoloft", "prozac"),
+    "blood pressure meds": ("blood pressure", "hypertens", "lisinopril", "amlodipine"),
+    "pregnancy": ("pregnan", "trying to conceive"),
+    "breastfeeding": ("breastfeed", "nursing"),
+}
+
+
+def _answers_text(answers: dict) -> str:
+    vals = []
+    for v in (answers or {}).values():
+        t = str(v or "").strip().lower()
+        if t and not _NO_ANSWERS.match(t):
+            vals.append(t)
+    return " | ".join(vals)
+
+
+def _contraindicated(h: "Habit", answers_text: str) -> bool:
+    if not answers_text:
+        return False
+    for k in h.avoid:
+        first = k.split()[0][:6] if k.split() else ""
+        stems = _AVOID_SYNONYMS.get(k) or ((k, first) if len(first) >= 4 else (k,))
+        if any(st and st in answers_text for st in stems):
+            return True
+    return False
+
+
+def required_supplements(active: set[str], answers: dict, declined: set[str], present: set[str]) -> list["Habit"]:
+    """The primary supplement for each active program that isn't covered yet,
+    minus anything declined or contraindicated by the user's answers."""
+    pd = get_program_doc(SUPP_PROGRAM)
+    if pd is None:
+        return []
+    atext = _answers_text(answers)
+    covered = {p for hid in present for p in ((pd.habit(hid).programs if pd.habit(hid) else []) or [])}
+    out: list[Habit] = []
+    for mid in AI_PROGRAMS:
+        if mid not in active or mid in covered or mid in NO_SYNC_PROGRAMS:
+            continue
+        cand = next((h for h in pd.habits if h.primary_for == mid), None)
+        if cand is None or cand.id in declined or cand.id in present or _contraindicated(cand, atext):
+            continue
+        if cand.id not in {h.id for h in out}:
+            out.append(cand)
+    return out
+
+
+def _default_supp_time(h: "Habit", profile: dict) -> str:
+    t = f"{h.timing} {h.anchor}".lower()
+    wake = _to_min(_hm(profile.get("wake_time"), "07:00"))
+    bed = _to_min(_hm(profile.get("bed_time"), "23:00"))
+    meals = profile.get("meals") or {}
+    if "bed" in t or "night" in t or "sleep" in t:
+        return _from_min((bed if bed > wake else bed + 1440) - 45)
+    if "workout" in t or "training" in t or "exercise" in t:
+        return _hm(profile.get("workout_time"), _from_min(wake + 30))
+    if "dinner" in t or "evening" in t:
+        return _hm(meals.get("dinner"), "19:00")
+    if "lunch" in t:
+        return _hm(meals.get("lunch"), "12:30")
+    return _hm(meals.get("breakfast"), _from_min(wake + 30))
+
+
+def _insert_supps(tmpl: dict, habits: list["Habit"], profile: dict) -> None:
+    for h in habits:
+        tmpl.setdefault("habits", []).append({
+            "habit_id": h.id, "title": h.title[:40], "how": (h.how or "")[:400], "why": (h.why or "")[:200],
+            "minutes": 1, "time": _default_supp_time(h, profile), "weekend_time": "", "days": list(WEEKDAYS),
+        })
+
+
+def _tag_supp_links(tmpl: dict, active: set[str], prev: Optional[dict] = None, *, user_requested: bool = False) -> None:
+    pd = get_program_doc(SUPP_PROGRAM)
+    before = {h.get("habit_id"): h for h in ((prev or {}).get("habits") or [])}
+    for h in tmpl.get("habits") or []:
+        lib = pd.habit(h.get("habit_id")) if pd else None
+        linked = sorted(set(lib.programs if lib else []) & active)
+        old = before.get(h.get("habit_id"))
+        h["linked_to"] = linked
+        h["keep"] = bool(old.get("keep")) if old else (user_requested or not linked)
+    tmpl["declined"] = sorted(set((prev or {}).get("declined") or []) | set(tmpl.get("declined") or []))
+
+
+def _finalize_supp(tmpl: dict, profile: dict, answers: dict, active: set[str],
+                   prev: Optional[dict] = None, *, user_requested: bool = False, enforce: bool = True) -> dict:
+    """Make the synced picks deterministic (Claude places them; this only fills
+    a gap if Claude dropped one), then tag links."""
+    declined = set((prev or {}).get("declined") or []) | set(tmpl.get("declined") or [])
+    if enforce:
+        present = {h.get("habit_id") for h in tmpl.get("habits") or []}
+        missing = required_supplements(active, answers, declined, present)
+        if missing:
+            _insert_supps(tmpl, missing, profile)
+            keep_extra = {k: tmpl.get(k) for k in ("answers", "declined") if k in tmpl}
+            tmpl = {**validate_template(SUPP_PROGRAM, tmpl, profile), "summary": tmpl.get("summary") or "", **keep_extra}
+    tmpl["declined"] = sorted(declined)
+    _tag_supp_links(tmpl, active, prev, user_requested=user_requested)
+    return tmpl
+
+
+async def _active_program_ids(user_id: str, db) -> set[str]:
+    from sqlalchemy import select
+    from models.sqlalchemy_models import UserSchedule
+    res = await db.execute(
+        select(UserSchedule.maxx_id).where(
+            (UserSchedule.user_id == UUID(user_id)) & (UserSchedule.is_active.is_(True))
+        )
+    )
+    return {m for (m,) in res.all() if is_ai_program(m)}
+
+
+async def preview_supp_adds(user_id: str, db, *, with_program: Optional[str] = None) -> list[str]:
+    """Titles the next sync will add (for the chat reply), without writing."""
+    sched = await active_ai_plan(user_id, SUPP_PROGRAM, db)
+    if sched is None:
+        return []
+    tmpl = (sched.schedule_context or {}).get("ai_plan") or {}
+    active = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
+    if with_program:
+        active.add(with_program)
+    present = {h.get("habit_id") for h in tmpl.get("habits") or []}
+    adds = required_supplements(active, tmpl.get("answers") or {}, set(tmpl.get("declined") or []), present)
+    return [h.title for h in adds]
+
+
+async def sync_supplements(user_id: str, db) -> Optional[dict]:
+    """Bring Suppmax in line with the user's active programs. Removals are
+    applied directly; additions go through Claude so they are placed around the
+    real day (deterministic placement if Claude is unavailable). Returns
+    {"added": [...], "removed": [...]} or None when nothing changed."""
+    from sqlalchemy.orm.attributes import flag_modified
+    sched = await active_ai_plan(user_id, SUPP_PROGRAM, db)
+    if sched is None:
+        return None
+    sctx = dict(sched.schedule_context or {})
+    prev = sctx.get("ai_plan") or {}
+    active = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
+    answers = prev.get("answers") or {}
+    declined = set(prev.get("declined") or [])
+
+    kept, removed = [], []
+    for h in prev.get("habits") or []:
+        linked = set(h.get("linked_to") or [])
+        if linked and not (linked & active) and not h.get("keep"):
+            removed.append(h)
+        else:
+            kept.append(dict(h))
+    present = {h.get("habit_id") for h in kept}
+    adds = required_supplements(active, answers, declined, present)
+    relink = any(sorted(set(h.get("linked_to") or []) & active) != sorted(h.get("linked_to") or []) for h in kept)
+    if not removed and not adds and not relink:
+        return None
+
+    _, _, state = await _user_state(user_id, db)
+    profile = build_profile(state)
+    base = {**prev, "habits": kept}
+    tmpl: Optional[dict] = None
+    if adds:
+        others = await other_program_plans(user_id, db, except_maxx=SUPP_PROGRAM)
+        labels = ", ".join(sorted({program_label(h.primary_for) for h in adds}))
+        tmpl = await build_plan(
+            SUPP_PROGRAM, profile, answers, others,
+            current_plan={"summary": prev.get("summary"), "habits": kept},
+            request=(f"sync: the user now runs {labels}. add {', '.join(h.id for h in adds)} at the right "
+                     "time for each and keep every other supplement exactly as it is."),
+            sync_required=[h.id for h in adds],
+        )
+    if tmpl is None:
+        tmpl = dict(base)
+    # A sync only places the additions; it never slips in new picks.
+    allowed = present | {h.id for h in adds}
+    tmpl["habits"] = [h for h in tmpl.get("habits") or [] if h.get("habit_id") in allowed]
+    tmpl["answers"] = answers
+    tmpl["summary"] = tmpl.get("summary") or prev.get("summary") or ""
+    tmpl["declined"] = sorted(declined)
+    # Claude only places the additions: never let a sync silently drop a kept one.
+    have = {h.get("habit_id") for h in tmpl.get("habits") or []}
+    for h in kept:
+        if h.get("habit_id") not in have:
+            tmpl.setdefault("habits", []).append({k: v for k, v in h.items() if k not in ("linked_to", "keep")})
+    tmpl = _finalize_supp(tmpl, profile, answers, active, prev={**prev, "habits": kept})
+
+    sctx["ai_plan"] = tmpl
+    sctx["summary"] = tmpl.get("summary")
+    sched.schedule_context = sctx
+    flag_modified(sched, "schedule_context")
+    await db.flush()
+    from services.schedule_runtime import regenerate_active_schedules
+    await regenerate_active_schedules(user_id=user_id, db=db, only_max=SUPP_PROGRAM, reason="supp_sync")
+    await db.commit()
+    out = {"added": [h.title for h in adds], "removed": [h.get("title") for h in removed]}
+    logger.info("ai_programs: suppmax sync for %s: %s", user_id[:8], out)
+    return out
+
+
+_SYNC_TASKS: dict[str, "asyncio.Task"] = {}
+
+
+def kick_supp_sync(user_id: str) -> None:
+    """Run sync_supplements in the background on its own session (the caller's
+    request returns right away). Coalesces: one sync per user at a time."""
+    uid = str(user_id)
+
+    async def _run():
+        try:
+            from db.sqlalchemy import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                await sync_supplements(uid, db)
+        except Exception:
+            logger.exception("ai_programs: suppmax sync failed for %s", uid[:8])
+        finally:
+            _SYNC_TASKS.pop(uid, None)
+
+    prev = _SYNC_TASKS.get(uid)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    async def _chain():
+        if prev is not None and not prev.done():
+            try:
+                await prev
+            except Exception:
+                pass
+        await _run()
+
+    _SYNC_TASKS[uid] = loop.create_task(_chain())
+
+
 async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: dict) -> Optional[dict]:
     """Build the first plan for a program and persist it as a UserSchedule.
     Returns {"schedule_id", "template"} or None if the planner failed."""
@@ -702,7 +1038,20 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
         return None
     profile = build_profile(state)
     others = await other_program_plans(user_id, db, except_maxx=maxx_id)
-    tmpl = await build_plan(maxx_id, profile, answers, others)
+    sync_required = None
+    if maxx_id == SUPP_PROGRAM:
+        active_now = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
+        sync_required = [h.id for h in required_supplements(active_now, answers, set(), set())]
+    tmpl = await build_plan(maxx_id, profile, answers, others, sync_required=sync_required)
+    if tmpl is not None and maxx_id == SUPP_PROGRAM:
+        tmpl["answers"] = answers
+        tmpl = _finalize_supp(tmpl, profile, answers, active_now)
+    supp_preview: list[str] = []
+    if tmpl is not None and maxx_id not in NO_SYNC_PROGRAMS:
+        try:
+            supp_preview = await preview_supp_adds(user_id, db, with_program=maxx_id)
+        except Exception:
+            logger.warning("ai_programs: suppmax preview failed (non-fatal)")
     # A typed "start sleepmax" never passed through Explore; record the
     # program as entered so Explore shows it as on the user's stack.
     entered = list(onboarding.get("entered_maxxes") or [])
@@ -767,7 +1116,9 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
         kick_gcal_mirror(user_id)
     except Exception:
         pass
-    return {"schedule_id": str(row.id), "template": tmpl}
+    if maxx_id not in NO_SYNC_PROGRAMS:
+        kick_supp_sync(user_id)
+    return {"schedule_id": str(row.id), "template": tmpl, "supp_added": supp_preview}
 
 
 async def redo_program_plan(user_id: str, maxx_id: str, request: str, db) -> Optional[dict]:
@@ -788,6 +1139,15 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db) -> Opt
     if tmpl is None:
         return None
     tmpl["answers"] = current.get("answers") or {}
+    if maxx_id == SUPP_PROGRAM:
+        # A synced pick the user just asked to drop stays dropped on later syncs.
+        new_ids = {h.get("habit_id") for h in tmpl.get("habits") or []}
+        dropped = {h.get("habit_id") for h in current.get("habits") or []
+                   if h.get("linked_to") and h.get("habit_id") not in new_ids}
+        tmpl["declined"] = sorted(set(current.get("declined") or []) | dropped)
+        active = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
+        tmpl = _finalize_supp(tmpl, profile, tmpl["answers"], active, prev=current,
+                              user_requested=True, enforce=False)
     history = list(sctx.get("ai_plan_history") or [])[-4:]
     history.append({"at": datetime.utcnow().isoformat(), "request": request[:300]})
     sctx["ai_plan"] = tmpl
@@ -934,12 +1294,15 @@ def plan_block(maxx_id: str, tmpl: dict, *, note: str = "") -> str:
     return "[VISUAL_BLOCK]" + json.dumps(block, separators=(",", ":")) + "[/VISUAL_BLOCK]"
 
 
-def plan_reply(maxx_id: str, tmpl: dict, *, redo: bool = False, include_summary: bool = True) -> str:
+def plan_reply(maxx_id: str, tmpl: dict, *, redo: bool = False, include_summary: bool = True,
+               note: str = "") -> str:
     """The chat message that presents a plan and invites changes."""
     parts = []
     summary = (tmpl.get("summary") or "").strip()
     if summary and include_summary:
         parts.append(summary)
+    if note:
+        parts.append(note)
     parts.append(plan_block(
         maxx_id, tmpl,
         note="Updated on your Home and Planner" if redo else "Added to your Home and Planner",
@@ -979,6 +1342,10 @@ def detect_program_start(text: str) -> Optional[str]:
                  meta["label"].lower().replace("max", " max")}
         if mid == "skinhairmax":
             names |= {"skin and hair", "skin & hair", "skinhair"}
+        if mid == SUPP_PROGRAM:
+            names |= {"supplement max", "supplementmax", "supplements max"}
+        if mid == PEPTIDE_PROGRAM:
+            names |= {"peptide max", "peptides max", "pepmax"}
         if any(re.search(rf"\b{re.escape(n)}\b", t) for n in names):
             return mid
     return None
@@ -1115,4 +1482,8 @@ async def chat_turn(
         flag_modified(sched, "schedule_context")
         await db.commit()
     lead = (step["ack"].rstrip() + "\n\n") if step.get("ack") and not is_opener else ""
-    return lead + plan_reply(mid, built["template"]), AFTER_PLAN_CHOICES, False
+    note = ""
+    if built.get("supp_added"):
+        names = " and ".join(t.lower() for t in built["supp_added"])
+        note = f"since you run suppmax, i'm adding {names} to that plan too."
+    return lead + plan_reply(mid, built["template"], note=note), AFTER_PLAN_CHOICES, False

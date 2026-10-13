@@ -26,6 +26,8 @@ const GOAL_LABELS: Record<string, string> = {
     trainmax: 'Fitmax',
     skinhairmax: 'Skin & Hair',
     longevitymax: 'Longevitymax',
+    suppmax: 'Suppmax',
+    peptidemax: 'Peptidemax',
     // Legacy looks programs.
     skinmax: 'Skinmax',
     fitmax: 'Fitmax',

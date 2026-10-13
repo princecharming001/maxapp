@@ -61,7 +61,8 @@ export type CourseModule = {
     maxxId:
         | 'skinmax' | 'hairmax' | 'fitmax' | 'bonemax' | 'heightmax' | 'coloringmax'
         // AI biohacking programs (biohack pivot).
-        | 'sleepmax' | 'energymax' | 'focusmax' | 'calmmax' | 'trainmax' | 'skinhairmax' | 'longevitymax';
+        | 'sleepmax' | 'energymax' | 'focusmax' | 'calmmax' | 'trainmax' | 'skinhairmax' | 'longevitymax'
+        | 'suppmax' | 'peptidemax';
     /** Creator-course display title (used when there is no API maxx row). */
     title?: string;
     /** Creator-course one-line description for the header. */
@@ -98,6 +99,8 @@ import { CALMMAX_COURSE } from './courses/calmmax';
 import { TRAINMAX_COURSE } from './courses/trainmax';
 import { SKINHAIRMAX_COURSE } from './courses/skinhairmax';
 import { LONGEVITYMAX_COURSE } from './courses/longevitymax';
+import { SUPPMAX_COURSE } from './courses/suppmax';
+import { PEPTIDEMAX_COURSE } from './courses/peptidemax';
 
 const COURSES: Record<string, CourseModule> = {
     skinmax: SKINMAX_COURSE,
@@ -115,6 +118,8 @@ const COURSES: Record<string, CourseModule> = {
     trainmax: TRAINMAX_COURSE,
     skinhairmax: SKINHAIRMAX_COURSE,
     longevitymax: LONGEVITYMAX_COURSE,
+    suppmax: SUPPMAX_COURSE,
+    peptidemax: PEPTIDEMAX_COURSE,
 };
 
 /** True when this course is creator-authored rather than a native maxx. */
@@ -150,5 +155,5 @@ export function flattenSections(course: CourseModule): Array<{
 export {
     SKINMAX_COURSE, HAIRMAX_COURSE, FITMAX_COURSE, BONEMAX_COURSE, HEIGHTMAX_COURSE, COLORINGMAX_COURSE,
     SLEEPMAX_COURSE, ENERGYMAX_COURSE, FOCUSMAX_COURSE, CALMMAX_COURSE, TRAINMAX_COURSE,
-    SKINHAIRMAX_COURSE, LONGEVITYMAX_COURSE,
+    SKINHAIRMAX_COURSE, LONGEVITYMAX_COURSE, SUPPMAX_COURSE, PEPTIDEMAX_COURSE,
 };

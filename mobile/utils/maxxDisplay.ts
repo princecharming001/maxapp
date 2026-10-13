@@ -26,6 +26,10 @@ export const BIOHACK_PROGRAMS: BiohackProgram[] = [
     { id: 'trainmax', label: 'Fitmax', tagline: 'move more, recover better', icon: 'barbell-outline', color: '#D9534F' },
     { id: 'skinhairmax', label: 'Skin & Hair', tagline: 'simple daily care that adds up', icon: 'water-outline', color: '#C77DBA' },
     { id: 'longevitymax', label: 'Longevitymax', tagline: 'the habits that compound', icon: 'infinite-outline', color: '#7A5CC7' },
+    // Stack add-ons: Suppmax stays in sync with the programs above; Peptidemax
+    // only organizes a protocol the user already has (never synced).
+    { id: 'suppmax', label: 'Suppmax', tagline: 'supplements that match your stack', icon: 'medical-outline', color: '#0E9AA7' },
+    { id: 'peptidemax', label: 'Peptidemax', tagline: 'your peptide protocol, organized', icon: 'flask-outline', color: '#6C63FF' },
 ];
 
 export const BIOHACK_PROGRAM_BY_ID: Record<string, BiohackProgram> = Object.fromEntries(

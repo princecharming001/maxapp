@@ -525,6 +525,8 @@ export default function MaxDetailScreen() {
         trainmax: 'Workouts, daily movement and recovery that fit your week, whether you have twenty minutes or an hour.',
         skinhairmax: 'A simple morning and evening care routine for skin and hair, kept short enough to stick.',
         longevitymax: 'The basics that compound over years: sleep, movement, daylight, good food and connection, built into your routine.',
+        suppmax: 'The few supplements with real evidence for your goals, each timed right around your day. It stays in sync with your other programs: add Sleepmax and its sleep pick joins, stop it and that pick comes off.',
+        peptidemax: 'For the protocol your clinician already set. Dose reminders in your own words, site rotation, storage checks, a side-effect log and bloodwork follow-ups. It never picks peptides or doses for you.',
     };
     const maxBlurb = PROGRAM_BLURB[String(item.id || '').toLowerCase()] || d.long_description || item.tagline || '';
     // Price anchor — a weekly sub framed per day reads far smaller than "/wk".

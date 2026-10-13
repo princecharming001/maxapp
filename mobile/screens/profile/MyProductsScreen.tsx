@@ -54,6 +54,8 @@ const MODULE_LABEL: Record<string, string> = {
     trainmax: 'Fitness',
     skinhairmax: 'Skin & Hair',
     longevitymax: 'Longevity',
+    suppmax: 'Supplements',
+    peptidemax: 'Peptides',
     // Legacy looks programs.
     skinmax: 'Skin',
     hairmax: 'Hair',

@@ -333,6 +333,16 @@ Each day should have **at least 3–5 tasks** (more for full-stack modules). The
 """
 
 
+def _kick_supp_sync_for(user_id: str, maxx_id) -> None:
+    """Stopping a program can take its synced supplement off Suppmax."""
+    try:
+        from services.ai_programs import NO_SYNC_PROGRAMS, is_ai_program, kick_supp_sync
+        if is_ai_program(maxx_id) and maxx_id not in NO_SYNC_PROGRAMS:
+            kick_supp_sync(str(user_id))
+    except Exception:
+        logger.warning("suppmax sync kick failed (non-fatal)")
+
+
 class ScheduleService:
     """AI-powered schedule generation and management"""
 
@@ -414,6 +424,7 @@ class ScheduleService:
             kick_gcal_mirror(user_id)
         except Exception:
             pass
+        _kick_supp_sync_for(user_id, getattr(schedule, "maxx_id", None))
         label = getattr(schedule, "maxx_id", None) or getattr(schedule, "course_title", None) or "schedule"
         return {"status": "stopped", "label": label}
 
@@ -437,6 +448,7 @@ class ScheduleService:
             kick_gcal_mirror(user_id)
         except Exception:
             pass
+        _kick_supp_sync_for(user_id, maxx_id)
         return {"status": "stopped", "maxx_id": maxx_id}
 
     async def generate_schedule(

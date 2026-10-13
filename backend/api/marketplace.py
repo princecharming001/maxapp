@@ -456,6 +456,14 @@ _MAXX_DETAIL: dict[str, dict[str, Any]] = {
         "long_description": "The basics that compound: easy cardio, strength twice a week, daily steps, vegetables first and steady sleep, plus reminders to keep up your routine checkups.",
         "outcomes": ["Zone-2 cardio that fits your week", "Strength twice a week", "A steps habit that sticks", "Checkup reminders, no medical advice"],
     },
+    "suppmax": {
+        "long_description": "The few supplements with real evidence behind them, timed around your day and kept in sync with the rest of your stack. Run Sleepmax and Suppmax adds its sleep pick; stop Sleepmax and it comes off. Safety questions come first, and nothing goes past the label.",
+        "outcomes": ["Supplements matched to the programs you run", "Each one timed right: with food, before bed, around training", "Interactions and safety checked up front", "Change or drop anything by asking in chat"],
+    },
+    "peptidemax": {
+        "long_description": "For the protocol you already have. Tell Superpower what your clinician prescribed and it organizes the rest: dose reminders in your own words, site rotation, storage and fridge checks, side-effect logs, bloodwork and follow-ups. It never picks peptides or doses for you.",
+        "outcomes": ["Dose reminders on your prescribed schedule", "Site rotation and storage handled", "A side-effect log to bring to your clinician", "Bloodwork and refill check-ins on time"],
+    },
 }
 
 

@@ -22,6 +22,8 @@ export const MAXX_THUMBS: Record<string, any> = {
     trainmax: require('../assets/maxxThumbs/fitmax.png'),
     skinhairmax: require('../assets/maxxThumbs/skinhair.png'),
     longevitymax: require('../assets/maxxThumbs/longevitymax.png'),
+    suppmax: require('../assets/maxxThumbs/suppmax.png'),
+    peptidemax: require('../assets/maxxThumbs/peptidemax.png'),
     // Legacy (pre-biohacking) programs.
     skinmax: require('../assets/maxxThumbs/skinmax.png'),
     hairmax: require('../assets/maxxThumbs/hairmax.png'),
@@ -38,6 +40,8 @@ export const MAXX_THUMBS_CUT: Record<string, any> = {
     trainmax: require('../assets/maxxThumbs/cut/fitmax.png'),
     skinhairmax: require('../assets/maxxThumbs/cut/skinhair.png'),
     longevitymax: require('../assets/maxxThumbs/cut/longevitymax.png'),
+    suppmax: require('../assets/maxxThumbs/cut/suppmax.png'),
+    peptidemax: require('../assets/maxxThumbs/cut/peptidemax.png'),
     // Legacy (pre-biohacking) programs.
     skinmax: require('../assets/maxxThumbs/cut/skinmax.png'),
     hairmax: require('../assets/maxxThumbs/cut/hairmax.png'),
