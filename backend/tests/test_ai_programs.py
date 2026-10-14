@@ -17,7 +17,7 @@ def test_every_program_doc_parses_with_a_library():
     for mid in ap.AI_PROGRAMS:
         doc = ap.get_program_doc(mid)
         assert doc is not None, mid
-        assert len(doc.habits) >= 8, (mid, len(doc.habits))
+        assert len(doc.habits) >= (4 if mid == "skinhairmax" else 8), (mid, len(doc.habits))  # skin = whole AM/PM routines
         ids = [h.id for h in doc.habits]
         assert len(ids) == len(set(ids)), f"duplicate habit ids in {mid}"
         assert all(h.title for h in doc.habits)

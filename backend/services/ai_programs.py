@@ -484,6 +484,10 @@ def asks_known_fact(question: str) -> bool:
 async def next_intake_step(maxx_id: str, profile: dict, answers: dict, asked: list[dict]) -> dict:
     """Claude's next question for this program, or done. Falls back to done
     (plan with what we have) if Claude is unavailable — never blocks the user."""
+    if maxx_id == "skinhairmax":
+        # a fixed 3-question quiz: the routine builder needs exactly these
+        from services import skin_routine
+        return skin_routine.next_question(answers, asked)
     pd = get_program_doc(maxx_id)
     if pd is None or len(asked) >= MAX_INTAKE_QUESTIONS:
         return {"done": True, "ack": "", "question": "", "options": [], "multi": False, "fact_key": ""}
@@ -598,6 +602,11 @@ async def build_plan(
     pd = get_program_doc(maxx_id)
     if pd is None:
         return None
+    if maxx_id == "skinhairmax" and not request:
+        from services import skin_routine
+        raw = skin_routine.build_template(answers or {}, started_on=_local_today(profile))
+        tmpl = validate_template(maxx_id, raw, profile, others=other_plans)
+        return tmpl if tmpl["habits"] else None
     budget_total = int(profile.get("minutes_per_day_total") or 25)
     used = _other_minutes_per_day(other_plans)
     remaining = _program_share(budget_total, other_plans)
@@ -850,6 +859,9 @@ def _fit_caps(maxx_id: str, habits: list[dict]) -> tuple[set, int]:
     if maxx_id == PEPTIDE_PROGRAM:
         doses = {h["habit_id"] for h in habits if str(h.get("habit_id", "")).startswith("custom_dose")}
         return doses, len(doses) + 3
+    if maxx_id == "skinhairmax":
+        # the AM and PM routines ARE the program; scalp steps ride along
+        return {h["habit_id"] for h in habits if h["habit_id"] in ("am_routine", "pm_routine")}, 4
     return set(), 3
 
 
@@ -892,6 +904,10 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
             **({"linked_to": h["linked_to"]} if "linked_to" in h else {}),
             **({"keep": h["keep"]} if "keep" in h else {}),
             **({"priority": h["priority"]} if isinstance(h.get("priority"), int) else {}),
+            **({"variants": {k: {"title": _clean_text(str(v.get("title") or ""), 40),
+                                 "how": _clean_text(str(v.get("how") or ""), 700)}
+                             for k, v in h["variants"].items() if isinstance(v, dict)},
+                "schedule": h.get("schedule") or []} if isinstance(h.get("variants"), dict) else {}),
             **({"_required": True} if hid in (keep_ids or set()) else {}),
         })
         seen.add(hid)
@@ -921,6 +937,7 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
         **({"parked": parked_out} if parked_out else {}),
         "fit_for": ai_fit.fit_signature(ai_fit.day_models(profile)),
         "fit_notes": notes,
+        **{k: raw[k] for k in ("started_on", "skin_profile") if raw.get(k)},
         "built_at": datetime.utcnow().isoformat(),
     }
 
@@ -928,8 +945,13 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
 def refit_template(maxx_id: str, tmpl: dict, profile: dict, others: Optional[dict] = None) -> dict:
     """Re-fit a stored template to the person's CURRENT day (no LLM). A no-op
     on an already-fitted template whose day didn't change."""
+    if maxx_id == "skinhairmax" and not any(h.get("variants") for h in tmpl.get("habits") or []):
+        # a plan from before the routine builder: rebuild it from its answers
+        from services import skin_routine
+        rebuilt = skin_routine.build_template(tmpl.get("answers") or {}, started_on=_local_today(profile))
+        tmpl = {**tmpl, **rebuilt, "answers": tmpl.get("answers") or {}}
     out = validate_template(maxx_id, tmpl, profile, others=others)
-    for k in ("answers", "declined", "built_at"):
+    for k in ("answers", "declined", "built_at", "started_on", "skin_profile"):
         if k in tmpl:
             out[k] = tmpl[k]
     out["summary"] = tmpl.get("summary") or out.get("summary") or ""
@@ -1013,6 +1035,21 @@ def _clean_text(text: str, limit: int) -> str:
     return cut.rsplit(" ", 1)[0].rstrip(",;:-") + "…"
 
 
+def _routine_variant(h: dict, d: date, started_on) -> Optional[dict]:
+    if not h.get("variants"):
+        return None
+    from services import skin_routine
+    return skin_routine.routine_variant(h, d, started_on)
+
+
+def _local_today(profile: dict) -> date:
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo(str(profile.get("timezone") or "UTC"))).date()
+    except Exception:
+        return date.today()
+
+
 def expand_template(maxx_id: str, tmpl: dict, *, start_date: date, n_days: int = AI_PLAN_DAYS) -> list[dict]:
     """Template → dated day dicts in the persisted task shape. Pure."""
     days: list[dict] = []
@@ -1024,11 +1061,12 @@ def expand_template(maxx_id: str, tmpl: dict, *, start_date: date, n_days: int =
             if wd not in (h.get("days") or []):
                 continue
             t = h.get("weekend_time") if wd in ("sat", "sun") and h.get("weekend_time") else h.get("time")
+            v = _routine_variant(h, d, tmpl.get("started_on")) or {}
             tasks.append({
                 "task_id": str(uuid.uuid4()),
                 "catalog_id": f"{maxx_id}.{h['habit_id']}",
-                "title": h.get("title") or h["habit_id"],
-                "description": h.get("how") or "",
+                "title": v.get("title") or h.get("title") or h["habit_id"],
+                "description": v.get("how") or h.get("how") or "",
                 "why": h.get("why") or "",
                 "time": t,
                 "duration_min": int(h.get("minutes") or 1),
@@ -1533,6 +1571,65 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
     return {"schedule_id": schedule_id, "template": tmpl, "supp_added": supp_preview}
 
 
+_SKIN_IRRITATED = re.compile(r"\b(sting|stinging|burn|burning|irritat\w*|peel\w*|flak\w*|too (strong|harsh|much)|"
+                             r"red(ness)?|raw|sensitive)\b", re.IGNORECASE)
+_SKIN_FASTER = re.compile(r"\b(faster|more often|harder|stronger|speed (it )?up|ready for more)\b", re.IGNORECASE)
+_SKIN_SIMPLER = re.compile(r"\b(simpler|simple|lighter|fewer steps|less|minimal|too many steps)\b", re.IGNORECASE)
+
+
+def skin_redo(current: dict, request: str, profile: dict, others: dict) -> Optional[dict]:
+    """Skin & Hair changes that the routine builder handles itself (no Claude):
+    irritation steps the plan back a phase, 'faster' moves it forward, 'simpler'
+    drops the extra serums, and a new goal or skin type rebuilds the routine.
+    None = not one of these (Claude handles it, routines kept)."""
+    from services import skin_routine
+    answers = dict(current.get("answers") or {})
+    req = request or ""
+    try:
+        started = date.fromisoformat(str(current.get("started_on"))[:10])
+    except (TypeError, ValueError):
+        started = _local_today(profile)
+    note = ""
+    for label in list(skin_routine.GOALS):
+        if label.lower() in req.lower():
+            answers["skin_goal"] = label
+            note = "rebuilt around your new goal."
+    for label in list(skin_routine.FEELS):
+        if label.lower() in req.lower():
+            answers["skin_feel"] = label
+            note = "rebuilt for your skin type."
+    if not note and _SKIN_IRRITATED.search(req):
+        started += timedelta(days=14)
+        note = ("stepped your routine back two weeks so your skin can calm down. stick to the gentle nights, "
+                "and stop anything that burns or causes a rash.")
+    elif not note and _SKIN_FASTER.search(req):
+        started -= timedelta(days=14)
+        note = "moved your routine forward two weeks: your main active comes in sooner."
+    elif not note and _SKIN_SIMPLER.search(req):
+        answers["skin_mode"] = "minimal"
+        note = "made it simpler: just the core steps plus your main night active."
+    if not note:
+        return None
+    raw = skin_routine.build_template(answers, started_on=started)
+    out = validate_template("skinhairmax", raw, profile, others=others)
+    out["answers"] = answers
+    out["summary"] = f"{note} {raw['summary']}"
+    return out
+
+
+def _keep_routines(tmpl: dict, current: dict) -> None:
+    """A Claude redo of Skin & Hair (e.g. 'move my night routine later') keeps
+    the routine's nightly steps and phases: Claude only moves times/days."""
+    prev = {h.get("habit_id"): h for h in (current or {}).get("habits") or []}
+    for h in tmpl.get("habits") or []:
+        p = prev.get(h.get("habit_id"))
+        if p and p.get("variants") and not h.get("variants"):
+            h["variants"], h["schedule"] = p["variants"], p.get("schedule") or []
+    for k in ("started_on", "skin_profile"):
+        if current.get(k) and not tmpl.get(k):
+            tmpl[k] = current[k]
+
+
 _SWAP_RE = re.compile(r"\b(swap|replace|instead of|switch out|trade)\b", re.IGNORECASE)
 
 
@@ -1596,9 +1693,15 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db) -> Opt
     _, _, state = await _user_state(user_id, db)
     profile = build_profile(state)
     others = await other_program_plans(user_id, db, except_maxx=maxx_id)
-    tmpl = await build_plan(maxx_id, profile, current.get("answers") or {}, others,
-                            current_plan={k: current.get(k) for k in ("summary", "habits")},
-                            request=request)
+    skin = skin_redo(current, request, profile, others) if maxx_id == "skinhairmax" else None
+    if skin is not None:
+        tmpl = skin
+    else:
+        tmpl = await build_plan(maxx_id, profile, current.get("answers") or {}, others,
+                                current_plan={k: current.get(k) for k in ("summary", "habits")},
+                                request=request)
+        if tmpl is not None:
+            _keep_routines(tmpl, current)
     if tmpl is None:
         return None
     tmpl = _limit_swap(maxx_id, tmpl, current, request, profile, others)
