@@ -80,7 +80,7 @@ Check with a professional first:
 - frequency: 2–5× per week
 - tier: medium
 - why: Guided deep-relaxation (yoga nidra, often called NSDR) is being studied for stress and recovery; early studies of 11–30 min sessions show promise.
-- how: 1) Lie down or recline with headphones. 2) Play a 10–20 min guided body-scan or yoga nidra track. 3) Set a gentle alarm.
+- how: 1) Lie down or recline with headphones. 2) Play a 10–20 min guided body-scan or yoga nidra track. 3) Sit up slowly when the track ends.
 - conflicts/synergies: Can replace a nap (SleepMax `nap_rule`). Same as CalmMax `body_scan`.
 - source: https://pmc.ncbi.nlm.nih.gov/articles/PMC12080877/
 

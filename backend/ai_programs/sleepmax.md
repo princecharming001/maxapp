@@ -61,7 +61,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - frequency: daily
 - tier: core
 - why: A consistent, calm pre-sleep routine and less bright light in the evening make it easier to fall asleep.
-- how: 1) Set a "lights low" alarm 45 min before bed. 2) Dim lights, finish chores, set out tomorrow's things. 3) Do something calm: reading, stretching, a shower.
+- how: 1) Dim the lights and put screens away. 2) Finish small chores and set out tomorrow's things. 3) Do something calm: reading, stretching, a shower.
 - conflicts/synergies: Merge with CalmMax `screen_free_evening` and FocusMax `shutdown_ritual` (shutdown earlier, wind-down later). SkinHair PM routine fits inside it.
 - source: https://sleepeducation.org/healthy-sleep/healthy-sleep-habits/
 

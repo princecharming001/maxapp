@@ -627,8 +627,11 @@ async def build_plan(
         "space them at least 5 minutes apart.\n"
         "- Weekends: if the user shifts later on weekends, set weekend_time accordingly.\n"
         "- Use the user's answers to tailor which habits, how, and when. Tailor the 'how' text to them.\n"
-        "- Never write clock times in title, how or why (no 'alarm for 08:00', no 'last coffee by 3:30pm'): "
-        "the app shows each habit's time, and times can shift to fit the day.\n"
+        "- Never write clock times in title, how or why (no 'last coffee by 3:30pm'): the app shows each "
+        "habit's time, and times can shift to fit the day.\n"
+        "- The app already reminds them at each habit's time. 'how' explains how to DO the habit (e.g. morning "
+        "light: step outside, walk or have coffee in daylight, 5-15 min). Never tell them to set an alarm, "
+        "reminder or notification to remember a habit.\n"
         "- If this is a redo, start from the current plan and change what the request asks for, keeping "
         "the rest stable.\n"
         + _program_rules(maxx_id, sync_required) + "\n"
@@ -905,6 +908,7 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
     for h in placed + parked_out:
         h.pop("_required", None)
     for h in placed:
+        h["how"] = drop_reminder_steps(h["habit_id"], h.get("how") or "")
         # a time in the steps can only be right if the habit has ONE time
         times = set() if h.get("weekend_time") else ({_hm(h.get("time"), "")} - {""})
         h["title"] = _strip_clock(h.get("title") or "")
@@ -935,6 +939,29 @@ def refit_template(maxx_id: str, tmpl: dict, profile: dict, others: Optional[dic
     if gone or (after - set(before)):
         out["summary"] = plain_summary(out, gone, int(profile.get("minutes_per_day_total") or 25))
     return out
+
+
+_REMINDER_STEP = re.compile(r"\b(set|put|add|turn on|schedule|create|use)\b[^.;]*\b(alarms?|reminders?|notifications?)\b",
+                            re.IGNORECASE)
+# where the alarm IS the habit's tool, not a way to remember it
+_ALARM_IS_THE_TOOL = {"nap_rule", "nsdr_break", "phone_away", "screens_off", "bedroom_setup"}
+
+
+def drop_reminder_steps(hid: str, how: str) -> str:
+    """The app reminds them at each habit's time, so steps like 'set a phone
+    alarm for your light window' are noise: drop them (renumbering the rest)."""
+    if hid in _ALARM_IS_THE_TOOL or not _REMINDER_STEP.search(how or ""):
+        return how
+    numbered = re.split(r"\s*(?:^|(?<=\s))\d\)\s*", how.strip())
+    if len([x for x in numbered if x.strip()]) >= 2:
+        steps = [x.strip() for x in numbered if x.strip()]
+        keep = [x for x in steps if not _REMINDER_STEP.search(x)]
+        if not keep:
+            return how
+        return " ".join(f"{i}) {x}" for i, x in enumerate(keep, 1)) if len(keep) > 1 else keep[0]
+    sents = re.split(r"(?<=[.!?])\s+", how.strip())
+    keep = [x for x in sents if not _REMINDER_STEP.search(x)]
+    return " ".join(keep) if keep else how
 
 
 _CLOCK = re.compile(r"\b(?:[01]?\d|2[0-3]):[0-5]\d(?:\s?[ap]\.?m\.?)?|\b(?:1[0-2]|0?[1-9])\s?[ap]\.?m\.?\b",

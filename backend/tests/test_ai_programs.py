@@ -794,3 +794,22 @@ def test_push_engine_keeps_a_midnight_weekend_bedtime():
     ob = {"wake_time": "07:00", "sleep_time": "23:00",
           "weekly_timings": {"saturday": {"wake_time": "08:00", "sleep_time": "00:00"}}}
     assert wake_sleep_for(ob, "saturday") == (480, 0)
+
+
+def test_steps_never_tell_people_to_set_alarms_to_remember_a_habit():
+    # owner: "the instructions have too much about setting alarms" (sim: morning light said
+    # "Set a phone or clock alarm for 08:00 so you don't miss your light window")
+    how = ("1) Set a phone or clock alarm for 08:00 so you don't miss your light window. 2) Step outside "
+           "within an hour of waking. 3) Walk or have coffee in daylight for 5-15 min.")
+    out = ap.drop_reminder_steps("morning_light", how)
+    assert "alarm" not in out.lower()
+    assert out == "1) Step outside within an hour of waking. 2) Walk or have coffee in daylight for 5-15 min."
+    assert ap.drop_reminder_steps("caffeine_cutoff", "Set a reminder on your phone. Make this your last coffee.") == \
+        "Make this your last coffee."
+    nap = "1) Only nap if needed. 2) Set a 20-min alarm. 3) No naps within 7 hours of bed."
+    assert ap.drop_reminder_steps("nap_rule", nap) == nap            # the alarm IS the tool here
+    t = ap.validate_template("sleepmax", _raw({**_h("morning_light", "07:30", 5), "how": how}), _prof())
+    assert "alarm" not in t["habits"][0]["how"].lower()
+    for mid in ap.AI_PROGRAMS:                                       # library defaults are clean too
+        for h in ap.get_program_doc(mid).habits:
+            assert ap.drop_reminder_steps(h.id, h.how) == h.how, (mid, h.id)
