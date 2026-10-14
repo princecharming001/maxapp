@@ -226,9 +226,11 @@ export default function SettingsScreen() {
                             hint={
                                 googleStatusQ.data?.connected
                                     ? (googleStatusQ.data?.routine_sync_enabled
-                                        ? 'Connected · syncing routine'
+                                        ? 'Connected · routine added'
                                         : 'Connected')
-                                    : 'Link your calendar'
+                                    : googleStatusQ.data?.needs_reconnect
+                                        ? 'Reconnect needed'
+                                        : 'Link your calendar'
                             }
                             onPress={() => navigation.navigate('GoogleCalendarConnect')}
                         />

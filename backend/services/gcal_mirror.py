@@ -212,7 +212,9 @@ async def mirror_user_calendar(user_id: str, db) -> dict[str, int]:
         BatchOp, GcalAuthExpired, GcalRateLimited,
         create_calendar, event_body, execute_batch,
     )
-    from services.google_integration import SCOPE_CALENDAR_APP, _fresh_access_token
+    from services.google_integration import (
+        SCOPE_CALENDAR_APP, GoogleTransientError, _fresh_access_token,
+    )
     from services.master_schedule import build_master_view
     from services.schedule_streak import _user_tz, local_today_date
 
@@ -242,7 +244,10 @@ async def mirror_user_calendar(user_id: str, db) -> dict[str, int]:
     if not (user.profile or {}).get("gcal_routine_sync"):
         return {"not_opted_in": 1}
 
-    access = await _fresh_access_token(conn, db)
+    try:
+        access = await _fresh_access_token(conn, db)
+    except GoogleTransientError:
+        return {"error": 1}  # Google unreachable; the 30-min job retries
     if not access:
         conn.is_active = False
         await db.commit()
@@ -304,6 +309,20 @@ async def mirror_user_calendar(user_id: str, db) -> dict[str, int]:
         # Abandon this run; the periodic job retries.
         return {"rate_limited": 1}
 
+    if calendar_was_deleted(inserts, results):
+        # The user deleted the "Superpower" calendar in Google. Recreating it
+        # would undo what they just did, and every insert into the dead id would
+        # fail forever. Take the hint: forget it and turn routine sync off, so the
+        # app's toggle shows the truth and they can switch it back on.
+        from sqlalchemy.orm.attributes import flag_modified
+        await teardown_mirror(uid, conn, None, db)
+        prof = dict(user.profile or {})
+        prof["gcal_routine_sync"] = False
+        user.profile = prof
+        flag_modified(user, "profile")
+        await db.commit()
+        return {"calendar_deleted": 1}
+
     # An insert that 409s means the event id already exists (a retry, or a link
     # row we lost). Update it in place rather than creating a twin.
     retry: list[BatchOp] = []
@@ -358,6 +377,19 @@ async def mirror_user_calendar(user_id: str, db) -> dict[str, int]:
     return applied
 
 
+def calendar_was_deleted(inserts: list[str], results: dict[str, Any]) -> bool:
+    """True when the Superpower calendar itself no longer exists.
+
+    An insert creates a brand-new event, so a 404 on it can only mean the
+    calendar it targets is gone (a 404 on a PATCH/DELETE just means that one
+    event is). Requiring EVERY insert to 404 keeps one odd reply from tearing
+    down a healthy calendar.
+    """
+    if not inserts:
+        return False
+    return all((results.get(k) or (0, {}))[0] == 404 for k in inserts)
+
+
 async def _prune_past_links(db, uid: str, today: _date) -> None:
     """Forget links for days gone by.
 
@@ -374,23 +406,32 @@ async def _prune_past_links(db, uid: str, today: _date) -> None:
     )
 
 
-async def teardown_mirror(user_id: str, conn, access_token: str | None, db) -> None:
-    """Remove the Superpower calendar and forget every link. Best-effort throughout."""
+async def teardown_mirror(user_id: str, conn, access_token: str | None, db) -> bool:
+    """Remove the Superpower calendar and forget every link. Best-effort throughout.
+
+    Returns False only when a Superpower calendar existed and we could NOT delete
+    it from Google (no live token, or Google said no) — the caller tells the
+    user it's still there so they can remove it themselves."""
     from models.sqlalchemy_models import GcalEventLink
     from sqlalchemy import delete as _delete
     from services.gcal_write import delete_calendar
 
-    try:
-        if access_token and getattr(conn, "app_calendar_id", None):
-            await delete_calendar(access_token, conn.app_calendar_id)
-    except Exception as e:
-        logger.warning("gcal teardown: calendar delete failed: %s", e)
+    removed = True
+    cal_id = getattr(conn, "app_calendar_id", None)
+    if cal_id:
+        removed = False
+        try:
+            if access_token:
+                removed = bool(await delete_calendar(access_token, cal_id))
+        except Exception as e:
+            logger.warning("gcal teardown: calendar delete failed: %s", e)
     try:
         await db.execute(_delete(GcalEventLink).where(GcalEventLink.user_id == str(user_id)))
         if conn is not None:
             conn.app_calendar_id = None
     except Exception as e:
         logger.warning("gcal teardown: link purge failed: %s", e)
+    return removed
 
 
 # --------------------------------------------------------------------------- #

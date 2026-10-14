@@ -23,7 +23,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
-import { openGoogleCalendarAuth } from '../../lib/googleConnect';
+import {
+    alertConnectOutcome,
+    alertDisconnectResult,
+    confirmGoogleDisconnect,
+    confirmRoutineSyncOff,
+    formatLastSynced,
+    openGoogleCalendarAuth,
+} from '../../lib/googleConnect';
 import { colors, spacing, fonts } from '../../theme/dark';
 
 const STATUS_QK = ['googleStatus'];
@@ -75,14 +82,13 @@ export default function GoogleCalendarConnectScreen() {
             }, 3000);
             // Native auth sheet (ASWebAuthenticationSession) — auto-closes when the
             // backend callback redirects back to cannon://google-connected.
-            await openGoogleCalendarAuth();
+            const outcome = await openGoogleCalendarAuth();
             if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
             qc.invalidateQueries({ queryKey: STATUS_QK });
             qc.invalidateQueries({ queryKey: ['plannerToday'] });
-        } catch (e: any) {
-            const s = e?.response?.status;
-            const detail = s ? `HTTP ${s}` : e?.message ? String(e.message) : 'no response (network)';
-            Alert.alert('Could not connect Google Calendar', `Please try again.\n\n(${detail})`);
+            alertConnectOutcome(outcome);
+        } catch {
+            Alert.alert('Could not connect Google Calendar', 'Check your connection and try again.');
         } finally {
             // Always stop the status poll — on the error path the interval would
             // otherwise keep refetching every 3s until the screen unmounts.
@@ -92,11 +98,13 @@ export default function GoogleCalendarConnectScreen() {
     };
 
     const handleDisconnect = async () => {
+        if (!(await confirmGoogleDisconnect(!!status?.routine_sync_enabled))) return;
         try {
             setDisconnecting(true);
-            await api.disconnectGoogle();
+            const res = await api.disconnectGoogle();
             qc.invalidateQueries({ queryKey: STATUS_QK });
             qc.invalidateQueries({ queryKey: ['plannerToday'] });
+            alertDisconnectResult(res);
         } catch {
             Alert.alert('Error', 'Could not disconnect. Please try again.');
         } finally {
@@ -108,13 +116,25 @@ export default function GoogleCalendarConnectScreen() {
     // turning this on re-runs consent for the narrow write scope first.
     const handleRoutineSync = async (next: boolean) => {
         if (routineSyncBusy) return;
+        if (!next && !(await confirmRoutineSyncOff())) return;
         setRoutineSyncBusy(true);
         try {
             if (next && !status?.write_scope_granted) {
-                await openGoogleCalendarAuth(false, true);
+                const outcome = await openGoogleCalendarAuth(false, true);
                 const fresh = await api.getGoogleStatus();
                 qc.setQueryData(STATUS_QK, fresh);
-                if (!fresh.write_scope_granted) return;  // consent cancelled
+                if (alertConnectOutcome(outcome)) return;
+                if (!fresh.write_scope_granted) {
+                    // Closed the sheet: say nothing. Finished but unticked the
+                    // "create calendars" box: say why the switch stayed off.
+                    if (outcome === 'connected') {
+                        Alert.alert(
+                            'Routine not added',
+                            'Superpower needs permission to make its own calendar. Try again and leave that box ticked.',
+                        );
+                    }
+                    return;
+                }
             }
             await api.setGoogleRoutineSync(next);
             qc.invalidateQueries({ queryKey: STATUS_QK });
@@ -158,19 +178,55 @@ export default function GoogleCalendarConnectScreen() {
                 </Text>
             </View>
 
-            {connected ? (
+            {!connected && status?.needs_reconnect ? (
+                <View style={styles.card}>
+                    <View style={styles.connectedRow}>
+                        <Ionicons name="alert-circle" size={20} color="#E0A030" />
+                        <Text style={styles.connectedText}>Reconnect needed</Text>
+                    </View>
+                    <Text style={styles.hint}>
+                        Google stopped letting Superpower see your calendar
+                        {status.account_email ? ` (${status.account_email})` : ''}, so new events
+                        aren't being planned around. Reconnect to fix it.
+                    </Text>
+                    <TouchableOpacity
+                        style={[styles.btn, connecting && styles.btnDisabled]}
+                        onPress={handleConnect}
+                        disabled={connecting}
+                    >
+                        {connecting ? (
+                            <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                            <>
+                                <Ionicons name="logo-google" size={16} color="#fff" style={{ marginRight: 8 }} />
+                                <Text style={styles.btnText}>Reconnect Google Calendar</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.btn, styles.btnSecondary, { marginTop: 12 }]}
+                        onPress={handleDisconnect}
+                        disabled={disconnecting}
+                    >
+                        <Text style={[styles.btnText, { color: colors.foreground }]}>Disconnect instead</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : connected ? (
                 <View style={styles.card}>
                     <View style={styles.connectedRow}>
                         <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
                         <Text style={styles.connectedText}>Connected</Text>
                     </View>
+                    {status?.account_email ? (
+                        <Text style={styles.hint}>{status.account_email}</Text>
+                    ) : null}
                     {status?.write_enabled ? (
                         <View style={styles.toggleRow}>
                             <View style={{ flex: 1, paddingRight: 12 }}>
                                 <Text style={styles.toggleLabel}>Add routine to Google Calendar</Text>
                                 <Text style={styles.toggleSub}>
-                                    Your Superpower tasks get their own "Superpower" calendar, kept in step
-                                    with your plan.
+                                    Your tasks go on a separate "Superpower" calendar that updates when your
+                                    plan does. Your own events are never changed.
                                 </Text>
                             </View>
                             {routineSyncBusy ? (
@@ -184,9 +240,9 @@ export default function GoogleCalendarConnectScreen() {
                             )}
                         </View>
                     ) : null}
-                    {status?.last_synced_at ? (
-                        <Text style={styles.hint}>
-                            Last synced {new Date(status.last_synced_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatLastSynced(status?.last_synced_at) ? (
+                        <Text style={[styles.hint, { marginTop: 12 }]}>
+                            Last checked {formatLastSynced(status?.last_synced_at)}
                         </Text>
                     ) : null}
                     <TouchableOpacity
@@ -204,7 +260,7 @@ export default function GoogleCalendarConnectScreen() {
             ) : (
                 <View style={styles.card}>
                     <Text style={styles.hint}>
-                        Superpower reads your primary calendar (next 60 days) and plans your routine around your events. Syncs every 30 minutes. Calendar data stays on Superpower servers — not shared.
+                        Superpower looks at your main Google calendar for the next 60 days and plans your routine around your events. It never changes or deletes them, and your calendar isn't shared with anyone.
                     </Text>
                     <TouchableOpacity
                         style={[styles.btn, connecting && styles.btnDisabled]}
@@ -222,7 +278,7 @@ export default function GoogleCalendarConnectScreen() {
                     </TouchableOpacity>
                     {connecting ? (
                         <Text style={[styles.hint, { marginTop: 12, textAlign: 'center' }]}>
-                            Complete sign-in in your browser, then return here.
+                            Finish on Google's screen, then come back here.
                         </Text>
                     ) : null}
                     <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16, alignItems: 'center' }}>

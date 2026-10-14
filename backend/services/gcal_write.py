@@ -31,8 +31,13 @@ _HTTP_TIMEOUT = 30.0
 _BACKOFF_SECONDS = (1.0, 2.0, 4.0)
 
 MAX_CALENDAR_SUMMARY = "Superpower"
+# Shown on every mirrored event. Says plainly that edits made in Google don't
+# flow back — the next plan change rewrites the event — so nobody drags a task
+# to 6pm in Google and wonders why the app still says 7am.
 _MANAGED_NOTE = (
-    "Managed by Superpower — this updates automatically when your routine changes."
+    "Added by Superpower and kept in step with your routine. "
+    "To change it, edit your routine in the Superpower app — "
+    "changes made here won't carry over."
 )
 
 

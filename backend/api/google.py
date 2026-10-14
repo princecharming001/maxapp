@@ -25,6 +25,8 @@ from models.sqlalchemy_models import CalendarConnection, CalendarEvent, User
 from services.google_integration import (
     build_auth_url,
     exchange_code,
+    fetch_account_email,
+    granted_calendar_read,
     SCOPE_CALENDAR_APP,
     _fresh_access_token,
     gmail_scan_available,
@@ -86,19 +88,64 @@ def _verify_state(state: str) -> tuple[str, str | None] | None:
     return user_id, return_url
 
 
+def connection_needs_reconnect(conn) -> bool:
+    """Inactive but still holding a refresh token = Google cut us off.
+
+    A user-initiated disconnect clears the tokens, so it never lands here; only
+    a refresh that Google rejected (sync/mirror flip is_active off and keep the
+    tokens) does."""
+    if conn is None or conn.is_active:
+        return False
+    return bool((conn.tokens_decrypted or {}).get("refresh_token"))
+
+
+# Reasons the callback hands back to the app as ?error=<code>. The app maps each
+# to one plain sentence (mobile/lib/googleConnect.ts).
+CONNECT_ERROR_DENIED = "denied"            # tapped Cancel / "Don't allow" on Google
+CONNECT_ERROR_NO_CALENDAR = "no_calendar"  # unticked the calendar permission
+CONNECT_ERROR_FAILED = "failed"            # anything else (expired code, Google down)
+
+
+def _callback_result_html(ok: bool, message: str) -> HTMLResponse:
+    title = "Google Calendar connected." if ok else "Google Calendar wasn't connected."
+    return HTMLResponse(
+        "<html><body style='font-family: sans-serif; padding: 40px; text-align: center;'>"
+        f"<h3>{title}</h3><p>{message}</p>"
+        + ("<script>setTimeout(function(){ window.close(); }, 1500);</script>" if ok else "")
+        + "</body></html>",
+        status_code=200 if ok else 400,
+    )
+
+
+def _callback_error(return_url: str | None, code: str):
+    """Send a failed connect back to the app with a reason, never a raw JSON error."""
+    if return_url:
+        sep = "&" if "?" in return_url else "?"
+        return RedirectResponse(url=f"{return_url}{sep}error={code}", status_code=302)
+    msg = {
+        CONNECT_ERROR_DENIED: "You didn't give permission. Nothing was changed.",
+        CONNECT_ERROR_NO_CALENDAR: (
+            "Superpower needs to see your calendar to plan around it. "
+            "Try again and leave the calendar box ticked."
+        ),
+    }.get(code, "Something went wrong. Go back to Superpower and try again.")
+    return _callback_result_html(False, msg)
+
+
 @router.get("/status")
 async def status(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     uid = _uid(current_user)
-    conn = (await db.execute(
+    any_conn = (await db.execute(
         select(CalendarConnection).where(
             (CalendarConnection.user_id == uid)
             & (CalendarConnection.provider == "google")
-            & (CalendarConnection.is_active.is_(True))
         )
     )).scalars().first()
+    needs_reconnect = connection_needs_reconnect(any_conn)
+    conn = any_conn if (any_conn is not None and any_conn.is_active) else None
     connected = conn is not None and bool(conn.tokens_decrypted.get("refresh_token"))
     # How far ahead is the calendar synced? Re-sync nudge fires when coverage
     # drops below RESYNC_NUDGE_DAYS (i.e. sync window is running out).
@@ -124,6 +171,14 @@ async def status(
         "gmail_available": gmail_scan_available(),
         "calendar_link_enabled": settings.calendar_link_enabled,
         "connected": connected,
+        # Google stopped accepting our access (revoked in their account
+        # settings, password change, long inactivity). The app shows a one-tap
+        # "Reconnect" instead of quietly looking disconnected.
+        "needs_reconnect": needs_reconnect,
+        "account_email": (
+            (any_conn.tokens_decrypted or {}).get("account_email")
+            if (any_conn is not None and (connected or needs_reconnect)) else None
+        ),
         "last_synced_at": conn.last_synced_at.isoformat() if conn and conn.last_synced_at else None,
         "synced_through": synced_through,
         "needs_resync": needs_resync,
@@ -155,22 +210,43 @@ async def connect(
 
 @router.get("/callback")
 async def callback(
-    code: str = Query(...),
-    state: str = Query(...),
+    state: str = Query(default=""),
+    code: str | None = Query(default=None),
+    error: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ):
     """OAuth redirect target. Stores tokens, kicks an initial sync, then either
     redirects back into the app (native auth sheet auto-dismisses) or shows a
-    tiny self-closing page (web / legacy clients; the app also polls /status)."""
-    verified = _verify_state(state)
+    tiny self-closing page (web / legacy clients; the app also polls /status).
+
+    Every failure (Cancel on Google's screen, calendar box unticked, expired
+    code) also redirects back into the app with ?error=<reason>, so the sheet
+    closes and the user is told what happened instead of staring at JSON."""
+    verified = _verify_state(state) if state else None
     if verified is None:
-        raise HTTPException(status_code=400, detail="Bad state")
+        return _callback_result_html(
+            False, "This link has expired. Go back to Superpower and try again."
+        )
     user_id, return_url = verified
+    if error or not code:
+        # Google sends error=access_denied when the user backs out.
+        return _callback_error(
+            return_url,
+            CONNECT_ERROR_DENIED if (error or "access_denied") == "access_denied" else CONNECT_ERROR_FAILED,
+        )
     try:
         payload = await exchange_code(code)
     except Exception:
-        raise HTTPException(status_code=400, detail="Token exchange failed")
-    await store_connection(db, UUID(user_id), payload)
+        return _callback_error(return_url, CONNECT_ERROR_FAILED)
+    if not granted_calendar_read(payload):
+        # Storing this would show "Connected" while every sync 403s, so don't —
+        # and say why. Deliberately NOT revoked: revoking kills the whole grant,
+        # which would also break a connection this user already had working.
+        return _callback_error(return_url, CONNECT_ERROR_NO_CALENDAR)
+
+    account_email = await fetch_account_email(payload.get("access_token"))
+    await _forget_other_account_calendar(db, UUID(user_id), account_email)
+    await store_connection(db, UUID(user_id), payload, account_email=account_email)
     try:
         await sync_google_calendar(UUID(user_id), db)
     except Exception:
@@ -207,6 +283,51 @@ async def callback(
         "<script>setTimeout(function(){ window.close(); }, 1500);</script>"
         "</body></html>"
     )
+
+
+async def _revoke_token(token: str | None) -> None:
+    """Best-effort revoke with Google; never raises."""
+    if not token:
+        return
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(
+                "https://oauth2.googleapis.com/revoke", params={"token": token}
+            )
+    except Exception:
+        pass
+
+
+async def _forget_other_account_calendar(db: AsyncSession, uid: UUID, new_email: str | None) -> None:
+    """Reconnecting with a DIFFERENT Google account: the "Superpower" calendar we
+    made lives in the old account, so the mirror would keep writing to an id the
+    new account doesn't have (every write 404s, forever). Remove it from the old
+    account while its token still works, and start the mirror fresh."""
+    if not new_email:
+        return
+    conn = (await db.execute(
+        select(CalendarConnection).where(
+            (CalendarConnection.user_id == uid)
+            & (CalendarConnection.provider == "google")
+        )
+    )).scalars().first()
+    if conn is None or not conn.app_calendar_id:
+        return
+    old_email = (conn.tokens_decrypted or {}).get("account_email")
+    if not old_email or old_email.lower() == new_email.lower():
+        return
+    try:
+        from services.gcal_mirror import teardown_mirror
+        access = None
+        try:
+            access = await _fresh_access_token(conn, db)
+        except Exception:
+            pass
+        await teardown_mirror(str(uid), conn, access, db)
+        await db.commit()
+    except Exception:
+        pass
 
 
 @router.post("/sync")
@@ -269,11 +390,12 @@ async def disconnect(
         )
     )).scalars().first()
     if conn is None:
-        return {"disconnected": True}
+        return {"disconnected": True, "routine_calendar_left": False}
 
     # Tear the Superpower calendar down FIRST — it needs a live token, and the revoke
     # below kills that. Leaving it behind would strand a calendar the user can
     # no longer have us clean up.
+    calendar_removed = True
     try:
         from services.gcal_mirror import teardown_mirror
         access = None
@@ -281,22 +403,12 @@ async def disconnect(
             access = await _fresh_access_token(conn, db)
         except Exception:
             pass
-        await teardown_mirror(str(uid), conn, access, db)
+        calendar_removed = await teardown_mirror(str(uid), conn, access, db)
     except Exception:
-        pass
+        calendar_removed = not bool(conn.app_calendar_id)
 
     # Best-effort revoke with Google
-    refresh_token = conn.tokens_decrypted.get("refresh_token")
-    if refresh_token:
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=10) as client:
-                await client.post(
-                    "https://oauth2.googleapis.com/revoke",
-                    params={"token": refresh_token},
-                )
-        except Exception:
-            pass  # best-effort; proceed with local cleanup regardless
+    await _revoke_token(conn.tokens_decrypted.get("refresh_token"))
     # Delete this connection's calendar events
     from sqlalchemy import delete as sa_delete
     await db.execute(
@@ -328,7 +440,9 @@ async def disconnect(
     except Exception:
         pass
 
-    return {"disconnected": True}
+    # routine_calendar_left: we couldn't delete the "Superpower" calendar (Google
+    # had already cut our access). The app tells the user they can delete it.
+    return {"disconnected": True, "routine_calendar_left": not calendar_removed}
 
 
 @router.post("/routine-sync")

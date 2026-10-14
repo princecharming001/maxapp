@@ -1770,6 +1770,11 @@ class ApiService {
         gmail_available: boolean;
         calendar_link_enabled: boolean;
         connected: boolean;
+        // Google stopped accepting our access (revoked / password change).
+        // Show a one-tap Reconnect rather than a plain "not connected".
+        needs_reconnect?: boolean;
+        // The Google account that's linked, so a wrong pick is easy to spot.
+        account_email?: string | null;
         last_synced_at: string | null;
         synced_through: string | null;
         needs_resync: boolean;
@@ -1785,7 +1790,7 @@ class ApiService {
         return response.data;
     }
 
-    async disconnectGoogle(): Promise<{ disconnected: boolean }> {
+    async disconnectGoogle(): Promise<{ disconnected: boolean; routine_calendar_left?: boolean }> {
         const response = await this.client.delete('google/disconnect');
         return response.data;
     }

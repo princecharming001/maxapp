@@ -41,7 +41,13 @@ import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Path, Rect } from
 import api from '../../services/api';
 import { Linking, AppState } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { openGoogleCalendarAuth } from '../../lib/googleConnect';
+import {
+  alertConnectOutcome,
+  alertDisconnectResult,
+  confirmGoogleDisconnect,
+  confirmRoutineSyncOff,
+  openGoogleCalendarAuth,
+} from '../../lib/googleConnect';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryClient, queryKeys } from '../../lib/queryClient';
 import { userFacingError } from '../../lib/userFacingError';
@@ -288,6 +294,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   });
   const calConnected = !!(googleStatusQ.data?.connected && googleStatusQ.data?.calendar_link_enabled);
   const calFlagOn = googleStatusQ.data?.calendar_link_enabled !== false;
+  // Google cut our access (revoked / password change). Shown as its own state
+  // with a one-tap Reconnect, never as a quiet "not connected".
+  const calNeedsReconnect = !!(googleStatusQ.data?.needs_reconnect && !googleStatusQ.data?.connected);
 
   // Calendar sheet state
   const [calSheetOpen, setCalSheetOpen] = useState(false);
@@ -311,7 +320,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
       }, 3000);
       // Native auth sheet (ASWebAuthenticationSession) — the system
       // "wants to use google.com to sign in" popup, not a Safari-looking tab.
-      await openGoogleCalendarAuth();
+      const outcome = await openGoogleCalendarAuth();
       // Sheet closed (auto-dismissed on success, or by the user). Clean up + refresh.
       if (calPollRef.current) { clearInterval(calPollRef.current); calPollRef.current = null; }
       qc.invalidateQueries({ queryKey: ['googleStatus'] });
@@ -319,6 +328,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
       // Connecting reflows the plan around real commitments server-side, so the
       // cached schedule is now stale.
       invalidateSchedules();
+      alertConnectOutcome(outcome);
     } catch (e: any) {
       Alert.alert('Could not connect Google Calendar', userFacingError(e, 'Please try again.'));
     } finally {
@@ -330,19 +340,21 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   }, [googleStatusQ.data?.oauth_available, qc]);
 
   const handleCalDisconnect = useCallback(async () => {
+    if (!(await confirmGoogleDisconnect(!!googleStatusQ.data?.routine_sync_enabled))) return;
     try {
       setCalDisconnecting(true);
-      await api.disconnectGoogle();
+      const res = await api.disconnectGoogle();
       qc.invalidateQueries({ queryKey: ['googleStatus'] });
       qc.invalidateQueries({ queryKey: ['plannerToday'] });
       // Plans reclaim the time those events were holding.
       invalidateSchedules();
+      alertDisconnectResult(res);
     } catch {
       Alert.alert('Error', 'Could not disconnect. Please try again.');
     } finally {
       setCalDisconnecting(false);
     }
-  }, [qc]);
+  }, [qc, googleStatusQ.data?.routine_sync_enabled]);
 
   const handleCalResync = useCallback(async () => {
     try {
@@ -362,17 +374,29 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   // grant and must re-consent first (Google can't widen a scope silently).
   const handleRoutineSyncToggle = useCallback(async (next: boolean) => {
     if (routineSyncBusy) return;
+    if (!next && !(await confirmRoutineSyncOff())) return;
     setRoutineSyncBusy(true);
     try {
       if (next && !googleStatusQ.data?.write_scope_granted) {
         calPollRef.current = setInterval(() => {
           qc.invalidateQueries({ queryKey: ['googleStatus'] });
         }, 3000);
-        await openGoogleCalendarAuth(false, true);
+        const outcome = await openGoogleCalendarAuth(false, true);
         if (calPollRef.current) { clearInterval(calPollRef.current); calPollRef.current = null; }
         const fresh = await api.getGoogleStatus();
         qc.setQueryData(['googleStatus'], fresh);
-        if (!fresh.write_scope_granted) return;  // user cancelled consent
+        if (alertConnectOutcome(outcome)) return;
+        if (!fresh.write_scope_granted) {
+          // Closed the sheet: say nothing. Finished but unticked the "create
+          // calendars" box: say why the switch stayed off.
+          if (outcome === 'connected') {
+            Alert.alert(
+              'Routine not added',
+              'Superpower needs permission to make its own calendar. Try again and leave that box ticked.',
+            );
+          }
+          return;
+        }
       }
       await api.setGoogleRoutineSync(next);
       qc.invalidateQueries({ queryKey: ['googleStatus'] });
@@ -962,7 +986,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               <View style={{ flex: 1 }}>
                 <Text style={styles.calTitle}>Google Calendar</Text>
                 <Text style={styles.calSub}>
-                  {calConnected
+                  {calNeedsReconnect
+                    ? 'Google stopped letting Superpower see your calendar. Reconnect so your plan keeps fitting around new events.'
+                    : calConnected
                     ? 'Superpower plans your routine around your calendar events.'
                     : 'Superpower plans around your real events instead of on top of them.'}
                 </Text>
@@ -974,9 +1000,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                 <View style={styles.calConnectedBadge}>
                   <Ionicons name="checkmark-circle" size={15} color={ACCENT} />
                   <Text style={styles.calConnectedText}>Connected</Text>
-                  {googleStatusQ.data?.synced_through ? (
-                    <Text style={styles.calSyncTime}>
-                      · through {new Date(googleStatusQ.data.synced_through).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                  {googleStatusQ.data?.account_email ? (
+                    <Text style={styles.calSyncTime} numberOfLines={1}>
+                      · {googleStatusQ.data.account_email}
                     </Text>
                   ) : null}
                 </View>
@@ -991,7 +1017,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                   >
                     {calResyncing
                       ? <ActivityIndicator size="small" color="#FFFFFF" />
-                      : <Text style={styles.calPrimaryText}>Sync next 2 months</Text>}
+                      : <Text style={styles.calPrimaryText}>Refresh calendar</Text>}
                   </TouchableOpacity>
                 ) : null}
 
@@ -1000,8 +1026,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                     <View style={{ flex: 1, paddingRight: 12 }}>
                       <Text style={styles.calToggleLabel}>Add routine to Google Calendar</Text>
                       <Text style={styles.calToggleSub}>
-                        Puts your Superpower tasks on their own "Superpower" calendar, and keeps them
-                        in step when your plan changes.
+                        Puts your tasks on a separate "Superpower" calendar that updates when your
+                        plan does. Your own events are never changed.
                       </Text>
                     </View>
                     {routineSyncBusy ? (
@@ -1030,9 +1056,11 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
               </>
             ) : (
               <>
-                <Text style={styles.calBody}>
-                  Superpower reads your primary calendar (next 60 days) and builds your routine around what's already there. Syncs every 30 minutes. Data stays on Superpower servers.
-                </Text>
+                {calNeedsReconnect ? null : (
+                  <Text style={styles.calBody}>
+                    Superpower looks at your main Google calendar for the next 60 days and builds your routine around what's already there. It never changes or deletes your events.
+                  </Text>
+                )}
 
                 <TouchableOpacity
                   style={[styles.calPrimaryBtn, calConnecting && { opacity: 0.6 }]}
@@ -1047,15 +1075,30 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
                   ) : (
                     <>
                       <Ionicons name="logo-google" size={15} color="#FFFFFF" style={{ marginRight: 8 }} />
-                      <Text style={styles.calPrimaryText}>Connect Google Calendar</Text>
+                      <Text style={styles.calPrimaryText}>
+                        {calNeedsReconnect ? 'Reconnect Google Calendar' : 'Connect Google Calendar'}
+                      </Text>
                     </>
                   )}
                 </TouchableOpacity>
 
                 {calConnecting ? (
                   <Text style={styles.calWaiting}>
-                    Complete sign-in in your browser, then come back.
+                    Finish on Google's screen, then come back.
                   </Text>
+                ) : null}
+
+                {calNeedsReconnect && !calConnecting ? (
+                  <TouchableOpacity
+                    style={styles.calDisconnectBtn}
+                    activeOpacity={0.7}
+                    onPress={handleCalDisconnect}
+                    disabled={calDisconnecting}
+                  >
+                    {calDisconnecting
+                      ? <ActivityIndicator size="small" color={colors.textMuted} />
+                      : <Text style={styles.calDisconnectText}>Disconnect instead</Text>}
+                  </TouchableOpacity>
                 ) : null}
               </>
             )}

@@ -57,6 +57,17 @@ SCOPE_CALENDAR_APP = "https://www.googleapis.com/auth/calendar.app.created"
 SYNC_WINDOW_DAYS = 60   # ~2 months; re-sync nudge fires when < RESYNC_NUDGE_DAYS remain
 RESYNC_NUDGE_DAYS = 7   # /status returns needs_resync=True when coverage drops below this
 
+# The primary calendar's id IS the account's email address, and reading it
+# needs only calendar.readonly — so we can show "Connected as you@gmail.com"
+# without asking for an extra (email/openid) scope.
+CALENDAR_PRIMARY_URL = "https://www.googleapis.com/calendar/v3/calendars/primary"
+
+
+class GoogleTransientError(RuntimeError):
+    """Google couldn't be reached (network blip, 5xx). The grant is still good —
+    callers must NOT treat this as "access revoked" and drop the connection."""
+
+
 # Google's OpenID Connect endpoints for verifying Sign-In ID tokens.
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 GOOGLE_ISSUERS = ("accounts.google.com", "https://accounts.google.com")
@@ -155,10 +166,53 @@ def build_auth_url(state: str, include_gmail: bool, include_write: bool = False)
         "response_type": "code",
         "scope": " ".join(scopes),
         "access_type": "offline",
-        "prompt": "consent",
+        # select_account: always show the account picker, so someone signed in
+        # to a work and a personal Google account chooses on purpose instead
+        # of silently linking whichever one the browser had open.
+        "prompt": "consent select_account",
         "state": state,
     }
     return f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
+
+
+def granted_calendar_read(token_payload: dict[str, Any]) -> bool:
+    """Did the user leave the calendar box ticked on Google's screen?
+
+    Google's consent screen lets people untick individual permissions. Without
+    calendar.readonly nothing works, so the callback refuses to store such a
+    grant and tells the user, rather than showing "Connected" and failing on
+    every sync."""
+    return SCOPE_CALENDAR in str(token_payload.get("scope") or "").split()
+
+
+async def fetch_account_email(access_token: str | None) -> str | None:
+    """The connected Google account's email (best-effort; None on any error)."""
+    if not access_token:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                CALENDAR_PRIMARY_URL,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            resp.raise_for_status()
+            cal_id = str((resp.json() or {}).get("id") or "")
+    except Exception as e:  # noqa: BLE001 — purely cosmetic, never fail on it
+        logger.info("google account email lookup failed: %s", e)
+        return None
+    return cal_id if "@" in cal_id else None
+
+
+async def _backfill_account_email(conn: CalendarConnection, access: str, db: AsyncSession) -> None:
+    import json
+    from services.secrets import encrypt_token
+    email = await fetch_account_email(access)
+    if not email:
+        return
+    tokens = conn.tokens_decrypted
+    tokens["account_email"] = email
+    conn.tokens_encrypted = encrypt_token(json.dumps(tokens))
+    conn.tokens = None
 
 
 async def exchange_code(code: str) -> dict[str, Any]:
@@ -175,7 +229,12 @@ async def exchange_code(code: str) -> dict[str, Any]:
 
 
 async def _fresh_access_token(conn: CalendarConnection, db: AsyncSession) -> str | None:
-    """Refresh-token dance; updates stored expiry. None = needs reconnect."""
+    """Refresh-token dance; updates stored expiry.
+
+    None = Google rejected the grant (revoked, expired, password change) and
+    the user must reconnect. A network blip or Google 5xx raises
+    GoogleTransientError instead — it used to return None too, which made a
+    momentary outage look like a revoke and silently dropped the connection."""
     from services.secrets import encrypt_token
     import json
     tokens = conn.tokens_decrypted  # dual-read: encrypted first, fallback plaintext
@@ -200,9 +259,14 @@ async def _fresh_access_token(conn: CalendarConnection, db: AsyncSession) -> str
             })
             resp.raise_for_status()
             data = resp.json()
+    except httpx.HTTPStatusError as e:
+        if e.response is not None and e.response.status_code in (400, 401):
+            # invalid_grant / unauthorized_client: the grant is dead.
+            logger.warning("google token refresh rejected: %s", e)
+            return None
+        raise GoogleTransientError(str(e)) from e
     except httpx.HTTPError as e:
-        logger.warning("google token refresh failed: %s", e)
-        return None
+        raise GoogleTransientError(str(e)) from e
     tokens["access_token"] = data.get("access_token")
     tokens["expiry"] = (
         datetime.utcnow() + timedelta(seconds=int(data.get("expires_in") or 3600))
@@ -214,7 +278,8 @@ async def _fresh_access_token(conn: CalendarConnection, db: AsyncSession) -> str
 
 
 async def store_connection(
-    db: AsyncSession, user_id, token_payload: dict[str, Any]
+    db: AsyncSession, user_id, token_payload: dict[str, Any],
+    account_email: str | None = None,
 ) -> CalendarConnection:
     conn = (await db.execute(
         select(CalendarConnection).where(
@@ -232,6 +297,8 @@ async def store_connection(
     if token_payload.get("refresh_token"):
         tokens["refresh_token"] = token_payload["refresh_token"]
     tokens["scope"] = token_payload.get("scope", "")
+    if account_email:
+        tokens["account_email"] = account_email
     tokens["expiry"] = (
         datetime.utcnow() + timedelta(seconds=int(token_payload.get("expires_in") or 3600))
     ).isoformat()
@@ -271,12 +338,21 @@ async def sync_google_calendar(user_id, db: AsyncSession) -> dict[str, int]:
     )).scalars().first()
     if conn is None:
         return {"synced": 0}
-    access = await _fresh_access_token(conn, db)
+    try:
+        access = await _fresh_access_token(conn, db)
+    except GoogleTransientError as e:
+        logger.warning("google calendar sync deferred for %s: %s", user_id, e)
+        return {"synced": 0, "error": 1}
     if not access:
         # Refresh failed → mark connection inactive so the UI shows reconnect state
         conn.is_active = False
         await db.commit()
         return {"synced": 0, "needs_reconnect": 1}
+
+    # Connections made before we recorded the account: fill it in once, so the
+    # app can show which Google account is linked.
+    if not (conn.tokens_decrypted or {}).get("account_email"):
+        await _backfill_account_email(conn, access, db)
 
     win_from = datetime.utcnow() - timedelta(days=1)
     win_to = datetime.utcnow() + timedelta(days=SYNC_WINDOW_DAYS)
@@ -547,7 +623,10 @@ async def scan_gmail_commitments(user_id, db: AsyncSession) -> dict[str, int]:
     # always {} and the Gmail scope gate always failed (Gmail scan never ran).
     if conn is None or SCOPE_GMAIL not in str((conn.tokens_decrypted or {}).get("scope") or ""):
         return {"proposed": 0, "needs_scope": 1}
-    access = await _fresh_access_token(conn, db)
+    try:
+        access = await _fresh_access_token(conn, db)
+    except GoogleTransientError:
+        return {"proposed": 0, "error": 1}
     if not access:
         return {"proposed": 0, "needs_reconnect": 1}
 
