@@ -161,8 +161,10 @@ const pcStyles = StyleSheet.create({
     slider: { marginTop: 10, marginHorizontal: -2 },
     sliderContent: { gap: 10, paddingHorizontal: 2 },
     stack: { marginTop: 10, gap: 8 },
+    // White card + white image well: Amazon product shots are on white, so a
+    // grey card would box every photo in. One surface, hairline edge.
     card: {
-        backgroundColor: colors.surface,
+        backgroundColor: colors.card,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         borderRadius: borderRadius.md,
@@ -171,7 +173,7 @@ const pcStyles = StyleSheet.create({
     cardStacked: { flexDirection: 'row', alignItems: 'center', padding: 8 },
     cardSlider: { width: 160, flexDirection: 'column' },
     imgStacked: { width: 56, height: 56, borderRadius: borderRadius.sm, backgroundColor: colors.card },
-    imgSlider: { width: '100%', height: 120, backgroundColor: colors.card },
+    imgSlider: { width: '100%', height: 120, backgroundColor: colors.card, marginTop: 6 },
     imgFallback: { alignItems: 'center', justifyContent: 'center' },
     cardBody: { flex: 1, paddingHorizontal: 10, paddingVertical: 8, gap: 2 },
     brand: { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.2 },
@@ -805,7 +807,7 @@ export default function MaxChatScreen() {
                 undefined,
                 initContext,
                 chatIntent,
-                forceNewConversation ? undefined : (activeConversationId ?? undefined),
+                forceNewConversation ? undefined : await ensureThreadId(),
                 replyId,
                 abortRef.current.signal,
                 clientTurnId,
@@ -1001,7 +1003,7 @@ export default function MaxChatScreen() {
                 undefined,
                 undefined,
                 undefined,
-                activeConversationId ?? undefined,
+                await ensureThreadId(),
                 replyId,
                 abortRef.current.signal,
                 typedTurnId,
@@ -1146,6 +1148,24 @@ export default function MaxChatScreen() {
     const programThread = setupProgram ?? titleProgram;
     const programColor = programThread ? BIOHACK_PROGRAM_BY_ID[programThread]?.color : undefined;
 
+    // "New chat" only clears the screen; the thread is created right before the
+    // first send. Without this the first message went out with no thread id and
+    // the server filed it into the most recent conversation.
+    const ensureThreadId = async (): Promise<string | undefined> => {
+        if (activeConversationId) return activeConversationId;
+        if (!pendingNewChat) return undefined;
+        try {
+            const { conversation } = await api.createChatConversation();
+            if (conversation?.id) {
+                setSeededForConversation(conversation.id);
+                setActiveConversationId(conversation.id);
+                queryClient.invalidateQueries({ queryKey: queryKeys.chatConversations });
+                return conversation.id;
+            }
+        } catch { /* fall back to server routing */ }
+        return undefined;
+    };
+
     const newChat = () => {
         setSetupProgram(null);
         setPendingNewChat(true);
@@ -1231,7 +1251,7 @@ export default function MaxChatScreen() {
                 'image',
                 undefined,
                 undefined,
-                activeConversationId ?? undefined,
+                await ensureThreadId(),
                 replyId,
                 abortRef.current.signal,
             );

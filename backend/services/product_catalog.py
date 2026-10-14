@@ -139,6 +139,31 @@ def load_catalog() -> tuple[Product, ...]:
     return tuple(out)
 
 
+# Kept in the YAML for history, never recommended (the retired looks programs).
+RETIRED_MODULE = "retired"
+
+# Old program ids → the biohacking program that now owns those products.
+MODULE_ALIASES = {
+    "skinmax": "skinhairmax", "hairmax": "skinhairmax", "skin": "skinhairmax", "hair": "skinhairmax",
+    "fitmax": "trainmax", "fitness": "trainmax", "training": "trainmax",
+    "supplements": "suppmax", "supplement": "suppmax", "supps": "suppmax",
+    "sleep": "sleepmax", "energy": "energymax", "focus": "focusmax", "stress": "calmmax",
+    "calm": "calmmax", "longevity": "longevitymax", "peptides": "peptidemax",
+    "bonemax": RETIRED_MODULE, "heightmax": RETIRED_MODULE,
+}
+
+
+def normalize_module(module: Optional[str]) -> Optional[str]:
+    m = (module or "").strip().lower()
+    if not m:
+        return None
+    return MODULE_ALIASES.get(m, m)
+
+
+def active_catalog() -> tuple["Product", ...]:
+    return tuple(p for p in load_catalog() if p.module != RETIRED_MODULE)
+
+
 def reload() -> None:
     """Drop the cache so the next `load_catalog()` re-reads the YAML."""
     load_catalog.cache_clear()
@@ -321,6 +346,7 @@ def find_products(
     user_facts: Optional[dict] = None,
     limit: int = 3,
     price_tier: Optional[str] = None,
+    require_match: bool = False,
 ) -> list[Product]:
     """Return up to `limit` products matching `module` and `concerns`,
     after filtering through `user_facts`. Ranked by concern-overlap then
@@ -329,11 +355,13 @@ def find_products(
     All args are optional. Calling with nothing returns up to `limit`
     catalog products in stable order (useful for "show me anything").
     """
-    catalog = load_catalog()
+    catalog = active_catalog()
     if not catalog:
         return []
 
-    target_module = (module or "").strip().lower() or None
+    target_module = normalize_module(module)
+    if target_module == RETIRED_MODULE:
+        return []
     concern_set = _expand_concerns(concerns or [])
 
     scored: list[tuple[int, int, Product]] = []  # (overlap, tier_priority, p)
@@ -357,7 +385,16 @@ def find_products(
     # right there. The user reported "links aren't working / vague" which
     # was rooted in this filter being too strict. Now the bot always gets
     # at least one in-module product to surface, which is the goal.
+    # But never PAD a matching answer with unrelated items: when something
+    # matches the concern, return only the matches ("earplugs" shouldn't
+    # also surface curtains). Module defaults only when nothing matched.
     scored.sort(key=lambda t: (-t[0], t[1]))
+    if require_match:
+        scored = [t for t in scored if t[0] > 0]
+    if concern_set and scored and scored[0][0] > 0:
+        scored = [t for t in scored if t[0] > 0]
+    elif concern_set and not target_module:
+        return []
     return [p for _, _, p in scored[:limit]]
 
 
@@ -398,7 +435,7 @@ def allowed_urls() -> set[str]:
     cached responses may still surface the short form — both should
     pass validation."""
     out: set[str] = set()
-    for p in load_catalog():
+    for p in active_catalog():   # retired entries' links are not vouched for
         out.add(p.url)
         if p.slug:
             out.add(p.display_url)
@@ -413,7 +450,7 @@ def lookup_by_brand_and_name(brand: str, name_substr: str) -> Optional[Product]:
         return None
     b = brand.strip().lower()
     n = name_substr.strip().lower()
-    for p in load_catalog():
+    for p in active_catalog():
         if p.brand.lower() == b and n in p.name.lower():
             return p
     return None
@@ -437,16 +474,16 @@ def _tokens(s: str) -> set[str]:
 # in product_catalog.yaml (verified at module load via _validate_distinctive_map).
 _DISTINCTIVE_NAMES: dict[str, str] = {
     "differin":     "differin-adapalene",
-    "minoxidil":    "kirkland-minoxidil-5",
-    "kirkland":     "kirkland-minoxidil-5",
     "nizoral":      "nizoral-shampoo",
     "ketoconazole": "nizoral-shampoo",
-    "creatine":     "now-creatine-monohydrate",
+    "creatine":     "thorne-creatine",
     "magnesium":    "doctors-best-magnesium-glycinate",
-    "azelaic":      "ordinary-azelaic-acid",
-    "niacinamide":  "ordinary-niacinamide",
-    "bha":          "paulas-choice-2-bha",
-    "aha":          "ordinary-glycolic-acid",
+    "melatonin":    "nature-made-melatonin-3mg",
+    "theanine":     "now-l-theanine-200",
+    "collagen":     "vital-proteins-collagen-peptides",
+    "glycine":      "now-glycine-powder",
+    "lmnt":         "lmnt-recharge",
+    "manta":        "manta-original-sleep-mask",
 }
 
 
@@ -471,7 +508,7 @@ def lookup_by_name(name_substr: str, *, min_overlap: int = 2) -> Optional[Produc
     # Single-token distinctive-brand fast path. Doesn't need 2-token
     # overlap because these names map 1:1 to a known catalog entry.
     if len(target) >= 1:
-        catalog_by_id = {p.id: p for p in load_catalog()}
+        catalog_by_id = {p.id: p for p in active_catalog()}
         for tok in target:
             target_id = _DISTINCTIVE_NAMES.get(tok)
             if target_id and target_id in catalog_by_id:
@@ -480,7 +517,7 @@ def lookup_by_name(name_substr: str, *, min_overlap: int = 2) -> Optional[Produc
     if len(target) < min_overlap:
         return None
     best: Optional[tuple[int, Product]] = None
-    for p in load_catalog():
+    for p in active_catalog():
         # Allow matching against a short prefix of the catalog name
         # (first 3 tokens) so "EltaMD UV Clear" matches "EltaMD UV Clear
         # Broad-Spectrum SPF 46" without needing a 7-token overlap.
@@ -494,3 +531,47 @@ def lookup_by_name(name_substr: str, *, min_overlap: int = 2) -> Optional[Produc
         if best is None or overlap > best[0]:
             best = (overlap, p)
     return best[1] if best else None
+
+
+_MSG_WORD = __import__("re").compile(r"[a-z0-9]+")
+_MSG_STOP = {"what", "which", "should", "would", "could", "get", "buy", "the", "for", "and", "best",
+             "good", "need", "want", "some", "any", "can", "you", "recommend", "link", "links",
+             "where", "find", "one", "use", "try", "grab", "with", "that", "this", "your", "isn",
+             "don", "enough", "really", "kind", "type", "brand", "brands", "product", "products"}
+# Words that say WHY, not WHAT: they never pick a product on their own.
+_MSG_GENERIC = {"sleep", "sleeping", "night", "nights", "home", "training", "train", "workout",
+                "day", "daily", "morning", "evening", "room", "routine", "focus", "calm", "stress",
+                "energy", "better", "more", "less", "help", "time", "work", "skin", "hair", "health",
+                "supplement", "supplements", "doing", "take", "taking", "start"}
+
+
+def products_named_in(message: str, *, modules: Optional[Iterable[str]] = None, limit: int = 3) -> list[Product]:
+    """Verified catalog products the message actually asks for. A word in the
+    product's NAME counts 3x a concern tag; generic words (sleep, training,
+    night…) never count. Hinted programs break ties. Returns only matches close
+    to the best one, never padding."""
+    words = [w for w in _MSG_WORD.findall((message or "").lower()) if len(w) >= 3 and w not in _MSG_STOP]
+    strong = [w for w in words if w not in _MSG_GENERIC]
+    if not strong:
+        return []
+    # light plural folding so "dumbbells" ~ "dumbbell", "earplugs" ~ "earplug"
+    def _fold(t: str) -> str:
+        return t[:-1] if len(t) > 4 and t.endswith("s") else t
+    strong_f = {_fold(w) for w in strong}
+    bigrams = {f"{a}_{b}" for a, b in zip(words, words[1:])}
+    pref = {normalize_module(m) for m in (modules or []) if m}
+    scored = []
+    for p in active_catalog():
+        name_t = {_fold(t) for t in _MSG_WORD.findall(p.name.lower())}
+        conc = {_fold(c) for c in p.concerns} | set(p.concerns)
+        score = 3 * len(strong_f & name_t) + len((strong_f | bigrams) & conc)
+        if score <= 0:
+            continue
+        scored.append((score, 1 if p.module in pref else 0, -{"budget": 0, "mid": 1, "premium": 2}.get(p.price_tier, 1), p))
+    if not scored:
+        return []
+    scored.sort(key=lambda t: (t[0], t[1], t[2]), reverse=True)
+    best = scored[0][0]
+    if best < 2:
+        return []
+    return [t[3] for t in scored if t[0] >= max(2, best * 0.6)][:limit]

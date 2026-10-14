@@ -266,132 +266,48 @@ def _brand_name(product_name: str) -> str:
 
 
 def product_brands_for_module(maxx_id: str, max_brands: int = 8) -> list[str]:
-    curated = list(_CURATED_BRANDS.get(maxx_id, []))
-    if curated:
-        return curated[:max_brands]
-    brands: list[str] = []
-    seen: set[str] = set()
-    for name in _module_products(maxx_id):
-        brand = _brand_name(name)
-        key = _normalize(brand)
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        brands.append(brand)
-        if len(brands) >= max_brands:
+    """Brands we actually stock (verified catalog) for this program."""
+    from services.product_catalog import RETIRED_MODULE, active_catalog, normalize_module
+    module = normalize_module(maxx_id)
+    if not module or module == RETIRED_MODULE:
+        return []
+    out: list[str] = []
+    for p in active_catalog():
+        if p.module == module and p.brand and p.brand not in out:
+            out.append(p.brand)
+        if len(out) >= max_brands:
             break
-    return brands
+    return out
+
+
+_WORD = re.compile(r"[a-z0-9]+")
 
 
 async def product_links_from_context(
     *,
     message: str,
     maxx_id: str,
-    max_links: int = 5,
+    max_links: int = 3,
 ) -> str:
-    """Return Amazon search links for module-relevant products."""
-    module_products = _module_products(maxx_id)
-    min_similarity = float(getattr(settings, "rag_score_threshold", 0.35) or 0.35)
-    top_k = int(getattr(settings, "rag_top_k", 4) or 4)
-    retrieved = await retrieve_chunks(
-        None, maxx_id, message, k=top_k, min_similarity=min_similarity
-    )
-    evidence_text = "\n".join(c.get("content", "") for c in retrieved)
-    evidence_products = _extract_products(evidence_text)
-
-    ranked: list[tuple[int, str]] = []
-    haystack = f"{message}\n{evidence_text}".lower()
-    norm_message = _normalize(message)
-    message_tokens = set(_norm_tokens(message))
-    explicit_query_matches: list[str] = []
-    explicit_seen: set[str] = set()
-    for name in _CURATED_PRODUCTS.get(maxx_id, []):
-        aliases = _PRODUCT_ALIASES.get(name, [])
-        alias_hit = any(alias in message.lower() or _normalize(alias) in norm_message for alias in aliases)
-        if name.lower() in message.lower() or _normalize(name) in norm_message or alias_hit:
-            key = _normalize(name)
-            if key not in explicit_seen:
-                explicit_seen.add(key)
-                explicit_query_matches.append(name)
-        else:
-            parts = set(_norm_tokens(name))
-            overlap = len(parts & message_tokens)
-            if overlap >= 2 or (overlap >= 1 and ("bha" in message_tokens or "spf" in message_tokens)):
-                key = _normalize(name)
-                if key not in explicit_seen:
-                    explicit_seen.add(key)
-                    explicit_query_matches.append(name)
-
-    for name in module_products + evidence_products:
-        key = _normalize(name)
-        if not key:
-            continue
-        score = 0
-        pretty = name.strip()
-        if pretty.lower() in haystack:
-            score += 3
-        for part in pretty.lower().split():
-            if len(part) >= 4 and part in haystack:
-                score += 1
-        if score > 0:
-            ranked.append((score, pretty))
-
-    for name in _CURATED_PRODUCTS.get(maxx_id, []):
-        if name.lower() in haystack:
-            ranked.append((10, name))
-
-    if explicit_query_matches:
-        ranked = [(100, name) for name in explicit_query_matches]
-    elif not ranked:
-        fallback = evidence_products[:max_links] or module_products[:max_links]
-        if not fallback:
-            return ""
-        ranked = [(1, name) for name in fallback]
-
-    chosen: list[str] = []
-    seen: set[str] = set()
-    for name in explicit_query_matches:
-        key = _normalize(name)
-        if key in seen:
-            continue
-        seen.add(key)
-        chosen.append(name)
-        if len(chosen) >= max_links:
-            break
-    for _score, name in sorted(ranked, key=lambda x: (-x[0], x[1]))[: max_links * 3]:
-        key = _normalize(name)
-        if key in seen:
-            continue
-        seen.add(key)
-        chosen.append(name)
-        if len(chosen) >= max_links:
-            break
-
-    if not chosen:
+    """'Give me links' for a program: the verified catalog products that fit
+    the message, surfaced as tappable product cards (no URLs in the text).
+    Returns "" when nothing fits, so the turn falls through to the coach."""
+    from services.lc_agent import record_catalog_products
+    from services.product_catalog import RETIRED_MODULE, find_products, normalize_module
+    module = normalize_module(maxx_id)
+    if not module or module == RETIRED_MODULE:
         return ""
-
-    # Final entity-specificity filter — drop links whose query is too generic
-    # to be a useful Amazon search ("routine", "skin", "step 1"). The LLM
-    # sometimes hands these in via tool calls; we refuse to render them.
-    chosen = [name for name in chosen if _is_specific_product_query(name)]
-    if not chosen:
-        logger.info(
-            "[product_links] all candidates failed specificity filter for maxx=%s message=%r",
-            maxx_id, (message or "")[:80],
-        )
+    words = [w for w in _WORD.findall((message or "").lower()) if len(w) >= 3]
+    bigrams = [f"{a}_{b}" for a, b in zip(words, words[1:])]
+    # A real match only (what the message names), this program first, then
+    # the whole catalog ("link for magnesium" from a Sleepmax thread).
+    from services.product_catalog import products_named_in
+    products = products_named_in(message, modules=[module], limit=max_links)
+    if not products:
         return ""
-
-    # Only ship lines whose product resolves to a catalog (direct-link)
-    # entry. Anything that would otherwise become a search URL is dropped
-    # silently — the user explicitly does not want search URLs surfaced.
-    rendered: list[str] = []
-    for name in chosen:
-        url = _amazon_search_url(name)
-        if not url:  # no catalog match → skip rather than ship a search url
-            continue
-        rendered.append(f"- {name}: {url}")
-    if not rendered:
-        return ""
-    lines = ["direct product links from the catalog:"]
-    lines.extend(rendered)
+    record_catalog_products(products)
+    lines = ["here's what i'd get, tap a card to buy:"]
+    for p in products:
+        why = (p.rationale or "").rstrip(".").lower()
+        lines.append(f"- {p.name}" + (f": {why}" if why else ""))
     return "\n".join(lines)

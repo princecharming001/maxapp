@@ -173,10 +173,9 @@ function StatCardsBlock({ block }: { block: VisualBlock }) {
                     <LiquidGlass key={i} radius={13} spec={0.85} style={s.statPill} contentStyle={s.statPillContent}>
                         <View style={s.statLine}>
                             <Text style={s.statValueLine} numberOfLines={1}>{txt(c?.value)}</Text>
-                            <Text style={s.statLabelLine} numberOfLines={1}>
-                                {txt(c?.label)}{hint ? `  ·  ${hint}` : ''}
-                            </Text>
+                            <Text style={s.statLabelLine} numberOfLines={2}>{txt(c?.label)}</Text>
                         </View>
+                        {hint ? <Text style={s.statHint} numberOfLines={2}>{hint}</Text> : null}
                     </LiquidGlass>
                 );
             })}
@@ -197,6 +196,7 @@ function ChecklistBlock({ block }: { block: VisualBlock }) {
                         name={it?.done ? 'checkmark-circle' : 'ellipse-outline'}
                         size={17}
                         color={it?.done ? GOOD : MUTE}
+                        style={{ marginRight: 9 }}
                     />
                     <Text style={s.clText}>{txt(it?.text)}</Text>
                 </View>
@@ -329,9 +329,11 @@ const s = StyleSheet.create({
     cmpCol: { flex: 1, paddingHorizontal: 8 },
     cmpDivider: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: HAIR },
     cmpName: { fontFamily: fonts.sansSemiBold, fontSize: 13, color: INK, marginBottom: 6 },
-    cmpLine: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4, gap: 5 },
-    cmpIcon: { marginTop: 1.5 },
-    cmpPt: { flex: 1, fontFamily: fonts.sans, fontSize: 12, color: INK, lineHeight: 16 },
+    // No `gap` here: with gap, Yoga measures the wrapped Text too wide and clips
+    // the end of lines ("jet lag, sh"). A margin on the icon is measured right.
+    cmpLine: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 },
+    cmpIcon: { marginTop: 1.5, marginRight: 5 },
+    cmpPt: { flex: 1, flexShrink: 1, fontFamily: fonts.sans, fontSize: 12, color: INK, lineHeight: 16 },
     // timeline
     tlRow: { flexDirection: 'row', alignItems: 'stretch' },
     tlRail: { width: 18, alignItems: 'center' },
@@ -352,11 +354,12 @@ const s = StyleSheet.create({
     statStack: { gap: 7 },
     statPill: { borderRadius: 13, borderCurve: 'continuous' },
     statPillContent: { paddingVertical: 9, paddingHorizontal: 14 },
-    statLine: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+    statLine: { flexDirection: 'row', alignItems: 'baseline' },
     // System font (no fontFamily) to match the chat's assistant text exactly.
-    statValueLine: { fontSize: 16, fontWeight: '700', color: CHAT_INK, letterSpacing: -0.2, fontVariant: ['tabular-nums'] },
-    statLabelLine: { flex: 1, fontSize: 14, color: CHAT_MUTE, letterSpacing: 0 },
+    statValueLine: { fontSize: 16, fontWeight: '700', color: CHAT_INK, letterSpacing: -0.2, fontVariant: ['tabular-nums'], marginRight: 10 },
+    statLabelLine: { flex: 1, flexShrink: 1, fontSize: 14, color: CHAT_MUTE, letterSpacing: 0 },
+    statHint: { fontSize: 12.5, color: CHAT_MUTE, marginTop: 3, lineHeight: 17 },
     // checklist
-    clRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 4 },
-    clText: { flex: 1, fontFamily: fonts.sans, fontSize: 13, color: INK, lineHeight: 18 },
+    clRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
+    clText: { flex: 1, flexShrink: 1, fontFamily: fonts.sans, fontSize: 13, color: INK, lineHeight: 18 },
 });

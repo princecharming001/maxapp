@@ -26,20 +26,22 @@ def test_canonical_stable_across_phrasings():
 
 def test_pick_is_deterministic():
     """Same inputs -> same product, every call (no randomness)."""
-    key = ir.canonical_ingredient("vitamin C serum")
-    picks = {ir._pick_product("skinmax", key, None).id for _ in range(5)}
+    key = ir.canonical_ingredient("protein powder")
+    picks = {ir._pick_product("suppmax", key, None).id for _ in range(5)}
     assert len(picks) == 1
 
 
 def test_facts_filter_vegan():
     """A vegan user never gets a product tagged vegan=False."""
-    key = ir.canonical_ingredient("vitamin C serum")
-    default = ir._pick_product("skinmax", key, None)
-    vegan = ir._pick_product("skinmax", key, {"diet": ["vegan"]})
+    key = ir.canonical_ingredient("protein powder")
+    default = ir._pick_product("suppmax", key, None)
+    vegan = ir._pick_product("suppmax", key, {"diet": ["vegan"]})
     assert default is not None and vegan is not None
     assert vegan.tags.get("vegan") is True
-    # The vegan-filtered pick differs from the unconstrained default here.
-    assert vegan.id != default.id
+    # Both picks are protein powders (never glycine "powder"), and a vegan user
+    # is never handed whey.
+    assert "protein" in default.id and "protein" in vegan.id
+    assert "whey" not in vegan.id
 
 
 def test_facts_hash_changes_with_relevant_facts_only():

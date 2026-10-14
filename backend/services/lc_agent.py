@@ -56,7 +56,9 @@ def get_recommended_products() -> list[dict]:
     out: list[dict] = []
     for p in sink:
         url = (p or {}).get("url") or ""
-        key = url or (p or {}).get("name") or ""
+        # Same product can arrive as /dp/<ASIN> and /<Slug>/dp/<ASIN>: key by ASIN.
+        m = re.search(r"/dp/([A-Z0-9]{10})", url)
+        key = (m.group(1) if m else url) or (p or {}).get("name") or ""
         if not key or key in seen:
             continue
         seen.add(key)
@@ -742,10 +744,14 @@ async def build_agent_system_prompt(
         "Be eager, the user shouldn't have to ask. Call "
         "`recommend_product(module, concern)` when: "
         "(a) they ask for a product/brand/link or 'what should i buy/use/get'; "
-        "(b) you name any specific brand/product/supplement (cerave, the "
-        "ordinary, niacinamide, creatine, minoxidil) even unasked; (c) your "
-        "reply describes a routine with a product category (cleanser, "
-        "moisturizer, spf, shampoo, protein, multivitamin), surface 1 pick.\n"
+        "(b) you name any specific brand/product/supplement (cerave, loop "
+        "earplugs, a sleep mask, creatine, magnesium) even unasked; (c) your "
+        "reply describes a habit that needs a thing (blackout curtains for a dark "
+        "room, a timer for focus blocks, spf, a water bottle, dumbbells), surface "
+        "1 pick. Do NOT push products on questions that don't need one.\n"
+        "Programs for `module`: sleepmax, energymax, focusmax, calmmax, trainmax, "
+        "skinhairmax, longevitymax, suppmax (all supplements), peptidemax (support "
+        "gear only: never recommend, dose or source a peptide).\n"
         "HOW THE LINKS SHOW UP: the app renders the recommended products as "
         "tappable preview CARDS under your message automatically -- you do NOT "
         "paste links. Just mention the product conversationally BY NAME in your "
@@ -781,7 +787,9 @@ async def build_agent_system_prompt(
         "goals, preferences, symptoms) -- the app turns it into a type-your-own "
         "box. Do NOT add it to closed questions with a fixed set (skin type, "
         "experience level, biological sex, yes/no, equipment).\n"
-        "Examples: 'help with skin' -> 'what's bothering you?' [CHOICES_MULTI]"
+        "Examples: 'help me sleep better' -> 'what's the main thing?' [CHOICES]"
+        "falling asleep|waking at night|waking up tired|my schedule[/CHOICES]  /  "
+        "'help with skin' -> 'what's bothering you?' [CHOICES_MULTI]"
         "acne|dryness|oily|sensitive|redness|Something else[/CHOICES_MULTI]  /  "
         "'what skincare should i use' -> 'what's your skin type?' [CHOICES]oily|dry|"
         "combo|sensitive|not sure[/CHOICES]  /  'start working out' -> 'what do you "
@@ -792,6 +800,10 @@ async def build_agent_system_prompt(
         "prose with no marker is a failure. 'what skincare should i use' and 'help "
         "with my hair' are NOT answerable without skin/hair type -- ASK with a "
         "marker, never give an everyone-routine.\n"
+        "EXCEPTION: when the user explicitly asks for a plan, timeline, table, "
+        "checklist, comparison or steps in order, BUILD it now from KNOWN PROFILE "
+        "and their active programs with sensible defaults; at most end with one "
+        "tailoring question.\n"
         "ASK only when you're actually missing the fact you'd need. If KNOWN "
         "PROFILE already answers it, or it's a SPECIFIC or general-knowledge "
         "question ('what % niacinamide', 'is creatine safe', 'how much protein per "
@@ -2213,9 +2225,13 @@ def make_chat_tools(
     @tool
     async def recommend_product(module: str, concern: str) -> str:
         """
-        Get product/ingredient recommendations for a module and concern.
+        Get product recommendations for a program and concern.
         Use when user asks what to buy or what products to use.
-        module: skinmax, hairmax, fitmax, bonemax, heightmax.
+        module: sleepmax, energymax, focusmax, calmmax, trainmax (Fitmax),
+        skinhairmax (Skin & Hair), longevitymax, suppmax (supplements),
+        peptidemax (support gear only, never peptides).
+        concern: 1-3 keywords for the thing they need, e.g. "sleep mask",
+        "blackout", "timer", "creatine", "spf", "electrolytes".
 
         Returns BOTH:
           1. CATALOG-VETTED PRODUCTS, direct product links filtered
@@ -2789,8 +2805,10 @@ async def run_chat_agent(
     # Link validator — same as fast_rag. Last line of defense against
     # search-URL leaks and hallucinated product pages.
     try:
-        from services.link_validator import validate_and_rewrite_links
-        response_text = validate_and_rewrite_links(response_text)
+        from services.link_validator import has_purchase_intent, validate_and_rewrite_links
+        response_text = validate_and_rewrite_links(
+            response_text, purchase_intent=has_purchase_intent(message), user_message=message,
+        )
     except Exception as e:
         logger.info("[AGENT] link validator skipped: %s", e)
 

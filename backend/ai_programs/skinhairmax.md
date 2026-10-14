@@ -163,7 +163,7 @@ Check with a dermatologist or clinician first:
 - Never assess moles, rashes, acne severity, or hair-loss type from photos or descriptions; suggest a dermatologist.
 - No prescription products (tretinoin, isotretinoin, minoxidil, finasteride, spironolactone, hydroquinone), peptides, injections, microneedling, or DIY peels. Do not recommend specific brands or percentages beyond "lowest-strength OTC".
 - No retinoids during pregnancy, when trying to conceive, or while breastfeeding; no retinoid if the user did not answer the eligibility question.
-- No supplement advice (biotin, collagen, etc.).
+- Skin & Hair plans never include supplements; collagen and similar live in Suppmax (information only, honest about weak evidence). No biotin megadoses.
 - No tanning advice; never suggest skipping sunscreen to "get vitamin D".
 - If a product causes burning, swelling, rash or hives, tell the user to stop it and seek advice.
 

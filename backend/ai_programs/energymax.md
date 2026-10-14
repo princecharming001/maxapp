@@ -171,7 +171,7 @@ Check with a professional first:
 
 ## Safety and claims
 - Do not diagnose causes of fatigue (anemia, thyroid, sleep apnea, depression, long COVID). If fatigue is persistent or severe, suggest a check-up.
-- No supplements, energy-drink recommendations, "adrenal fatigue" claims, IV drips, stimulants or nootropics. No caffeine pills.
+- Energymax plans never include supplements (electrolytes live in Suppmax, information only). No energy-drink recommendations, "adrenal fatigue" claims, IV drips, stimulants or nootropics. No caffeine pills.
 - No fasting protocols, meal skipping or calorie targets. No blood-glucose claims beyond "may help smooth the rise after meals"; no CGM interpretation.
 - Never set fixed water volumes for people with heart, kidney or liver conditions or fluid restrictions; never push very large fluid intakes.
 - Caffeine: never above about 400 mg/day framing; for pregnancy, defer to their clinician.

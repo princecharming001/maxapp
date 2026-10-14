@@ -31,7 +31,24 @@ from services.llm_outage import as_outage
 
 logger = logging.getLogger(__name__)
 
-VALID_MAXX_IDS = frozenset({"skinmax", "fitmax", "hairmax", "heightmax", "bonemax", "general"})
+# Retired looks programs: their rag_documents rows stay (old threads, tests)
+# but broad searches skip them.
+LEGACY_MAXX_IDS = frozenset({"skinmax", "fitmax", "hairmax", "heightmax", "bonemax"})
+
+
+def _ai_program_ids() -> frozenset:
+    try:
+        from services.ai_programs import AI_PROGRAMS
+        return frozenset(AI_PROGRAMS)
+    except Exception:
+        return frozenset()
+
+
+# The biohacking programs. Their evidence is the program's research doc in
+# backend/ai_programs/ (versioned with the code), not rag_documents.
+AI_PROGRAM_RAG_IDS = _ai_program_ids()
+VALID_MAXX_IDS = frozenset(LEGACY_MAXX_IDS | AI_PROGRAM_RAG_IDS | {"general"})
+ACTIVE_MAXX_IDS = frozenset(AI_PROGRAM_RAG_IDS)
 
 _INDEX: dict[str, "_Bm25Index"] = {}
 _EMBEDDING_CLIENT = None
@@ -187,12 +204,34 @@ def _split_markdown_with_headings(body: str) -> list[dict]:
     return chunks
 
 
+def _program_doc_body(maxx_id: str) -> list[tuple[str, str]]:
+    """(title, body) for an AI program's research doc, minus the Sources list
+    (bare URLs only add noise to retrieval and tempt the model to paste them)."""
+    try:
+        from services.ai_programs import AI_PROGRAMS, AI_PROGRAM_DIR
+        meta = AI_PROGRAMS[maxx_id]
+        body = (AI_PROGRAM_DIR / meta["doc"]).read_text(encoding="utf-8")
+    except Exception:
+        logger.exception("RAG: could not read program doc for %s", maxx_id)
+        return []
+    import re as _re
+    body = _re.split(r"\n## Sources\b", body)[0]
+    # The intake section is the planner's internal question script, not
+    # knowledge: indexed, it made the coach ask those questions verbatim.
+    body = _re.sub(r"\n## What the AI needs to know \(intake\).*?(?=\n## )", "\n", body, flags=_re.S)
+    body = _re.sub(r"^- source: .*$", "", body, flags=_re.MULTILINE)
+    return [(f"{meta['label']} research", body)]
+
+
 async def _fetch_docs_from_db(maxx_id: str) -> list[tuple[str, str]]:
     """Fetch (doc_title, full_body) pairs from rag_documents for a module.
 
     Rows sharing the same doc_title are concatenated in chunk_index order to
-    reassemble the full markdown body.
+    reassemble the full markdown body. AI programs read their research doc
+    from disk instead.
     """
+    if maxx_id in AI_PROGRAM_RAG_IDS:
+        return _program_doc_body(maxx_id)
     from db.sqlalchemy import AsyncSessionLocal
     from sqlalchemy import text
 

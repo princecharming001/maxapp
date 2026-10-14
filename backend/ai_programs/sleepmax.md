@@ -186,7 +186,7 @@ The general profile already has wake/bed, work hours, commute, meals, workout ti
 
 ## Safety and claims
 - Do not diagnose insomnia, sleep apnea, narcolepsy, restless legs or circadian rhythm disorders. If the user describes snoring with gasping, falling asleep while driving, or long-term insomnia, suggest seeing a clinician or an accredited sleep center.
-- Do not recommend or dose melatonin, sleep medications, antihistamines, magnesium or any supplement. Do not suggest stopping or changing medications.
+- Sleepmax plans never include supplements or medications; supplements (melatonin, magnesium) live in Suppmax, which explains and times them but never doses past the label. Never discuss sleep medications or antihistamines as sleep aids, and never suggest stopping or changing medications.
 - Never schedule sleep restriction, all-nighters or "sleep hacking" to sleep less.
 - Do not promise outcomes ("you'll sleep 8 hours", "cure your insomnia"). Use "may help" and "many people find".
 - No drowsy-driving advice except: do not drive if you feel drowsy.

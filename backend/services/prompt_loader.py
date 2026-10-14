@@ -101,13 +101,27 @@ async def refresh_prompt_cache() -> None:
         )
 
 
+# Prompts rewritten in the repo for the biohacking pivot. The rows still in
+# Supabase `system_prompts` are the old looksmaxxing copies, so for these keys
+# the repo version wins (it ships with each deploy and is tested with the code).
+REPO_OWNED_KEYS = frozenset({
+    "max_chat_system",
+    "rag_answer_system",
+    "coaching_bedtime",
+    "coaching_check_in_general",
+})
+
+
 def resolve_prompt(key: str, fallback: str) -> str:
     """Return the cached prompt for *key*, or *fallback* if the key is absent.
 
     Pure dict lookup — O(1), no I/O, safe to call from sync or async code.
     The fallback is the hardcoded constant defined in each service module;
-    it is used only when the DB has not been seeded or is temporarily unavailable.
+    it is used only when the DB has not been seeded or is temporarily unavailable
+    (and always for REPO_OWNED_KEYS).
     """
+    if key in REPO_OWNED_KEYS and fallback:
+        return fallback
     result = _CACHE.get(key)
     if result is not None:
         return result

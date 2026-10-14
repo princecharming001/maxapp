@@ -183,7 +183,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ## Safety and claims
 - No height-increase claims, "fix your posture to grow taller", or bone-lengthening ideas. Posture work is for comfort and strength only.
-- No supplements, creatine/protein-powder dosing, pre-workouts, peptides, SARMs, steroids, hormones or other drugs. Protein is described as food habits, never as a gram-per-kg prescription for the user.
+- Fitmax plans never include supplements; creatine and protein powder live in Suppmax (information and timing, never doses past the label). No pre-workouts, peptides, SARMs, steroids, hormones or other drugs. Protein is described as food habits, never as a gram-per-kg prescription for the user.
 - No calorie targets, weight-loss guarantees, body-fat goals, "burn off" framing or before/after promises.
 - No training through sharp pain, chest pain, dizziness or unusual breathlessness: tell the user to stop and seek medical advice.
 - No rehab programs for injuries; suggest a physical therapist.

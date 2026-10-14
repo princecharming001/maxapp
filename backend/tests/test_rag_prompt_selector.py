@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from services import prompt_loader
+from services.prompt_constants import RAG_ANSWER_SYSTEM_PROMPT
 from services.prompt_loader import PromptKey
 from services.rag_prompt_selector import (
     _LEXICONS,
@@ -21,8 +22,10 @@ def _seed_cache():
     back to `{maxx}_coaching_reference` (legacy notification-timing). We seed
     both so tests can exercise either path."""
     prompt_loader.clear_prompt_cache()
+    # rag_answer_system is repo-owned (prompt_loader.REPO_OWNED_KEYS): the DB
+    # copy is ignored, so the base is always the repo prompt.
     prompt_loader._CACHE.update({
-        PromptKey.RAG_ANSWER_SYSTEM: "BASE RAG SYSTEM PROMPT.",
+        PromptKey.RAG_ANSWER_SYSTEM: "STALE DB COPY THAT MUST BE IGNORED.",
         "skinmax_protocol_reference": "SKINMAX REFERENCE BODY",
         "fitmax_protocol_reference": "FITMAX REFERENCE BODY",
         "hairmax_protocol_reference": "HAIRMAX REFERENCE BODY",
@@ -50,7 +53,7 @@ def test_single_hint_is_trusted_even_without_lexicon_match():
     assert isinstance(result, SelectedRagPrompt)
     assert result.chosen_maxx == "skinmax"
     assert "SKINMAX REFERENCE BODY" in result.system_prompt
-    assert "BASE RAG SYSTEM PROMPT." in result.system_prompt
+    assert RAG_ANSWER_SYSTEM_PROMPT[:80] in result.system_prompt and "STALE DB COPY" not in result.system_prompt
     assert "classifier hint=skinmax" in result.reason
 
 
@@ -86,7 +89,7 @@ def test_no_hint_no_active_maxx_returns_generic_base():
     assert result.chosen_maxx is None
     assert "generic base" in result.reason
     # System prompt is just the base — no MODULE REFERENCE block.
-    assert "BASE RAG SYSTEM PROMPT." in result.system_prompt
+    assert RAG_ANSWER_SYSTEM_PROMPT[:80] in result.system_prompt and "STALE DB COPY" not in result.system_prompt
     assert "MODULE REFERENCE" not in result.system_prompt
 
 
@@ -99,7 +102,7 @@ def test_missing_reference_in_cache_returns_base_and_reports():
     assert result.chosen_maxx == "skinmax"
     assert "reference prompt missing" in result.reason
     # Falls back to base only — no module reference body available
-    assert "BASE RAG SYSTEM PROMPT." in result.system_prompt
+    assert RAG_ANSWER_SYSTEM_PROMPT[:80] in result.system_prompt and "STALE DB COPY" not in result.system_prompt
     assert "SKINMAX REFERENCE BODY" not in result.system_prompt
 
 

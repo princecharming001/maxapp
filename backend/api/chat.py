@@ -725,6 +725,49 @@ _BLOCK_LIST_KEY = {"table": "rows", "comparison": "options", "timeline": "steps"
                    "flowchart": "steps", "stat_cards": "cards", "checklist": "items", "plan": "items"}
 
 
+# Phone-sized cards: whatever the model writes, a card stays scannable.
+_BLOCK_CAPS = {"checklist": ("items", 7), "timeline": ("steps", 7), "flowchart": ("steps", 7),
+               "stat_cards": ("cards", 4), "comparison": ("options", 3)}
+
+
+def _cap_block(btype: str, data: dict) -> dict:
+    data = dict(data)
+    cap = _BLOCK_CAPS.get(btype)
+    if cap and isinstance(data.get(cap[0]), list):
+        data[cap[0]] = data[cap[0]][: cap[1]]
+    if btype == "comparison":
+        opts = []
+        for o in data.get("options") or []:
+            if isinstance(o, dict):
+                o = {**o, "pros": list(o.get("pros") or [])[:4], "cons": list(o.get("cons") or [])[:4]}
+            opts.append(o)
+        data["options"] = opts
+    if btype == "table":
+        cols = list(data.get("columns") or [])[:4]
+        data["columns"] = cols
+        data["rows"] = [list(r)[: len(cols) or 4] for r in (data.get("rows") or []) if isinstance(r, list)][:8]
+    return data
+
+
+def _normalize_step(st, btype: str = "timeline"):
+    """Timeline/flowchart step → {label, detail/note}. Accepts a bare string or
+    the model's synonyms (action/title/name/step, description/time)."""
+    if isinstance(st, str):
+        return {"label": st}
+    if not isinstance(st, dict):
+        return {"label": str(st)}
+    label = st.get("label") or st.get("action") or st.get("title") or st.get("name") or st.get("step") or ""
+    extra = st.get("detail") or st.get("note") or st.get("description") or ""
+    when = st.get("time") or st.get("when") or ""
+    if when and str(when) not in str(label):
+        label = f"{when} {label}".strip()
+    out = {"label": str(label)}
+    if extra:
+        # The renderer reads `detail` on timelines and `note` on flowcharts.
+        out["note" if btype == "flowchart" else "detail"] = str(extra)
+    return out
+
+
 def _extract_visual_blocks(text: str) -> tuple[str, list[dict]]:
     """Pull [VISUAL_BLOCK]{json}[/VISUAL_BLOCK] markers (JSON {type,title?,data})
     out of `text`. Invalid JSON or unknown type is dropped SILENTLY so the turn
@@ -749,11 +792,23 @@ def _extract_visual_blocks(text: str) -> tuple[str, list[dict]]:
         try:
             btype = str(obj.get("type") or "").strip().lower()
             data = obj.get("data")
+            # Shape slips the model makes: the list at the top level instead of
+            # under "data" ({"type":"flowchart","steps":[...]}).
+            if data is None:
+                key = _BLOCK_LIST_KEY.get(btype)
+                if key and isinstance(obj.get(key), list):
+                    data = {key: obj[key]}
+                elif btype == "table" and isinstance(obj.get("rows"), list):
+                    data = {"columns": obj.get("columns") or [], "rows": obj["rows"]}
             # The model sometimes sends the list itself ("data": [{"label": ...}]) instead of
             # {"steps": [...]}. ChatResponse.visual_blocks requires a dict, so a bare list used to
             # 500 the whole turn. Wrap it under the key the app reads for that type.
             if isinstance(data, list):
                 data = {_BLOCK_LIST_KEY.get(btype, "items"): data}
+            if btype in ("timeline", "flowchart") and isinstance(data, dict) and isinstance(data.get("steps"), list):
+                data = {**data, "steps": [_normalize_step(st, btype) for st in data["steps"]]}
+            if isinstance(data, dict):
+                data = _cap_block(btype, data)
             if btype in _ALLOWED_BLOCK_TYPES and isinstance(data, dict):
                 blocks.append({
                     "type": btype,
@@ -2241,14 +2296,15 @@ async def process_chat_message(
         not explicit_schedule_start
         and not image_data
         and _looks_like_brand_request(message_text)
-        and link_maxx
+        and re.search(r"\bbrands?\b", message_text or "", re.IGNORECASE)
+        and (turn_intent.get("maxx_hints") or [])
     ):
         brands = product_brands_for_module(str(link_maxx[0]))
         if brands:
-            brand_lines = ["here's a quick brand list from the current module references:"]
+            brand_lines = ["brands i trust for this:"]
             for brand in brands:
                 brand_lines.append(f"- {brand}")
-            brand_lines.append("if you want, ask for amazon links and i can give you quick search links.")
+            brand_lines.append("want links? ask and i'll pull up the exact ones.")
             brand_response = "\n".join(brand_lines)
             if _persist_chat_history(channel):
                 db.add(ChatHistory(
@@ -2317,6 +2373,13 @@ async def process_chat_message(
         # Stitch cross-conversation recall into user_profile so the RAG path
         # sees it (answer_from_rag doesn't accept a separate recall param).
         _rag_user_profile = (_memctx.user_profile if _memctx else None) or ""
+        try:
+            from services.ai_programs import active_programs_brief as _apb
+            _progs_line = await _apb(str(user_id), db)
+            if _progs_line:
+                _rag_user_profile = (_rag_user_profile + "\n" + _progs_line).strip()
+        except Exception as _e:
+            logger.warning("[FAST_RAG] active programs brief failed (non-fatal): %s", _e)
         _recall_items = user_context.get("recall") or []
         if _recall_items:
             _recall_block = "FROM EARLIER CHATS: " + " | ".join(str(r) for r in _recall_items[:3])
@@ -2474,29 +2537,58 @@ async def process_chat_message(
                     "table", "timeline", "checklist", "stat_cards", "comparison", "flowchart"
                 ]
                 _n_requested = _count_distinct_block_types(message_text or "")
-                if _n_requested >= 2:
-                    _emitted_types = set(
-                        m.group(1).lower()
-                        for m in re.finditer(
-                            r'"type"\s*:\s*"(\w+)"', fast_response or "", re.IGNORECASE
-                        )
-                    )
+                # A single explicit ask ("compare x and y", "week-by-week",
+                # "what order…") gets the same net, with strict phrasing so a
+                # passing "schedule" or "numbers" never forces a card.
+                _STRICT_SINGLE = {
+                    "comparison": r"\b(compare|comparison|pros\s+and\s+cons|versus|vs\.?)\b",
+                    "timeline": r"\b(timeline|week[\s-]by[\s-]week|phase\s+by\s+phase|map\s+(it|this)\s+out)\b",
+                    "checklist": r"\b(checklist|check\s+list)\b",
+                    "stat_cards": r"\b(key\s+(stats?|numbers?)|hit\s+me\s+with.*numbers?|bold\s+the\s+numbers?|stat\s+cards?)\b",
+                    "flowchart": r"\b(flowchart|(in\s+)?what\s+order|sequence\s+of\s+steps)\b",
+                }
+                _strict_requested = [t for t, pat in _STRICT_SINGLE.items()
+                                     if re.search(pat, message_text or "", re.IGNORECASE)]
+                if _n_requested >= 2 or _strict_requested:
+                    # Count only blocks that actually PARSE: a card cut off by the
+                    # token limit (unclosed marker, broken JSON) never renders,
+                    # so it must not count as delivered.
+                    _emitted_types = {b.get("type") for b in _extract_visual_blocks(fast_response or "")[1]}
+                    if _emitted_types != set(
+                        m.group(1).lower() for m in re.finditer(r'"type"\s*:\s*"(\w+)"', fast_response or "", re.IGNORECASE)
+                    ):
+                        # Drop the broken marker text before appending a clean card.
+                        fast_response = _VISUAL_BLOCK_RE.sub(
+                            lambda m: m.group(0) if any(
+                                b for b in _extract_visual_blocks(m.group(0))[1]) else "", fast_response or "")
+                        fast_response = re.sub(r"\[visual_block\].*", "", fast_response, flags=re.IGNORECASE | re.DOTALL).rstrip()
                     _n_emitted = len(_emitted_types)
-                    if _n_emitted < _n_requested:
-                        _requested_names = [
-                            _BLOCK_TYPE_NAMES[i]
-                            for i, p in enumerate(_BLOCK_TYPE_PATTERNS)
-                            if p.search(message_text or "")
-                        ]
-                        _missing = [t for t in _requested_names if t not in _emitted_types]
+                    if _n_emitted < max(_n_requested, 1) or _strict_requested:
+                        _requested_names = (
+                            [_BLOCK_TYPE_NAMES[i] for i, p in enumerate(_BLOCK_TYPE_PATTERNS)
+                             if p.search(message_text or "")]
+                            if _n_requested >= 2 else []
+                        )
+                        _requested_names += [t for t in _strict_requested if t not in _requested_names]
+                        # A flowchart ask is satisfied by an ordered checklist too.
+                        if "flowchart" in _requested_names and "checklist" in _emitted_types:
+                            _requested_names.remove("flowchart")
+                        _missing = [t for t in _requested_names if t not in _emitted_types and t != "table"]
                         if _missing:
                             from services.lc_providers import get_chat_llm_with_fallback
                             from langchain_core.messages import HumanMessage, SystemMessage
                             _mb_llm = get_chat_llm_with_fallback(max_tokens=1200, temperature=0.2)
                             _mb_system = (
                                 "You are Superpower, a biohacking coach for busy people. The user's answer was cut short. "
-                                "Emit ONLY the missing [VISUAL_BLOCK] markers (one per missing type) — no prose, no preamble. "
-                                "Each block: [VISUAL_BLOCK]{...}[/VISUAL_BLOCK]. Start immediately with [VISUAL_BLOCK]."
+                                "Emit ONLY the missing [VISUAL_BLOCK] markers (one per missing type), built from the "
+                                "existing response's content: no prose, no preamble, no doses. Use EXACTLY these shapes "
+                                "(short labels, at most 6 items):\n"
+                                '[VISUAL_BLOCK]{"type":"comparison","title":"...","data":{"options":[{"name":"A","pros":["..."],"cons":["..."]},{"name":"B","pros":["..."],"cons":["..."]}]}}[/VISUAL_BLOCK]\n'
+                                '[VISUAL_BLOCK]{"type":"timeline","title":"...","data":{"steps":[{"label":"Week 1","detail":"..."}]}}[/VISUAL_BLOCK]\n'
+                                '[VISUAL_BLOCK]{"type":"flowchart","title":"...","data":{"steps":[{"label":"07:30 wake","note":"same time daily"}]}}[/VISUAL_BLOCK]\n'
+                                '[VISUAL_BLOCK]{"type":"checklist","title":"...","data":{"items":["..."]}}[/VISUAL_BLOCK]\n'
+                                '[VISUAL_BLOCK]{"type":"stat_cards","data":{"cards":[{"value":"~5 h","label":"caffeine half-life"}]}}[/VISUAL_BLOCK]\n'
+                                "Start immediately with [VISUAL_BLOCK]."
                             )
                             _mb_human = (
                                 f"User asked: {message_text}\n\n"
@@ -2517,6 +2609,7 @@ async def process_chat_message(
                             if "[visual_block]" in _mb_text.lower():
                                 fast_response = (fast_response or "").rstrip() + "\n\n" + _mb_text.strip()
                                 logger.warning("[fast-rag multi-block safety net] appended missing blocks: %s", _missing)
+                                logger.info("[fast-rag multi-block safety net] raw: %s", _mb_text[:600].replace("\n", " "))
                             else:
                                 logger.warning("[fast-rag multi-block safety net] secondary LLM emitted no blocks for: %s", _missing)
             except Exception as _mbe:
@@ -3624,6 +3717,16 @@ async def _broad_question_mcq(
     # the user's intent — clarifying their goal adds friction with no value.
     if re.search(r"\b(checklist|step[\s\-]by[\s\-]step|step\.by\.step)\b", msg, re.IGNORECASE):
         return None
+
+    # A shopping question that names a product we stock ("what dumbbells should
+    # i get") already has its answer: recommend, don't ask their goal.
+    try:
+        from services.link_validator import has_purchase_intent as _hpi
+        from services.product_catalog import products_named_in as _pni
+        if _hpi(msg) and _pni(msg, limit=1):
+            return None
+    except Exception:
+        pass
 
     # Multi-domain requests ("skin, hair and gym plan") name their own scope —
     # a single-domain clarifier would be wrong and misleading.

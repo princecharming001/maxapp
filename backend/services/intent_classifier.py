@@ -33,28 +33,30 @@ class IntentResult(TypedDict):
 
 # Keyword lexicons. Ordered list so we can preserve match order for maxx_hints.
 _MAXX_KEYWORDS = [
-    ("skinmax", {"skin", "acne", "pimple", "pore", "blackhead", "wrinkle", "sunscreen", "spf",
-                 "retinol", "retinoid", "tretinoin", "retin-a", "niacinamide", "azelaic",
-                 "moisturizer", "sebum", "glycolic", "salicylic",
-                 "debloat", "debloating", "bloat", "bloated", "puffy", "puffy face",
-                 "dark spot", "hyperpigment", "ice roller", "glowmax", "glow up",
-                 "skinmaxxing"}),
-    ("hairmax", {"hair", "bald", "balding", "receding", "thinning", "minoxidil", "finasteride",
-                 "dermaroll", "dermarolling", "shampoo", "scalp", "dht", "alopecia",
-                 "norwood", "nw1", "nw2", "nw3", "hair tape", "hair gain", "hairmaxxing",
-                 "hairline"}),
-    ("bonemax", {"jaw", "mewing", "chin", "mastic", "bite", "bite force", "tmj",
-                 "cheekbone", "zygomatic", "skull", "jawline", "palate", "tongue posture",
-                 "bonesmash", "bonesmashing", "bone smash", "bone smashing",
-                 "bonemashing", "gonion", "gonial", "maxilla", "mandible",
-                 "looksmax", "looksmaxxing", "looksmaxx", "psl", "facemax",
-                 "facemaxxing", "bonemaxxing"}),
-    ("heightmax", {"height", "taller", "posture", "spine", "growth plate", "hgh",
-                   "slouch", "kyphosis", "lordosis", "decompression", "hanging",
-                   "heightmaxxing", "grow taller", "spinal"}),
-    ("fitmax", {"workout", "lift", "muscle", "protein", "calorie", "deficit", "cut", "bulk",
-                "cardio", "squat", "deadlift", "bench", "cutting", "macro", "macros",
-                "fitmaxxing", "leanmax", "gym", "hypertrophy", "recomp", "tdee"}),
+    ("sleepmax", {"sleep", "slept", "insomnia", "nap", "naps", "napping", "bedtime", "wind down",
+                  "wind-down", "melatonin", "circadian", "jet lag", "sleep mask", "blackout",
+                  "earplugs", "snore", "snoring", "waking up at night", "can't fall asleep",
+                  "dark enough", "too bright", "white noise"}),
+    ("energymax", {"energy", "tired", "fatigue", "fatigued", "slump", "crash", "groggy", "coffee",
+                   "caffeine", "hydration", "hydrate", "water intake", "electrolyte", "afternoon dip"}),
+    ("focusmax", {"focus", "concentrat", "deep work", "distract", "procrastinat", "productiv",
+                  "pomodoro", "attention", "brain fog", "doomscroll", "screen time"}),
+    ("calmmax", {"stress", "stressed", "anxiety", "anxious", "overwhelm", "calm", "breathing",
+                 "breathwork", "meditat", "burnout", "panic", "worried", "relax"}),
+    ("trainmax", {"workout", "lift", "lifting", "muscle", "protein", "cardio", "squat", "deadlift",
+                  "bench", "gym", "hypertrophy", "strength", "dumbbell", "push-up", "pushups",
+                  "mobility", "stretch", "posture", "recovery", "sore", "steps", "fitmax",
+                  "fitmaxxing", "calorie", "macros", "bulk", "cut"}),
+    ("skinhairmax", {"skin", "acne", "pimple", "pore", "blackhead", "sunscreen", "spf",
+                     "moisturizer", "moisturiser", "cleanser", "retinol", "retinoid", "niacinamide",
+                     "hair", "scalp", "dandruff", "shampoo", "thinning", "hairline"}),
+    ("longevitymax", {"longevity", "aging", "ageing", "healthspan", "lifespan", "zone 2", "zone2",
+                      "vo2", "blood pressure", "cholesterol", "fiber", "fibre"}),
+    ("suppmax", {"supplement", "supplements", "vitamin", "magnesium", "creatine", "omega",
+                 "fish oil", "theanine", "ashwagandha", "collagen", "multivitamin", "b12", "zinc",
+                 "glycine", "suppmax"}),
+    ("peptidemax", {"peptide", "peptides", "semaglutide", "tirzepatide", "ozempic", "wegovy",
+                    "mounjaro", "bpc", "tb-500", "ipamorelin", "glp-1", "glp1", "peptidemax"}),
 ]
 
 _KNOWLEDGE_MARKERS = (
@@ -166,7 +168,9 @@ def classify_turn(message: str, *, active_maxx: str | None = None) -> IntentResu
         )
 
     # Check-in phrasing
-    if any(marker in m for marker in _CHECK_IN_MARKERS):
+    # Word-boundary match: a bare substring test made "how late can i…"
+    # a check-in via the "ate " marker.
+    if any(re.search(r"(?<![a-z])" + re.escape(marker), m) for marker in _CHECK_IN_MARKERS):
         return IntentResult(
             intent="CHECK_IN",
             maxx_hints=hints,

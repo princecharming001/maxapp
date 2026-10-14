@@ -902,6 +902,27 @@ async def _active_program_ids(user_id: str, db) -> set[str]:
     return {m for (m,) in res.all() if is_ai_program(m)}
 
 
+async def active_programs_brief(user_id: str, db, *, max_habits: int = 6) -> str:
+    """One line per active AI program with its habits and times, for chat
+    context: lets a knowledge answer say 'your sleepmax wind-down at 22:15'."""
+    from sqlalchemy import select
+    from models.sqlalchemy_models import UserSchedule
+    res = await db.execute(
+        select(UserSchedule).where(
+            (UserSchedule.user_id == UUID(str(user_id))) & (UserSchedule.is_active.is_(True))
+        )
+    )
+    lines = []
+    for s in res.scalars().all():
+        if not is_ai_program(s.maxx_id):
+            continue
+        plan = (s.schedule_context or {}).get("ai_plan") or {}
+        habits = sorted(plan.get("habits") or [], key=lambda h: h.get("time") or "")
+        bits = [f"{h.get('title')} {h.get('time')}" for h in habits[:max_habits] if h.get("title")]
+        lines.append(f"{program_label(s.maxx_id)}: " + (", ".join(bits) or "set up"))
+    return ("ACTIVE PROGRAMS (their real plan, use it): " + " | ".join(lines)) if lines else ""
+
+
 async def preview_supp_adds(user_id: str, db, *, with_program: Optional[str] = None) -> list[str]:
     """Titles the next sync will add (for the chat reply), without writing."""
     sched = await active_ai_plan(user_id, SUPP_PROGRAM, db)

@@ -478,6 +478,12 @@ async def find_or_search(
         logger.warning("[product_search] catalog lookup failed: %s", e)
 
     # ---- 2. Live search fallback ------------------------------------- #
+    # Off unless PRODUCT_LIVE_SEARCH=1: live hits are unverified search
+    # results (never shown as cards anyway), and every product we point a
+    # user at should be one we checked opens the right, buyable page.
+    import os
+    if os.environ.get("PRODUCT_LIVE_SEARCH", "").strip().lower() not in ("1", "true", "yes"):
+        return []
     # Compose a search query from the concern list + module hint. Use
     # the first 2 concerns to keep the query short.
     q = " ".join(concern_list[:2]) if concern_list else (module or "")

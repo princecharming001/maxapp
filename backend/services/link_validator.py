@@ -119,14 +119,15 @@ def _is_bad_url(url: str) -> bool:
 #  Catalog-link enrichment                                                    #
 # --------------------------------------------------------------------------- #
 
-def _enrich_brand_mentions(text: str, *, max_inserts: int = 4, matched: Optional[list] = None) -> tuple[str, int]:
+def _enrich_brand_mentions(text: str, *, max_inserts: int = 4, matched: Optional[list] = None,
+                           purchase_intent: bool = True) -> tuple[str, int]:
     """Where the bot mentioned a catalog product by name without a link,
     append a `(<direct-url>)` next to the FIRST mention. Limited to
     `max_inserts` to avoid spammy answers. Resolved Products are appended to
     `matched` (for structured product cards)."""
     try:
-        from services.product_catalog import load_catalog
-        catalog = load_catalog()
+        from services.product_catalog import active_catalog
+        catalog = active_catalog()   # retired (looks-era) products never become cards
     except Exception:
         return text, 0
     if not catalog:
@@ -228,19 +229,19 @@ def _enrich_brand_mentions(text: str, *, max_inserts: int = 4, matched: Optional
             if matched is not None:
                 matched.append(p)
 
-    # Single-token brand fallback: scan for distinctive names ("Differin",
-    # "Nizoral", "tretinoin", "creatine") not yet linked. Resolves via
-    # lookup_by_name's distinctive-names map → direct catalog URL.
-    if inserts < max_inserts:
+    # Single-token brand fallback: scan for distinctive names ("Nizoral",
+    # "creatine", "magnesium") not yet linked. Resolves via lookup_by_name's
+    # distinctive-names map → direct catalog URL. Only when the user is
+    # shopping: "is creatine safe?" shouldn't sprout a buy card.
+    if inserts < max_inserts and purchase_intent:
         try:
             from services.product_catalog import lookup_by_name
         except Exception:
             lookup_by_name = None
         if lookup_by_name:
             DISTINCTIVE_TOKENS = (
-                "tretinoin", "differin", "minoxidil", "rogaine", "finasteride",
-                "kirkland", "nizoral", "ketoconazole", "creatine", "ashwagandha",
-                "magnesium", "azelaic", "niacinamide", "centella",
+                "differin", "nizoral", "ketoconazole", "creatine", "magnesium",
+                "melatonin", "theanine", "collagen", "glycine", "lmnt", "manta",
             )
             for tok in DISTINCTIVE_TOKENS:
                 if inserts >= max_inserts:
@@ -345,7 +346,8 @@ def _strip_bare_urls(text: str) -> tuple[str, int]:
 #  Public entry point                                                         #
 # --------------------------------------------------------------------------- #
 
-def _enrich_category_mentions(text: str, *, max_inserts: int = 2, matched: Optional[list] = None) -> tuple[str, int]:
+def _enrich_category_mentions(text: str, *, max_inserts: int = 2, matched: Optional[list] = None,
+                              user_message: str = "") -> tuple[str, int]:
     """When the bot mentions a product CATEGORY without any specific
     brand (e.g. 'use a moisturizer with ceramides', 'add creatine'),
     surface a single catalog pick for that category as an inline link.
@@ -360,34 +362,50 @@ def _enrich_category_mentions(text: str, *, max_inserts: int = 2, matched: Optio
     # category → (module, concern_seed) pairs. The first existing,
     # non-already-linked match in the text gets the inline link.
     CATEGORIES: list[tuple[str, str, list[str]]] = [
-        # token              module      concerns
-        ("moisturizer",      "skinmax",  ["dryness", "barrier", "moisturizer"]),
-        ("moisturiser",      "skinmax",  ["dryness", "barrier", "moisturizer"]),
-        ("cleanser",         "skinmax",  ["gentle_cleansing", "cleanser"]),
-        ("sunscreen",        "skinmax",  ["sun_protection", "spf"]),
-        ("spf",              "skinmax",  ["sun_protection", "spf"]),
-        ("retinoid",         "skinmax",  ["acne", "anti_aging", "retinoid"]),
-        ("retinol",          "skinmax",  ["anti_aging", "retinol"]),
-        ("vitamin c serum",  "skinmax",  ["pigmentation", "vitc", "anti_aging"]),
-        ("niacinamide",      "skinmax",  ["pigmentation", "barrier"]),
-        ("salicylic",        "skinmax",  ["acne", "blackheads"]),
-        ("benzoyl peroxide", "skinmax",  ["acne"]),
-        ("shampoo",          "hairmax",  ["scalp_health", "shampoo"]),
-        ("conditioner",      "hairmax",  ["scalp_health"]),
-        ("minoxidil",        "hairmax",  ["hair_loss", "regrowth", "minoxidil"]),
-        ("finasteride",      "hairmax",  ["hair_loss"]),
-        ("creatine",         "fitmax",   ["creatine", "muscle_gain", "strength"]),
-        ("protein",          "fitmax",   ["protein", "muscle_gain"]),
-        ("whey",             "fitmax",   ["protein"]),
-        ("multivitamin",     "fitmax",   ["supplement"]),
-        ("pre-workout",      "fitmax",   ["pre_workout"]),
-        ("preworkout",       "fitmax",   ["pre_workout"]),
-        ("electrolyte",      "fitmax",   ["hydration"]),
-        ("mastic gum",       "bonemax",  ["jaw_training", "masseter"]),
-        ("mouth tape",       "bonemax",  ["mewing", "nasal_breathing"]),
-        ("inversion table",  "heightmax",["posture", "decompression"]),
-        ("posture corrector","heightmax",["posture"]),
+        # token               program        concerns
+        ("sleep mask",        "sleepmax",    ["sleep_mask", "dark_room", "light"]),
+        ("blackout",          "sleepmax",    ["blackout", "dark_room", "curtains"]),
+        ("earplugs",          "sleepmax",    ["earplugs", "noise"]),
+        ("white noise",       "sleepmax",    ["white_noise", "noise"]),
+        ("sunrise alarm",     "sleepmax",    ["sunrise_alarm", "wake_light", "alarm"]),
+        ("water bottle",      "energymax",   ["water_bottle", "hydration"]),
+        ("light therapy",     "energymax",   ["light_therapy", "lamp", "morning_light"]),
+        ("timer",             "focusmax",    ["timer", "focus_block", "pomodoro"]),
+        ("phone lock",        "focusmax",    ["phone_lock", "phone", "distraction"]),
+        ("journal",           "calmmax",     ["journal", "brain_dump", "gratitude"]),
+        ("dumbbells",         "trainmax",    ["dumbbells", "home_gym", "strength"]),
+        ("resistance bands",  "trainmax",    ["resistance_bands", "bands"]),
+        ("foam roller",       "trainmax",    ["foam_roller", "mobility", "recovery"]),
+        ("pull-up bar",       "trainmax",    ["pull_up_bar", "pullup"]),
+        ("yoga mat",          "trainmax",    ["yoga_mat", "mat", "mobility"]),
+        ("walking pad",       "longevitymax",["walking_pad", "steps", "treadmill"]),
+        ("kettlebell",        "longevitymax",["kettlebell", "strength"]),
+        ("melatonin",         "suppmax",     ["melatonin"]),
+        ("magnesium",         "suppmax",     ["magnesium"]),
+        ("l-theanine",        "suppmax",     ["l_theanine", "theanine"]),
+        ("creatine",          "suppmax",     ["creatine"]),
+        ("electrolyte",       "suppmax",     ["electrolytes", "hydration"]),
+        ("collagen",          "suppmax",     ["collagen"]),
+        ("vitamin d",         "suppmax",     ["vitamin_d", "d3"]),
+        ("omega-3",           "suppmax",     ["omega_3", "fish_oil"]),
+        ("fish oil",          "suppmax",     ["omega_3", "fish_oil"]),
+        ("whey",              "suppmax",     ["protein", "whey"]),
+        ("protein powder",    "suppmax",     ["protein", "protein_powder"]),
+        ("multivitamin",      "suppmax",     ["multivitamin"]),
+        ("moisturizer",       "skinhairmax", ["moisturizer", "dryness", "barrier"]),
+        ("moisturiser",       "skinhairmax", ["moisturizer", "dryness", "barrier"]),
+        ("cleanser",          "skinhairmax", ["cleanser", "gentle_cleansing"]),
+        ("sunscreen",         "skinhairmax", ["spf", "sunscreen", "sun_protection"]),
+        ("spf",               "skinhairmax", ["spf", "sunscreen", "sun_protection"]),
+        ("ketoconazole",      "skinhairmax", ["dandruff", "scalp", "ketoconazole"]),
     ]
+    # What the user asked for wins: "which sunscreen should i buy" must card a
+    # sunscreen even when the reply also says "a moisturizer with spf". When
+    # the user named a category, only their categories are carded.
+    um = (user_message or "").lower()
+    asked = [c for c in CATEGORIES if re.search(rf"\b{re.escape(c[0])}", um)]
+    if asked:
+        CATEGORIES = asked
     inserts = 0
     out = text
     link_regions = [(m.start(), m.end()) for m in re.finditer(r"\[[^\]]+\]\([^\)]+\)", out)]
@@ -424,6 +442,11 @@ def _enrich_category_mentions(text: str, *, max_inserts: int = 2, matched: Optio
         if not hits:
             continue
         p = hits[0]
+        # Only a product that really IS the thing mentioned (a mask for
+        # "sleep mask"), never the program's default pick for something else.
+        tok_words = set(re.findall(r"[a-z0-9]+", token.lower()))
+        if not (set(concerns) & set(p.concerns)) and not tok_words <= set(re.findall(r"[a-z0-9]+", p.name.lower())):
+            continue
         ins = f" ([{p.brand or p.name}]({p.display_url}))"
         out = out[: m.end()] + ins + out[m.end():]
         link_regions = [(mr.start(), mr.end()) for mr in re.finditer(r"\[[^\]]+\]\([^\)]+\)", out)]
@@ -434,7 +457,23 @@ def _enrich_category_mentions(text: str, *, max_inserts: int = 2, matched: Optio
     return out, inserts
 
 
-def validate_and_rewrite_links(text: str) -> str:
+_PURCHASE_INTENT = re.compile(
+    r"\b(buy|buying|purchase|shop|shopping|amazon|links?|brand|brands|product|products|recommend|"
+    r"best|which (one|brand|kind|type)|what (should|do|would) i (get|buy|use|grab|take)|"
+    r"should i (get|buy|grab)|worth (it|buying)|where (can|do|to) (i )?(get|buy|find)|"
+    r"(what|which)( \w+){1,3} (should|do|would|could) i (get|buy|use|grab|try))\b",
+    re.IGNORECASE,
+)
+
+
+def has_purchase_intent(message: str) -> bool:
+    """The user is shopping ('what mask should i get', 'link for…', 'best
+    earplugs'), so a generic category mention may become a product card.
+    Otherwise only explicitly named products get cards."""
+    return bool(_PURCHASE_INTENT.search(message or ""))
+
+
+def validate_and_rewrite_links(text: str, *, purchase_intent: bool = True, user_message: str = "") -> str:
     """Sanitize an LLM-produced answer:
 
       1. Rewrite or strip bad markdown links (search URLs, hallucinated
@@ -460,9 +499,10 @@ def validate_and_rewrite_links(text: str) -> str:
     text, rewrote, stripped = _rewrite_md_links(text)
     text, ph_rewrote, ph_stripped = _rewrite_placeholder_links(text)
     text, bare_stripped = _strip_bare_urls(text)
-    text, enriched = _enrich_brand_mentions(text, matched=matched)
-    text, cat_enriched = _enrich_category_mentions(text, matched=matched)
-    enriched += cat_enriched
+    text, enriched = _enrich_brand_mentions(text, matched=matched, purchase_intent=purchase_intent)
+    if purchase_intent:
+        text, cat_enriched = _enrich_category_mentions(text, matched=matched, user_message=user_message)
+        enriched += cat_enriched
 
     if matched:
         try:

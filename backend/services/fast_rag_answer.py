@@ -151,7 +151,8 @@ async def _broad_fanout_retrieval(
 
     # Skip explicit "general" pass here because each non-general retrieve_chunks
     # call already merges general docs; querying general again creates duplicates.
-    fanout_modules = [m for m in VALID_MAXX_IDS if m != "general"]
+    from services.rag_service import ACTIVE_MAXX_IDS
+    fanout_modules = sorted(ACTIVE_MAXX_IDS) or [m for m in VALID_MAXX_IDS if m != "general"]
     gathered = await asyncio.gather(*[_one(m) for m in fanout_modules])
     flat = [row for rows in gathered for row in rows]
     flat.sort(key=lambda c: c.get("similarity", 0.0), reverse=True)
@@ -297,9 +298,17 @@ async def gather_rag_evidence(
     max_chunks: Optional[int] = None,
 ) -> list[dict]:
     """Retrieve and merge evidence rows across hinted modules."""
-    hints = [h for h in (maxx_hints or []) if h]
-    if not hints and active_maxx:
-        hints = [active_maxx]
+    from services.product_catalog import normalize_module
+    from services.rag_service import LEGACY_MAXX_IDS
+    # Old looks hints map onto the program that now owns the topic
+    # (skinmax/hairmax → skinhairmax, fitmax → trainmax); height/bone drop.
+    hints = []
+    for h in [*(maxx_hints or []), *([active_maxx] if not maxx_hints and active_maxx else [])]:
+        if not h:
+            continue
+        h2 = normalize_module(h) if h in LEGACY_MAXX_IDS else h
+        if h2 and h2 not in hints and h2 in VALID_MAXX_IDS and h2 not in LEGACY_MAXX_IDS:
+            hints.append(h2)
     if not hints:
         return []
 
@@ -569,17 +578,17 @@ SECTION HEADER RULE: Do NOT write a markdown section header (e.g. "**the product
         _comparison_extra = ""
         if is_comparison_request:
             _comparison_extra = """
-COMPARISON BLOCK RULE: The user asked to compare options. You MUST emit a `comparison` [VISUAL_BLOCK] immediately. Do NOT ask what skin type the user has, do NOT ask which two options they mean, do NOT ask for any clarification — choose the two most clinically relevant options (e.g. benzoyl peroxide vs salicylic acid, retinoids vs AHAs, etc.) using your general skincare knowledge. Pick them yourself and emit the block now. Asking ANY clarifying question before the block is a failure.
+COMPARISON BLOCK RULE: The user asked to compare options. You MUST emit a `comparison` [VISUAL_BLOCK] immediately. Do NOT ask what skin type the user has, do NOT ask which two options they mean, do NOT ask for any clarification — choose the two most relevant options (e.g. magnesium vs melatonin, morning vs evening workouts, coffee vs coffee + l-theanine) using well-established general evidence. No doses. Pick them yourself and emit the block now. Asking ANY clarifying question before the block is a failure.
 """
         _stat_cards_extra = ""
         if is_stat_cards_request:
             _stat_cards_extra = """
-STAT CARDS BLOCK RULE: The user asked for numbers/stats/metrics with emphasis ("bold the numbers", "key stats", etc.). You MUST emit a `stat_cards` [VISUAL_BLOCK] containing the key quantitative data points (e.g. percentages, timeframes, dosages, rates). CRITICAL: do NOT format those stats as inline bold text (e.g. **7-9 hours** or **70-80%**) inside prose — that is the wrong format when a stat_cards block was requested. Every bold number or percentage belongs inside the stat_cards block, not in prose. Do NOT answer with a routine recommendation — answer the numbers question directly. Do NOT say "the docs don't have those stats" — use your general clinical knowledge to fill the cards. Emit the stat_cards block NOW with ≥3 cards using general knowledge.
+STAT CARDS BLOCK RULE: The user asked for numbers/stats/metrics with emphasis ("bold the numbers", "key stats", etc.). You MUST emit a `stat_cards` [VISUAL_BLOCK] containing the key quantitative data points (e.g. percentages, timeframes, hours, rates — never doses). CRITICAL: do NOT format those stats as inline bold text (e.g. **7-9 hours** or **70-80%**) inside prose — that is the wrong format when a stat_cards block was requested. Every bold number or percentage belongs inside the stat_cards block, not in prose. Do NOT answer with a routine recommendation — answer the numbers question directly. Do NOT say "the docs don't have those stats" — use well-established general evidence to fill the cards. Emit the stat_cards block NOW with ≥3 cards using general knowledge.
 """
         _table_extra = ""
         if is_table_request:
             _table_extra = """
-TABLE BLOCK RULE: The user asked for a table. You MUST emit a `table` [VISUAL_BLOCK] immediately in this response — no clarifying questions, no topic menus, no "what should the table show?". PICK A TOPIC YOURSELF (use conversation context; default to a skincare routine table if nothing else is clear) and emit the table NOW. The table must have ≥2 columns and ≥2 rows. Presenting a bulleted menu of topic options instead of building the table is a failure. Asking any question before emitting the block is a failure.
+TABLE BLOCK RULE: The user asked for a table. You MUST emit a `table` [VISUAL_BLOCK] immediately in this response — no clarifying questions, no topic menus, no "what should the table show?". PICK A TOPIC YOURSELF (use conversation context; default to the user's weekly routine from their active programs if nothing else is clear) and emit the table NOW. The table must have ≥2 columns and ≥2 rows. Presenting a bulleted menu of topic options instead of building the table is a failure. Asking any question before emitting the block is a failure.
 """
         grounding_suffix = f"""
 
@@ -587,6 +596,7 @@ TABLE BLOCK RULE: The user asked for a table. You MUST emit a `table` [VISUAL_BL
 The user explicitly asked for a structured visual format (timeline, table, checklist, comparison, etc.). You MUST emit the appropriate [VISUAL_BLOCK]...[/VISUAL_BLOCK] marker as shown in the STRUCTURED VISUALS grammar below. Use docs evidence where available; fill gaps with general knowledge. Emit the block AFTER a brief prose intro — do NOT replace the block with a numbered list.
 {_comparison_extra}{_stat_cards_extra}{_table_extra}
 CRITICAL: Do NOT ask the user if they want the structured visual, and do NOT offer to build it later. Build and emit it NOW, in this response. Deferring ("let me know if you want...") when a block was explicitly requested is a failure.
+Do NOT ask a clarifying question first either. If a detail is unknown, build for the most common case and say so in one line ("built for trouble falling asleep, tell me if it's something else").
 
 ## EVIDENCE MODE (relaxed for explicit block requests)
 - Base your prose on the provided Evidence. State if the docs lack full detail.
@@ -598,13 +608,13 @@ CRITICAL: Do NOT ask the user if they want the structured visual, and do NOT off
         if is_product_link_request:
             _product_link_extra = """
 ## PRODUCT LINK RULE
-The user asked for external product links (Amazon, Google Shopping, etc.). You cannot provide those — external URLs are not available. Do NOT defer with "if you want product recs, ask" or "let me know if you want recommendations." Instead: immediately recommend the most relevant product(s) by name and explain why they fit the user's situation. Pivot directly: briefly note you don't have external links, then go straight into the recommendation. Deferring when product recommendations are available is a failure.
+The user asked where to buy something. Never paste URLs: the app shows tappable product cards with the exact buy links under your reply. Recommend the most relevant product(s) by name and say in a line why they fit. Do NOT say you can't give links, and do NOT defer ("let me know if you want recs").
 """
         grounding_suffix = _product_link_extra + """
 
 ## EVIDENCE-ONLY MODE (strict)
 - You must answer using only the provided Evidence from module docs for prose content.
-- If the evidence does not contain the requested detail, say you don't have that in the course material.
+- If the evidence does not contain the requested detail, answer from widely accepted coaching standards in a sentence or two. Never mention "course material", docs or evidence.
 - Do not use outside knowledge in prose — but you MAY use it to fill a structured block the user explicitly requested (per the STRUCTURED VISUALS grammar below).
 - Do not include citations or source labels in the final answer.
 - EXCEPTION — user-specific context: Facts the user stated in the RECENT CONVERSATION or in the user profile above (including anything under "FROM EARLIER CHATS") are personal facts, not "outside knowledge". You MUST incorporate them when they are directly relevant to the question — e.g. if the user works out at 6am, a "when to eat post-workout" answer must say "by 7am"; if the user has oily skin, a moisturizer recommendation must specify lightweight/non-comedogenic. Never answer generically when the user's specific context is already known.
@@ -669,6 +679,25 @@ The user asked for external product links (Amazon, Google Shopping, etc.). You c
         except Exception:
             tone_block = ""
 
+    # Shopping turn: give the model the verified, in-stock picks that match
+    # what was asked so it recommends real products by name (the app attaches
+    # buy cards for named catalog products). Without this, "which sunscreen
+    # should i buy" got "the evidence doesn't name a sunscreen".
+    product_block = ""
+    try:
+        from services.link_validator import has_purchase_intent
+        from services.product_catalog import products_named_in
+        if has_purchase_intent(message):
+            picks = products_named_in(message, modules=list(maxx_hints or []) + ([active_maxx] if active_maxx else []))
+            if picks:
+                product_block = (
+                    "\n\n## VERIFIED PRODUCT PICKS (in stock; recommend 1-2 of these BY NAME if they fit, "
+                    "say why in a line; never paste links, cards are attached automatically; no doses)\n"
+                    + "\n".join(f"- {p.name} ({p.brand}): {p.rationale}" for p in picks)
+                )
+    except Exception as e:
+        logger.info("[fast_rag] product picks skipped: %s", e)
+
     system_prompt = (
         tone_block
         + facts_prefix
@@ -676,6 +705,7 @@ The user asked for external product links (Amazon, Google Shopping, etc.). You c
         + selection.system_prompt
         + _length_suffix(length_key)
         + grounding_suffix
+        + product_block
         + CHAT_VISUAL_GRAMMAR
     )
     logger.info(
@@ -779,8 +809,8 @@ The user asked for external product links (Amazon, Google Shopping, etc.). You c
         # catalog `/dp/<ASIN>` URLs; strips hallucinated vendor links;
         # enriches plain brand mentions with direct catalog links.
         try:
-            from services.link_validator import validate_and_rewrite_links
-            out = validate_and_rewrite_links(out)
+            from services.link_validator import has_purchase_intent, validate_and_rewrite_links
+            out = validate_and_rewrite_links(out, purchase_intent=has_purchase_intent(message), user_message=message)
         except Exception as e:
             logger.info("[fast_rag] link validator skipped: %s", e)
         return out

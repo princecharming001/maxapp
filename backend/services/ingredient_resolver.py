@@ -72,9 +72,17 @@ def canonical_ingredient(name: str) -> str:
     return "_".join(keep)[:64]
 
 
+# Form words say what shape a product comes in, not what it is: "protein powder"
+# must not tie with "glycine powder" on "powder".
+_FORM_TOKENS = frozenset({"powder", "serum", "cream", "oil", "capsules", "capsule", "tablets",
+                          "tablet", "gel", "lotion", "spray", "drops", "gummies", "softgels"})
+
+
 def _concerns_for(canonical_key: str) -> list[str]:
-    """Tokens fed to product_catalog concern matching (synonym-expanded downstream)."""
-    return [t for t in canonical_key.split("_") if t]
+    """Tokens fed to product_catalog concern matching (synonym-expanded downstream):
+    the whole phrase first (protein_powder), then its meaningful words."""
+    parts = [t for t in canonical_key.split("_") if t and t not in _FORM_TOKENS]
+    return ([canonical_key] if "_" in canonical_key else []) + parts
 
 
 # ---------------------------------------------------------------------------
@@ -157,11 +165,11 @@ def _pick_product(module: Optional[str], canonical_key: str, user_facts: Optiona
     """
     from services import product_catalog as pc
 
-    catalog = pc.load_catalog()
+    catalog = pc.active_catalog()   # retired (looks-era) products are never picked
     if not catalog:
         return None
 
-    target_module = (module or "").strip().lower() or None
+    target_module = pc.normalize_module(module)
     concern_set = pc._expand_concerns(_concerns_for(canonical_key))
     tier_order = _budget_tier_order(user_facts)
 
