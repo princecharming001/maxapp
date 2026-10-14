@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Slide 1 · hook</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  /* The original hook slide, with Max's icon swapped in where the Stanley
+     icon was. The laptop layer is re-drawn on top (same pixels, clipped to
+     the laptop's right edge) so the icon still tucks behind it. */
+  .bg, .laptop { position: absolute; inset: 0; background: url('originals/slide-01.jpg') 0 0 / 1080px 1380px no-repeat; }
+  .laptop { clip-path: polygon(0 640px, 810px 640px, 900px 960px, 0 960px); }
+  .max { position: absolute; left: 794px; top: 706px; width: 208px; height: 208px;
+    border-radius: 47px; background: url('max-icon.png') center / cover;
+    transform: rotate(-15deg);
+    box-shadow: 4px 12px 28px rgba(0,0,0,0.35); }
+</style></head>
+<body>
+  <div class="bg"></div>
+  <div class="max"></div>
+  <div class="laptop"></div>
+</body></html>
