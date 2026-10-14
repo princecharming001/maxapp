@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 from uuid import UUID, uuid4
 
@@ -454,11 +454,24 @@ async def generate_first_routine_if_absent(
         return None
 
 
+def created_order(sched) -> datetime:
+    """Sort key: oldest program first. Rows loaded from the DB carry tz-aware
+    timestamps, a row created earlier in the same session a naive utcnow();
+    compare both as naive UTC."""
+    c = getattr(sched, "created_at", None)
+    if c is None:
+        return datetime.min
+    if c.tzinfo is not None:
+        c = c.astimezone(timezone.utc).replace(tzinfo=None)
+    return c
+
+
 async def regenerate_active_schedules(
     *,
     user_id: str,
     db: AsyncSession,
     only_max: Optional[str] = None,
+    only_ai: bool = False,
     reason: str = "context_change",
 ) -> list[dict]:
     """Re-expand every active doc-driven schedule for the user against
@@ -526,11 +539,17 @@ async def regenerate_active_schedules(
     _regen_busy = await calendar_busy_by_date(user_uuid, today, today + _td(days=35), db)
     if _regen_busy:
         state["calendar_busy_by_date"] = _regen_busy
+    _ai_profile = None
+    # AI programs re-fit in a fixed order (oldest first) so the stack settles
+    # the same way every time.
+    actives.sort(key=created_order)
     for sched in actives:
         mid = sched.maxx_id or ""
         if only_max and mid != only_max:
             continue
         from services.ai_programs import AI_PLAN_DAYS, expand_template, is_ai_program
+        if only_ai and not is_ai_program(mid):
+            continue
         ai_tmpl = (sched.schedule_context or {}).get("ai_plan") if is_ai_program(mid) else None
         if ai_tmpl is None:
             if not has_skeleton(mid):
@@ -544,9 +563,27 @@ async def regenerate_active_schedules(
 
         try:
             if ai_tmpl is not None:
-                # AI program: the stored Claude template IS the plan — re-expand
-                # it (no LLM) and let the shared tail below (overrides, fence,
+                # AI program: the stored Claude template IS the plan. Re-fit it
+                # to the person's CURRENT day and stack (a no-op unless wake/bed,
+                # work, meals or another program changed), then re-expand it
+                # (no LLM) and let the shared tail (calendar busy, overrides,
                 # status-preserving merge) do the rest.
+                from services.ai_programs import _user_state as _ai_us, build_profile as _ai_bp, refit_template
+                if _ai_profile is None:
+                    _ai_profile = _ai_bp((await _ai_us(user_id, db))[2])
+                _others = {
+                    s2.maxx_id: (s2.schedule_context or {}).get("ai_plan")
+                    for s2 in actives
+                    if s2.maxx_id != mid and is_ai_program(s2.maxx_id) and (s2.schedule_context or {}).get("ai_plan")
+                }
+                refit = refit_template(mid, ai_tmpl, _ai_profile, others=_others)
+                if [ (h["habit_id"], h["time"], h.get("weekend_time"), h["days"], h["minutes"]) for h in refit["habits"]] != \
+                   [ (h.get("habit_id"), h.get("time"), h.get("weekend_time"), h.get("days"), h.get("minutes"))
+                     for h in ai_tmpl.get("habits") or []] or refit.get("fit_for") != ai_tmpl.get("fit_for"):
+                    from sqlalchemy.orm.attributes import flag_modified as _fm_ai
+                    sched.schedule_context = {**(sched.schedule_context or {}), "ai_plan": refit}
+                    _fm_ai(sched, "schedule_context")
+                    ai_tmpl = refit
                 fixed_new = expand_template(mid, ai_tmpl, start_date=today, n_days=AI_PLAN_DAYS)
                 from services.task_fields import normalize_days as _nd_ai
                 _nd_ai(fixed_new, mid)
@@ -608,9 +645,12 @@ async def regenerate_active_schedules(
             _normalize_days(fixed_new, mid)
 
         # Last word on placement (waking hours, clear of work, done by bed) —
-        # BEFORE the user's own pins below, which always win.
-        from services.day_fence import fence_days as _fence_days
-        fixed_new = _fence_days(fixed_new, state)
+        # BEFORE the user's own pins below, which always win. AI programs are
+        # already fitted to the day (services/ai_fit.py, which lets work-native
+        # habits sit in work hours) and must not be re-fenced.
+        if ai_tmpl is None:
+            from services.day_fence import fence_days as _fence_days
+            fixed_new = _fence_days(fixed_new, state)
 
         # Honor times the user explicitly moved (scope="series" edit) so a
         # silent re-expansion re-pins their chosen time instead of snapping
@@ -671,8 +711,13 @@ async def regenerate_active_schedules(
             # it back in front of the reconciled live days afterwards.
             history_by_max: dict[str, list[dict]] = {}
             bundle: dict[str, list[dict]] = {}
+            from services.ai_programs import is_ai_program as _is_ai_prog
             for s in actives:
                 if not (s.maxx_id and s.days):
+                    continue
+                # AI programs are fitted against each other at the template
+                # level; the skeleton re-pack would only undo that.
+                if _is_ai_prog(s.maxx_id):
                     continue
                 hist, live = _split_days_by_date(list(s.days), today)
                 if not live:
@@ -1115,7 +1160,7 @@ def _days_differ(a: list[dict], b: list[dict]) -> bool:
     actually change anything (e.g. a context merge that didn't touch any
     field the skeleton consults).
 
-    Dates are part of the fingerprint: a re-anchored expansion whose
+    Dates, durations and the visible text are part of the fingerprint: a re-anchored expansion whose
     (catalog_id, time) sequence happens to line up with the old days
     positionally (daily-only skeletons) is STILL a change — the same rows now
     cover different calendar dates. Without this the horizon extension
@@ -1125,11 +1170,19 @@ def _days_differ(a: list[dict], b: list[dict]) -> bool:
     for da, db_ in zip(a, b):
         if da.get("date") != db_.get("date"):
             return True
-        ta = [(t.get("catalog_id"), t.get("time"), t.get("status")) for t in (da.get("tasks") or [])]
-        tb = [(t.get("catalog_id"), t.get("time"), t.get("status")) for t in (db_.get("tasks") or [])]
-        if ta != tb:
+        if [_task_fingerprint(t) for t in (da.get("tasks") or [])] != \
+                [_task_fingerprint(t) for t in (db_.get("tasks") or [])]:
             return True
     return False
+
+
+def _task_fingerprint(t: dict) -> tuple:
+    # Everything the person sees: a refit that only trims minutes (the stack's
+    # time budget) or a redo that only rewords a habit is still a change, or
+    # the stored rows keep the old duration/text while the plan moved on.
+    return (t.get("catalog_id"), t.get("time"), t.get("status"),
+            t.get("duration_minutes") or t.get("duration_min"),
+            t.get("title"), t.get("description"), t.get("why"))
 
 
 async def adapt_and_persist(

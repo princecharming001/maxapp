@@ -297,11 +297,18 @@ def _from_min(m: int) -> str:
 
 def build_profile(state: dict) -> dict:
     """The compact picture of the user's day Claude plans around."""
-    try:
-        from services.schedule_dsl import schedulable_anchors
-        wake, sleep = schedulable_anchors(state)
-    except Exception:
-        wake, sleep = _hm(state.get("wake_time"), "07:00"), _hm(state.get("sleep_time"), "23:00")
+    # The person's real wake and bed times. (Onboarding stores the WIND-DOWN
+    # window in sleep_window, so the window-based schedulable_anchors would read
+    # the start of wind-down as bedtime and pull every evening habit ~45 min
+    # early.) Fall back to the window logic only when no scalar exists.
+    wake, sleep = _hm(state.get("wake_time"), ""), _hm(state.get("sleep_time"), "")
+    if not wake or not sleep:
+        try:
+            from services.schedule_dsl import schedulable_anchors
+            w2, s2 = schedulable_anchors(state)
+        except Exception:
+            w2, s2 = "07:00", "23:00"
+        wake, sleep = wake or w2, sleep or s2
     minutes = state.get("daily_minutes")
     try:
         minutes = int(minutes) if minutes is not None else None
@@ -310,9 +317,20 @@ def build_profile(state: dict) -> dict:
     if minutes is None:
         minutes = {"low": 10, "medium": 25, "high": 45}.get(str(state.get("biohack_level") or ""), 25)
     facts = state.get("user_facts") or {}
+    # Spelled out so Claude never asks what onboarding already answered
+    # ("how much later do you wake on weekends?" after "same rhythm").
+    wt = state.get("weekly_timings") if isinstance(state.get("weekly_timings"), dict) else {}
+    sat = wt.get("saturday") if isinstance(wt.get("saturday"), dict) else {}
+    if sat.get("wake_time") or sat.get("sleep_time"):
+        weekends = f"wakes {sat.get('wake_time') or wake}, bed {sat.get('sleep_time') or sleep} on weekends"
+    elif state.get("weekend_shift"):
+        weekends = "sleeps in about an hour later on weekends"
+    else:
+        weekends = "same wake and bed times on weekends as on weekdays"
     return {
         "wake_time": wake,
         "bed_time": sleep,
+        "weekends": weekends,
         "obligations": [
             {k: o.get(k) for k in ("label", "start", "end", "days") if isinstance(o, dict)}
             for o in (state.get("obligations") or []) if isinstance(o, dict)
@@ -436,6 +454,33 @@ _INTAKE_TOOL = {
 }
 
 
+_KNOWN_FACT_RE = re.compile(
+    r"\b(weekends?|sleep in|wake (up )?(time|on)|what time do you (wake|get up|go to bed|sleep)|bed ?time|"
+    r"go(ing)? to bed|work(ing)? hours|when do you (work|start work|finish work|eat)|commute|"
+    r"breakfast|lunch time|dinner time|meal times?|how (many|much) (minutes|time) (a|per|each) day)\b",
+    re.IGNORECASE)
+
+
+_NONE_OPT = re.compile(r"^(none|no|nothing|not really|none of (these|the above)|prefer not to say|n/a)\b", re.I)
+_FREE_OPT = re.compile(r"^(something else|other|another|else)\W*$", re.I)
+
+
+def tidy_options(opts: list[str], *, multi: bool) -> list[str]:
+    """Chips a person can always answer: a 'pick any that apply' list gets a
+    'none of these' (a safety question with nothing that applies was a dead
+    end), and a free-text 'something else' goes last, never first."""
+    free = [o for o in opts if _FREE_OPT.match(o.strip(" .…"))]
+    out = [o for o in opts if o not in free]
+    if multi and out and not any(_NONE_OPT.match(o) for o in out):
+        out.append("none of these")
+    return out + free[:1]
+
+
+def asks_known_fact(question: str) -> bool:
+    """True when an intake question asks what onboarding already collected."""
+    return bool(_KNOWN_FACT_RE.search(question or ""))
+
+
 async def next_intake_step(maxx_id: str, profile: dict, answers: dict, asked: list[dict]) -> dict:
     """Claude's next question for this program, or done. Falls back to done
     (plan with what we have) if Claude is unavailable — never blocks the user."""
@@ -447,8 +492,9 @@ async def next_intake_step(maxx_id: str, profile: dict, answers: dict, asked: li
         "You ask the fewest questions needed to personalize it, then stop.\n"
         f"{_VOICE}\n{_safety(maxx_id)}\n\n"
         "Rules for intake:\n"
-        "- The user's day (wake, bed, work hours, commute, meals, workout time) and their "
-        "minutes-per-day budget are already known. Never ask about those.\n"
+        "- The user's day (wake, bed, weekends, work hours, commute, meals, workout time) and their "
+        "minutes-per-day budget are already known from onboarding (see profile). Never ask about "
+        "those, including whether or how much they sleep in on weekends.\n"
         "- Never ask something already in known_facts or answers.\n"
         f"- Ask at most {MAX_INTAKE_QUESTIONS} questions in total. Aim for 2. Only ask a question if "
         "its answer would clearly change which habits you schedule, when, or how hard. Anything "
@@ -468,9 +514,19 @@ async def next_intake_step(maxx_id: str, profile: dict, answers: dict, asked: li
         "questions_remaining_allowed": MAX_INTAKE_QUESTIONS - len(asked),
     }, default=str)
     out = await _claude_tool(system, user, _INTAKE_TOOL, max_tokens=700)
+    if out and not out.get("done") and asks_known_fact(str(out.get("question") or "")):
+        # Onboarding already answered this (weekends, wake/bed, work, meals,
+        # minutes). Say so once; a repeat ends intake instead of asking it.
+        retry_user = json.dumps({**json.loads(user), "rejected_question": out.get("question"),
+                                 "why_rejected": "already known from onboarding; see profile. Ask something "
+                                                 "else that changes the plan, or set done=true."}, default=str)
+        out = await _claude_tool(system, retry_user, _INTAKE_TOOL, max_tokens=700)
+        if out and asks_known_fact(str(out.get("question") or "")):
+            out = {**out, "done": True}
     if not out:
         return {"done": True, "ack": "", "question": "", "options": [], "multi": False, "fact_key": ""}
-    opts = [str(o).strip() for o in (out.get("options") or []) if str(o).strip()][:5]
+    opts = tidy_options([str(o).strip() for o in (out.get("options") or []) if str(o).strip()][:5],
+                        multi=bool(out.get("multi")))
     q = str(out.get("question") or "").strip()
     done = bool(out.get("done")) or not q
     return {
@@ -515,14 +571,16 @@ _PLAN_TOOL = {
 
 
 def _other_minutes_per_day(other_plans: dict[str, dict]) -> int:
-    total = 0.0
-    for tmpl in other_plans.values():
-        for h in (tmpl or {}).get("habits") or []:
-            try:
-                total += int(h.get("minutes") or 0) * len(h.get("days") or []) / 7.0
-            except Exception:
-                continue
-    return int(round(total))
+    """Busiest-day minutes the other programs use (1-minute reminders free)."""
+    from services import ai_fit
+    return max((sum(ai_fit.day_load((t or {}).get("habits"), d) for t in other_plans.values())
+                for d in ai_fit.WEEKDAYS), default=0)
+
+
+def _program_share(budget_total: int, other_plans: dict[str, dict]) -> int:
+    """Minutes this program can use on its tightest day (fair share of the stack)."""
+    from services import ai_fit
+    return int(min(ai_fit.allowance(budget_total, other_plans).values()))
 
 
 async def build_plan(
@@ -542,7 +600,7 @@ async def build_plan(
         return None
     budget_total = int(profile.get("minutes_per_day_total") or 25)
     used = _other_minutes_per_day(other_plans)
-    remaining = max(5, budget_total - used)
+    remaining = _program_share(budget_total, other_plans)
     system = (
         f"You are the planner for the {program_label(maxx_id)} program in the Superpower app. "
         "You build a weekly plan of small habits that fits into this specific person's real day.\n"
@@ -554,16 +612,23 @@ async def build_plan(
         "commute or meals, unless the habit is short and naturally done at a work break or with a meal.\n"
         "- Respect the doc's scheduling rules (e.g. caffeine cutoff vs bedtime, light soon after waking, "
         "wind-down before bed, rest days between hard sessions).\n"
-        f"- Time budget: this program gets about {remaining} minutes per day on average (the user gives "
-        f"{budget_total} min/day across all programs and other programs already use about {used}). Stay "
-        "within it. Start with the highest-value core habits and add medium/hard tier habits only when the "
-        "budget allows. Week 1 should feel easy.\n"
+        f"- Time budget: this program gets at most {remaining} minutes on ANY single day (the user gives "
+        f"{budget_total} min/day across all programs; the others use up to {used} on their busiest day). "
+        "Add up the minutes of every habit that lands on the same day and stay within it; 0-minute rules "
+        "and 1-minute reminders are free. Never shrink a habit below its library minimum to squeeze it "
+        "in: leave it out instead (no 2-minute deep-work block). Only describe habits you actually "
+        "include in the summary.\n"
+        "- Week 1 must feel easy: 2 or 3 habits for this program, the highest-value core ones for THIS person. "
+        "List habits most important first for this person (their answers decide: someone who can't fall "
+        "asleep needs the wind-down before a fixed wake time); anything past the third is cut.\n"
         "- Do not duplicate a habit another program already schedules (same idea, e.g. morning light); "
         "if it is shared, leave it to the other program and pick something else.\n"
         "- Do not schedule two habits at the same minute as each other or as other programs' habits; "
         "space them at least 5 minutes apart.\n"
         "- Weekends: if the user shifts later on weekends, set weekend_time accordingly.\n"
         "- Use the user's answers to tailor which habits, how, and when. Tailor the 'how' text to them.\n"
+        "- Never write clock times in title, how or why (no 'alarm for 08:00', no 'last coffee by 3:30pm'): "
+        "the app shows each habit's time, and times can shift to fit the day.\n"
         "- If this is a redo, start from the current plan and change what the request asks for, keeping "
         "the rest stable.\n"
         + _program_rules(maxx_id, sync_required) + "\n"
@@ -585,11 +650,164 @@ async def build_plan(
     out = await _claude_tool(system, user, _PLAN_TOOL, max_tokens=3500)
     if not out:
         return None
-    tmpl = validate_template(maxx_id, out, profile)
+    for h in out.get("habits") or []:
+        if isinstance(h, dict):
+            h.pop("priority", None)      # this list's order IS the priority
+    tmpl = validate_template(maxx_id, out, profile, others=other_plans,
+                             keep_ids=set(sync_required or []))
     if not tmpl["habits"]:
         logger.warning("ai_programs: plan for %s had no valid habits", maxx_id)
         return None
+    tmpl["_draft"] = {
+        "summary": str(out.get("summary") or ""),
+        "request": request or "",
+        "habits": [{"habit_id": str(h.get("habit_id") or ""), "title": str(h.get("title") or ""),
+                    "time": _hm(h.get("time"), ""), "minutes": h.get("minutes"),
+                    "days": [d for d in WEEKDAYS if d in (h.get("days") or [])]}
+                   for h in out.get("habits") or [] if isinstance(h, dict)],
+    }
     return tmpl
+
+
+def _draft_matches(draft: dict, tmpl: dict) -> bool:
+    """True when the fitted plan is what Claude described: same habits, and
+    each at (about) the time, length and days Claude's summary talks about."""
+    want = {h.get("habit_id"): h for h in draft.get("habits") or [] if h.get("habit_id")}
+    have = {h.get("habit_id"): h for h in tmpl.get("habits") or []}
+    if set(want) != set(have):
+        return False
+    for hid, h in have.items():
+        w = want[hid]
+        a, b = _hm(w.get("time"), ""), _hm(h.get("time"), "")
+        if a and b:
+            ma, mb = int(a[:2]) * 60 + int(a[3:]), int(b[:2]) * 60 + int(b[3:])
+            if min(abs(ma - mb), 1440 - abs(ma - mb)) > 10:
+                return False
+        try:
+            if w.get("minutes") is not None and int(w["minutes"]) != int(h.get("minutes") or 0) \
+                    and int(h.get("minutes") or 0) > 1:
+                return False
+        except (TypeError, ValueError):
+            pass
+        if w.get("days") and set(w["days"]) != set(h.get("days") or []):
+            return False
+    return True
+
+
+_SUMMARY_TOOL = {
+    "name": "plan_summary",
+    "description": "The 2-3 line plan summary shown above the plan card.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"summary": {"type": "string"}},
+        "required": ["summary"],
+    },
+}
+
+
+def plain_summary(tmpl: dict, left_out: Optional[list[str]] = None, budget: Optional[int] = None) -> str:
+    """A truthful summary built from the final habits (no LLM)."""
+    titles = [str(h.get("title") or "").strip() for h in tmpl.get("habits") or [] if h.get("title")]
+    titles = [t[:1].lower() + t[1:] for t in titles]
+    if not titles:
+        return ""
+    lst = titles[0] if len(titles) == 1 else ", ".join(titles[:-1]) + " and " + titles[-1]
+    out = f"week 1 keeps it simple: {lst}."
+    if left_out:
+        lo = [t[:1].lower() + t[1:] for t in left_out if t][:2]
+        if lo:
+            room = f"your {budget} minutes a day" if budget else "your day"
+            out += f" {' and '.join(lo)} can come in later, once there's room in {room}."
+    return out
+
+
+async def sync_summary(maxx_id: str, tmpl: dict, profile: dict, *, changed: bool = False) -> dict:
+    """Claude wrote the summary for its draft; the fit may have left habits out
+    (budget, week-1 limit, a duplicate) or added synced ones. When the final
+    habit set differs from the draft, rewrite the summary for exactly what is
+    in the plan so the card never promises a habit that isn't there."""
+    draft = tmpl.pop("_draft", None) or {}
+    final = {h.get("habit_id") for h in tmpl.get("habits") or []}
+    proposed = {h.get("habit_id") for h in draft.get("habits") or [] if h.get("habit_id")}
+    if not changed and (not draft or (_draft_matches(draft, tmpl) and (tmpl.get("summary") or "").strip()
+                                      and not absent_mentions(maxx_id, tmpl.get("summary") or "", tmpl))):
+        return tmpl
+    titles = {h["habit_id"]: h.get("title") for h in draft.get("habits") or [] if h.get("habit_id")}
+    left_out = [titles.get(i) or i.replace("_", " ") for i in proposed - final
+                if not i.startswith("custom_")]
+    budget = int(profile.get("minutes_per_day_total") or 25)
+    system = (
+        f"You write the short summary shown above a {program_label(maxx_id)} week-1 plan in the Superpower app.\n"
+        f"{_VOICE}\n"
+        "Rewrite the draft summary so it describes EXACTLY the habits listed in final_habits (2-3 short lines, "
+        "under 60 words). Keep the draft's reasons for why it fits this person. Never mention a habit that is "
+        "not in final_habits, and any time, length or day you mention must match final_habits exactly (use "
+        "the given am/pm times as written). adjustments says why the planner kept a habit where it is. If "
+        "left_out is not empty you may say in a few words that it can be added later when there's room; do "
+        "not promise it this week. If change_request asked for something the final plan could not do "
+        "exactly, say plainly what you did instead and give the reason from adjustments (never invent a "
+        "different reason). No doses, no medical claims."
+    )
+    user = json.dumps({
+        "change_request": draft.get("request") or "",
+        "draft_summary": draft.get("summary") or tmpl.get("summary") or "",
+        "final_habits": [{"title": h.get("title"), "time": _pretty_time(h.get("time") or ""),
+                          **({"weekend_time": _pretty_time(h["weekend_time"])} if h.get("weekend_time") else {}),
+                          "days": h.get("days"), "minutes": h.get("minutes")} for h in tmpl.get("habits") or []],
+        "adjustments": [n for n in tmpl.get("fit_notes") or [] if n.startswith(("kept ", "dropped "))],
+        "left_out": left_out,
+        "minutes_per_day": budget,
+    }, default=str)
+    out = await _claude_tool(system, user, _SUMMARY_TOOL, max_tokens=400)
+    text = _clean_text(str((out or {}).get("summary") or ""), 600)
+    if text and absent_mentions(maxx_id, text, tmpl, allow_later=True):
+        text = ""                       # still describing a habit that isn't there
+    tmpl["summary"] = text or plain_summary(tmpl, left_out, budget)
+    return tmpl
+
+
+_MENTION_STOP = {
+    "daily", "morning", "evening", "night", "weekly", "weekend", "short", "quick", "minute", "minutes",
+    "before", "after", "your", "with", "first", "every", "check", "routine", "block", "session", "simple",
+    "easy", "light", "outdoor", "times", "reminder", "practice", "twice", "something", "someone", "about",
+    "meals", "training", "strength", "water", "protein", "caffeine", "sleep", "screen", "screens", "coffee",
+    "lunch", "dinner", "breakfast", "stack", "check-in", "plate", "one-time", "reset", "optional", "evidence",
+    "caution", "trial", "basic", "mixed", "weak", "food", "only", "early", "earlier", "possible", "awake",
+    "small", "where", "vegans", "workday", "movement", "recovery", "energy", "three", "steps", "cardio",
+    "focus", "calm", "regular", "gentle", "afternoon", "protect", "window", "slump", "dose", "prescriber",
+    "instructions", "build", "keep", "muscle", "comfort", "fiber",
+}
+_MENTION_ALIASES = {"post_meal_walk": r"\bwalk", "outdoor_walk": r"\bwalk", "deep_work_block": r"deep[- ]?work",
+                    "notification_cleanup": r"notification", "cold_chain_check": r"\bstorage",
+                    "sleep_regularity": r"(regular|steady|consistent) sleep (window|schedule|times?)"}
+
+
+def absent_mentions(maxx_id: str, summary: str, tmpl: dict, *, allow_later: bool = False) -> list[str]:
+    """Library habits the summary talks about that are NOT in the plan (a
+    word only counts when no planned habit's title uses it too)."""
+    lib = _lib(maxx_id)
+    have = {h.get("habit_id") for h in tmpl.get("habits") or []}
+    titles = " ".join(str(h.get("title") or "") + " " + str(h.get("habit_id") or "").replace("_", " ")
+                      for h in tmpl.get("habits") or []).lower()
+    text = (summary or "").lower()
+    if allow_later:
+        text = " ".join(x for x in re.split(r"(?<=[.!?])\s+", text)
+                        if not re.search(r"\blater\b|when there's room|once there's room", x))
+    out = []
+    for hid, hd in lib.items():
+        if hid in have:
+            continue
+        if hid in _MENTION_ALIASES:
+            pats = [_MENTION_ALIASES[hid]]
+        else:
+            words = [w for w in re.findall(r"[a-z][a-z-]{4,}", re.sub(r"\(.*?\)", "", hd.title.lower()))
+                     if w not in _MENTION_STOP]
+            pats = [r"\b" + re.escape(w).replace(r"\-", "[- ]?") + r"s?\b" for w in words[:1]]
+        for pat in pats:
+            if re.search(pat, text) and not re.search(pat, titles):
+                out.append(hid)
+                break
+    return out
 
 
 def _program_rules(maxx_id: str, sync_required: Optional[list[str]]) -> str:
@@ -616,23 +834,31 @@ def _program_rules(maxx_id: str, sync_required: Optional[list[str]]) -> str:
     return ""
 
 
-def validate_template(maxx_id: str, raw: dict, profile: dict) -> dict:
-    """Repair Claude's plan into something always schedulable: library ids
-    only (or an explicit custom_), valid weekdays, times inside the waking day,
-    sane minutes, no duplicates."""
+def _lib(maxx_id: str) -> dict:
     pd = get_program_doc(maxx_id)
-    lib = {h.id for h in (pd.habits if pd else [])}
-    wake = _to_min(_hm(profile.get("wake_time"), "07:00"))
-    bed = _to_min(_hm(profile.get("bed_time"), "23:00"))
-    if bed <= wake:
-        bed += 1440
-    # Weekend bounds: an explicit Saturday timing, else the +1h weekend shift.
-    sat = (profile.get("weekly_timings") or {}).get("saturday") or {}
-    shift = 60 if profile.get("weekend_shift") else 0
-    wk_wake = _to_min(_hm(sat.get("wake_time"), _from_min(wake + shift)))
-    wk_bed = _to_min(_hm(sat.get("sleep_time"), _from_min(bed + shift)))
-    if wk_bed <= wk_wake:
-        wk_bed += 1440
+    return {h.id: h for h in (pd.habits if pd else [])}
+
+
+def _fit_caps(maxx_id: str, habits: list[dict]) -> tuple[set, int]:
+    """(protected habit ids, habit cap) for a program's week-1 load."""
+    if maxx_id == SUPP_PROGRAM:
+        synced = {h["habit_id"] for h in habits if h.get("linked_to") or h.get("_required")}
+        return synced, len(synced) + 2
+    if maxx_id == PEPTIDE_PROGRAM:
+        doses = {h["habit_id"] for h in habits if str(h.get("habit_id", "")).startswith("custom_dose")}
+        return doses, len(doses) + 3
+    return set(), 3
+
+
+def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optional[dict] = None,
+                      keep_ids: Optional[set] = None) -> dict:
+    """Repair Claude's plan into something always schedulable: library ids
+    only (or an explicit custom_), valid weekdays, human text, sane minutes —
+    then fit it to the person's real day and the rest of their stack
+    (services/ai_fit.py: budget, week-1 load, duplicates, rest days, doc
+    timing rules, busy windows, cross-program spacing)."""
+    from services import ai_fit
+    lib = _lib(maxx_id)
     habits: list[dict] = []
     seen: set[str] = set()
     for h in raw.get("habits") or []:
@@ -643,68 +869,121 @@ def validate_template(maxx_id: str, raw: dict, profile: dict) -> dict:
             continue
         if hid not in lib and not hid.startswith("custom_"):
             continue
-        days = [d for d in (h.get("days") or []) if d in WEEKDAYS]
+        days = [d for d in WEEKDAYS if d in (h.get("days") or [])]
         if not days:
             continue
         try:
-            minutes = max(1, min(90, int(h.get("minutes") or 0) or 2))
+            minutes = int(h.get("minutes") or 0)
         except (TypeError, ValueError):
-            minutes = 5
-
-        def _clamp(t: str, lo: int, hi: int) -> str:
-            m = _to_min(_hm(t, _from_min(lo + 30)))
-            if m < lo and m + 1440 <= hi:
-                m += 1440  # a past-midnight bedtime routine
-            m = max(lo, min(hi - minutes, m))
-            return _from_min(m)
-
-        time = _clamp(str(h.get("time") or ""), wake, bed)
-        wt = str(h.get("weekend_time") or "").strip()
-        weekend_time = _clamp(wt, wk_wake, wk_bed) if re.fullmatch(r"\d{1,2}:\d{2}", wt) else ""
-        lib_h = pd.habit(hid) if pd else None
+            minutes = 0
+        lib_h = lib.get(hid)
         habits.append({
             "habit_id": hid,
-            "title": (str(h.get("title") or "").strip() or (lib_h.title if lib_h else hid.replace("_", " ")))[:40],
-            "how": str(h.get("how") or (lib_h.how if lib_h else "")).strip()[:400],
-            "why": str(h.get("why") or (lib_h.why if lib_h else "")).strip()[:200],
+            "title": _clean_text(str(h.get("title") or "") or (lib_h.title if lib_h else hid.replace("_", " ")), 40),
+            "how": _clean_text(str(h.get("how") or (lib_h.how if lib_h else "")), 700),
+            "why": _clean_text(str(h.get("why") or (lib_h.why if lib_h else "")), 200),
             "minutes": minutes,
-            "time": time,
-            "weekend_time": weekend_time,
+            "time": _hm(h.get("time"), ""),
+            "weekend_time": _hm(h.get("weekend_time"), ""),
             "days": days,
+            **({"linked_to": h["linked_to"]} if "linked_to" in h else {}),
+            **({"keep": h["keep"]} if "keep" in h else {}),
+            **({"priority": h["priority"]} if isinstance(h.get("priority"), int) else {}),
+            **({"_required": True} if hid in (keep_ids or set()) else {}),
         })
         seen.add(hid)
-    habits.sort(key=lambda x: x["time"])
-    _space_out(habits, wake, max(bed, wk_bed))
+    protected, cap = _fit_caps(maxx_id, habits)
+    # (text is reconciled with the FINAL times after the fit, below)
+    parked_in = [p for p in raw.get("parked") or []
+                 if isinstance(p, dict) and (p.get("habit_id") in lib or str(p.get("habit_id", "")).startswith("custom_"))
+                 and p.get("habit_id") not in seen]
+    parked_out: list[dict] = []
+    placed, notes = ai_fit.fit(maxx_id, habits, profile, lib, others=others,
+                               prev_fit=(raw.get("fit_for") if isinstance(raw.get("fit_for"), dict) else None),
+                               keep_ids=protected | set(keep_ids or set()), cap_habits=cap,
+                               parked=parked_in, parked_out=parked_out)
+    for h in placed + parked_out:
+        h.pop("_required", None)
+    for h in placed:
+        # a time in the steps can only be right if the habit has ONE time
+        times = set() if h.get("weekend_time") else ({_hm(h.get("time"), "")} - {""})
+        h["title"] = _strip_clock(h.get("title") or "")
+        h["how"] = _fix_clock(h.get("how") or "", times)
+        h["why"] = _fix_clock(h.get("why") or "", times)
     return {
-        "version": 1,
-        "summary": str(raw.get("summary") or "").strip()[:600],
-        "habits": habits,
+        "version": 2,
+        "summary": _clean_text(str(raw.get("summary") or ""), 600),
+        "habits": placed,
+        **({"parked": parked_out} if parked_out else {}),
+        "fit_for": ai_fit.fit_signature(ai_fit.day_models(profile)),
+        "fit_notes": notes,
         "built_at": datetime.utcnow().isoformat(),
     }
 
 
-def _space_out(habits: list[dict], wake: int, bed: int, gap: int = 5) -> None:
-    """No two habits that share a day start at the same minute: nudge later
-    ones forward (in place). Times stay inside the waking day."""
-    for key in ("time", "weekend_time"):
-        taken: list[tuple[int, set]] = []
-        for h in sorted(habits, key=lambda x: x.get(key) or x["time"]):
-            t = h.get(key)
-            if not t:
-                continue
-            m = _to_min(t)
-            days = set(h["days"])
-            moved = True
-            while moved:
-                moved = False
-                for tm, tdays in taken:
-                    if tdays & days and abs(tm - m) < gap:
-                        m = tm + gap
-                        moved = True
-            m = min(m, bed - 1)
-            h[key] = _from_min(m)
-            taken.append((m, days))
-    habits.sort(key=lambda x: x["time"])
+def refit_template(maxx_id: str, tmpl: dict, profile: dict, others: Optional[dict] = None) -> dict:
+    """Re-fit a stored template to the person's CURRENT day (no LLM). A no-op
+    on an already-fitted template whose day didn't change."""
+    out = validate_template(maxx_id, tmpl, profile, others=others)
+    for k in ("answers", "declined", "built_at"):
+        if k in tmpl:
+            out[k] = tmpl[k]
+    out["summary"] = tmpl.get("summary") or out.get("summary") or ""
+    before = {h.get("habit_id"): h.get("title") for h in tmpl.get("habits") or []}
+    after = {h.get("habit_id") for h in out.get("habits") or []}
+    gone = [t or i for i, t in before.items() if i not in after]
+    if gone or (after - set(before)):
+        out["summary"] = plain_summary(out, gone, int(profile.get("minutes_per_day_total") or 25))
+    return out
+
+
+_CLOCK = re.compile(r"\b(?:[01]?\d|2[0-3]):[0-5]\d(?:\s?[ap]\.?m\.?)?|\b(?:1[0-2]|0?[1-9])\s?[ap]\.?m\.?\b",
+                    re.IGNORECASE)
+
+
+def _clock_min(tok: str) -> Optional[int]:
+    m = re.match(r"(\d{1,2})(?::(\d{2}))?\s?([ap])?", tok.strip(), re.IGNORECASE)
+    if not m:
+        return None
+    h, mm, ap = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
+    if ap == "p" and h < 12:
+        h += 12
+    if ap == "a" and h == 12:
+        h = 0
+    return h * 60 + mm
+
+
+def _strip_clock(title: str) -> str:
+    """'Last coffee by 3:30pm' -> 'Last coffee' (the card shows the time)."""
+    t = re.sub(r"\s*(?:by|at|before|after|around|until|@)?\s*" + _CLOCK.pattern, "", title, flags=re.IGNORECASE)
+    t = re.sub(r"\s{2,}", " ", t).strip(" ,;:-")
+    return t or title
+
+
+def _fix_clock(text: str, times: set) -> str:
+    """A clock time in the instructions that isn't when the habit is
+    scheduled (the fit moved it) would contradict the card: point to the plan
+    instead of naming a stale time."""
+    mins = {int(t[:2]) * 60 + int(t[3:]) for t in times if t}
+
+    def sub(m: re.Match) -> str:
+        v = _clock_min(m.group(0))
+        if v is not None and (v in mins or (v + 720) in mins):
+            return m.group(0)
+        return "the time on your plan"
+    return _CLOCK.sub(sub, text or "")
+
+
+def _clean_text(text: str, limit: int) -> str:
+    """Trim to `limit` on a word/sentence boundary (never mid-word)."""
+    t = re.sub(r"\s+", " ", text or "").strip()
+    if len(t) <= limit:
+        return t
+    cut = t[:limit]
+    end = max(cut.rfind(". "), cut.rfind("; "))
+    if end >= limit * 0.6:
+        return cut[: end + 1].strip()
+    return cut.rsplit(" ", 1)[0].rstrip(",;:-") + "…"
 
 
 def expand_template(maxx_id: str, tmpl: dict, *, start_date: date, n_days: int = AI_PLAN_DAYS) -> list[dict]:
@@ -725,15 +1004,55 @@ def expand_template(maxx_id: str, tmpl: dict, *, start_date: date, n_days: int =
                 "description": h.get("how") or "",
                 "why": h.get("why") or "",
                 "time": t,
-                "duration_min": int(h.get("minutes") or 5),
-                "duration_minutes": int(h.get("minutes") or 5),
+                "duration_min": int(h.get("minutes") or 1),
+                "duration_minutes": int(h.get("minutes") or 1),
                 "tags": ["ai_program", maxx_id, "foundation"],
                 "status": "pending",
                 "intensity": 0.5,
             })
-        tasks.sort(key=lambda x: x["time"])
+        if maxx_id == SUPP_PROGRAM:
+            tasks = _group_same_time(tasks)
+        # In the order of the person's waking day: a 00:15 wind-down on a
+        # 01:00-bedtime Saturday comes after 23:00, not before breakfast.
+        fit_for = (tmpl.get("fit_for") or {}).get("weekend" if wd in ("sat", "sun") else "weekday") or []
+        wake = _hm(fit_for[0], "") if fit_for else ""
+        tasks.sort(key=lambda x: (x["time"] < wake if wake else False, x["time"]))
         days.append({"day_index": i, "date": d.isoformat(), "tasks": tasks})
     return days
+
+
+def _short_supp_name(title: str) -> str:
+    t = re.sub(r"\s*\(.*?\)", "", title or "").strip()
+    return re.split(r"\s+(with|before|after|for)\s+", t, maxsplit=1)[0].strip() or title
+
+
+def _group_same_time(tasks: list[dict]) -> list[dict]:
+    """Supplements taken together (same slot) are ONE task: 'Vitamin D3 +
+    Omega-3', each pick's instructions in the description. Keeps Home sane
+    when a big stack syncs several picks to the same meal."""
+    by_time: dict[str, list[dict]] = {}
+    for t in tasks:
+        by_time.setdefault(t["time"], []).append(t)
+    out = []
+    for tm, group in by_time.items():
+        if len(group) == 1:
+            out.append(group[0])
+            continue
+        names = [_short_supp_name(g["title"]) for g in group]
+        title = " + ".join(names)
+        if len(title) > 40:
+            title = f"{names[0]} + {len(names) - 1} more"
+        first = dict(group[0])
+        first.update({
+            "title": title,
+            "description": "\n\n".join(f"{n}: {g['description']}" for n, g in zip(names, group) if g["description"]),
+            "why": group[0].get("why") or "",
+            "duration_min": max(int(g.get("duration_min") or 1) for g in group),
+            "duration_minutes": max(int(g.get("duration_minutes") or 1) for g in group),
+            "group": [g["catalog_id"] for g in group],
+        })
+        out.append(first)
+    return out
 
 
 # ── Persistence ─────────────────────────────────────────────────────────────
@@ -875,17 +1194,24 @@ def _tag_supp_links(tmpl: dict, active: set[str], prev: Optional[dict] = None, *
 
 
 def _finalize_supp(tmpl: dict, profile: dict, answers: dict, active: set[str],
-                   prev: Optional[dict] = None, *, user_requested: bool = False, enforce: bool = True) -> dict:
+                   prev: Optional[dict] = None, *, user_requested: bool = False, enforce: bool = True,
+                   others: Optional[dict] = None) -> dict:
     """Make the synced picks deterministic (Claude places them; this only fills
-    a gap if Claude dropped one), then tag links."""
+    a gap if Claude dropped one), fit the whole Suppmax plan into the day with
+    the synced and user-chosen picks protected, then tag links."""
     declined = set((prev or {}).get("declined") or []) | set(tmpl.get("declined") or [])
     if enforce:
         present = {h.get("habit_id") for h in tmpl.get("habits") or []}
         missing = required_supplements(active, answers, declined, present)
         if missing:
             _insert_supps(tmpl, missing, profile)
-            keep_extra = {k: tmpl.get(k) for k in ("answers", "declined") if k in tmpl}
-            tmpl = {**validate_template(SUPP_PROGRAM, tmpl, profile), "summary": tmpl.get("summary") or "", **keep_extra}
+    needed = {h.id for h in required_supplements(active, answers, declined, set())}
+    prev_keep = {h.get("habit_id") for h in (prev or {}).get("habits") or [] if h.get("keep")}
+    have = {h.get("habit_id") for h in tmpl.get("habits") or []}
+    keep_extra = {k: tmpl.get(k) for k in ("answers", "declined", "_draft") if k in tmpl}
+    tmpl = {**validate_template(SUPP_PROGRAM, tmpl, profile, others=others,
+                                keep_ids=(needed | prev_keep) & have),
+            "summary": tmpl.get("summary") or "", **keep_extra}
     tmpl["declined"] = sorted(declined)
     _tag_supp_links(tmpl, active, prev, user_requested=user_requested)
     return tmpl
@@ -921,6 +1247,27 @@ async def active_programs_brief(user_id: str, db, *, max_habits: int = 6) -> str
         bits = [f"{h.get('title')} {h.get('time')}" for h in habits[:max_habits] if h.get("title")]
         lines.append(f"{program_label(s.maxx_id)}: " + (", ".join(bits) or "set up"))
     return ("ACTIVE PROGRAMS (their real plan, use it): " + " | ".join(lines)) if lines else ""
+
+
+def pending_intake_question(ctx: dict, conversation_id: Optional[str]) -> Optional[dict]:
+    """The AI-program question waiting for an answer in this thread, shaped
+    like the history endpoint's pendingQuestion (None if nothing is pending
+    here)."""
+    pending = ctx.get(INTAKE_KEY) if isinstance(ctx.get(INTAKE_KEY), dict) else None
+    if not pending or not is_ai_program(pending.get("max")):
+        return None
+    if pending.get("conv") and conversation_id and str(pending["conv"]) != str(conversation_id):
+        return None
+    asked = pending.get("asked") or []
+    if not asked:
+        return None
+    last = asked[-1]
+    return {
+        "max": pending["max"], "field_id": last.get("fact_key"), "text": last.get("question"),
+        "choices": list(last.get("options") or []), "input_widget": None,
+        "multi_choice": bool(last.get("multi")), "progress": None,
+        "conversation_id": str(pending.get("conv") or conversation_id or "") or None,
+    }
 
 
 async def preview_supp_adds(user_id: str, db, *, with_program: Optional[str] = None) -> list[str]:
@@ -969,8 +1316,8 @@ async def sync_supplements(user_id: str, db) -> Optional[dict]:
     profile = build_profile(state)
     base = {**prev, "habits": kept}
     tmpl: Optional[dict] = None
+    others = await other_program_plans(user_id, db, except_maxx=SUPP_PROGRAM)
     if adds:
-        others = await other_program_plans(user_id, db, except_maxx=SUPP_PROGRAM)
         labels = ", ".join(sorted({program_label(h.primary_for) for h in adds}))
         tmpl = await build_plan(
             SUPP_PROGRAM, profile, answers, others,
@@ -992,7 +1339,10 @@ async def sync_supplements(user_id: str, db) -> Optional[dict]:
     for h in kept:
         if h.get("habit_id") not in have:
             tmpl.setdefault("habits", []).append({k: v for k, v in h.items() if k not in ("linked_to", "keep")})
-    tmpl = _finalize_supp(tmpl, profile, answers, active, prev={**prev, "habits": kept})
+    tmpl = _finalize_supp(tmpl, profile, answers, active, prev={**prev, "habits": kept}, others=others)
+    tmpl.pop("_draft", None)
+    if {h.get("habit_id") for h in tmpl.get("habits") or []} != {h.get("habit_id") for h in prev.get("habits") or []}:
+        tmpl = await sync_summary(SUPP_PROGRAM, tmpl, profile, changed=True)
 
     sctx["ai_plan"] = tmpl
     sctx["summary"] = tmpl.get("summary")
@@ -1010,15 +1360,21 @@ async def sync_supplements(user_id: str, db) -> Optional[dict]:
 _SYNC_TASKS: dict[str, "asyncio.Task"] = {}
 
 
-def kick_supp_sync(user_id: str) -> None:
+def kick_supp_sync(user_id: str, *, refit: bool = False) -> None:
     """Run sync_supplements in the background on its own session (the caller's
-    request returns right away). Coalesces: one sync per user at a time."""
+    request returns right away). Coalesces: one sync per user at a time.
+    refit=True first re-fits the remaining AI stack (after a program stops:
+    habits it was covering come back to the programs that set them aside)."""
     uid = str(user_id)
 
     async def _run():
         try:
             from db.sqlalchemy import AsyncSessionLocal
             async with AsyncSessionLocal() as db:
+                if refit:
+                    from services.schedule_runtime import regenerate_active_schedules
+                    await regenerate_active_schedules(user_id=uid, db=db, only_ai=True, reason="stack_change")
+                    await db.commit()
                 await sync_supplements(uid, db)
         except Exception:
             logger.exception("ai_programs: suppmax sync failed for %s", uid[:8])
@@ -1066,7 +1422,7 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
     tmpl = await build_plan(maxx_id, profile, answers, others, sync_required=sync_required)
     if tmpl is not None and maxx_id == SUPP_PROGRAM:
         tmpl["answers"] = answers
-        tmpl = _finalize_supp(tmpl, profile, answers, active_now)
+        tmpl = _finalize_supp(tmpl, profile, answers, active_now, others=others)
     supp_preview: list[str] = []
     if tmpl is not None and maxx_id not in NO_SYNC_PROGRAMS:
         try:
@@ -1086,22 +1442,18 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
     if tmpl is None:
         return None
     tmpl["answers"] = answers
+    tmpl = await sync_summary(maxx_id, tmpl, profile)
 
     today = local_today_date(state)
+    # Same pipeline as regenerate_active_schedules (so a fresh plan and its
+    # first regeneration are identical): the fitted template already knows the
+    # whole day and every other program, so only real calendar events move
+    # tasks after expansion. The old skeleton passes (work fence, cross-module
+    # re-pack) are not run on AI programs.
     days = expand_template(maxx_id, tmpl, start_date=today)
     normalize_days(days, maxx_id)
     busy = await calendar_busy_by_date(UUID(user_id), today, today + timedelta(days=35), db)
     days = apply_calendar_busy(days, busy)
-    recon_ctx = {**state, "calendar_busy_by_date": busy}
-    other_actives = await _load_other_active_days(UUID(user_id), db, except_maxx=maxx_id)
-    if other_actives:
-        bundle = reconcile_schedules({**other_actives, maxx_id: days}, user_ctx=recon_ctx, start_date=today)
-        days = bundle[maxx_id]
-        for other_max, other_days in bundle.items():
-            if other_max != maxx_id:
-                await _update_active_days(UUID(user_id), db, maxx_id=other_max,
-                                          days=fence_days(other_days, recon_ctx))
-    days = fence_days(days, recon_ctx)
 
     res = await db.execute(
         select(UserSchedule).where(
@@ -1132,14 +1484,77 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
     except Exception:
         logger.warning("ai_programs: op log failed (non-fatal)")
     await db.commit()
+    schedule_id = str(row.id)      # before anything below can expire the row
     try:
         from services.gcal_mirror import kick_gcal_mirror
         kick_gcal_mirror(user_id)
     except Exception:
         pass
+    # The new program took its fair share of the day: re-fit the rest of the
+    # stack so the person's minutes hold across ALL programs (a no-op for any
+    # program already inside its share).
+    if others:
+        try:
+            from services.schedule_runtime import regenerate_active_schedules
+            await regenerate_active_schedules(user_id=user_id, db=db, only_ai=True, reason="stack_change")
+            await db.commit()
+        except Exception:
+            logger.warning("ai_programs: stack refit after create failed (non-fatal)", exc_info=True)
+            await db.rollback()
     if maxx_id not in NO_SYNC_PROGRAMS:
         kick_supp_sync(user_id)
-    return {"schedule_id": str(row.id), "template": tmpl, "supp_added": supp_preview}
+    return {"schedule_id": schedule_id, "template": tmpl, "supp_added": supp_preview}
+
+
+_SWAP_RE = re.compile(r"\b(swap|replace|instead of|switch out|trade)\b", re.IGNORECASE)
+
+
+def _limit_swap(maxx_id: str, tmpl: dict, current: dict, request: str, profile: dict, others: dict) -> dict:
+    """'Swap X for something else' trades one habit for one: Claude sometimes
+    answers by adding two or three; keep only the most important newcomer per
+    habit taken out."""
+    if not _SWAP_RE.search(request or ""):
+        return tmpl
+    old = {h.get("habit_id") for h in (current or {}).get("habits") or []}
+    new = {h.get("habit_id") for h in tmpl.get("habits") or []}
+    added, removed = new - old, old - new
+    room = max(1, len(removed))
+    if len(added) <= room:
+        return tmpl
+    keep_new = {h["habit_id"] for h in sorted((h for h in tmpl["habits"] if h["habit_id"] in added),
+                                              key=lambda h: h.get("priority", 0))[:room]}
+    hs = [h for h in tmpl["habits"] if h["habit_id"] not in added or h["habit_id"] in keep_new]
+    out = validate_template(maxx_id, {**tmpl, "habits": hs}, profile, others=others)
+    out["_draft"] = {**(tmpl.get("_draft") or {}), "habits": []}     # summary must be rewritten
+    return out
+
+
+_LIGHTER_RE = re.compile(r"\b(lighter|less|easier|fewer|shorter|cut back|scale back|too (much|many|long|hard))\b",
+                         re.IGNORECASE)
+
+
+def _week_minutes(tmpl: dict) -> int:
+    return sum(int(h.get("minutes") or 1) * len(h.get("days") or []) for h in (tmpl or {}).get("habits") or [])
+
+
+def _is_lighter(new: dict, old: dict) -> bool:
+    n_new, n_old = len(new.get("habits") or []), len((old or {}).get("habits") or [])
+    sessions = lambda t: sum(len(h.get("days") or []) for h in (t or {}).get("habits") or [])  # noqa: E731
+    return _week_minutes(new) < _week_minutes(old) or n_new < n_old or sessions(new) < sessions(old)
+
+
+def _lighten(maxx_id: str, tmpl: dict, old: dict, profile: dict, others: dict) -> dict:
+    """Deterministic 'make it lighter': drop the last (least important) habit,
+    or with a single habit left, a third of its days."""
+    hs = sorted((dict(h) for h in tmpl.get("habits") or []), key=lambda h: h.get("priority", 0))
+    if len(hs) > 1:
+        hs = hs[:-1]                     # the least important one
+    elif hs and len(hs[0].get("days") or []) > 2:
+        days = hs[0]["days"]
+        hs[0]["days"] = days[: max(2, len(days) - max(1, len(days) // 3))]
+    out = validate_template(maxx_id, {**tmpl, "habits": hs}, profile, others=others)
+    out["_draft"] = {**(tmpl.get("_draft") or {}), "habits": []}     # summary must be rewritten
+    return out
 
 
 async def redo_program_plan(user_id: str, maxx_id: str, request: str, db) -> Optional[dict]:
@@ -1159,6 +1574,21 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db) -> Opt
                             request=request)
     if tmpl is None:
         return None
+    tmpl = _limit_swap(maxx_id, tmpl, current, request, profile, others)
+    if _LIGHTER_RE.search(request or "") and not _is_lighter(tmpl, current):
+        # Claude "lightened" by shortening a habit below its minimum, which the
+        # fit undid: ask once more with the reason, then cut it ourselves.
+        retry = await build_plan(
+            maxx_id, profile, current.get("answers") or {}, others,
+            current_plan={k: current.get(k) for k in ("summary", "habits")},
+            request=(f"{request}. (Your last version was not lighter once each habit's minimum minutes "
+                     "were applied. Make it lighter by removing a habit or some days, never by shortening "
+                     "a habit below its minimum.)"),
+        )
+        if retry is not None and _is_lighter(retry, current):
+            tmpl = retry
+        else:
+            tmpl = _lighten(maxx_id, tmpl, current, profile, others)
     tmpl["answers"] = current.get("answers") or {}
     if maxx_id == SUPP_PROGRAM:
         # A synced pick the user just asked to drop stays dropped on later syncs.
@@ -1167,8 +1597,9 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db) -> Opt
                    if h.get("linked_to") and h.get("habit_id") not in new_ids}
         tmpl["declined"] = sorted(set(current.get("declined") or []) | dropped)
         active = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
-        tmpl = _finalize_supp(tmpl, profile, tmpl["answers"], active, prev=current,
+        tmpl = _finalize_supp(tmpl, profile, tmpl["answers"], active, prev=current, others=others,
                               user_requested=True, enforce=False)
+    tmpl = await sync_summary(maxx_id, tmpl, profile)
     history = list(sctx.get("ai_plan_history") or [])[-4:]
     history.append({"at": datetime.utcnow().isoformat(), "request": request[:300]})
     sctx["ai_plan"] = tmpl
@@ -1181,7 +1612,9 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db) -> Opt
     flag_modified(sched, "schedule_context")
     await db.flush()
     from services.schedule_runtime import regenerate_active_schedules
-    await regenerate_active_schedules(user_id=user_id, db=db, only_max=maxx_id, reason="ai_redo")
+    # The whole stack, not just this program: a heavier redo may need the
+    # others to give back minutes (each is a no-op when already inside its share).
+    await regenerate_active_schedules(user_id=user_id, db=db, only_ai=True, reason="ai_redo")
     await db.commit()
     return tmpl
 
@@ -1294,7 +1727,10 @@ def plan_block(maxx_id: str, tmpl: dict, *, note: str = "") -> str:
     (time · habit · minutes · days). Lives in the stored text, so a reopened
     chat re-renders the same card."""
     meta = AI_PROGRAMS.get(maxx_id) or {}
-    habits = sorted(tmpl.get("habits") or [], key=lambda h: _to_min(_hm(h.get("time"), "12:00")))
+    # in the order of the person's waking day (a 00:45 wind-down comes last)
+    wake = _to_min(_hm(((tmpl.get("fit_for") or {}).get("weekday") or ["04:00"])[0], "04:00"))
+    habits = sorted(tmpl.get("habits") or [],
+                    key=lambda h: (_to_min(_hm(h.get("time"), "12:00")) - wake) % 1440)
     items = [{
         "time": _pretty_time(h.get("time") or ""),
         "title": str(h.get("title") or "").strip()[:60],
@@ -1307,7 +1743,9 @@ def plan_block(maxx_id: str, tmpl: dict, *, note: str = "") -> str:
         "data": {
             "program": maxx_id,
             "color": meta.get("color") or "",
-            "total_minutes": sum(i["minutes"] for i in items if i["days"] == "Daily"),
+            # the honest average: 20-min sessions twice a week count as ~6 min a day
+            "total_minutes": max(1, round(sum(int(h.get("minutes") or 0) * len(h.get("days") or [])
+                                              for h in habits if h.get("title")) / 7)),
             "note": note,
             "items": items,
         },
@@ -1469,7 +1907,12 @@ async def chat_turn(
         step = await next_intake_step(mid, profile, pending.get("answers") or {}, pending.get("asked") or [])
 
     if not step["done"]:
-        pending.setdefault("asked", []).append({"question": step["question"], "fact_key": step["fact_key"]})
+        # options/multi/text are kept so a relaunch mid-intake can bring the
+        # question's chips back on the right thread (api/chat.py history).
+        pending.setdefault("asked", []).append({
+            "question": step["question"], "fact_key": step["fact_key"],
+            "options": list(step.get("options") or []), "multi": bool(step.get("multi")),
+        })
         await merge_context(user_id, {INTAKE_KEY: pending}, db)
         await db.commit()
         lead = ""

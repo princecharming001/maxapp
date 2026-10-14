@@ -14,6 +14,7 @@ import MessageBlocks from '../../components/MessageBlocks';
 import ConfidenceInfoButton from '../../components/ConfidenceInfoButton';
 import { useChatHistoryQuery, useChatConversationsQuery, isPendingQuestionForThread } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
+import { toggleChoice } from '../../lib/chatChoices';
 import { ChatTypingIndicator, ChatTypingMode } from '../../components/ChatTypingIndicator';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { CachedImage } from '../../components/CachedImage';
@@ -1045,14 +1046,14 @@ export default function MaxChatScreen() {
                     conversationId: (conversation_id ?? activeConversationId) ?? null,
                 };
             });
-            queryClient.invalidateQueries({
-                predicate: (q) => {
-                    const k = q.queryKey;
-                    return k === queryKeys.schedulesActiveFull
-                        || k === queryKeys.activeSchedulesSummary
-                        || k === queryKeys.maxes;
-                },
-            });
+            // By key, not by reference: queries restored from the persisted
+            // cache after a relaunch carry fresh array objects, so a `===`
+            // predicate never matched and Home kept showing "no habits" after a
+            // plan was built here. refetchType 'all' also refreshes the tabs
+            // that aren't focused right now (Home, Planner).
+            for (const key of [queryKeys.schedulesActiveFull, queryKeys.activeSchedulesSummary, queryKeys.maxes]) {
+                queryClient.invalidateQueries({ queryKey: key, refetchType: 'all' });
+            }
         } catch (e: any) {
             if (isAbortError(e)) {
                 setMessages(prev => prev.filter((m) => !m.isTyping));
@@ -1820,12 +1821,8 @@ export default function MaxChatScreen() {
                                             // Toggle the pick. The Submit button below
                                             // sends the joined comma-list so the backend
                                             // sees one user message containing all picks.
-                                            setMultiPicked((prev) => {
-                                                const next = new Set(prev);
-                                                if (next.has(choice)) next.delete(choice);
-                                                else next.add(choice);
-                                                return next;
-                                            });
+                                            // "None" can't sit next to a real answer.
+                                            setMultiPicked((prev) => toggleChoice(prev, choice));
                                         }}
                                         activeOpacity={0.7}
                                     >

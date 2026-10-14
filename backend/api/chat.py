@@ -5959,6 +5959,18 @@ async def get_chat_history(
         logger.warning("history pending-question hydrate failed: %s", _e)
         pending_question = None
 
+    # AI programs keep their own intake state: bring back the waiting
+    # question's chips on the thread it was asked in.
+    if pending_question is None:
+        try:
+            from services.ai_programs import pending_intake_question
+            from services.user_context_service import get_context as _gc_ai
+            pending_question = pending_intake_question(
+                await _gc_ai(user_id, db), str(target_conv.id) if target_conv else conversation_id,
+            )
+        except Exception as _e:
+            logger.warning("history AI-intake hydrate failed: %s", _e)
+
     # Build a quick lookup so we can attach a short preview of the
     # quoted message inline (mobile renders a tiny strip above the bubble
     # showing what the user / assistant was replying to).

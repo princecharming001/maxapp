@@ -334,11 +334,12 @@ Each day should have **at least 3–5 tasks** (more for full-stack modules). The
 
 
 def _kick_supp_sync_for(user_id: str, maxx_id) -> None:
-    """Stopping a program can take its synced supplement off Suppmax."""
+    """Stopping a program can take its synced supplement off Suppmax, and gives
+    the rest of the stack back its time and any habit it was covering."""
     try:
-        from services.ai_programs import NO_SYNC_PROGRAMS, is_ai_program, kick_supp_sync
-        if is_ai_program(maxx_id) and maxx_id not in NO_SYNC_PROGRAMS:
-            kick_supp_sync(str(user_id))
+        from services.ai_programs import is_ai_program, kick_supp_sync
+        if is_ai_program(maxx_id):
+            kick_supp_sync(str(user_id), refit=True)
     except Exception:
         logger.warning("suppmax sync kick failed (non-fatal)")
 

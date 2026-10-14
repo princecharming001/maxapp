@@ -68,8 +68,17 @@ def wake_sleep_for(onboarding: dict | None, weekday_name: Optional[str] = None) 
         wt = ob.get("weekly_timings")
         if isinstance(wt, dict) and isinstance(wt.get(weekday_name), dict):
             day = wt[weekday_name]
-            wake = parse_hhmm(day.get("wake_time")) or wake
-            sleep = parse_hhmm(day.get("sleep_time")) or sleep
+            # `is None`, not `or`: a midnight bedtime parses to 0, which is a real time
+            dw, ds = parse_hhmm(day.get("wake_time")), parse_hhmm(day.get("sleep_time"))
+            wake = dw if dw is not None else wake
+            sleep = ds if ds is not None else sleep
+        elif ob.get("weekend_shift") and weekday_name in ("saturday", "sunday"):
+            # "I sleep in" = the plan's weekend runs an hour later (services/ai_fit.py);
+            # a 23:30 bedtime becomes 00:30, so a 00:00 wind-down is that night's
+            if wake is not None:
+                wake = (wake + 60) % 1440
+            if sleep is not None:
+                sleep = (sleep + 60) % 1440
     return (7 * 60 if wake is None else wake), (23 * 60 if sleep is None else sleep)
 
 

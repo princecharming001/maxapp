@@ -11,6 +11,7 @@ import {
     DAY_CLOSE_RESOLVED_FRACTION,
     dayCloses,
     diffDaysISO,
+    continuousDates,
     journeyDayNumber,
     localDateISO,
     resolveTodayISO,
@@ -18,6 +19,13 @@ import {
 } from '../lib/dayProgress';
 
 export const tests = {
+    'day strip has no gaps on rest days': () => {
+        // sim: a weekday-only plan showed "1 2 3 4 6 7" (Sunday had no tasks)
+        assert.deepStrictEqual(continuousDates(['2026-10-17', '2026-10-14', '2026-10-19']),
+            ['2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19']);
+        assert.deepStrictEqual(continuousDates([]), []);
+    },
+
     'thresholds mirror the backend': () => {
         assert.strictEqual(DAY_CLOSE_COMPLETED_FRACTION, 0.6);
         assert.strictEqual(DAY_CLOSE_RESOLVED_FRACTION, 0.8);

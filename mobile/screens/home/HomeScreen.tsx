@@ -16,7 +16,7 @@ import FirstRunWalkthrough from '../../features/mainTour/FirstRunWalkthrough';
 import { colors, spacing, typography, fonts, borderRadius } from '../../theme/dark';
 import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
 import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, moduleColorForSchedule, type MergedScheduleTask } from '../../utils/scheduleAggregation';
-import { dayCloses, journeyDayNumber, localDateISO, resolveTodayISO, xpToastLine } from '../../lib/dayProgress';
+import { continuousDates, dayCloses, journeyDayNumber, localDateISO, resolveTodayISO, xpToastLine } from '../../lib/dayProgress';
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { useReviewTriggers } from '../../hooks/useReviewTriggers';
 import { queryKeys } from '../../lib/queryClient';
@@ -387,9 +387,8 @@ export default function HomeScreen() {
             const backendDayNumber: number | null =
                 f.day_number ?? f.schedule_streak?.day_number ?? null;
             const dayNumberFor = (d: string) => journeyDayNumber(journeyStart, d);
-            const dates = Object.keys(merged.byDate)
-                .filter((d) => (merged.byDate[d] || []).length > 0)
-                .sort();
+            const dates = continuousDates(Object.keys(merged.byDate)
+                .filter((d) => (merged.byDate[d] || []).length > 0));
             const cells: DayCell[] = dates.map((d, i) => {
                 const rows = merged.byDate[d] || [];
                 const total = rows.length;

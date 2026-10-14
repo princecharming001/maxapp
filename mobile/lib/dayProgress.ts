@@ -38,6 +38,22 @@ export function diffDaysISO(fromISO: string, toISO: string): number {
     return Math.round((Date.parse(`${toISO}T00:00:00Z`) - Date.parse(`${fromISO}T00:00:00Z`)) / 86400000);
 }
 
+/**
+ * Every calendar date from the first to the last of `dates` (sorted, no
+ * gaps): a plan with nothing on Sundays still shows Sunday on the day strip,
+ * so the day numbers never jump (…4, 6, 7).
+ */
+export function continuousDates(dates: string[]): string[] {
+    const valid = dates.filter((d) => ISO_DATE.test(d)).sort();
+    if (valid.length === 0) return [];
+    const out: string[] = [];
+    const n = diffDaysISO(valid[0], valid[valid.length - 1]);
+    for (let i = 0; i <= n && i < 400; i++) {
+        out.push(new Date(Date.parse(`${valid[0]}T00:00:00Z`) + i * 86400000).toISOString().slice(0, 10));
+    }
+    return out;
+}
+
 /** Day 1 = the journey anchor date; null when there is no usable anchor. */
 export function journeyDayNumber(
     journeyStartISO: string | null | undefined,

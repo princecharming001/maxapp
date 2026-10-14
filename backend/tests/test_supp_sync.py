@@ -135,6 +135,7 @@ def world(monkeypatch):
     monkeypatch.setattr(ap, "_user_state", user_state)
     monkeypatch.setattr(ap, "other_program_plans", others)
     monkeypatch.setattr(ap, "build_plan", no_claude)
+    monkeypatch.setattr(ap, "_claude_tool", no_claude)
     state["sched"] = sched
     return state
 
@@ -164,3 +165,23 @@ async def test_sync_never_readds_a_declined_pick(world):
     plan["habits"] = []
     out = await ap.sync_supplements("u1", _DB())
     assert out is None or "Low-dose melatonin" not in out["added"]
+
+
+def test_supplements_sit_at_their_meal():
+    out = ap._finalize_supp({"summary": "s", "habits": []}, PROFILE, {}, {"calmmax", "trainmax"})
+    by = {h["habit_id"]: h for h in out["habits"]}
+    assert by["magnesium"]["time"] == "19:00"          # dinner
+    assert by["creatine"]["time"] == "07:30"           # breakfast
+
+
+def test_synced_and_kept_picks_survive_a_full_day():
+    # the stack already holds the daily task cap: Suppmax still keeps its synced
+    # pick and the one the user chose, never trading them away for room
+    others = {f"p{i}": {"habits": [{"habit_id": f"x{i}", "title": "x", "minutes": 1, "time": f"{8 + i:02d}:10",
+                                    "weekend_time": "", "days": ap.WEEKDAYS}]} for i in range(10)}
+    prev = {"habits": [{"habit_id": "vitamin_d", "keep": True}]}
+    tmpl = {"summary": "s", "habits": [
+        {"habit_id": "vitamin_d", "title": "Vitamin D3", "how": "", "why": "", "minutes": 1,
+         "time": "07:30", "weekend_time": "", "days": ap.WEEKDAYS}]}
+    out = ap._finalize_supp(tmpl, PROFILE, {}, {"sleepmax"}, prev=prev, others=others)
+    assert {h["habit_id"] for h in out["habits"]} == {"vitamin_d", "melatonin"}
