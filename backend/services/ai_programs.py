@@ -1573,14 +1573,13 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
 
 _SKIN_IRRITATED = re.compile(r"\b(sting|stinging|burn|burning|irritat\w*|peel\w*|flak\w*|too (strong|harsh|much)|"
                              r"red(ness)?|raw|sensitive)\b", re.IGNORECASE)
-_SKIN_FASTER = re.compile(r"\b(faster|more often|harder|stronger|speed (it )?up|ready for more)\b", re.IGNORECASE)
 _SKIN_SIMPLER = re.compile(r"\b(simpler|simple|lighter|fewer steps|less|minimal|too many steps)\b", re.IGNORECASE)
 
 
 def skin_redo(current: dict, request: str, profile: dict, others: dict) -> Optional[dict]:
     """Skin & Hair changes that the routine builder handles itself (no Claude):
-    irritation steps the plan back a phase, 'faster' moves it forward, 'simpler'
-    drops the extra serums, and a new goal or skin type rebuilds the routine.
+    irritation makes it gentler (buffered active, no extras), 'simpler' drops
+    the extra serum and treatment nights, and a new goal or skin type rebuilds.
     None = not one of these (Claude handles it, routines kept)."""
     from services import skin_routine
     answers = dict(current.get("answers") or {})
@@ -1599,12 +1598,9 @@ def skin_redo(current: dict, request: str, profile: dict, others: dict) -> Optio
             answers["skin_feel"] = label
             note = "rebuilt for your skin type."
     if not note and _SKIN_IRRITATED.search(req):
-        started += timedelta(days=14)
-        note = ("stepped your routine back two weeks so your skin can calm down. stick to the gentle nights, "
-                "and stop anything that burns or causes a rash.")
-    elif not note and _SKIN_FASTER.search(req):
-        started -= timedelta(days=14)
-        note = "moved your routine forward two weeks: your main active comes in sooner."
+        answers["skin_mode"] = "gentle"
+        note = ("made it gentler: moisturizer goes on before your active, and no extra serum or microneedling. "
+                "stop anything that burns or causes a rash.")
     elif not note and _SKIN_SIMPLER.search(req):
         answers["skin_mode"] = "minimal"
         note = "made it simpler: just the core steps plus your main night active."

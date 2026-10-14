@@ -1,7 +1,7 @@
 """Skin & Hair routine builder (services/skin_routine.py): a real AM/PM routine
-from a 3-question quiz, one main active introduced slowly and rotated so strong
-actives never share a night, pregnancy/prescription gates, and the plumbing that
-keeps the routine intact through fitting, expansion, refits and redos."""
+from a 3-question quiz, the same every day from day 1 (only rare fixed mask /
+microneedling nights differ), pregnancy/prescription gates, and the plumbing
+that keeps the routine intact through fitting, expansion, refits and redos."""
 from datetime import date, timedelta
 from itertools import product
 
@@ -26,7 +26,7 @@ def _night(t, day):
 
 def _am(t, day):
     am = next(h for h in t["habits"] if h["habit_id"] == "am_routine")
-    return sr.routine_variant(am, day, t["started_on"])
+    return sr.routine_variant(am, day, t["started_on"]) or am          # the morning has no variants
 
 
 def test_quiz_is_three_tap_questions_then_done():
@@ -43,25 +43,37 @@ def test_quiz_is_three_tap_questions_then_done():
     assert step["fact_key"] == "skin_goal"
 
 
-def test_weeks_one_and_two_are_basics_then_the_active_builds_up():
+def test_same_routine_every_day_from_day_one_except_rare_treatment_nights():
     t = sr.build_template(_ans(), started_on=MON)
-    assert "retinol" not in _night(t, MON)["how"].lower()                        # week 1
-    assert "vitamin c" not in _am(t, MON)["how"].lower()
-    wk3 = [_night(t, MON + timedelta(days=14 + i))["title"] for i in range(7)]
-    assert wk3.count("PM skin routine · retinoid night") == 2                  # 2 nights in week 3
-    wk7 = [_night(t, MON + timedelta(days=42 + i))["title"] for i in range(7)]
-    assert wk7.count("PM skin routine · retinoid night") == 4
-    assert "vitamin c" in _am(t, MON + timedelta(days=14))["how"].lower()
-    assert "PM skin routine · recovery night" in wk3
+    assert "retinol" in _night(t, MON)["how"].lower()                          # day 1
+    assert "vitamin c" in _am(t, MON)["how"].lower()
+    ams = {_am(t, MON + timedelta(days=i))["how"] for i in range(70)}
+    assert len(ams) == 1
+    titles = [_night(t, MON + timedelta(days=i))["title"] for i in range(70)]
+    assert set(titles) == {"PM skin routine", "PM skin routine · mask night", "PM skin routine · microneedling night"}
+    assert titles.count("PM skin routine · mask night") == 10 and titles.count("PM skin routine · microneedling night") == 10
+    assert titles[:7] == titles[63:70]                                         # week 1 == week 10
+    assert "every day" in t["summary"]
 
 
-def test_never_two_strong_actives_the_same_night_for_anyone():
+def test_treatment_nights_never_carry_an_active_and_needling_is_only_for_safe_cases():
     for goal, feel, flag in product(sr.GOALS, sr.FEELS, list(sr.FLAGS) + ["I already use retinol or acids"]):
         t = sr.build_template(_ans(goal, feel, flag), started_on=MON)
-        for i in range(70):
-            how = _night(t, MON + timedelta(days=i))["how"].lower()
-            strong = sum(w in how for w in ("retinol", "adapalene", "exfoliant", "azelaic"))
-            assert strong <= 1, (goal, feel, flag, i, how)
+        for i in range(7):
+            v = _night(t, MON + timedelta(days=i))
+            if "nightly" not in v["title"] and v["title"] != "PM skin routine":
+                assert not any(w in v["how"].lower() for w in ("retinol", "adapalene", "salicylic", "prescribed")), (goal, v)
+            if "microneedling" in v["title"]:
+                assert sr.GOALS[goal] in ("aging", "spots", "texture")
+                assert feel != "Stings or gets red easily" and flag not in (
+                    "Eczema or rosacea", "Pregnant, trying, or breastfeeding", "I use a prescription skin product")
+
+
+def test_acne_gets_adapalene_nightly_with_a_clay_mask_and_no_needling():
+    t = sr.build_template(_ans("Clear breakouts", "Shiny all over"), started_on=MON)
+    week = [_night(t, MON + timedelta(days=i)) for i in range(7)]
+    assert sum("adapalene" in v["how"] for v in week) == 6
+    assert "clay" in week[6]["how"].lower() and not any("microneedling" in v["title"] for v in week)
 
 
 def test_pregnancy_means_no_retinoids_anywhere():
@@ -74,16 +86,18 @@ def test_pregnancy_means_no_retinoids_anywhere():
 
 def test_prescription_users_get_their_treatment_and_nothing_on_top():
     t = sr.build_template(_ans("Clear breakouts", flags="I use a prescription skin product"), started_on=MON)
-    nights = {_night(t, MON + timedelta(days=i))["how"] for i in range(21)}
-    assert all("prescribed" in n for n in nights)
+    week = [_night(t, MON + timedelta(days=i)) for i in range(7)]
+    nights = {v["how"] for v in week}
+    assert all("prescribed" in v["how"] for v in week if v["title"] == "PM skin routine")
+    assert not any("microneedling" in v["title"] for v in week)
     assert all(w not in " ".join(nights).lower() for w in ("retinol", "adapalene", "exfoliant", "vitamin c"))
 
 
-def test_sensitive_skin_gets_mineral_spf_and_a_slower_ramp():
+def test_sensitive_skin_gets_mineral_spf_a_buffered_active_and_a_soothing_mask():
     t = sr.build_template(_ans("Fade dark spots", "Stings or gets red easily"), started_on=MON)
     assert "mineral" in _am(t, MON)["how"].lower()
-    wk3 = [_night(t, MON + timedelta(days=14 + i))["title"] for i in range(7)]
-    assert wk3.count("PM skin routine · retinoid night") == 1
+    assert "moisturizer first, then a pea-sized amount of retinol" in _night(t, MON)["how"]
+    assert "soothing" in _night(t, MON + timedelta(days=6))["how"]
 
 
 def test_one_task_each_morning_and_night_with_steps_inside_and_scalp_only_when_asked():
@@ -97,10 +111,11 @@ def test_one_task_each_morning_and_night_with_steps_inside_and_scalp_only_when_a
 def test_plan_survives_fit_expand_and_refit_and_shows_the_right_night():
     raw = sr.build_template(_ans(), started_on=MON)
     t = ap.validate_template("skinhairmax", raw, PROF)
-    assert t["started_on"] == "2026-10-12" and all(h.get("variants") for h in t["habits"])
-    days = ap.expand_template("skinhairmax", t, start_date=MON + timedelta(days=14), n_days=7)
+    assert t["started_on"] == "2026-10-12" and _night(t, MON)["title"] == "PM skin routine"
+    days = ap.expand_template("skinhairmax", t, start_date=MON, n_days=7)
     titles = [x["title"] for d in days for x in d["tasks"] if x["catalog_id"] == "skinhairmax.pm_routine"]
-    assert titles[0] == "PM skin routine · retinoid night" and titles[1] == "PM skin routine · recovery night"
+    assert titles[0] == "PM skin routine" and titles[2] == "PM skin routine · microneedling night"
+    assert titles[6] == "PM skin routine · mask night"
     t2 = ap.refit_template("skinhairmax", t, PROF)
     key = lambda x: [(h["habit_id"], h["time"], h.get("schedule")) for h in x["habits"]]  # noqa: E731
     assert key(t) == key(t2) and t2["started_on"] == t["started_on"]
@@ -112,15 +127,17 @@ def test_a_five_minute_person_still_gets_both_routines():
     assert {h["habit_id"] for h in t["habits"]} == {"am_routine", "pm_routine"}
 
 
-def test_chat_changes_irritation_steps_back_simpler_drops_serums_new_goal_rebuilds():
+def test_chat_changes_irritation_gentler_simpler_drops_extras_new_goal_rebuilds():
     cur = ap.validate_template("skinhairmax", sr.build_template(_ans(), started_on=MON), PROF)
     cur["answers"] = _ans()
-    back = ap.skin_redo(cur, "my skin is stinging", PROF, {})
-    assert back["started_on"] == (MON + timedelta(days=14)).isoformat()
+    calm = ap.skin_redo(cur, "my skin is stinging", PROF, {})
+    assert "moisturizer first" in _night(calm, MON)["how"] and "vitamin c" not in _am(calm, MON)["how"].lower()
+    assert all("microneedling" not in _night(calm, MON + timedelta(days=i))["title"] for i in range(7))
     simple = ap.skin_redo(cur, "make it simpler", PROF, {})
-    assert "vitamin c" not in _am(simple, MON + timedelta(days=30))["how"].lower()
+    assert "vitamin c" not in _am(simple, MON)["how"].lower()
+    assert {_night(simple, MON + timedelta(days=i))["title"] for i in range(7)} == {"PM skin routine"}
     new = ap.skin_redo(cur, "actually I want to clear breakouts", PROF, {})
-    assert "adapalene" in _night(new, MON + timedelta(days=14))["how"].lower()
+    assert "adapalene" in _night(new, MON)["how"].lower()
     assert ap.skin_redo(cur, "move my night routine to 9pm", PROF, {}) is None   # Claude handles times
 
 

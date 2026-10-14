@@ -1,22 +1,22 @@
 """Skin & Hair: a real AM/PM routine from a 3-question quiz (deterministic).
 
-Good routines are not every product stacked. They are a small core (cleanse,
-moisturize, SPF), ONE main active matched to the person's goal, introduced
-slowly and rotated across the week (never two strong actives the same night),
-plus recovery nights. This module turns three tap answers into that:
+Good routines are not every product stacked, and they work by consistency: a
+small core (cleanse, moisturize, SPF) plus ONE main active matched to the
+person's goal, done the same way every day from day 1. This module turns three
+tap answers into that:
 
   * quiz:    main goal · how skin feels after washing (type, no jargon) ·
              anything that applies (pregnancy, prescription, eczema/rosacea,
              already uses actives, thinning hair, dandruff)
   * output:  one "AM skin routine" task and one "PM skin routine" task a day,
-             each with its ordered steps inside. The PM routine changes by
-             night (retinoid / exfoliate / recovery) and by week: weeks 1-2 are
-             basics so skin settles, then the main active comes in 2 nights a
-             week and builds up. Scalp steps only when asked for.
+             each with its ordered steps inside, identical every day. The only
+             exceptions are rare, fixed treatment nights: a weekly face mask and
+             (for lines, spots or texture) a weekly at-home microneedling night,
+             which replace that night's active. Scalp steps only when asked for.
 
 Templates carry `variants` + `schedule` on a habit; `expand_template` picks the
-variant for each date (see ai_programs.routine_variant_for). No brands, no
-strengths beyond OTC, no prescription products, never a medical claim.
+variant for each date. No brands, no strengths beyond OTC, no prescription
+products, never a medical claim.
 """
 from __future__ import annotations
 
@@ -163,87 +163,79 @@ def _treatment(goal: str, flags: set, skin: str) -> tuple[Optional[str], Optiona
 
 # ── build ───────────────────────────────────────────────────────────────────
 
-def _ramp(reactive: bool, experienced: bool) -> list[dict]:
-    """Nights per week for the main night active, by week since start."""
-    if experienced:
-        return [{"from_week": 1, "days": ["mon", "wed", "fri"]}, {"from_week": 3, "days": ["mon", "wed", "fri", "sun"]}]
-    if reactive:
-        return [{"from_week": 3, "days": ["mon"]}, {"from_week": 5, "days": ["mon", "thu"]},
-                {"from_week": 9, "days": ["mon", "wed", "fri"]}]
-    return [{"from_week": 3, "days": ["mon", "thu"]}, {"from_week": 5, "days": ["mon", "wed", "fri"]},
-            {"from_week": 7, "days": ["mon", "wed", "fri", "sun"]}]
+MASK_DAY, NEEDLE_DAY = "sun", "wed"
+
+
+def _mask(goal: str, skin: str, flags: set) -> str:
+    if "reactive" in flags or goal == "redness":
+        return "A soothing mask (oat, centella or aloe) for 10 to 15 minutes, then rinse with lukewarm water."
+    if goal == "acne" or skin in ("oily", "combination"):
+        return "A clay mask on your T-zone for 10 minutes (rinse before it fully dries)."
+    return "A hydrating sheet or cream mask for 15 minutes; pat in what's left instead of rinsing."
+
+
+NEEDLE = ("Disinfect a 0.25 mm derma roller or stamp in 70% alcohol and let it dry, then roll each area "
+          "4 times in each direction with light pressure (skip any spots or broken skin). Rinse the roller "
+          "and let it air-dry.")
 
 
 def build_template(answers: dict, *, started_on: Optional[date] = None) -> dict:
     """Quiz answers → raw plan (validated and fitted by validate_template)."""
     a = read_answers(answers)
     goal, skin, flags = a["goal"], a["skin"], a["flags"]
-    reactive, experienced = "reactive" in flags, "experienced" in flags and "rx" not in flags
+    reactive = "reactive" in flags
+    mode = str(answers.get("skin_mode") or "")
     night, booster, exf = _treatment(goal, flags, skin)
-    if str(answers.get("skin_mode") or "") == "minimal":
-        booster, exf = None, (exf if not night else None)  # core + one active only
-    first = 1 if experienced else 3                      # basics first so skin settles
+    if night is None and goal == "texture" and exf:   # the gentle leave-on acid IS the nightly active
+        night = ("A low-strength, leave-on lactic acid or PHA exfoliant on dry skin."
+                 if not (skin == "oily" and not reactive) else "A low-strength BHA (salicylic acid) exfoliant on dry skin.")
+    gentle = reactive or mode == "gentle"
+    if mode in ("minimal", "gentle"):
+        booster = None
+    if night and gentle and "rx" not in flags:
+        night = f"A thin layer of moisturizer first, then {night[0].lower()}{night[1:]}"  # buffered = gentler
 
     thirsty = skin == "dry" or goal == "dry"
-    am_base = [_cleanse_am(skin)] + ([DRY_HYDRATE] if thirsty else []) + [_moisturizer(skin), _spf(flags)]
-    am_plus = ([_cleanse_am(skin), booster] + ([DRY_HYDRATE] if thirsty else [])
-               + [_moisturizer(skin), _spf(flags)]) if booster else am_base
+    hydrate = [DRY_HYDRATE] if thirsty else []
+    am_steps = [_cleanse_am(skin)] + ([booster] if booster else []) + hydrate + [_moisturizer(skin), _spf(flags)]
     am = {
         "habit_id": "am_routine", "title": "AM skin routine", "minutes": 4 if booster else 3,
         "time": "", "weekend_time": "", "days": ALL,
-        "why": "Clean skin, moisture and daily sunscreen do most of the work; one active on top targets your goal.",
-        "how": _steps(am_base),
-        "variants": {"base": {"title": "AM skin routine", "how": _steps(am_base)},
-                     **({"plus": {"title": "AM skin routine", "how": _steps(am_plus)}} if booster else {})},
-        "schedule": ([{"from_week": 1, "default": "base"}]
-                     + ([{"from_week": first, "default": "plus"}] if booster else [])),
+        "why": "Clean skin, moisture and daily sunscreen do most of the work; the same steps every day is what makes it work.",
+        "how": _steps(am_steps),
     }
 
-    recover = ([PM_CLEANSE] + ([DRY_HYDRATE] if thirsty else []) + [_moisturizer(skin)]
-               + (["Optional: seal with a thin layer of petroleum jelly."] if thirsty and goal != "acne" else []))
-    variants = {"basic": {"title": "PM skin routine", "how": _steps(recover)},
-                "recovery": {"title": "PM skin routine · recovery night", "how": _steps(recover)}}
-    sched: list[dict] = [{"from_week": 1, "default": "basic", "by_day": {}}]
-    if night:
-        label = ("prescription" if "rx" in flags else "retinoid" if "retinoid" in night.lower() or "retinol" in night.lower()
-                 or "adapalene" in night.lower() else "treatment")
-        variants["treat"] = {"title": f"PM skin routine · {label} night",
-                             "how": _steps([PM_CLEANSE, night, _moisturizer(skin)])}
-        nights = ([{"from_week": 1, "days": ALL}] if "rx" in flags else
-                  [{"from_week": first, "days": ALL}] if label == "treatment" else _ramp(reactive, experienced))
-        for ph in nights:
-            sched.append({"from_week": ph["from_week"], "default": "recovery", "by_day": {d: "treat" for d in ph["days"]}})
-    if exf:
-        variants["exfoliate"] = {"title": "PM skin routine · exfoliate night",
-                                 "how": _steps([PM_CLEANSE, exf, _moisturizer(skin)])}
-        exf_from = first if goal in ("texture", "dry") else first + 4   # a second active waits for the first
-        exf_days = (["tue"] if reactive or goal == "dry" else ["tue", "sat"]) if goal in ("texture", "dry") else ["sat"]
-        merged = []
-        for ph in sched:
-            merged.append(ph)
-        if not any(p["from_week"] == exf_from for p in merged):
-            prev = max((p for p in merged if p["from_week"] <= exf_from), key=lambda p: p["from_week"])
-            merged.append({"from_week": exf_from, "default": "recovery", "by_day": dict(prev["by_day"])})
-        for ph in merged:
-            if ph["from_week"] >= exf_from:
-                for d in exf_days:
-                    if ph["by_day"].get(d) != "treat":      # never two strong actives the same night
-                        ph["by_day"][d] = "exfoliate"
-        sched = sorted(merged, key=lambda p: p["from_week"])
+    seal = ["Optional: seal with a thin layer of petroleum jelly."] if thirsty and goal != "acne" else []
+    nightly = [PM_CLEANSE] + ([night] if night else []) + hydrate + [_moisturizer(skin)] + seal
+    variants = {"nightly": {"title": "PM skin routine", "how": _steps(nightly)}}
+    by_day: dict = {}
+    if mode != "minimal":
+        variants["mask"] = {"title": "PM skin routine · mask night",
+                            "how": _steps([PM_CLEANSE, _mask(goal, skin, flags)] + hydrate + [_moisturizer(skin)])}
+        by_day[MASK_DAY] = "mask"
+        needling_ok = (goal in ("aging", "spots", "texture") and not reactive and mode != "gentle"
+                       and not flags & {"rx", "pregnant"})
+        if needling_ok:
+            variants["needling"] = {"title": "PM skin routine · microneedling night",
+                                    "how": _steps([PM_CLEANSE, NEEDLE, "A plain hydrating serum (hyaluronic acid), "
+                                                   "no actives tonight.", _moisturizer(skin)])}
+            by_day[NEEDLE_DAY] = "needling"
     pm = {
         "habit_id": "pm_routine", "title": "PM skin routine", "minutes": 4,
         "time": "", "weekend_time": "", "days": ALL,
-        "why": "Night is when actives work best; recovery nights in between keep your skin barrier strong.",
-        "how": variants["recovery"]["how"], "variants": variants, "schedule": sched,
+        "why": "Night is when actives work best, and doing it every night is what shows results.",
+        "how": variants["nightly"]["how"], "variants": variants,
+        "schedule": [{"from_week": 1, "default": "nightly", "by_day": by_day}],
     }
     habits = [am, pm]
     if "thinning" in flags or "dandruff" in flags:
-        habits.insert(0, {"habit_id": "keto_wash",            # in the shower, before the AM routine "title": "Ketoconazole shampoo wash", "minutes": 5,
-                       "time": "", "weekend_time": "", "days": ["tue", "sat"],
-                       "how": _steps(["Wet hair and lather ketoconazole shampoo into your scalp.",
-                                      "Leave it on for 3 to 5 minutes, then rinse.",
-                                      "Condition the lengths only."]),
-                       "why": "Calms flaking and an oily, itchy scalp; often used alongside hair-thinning care."})
+        # in the shower, so it goes before the AM routine
+        habits.insert(0, {"habit_id": "keto_wash", "title": "Ketoconazole shampoo wash", "minutes": 5,
+                          "time": "", "weekend_time": "", "days": ["tue", "sat"],
+                          "how": _steps(["Wet hair and lather ketoconazole shampoo into your scalp.",
+                                         "Leave it on for 3 to 5 minutes, then rinse.",
+                                         "Condition the lengths only."]),
+                          "why": "Calms flaking and an oily, itchy scalp; often used alongside hair-thinning care."})
     if "thinning" in flags:
         habits.append({"habit_id": "scalp_massage", "title": "Scalp massage", "minutes": 4,
                        "time": "", "weekend_time": "", "days": ALL,
@@ -251,8 +243,7 @@ def build_template(answers: dict, *, started_on: Optional[date] = None) -> dict:
                                       "Small circles, front to back, firm but not scratching, for 4 minutes."]),
                        "why": "A simple daily habit; small studies link it to thicker-looking hair."})
     return {
-        "summary": summary_for(goal, skin, flags, am["variants"].get("plus", am["variants"]["base"])["how"],
-                               variants["recovery"]["how"], first, bool(night or booster or exf)),
+        "summary": summary_for(goal, skin, flags, am["how"], variants["nightly"]["how"], sorted(variants)),
         "habits": habits,
         "started_on": (started_on or date.today()).isoformat(),
         "skin_profile": {"goal": goal, "skin": skin, "flags": sorted(flags)},
@@ -265,22 +256,21 @@ _GOAL_WORDS = {"acne": "clearer skin", "aging": "smoother lines", "spots": "fadi
 
 
 def _count(how: str) -> int:
-    return how.count(") ")
+    import re
+    return len(re.findall(r"(?:^|\s)\d+\) ", how))
 
 
-def summary_for(goal: str, skin: str, flags: set, am_how: str, pm_how: str, first: int, has_active: bool) -> str:
-    head = (f"your routine: {_count(am_how)} steps in the morning, {_count(pm_how)} at night, about 5 minutes a day, "
-            f"made for {skin} skin")
+def summary_for(goal: str, skin: str, flags: set, am_how: str, pm_how: str, extras: list) -> str:
+    head = (f"your routine: {_count(am_how)} steps in the morning, {_count(pm_how)} at night, the same every day, "
+            f"about 5 minutes, made for {skin} skin")
     if "rx" in flags:
-        return head + ". at night it's just your prescribed treatment plus moisturizer, so it can do its job."
-    extra = ", pregnancy-safe picks only" if "pregnant" in flags else ""
-    if not has_active:
-        return head + extra + f". built for {_GOAL_WORDS.get(goal, 'healthy skin')}: simple, every day."
-    start = ("you already use actives, so we start where you are" if first == 1 else
-             "weeks 1-2 are just the basics so your skin settles, then your main active comes in 2 nights a week "
-             "and builds up")
-    return (head + extra + f". built for {_GOAL_WORDS.get(goal, 'healthy skin')}: {start}. each night's task tells "
-            "you if it's a treatment night or a recovery night.")
+        head += ". at night it's your prescribed treatment plus moisturizer, so it can do its job"
+    elif "pregnant" in flags:
+        head += ", pregnancy-safe picks only"
+    rare = [w for k, w in (("mask", "a face mask on sundays"), ("needling", "at-home microneedling on wednesdays"))
+            if k in extras]
+    tail = f". the only change: {' and '.join(rare)}, in place of that night's active." if rare else "."
+    return head + f". built for {_GOAL_WORDS.get(goal, 'healthy skin')}{tail}"
 
 
 def routine_variant(habit: dict, d: date, started_on: Optional[str]) -> Optional[dict]:

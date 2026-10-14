@@ -1,7 +1,7 @@
 # Skin & Hair
 
 ## What it is
-Skin & Hair builds each person a real morning and night skin routine from a 3-question quiz: a small core (cleanse, moisturize, SPF) plus ONE main active matched to their goal, introduced slowly (basics for weeks 1-2, then 2 nights a week, building up) and rotated across the week so strong actives never double up, with recovery nights in between. Scalp care is added only when asked for. It focuses on skin and scalp health and comfort, not on looks or attractiveness. It is not a treatment for skin or scalp conditions.
+Skin & Hair builds each person a real morning and night skin routine from a 3-question quiz: a small core (cleanse, moisturize, SPF) plus ONE main active matched to their goal, done the same way every day from day 1. The only exceptions are rare, fixed treatment nights (a weekly face mask, and weekly at-home 0.25 mm microneedling for lines, spots or texture) that replace that night's active. Scalp care is added only when asked for. It focuses on skin and scalp health and comfort, not on looks or attractiveness. It is not a treatment for skin or scalp conditions.
 
 ## Who it fits / who should check with a professional first
 Fits: adults who want a simple, low-cost routine that protects skin from sun, keeps it comfortable, and keeps the scalp clean and healthy.
@@ -22,7 +22,7 @@ Check with a dermatologist or clinician first:
 - tier: core
 - why: Clean skin, moisture and daily sunscreen do most of the work; one active on top targets the person's goal.
 - how: 1) Gentle cleanse or a water rinse. 2) Your morning serum, if your plan has one. 3) Moisturizer. 4) Broad-spectrum SPF 30+ as the last step.
-- conflicts/synergies: Built by the routine builder from the quiz; the steps change by week (the morning serum starts after the basics settle).
+- conflicts/synergies: Built by the routine builder from the quiz; the same steps every morning.
 - source: https://www.aad.org/public/everyday-care/skin-care-basics/care/face-washing-101
 
 ### `pm_routine` — PM skin routine
@@ -30,9 +30,9 @@ Check with a dermatologist or clinician first:
 - anchor: wind_down
 - frequency: daily
 - tier: core
-- why: Night is when actives work best; recovery nights in between keep the skin barrier strong.
+- why: Night is when actives work best, and doing it every night is what shows results.
 - how: 1) Cleanse (oil cleanser first if you wore sunscreen). 2) Tonight's treatment, if it's a treatment night. 3) Moisturizer.
-- conflicts/synergies: Changes by night (retinoid / exfoliate / recovery) and by week; never two strong actives the same night.
+- conflicts/synergies: The same steps every night, except a weekly mask night and (some goals) a weekly microneedling night, which replace the active.
 - source: https://www.aad.org/public/everyday-care/skin-care-secrets/anti-aging/retinoid-retinol
 
 ### `spf_reapply` — Reapply SPF outdoors
@@ -67,15 +67,16 @@ The app asks a fixed 3-question quiz (no free-form intake): main goal (breakouts
 
 ## Scheduling rules
 - One AM routine and one PM routine task a day, steps inside. AM right after getting ready; PM in the wind-down.
-- Weeks 1-2: basics only (unless they already use actives). Main night active 2 nights a week from week 3, building to most nights by week 7 (slower for sensitive or reactive skin).
-- Never a retinoid and an exfoliant the same night; recovery nights get barrier care only.
+- The routine is the same every day from day 1: consistency is the point. No phases, no ramp.
+- One main active only. Mask night (Sunday) and microneedling night (Wednesday) replace it; never an active on a microneedling night.
+- Sensitive or reactive skin: moisturizer goes on before the active (buffered), mineral SPF, no microneedling.
 - Pregnant, trying or breastfeeding: no retinoids; azelaic acid, peptides, vitamin C and gentle acids instead.
 - Prescription skin product: only the prescribed treatment at night, nothing extra on top.
 
 ## Safety and claims
 - No looks or attractiveness framing ("glow up", "look younger", "fix your face", rating faces, before/after comparisons). Talk about comfort, protection and skin health.
 - Never assess moles, rashes, acne severity, or hair-loss type from photos or descriptions; suggest a dermatologist.
-- No prescription products (tretinoin, isotretinoin, minoxidil, finasteride, spironolactone, hydroquinone), injectable peptides, injections, microneedling, or DIY peels. Over-the-counter adapalene, ketoconazole shampoo and cosmetic topicals (vitamin C, niacinamide, azelaic acid, AHA/BHA/PHA, peptide serums) are fine. Do not recommend specific brands or percentages beyond "lowest-strength OTC".
+- No prescription products (tretinoin, isotretinoin, minoxidil, finasteride, spironolactone, hydroquinone), injectable peptides, injections, microneedling deeper than an at-home 0.25 mm roller, or DIY peels. Over-the-counter adapalene, ketoconazole shampoo and cosmetic topicals (vitamin C, niacinamide, azelaic acid, AHA/BHA/PHA, peptide serums) are fine. Do not recommend specific brands or percentages beyond "lowest-strength OTC".
 - No retinoids during pregnancy, when trying to conceive, or while breastfeeding; no retinoid if the user did not answer the eligibility question.
 - Skin & Hair plans never include supplements; collagen and similar live in Suppmax (information only, honest about weak evidence). No biotin megadoses.
 - No tanning advice; never suggest skipping sunscreen to "get vitamin D".
