@@ -49,6 +49,7 @@ import LegalDocumentScreen from '../screens/legal/LegalDocumentScreen';
 import AdminNavigator from './AdminNavigator';
 import { userHasSignupPhone } from '../utils/userPhone';
 import OnboardingV2Screen from '../screens/onboarding/OnboardingV2Screen';
+import OnboardingCalendarScreen from '../screens/onboarding/OnboardingCalendarScreen';
 import CreatorFeedScreen from '../screens/creator/CreatorFeedScreen';
 import CreatorPaywallScreen from '../screens/creator/CreatorPaywallScreen';
 import CreatorCourseScreen from '../screens/creator/CreatorCourseScreen';
@@ -178,6 +179,8 @@ export function RootNavigator() {
                     <Stack.Screen name="Onboarding" component={OnboardingV2Screen} options={{ gestureEnabled: false }} />
                     {/* Account claim after purchase (anon → real login). */}
                     <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
+                    {/* Optional calendar connect before the schedule questions (flag onboardingCalendar). */}
+                    <Stack.Screen name="OnboardingCalendar" component={OnboardingCalendarScreen} options={{ gestureEnabled: false }} />
                     <Stack.Screen name="ReferralCode" component={ReferralCodeScreen} />
                     <Stack.Screen name="Payment" component={PaymentScreen} />
                     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />

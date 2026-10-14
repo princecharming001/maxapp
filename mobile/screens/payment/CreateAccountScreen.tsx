@@ -27,6 +27,7 @@ import { useAuth } from '../../context/AuthContext';
 import { signOutToLogin } from '../../lib/signOutToLogin';
 import { track } from '../../lib/analytics';
 import { navigationRef } from '../../lib/navigationRef';
+import { getFlag } from '../../constants/featureFlags';
 
 /* ── Dark cinematic palette — mirrors the paywall ─────────────────────────── */
 const WHITE = '#FFFFFF';
@@ -109,7 +110,11 @@ export default function CreateAccountScreen() {
     // to a single Onboarding(schedule) route clears the funnel history entirely.
     const continueToSchedule = (_mode: 'navigate' | 'replace' = 'navigate') => {
         const routeNames: string[] = ((nav.getState?.() as any)?.routeNames) ?? [];
-        if (routeNames.includes('Onboarding')) {
+        // Optional calendar page first (it skips itself when already shown or
+        // unavailable, and always exits to the same schedule reset below).
+        if (getFlag('onboardingCalendar') && routeNames.includes('OnboardingCalendar')) {
+            nav.reset({ index: 0, routes: [{ name: 'OnboardingCalendar' }] });
+        } else if (routeNames.includes('Onboarding')) {
             nav.reset({ index: 0, routes: [{ name: 'Onboarding', params: { phase: 'schedule' } }] });
         } else {
             nav.navigate('Main');

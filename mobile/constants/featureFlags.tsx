@@ -15,7 +15,8 @@ import api from '../services/api';
 export type FlagName =
     | 'personalizedUI'
     | 'referrals'
-    | 'mainAppTour';
+    | 'mainAppTour'
+    | 'onboardingCalendar';
 
 const DEFAULT_FLAGS: Record<FlagName, boolean> = {
     // Referral / promo codes. Must match the backend `referrals_enabled` flag.
@@ -25,6 +26,9 @@ const DEFAULT_FLAGS: Record<FlagName, boolean> = {
     personalizedUI: true,
     // Post-onboarding first-run walkthrough (features/mainTour).
     mainAppTour: true,
+    // Optional "connect Google Calendar" page between account creation and the
+    // schedule questions (screens/onboarding/OnboardingCalendarScreen).
+    onboardingCalendar: true,
 };
 
 // Module mirror of the currently-active (merged) flags, kept in sync by the
