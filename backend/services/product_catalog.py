@@ -75,6 +75,9 @@ class Product:
     need: str = ""
     # Who it suits best (skin types, "mineral", "gel", ...): ranks alternatives.
     suits: tuple[str, ...] = ()
+    # An alternative for Swap: listed under the researched pick, never ahead of it
+    # unless it fits the person better (or they chose it).
+    alternative: bool = False
 
     @property
     def asin(self) -> str:
@@ -161,6 +164,7 @@ def load_catalog() -> tuple[Product, ...]:
                 checked=str(entry.get("checked") or "").strip(),
                 need=str(entry.get("need") or "").strip().lower(),
                 suits=tuple(str(x).strip().lower() for x in (entry.get("suits") or [])),
+                alternative=bool(entry.get("alternative")),
             ))
         except Exception as e:
             logger.warning("[catalog] entry #%d skipped (%s): %s", i, e, entry.get("id"))

@@ -295,8 +295,10 @@ def _from_min(m: int) -> str:
     return f"{m // 60:02d}:{m % 60:02d}"
 
 
-# Facts about the person any program may ask once and every program then reuses.
-ABOUT_KEYS = ("age_band", "sex")
+# Facts about the person any program may ask once and every program then reuses
+# (first_meal_style: the fit puts "protein at your first meal" at lunch for
+# people who skip breakfast).
+ABOUT_KEYS = ("age_band", "sex", "first_meal_style")
 
 
 def build_profile(state: dict) -> dict:
@@ -1040,8 +1042,9 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
         # a time in the steps can only be right if the habit has ONE time
         times = set() if h.get("weekend_time") else ({_hm(h.get("time"), "")} - {""})
         h["title"] = _strip_clock(h.get("title") or "")
-        h["how"] = _fix_clock(h.get("how") or "", times)
-        h["why"] = _fix_clock(h.get("why") or "", times)
+        anchors = _day_anchors(profile)
+        h["how"] = _fix_clock(h.get("how") or "", times, anchors)
+        h["why"] = _fix_clock(h.get("why") or "", times, anchors)
     return {
         "version": 2,
         "summary": _clean_text(str(raw.get("summary") or ""), 600),
@@ -1122,18 +1125,70 @@ def _strip_clock(title: str) -> str:
     return t or title
 
 
-def _fix_clock(text: str, times: set) -> str:
-    """A clock time in the instructions that isn't when the habit is
-    scheduled (the fit moved it) would contradict the card: point to the plan
-    instead of naming a stale time."""
-    mins = {int(t[:2]) * 60 + int(t[3:]) for t in times if t}
+def _day_anchors(profile: dict) -> set[str]:
+    """Clock times that are facts about the person's day (wake, bed, meals, work,
+    workout): naming them in a habit's steps can't go stale."""
+    out = {profile.get("wake_time"), profile.get("bed_time"), profile.get("workout_time")}
+    out |= set((profile.get("meals") or {}).values())
+    for o in profile.get("obligations") or []:
+        if isinstance(o, dict):
+            out |= {o.get("start"), o.get("end")}
+    return {_hm(t, "") for t in out if t} - {""}
 
-    def sub(m: re.Match) -> str:
-        v = _clock_min(m.group(0))
-        if v is not None and (v in mins or (v + 720) in mins):
-            return m.group(0)
-        return "the time on your plan"
-    return _CLOCK.sub(sub, text or "")
+
+_PLAN_PHRASE = r"the time on your plan"   # what older plans wrote in place of a time
+
+
+def _fix_clock(text: str, times: set, anchors: Optional[set] = None) -> str:
+    """A clock time in the steps that is neither when this habit happens nor a
+    fact about their day (meals, wake, work) would contradict the card once the
+    fit moves it: take it out, with the little word that went with it, so the
+    sentence still reads ("your 7:10 commute" -> "your commute", "finish by
+    7pm (3 hours before bed)" -> "finish (3 hours before bed)")."""
+    keep = {int(t[:2]) * 60 + int(t[3:]) for t in (set(times) | set(anchors or set())) if t}
+    tok = r"(?:" + _CLOCK.pattern + r"|" + _PLAN_PHRASE + r")"
+
+    def stale(t: str) -> bool:
+        if t.lower() == _PLAN_PHRASE:
+            return True
+        if keep is None:
+            return False
+        v = _clock_min(t)
+        return v is None or not (v in keep or (v + 720) in keep or (v - 720) in keep)
+
+    out = text or ""
+    if len({_clock_min(m.group(0)) for m in _CLOCK.finditer(out)}) >= 3:
+        # several times = the habit's own timetable ("check email at 10, 12, 3 and 4:30"):
+        # keep them; only the old placeholder phrase goes
+        keep = None
+    # ranges: "9:10–9:35", "from 9 to 10am" (kept whole when either end is real)
+    held: list[str] = []
+
+    def hold(t: str) -> str:            # protect what stays from the later passes
+        held.append(t)
+        return f"\x00{len(held) - 1}\x00"
+    out = re.sub(r"\b(?:from |between )?(" + tok + r")\s*(?:-|–|—|to|and)\s*(" + tok + r")",
+                 lambda m: "" if stale(m.group(1)) and stale(m.group(2)) else hold(m.group(0)), out, flags=re.I)
+    # "after-3pm habit" -> "late habit"
+    out = re.sub(r"\b(after|before)-(" + tok + r")",
+                 lambda m: ("late" if m.group(1).lower() == "after" else "early") if stale(m.group(2)) else m.group(0),
+                 out, flags=re.I)
+    # "your 7:10 commute" -> "your commute"
+    out = re.sub(r"\b(your|the|a)\s+(" + tok + r")\s+(?=[a-z])",
+                 lambda m: f"{m.group(1)} " if stale(m.group(2)) else m.group(0), out, flags=re.I)
+    # "by 7:10", "at 10pm", "around 2"
+    out = re.sub(r"\s*\b(?:at|by|before|after|around|until|till|from|for|@)\s+(" + tok + r")",
+                 lambda m: "" if stale(m.group(1)) else m.group(0), out, flags=re.I)
+    # anything left on its own
+    out = re.sub(r"\s*\b(" + tok + r")", lambda m: "" if stale(m.group(1)) else m.group(0), out, flags=re.I)
+    # tidy what the removals left
+    out = re.sub(r"\(\s*\)", "", out)
+    out = re.sub(r"\s+([,.;:)])", r"\1", out)
+    out = re.sub(r"([(])\s+", r"\1", out)
+    out = re.sub(r",\s*,", ",", out)
+    out = re.sub(r"\s{2,}", " ", out)
+    out = re.sub(r"\x00(\d+)\x00", lambda m: held[int(m.group(1))], out)
+    return out.strip()
 
 
 def _clean_text(text: str, limit: int) -> str:
@@ -1362,25 +1417,37 @@ def required_supplements(active: set[str], answers: dict, declined: set[str], pr
 
 
 def _default_supp_time(h: "Habit", profile: dict) -> str:
-    t = f"{h.timing} {h.anchor}".lower()
+    """Where a pick goes when Claude dropped it: the library anchor's first
+    choice ("dinner (or wind_down)" -> dinner). The free-text timing note is not
+    matched: its "Not close to bedtime" would read as bedtime."""
+    first = re.split(r"\(|\bor\b|\band\b|,", (h.anchor or "").lower())[0].strip()
     wake = _to_min(_hm(profile.get("wake_time"), "07:00"))
     bed = _to_min(_hm(profile.get("bed_time"), "23:00"))
     meals = profile.get("meals") or {}
-    if "bed" in t or "night" in t or "sleep" in t:
-        return _from_min((bed if bed > wake else bed + 1440) - 45)
-    if "workout" in t or "training" in t or "exercise" in t:
-        return _hm(profile.get("workout_time"), _from_min(wake + 30))
-    if "dinner" in t or "evening" in t:
+    breakfast = _hm(meals.get("breakfast"), _from_min(wake + 30))
+    if first.startswith(("wind_down", "pre_bed")) or "bed" in first:
+        return _from_min(((bed if bed > wake else bed + 1440) - 45) % 1440)
+    if first.startswith("workout"):
+        return _hm(profile.get("workout_time"), breakfast)
+    if first.startswith("afternoon"):
+        return _from_min(_to_min(_hm(meals.get("lunch"), "12:30")) + 90)
+    if first.startswith("wake"):
+        return _from_min(wake + 15)
+    if first.startswith("weekend"):
+        return _from_min(max(wake + 60, 600))
+    if first.startswith("dinner"):
         return _hm(meals.get("dinner"), "19:00")
-    if "lunch" in t:
+    if first.startswith("lunch"):
         return _hm(meals.get("lunch"), "12:30")
-    return _hm(meals.get("breakfast"), _from_min(wake + 30))
+    return breakfast
 
 
 def _insert_supps(tmpl: dict, habits: list["Habit"], profile: dict) -> None:
     for h in habits:
         tmpl.setdefault("habits", []).append({
-            "habit_id": h.id, "title": h.title[:40], "how": (h.how or "")[:400], "why": (h.why or "")[:200],
+            # library titles carry notes for the planner ("(vegans, 50+)"): not for the card
+            "habit_id": h.id, "title": re.sub(r"\s*\([^)]*\)", "", h.title).strip()[:40],
+            "how": (h.how or "")[:400], "why": (h.why or "")[:200],
             "minutes": 1, "time": _default_supp_time(h, profile), "weekend_time": "", "days": list(WEEKDAYS),
         })
 
@@ -1630,12 +1697,12 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
         sync_required = [h.id for h in required_supplements(active_now, answers, set(), set())]
         sync_required += [h for h in supp_answer_picks(answers, active_now, profile, len(sync_required))
                           if h not in sync_required]
-    if True:  # shared facts (age, sex) asked by any program are remembered for all
-        about = {k: answers[k] for k in ABOUT_KEYS if str(answers.get(k) or "").strip()}
-        if about:
-            from services.user_context_service import merge_context
-            await merge_context(user_id, about, db)
-            profile = {**profile, "about": {**(profile.get("about") or {}), **about}}
+    # shared facts (age, sex, first meal) asked by any program are remembered for all
+    about = {k: answers[k] for k in ABOUT_KEYS if str(answers.get(k) or "").strip()}
+    if about:
+        from services.user_context_service import merge_context
+        await merge_context(user_id, about, db)
+        profile = {**profile, "about": {**(profile.get("about") or {}), **about}}
     tmpl = await build_plan(maxx_id, profile, answers, others, sync_required=sync_required)
     if tmpl is not None and maxx_id == SUPP_PROGRAM:
         tmpl["answers"] = answers
@@ -1836,6 +1903,7 @@ def _is_heavier(new: dict, old: dict) -> bool:
 
 
 _TIER_ORDER = {"core": 0, "medium": 1, "hard": 2}
+_SUPP_ROUTINES = {"stack_audit", "weekly_stack_checkin", "refill_check"}
 
 
 def _harden(maxx_id: str, tmpl: dict, profile: dict, others: dict, n: int = 2) -> dict:
@@ -1845,6 +1913,9 @@ def _harden(maxx_id: str, tmpl: dict, profile: dict, others: dict, n: int = 2) -
     have = {h.get("habit_id") for h in tmpl.get("habits") or []}
     have |= {p.get("habit_id") for p in tmpl.get("parked") or []}
     picks = [h for h in lib.values() if h.id not in have and not h.programs]
+    if maxx_id == SUPP_PROGRAM:
+        # never add something to swallow unscreened: only the stack check-ins
+        picks = [h for h in picks if h.id in _SUPP_ROUTINES]
     picks.sort(key=lambda h: _TIER_ORDER.get(h.tier, 1))
     adds = []
     for h in picks[:n]:

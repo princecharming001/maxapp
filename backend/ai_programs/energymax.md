@@ -47,7 +47,7 @@ Check with a professional first:
 
 ### `protein_first_meal` — Protein in first meal
 - minutes: 2 / 5
-- anchor: get_ready or before_work
+- anchor: their first meal: breakfast, or lunch when `first_meal_style` says they skip breakfast or have coffee only
 - frequency: daily (5×/week)
 - tier: core
 - why: Protein and fiber make a meal more filling than a sugar-only start, and getting protein in at each meal helps people reach the daily intake that supports muscle (see FitMax).

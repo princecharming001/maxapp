@@ -191,6 +191,14 @@ def meals_for(hid: str, inf: HabitInfo) -> list[str]:
     return named or list(MEALS)
 
 
+def skips_breakfast(profile: dict) -> bool:
+    """Their first meal is lunch: coffee only / eats later (Energymax quiz), or
+    no breakfast in their day."""
+    style = str(((profile or {}).get("about") or {}).get("first_meal_style") or "").lower()
+    meals = (profile or {}).get("meals") or {}
+    return bool(re.search(r"coffee only|later in the day|skip", style)) or (bool(meals) and not meals.get("breakfast"))
+
+
 def supp_meals(hid: str, inf: HabitInfo) -> list[str]:
     """Meals a supplement can be taken with: any meal its timing names
     ('breakfast or the coffee before the focus block', 'workout (or breakfast
@@ -740,6 +748,8 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
         inf = info(h["habit_id"], lib)
         kind = kind_of(h["habit_id"], inf)
         meals = meals_for(h["habit_id"], inf)
+        if h["habit_id"] == "protein_first_meal" and skips_breakfast(profile):
+            meals = ["lunch"]
         if maxx_id == SUPP and kind in ("meal", "any", "get_ready") and supp_meals(h["habit_id"], inf):
             kind = "meal"
             meals = supp_meals(h["habit_id"], inf)

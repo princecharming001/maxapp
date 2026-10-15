@@ -77,3 +77,29 @@ def test_picks_capped_to_open_slots_but_never_zero():
 def test_safety_text_ignores_goals_and_diet():
     t = si.safety_text({**BASE, "supp_goals": "Stress", "supp_diet": "Rarely eat fish"})
     assert "stress" not in t.lower() and "fish" not in t.lower()
+
+
+def test_give_me_more_never_adds_a_supplement_unscreened():
+    prof = {"wake_time": "06:30", "bed_time": "22:30", "meals": {"breakfast": "07:15", "lunch": "12:30", "dinner": "19:00"}}
+    t = {"habits": [{"habit_id": "melatonin", "title": "melatonin", "minutes": 1, "time": "21:45",
+                     "days": list(ap.WEEKDAYS), "how": "x", "why": "y"}]}
+    added = {h["habit_id"] for h in ap._harden("suppmax", t, prof, {})["habits"]} - {"melatonin"}
+    assert added <= ap._SUPP_ROUTINES
+
+
+def test_filled_in_picks_read_as_steps_for_the_person():
+    pd = ap.get_program_doc("suppmax")
+    tmpl = {"habits": []}
+    ap._insert_supps(tmpl, [pd.habit("b12"), pd.habit("iron")], {})
+    for h in tmpl["habits"]:
+        assert "(" not in h["title"] and "the user" not in h["how"].lower(), h
+
+
+def test_filled_in_picks_land_at_their_anchor_not_a_word_in_the_notes():
+    prof = {"wake_time": "06:30", "bed_time": "22:30", "workout_time": "18:00",
+            "meals": {"breakfast": "07:15", "lunch": "12:30", "dinner": "19:00"}}
+    pd = ap.get_program_doc("suppmax")
+    at = lambda hid: ap._default_supp_time(pd.habit(hid), prof)
+    assert at("electrolytes") == "18:00"            # its notes say "not close to bedtime"
+    assert at("caffeine_theanine") == "07:15" and at("rhodiola") == "07:15"
+    assert at("melatonin") == "21:45" and at("magnesium_glycinate") == "19:00"

@@ -80,7 +80,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `ashwagandha` — Ashwagandha (caution)
 - minutes: 1 / 1
 - anchor: dinner
-- frequency: daily for up to 8–12 weeks, then stop and review
+- frequency: daily for up to 8–12 weeks, then stop and review (only if the user asks and clears the avoid-if list)
 - tier: hard
 - programs: calmmax
 - primary for: none
@@ -88,7 +88,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - dose note: Most trials used about 250–600 mg a day of a standardized root extract for 6–12 weeks. Take no more than the label serving, and do not use it longer than about 3 months without talking to a clinician.
 - timing: With a meal, usually dinner since some people feel drowsy. Stop at least 2 weeks before planned surgery.
 - why: Several small randomized trials report lower stress and anxiety scores and modestly better sleep with root extract. But NIH's Office of Dietary Supplements notes it may cause liver problems and change thyroid hormone levels, and the NIH LiverTox database lists it as a cause of rare but sometimes severe liver injury. The evidence is real but the risks are too, so it is never a default and is only added when the user asks for it and confirms none of the flags apply.
-- how: 1) Only add if the user asks and says yes to a one-question check of the avoid-if list. 2) Use a root-extract product with a third-party seal. 3) Stop right away and see a doctor for dark urine, yellow skin or eyes, itching, or belly pain.
+- how: 1) Use a root-extract product with a third-party seal. 2) Take one serving at the set time; stop after 12 weeks and see how you feel. 3) Stop right away and see a doctor for dark urine, yellow skin or eyes, itching, or belly pain.
 - conflicts/synergies: Do not stack with `rhodiola` or other "adaptogen" or "stress" blends. L-theanine (`l_theanine`) is the Calmmax default because it is lower risk.
 - source: https://ods.od.nih.gov/factsheets/Ashwagandha-HealthProfessional/
 
@@ -103,7 +103,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - dose note: The small sleep studies used about 240 ml (8 oz) of tart cherry juice twice a day. Capsule and concentrate doses vary and are not well studied; follow the label.
 - timing: Morning and 1–2 hours before bed. Juice adds sugar and calories, so count it as a drink, not a free extra.
 - why: The sleep evidence is weak: two pilot studies of 15 and 8 older adults with insomnia found modest gains, and a study in 20 young adults found higher melatonin levels and modest sleep gains. Reviews on muscle soreness after hard exercise are mixed. It is listed so the AI can answer questions honestly; it is never auto-added and is not tagged to any program.
-- how: 1) If the user asks, explain the evidence is small. 2) Prefer unsweetened juice or a third-party tested capsule. 3) Review after 2 weeks.
+- how: 1) The evidence is small, so treat it as a 2-week trial. 2) Prefer unsweetened juice or a third-party tested capsule. 3) Keep it only if you notice a difference after 2 weeks.
 - conflicts/synergies: Melatonin-related claims are overstated in marketing; it is not a melatonin substitute.
 - source: https://pubmed.ncbi.nlm.nih.gov/20438325/
 
@@ -163,7 +163,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - dose note: Products vary widely, often 200–1,000 mg of sodium per serving, plus potassium. One serving per sweaty session or hot day is usually enough; take the serving on your label. Pick low- or no-sugar versions.
 - timing: During or after a long or sweaty workout, or with the first big glass of water on a hot day. Not close to bedtime (more night-time bathroom trips).
 - why: In lab studies, mild dehydration (about 1–1.5% of body weight) lowered mood, raised fatigue and made concentration harder. Electrolytes replace the sodium lost in sweat and make it easier to drink enough. On ordinary desk days, plain water is enough for most people. It is the Energymax default because it is the lowest-risk supplement with a plausible energy link and it is not a stimulant; Energymax rules out caffeine pills and energy drinks.
-- how: 1) Keep a few single-serve, low-sugar sachets at hand. 2) Use one in your water on hot or sweaty days. 3) On normal days, stick to the Energymax water habits.
+- how: 1) Keep a few single-serve, low-sugar sachets at hand. 2) Use one in your water on hot or sweaty days. 3) On normal days, plain water is enough.
 - conflicts/synergies: Pairs with Energymax `water_on_waking` and `water_bottle_refill`, and Fitmax sessions. People on low-sodium diets or blood pressure medicine should ask their clinician first.
 - source: https://pubmed.ncbi.nlm.nih.gov/22190027/
 
@@ -178,7 +178,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - dose note: Trials used a wide range, mostly about 200–600 mg a day of a standardized root extract for a few weeks. Take no more than the label serving.
 - timing: Morning only, ideally before or with breakfast. It can be stimulating, so never within 8 hours of bed.
 - why: A systematic review found the evidence for rhodiola against physical or mental fatigue inconclusive, and NIH's NCCIH says there is not enough reliable evidence to judge it; product quality and adulteration are also a known problem. It is listed so the AI can answer honestly. It is never auto-added and is not tagged to Energymax, whose doc rules out stimulant-type products.
-- how: 1) If the user asks, explain the evidence is mixed and run the avoid-if check. 2) Use a third-party tested product. 3) Stop if it causes jitteriness, trouble sleeping or mood changes.
+- how: 1) The evidence is mixed, so treat it as a short trial. 2) Use a third-party tested product. 3) Stop if it causes jitteriness, trouble sleeping or mood changes.
 - conflicts/synergies: Do not combine with `ashwagandha`, caffeine pills or other stimulants. `caffeine_theanine` timing rules apply.
 - source: https://pmc.ncbi.nlm.nih.gov/articles/PMC3541197/
 
@@ -253,14 +253,14 @@ Check with a professional first (the app should suggest this, not diagnose):
 - dose note: A basic multivitamin at about 100% of the Daily Value for most nutrients; skip "mega" or high-potency formulas. Take the serving on your label.
 - timing: With breakfast or the largest meal (the fat helps absorb vitamins A, D, E and K). Keep it 2 hours apart from `iron` and thyroid medicine if it contains calcium.
 - why: NIH's Office of Dietary Supplements notes that most people who eat a varied diet get what they need from food, and large trials in healthy adults (including COSMOS) found no effect on cancer or heart disease. A basic multi can fill gaps for people with restrictive diets, low appetite or older age. Pregnancy needs a prenatal chosen with a clinician instead; people who smoke should avoid high-beta-carotene formulas; vitamin K can interfere with warfarin.
-- how: 1) Only add if the user says their diet is limited or asks for one. 2) Pick a basic formula with a USP seal. 3) Check it against other products for doubled vitamin D, iron or biotin.
+- how: 1) Pick a basic formula with a USP seal. 2) Take it with breakfast. 3) Check it against your other products for doubled vitamin D, iron or biotin.
 - conflicts/synergies: Overlaps with `vitamin_d3`, `b12`, `magnesium_glycinate` and `iron`; add up totals and stay under upper limits. Not a substitute for food.
 - source: https://ods.od.nih.gov/factsheets/MVMS-HealthProfessional/
 
 ### `b12` — Vitamin B12 (vegans, 50+)
 - minutes: 1 / 1
 - anchor: breakfast
-- frequency: daily (only when it applies)
+- frequency: daily (only when it applies: vegan or vegetarian, over 50, or long-term metformin or acid reducers)
 - tier: medium
 - programs: none
 - primary for: none
@@ -268,14 +268,14 @@ Check with a professional first (the app should suggest this, not diagnose):
 - dose note: The adult recommended intake is 2.4 mcg a day. Supplements often contain 25–1,000 mcg because only part of a pill dose is absorbed; no upper limit has been set. Take the serving on your label.
 - timing: With breakfast; any time works.
 - why: B12 occurs naturally only in animal foods, so vegans and many vegetarians need fortified foods or a supplement. People over 50 absorb less B12 from food, and long-term metformin or acid-reducing medicines can lower levels. Extra B12 does not raise energy in people who are not low.
-- how: 1) Add only if the user is vegan or vegetarian, over 50, or on metformin or acid reducers long term. 2) Pick a third-party tested product. 3) Suggest a blood test if they feel tired or have numbness or tingling.
+- how: 1) Pick a third-party tested B12; any form works. 2) Take it with breakfast. 3) If you feel tired or get numbness or tingling, ask your doctor for a blood test.
 - conflicts/synergies: Often already in a `multivitamin`; check before adding. Never pitched as an energy booster.
 - source: https://ods.od.nih.gov/factsheets/VitaminB12-HealthProfessional/
 
 ### `iron` — Iron (bloodwork only)
 - minutes: 1 / 1
 - anchor: wake or mid-morning (on an empty stomach, away from coffee and tea)
-- frequency: as a clinician directs after a blood test (often every other day)
+- frequency: as a clinician directs after a blood test (often every other day); only when the user says a blood test showed low iron and a clinician advised iron
 - tier: hard
 - programs: none
 - primary for: none
@@ -283,7 +283,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - dose note: Only the amount a clinician recommends after bloodwork confirms low iron. The upper limit for adults not under medical care is 45 mg of elemental iron a day. Suppmax never sets an iron dose.
 - timing: On an empty stomach or with a little vitamin-C-rich food, and at least 2 hours away from coffee, tea, dairy, calcium, zinc, magnesium, antacids and thyroid medicine. Every-other-day dosing improved absorption in a randomized trial; follow the clinician.
 - why: Low iron is a real and common cause of fatigue, especially for people who menstruate, but iron you do not need can upset the stomach and build up in the body, and iron overdose is a leading cause of fatal poisoning in children under 6. That is why it is never auto-added and is not tagged to any program, including Energymax.
-- how: 1) Only add when the user says a blood test showed low iron and a clinician advised iron. 2) Schedule it alone, away from the breakfast stack. 3) Store it out of children's reach.
+- how: 1) Take the dose your clinician set. 2) Take it on its own, away from the breakfast stack (coffee, tea and calcium block it). 3) Store it out of children's reach.
 - conflicts/synergies: Must not share a slot with `multivitamin` (calcium), `magnesium_glycinate`, coffee or tea. If the user is tired and asks about iron, suggest bloodwork, not a supplement.
 - source: https://ods.od.nih.gov/factsheets/Iron-HealthProfessional/
 

@@ -226,14 +226,17 @@ def task_products(active: list[tuple[str, dict]], facts: Optional[dict], picks: 
 
 
 def _fit(p: Product, hints: set[str]) -> int:
-    return len(set(p.suits) & hints)
+    # a men's or women's formula only for that person; "prefer not to say" gets neither
+    wrong_sex = (set(p.suits) & {"male", "female"}) - hints
+    return len(set(p.suits) & hints) - len(wrong_sex)
 
 
 def options_for(need: dict, facts: Optional[dict], picks: dict) -> list[Product]:
-    """Every product for this need, best first: their pick, then fit, then ratings."""
+    """Every product for this need, best first: their pick, then fit, then the
+    researched pick ahead of its alternatives, then ratings."""
     pool = [p for p in active_catalog() if p.need == need["need"] and _passes_user_facts(p, facts)]
     pick = picks.get(need["need"])
-    return sorted(pool, key=lambda p: (p.id != pick, -_fit(p, need["hints"]), -_score(p)))
+    return sorted(pool, key=lambda p: (p.id != pick, -_fit(p, need["hints"]), p.alternative, -_score(p)))
 
 
 def build_list(active: list[tuple[str, dict]], facts: Optional[dict], picks: dict) -> list[dict[str, Any]]:

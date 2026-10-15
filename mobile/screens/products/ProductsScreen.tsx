@@ -175,6 +175,8 @@ function OptionsSheet({ item, onClose }: { item: ShopItem | null; onClose: () =>
             await api.pickProduct(item.need, p.id);
             await qc.invalidateQueries({ queryKey: productsQueryKey });
             await qc.invalidateQueries({ queryKey: ['products', 'alternatives', item.need] });
+            // task guides show this same pick on their steps (cached forever otherwise)
+            await qc.invalidateQueries({ queryKey: ['taskGuide'] });
             track('product_open', { product: p.id, need: item.need, how: 'picked', from: 'options' });
             onClose();
         } finally {

@@ -38,7 +38,13 @@ def test_only_needs_my_current_habits_have_one_product_each():
                        {"habit_id": "fixed_wake_time", "title": "same wake time daily"}]}
     items = _items(build_list([("sleepmax", plan)], None, {}))
     assert set(items) == {"dark_room", "quiet_room", "wake_light"}      # mask/curtains are ONE need
-    assert items["quiet_room"]["options"] == 3 and items["quiet_room"]["for"] == ["bedroom setup"]
+    assert items["quiet_room"]["options"] == 4 and items["quiet_room"]["for"] == ["bedroom setup"]
+
+
+def test_every_need_has_at_least_three_alternatives():
+    from collections import Counter
+    per_need = Counter(p.need for p in active_catalog() if p.need)
+    assert per_need and {n: c for n, c in per_need.items() if c < 4} == {}
 
 
 def test_tweaking_the_schedule_changes_the_list():
@@ -72,7 +78,7 @@ def test_my_pick_wins_and_alternatives_are_only_my_needs():
     plan = {"habits": [{"habit_id": "creatine", "title": "creatine daily"}]}
     active = [("suppmax", plan)]
     need = _their_need(active, "creatine")
-    assert len(options_for(need, None, {})) == 3
+    assert len(options_for(need, None, {})) == 4
     items = _items(build_list(active, None, {"creatine": "thorne-creatine"}))
     assert items["creatine"]["product"]["id"] == "thorne-creatine" and items["creatine"]["picked"]
     with pytest.raises(HTTPException):
@@ -115,3 +121,14 @@ def test_no_gear_habits_get_no_products():
     from api.products import task_products
     plan = {"habits": [{"habit_id": "posture_break", "title": "desk posture reset"}]}
     assert task_products([("trainmax", plan)], None, {}, "trainmax", "posture_break", "roll shoulders") == []
+
+
+def test_alternatives_never_displace_the_researched_pick_unless_they_fit_better():
+    needs = {p.need for p in active_catalog() if p.need}
+    for n in needs - {"multivitamin"}:
+        assert not options_for({"need": n, "hints": set()}, None, {})[0].alternative, n
+    multi = lambda h: options_for({"need": "multivitamin", "hints": h}, None, {})[0].id
+    assert multi({"male"}) == "nature-made-multi-for-him" and multi({"female"}) == "nature-made-multi-for-her"
+    assert multi(set()) == "centrum-adults-multivitamin"        # "prefer not to say": no men's/women's formula
+    vegan_omega = options_for({"need": "omega3", "hints": {"vegan"}}, None, {})[0]
+    assert vegan_omega.id == "sports-research-vegan-omega-3-algae-oil"

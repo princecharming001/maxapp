@@ -110,6 +110,72 @@ products:
   references:
   - ai_programs/sleepmax.md
   slug: NICETOWN-100-Percent-Blackout-Curtains-2-Panels-84-In
+- id: mzoo-contoured-sleep-mask
+  name: "MZOO Contoured Sleep Mask"
+  brand: "MZOO"
+  module: sleepmax
+  need: dark_room
+  alternative: true
+  concerns:
+  - sleep_mask
+  - eye_mask
+  - dark_room
+  - light
+  - blackout
+  - bedroom_setup
+  - bedroom
+  - travel
+  url: https://www.amazon.com/dp/B07KC5DWCC
+  image: https://m.media-amazon.com/images/I/71SMSJDNOBL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 13.99
+  rating: 4.6
+  rating_count: 101459
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A contoured mask that blocks light without pressing on your eyes, for when you can't darken the room."
+  references:
+  - ai_programs/sleepmax.md
+  slug: Mzoo-Contoured-Sleep-Mask
+- id: rabbitgoo-blackout-window-film
+  name: "rabbitgoo Blackout Window Film"
+  brand: "rabbitgoo"
+  module: sleepmax
+  need: dark_room
+  alternative: true
+  concerns:
+  - sleep_mask
+  - eye_mask
+  - dark_room
+  - light
+  - blackout
+  - bedroom_setup
+  - bedroom
+  - travel
+  url: https://www.amazon.com/dp/B0BLV1QV8L
+  image: https://m.media-amazon.com/images/I/810E+d90gQL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 6.99
+  rating: 4.3
+  rating_count: 45031
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A cheap, removable film that darkens the window itself if you'd rather not wear a mask."
+  references:
+  - ai_programs/sleepmax.md
+  slug: Rabbitgoo-Blackout-Window-Film
 - id: yogasleep-dohm-classic
   name: Yogasleep Dohm Classic White Noise Machine
   brand: Yogasleep
@@ -173,6 +239,105 @@ products:
   references:
   - ai_programs/sleepmax.md
   slug: Philips-SmartSleep-Wake-Up-Light-HF3520
+- id: jall-sunrise-alarm-clock
+  name: "JALL Sunrise Alarm Clock"
+  brand: "JALL"
+  module: sleepmax
+  need: wake_light
+  alternative: true
+  concerns:
+  - wake_up_light
+  - sunrise_alarm
+  - alarm_clock
+  - fixed_wake_time
+  - dark_mornings
+  - screens_off
+  - light
+  - wake_time
+  url: https://www.amazon.com/dp/B081CHLF46
+  image: https://m.media-amazon.com/images/I/61Hx5h-nysL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 35.98
+  rating: 4.3
+  rating_count: 28254
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Brightens slowly before your alarm so waking feels less abrupt, at a lower price."
+  references:
+  - ai_programs/sleepmax.md
+  slug: Jall-Sunrise-Alarm-Clock
+- id: odokee-sunrise-alarm-sound-machine
+  name: "Odokee Sunrise Alarm & Sound Machine"
+  brand: "Odokee"
+  module: sleepmax
+  need: wake_light
+  alternative: true
+  concerns:
+  - wake_up_light
+  - sunrise_alarm
+  - alarm_clock
+  - fixed_wake_time
+  - dark_mornings
+  - screens_off
+  - light
+  - wake_time
+  url: https://www.amazon.com/dp/B0DGXD6WVW
+  image: https://m.media-amazon.com/images/I/81mP2pftHML._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 59.99
+  rating: 4.5
+  rating_count: 2250
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A sunrise light and white-noise machine in one if you want both by the bed."
+  references:
+  - ai_programs/sleepmax.md
+  slug: Odokee-Sunrise-Alarm-Sound-Machine
+- id: hatch-restore-3
+  name: "Hatch Restore 3"
+  brand: "Hatch"
+  module: sleepmax
+  need: wake_light
+  alternative: true
+  concerns:
+  - wake_up_light
+  - sunrise_alarm
+  - alarm_clock
+  - fixed_wake_time
+  - dark_mornings
+  - screens_off
+  - light
+  - wake_time
+  url: https://www.amazon.com/dp/B0DLLSCVZW
+  image: https://m.media-amazon.com/images/I/81CwfQrlU7L._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 139.99
+  rating: 4.2
+  rating_count: 3314
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A premium sunrise light with wind-down sounds and an app to set your whole routine."
+  references:
+  - ai_programs/sleepmax.md
+  slug: Hatch-Restore-3
 - id: macks-ultra-soft-earplugs
   name: Mack's Ultra Soft Foam Earplugs (50 Pair)
   brand: Mack's
@@ -236,6 +401,38 @@ products:
   - ai_programs/sleepmax.md
   slug: Loop-Quiet-2-Ear-Plugs
 
+- id: lectrofan-evo-sound-machine
+  name: "LectroFan EVO Sound Machine"
+  brand: "LectroFan"
+  module: sleepmax
+  need: quiet_room
+  alternative: true
+  concerns:
+  - white_noise
+  - sound_machine
+  - noise
+  - quiet
+  - bedroom_setup
+  - bedroom
+  - neighbors
+  url: https://www.amazon.com/dp/B074FL2HL2
+  image: https://m.media-amazon.com/images/I/71-3koMydDL._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 64.95
+  rating: 4.5
+  rating_count: 9581
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Steady fan and white-noise sounds that cover street and household noise through the night."
+  references:
+  - ai_programs/sleepmax.md
+  slug: Lectrofan-Evo-Sound-Machine
 # ── Energymax: water early, morning light, electrolytes on sweaty days ────────
 - id: owala-freesip-24oz
   name: Owala FreeSip Stainless Steel Water Bottle (24 oz)
@@ -299,6 +496,70 @@ products:
   references:
   - ai_programs/energymax.md
   slug: Hydro-Flask-Wide-Mouth-Water-Bottle-32-Oz
+- id: stanley-quencher-40-oz
+  name: "STANLEY Quencher 40 oz"
+  brand: "STANLEY"
+  module: energymax
+  need: water_bottle
+  alternative: true
+  concerns:
+  - water_bottle
+  - water
+  - hydration
+  - water_on_waking
+  - water_bottle_refill
+  - refill
+  - desk
+  url: https://www.amazon.com/dp/B0CP9Z1S51
+  image: https://m.media-amazon.com/images/I/51M9tu3lpIL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 44.95
+  rating: 4.7
+  rating_count: 206575
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A big insulated tumbler with a straw, so one refill covers most of the day."
+  references:
+  - ai_programs/energymax.md
+  slug: Stanley-Quencher-40-Oz
+- id: yeti-rambler-26-oz
+  name: "YETI Rambler 26 oz"
+  brand: "YETI"
+  module: energymax
+  need: water_bottle
+  alternative: true
+  concerns:
+  - water_bottle
+  - water
+  - hydration
+  - water_on_waking
+  - water_bottle_refill
+  - refill
+  - desk
+  url: https://www.amazon.com/dp/B0842S56G8
+  image: https://m.media-amazon.com/images/I/51S0d-FOcbL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 40.00
+  rating: 4.8
+  rating_count: 22510
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A tough insulated bottle that keeps water cold and fits a bag."
+  references:
+  - ai_programs/energymax.md
+  slug: Yeti-Rambler-26-Oz
 - id: verilux-happylight-luxe
   name: Verilux HappyLight Luxe Light Therapy Lamp
   brand: Verilux
@@ -331,6 +592,105 @@ products:
   - ai_programs/energymax.md
   - ai_programs/sleepmax.md
   slug: Verilux-HappyLight-Luxe-Light-Therapy-Lamp
+- id: circadian-optics-lumos-10-000-lux-lamp
+  name: "Circadian Optics Lumos 10,000 Lux Lamp"
+  brand: "Circadian Optics"
+  module: energymax
+  need: light_therapy
+  alternative: true
+  concerns:
+  - light_therapy
+  - lamp
+  - morning_light
+  - dark_mornings
+  - winter
+  - light
+  - breakfast
+  url: https://www.amazon.com/dp/B01IU9MMPI
+  image: https://m.media-amazon.com/images/I/71JjXekPoCL._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 69.99
+  rating: 4.6
+  rating_count: 6279
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A 10,000 lux desk lamp for bright morning light when it's dark outside."
+  references:
+  - ai_programs/energymax.md
+  - ai_programs/sleepmax.md
+  slug: Circadian-Optics-Lumos-10-000-Lux-Lamp
+- id: carex-day-light-classic-plus
+  name: "Carex Day-Light Classic Plus"
+  brand: "Carex"
+  module: energymax
+  need: light_therapy
+  alternative: true
+  concerns:
+  - light_therapy
+  - lamp
+  - morning_light
+  - dark_mornings
+  - winter
+  - light
+  - breakfast
+  url: https://www.amazon.com/dp/B00PCN4UVU
+  image: https://m.media-amazon.com/images/I/51+VDKV8DaL._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 131.04
+  rating: 4.3
+  rating_count: 3570
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A large, adjustable 10,000 lux lamp that lights you from a comfortable distance."
+  references:
+  - ai_programs/energymax.md
+  - ai_programs/sleepmax.md
+  slug: Carex-Day-Light-Classic-Plus
+- id: sotipevs-light-therapy-lamp
+  name: "Sotipevs Light Therapy Lamp"
+  brand: "Sotipevs"
+  module: energymax
+  need: light_therapy
+  alternative: true
+  concerns:
+  - light_therapy
+  - lamp
+  - morning_light
+  - dark_mornings
+  - winter
+  - light
+  - breakfast
+  url: https://www.amazon.com/dp/B0BX3X5KHP
+  image: https://m.media-amazon.com/images/I/51OgR+d6GdL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 25.99
+  rating: 4.4
+  rating_count: 505
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A low-cost UV-free lamp with a timer if you want to try morning light first."
+  references:
+  - ai_programs/energymax.md
+  - ai_programs/sleepmax.md
+  slug: Sotipevs-Light-Therapy-Lamp
 - id: liquid-iv-sugar-free
   name: Liquid I.V. Sugar-Free Hydration Electrolytes (Lemon Lime, 14 ct)
   brand: Liquid I.V.
@@ -394,6 +754,97 @@ products:
   - ai_programs/energymax.md
   slug: Premier-Protein-Shake-Chocolate-Pack
 
+- id: core-power-protein-shake-26g
+  name: "Core Power Protein Shake 26g"
+  brand: "Core Power"
+  module: energymax
+  need: protein_breakfast
+  alternative: true
+  concerns:
+  - protein_first_meal
+  - protein
+  - breakfast
+  - ready_to_drink
+  - lunch_balance
+  url: https://www.amazon.com/dp/B07LD2NV9X
+  image: https://m.media-amazon.com/images/I/71OUa98UdjL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 41.88
+  rating: 4.7
+  rating_count: 24024
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: false
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: false
+  rationale: "A ready-to-drink milk shake with 26g of protein for a no-cook breakfast."
+  references:
+  - ai_programs/energymax.md
+  slug: Core-Power-Protein-Shake-26G
+- id: owyn-plant-protein-shake
+  name: "OWYN Plant Protein Shake"
+  brand: "OWYN"
+  module: energymax
+  need: protein_breakfast
+  alternative: true
+  suits: [vegan]
+  concerns:
+  - protein_first_meal
+  - protein
+  - breakfast
+  - ready_to_drink
+  - lunch_balance
+  url: https://www.amazon.com/dp/B0764GPB51
+  image: https://m.media-amazon.com/images/I/811u4RRECsL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 36.94
+  rating: 4.4
+  rating_count: 6163
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A dairy-free, plant-based shake with 20g of protein."
+  references:
+  - ai_programs/energymax.md
+  slug: Owyn-Plant-Protein-Shake
+- id: orgain-protein-shake-30g
+  name: "Orgain Protein Shake 30g"
+  brand: "Orgain"
+  module: energymax
+  need: protein_breakfast
+  alternative: true
+  concerns:
+  - protein_first_meal
+  - protein
+  - breakfast
+  - ready_to_drink
+  - lunch_balance
+  url: https://www.amazon.com/dp/B0D27S9SYL
+  image: https://m.media-amazon.com/images/I/81tQMio3UmL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 26.95
+  rating: 4.5
+  rating_count: 2114
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: false
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: false
+  rationale: "30g of protein per bottle at a lower price per shake."
+  references:
+  - ai_programs/energymax.md
+  slug: Orgain-Protein-Shake-30G
 # ── Focusmax: deep-work block, phone away, top-3 plan ─────────────────────────
 - id: time-timer-original-8
   name: Time Timer Original 8" Visual Timer
@@ -456,6 +907,70 @@ products:
   references:
   - ai_programs/focusmax.md
   slug: Ticktime-T6-Pomodoro-Timer-Cube
+- id: secura-visual-countdown-timer
+  name: "Secura Visual Countdown Timer"
+  brand: "Secura"
+  module: focusmax
+  need: focus_timer
+  alternative: true
+  concerns:
+  - timer
+  - visual_timer
+  - deep_work_block
+  - focus
+  - time_blocking
+  - pomodoro
+  - desk
+  url: https://www.amazon.com/dp/B07WFDZ72L
+  image: https://m.media-amazon.com/images/I/71yRBv3eokL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 16.99
+  rating: 4.2
+  rating_count: 6375
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A silent timer that shows the time left as a shrinking red disc."
+  references:
+  - ai_programs/focusmax.md
+  slug: Secura-Visual-Countdown-Timer
+- id: ooraii-flip-productivity-timer
+  name: "OORAII Flip Productivity Timer"
+  brand: "OORAII"
+  module: focusmax
+  need: focus_timer
+  alternative: true
+  concerns:
+  - timer
+  - visual_timer
+  - deep_work_block
+  - focus
+  - time_blocking
+  - pomodoro
+  - desk
+  url: https://www.amazon.com/dp/B0D7JG4VLD
+  image: https://m.media-amazon.com/images/I/61ROjRaowcL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 16.99
+  rating: 4.6
+  rating_count: 1322
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Flip it to start a 25- or 50-minute block, no phone needed."
+  references:
+  - ai_programs/focusmax.md
+  slug: Ooraii-Flip-Productivity-Timer
 - id: kitchen-safe-time-locking-container
   name: Kitchen Safe Time Locking Container (Medium)
   brand: Kitchen Safe
@@ -488,6 +1003,105 @@ products:
   - ai_programs/focusmax.md
   - ai_programs/calmmax.md
   slug: Kitchen-Safe-Time-Locking-Container-Medium
+- id: mindsight-timed-lock-box
+  name: "Mindsight Timed Lock Box"
+  brand: "Mindsight"
+  module: focusmax
+  need: phone_lockbox
+  alternative: true
+  concerns:
+  - phone_away
+  - phone
+  - phone_lockbox
+  - distraction
+  - screen_time
+  - focus
+  - deep_work_block
+  url: https://www.amazon.com/dp/B0DD54LLRG
+  image: https://m.media-amazon.com/images/I/41V2Qvxz3eL._AC_SL1000_.jpg
+  price_tier: mid
+  price_usd: 39.95
+  rating: 4.5
+  rating_count: 1854
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Locks your phone away until the timer ends, so you can't check it on impulse."
+  references:
+  - ai_programs/focusmax.md
+  - ai_programs/calmmax.md
+  slug: Mindsight-Timed-Lock-Box
+- id: ysky-phone-lock-box
+  name: "ySky Phone Lock Box"
+  brand: "ySky"
+  module: focusmax
+  need: phone_lockbox
+  alternative: true
+  concerns:
+  - phone_away
+  - phone
+  - phone_lockbox
+  - distraction
+  - screen_time
+  - focus
+  - deep_work_block
+  url: https://www.amazon.com/dp/B08NS9315J
+  image: https://m.media-amazon.com/images/I/515spFpYeYL._AC_SL1000_.jpg
+  price_tier: mid
+  price_usd: 34.99
+  rating: 4.3
+  rating_count: 1446
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A clear timed box: you can see notifications arrive but can't open it."
+  references:
+  - ai_programs/focusmax.md
+  - ai_programs/calmmax.md
+  slug: Ysky-Phone-Lock-Box
+- id: vaydeer-metal-time-lock-box
+  name: "Vaydeer Metal Time Lock Box"
+  brand: "Vaydeer"
+  module: focusmax
+  need: phone_lockbox
+  alternative: true
+  concerns:
+  - phone_away
+  - phone
+  - phone_lockbox
+  - distraction
+  - screen_time
+  - focus
+  - deep_work_block
+  url: https://www.amazon.com/dp/B0D1VL567W
+  image: https://m.media-amazon.com/images/I/51yTrJ5lCgL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 24.99
+  rating: 4.2
+  rating_count: 450
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A smaller metal timed box at a lower price."
+  references:
+  - ai_programs/focusmax.md
+  - ai_programs/calmmax.md
+  slug: Vaydeer-Metal-Time-Lock-Box
 - id: loop-switch-2-earplugs
   name: Loop Switch 2 Adjustable Ear Plugs
   brand: Loop
@@ -519,6 +1133,102 @@ products:
   references:
   - ai_programs/focusmax.md
   slug: Loop-Switch-2-Adjustable-Ear-Plugs
+- id: mack-s-slim-fit-foam-earplugs
+  name: "Mack's Slim Fit Foam Earplugs"
+  brand: "Mack's"
+  module: focusmax
+  need: focus_earplugs
+  alternative: true
+  concerns:
+  - earplugs
+  - noise
+  - open_office
+  - focus
+  - deep_work_block
+  - quiet
+  - commute
+  url: https://www.amazon.com/dp/B005YUW7A2
+  image: https://m.media-amazon.com/images/I/61laDVVbQuL._AC_SL1313_.jpg
+  price_tier: budget
+  price_usd: 9.37
+  rating: 4.4
+  rating_count: 11996
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Soft foam plugs sized for smaller ear canals."
+  references:
+  - ai_programs/focusmax.md
+  slug: Mack-S-Slim-Fit-Foam-Earplugs
+- id: howard-leight-laser-lite-foam-earplugs
+  name: "Howard Leight Laser Lite Foam Earplugs"
+  brand: "Howard Leight"
+  module: focusmax
+  need: focus_earplugs
+  alternative: true
+  concerns:
+  - earplugs
+  - noise
+  - open_office
+  - focus
+  - deep_work_block
+  - quiet
+  - commute
+  url: https://www.amazon.com/dp/B08GQF3WCN
+  image: https://m.media-amazon.com/images/I/512FgEuhSNL._AC_SL1050_.jpg
+  price_tier: budget
+  price_usd: 14.49
+  rating: 4.6
+  rating_count: 13848
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "High-blocking foam plugs that cut chatter for deep work."
+  references:
+  - ai_programs/focusmax.md
+  slug: Howard-Leight-Laser-Lite-Foam-Earplugs
+- id: flents-quiet-time-foam-earplugs
+  name: "Flents Quiet Time Foam Earplugs"
+  brand: "Flents"
+  module: focusmax
+  need: focus_earplugs
+  alternative: true
+  concerns:
+  - earplugs
+  - noise
+  - open_office
+  - focus
+  - deep_work_block
+  - quiet
+  - commute
+  url: https://www.amazon.com/dp/B001F5VDVE
+  image: https://m.media-amazon.com/images/I/51PFNEa64AL._AC_SL1200_.jpg
+  price_tier: budget
+  price_usd: 14.99
+  rating: 4.4
+  rating_count: 21162
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "NRR 33 foam plugs for the loudest offices."
+  references:
+  - ai_programs/focusmax.md
+  slug: Flents-Quiet-Time-Foam-Earplugs
 - id: bloom-daily-planners-to-do-pad
   name: bloom daily planners Daily Planning System To-Do Pad
   brand: bloom daily planners
@@ -551,6 +1261,102 @@ products:
   - ai_programs/focusmax.md
   slug: Bloom-Daily-Planners-Daily-Planning-System-To-Do-Pad
 
+- id: taja-daily-to-do-notepad
+  name: "Taja Daily To-Do Notepad"
+  brand: "Taja"
+  module: focusmax
+  need: daily_planner
+  alternative: true
+  concerns:
+  - planner
+  - to_do_list
+  - top_three_plan
+  - notepad
+  - shutdown_ritual
+  - paper
+  - planning
+  url: https://www.amazon.com/dp/B0C1GQSZ56
+  image: https://m.media-amazon.com/images/I/61DFDvNhvdL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 8.49
+  rating: 4.8
+  rating_count: 4444
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A tear-off daily page with space for your top tasks and notes."
+  references:
+  - ai_programs/focusmax.md
+  slug: Taja-Daily-To-Do-Notepad
+- id: cicpap-daily-planner-notepad
+  name: "CICPAP Daily Planner Notepad"
+  brand: "CICPAP"
+  module: focusmax
+  need: daily_planner
+  alternative: true
+  concerns:
+  - planner
+  - to_do_list
+  - top_three_plan
+  - notepad
+  - shutdown_ritual
+  - paper
+  - planning
+  url: https://www.amazon.com/dp/B0CM2C4W88
+  image: https://m.media-amazon.com/images/I/61SJzX7yGpL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 5.99
+  rating: 4.9
+  rating_count: 1295
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A simple undated daily pad at the lowest price."
+  references:
+  - ai_programs/focusmax.md
+  slug: Cicpap-Daily-Planner-Notepad
+- id: nokingo-a5-daily-planner-pad
+  name: "Nokingo A5 Daily Planner Pad"
+  brand: "Nokingo"
+  module: focusmax
+  need: daily_planner
+  alternative: true
+  concerns:
+  - planner
+  - to_do_list
+  - top_three_plan
+  - notepad
+  - shutdown_ritual
+  - paper
+  - planning
+  url: https://www.amazon.com/dp/B08999KVP8
+  image: https://m.media-amazon.com/images/I/71kQEUskerL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 7.98
+  rating: 4.7
+  rating_count: 1508
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "An hour-by-hour daily pad if you like to block out your time."
+  references:
+  - ai_programs/focusmax.md
+  slug: Nokingo-A5-Daily-Planner-Pad
 - id: taja-weekly-planner-pad
   name: Taja Weekly To Do List Notepad, Undated Weekly Planner Pad
   brand: Taja
@@ -580,6 +1386,93 @@ products:
   - ai_programs/focusmax.md
   slug: Taja-Weekly-Notepad-Undated-Planner
 
+- id: zotia-weekly-planner-notepad
+  name: "ZOTIA Weekly Planner Notepad"
+  brand: "ZOTIA"
+  module: focusmax
+  need: weekly_planner
+  alternative: true
+  concerns:
+  - weekly_review
+  - planner
+  - planning
+  - to_do_list
+  url: https://www.amazon.com/dp/B0CW98YLNW
+  image: https://m.media-amazon.com/images/I/716MaWL6FrL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 6.99
+  rating: 4.8
+  rating_count: 1851
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A full-page weekly layout to plan the week in one look."
+  references:
+  - ai_programs/focusmax.md
+  slug: Zotia-Weekly-Planner-Notepad
+- id: hebayy-magnetic-weekly-planner
+  name: "Hebayy Magnetic Weekly Planner"
+  brand: "Hebayy"
+  module: focusmax
+  need: weekly_planner
+  alternative: true
+  concerns:
+  - weekly_review
+  - planner
+  - planning
+  - to_do_list
+  url: https://www.amazon.com/dp/B082166FHT
+  image: https://m.media-amazon.com/images/I/81+NkB-AAEL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 8.99
+  rating: 4.8
+  rating_count: 1523
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Sticks to the fridge so the week's plan stays in sight."
+  references:
+  - ai_programs/focusmax.md
+  slug: Hebayy-Magnetic-Weekly-Planner
+- id: threekin-weekly-planner-pad
+  name: "ThreeKin Weekly Planner Pad"
+  brand: "ThreeKin"
+  module: focusmax
+  need: weekly_planner
+  alternative: true
+  concerns:
+  - weekly_review
+  - planner
+  - planning
+  - to_do_list
+  url: https://www.amazon.com/dp/B0D8WWGDQ7
+  image: https://m.media-amazon.com/images/I/71ca4gSmJpL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 9.99
+  rating: 4.6
+  rating_count: 582
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A clean tear-off weekly pad with room for priorities."
+  references:
+  - ai_programs/focusmax.md
+  slug: Threekin-Weekly-Planner-Pad
 # ── Calmmax: writing things down, quieter days, screen-free evening ───────────
 - id: five-minute-journal
   name: The Five Minute Journal
@@ -612,6 +1505,102 @@ products:
   references:
   - ai_programs/calmmax.md
   slug: The-Five-Minute-Journal
+- id: pretty-simple-press-good-days-start-with-gratitude
+  name: "Pretty Simple Press Good Days Start With Gratitude"
+  brand: "Pretty Simple Press"
+  module: calmmax
+  need: gratitude_journal
+  alternative: true
+  concerns:
+  - journal
+  - gratitude
+  - gratitude_note
+  - reflection
+  - evening
+  - writing
+  - stress
+  url: https://www.amazon.com/dp/1961355221
+  image: https://m.media-amazon.com/images/I/71V7B9yAgsL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 9.63
+  rating: 4.6
+  rating_count: 28892
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A 52-week guided journal with a short prompt each day."
+  references:
+  - ai_programs/calmmax.md
+  slug: Pretty-Simple-Press-Good-Days-Start-With-Gratitude
+- id: moorea-seal-52-lists-for-happiness
+  name: "Moorea Seal 52 Lists for Happiness"
+  brand: "Moorea Seal"
+  module: calmmax
+  need: gratitude_journal
+  alternative: true
+  concerns:
+  - journal
+  - gratitude
+  - gratitude_note
+  - reflection
+  - evening
+  - writing
+  - stress
+  url: https://www.amazon.com/dp/1632170965
+  image: https://m.media-amazon.com/images/I/81EVmohOGaL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 7.94
+  rating: 4.7
+  rating_count: 2976
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "One list prompt a week if daily writing feels like too much."
+  references:
+  - ai_programs/calmmax.md
+  slug: Moorea-Seal-52-Lists-For-Happiness
+- id: zicvibe-the-original-gratitude-journal
+  name: "ZICVIBE The Original Gratitude Journal"
+  brand: "ZICVIBE"
+  module: calmmax
+  need: gratitude_journal
+  alternative: true
+  concerns:
+  - journal
+  - gratitude
+  - gratitude_note
+  - reflection
+  - evening
+  - writing
+  - stress
+  url: https://www.amazon.com/dp/B0DM9M5381
+  image: https://m.media-amazon.com/images/I/71Iy6xCEzDL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 9.99
+  rating: 4.8
+  rating_count: 315
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A daily gratitude journal with prompts and space for a few lines."
+  references:
+  - ai_programs/calmmax.md
+  slug: Zicvibe-The-Original-Gratitude-Journal
 - id: moleskine-classic-notebook-large
   name: Moleskine Classic Notebook (Large, Ruled, Hard Cover)
   brand: Moleskine
@@ -644,6 +1633,105 @@ products:
   - ai_programs/calmmax.md
   - ai_programs/sleepmax.md
   slug: Moleskine-Classic-Notebook-Large-Ruled-Hard-Cover
+- id: amazon-basics-classic-lined-notebook
+  name: "Amazon Basics Classic Lined Notebook"
+  brand: "Amazon Basics"
+  module: calmmax
+  need: notebook
+  alternative: true
+  concerns:
+  - notebook
+  - brain_dump
+  - expressive_writing
+  - worry_list
+  - writing
+  - journal
+  - paper
+  url: https://www.amazon.com/dp/B01DN8TCEU
+  image: https://m.media-amazon.com/images/I/81+Zb-xFWpL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 5.82
+  rating: 4.7
+  rating_count: 34710
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A cheap hardcover lined notebook for daily notes."
+  references:
+  - ai_programs/calmmax.md
+  - ai_programs/sleepmax.md
+  slug: Amazon-Basics-Classic-Lined-Notebook
+- id: leuchtturm1917-medium-a5-notebook
+  name: "LEUCHTTURM1917 Medium A5 Notebook"
+  brand: "LEUCHTTURM1917"
+  module: calmmax
+  need: notebook
+  alternative: true
+  concerns:
+  - notebook
+  - brain_dump
+  - expressive_writing
+  - worry_list
+  - writing
+  - journal
+  - paper
+  url: https://www.amazon.com/dp/B0DJBL5QZV
+  image: https://m.media-amazon.com/images/I/612sE1D6UfL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 26.60
+  rating: 4.8
+  rating_count: 19004
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A sturdy A5 notebook with numbered pages and an index."
+  references:
+  - ai_programs/calmmax.md
+  - ai_programs/sleepmax.md
+  slug: Leuchtturm1917-Medium-A5-Notebook
+- id: rocketbook-core-reusable-notebook
+  name: "Rocketbook Core Reusable Notebook"
+  brand: "Rocketbook"
+  module: calmmax
+  need: notebook
+  alternative: true
+  concerns:
+  - notebook
+  - brain_dump
+  - expressive_writing
+  - worry_list
+  - writing
+  - journal
+  - paper
+  url: https://www.amazon.com/dp/B06ZXWVZ3X
+  image: https://m.media-amazon.com/images/I/71SIZ8ERQnL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 25.99
+  rating: 4.5
+  rating_count: 34826
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Wipe-clean pages you can scan to your phone and reuse."
+  references:
+  - ai_programs/calmmax.md
+  - ai_programs/sleepmax.md
+  slug: Rocketbook-Core-Reusable-Notebook
 - id: loop-engage-2-earplugs
   name: Loop Engage 2 Ear Plugs
   brand: Loop
@@ -675,6 +1763,102 @@ products:
   references:
   - ai_programs/calmmax.md
   slug: Loop-Engage-2-Ear-Plugs
+- id: eargasm-high-fidelity-earplugs
+  name: "Eargasm High Fidelity Earplugs"
+  brand: "Eargasm"
+  module: calmmax
+  need: everyday_earplugs
+  alternative: true
+  concerns:
+  - earplugs
+  - noise
+  - overwhelm
+  - loud_places
+  - commute
+  - social
+  - quiet
+  url: https://www.amazon.com/dp/B019M576XW
+  image: https://m.media-amazon.com/images/I/717ZupqpySL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 43.95
+  rating: 4.4
+  rating_count: 19026
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Reusable plugs that lower volume evenly, so voices and music stay clear."
+  references:
+  - ai_programs/calmmax.md
+  slug: Eargasm-High-Fidelity-Earplugs
+- id: vibes-high-fidelity-earplugs
+  name: "VIBES High Fidelity Earplugs"
+  brand: "VIBES"
+  module: calmmax
+  need: everyday_earplugs
+  alternative: true
+  concerns:
+  - earplugs
+  - noise
+  - overwhelm
+  - loud_places
+  - commute
+  - social
+  - quiet
+  url: https://www.amazon.com/dp/B018WPOQSG
+  image: https://m.media-amazon.com/images/I/81ByDIAbSDL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 36.95
+  rating: 4.2
+  rating_count: 14375
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Low-profile reusable plugs for loud places like gyms and concerts."
+  references:
+  - ai_programs/calmmax.md
+  slug: Vibes-High-Fidelity-Earplugs
+- id: etymotic-er20xs-earplugs
+  name: "Etymotic ER20XS Earplugs"
+  brand: "Etymotic"
+  module: calmmax
+  need: everyday_earplugs
+  alternative: true
+  concerns:
+  - earplugs
+  - noise
+  - overwhelm
+  - loud_places
+  - commute
+  - social
+  - quiet
+  url: https://www.amazon.com/dp/B00RM6Q9XW
+  image: https://m.media-amazon.com/images/I/61zumS1A6iL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 19.99
+  rating: 4.2
+  rating_count: 4528
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A long-trusted reusable pair that cuts about 20 dB without muffling."
+  references:
+  - ai_programs/calmmax.md
+  slug: Etymotic-Er20Xs-Earplugs
 - id: peakeep-analog-alarm-clock
   name: Peakeep Battery Analog Alarm Clock (Silent, No Ticking)
   brand: Peakeep
@@ -707,6 +1891,102 @@ products:
   - ai_programs/sleepmax.md
   slug: Peakeep-Battery-Analog-Alarm-Clock-Silent-No-Ticking
 
+- id: jall-analog-alarm-clock
+  name: "JALL Analog Alarm Clock"
+  brand: "JALL"
+  module: calmmax
+  need: analog_alarm
+  alternative: true
+  concerns:
+  - alarm_clock
+  - screen_free_evening
+  - phone_outside_bedroom
+  - screens_off
+  - bedtime
+  - phone
+  url: https://www.amazon.com/dp/B085TM82JV
+  image: https://m.media-amazon.com/images/I/71vT7pE2bjL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 12.99
+  rating: 4.4
+  rating_count: 4915
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A silent, non-ticking clock so your phone can sleep outside the bedroom."
+  references:
+  - ai_programs/calmmax.md
+  - ai_programs/sleepmax.md
+  slug: Jall-Analog-Alarm-Clock
+- id: tinload-travel-alarm-clock
+  name: "Tinload Travel Alarm Clock"
+  brand: "Tinload"
+  module: calmmax
+  need: analog_alarm
+  alternative: true
+  concerns:
+  - alarm_clock
+  - screen_free_evening
+  - phone_outside_bedroom
+  - screens_off
+  - bedtime
+  - phone
+  url: https://www.amazon.com/dp/B07K2PJMLQ
+  image: https://m.media-amazon.com/images/I/7135HtQ6ZiL._AC_SL1420_.jpg
+  price_tier: budget
+  price_usd: 9.99
+  rating: 4.2
+  rating_count: 6019
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A small silent clock with a gently rising alarm."
+  references:
+  - ai_programs/calmmax.md
+  - ai_programs/sleepmax.md
+  slug: Tinload-Travel-Alarm-Clock
+- id: lamisola-analog-alarm-clock
+  name: "Lamisola Analog Alarm Clock"
+  brand: "Lamisola"
+  module: calmmax
+  need: analog_alarm
+  alternative: true
+  concerns:
+  - alarm_clock
+  - screen_free_evening
+  - phone_outside_bedroom
+  - screens_off
+  - bedtime
+  - phone
+  url: https://www.amazon.com/dp/B0BYDMSTQK
+  image: https://m.media-amazon.com/images/I/71mK9TaTXZL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 8.99
+  rating: 4.2
+  rating_count: 1440
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A simple battery clock at the lowest price."
+  references:
+  - ai_programs/calmmax.md
+  - ai_programs/sleepmax.md
+  slug: Lamisola-Analog-Alarm-Clock
 # ── Fitmax (module id trainmax): full-body strength + mobility at home ────────
 - id: bowflex-selecttech-552-pair
   name: Bowflex Results Series SelectTech 552 Dumbbells (Pair)
@@ -803,6 +2083,72 @@ products:
   references:
   - ai_programs/fitmax.md
   slug: Bodylastics-Basic-Series-Resistance-Band-Set-With-Handles
+- id: whatafit-bands-with-handles-set
+  name: "WHATAFIT Bands with Handles Set"
+  brand: "WHATAFIT"
+  module: trainmax
+  need: resistance_bands
+  alternative: true
+  concerns:
+  - bands
+  - loop_bands
+  - resistance
+  - home_gym
+  - warm_up
+  - glutes
+  - travel
+  - mobility
+  url: https://www.amazon.com/dp/B07DWSPQQY
+  image: https://m.media-amazon.com/images/I/716FpX+hctL._AC_SL1200_.jpg
+  price_tier: mid
+  price_usd: 27.97
+  rating: 4.6
+  rating_count: 36640
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Stackable tube bands with handles and a door anchor for full workouts."
+  references:
+  - ai_programs/fitmax.md
+  slug: Whatafit-Bands-With-Handles-Set
+- id: theraband-flat-band-set
+  name: "THERABAND Flat Band Set"
+  brand: "THERABAND"
+  module: trainmax
+  need: resistance_bands
+  alternative: true
+  concerns:
+  - bands
+  - loop_bands
+  - resistance
+  - home_gym
+  - warm_up
+  - glutes
+  - travel
+  - mobility
+  url: https://www.amazon.com/dp/B01A58FHQ8
+  image: https://m.media-amazon.com/images/I/51qzaLPQ4GL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 11.99
+  rating: 4.6
+  rating_count: 15655
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Light flat bands for warm-ups, rehab and gentle strength work."
+  references:
+  - ai_programs/fitmax.md
+  slug: Theraband-Flat-Band-Set
 - id: iron-gym-pull-up-bar
   name: Iron Gym Total Upper Body Workout Bar
   brand: Iron Gym
@@ -834,6 +2180,102 @@ products:
   references:
   - ai_programs/fitmax.md
   slug: Iron-Gym-Total-Upper-Body-Workout-Bar
+- id: ally-peaks-doorway-pull-up-bar
+  name: "Ally Peaks Doorway Pull-Up Bar"
+  brand: "Ally Peaks"
+  module: trainmax
+  need: pull_up_bar
+  alternative: true
+  concerns:
+  - pull_up_bar
+  - pull_ups
+  - doorway
+  - home_gym
+  - upper_back_strength
+  - pull
+  - strength
+  url: https://www.amazon.com/dp/B08MY13HYC
+  image: https://m.media-amazon.com/images/I/619ozwh22nS._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 27.99
+  rating: 4.4
+  rating_count: 14114
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A no-screw doorway bar rated to 440 lb."
+  references:
+  - ai_programs/fitmax.md
+  slug: Ally-Peaks-Doorway-Pull-Up-Bar
+- id: perfect-fitness-multi-gym-doorway-bar
+  name: "Perfect Fitness Multi-Gym Doorway Bar"
+  brand: "Perfect Fitness"
+  module: trainmax
+  need: pull_up_bar
+  alternative: true
+  concerns:
+  - pull_up_bar
+  - pull_ups
+  - doorway
+  - home_gym
+  - upper_back_strength
+  - pull
+  - strength
+  url: https://www.amazon.com/dp/B01KN17NTQ
+  image: https://m.media-amazon.com/images/I/41gVmS51gyL._AC_SL1200_.jpg
+  price_tier: mid
+  price_usd: 59.99
+  rating: 4.5
+  rating_count: 3987
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A leverage-mounted bar that also works for push-ups and dips on the floor."
+  references:
+  - ai_programs/fitmax.md
+  slug: Perfect-Fitness-Multi-Gym-Doorway-Bar
+- id: garren-fitness-maximiza-screw-in-bar
+  name: "Garren Fitness Maximiza Screw-In Bar"
+  brand: "Garren Fitness"
+  module: trainmax
+  need: pull_up_bar
+  alternative: true
+  concerns:
+  - pull_up_bar
+  - pull_ups
+  - doorway
+  - home_gym
+  - upper_back_strength
+  - pull
+  - strength
+  url: https://www.amazon.com/dp/B08NDFMSF6
+  image: https://m.media-amazon.com/images/I/61xbHr91nXL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 49.99
+  rating: 4.5
+  rating_count: 3443
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A screw-in bar that stays put inside the door frame."
+  references:
+  - ai_programs/fitmax.md
+  slug: Garren-Fitness-Maximiza-Screw-In-Bar
 - id: trigger-point-foam-roller
   name: TriggerPoint GRID Foam Roller
   brand: TriggerPoint
@@ -897,6 +2339,105 @@ products:
   references:
   - ai_programs/fitmax.md
   slug: Gaiam-Premium-6mm-Yoga-Mat
+- id: fitvids-1-2-inch-exercise-mat
+  name: "Fitvids 1/2-inch Exercise Mat"
+  brand: "Fitvids"
+  module: trainmax
+  need: exercise_mat
+  alternative: true
+  concerns:
+  - yoga_mat
+  - mat
+  - mobility
+  - mobility_flow
+  - floor_work
+  - stretching
+  - home_gym
+  - balance_drill
+  url: https://www.amazon.com/dp/B00FO9ZRYQ
+  image: https://m.media-amazon.com/images/I/71696Y5t2XL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 19.99
+  rating: 4.5
+  rating_count: 94487
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A thick, cushioned mat for floor work on hard floors."
+  references:
+  - ai_programs/fitmax.md
+  slug: Fitvids-1-2-Inch-Exercise-Mat
+- id: amazon-basics-extra-thick-exercise-mat
+  name: "Amazon Basics Extra Thick Exercise Mat"
+  brand: "Amazon Basics"
+  module: trainmax
+  need: exercise_mat
+  alternative: true
+  concerns:
+  - yoga_mat
+  - mat
+  - mobility
+  - mobility_flow
+  - floor_work
+  - stretching
+  - home_gym
+  - balance_drill
+  url: https://www.amazon.com/dp/B0DN5FGZLP
+  image: https://m.media-amazon.com/images/I/71-HvHPu3IL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 38.40
+  rating: 4.6
+  rating_count: 70716
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "An extra-thick mat with a carry strap."
+  references:
+  - ai_programs/fitmax.md
+  slug: Amazon-Basics-Extra-Thick-Exercise-Mat
+- id: balancefrom-1-inch-exercise-mat
+  name: "BalanceFrom 1-Inch Exercise Mat"
+  brand: "BalanceFrom"
+  module: trainmax
+  need: exercise_mat
+  alternative: true
+  concerns:
+  - yoga_mat
+  - mat
+  - mobility
+  - mobility_flow
+  - floor_work
+  - stretching
+  - home_gym
+  - balance_drill
+  url: https://www.amazon.com/dp/B07R7RMQF5
+  image: https://m.media-amazon.com/images/I/61QBdY4wtbL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 33.99
+  rating: 4.7
+  rating_count: 18836
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A full inch of padding for knees and sensitive joints."
+  references:
+  - ai_programs/fitmax.md
+  slug: Balancefrom-1-Inch-Exercise-Mat
 - id: lacrosse-ball
   name: Champion Sports Lacrosse Balls (2-Pack)
   brand: Champion Sports
@@ -929,6 +2470,70 @@ products:
   - ai_programs/fitmax.md
   slug: Champion-Sports-Lacrosse-Balls-2-Pack
 
+- id: amazon-basics-high-density-foam-roller
+  name: "Amazon Basics High-Density Foam Roller"
+  brand: "Amazon Basics"
+  module: trainmax
+  need: recovery_roller
+  alternative: true
+  concerns:
+  - foam_roller
+  - mobility
+  - mobility_flow
+  - recovery
+  - recovery_day
+  - warm_up
+  - soreness
+  url: https://www.amazon.com/dp/B00XM2MRGI
+  image: https://m.media-amazon.com/images/I/71xDzRJuq-L._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 22.49
+  rating: 4.6
+  rating_count: 31776
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A long, firm roller for back, legs and hips."
+  references:
+  - ai_programs/fitmax.md
+  slug: Amazon-Basics-High-Density-Foam-Roller
+- id: renpho-mini-thermacool-massage-gun
+  name: "RENPHO Mini Thermacool Massage Gun"
+  brand: "RENPHO"
+  module: trainmax
+  need: recovery_roller
+  alternative: true
+  concerns:
+  - foam_roller
+  - mobility
+  - mobility_flow
+  - recovery
+  - recovery_day
+  - warm_up
+  - soreness
+  url: https://www.amazon.com/dp/B0FQ5PLP9Y
+  image: https://m.media-amazon.com/images/I/71kiDVTXvdL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 56.99
+  rating: 4.5
+  rating_count: 30490
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A pocket massage gun with heat and cold for sore spots a roller can't reach."
+  references:
+  - ai_programs/fitmax.md
+  slug: Renpho-Mini-Thermacool-Massage-Gun
 - id: wod-nation-speed-jump-rope
   name: WOD Nation Adjustable Speed Jump Rope
   brand: WOD Nation
@@ -959,6 +2564,96 @@ products:
   - ai_programs/fitmax.md
   slug: WOD-Nation-Speed-Jump-Rope-Adjustable
 
+- id: redify-weighted-jump-rope
+  name: "Redify Weighted Jump Rope"
+  brand: "Redify"
+  module: trainmax
+  need: jump_rope
+  alternative: true
+  concerns:
+  - vigorous_intervals
+  - stair_or_burst
+  - jump_rope
+  - conditioning
+  - cardio
+  url: https://www.amazon.com/dp/B08RB46DBY
+  image: https://m.media-amazon.com/images/I/812RmJRSKML._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 25.98
+  rating: 4.5
+  rating_count: 3701
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A 1 lb weighted rope that's easier to time for beginners."
+  references:
+  - ai_programs/fitmax.md
+  slug: Redify-Weighted-Jump-Rope
+- id: crossrope-get-lean-weighted-rope
+  name: "Crossrope Get Lean Weighted Rope"
+  brand: "Crossrope"
+  module: trainmax
+  need: jump_rope
+  alternative: true
+  concerns:
+  - vigorous_intervals
+  - stair_or_burst
+  - jump_rope
+  - conditioning
+  - cardio
+  url: https://www.amazon.com/dp/B0842BVTL6
+  image: https://m.media-amazon.com/images/I/61ZP-RUQyyL._AC_SL1000_.jpg
+  price_tier: premium
+  price_usd: 129.00
+  rating: 4.8
+  rating_count: 1465
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A premium set with swappable rope weights and an app."
+  references:
+  - ai_programs/fitmax.md
+  slug: Crossrope-Get-Lean-Weighted-Rope
+- id: bear-komplex-speed-jump-rope
+  name: "Bear KompleX Speed Jump Rope"
+  brand: "Bear KompleX"
+  module: trainmax
+  need: jump_rope
+  alternative: true
+  concerns:
+  - vigorous_intervals
+  - stair_or_burst
+  - jump_rope
+  - conditioning
+  - cardio
+  url: https://www.amazon.com/dp/B016XJ2X9C
+  image: https://m.media-amazon.com/images/I/819zxiS2QuL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 29.99
+  rating: 4.4
+  rating_count: 1178
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A light, fast rope for quick conditioning rounds."
+  references:
+  - ai_programs/fitmax.md
+  slug: Bear-Komplex-Speed-Jump-Rope
 - id: nextnoid-workout-log-book
   name: Nextnoid Hardcover Fitness Journal Workout Planner
   brand: Nextnoid
@@ -989,6 +2684,96 @@ products:
   - ai_programs/fitmax.md
   slug: Nextnoid-Hardcover-Fitness-Journal-Workout
 
+- id: taja-workout-log-book
+  name: "Taja Workout Log Book"
+  brand: "Taja"
+  module: trainmax
+  need: workout_log
+  alternative: true
+  concerns:
+  - training_log
+  - workout_log
+  - progressive_overload
+  - strength_full_body
+  - journal
+  url: https://www.amazon.com/dp/B0CRKQRM4Z
+  image: https://m.media-amazon.com/images/I/61inryrjj3L._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 7.19
+  rating: 4.6
+  rating_count: 2303
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Pages for sets, reps and weights so you can add a little each week."
+  references:
+  - ai_programs/fitmax.md
+  slug: Taja-Workout-Log-Book
+- id: zicoto-ultimate-workout-journal
+  name: "ZICOTO Ultimate Workout Journal"
+  brand: "ZICOTO"
+  module: trainmax
+  need: workout_log
+  alternative: true
+  concerns:
+  - training_log
+  - workout_log
+  - progressive_overload
+  - strength_full_body
+  - journal
+  url: https://www.amazon.com/dp/B0CFYCFXWF
+  image: https://m.media-amazon.com/images/I/71ipULDeVKL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 9.99
+  rating: 4.7
+  rating_count: 1673
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A guided log with weekly goals and progress check-ins."
+  references:
+  - ai_programs/fitmax.md
+  slug: Zicoto-Ultimate-Workout-Journal
+- id: sunee-a5-fitness-journal
+  name: "SUNEE A5 Fitness Journal"
+  brand: "SUNEE"
+  module: trainmax
+  need: workout_log
+  alternative: true
+  concerns:
+  - training_log
+  - workout_log
+  - progressive_overload
+  - strength_full_body
+  - journal
+  url: https://www.amazon.com/dp/B0D73F542J
+  image: https://m.media-amazon.com/images/I/810WGas5LkL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 9.99
+  rating: 4.6
+  rating_count: 629
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A compact A5 log that fits in a gym bag."
+  references:
+  - ai_programs/fitmax.md
+  slug: Sunee-A5-Fitness-Journal
 # ── Longevitymax: steps, strength twice a week, fiber ─────────────────────────
 - id: urevo-walking-pad
   name: UREVO Smart Walking Pad (Under-Desk Treadmill)
@@ -1023,6 +2808,108 @@ products:
   - ai_programs/longevitymax.md
   - ai_programs/fitmax.md
   slug: UREVO-Smart-Walking-Pad-Under-Desk-Treadmill
+- id: viamotion-walking-pad-with-incline
+  name: "Viamotion Walking Pad with Incline"
+  brand: "Viamotion"
+  module: longevitymax
+  need: walking_pad
+  alternative: true
+  concerns:
+  - walking_pad
+  - treadmill
+  - daily_steps
+  - steps
+  - move_after_sitting
+  - sitting
+  - desk
+  - zone2_cardio
+  url: https://www.amazon.com/dp/B0GGLS9NQV
+  image: https://m.media-amazon.com/images/I/61lIm15q30L._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 114.99
+  rating: 4.3
+  rating_count: 2183
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A budget under-desk pad with incline and a handle bar."
+  references:
+  - ai_programs/longevitymax.md
+  - ai_programs/fitmax.md
+  slug: Viamotion-Walking-Pad-With-Incline
+- id: walkingpad-foldable-walking-pad
+  name: "WalkingPad Foldable Walking Pad"
+  brand: "WalkingPad"
+  module: longevitymax
+  need: walking_pad
+  alternative: true
+  concerns:
+  - walking_pad
+  - treadmill
+  - daily_steps
+  - steps
+  - move_after_sitting
+  - sitting
+  - desk
+  - zone2_cardio
+  url: https://www.amazon.com/dp/B0D2ZVB8DJ
+  image: https://m.media-amazon.com/images/I/61f3dkkB8BL._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 349.00
+  rating: 4.2
+  rating_count: 1238
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Folds in half to store, for small rooms."
+  references:
+  - ai_programs/longevitymax.md
+  - ai_programs/fitmax.md
+  slug: Walkingpad-Foldable-Walking-Pad
+- id: hccsport-3-in-1-walking-pad
+  name: "Hccsport 3-in-1 Walking Pad"
+  brand: "Hccsport"
+  module: longevitymax
+  need: walking_pad
+  alternative: true
+  concerns:
+  - walking_pad
+  - treadmill
+  - daily_steps
+  - steps
+  - move_after_sitting
+  - sitting
+  - desk
+  - zone2_cardio
+  url: https://www.amazon.com/dp/B0CGLYKX93
+  image: https://m.media-amazon.com/images/I/71Ei-jqs1KL._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 299.99
+  rating: 4.3
+  rating_count: 937
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Comes with a removable desk shelf for walking while you work."
+  references:
+  - ai_programs/longevitymax.md
+  - ai_programs/fitmax.md
+  slug: Hccsport-3-In-1-Walking-Pad
 - id: amazon-basics-kettlebell-15lb
   name: Amazon Basics Cast Iron Kettlebell (15 lb)
   brand: Amazon Basics
@@ -1055,6 +2942,72 @@ products:
   - ai_programs/longevitymax.md
   - ai_programs/fitmax.md
   slug: Amazon-Basics-Cast-Iron-Kettlebell-15-Lb
+- id: cap-neoprene-dumbbell-set
+  name: "CAP Neoprene Dumbbell Set"
+  brand: "CAP"
+  module: trainmax
+  need: weights
+  alternative: true
+  concerns:
+  - dumbbells
+  - adjustable_dumbbells
+  - home_gym
+  - strength_full_body
+  - strength
+  - progressive_overload
+  - rows
+  - goblet_squat
+  url: https://www.amazon.com/dp/B094DVVQP2
+  image: https://m.media-amazon.com/images/I/71LdevElXXL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 24.01
+  rating: 4.7
+  rating_count: 6535
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Light, non-slip dumbbell pairs for starting strength work at home."
+  references:
+  - ai_programs/fitmax.md
+  slug: Cap-Neoprene-Dumbbell-Set
+- id: yes4all-adjustable-kettlebell
+  name: "Yes4All Adjustable Kettlebell"
+  brand: "Yes4All"
+  module: trainmax
+  need: weights
+  alternative: true
+  concerns:
+  - dumbbells
+  - adjustable_dumbbells
+  - home_gym
+  - strength_full_body
+  - strength
+  - progressive_overload
+  - rows
+  - goblet_squat
+  url: https://www.amazon.com/dp/B0855H4ZCR
+  image: https://m.media-amazon.com/images/I/81mKJFfSONL._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 89.99
+  rating: 4.6
+  rating_count: 947
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "One kettlebell that adjusts weight as you get stronger."
+  references:
+  - ai_programs/fitmax.md
+  slug: Yes4All-Adjustable-Kettlebell
 - id: fitbit-inspire-3
   name: Fitbit Inspire 3 (Midnight Zen/Black)
   brand: Fitbit
@@ -1087,6 +3040,105 @@ products:
   - ai_programs/longevitymax.md
   - ai_programs/fitmax.md
   slug: Fitbit-Inspire-3-Midnight-Zen-Black
+- id: garmin-v-voactive-5
+  name: "Garmin v\u00edvoactive 5"
+  brand: "Garmin"
+  module: longevitymax
+  need: step_tracker
+  alternative: true
+  concerns:
+  - step_tracker
+  - activity_tracker
+  - daily_steps
+  - steps
+  - zone2_cardio
+  - heart_rate
+  - sleep_regularity
+  url: https://www.amazon.com/dp/B0CG6NR413
+  image: https://m.media-amazon.com/images/I/61A4yOWzGBL._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 198.00
+  rating: 4.3
+  rating_count: 12329
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A GPS watch that tracks steps, sleep and workouts with long battery life."
+  references:
+  - ai_programs/longevitymax.md
+  - ai_programs/fitmax.md
+  slug: Garmin-V-Voactive-5
+- id: xiaomi-smart-band-10
+  name: "Xiaomi Smart Band 10"
+  brand: "Xiaomi"
+  module: longevitymax
+  need: step_tracker
+  alternative: true
+  concerns:
+  - step_tracker
+  - activity_tracker
+  - daily_steps
+  - steps
+  - zone2_cardio
+  - heart_rate
+  - sleep_regularity
+  url: https://www.amazon.com/dp/B0DYF82545
+  image: https://m.media-amazon.com/images/I/51bkPDf8dUL._AC_SL1000_.jpg
+  price_tier: mid
+  price_usd: 52.99
+  rating: 4.3
+  rating_count: 8938
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A slim band that counts steps for weeks on one charge."
+  references:
+  - ai_programs/longevitymax.md
+  - ai_programs/fitmax.md
+  slug: Xiaomi-Smart-Band-10
+- id: amazfit-bip-6
+  name: "Amazfit Bip 6"
+  brand: "Amazfit"
+  module: longevitymax
+  need: step_tracker
+  alternative: true
+  concerns:
+  - step_tracker
+  - activity_tracker
+  - daily_steps
+  - steps
+  - zone2_cardio
+  - heart_rate
+  - sleep_regularity
+  url: https://www.amazon.com/dp/B0DYJKTHYF
+  image: https://m.media-amazon.com/images/I/61UvVTN0IEL._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 69.99
+  rating: 4.2
+  rating_count: 7300
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A low-cost watch with GPS and step tracking."
+  references:
+  - ai_programs/longevitymax.md
+  - ai_programs/fitmax.md
+  slug: Amazfit-Bip-6
 - id: metamucil-sugar-free-psyllium
   name: Metamucil 4-in-1 Psyllium Fiber Powder (Sugar-Free, Orange, 180 tsp)
   brand: Metamucil
@@ -1152,6 +3204,72 @@ products:
   - ai_programs/suppmax.md
   slug: Konsyl-Daily-Psyllium-Fiber-Powder-Unflavored-19-Oz
 
+- id: benefiber-prebiotic-fiber-sticks
+  name: "Benefiber Prebiotic Fiber Sticks"
+  brand: "Benefiber"
+  module: longevitymax
+  need: fiber
+  alternative: true
+  concerns:
+  - fiber
+  - psyllium
+  - psyllium_fiber
+  - fiber_swap
+  - veg_first
+  - gut_health
+  - regularity
+  url: https://www.amazon.com/dp/B015VBRIXE
+  image: https://m.media-amazon.com/images/I/81KBbVdKwmL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 13.48
+  rating: 4.7
+  rating_count: 24161
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A taste-free fiber that dissolves into any drink."
+  references:
+  - ai_programs/longevitymax.md
+  - ai_programs/suppmax.md
+  slug: Benefiber-Prebiotic-Fiber-Sticks
+- id: viva-naturals-organic-psyllium-husk
+  name: "Viva Naturals Organic Psyllium Husk"
+  brand: "Viva Naturals"
+  module: longevitymax
+  need: fiber
+  alternative: true
+  concerns:
+  - fiber
+  - psyllium
+  - psyllium_fiber
+  - fiber_swap
+  - veg_first
+  - gut_health
+  - regularity
+  url: https://www.amazon.com/dp/B011QGTRG4
+  image: https://m.media-amazon.com/images/I/7164QV8GCZL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 22.99
+  rating: 4.3
+  rating_count: 15124
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Plain psyllium powder to stir into water or food."
+  references:
+  - ai_programs/longevitymax.md
+  - ai_programs/suppmax.md
+  slug: Viva-Naturals-Organic-Psyllium-Husk
 - id: prosourcefit-balance-pad
   name: ProsourceFit Exercise Balance Pad
   brand: ProsourceFit
@@ -1182,6 +3300,96 @@ products:
   - ai_programs/longevitymax.md
   slug: ProsourceFit-Exercise-Balance-Pad
 
+- id: yes4all-balance-pad
+  name: "Yes4All Balance Pad"
+  brand: "Yes4All"
+  module: longevitymax
+  need: balance_pad
+  alternative: true
+  concerns:
+  - balance_practice
+  - balance
+  - stability
+  - fall_prevention
+  - mobility
+  url: https://www.amazon.com/dp/B01B2HT2US
+  image: https://m.media-amazon.com/images/I/71Tyxpgw7eL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 25.53
+  rating: 4.6
+  rating_count: 1883
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A soft foam pad that makes standing balance work harder."
+  references:
+  - ai_programs/longevitymax.md
+  slug: Yes4All-Balance-Pad
+- id: airex-balance-pad
+  name: "AIREX Balance Pad"
+  brand: "AIREX"
+  module: longevitymax
+  need: balance_pad
+  alternative: true
+  concerns:
+  - balance_practice
+  - balance
+  - stability
+  - fall_prevention
+  - mobility
+  url: https://www.amazon.com/dp/B00CRU78RO
+  image: https://m.media-amazon.com/images/I/81eUq88qeVL._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 99.99
+  rating: 4.7
+  rating_count: 1153
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "The durable pad physical therapists often use."
+  references:
+  - ai_programs/longevitymax.md
+  slug: Airex-Balance-Pad
+- id: gaiam-evolve-balance-board
+  name: "Gaiam Evolve Balance Board"
+  brand: "Gaiam"
+  module: longevitymax
+  need: balance_pad
+  alternative: true
+  concerns:
+  - balance_practice
+  - balance
+  - stability
+  - fall_prevention
+  - mobility
+  url: https://www.amazon.com/dp/B01MYLYSK4
+  image: https://m.media-amazon.com/images/I/614LNEj-1jL._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 60.99
+  rating: 4.4
+  rating_count: 879
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A wobble board for balance practice at a standing desk."
+  references:
+  - ai_programs/longevitymax.md
+  slug: Gaiam-Evolve-Balance-Board
 # ── Skin & Hair: cleanse, moisturize, SPF, optional retinoid, scalp care ──────
 - id: cerave-hydrating-cleanser
   name: CeraVe Hydrating Facial Cleanser
@@ -1277,6 +3485,40 @@ products:
   references:
   - ai_programs/skinhairmax.md
   slug: La-Roche-Posay-Toleriane-Hydrating-Gentle-Cleanser
+- id: vanicream-gentle-facial-cleanser
+  name: "Vanicream Gentle Facial Cleanser"
+  brand: "Vanicream"
+  module: skinhairmax
+  need: face_cleanser
+  alternative: true
+  suits: [sensitive, cream, fragrance-free]
+  concerns:
+  - cleanser
+  - gentle_cleansing
+  - am_cleanse
+  - pm_cleanse
+  - dryness
+  - sensitive
+  - face_wash
+  - beginner
+  url: https://www.amazon.com/dp/B00QY1XZ4W
+  image: https://m.media-amazon.com/images/I/611NyPcyZtL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 9.97
+  rating: 4.7
+  rating_count: 35714
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: true
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A very plain, fragrance-free cleanser for sensitive skin."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Vanicream-Gentle-Facial-Cleanser
 - id: cerave-pm-lotion
   name: CeraVe PM Facial Moisturizing Lotion
   brand: CeraVe
@@ -1523,6 +3765,105 @@ products:
   references:
   - ai_programs/skinhairmax.md
   slug: Blue-Lizard-Sensitive-Mineral-Sunscreen-Stick-SPF-50
+- id: cerave-mineral-sunscreen-stick-spf-50
+  name: "CeraVe Mineral Sunscreen Stick SPF 50"
+  brand: "CeraVe"
+  module: skinhairmax
+  need: sunscreen_stick
+  alternative: true
+  suits: [mineral]
+  concerns:
+  - sunscreen_stick
+  - spf_reapply
+  - reapply
+  - mineral_spf
+  - spf
+  - outdoor
+  - travel
+  url: https://www.amazon.com/dp/B00CICLTAI
+  image: https://m.media-amazon.com/images/I/61OtMv+zTDL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 8.97
+  rating: 4.5
+  rating_count: 12809
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A mineral SPF 50 stick for quick touch-ups."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Cerave-Mineral-Sunscreen-Stick-Spf-50
+- id: cetaphil-sheer-mineral-stick-spf-50
+  name: "Cetaphil Sheer Mineral Stick SPF 50"
+  brand: "Cetaphil"
+  module: skinhairmax
+  need: sunscreen_stick
+  alternative: true
+  suits: [sensitive, mineral]
+  concerns:
+  - sunscreen_stick
+  - spf_reapply
+  - reapply
+  - mineral_spf
+  - spf
+  - outdoor
+  - travel
+  url: https://www.amazon.com/dp/B08HJM5ZN4
+  image: https://m.media-amazon.com/images/I/71qf3ty+DCL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 7.97
+  rating: 4.4
+  rating_count: 7147
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A sheer mineral stick made for sensitive skin."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Cetaphil-Sheer-Mineral-Stick-Spf-50
+- id: eltamd-uv-stick-spf-50
+  name: "EltaMD UV Stick SPF 50+"
+  brand: "EltaMD"
+  module: skinhairmax
+  need: sunscreen_stick
+  alternative: true
+  suits: [mineral]
+  concerns:
+  - sunscreen_stick
+  - spf_reapply
+  - reapply
+  - mineral_spf
+  - spf
+  - outdoor
+  - travel
+  url: https://www.amazon.com/dp/B09HWN3STC
+  image: https://m.media-amazon.com/images/I/51zcYiAYrTL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 40.00
+  rating: 4.3
+  rating_count: 1314
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A premium zinc stick that goes on clear."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Eltamd-Uv-Stick-Spf-50
 - id: cerave-hydrating-mineral-sunscreen-spf-30
   name: CeraVe Hydrating Mineral Sunscreen SPF 30 (Face)
   brand: CeraVe
@@ -1584,6 +3925,102 @@ products:
   references:
   - ai_programs/skinhairmax.md
   slug: Sun-Bum-Mineral-SPF-30-Lip-Balm
+- id: aquaphor-lip-protectant-spf-30
+  name: "Aquaphor Lip Protectant SPF 30"
+  brand: "Aquaphor"
+  module: skinhairmax
+  need: lip_spf
+  alternative: true
+  concerns:
+  - lip_balm
+  - lips
+  - spf
+  - am_spf
+  - sun_protection
+  - outdoor
+  - mineral_spf
+  url: https://www.amazon.com/dp/B008SQSBJK
+  image: https://m.media-amazon.com/images/I/71dNRUlKrML._SL1500_.jpg
+  price_tier: budget
+  price_usd: 5.12
+  rating: 4.6
+  rating_count: 18657
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A thick, healing balm with SPF 30."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Aquaphor-Lip-Protectant-Spf-30
+- id: supergoop-play-lip-balm-spf-30
+  name: "Supergoop! PLAY Lip Balm SPF 30"
+  brand: "Supergoop!"
+  module: skinhairmax
+  need: lip_spf
+  alternative: true
+  concerns:
+  - lip_balm
+  - lips
+  - spf
+  - am_spf
+  - sun_protection
+  - outdoor
+  - mineral_spf
+  url: https://www.amazon.com/dp/B087H8MRPT
+  image: https://m.media-amazon.com/images/I/61grKqC3QpL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 12.00
+  rating: 4.2
+  rating_count: 3846
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A light, everyday SPF 30 balm."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Supergoop-Play-Lip-Balm-Spf-30
+- id: blistex-medicated-lip-balm-spf-15
+  name: "Blistex Medicated Lip Balm SPF 15"
+  brand: "Blistex"
+  module: skinhairmax
+  need: lip_spf
+  alternative: true
+  concerns:
+  - lip_balm
+  - lips
+  - spf
+  - am_spf
+  - sun_protection
+  - outdoor
+  - mineral_spf
+  url: https://www.amazon.com/dp/B0044B4HSM
+  image: https://m.media-amazon.com/images/I/61zmD9BYojL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 3.99
+  rating: 4.8
+  rating_count: 47122
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A cheap 3-pack with SPF 15 to keep one everywhere."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Blistex-Medicated-Lip-Balm-Spf-15
 - id: differin-adapalene
   name: Differin Adapalene Gel 0.1%
   brand: Differin
@@ -1614,6 +4051,105 @@ products:
   references:
   - ai_programs/skinhairmax.md
   slug: Differin-Adapalene-Gel-01-Percent
+- id: la-roche-posay-effaclar-adapalene-gel-0-1
+  name: "La Roche-Posay Effaclar Adapalene Gel 0.1%"
+  brand: "La Roche-Posay"
+  module: skinhairmax
+  need: adapalene
+  alternative: true
+  suits: [acne, gel]
+  concerns:
+  - retinoid
+  - pm_retinoid
+  - adapalene
+  - retinol
+  - night
+  - texture
+  - lowest_strength
+  url: https://www.amazon.com/dp/B07SQFQFXX
+  image: https://m.media-amazon.com/images/I/61nCfKG1luL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 39.99
+  rating: 4.6
+  rating_count: 8108
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "The same 0.1% adapalene in a larger tube."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: La-Roche-Posay-Effaclar-Adapalene-Gel-0-1
+- id: taro-adapalene-0-1-gel
+  name: "TARO Adapalene 0.1% Gel"
+  brand: "TARO"
+  module: skinhairmax
+  need: adapalene
+  alternative: true
+  suits: [gel]
+  concerns:
+  - retinoid
+  - pm_retinoid
+  - adapalene
+  - retinol
+  - night
+  - texture
+  - lowest_strength
+  url: https://www.amazon.com/dp/B0CTHYBF75
+  image: https://m.media-amazon.com/images/I/61IznBcjJtL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 11.48
+  rating: 4.7
+  rating_count: 1777
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A low-cost generic 0.1% adapalene gel."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Taro-Adapalene-0-1-Gel
+- id: proactiv-adapalene-gel-0-1
+  name: "Proactiv Adapalene Gel 0.1%"
+  brand: "Proactiv"
+  module: skinhairmax
+  need: adapalene
+  alternative: true
+  suits: [acne, gel]
+  concerns:
+  - retinoid
+  - pm_retinoid
+  - adapalene
+  - retinol
+  - night
+  - texture
+  - lowest_strength
+  url: https://www.amazon.com/dp/B0714LLJYG
+  image: https://m.media-amazon.com/images/I/51G8zS226-L._SL1500_.jpg
+  price_tier: budget
+  price_usd: 13.10
+  rating: 4.5
+  rating_count: 2538
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A small tube of 0.1% adapalene to try first."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Proactiv-Adapalene-Gel-0-1
 - id: nizoral-shampoo
   name: Nizoral Anti-Dandruff Shampoo (Ketoconazole 1%)
   brand: Nizoral
@@ -1645,6 +4181,105 @@ products:
   references:
   - ai_programs/skinhairmax.md
   slug: Nizoral-Anti-Dandruff-Shampoo-Ketoconazole-1-Percent
+- id: selsun-blue-medicated-dandruff-shampoo
+  name: "Selsun Blue Medicated Dandruff Shampoo"
+  brand: "Selsun Blue"
+  module: skinhairmax
+  need: ketoconazole_shampoo
+  alternative: true
+  concerns:
+  - shampoo
+  - dandruff
+  - ketoconazole
+  - scalp
+  - flakes
+  - itchy_scalp
+  - hair_wash_cadence
+  - scalp_health
+  url: https://www.amazon.com/dp/B001UGL84U
+  image: https://m.media-amazon.com/images/I/71tGmGtL3SL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 7.92
+  rating: 4.7
+  rating_count: 26443
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A selenium sulfide dandruff shampoo, not ketoconazole; good to rotate in."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Selsun-Blue-Medicated-Dandruff-Shampoo
+- id: head-shoulders-clinical-strength-shampoo
+  name: "Head & Shoulders Clinical Strength Shampoo"
+  brand: "Head & Shoulders"
+  module: skinhairmax
+  need: ketoconazole_shampoo
+  alternative: true
+  concerns:
+  - shampoo
+  - dandruff
+  - ketoconazole
+  - scalp
+  - flakes
+  - itchy_scalp
+  - hair_wash_cadence
+  - scalp_health
+  url: https://www.amazon.com/dp/B0FTKCSDJ5
+  image: https://m.media-amazon.com/images/I/51Q5qD25lsL._SL1080_.jpg
+  price_tier: budget
+  price_usd: 11.97
+  rating: 4.6
+  rating_count: 13613
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A 1% selenium sulfide shampoo, not ketoconazole; for stubborn flakes."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Head-Shoulders-Clinical-Strength-Shampoo
+- id: neutrogena-t-sal-shampoo
+  name: "Neutrogena T/Sal Shampoo"
+  brand: "Neutrogena"
+  module: skinhairmax
+  need: ketoconazole_shampoo
+  alternative: true
+  concerns:
+  - shampoo
+  - dandruff
+  - ketoconazole
+  - scalp
+  - flakes
+  - itchy_scalp
+  - hair_wash_cadence
+  - scalp_health
+  url: https://www.amazon.com/dp/B00UOL93CG
+  image: https://m.media-amazon.com/images/I/61yWKKBGklL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 7.77
+  rating: 4.5
+  rating_count: 20900
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A salicylic acid shampoo, not ketoconazole; lifts scale and buildup."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Neutrogena-T-Sal-Shampoo
 - id: heeta-scalp-massager
   name: HEETA Silicone Scalp Massager Shampoo Brush
   brand: HEETA
@@ -1675,6 +4310,99 @@ products:
   references:
   - ai_programs/skinhairmax.md
   slug: HEETA-Silicone-Scalp-Massager-Shampoo-Brush
+- id: maxsoft-scalp-massager-brush
+  name: "Maxsoft Scalp Massager Brush"
+  brand: "Maxsoft"
+  module: skinhairmax
+  need: scalp_brush
+  alternative: true
+  concerns:
+  - scalp_massage
+  - scalp_brush
+  - shampoo_brush
+  - scalp
+  - hair_wash_cadence
+  - relaxation
+  url: https://www.amazon.com/dp/B074ZDXFL6
+  image: https://m.media-amazon.com/images/I/51EbgIgofzL._SL1036_.jpg
+  price_tier: budget
+  price_usd: 6.49
+  rating: 4.6
+  rating_count: 94283
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Soft silicone bristles to work shampoo into the scalp."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Maxsoft-Scalp-Massager-Brush
+- id: meartchy-silicone-scalp-brush
+  name: "Meartchy Silicone Scalp Brush"
+  brand: "Meartchy"
+  module: skinhairmax
+  need: scalp_brush
+  alternative: true
+  concerns:
+  - scalp_massage
+  - scalp_brush
+  - shampoo_brush
+  - scalp
+  - hair_wash_cadence
+  - relaxation
+  url: https://www.amazon.com/dp/B0C14C5N8D
+  image: https://m.media-amazon.com/images/I/51pPLyrLT1L._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 6.99
+  rating: 4.7
+  rating_count: 2060
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A firmer silicone brush for loosening flakes."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Meartchy-Silicone-Scalp-Brush
+- id: yealife-scalp-scrubber-4-pack
+  name: "YEALIFE Scalp Scrubber 4-Pack"
+  brand: "YEALIFE"
+  module: skinhairmax
+  need: scalp_brush
+  alternative: true
+  concerns:
+  - scalp_massage
+  - scalp_brush
+  - shampoo_brush
+  - scalp
+  - hair_wash_cadence
+  - relaxation
+  url: https://www.amazon.com/dp/B0DPHQFZ1L
+  image: https://m.media-amazon.com/images/I/81KNiZwcJrL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 6.99
+  rating: 4.4
+  rating_count: 1561
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A 4-pack so you can keep one in each shower."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Yealife-Scalp-Scrubber-4-Pack
 - id: zimasilk-mulberry-silk-pillowcase
   name: ZIMASILK Mulberry Silk Pillowcase (Queen)
   brand: ZIMASILK
@@ -1708,6 +4436,105 @@ products:
   - ai_programs/skinhairmax.md
   slug: ZIMASILK-Mulberry-Silk-Pillowcase-Queen
 
+- id: alaska-bear-mulberry-silk-pillowcase
+  name: "ALASKA BEAR Mulberry Silk Pillowcase"
+  brand: "ALASKA BEAR"
+  module: skinhairmax
+  need: silk_pillowcase
+  alternative: true
+  concerns:
+  - pillowcase
+  - silk
+  - silk_pillowcase
+  - gentle_styling
+  - hair_friction
+  - frizz
+  - hair
+  - skin_friction
+  url: https://www.amazon.com/dp/B00KDL108M
+  image: https://m.media-amazon.com/images/I/51E9UkNnbML._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 25.99
+  rating: 4.6
+  rating_count: 25289
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A 100% mulberry silk case at a fair price."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Alaska-Bear-Mulberry-Silk-Pillowcase
+- id: dkbslik-silk-pillowcase-2-pack
+  name: "DKBslik Silk Pillowcase 2-Pack"
+  brand: "DKBslik"
+  module: skinhairmax
+  need: silk_pillowcase
+  alternative: true
+  concerns:
+  - pillowcase
+  - silk
+  - silk_pillowcase
+  - gentle_styling
+  - hair_friction
+  - frizz
+  - hair
+  - skin_friction
+  url: https://www.amazon.com/dp/B0BVWLXFZL
+  image: https://m.media-amazon.com/images/I/51s65xE9YXL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 22.99
+  rating: 4.5
+  rating_count: 21845
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A two-pack with hidden zippers, so you can swap one out to wash."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Dkbslik-Silk-Pillowcase-2-Pack
+- id: slip-pure-silk-pillowcase
+  name: "Slip Pure Silk Pillowcase"
+  brand: "Slip"
+  module: skinhairmax
+  need: silk_pillowcase
+  alternative: true
+  concerns:
+  - pillowcase
+  - silk
+  - silk_pillowcase
+  - gentle_styling
+  - hair_friction
+  - frizz
+  - hair
+  - skin_friction
+  url: https://www.amazon.com/dp/B01JZVYD6G
+  image: https://m.media-amazon.com/images/I/51nY1o-bp5L._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 120.00
+  rating: 4.6
+  rating_count: 1743
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A premium heavier 22 momme silk case."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Slip-Pure-Silk-Pillowcase
 - id: the-ordinary-niacinamide-10-zinc-1
   name: The Ordinary Niacinamide 10% + Zinc 1%
   brand: The Ordinary
@@ -1738,6 +4565,93 @@ products:
   - ai_programs/skinhairmax.md
   slug: The-Ordinary-Niacinamide-10-Zinc-1
 
+- id: anua-niacinamide-10-txa-4-serum
+  name: "ANUA Niacinamide 10 + TXA 4 Serum"
+  brand: "ANUA"
+  module: skinhairmax
+  need: niacinamide_serum
+  alternative: true
+  concerns:
+  - niacinamide
+  - serum
+  - am_routine
+  - oil_control
+  url: https://www.amazon.com/dp/B0CLLV2T1P
+  image: https://m.media-amazon.com/images/I/61-PwDPNjyL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 21.85
+  rating: 4.5
+  rating_count: 17740
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Niacinamide with tranexamic acid, aimed at dark spots and uneven tone."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Anua-Niacinamide-10-Txa-4-Serum
+- id: good-molecules-niacinamide-serum-10
+  name: "Good Molecules Niacinamide Serum 10%"
+  brand: "Good Molecules"
+  module: skinhairmax
+  need: niacinamide_serum
+  alternative: true
+  concerns:
+  - niacinamide
+  - serum
+  - am_routine
+  - oil_control
+  url: https://www.amazon.com/dp/B08R994Q1L
+  image: https://m.media-amazon.com/images/I/71AM7pP1uIL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 5.97
+  rating: 4.6
+  rating_count: 11917
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A plain 10% niacinamide serum at a very low price."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Good-Molecules-Niacinamide-Serum-10
+- id: paula-s-choice-clinical-20-niacinamide
+  name: "Paula's Choice CLINICAL 20% Niacinamide"
+  brand: "Paula's Choice"
+  module: skinhairmax
+  need: niacinamide_serum
+  alternative: true
+  concerns:
+  - niacinamide
+  - serum
+  - am_routine
+  - oil_control
+  url: https://www.amazon.com/dp/B083N1H6P7
+  image: https://m.media-amazon.com/images/I/71rwS2OYNOL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 59.00
+  rating: 4.5
+  rating_count: 2117
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A high 20% strength for oily skin that tolerates niacinamide well."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Paula-S-Choice-Clinical-20-Niacinamide
 - id: truskin-vitamin-c-serum
   name: TruSkin Vitamin C Serum with Hyaluronic Acid
   brand: TruSkin
@@ -1768,6 +4682,94 @@ products:
   - ai_programs/skinhairmax.md
   slug: TruSkin-Vitamin-C-Serum-Hyaluronic
 
+- id: la-roche-posay-12-vitamin-c-serum
+  name: "La Roche-Posay 12% Vitamin C Serum"
+  brand: "La Roche-Posay"
+  module: skinhairmax
+  need: vitamin_c_serum
+  alternative: true
+  suits: [sensitive]
+  concerns:
+  - vitamin_c
+  - serum
+  - am_routine
+  - brightening
+  url: https://www.amazon.com/dp/B07PM79MSC
+  image: https://m.media-amazon.com/images/I/612rQ+tTL6L._SL1500_.jpg
+  price_tier: mid
+  price_usd: 44.99
+  rating: 4.4
+  rating_count: 19475
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A 12% vitamin C serum formulated for sensitive skin."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: La-Roche-Posay-12-Vitamin-C-Serum
+- id: naturium-vitamin-c-complex-serum
+  name: "Naturium Vitamin C Complex Serum"
+  brand: "Naturium"
+  module: skinhairmax
+  need: vitamin_c_serum
+  alternative: true
+  concerns:
+  - vitamin_c
+  - serum
+  - am_routine
+  - brightening
+  url: https://www.amazon.com/dp/B07Y469VXX
+  image: https://m.media-amazon.com/images/I/61OnsOMUEaL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 16.79
+  rating: 4.6
+  rating_count: 8403
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A gentler mix of vitamin C forms with hyaluronic acid."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Naturium-Vitamin-C-Complex-Serum
+- id: timeless-20-vitamin-c-e-ferulic
+  name: "Timeless 20% Vitamin C + E Ferulic"
+  brand: "Timeless"
+  module: skinhairmax
+  need: vitamin_c_serum
+  alternative: true
+  concerns:
+  - vitamin_c
+  - serum
+  - am_routine
+  - brightening
+  url: https://www.amazon.com/dp/B0036BI56G
+  image: https://m.media-amazon.com/images/I/610zp+OM4bL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 27.95
+  rating: 4.3
+  rating_count: 14040
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A classic 20% C + E + ferulic formula at a lower price."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Timeless-20-Vitamin-C-E-Ferulic
 - id: the-ordinary-azelaic-acid-10
   name: The Ordinary Azelaic Acid Suspension 10%
   brand: The Ordinary
@@ -1798,6 +4800,96 @@ products:
   - ai_programs/skinhairmax.md
   slug: The-Ordinary-Azelaic-Acid-Suspension
 
+- id: paula-s-choice-10-azelaic-acid-booster
+  name: "Paula's Choice 10% Azelaic Acid Booster"
+  brand: "Paula's Choice"
+  module: skinhairmax
+  need: azelaic_acid
+  alternative: true
+  suits: [gel, cream]
+  concerns:
+  - azelaic_acid
+  - treatment
+  - pm_routine
+  - redness
+  url: https://www.amazon.com/dp/B00V4PNAI4
+  image: https://m.media-amazon.com/images/I/61XgU27oHdL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 42.00
+  rating: 4.3
+  rating_count: 6392
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A 10% azelaic acid gel-cream for redness and bumps."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Paula-S-Choice-10-Azelaic-Acid-Booster
+- id: good-molecules-10-azelaic-acid-treatment
+  name: "Good Molecules 10% Azelaic Acid Treatment"
+  brand: "Good Molecules"
+  module: skinhairmax
+  need: azelaic_acid
+  alternative: true
+  suits: [redness]
+  concerns:
+  - azelaic_acid
+  - treatment
+  - pm_routine
+  - redness
+  url: https://www.amazon.com/dp/B0FZPGQHFB
+  image: https://m.media-amazon.com/images/I/71a4SFiHmHL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 11.99
+  rating: 4.5
+  rating_count: 1553
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A low-cost 10% azelaic acid for redness and uneven tone."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Good-Molecules-10-Azelaic-Acid-Treatment
+- id: anua-azelaic-acid-10-serum
+  name: "ANUA Azelaic Acid 10 Serum"
+  brand: "ANUA"
+  module: skinhairmax
+  need: azelaic_acid
+  alternative: true
+  suits: [redness]
+  concerns:
+  - azelaic_acid
+  - treatment
+  - pm_routine
+  - redness
+  url: https://www.amazon.com/dp/B0DG1DQ2S7
+  image: https://m.media-amazon.com/images/I/61sSYnrc1zL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 22.00
+  rating: 4.5
+  rating_count: 7231
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A light 10% azelaic serum with hyaluronic acid."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Anua-Azelaic-Acid-10-Serum
 - id: paulas-choice-2-bha-liquid
   name: Paula's Choice SKIN PERFECTING 2% BHA Liquid Leave-On Exfoliant
   brand: Paula's Choice
@@ -1828,6 +4920,95 @@ products:
   - ai_programs/skinhairmax.md
   slug: Paulas-Choice-Perfecting-Exfoliant-Salicylic
 
+- id: the-ordinary-salicylic-acid-2-solution
+  name: "The Ordinary Salicylic Acid 2% Solution"
+  brand: "The Ordinary"
+  module: skinhairmax
+  need: bha_exfoliant
+  alternative: true
+  suits: [acne]
+  concerns:
+  - bha
+  - salicylic_acid
+  - exfoliant
+  - pm_routine
+  url: https://www.amazon.com/dp/B0C3PCJ6SD
+  image: https://m.media-amazon.com/images/I/613CFOwbuGL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 6.70
+  rating: 4.7
+  rating_count: 14688
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A cheap 2% salicylic acid serum for clogged pores."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: The-Ordinary-Salicylic-Acid-2-Solution
+- id: stridex-maximum-acne-pads
+  name: "Stridex Maximum Acne Pads"
+  brand: "Stridex"
+  module: skinhairmax
+  need: bha_exfoliant
+  alternative: true
+  suits: [acne]
+  concerns:
+  - bha
+  - salicylic_acid
+  - exfoliant
+  - pm_routine
+  url: https://www.amazon.com/dp/B000Q2HJJC
+  image: https://m.media-amazon.com/images/I/81dJXsGOrAL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 5.15
+  rating: 4.7
+  rating_count: 9543
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Pre-soaked 2% salicylic pads, quick to swipe on."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Stridex-Maximum-Acne-Pads
+- id: naturium-bha-liquid-exfoliant-2
+  name: "Naturium BHA Liquid Exfoliant 2%"
+  brand: "Naturium"
+  module: skinhairmax
+  need: bha_exfoliant
+  alternative: true
+  concerns:
+  - bha
+  - salicylic_acid
+  - exfoliant
+  - pm_routine
+  url: https://www.amazon.com/dp/B08881VH6J
+  image: https://m.media-amazon.com/images/I/61lNlMRw+WL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 18.99
+  rating: 4.5
+  rating_count: 3279
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A leave-on 2% BHA liquid like the classic, for less."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Naturium-Bha-Liquid-Exfoliant-2
 - id: the-ordinary-lactic-acid-5-ha
   name: The Ordinary Lactic Acid 5% + Hyaluronic Acid 2%
   brand: The Ordinary
@@ -1858,6 +5039,93 @@ products:
   - ai_programs/skinhairmax.md
   slug: The-Ordinary-Lactic-Acid-Hyaluronic
 
+- id: good-molecules-overnight-exfoliating-treatment
+  name: "Good Molecules Overnight Exfoliating Treatment"
+  brand: "Good Molecules"
+  module: skinhairmax
+  need: aha_exfoliant
+  alternative: true
+  concerns:
+  - lactic_acid
+  - aha
+  - exfoliant
+  - pm_routine
+  url: https://www.amazon.com/dp/B08TMDRF1L
+  image: https://m.media-amazon.com/images/I/71PudIv+-UL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 5.99
+  rating: 4.6
+  rating_count: 6966
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A mild overnight AHA/BHA serum at a low price."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Good-Molecules-Overnight-Exfoliating-Treatment
+- id: cosrx-aha-bha-treatment-toner
+  name: "COSRX AHA/BHA Treatment Toner"
+  brand: "COSRX"
+  module: skinhairmax
+  need: aha_exfoliant
+  alternative: true
+  concerns:
+  - lactic_acid
+  - aha
+  - exfoliant
+  - pm_routine
+  url: https://www.amazon.com/dp/B073P6BPF5
+  image: https://m.media-amazon.com/images/I/618OlEn9xML._SL1500_.jpg
+  price_tier: budget
+  price_usd: 14.97
+  rating: 4.5
+  rating_count: 8379
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A gentle daily exfoliating toner."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Cosrx-Aha-Bha-Treatment-Toner
+- id: some-by-mi-aha-bha-pha-30-days-toner
+  name: "SOME BY MI AHA BHA PHA 30 Days Toner"
+  brand: "SOME BY MI"
+  module: skinhairmax
+  need: aha_exfoliant
+  alternative: true
+  concerns:
+  - lactic_acid
+  - aha
+  - exfoliant
+  - pm_routine
+  url: https://www.amazon.com/dp/B07BYJF7L7
+  image: https://m.media-amazon.com/images/I/61QWLWW49uL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 16.80
+  rating: 4.6
+  rating_count: 9614
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A mild three-acid toner for oily and combination skin."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Some-By-Mi-Aha-Bha-Pha-30-Days-Toner
 - id: the-ordinary-hyaluronic-acid-2-b5
   name: The Ordinary Hyaluronic Acid 2% + B5
   brand: The Ordinary
@@ -1888,6 +5156,95 @@ products:
   - ai_programs/skinhairmax.md
   slug: The-Ordinary-Hyaluronic-Acid-B5
 
+- id: cerave-hyaluronic-acid-serum
+  name: "CeraVe Hyaluronic Acid Serum"
+  brand: "CeraVe"
+  module: skinhairmax
+  need: hyaluronic_serum
+  alternative: true
+  suits: [dry]
+  concerns:
+  - hyaluronic_acid
+  - hydrating_serum
+  - am_routine
+  - pm_routine
+  url: https://www.amazon.com/dp/B07K3261ZD
+  image: https://m.media-amazon.com/images/I/61LGrVlTaCL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 16.97
+  rating: 4.6
+  rating_count: 31179
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Hyaluronic acid with ceramides for dry skin."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Cerave-Hyaluronic-Acid-Serum
+- id: good-molecules-hyaluronic-acid-serum
+  name: "Good Molecules Hyaluronic Acid Serum"
+  brand: "Good Molecules"
+  module: skinhairmax
+  need: hyaluronic_serum
+  alternative: true
+  concerns:
+  - hyaluronic_acid
+  - hydrating_serum
+  - am_routine
+  - pm_routine
+  url: https://www.amazon.com/dp/B08RD9ZZT7
+  image: https://m.media-amazon.com/images/I/71X8Bzr8xEL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 11.97
+  rating: 4.7
+  rating_count: 18358
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A big 2.5 oz bottle of plain hyaluronic serum."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Good-Molecules-Hyaluronic-Acid-Serum
+- id: la-roche-posay-hyalu-b5-serum
+  name: "La Roche-Posay Hyalu B5 Serum"
+  brand: "La Roche-Posay"
+  module: skinhairmax
+  need: hyaluronic_serum
+  alternative: true
+  suits: [sensitive]
+  concerns:
+  - hyaluronic_acid
+  - hydrating_serum
+  - am_routine
+  - pm_routine
+  url: https://www.amazon.com/dp/B075VX4QVM
+  image: https://m.media-amazon.com/images/I/51Ja5o9errL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 39.99
+  rating: 4.6
+  rating_count: 20395
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Hyaluronic acid with vitamin B5 for sensitive, dry skin."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: La-Roche-Posay-Hyalu-B5-Serum
 - id: cerave-resurfacing-retinol-serum
   name: CeraVe Resurfacing Retinol Face Serum
   brand: CeraVe
@@ -1918,6 +5275,95 @@ products:
   - ai_programs/skinhairmax.md
   slug: CeraVe-Resurfacing-Retinol-Serum
 
+- id: neutrogena-rapid-wrinkle-repair-retinol
+  name: "Neutrogena Rapid Wrinkle Repair Retinol"
+  brand: "Neutrogena"
+  module: skinhairmax
+  need: retinol_serum
+  alternative: true
+  suits: [cream]
+  concerns:
+  - retinol
+  - retinoid
+  - serum
+  - pm_routine
+  url: https://www.amazon.com/dp/B01HOHBS6G
+  image: https://m.media-amazon.com/images/I/71mwKRkge9L._SL1500_.jpg
+  price_tier: mid
+  price_usd: 22.72
+  rating: 4.4
+  rating_count: 52764
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A retinol moisturizer, so it's one step instead of two."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Neutrogena-Rapid-Wrinkle-Repair-Retinol
+- id: la-roche-posay-retinol-b3-serum
+  name: "La Roche-Posay Retinol B3 Serum"
+  brand: "La Roche-Posay"
+  module: skinhairmax
+  need: retinol_serum
+  alternative: true
+  suits: [sensitive]
+  concerns:
+  - retinol
+  - retinoid
+  - serum
+  - pm_routine
+  url: https://www.amazon.com/dp/B07Z9Y4M3C
+  image: https://m.media-amazon.com/images/I/419LhuFPKSL._SL1080_.jpg
+  price_tier: mid
+  price_usd: 44.99
+  rating: 4.6
+  rating_count: 19184
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Retinol buffered with niacinamide for skin that gets irritated easily."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: La-Roche-Posay-Retinol-B3-Serum
+- id: the-ordinary-retinol-1-in-squalane
+  name: "The Ordinary Retinol 1% in Squalane"
+  brand: "The Ordinary"
+  module: skinhairmax
+  need: retinol_serum
+  alternative: true
+  concerns:
+  - retinol
+  - retinoid
+  - serum
+  - pm_routine
+  url: https://www.amazon.com/dp/B0779YGB2G
+  image: https://m.media-amazon.com/images/I/51bWH5AIi0L._SL1500_.jpg
+  price_tier: budget
+  price_usd: 11.90
+  rating: 4.6
+  rating_count: 20278
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A stronger 1% retinol for once a lower strength is easy."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: The-Ordinary-Retinol-1-In-Squalane
 - id: aztec-secret-indian-healing-clay
   name: Aztec Secret Indian Healing Clay Mask
   brand: Aztec Secret
@@ -1948,6 +5394,94 @@ products:
   - ai_programs/skinhairmax.md
   slug: Aztec-Secret-Indian-Healing-Clay
 
+- id: medicube-zero-pore-mud-mask
+  name: "medicube Zero Pore Mud Mask"
+  brand: "medicube"
+  module: skinhairmax
+  need: clay_mask
+  alternative: true
+  suits: [oily]
+  concerns:
+  - clay_mask
+  - mask
+  - pm_routine
+  - pores
+  url: https://www.amazon.com/dp/B0D1G7XF9X
+  image: https://m.media-amazon.com/images/I/71MV5+RNA+L._SL1500_.jpg
+  price_tier: budget
+  price_usd: 18.90
+  rating: 4.5
+  rating_count: 7938
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A mud mask aimed at blackheads and oily areas."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Medicube-Zero-Pore-Mud-Mask
+- id: innisfree-super-volcanic-clay-mask
+  name: "Innisfree Super Volcanic Clay Mask"
+  brand: "Innisfree"
+  module: skinhairmax
+  need: clay_mask
+  alternative: true
+  concerns:
+  - clay_mask
+  - mask
+  - pm_routine
+  - pores
+  url: https://www.amazon.com/dp/B0CQZ3W88P
+  image: https://m.media-amazon.com/images/I/71OAKiRewkL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 14.38
+  rating: 4.6
+  rating_count: 2128
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A volcanic clay mask for oily skin and pores."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Innisfree-Super-Volcanic-Clay-Mask
+- id: l-oreal-paris-pure-clay-mask
+  name: "L'Oreal Paris Pure Clay Mask"
+  brand: "L'Oreal Paris"
+  module: skinhairmax
+  need: clay_mask
+  alternative: true
+  concerns:
+  - clay_mask
+  - mask
+  - pm_routine
+  - pores
+  url: https://www.amazon.com/dp/B01F7SUFH2
+  image: https://m.media-amazon.com/images/I/71fENqiPHYL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 14.92
+  rating: 4.5
+  rating_count: 2522
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A drugstore clay mask that's easy to find."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: L-Oreal-Paris-Pure-Clay-Mask
 - id: aquaphor-healing-ointment-7oz
   name: Aquaphor Healing Ointment Skin Protectant, 7 oz
   brand: Aquaphor
@@ -1978,6 +5512,65 @@ products:
   - ai_programs/skinhairmax.md
   slug: Aquaphor-Healing-Ointment-Protectant
 
+- id: cerave-healing-ointment
+  name: "CeraVe Healing Ointment"
+  brand: "CeraVe"
+  module: skinhairmax
+  need: ointment
+  alternative: true
+  suits: [dry, fragrance-free]
+  concerns:
+  - petroleum_jelly
+  - ointment
+  - pm_routine
+  - dryness
+  url: https://www.amazon.com/dp/B016F3MGQ6
+  image: https://m.media-amazon.com/images/I/71Ugb9-vQ9L._SL1500_.jpg
+  price_tier: budget
+  price_usd: 9.99
+  rating: 4.7
+  rating_count: 44716
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: true
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A fragrance-free ointment with ceramides for very dry patches."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Cerave-Healing-Ointment
+- id: vaseline-original-petroleum-jelly
+  name: "Vaseline Original Petroleum Jelly"
+  brand: "Vaseline"
+  module: skinhairmax
+  need: ointment
+  alternative: true
+  concerns:
+  - petroleum_jelly
+  - ointment
+  - pm_routine
+  - dryness
+  url: https://www.amazon.com/dp/B007E62538
+  image: https://m.media-amazon.com/images/I/71+G6NjbZ5L._SL1500_.jpg
+  price_tier: budget
+  price_usd: 5.97
+  rating: 4.8
+  rating_count: 23313
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Plain petroleum jelly, the cheapest way to seal in moisture."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Vaseline-Original-Petroleum-Jelly
 # ── Suppmax: one third-party-tested pick per Suppmax habit (+ protein) ────────
 - id: nature-made-melatonin-3mg
   name: Nature Made Melatonin 3mg (120 Tablets)
@@ -2011,6 +5604,105 @@ products:
   references:
   - ai_programs/suppmax.md
   slug: Nature-Made-Melatonin-3mg-120-Tablets
+- id: nature-s-bounty-melatonin-3-mg-quick-dissolve
+  name: "Nature's Bounty Melatonin 3 mg Quick Dissolve"
+  brand: "Nature's Bounty"
+  module: suppmax
+  need: melatonin
+  alternative: true
+  concerns:
+  - melatonin
+  - sleep
+  - sleepmax
+  - jet_lag
+  - body_clock
+  - wind_down
+  - usp_verified
+  - falling_asleep
+  url: https://www.amazon.com/dp/B000GG6D9A
+  image: https://m.media-amazon.com/images/I/71kPTHKnBIL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 6.80
+  rating: 4.7
+  rating_count: 25625
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A 3 mg dissolving tablet; many people need less, so it can be split."
+  references:
+  - ai_programs/suppmax.md
+  slug: Nature-S-Bounty-Melatonin-3-Mg-Quick-Dissolve
+- id: natrol-melatonin-3-mg-fast-dissolve
+  name: "Natrol Melatonin 3 mg Fast Dissolve"
+  brand: "Natrol"
+  module: suppmax
+  need: melatonin
+  alternative: true
+  concerns:
+  - melatonin
+  - sleep
+  - sleepmax
+  - jet_lag
+  - body_clock
+  - wind_down
+  - usp_verified
+  - falling_asleep
+  url: https://www.amazon.com/dp/B0149LAJTW
+  image: https://m.media-amazon.com/images/I/710SdSgJYwL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 11.62
+  rating: 4.7
+  rating_count: 15170
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A 3 mg fast-dissolve tablet from a long-standing brand."
+  references:
+  - ai_programs/suppmax.md
+  slug: Natrol-Melatonin-3-Mg-Fast-Dissolve
+- id: life-extension-melatonin-ir-xr
+  name: "Life Extension Melatonin IR/XR"
+  brand: "Life Extension"
+  module: suppmax
+  need: melatonin
+  alternative: true
+  concerns:
+  - melatonin
+  - sleep
+  - sleepmax
+  - jet_lag
+  - body_clock
+  - wind_down
+  - usp_verified
+  - falling_asleep
+  url: https://www.amazon.com/dp/B0B8TNMKMP
+  image: https://m.media-amazon.com/images/I/61K2dEAhaXL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 17.75
+  rating: 4.4
+  rating_count: 2579
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Part fast, part slow release, for waking in the night rather than falling asleep."
+  references:
+  - ai_programs/suppmax.md
+  slug: Life-Extension-Melatonin-Ir-Xr
 - id: doctors-best-magnesium-glycinate
   name: Doctor's Best High Absorption Magnesium Glycinate Lysinate (240 ct)
   brand: Doctor's Best
@@ -2073,6 +5765,70 @@ products:
   references:
   - ai_programs/suppmax.md
   slug: Thorne-Magnesium-Bisglycinate-Powder-60-Servings
+- id: pure-encapsulations-magnesium-glycinate
+  name: "Pure Encapsulations Magnesium Glycinate"
+  brand: "Pure Encapsulations"
+  module: suppmax
+  need: magnesium
+  alternative: true
+  concerns:
+  - magnesium
+  - magnesium_glycinate
+  - sleep
+  - calm
+  - wind_down
+  - dinner
+  - stress
+  url: https://www.amazon.com/dp/B0058HWV9S
+  image: https://m.media-amazon.com/images/I/71UUiHgreUL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 46.50
+  rating: 4.7
+  rating_count: 52907
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Magnesium glycinate from a brand known for clean, tested capsules."
+  references:
+  - ai_programs/suppmax.md
+  slug: Pure-Encapsulations-Magnesium-Glycinate
+- id: nature-made-magnesium-glycinate-200-mg
+  name: "Nature Made Magnesium Glycinate 200 mg"
+  brand: "Nature Made"
+  module: suppmax
+  need: magnesium
+  alternative: true
+  concerns:
+  - magnesium
+  - magnesium_glycinate
+  - sleep
+  - calm
+  - wind_down
+  - dinner
+  - stress
+  url: https://www.amazon.com/dp/B086RQVNDV
+  image: https://m.media-amazon.com/images/I/71uhpMqqkBL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 29.58
+  rating: 4.6
+  rating_count: 22589
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "USP-verified magnesium glycinate at a mid price."
+  references:
+  - ai_programs/suppmax.md
+  slug: Nature-Made-Magnesium-Glycinate-200-Mg
 - id: now-l-theanine-200
   name: NOW L-Theanine 200 mg (120 Veg Caps)
   brand: NOW
@@ -2105,6 +5861,105 @@ products:
   references:
   - ai_programs/suppmax.md
   slug: NOW-L-Theanine-200-Mg-120-Veg-Caps
+- id: sports-research-l-theanine-200-mg
+  name: "Sports Research L-Theanine 200 mg"
+  brand: "Sports Research"
+  module: suppmax
+  need: l_theanine
+  alternative: true
+  concerns:
+  - l_theanine
+  - theanine
+  - calm
+  - stress
+  - caffeine_theanine
+  - coffee
+  - focus
+  - calmmax
+  url: https://www.amazon.com/dp/B00TXY32FY
+  image: https://m.media-amazon.com/images/I/61VAHU-oGOL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 19.95
+  rating: 4.6
+  rating_count: 15506
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "200 mg L-theanine (Suntheanine) in a softgel."
+  references:
+  - ai_programs/suppmax.md
+  slug: Sports-Research-L-Theanine-200-Mg
+- id: life-extension-l-theanine-200-mg
+  name: "Life Extension L-Theanine 200 mg"
+  brand: "Life Extension"
+  module: suppmax
+  need: l_theanine
+  alternative: true
+  concerns:
+  - l_theanine
+  - theanine
+  - calm
+  - stress
+  - caffeine_theanine
+  - coffee
+  - focus
+  - calmmax
+  url: https://www.amazon.com/dp/B00BSH7LXS
+  image: https://m.media-amazon.com/images/I/71dpvBT8FrL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 18.00
+  rating: 4.7
+  rating_count: 1097
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "200 mg capsules from a brand that publishes test results."
+  references:
+  - ai_programs/suppmax.md
+  slug: Life-Extension-L-Theanine-200-Mg
+- id: nutricost-l-theanine-200-mg
+  name: "Nutricost L-Theanine 200 mg"
+  brand: "Nutricost"
+  module: suppmax
+  need: l_theanine
+  alternative: true
+  concerns:
+  - l_theanine
+  - theanine
+  - calm
+  - stress
+  - caffeine_theanine
+  - coffee
+  - focus
+  - calmmax
+  url: https://www.amazon.com/dp/B01B3RWQNM
+  image: https://m.media-amazon.com/images/I/61kCH46S53L._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 11.95
+  rating: 4.7
+  rating_count: 13448
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "The lowest cost per 200 mg capsule."
+  references:
+  - ai_programs/suppmax.md
+  slug: Nutricost-L-Theanine-200-Mg
 - id: thorne-creatine
   name: Thorne Creatine Monohydrate Powder (90 Servings)
   brand: Thorne
@@ -2197,6 +6052,38 @@ products:
   references:
   - ai_programs/suppmax.md
   slug: NOW-Sports-Creatine-Monohydrate-Powder-22-Lb
+- id: naked-micronized-creatine
+  name: "NAKED Micronized Creatine"
+  brand: "NAKED"
+  module: suppmax
+  need: creatine
+  alternative: true
+  concerns:
+  - creatine
+  - strength
+  - muscle
+  - nsf_certified
+  - training
+  - trainmax
+  - strength_full_body
+  url: https://www.amazon.com/dp/B0B9YMNYWK
+  image: https://m.media-amazon.com/images/I/71+qCY0Va6L._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 21.99
+  rating: 4.7
+  rating_count: 18195
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Plain creatine monohydrate, NSF certified, nothing added."
+  references:
+  - ai_programs/suppmax.md
+  slug: Naked-Micronized-Creatine
 - id: lmnt-recharge
   name: LMNT Zero Sugar Electrolytes (Watermelon Salt, 30 ct)
   brand: LMNT
@@ -2229,6 +6116,72 @@ products:
   references:
   - ai_programs/suppmax.md
   slug: LMNT-Zero-Sugar-Electrolytes-Watermelon-Salt-30-Ct
+- id: dripdrop-electrolyte-powder
+  name: "DripDrop Electrolyte Powder"
+  brand: "DripDrop"
+  module: energymax
+  need: electrolytes
+  alternative: true
+  concerns:
+  - electrolytes
+  - hydration
+  - sugar_free
+  - hot_days
+  - sweat
+  - workout
+  - water
+  url: https://www.amazon.com/dp/B08TZD2R7L
+  image: https://m.media-amazon.com/images/I/612dSrTgAxL._AC_SL1200_.jpg
+  price_tier: mid
+  price_usd: 32.99
+  rating: 4.6
+  rating_count: 50864
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Single-serve packets that mix into a glass of water."
+  references:
+  - ai_programs/energymax.md
+  - ai_programs/suppmax.md
+  slug: Dripdrop-Electrolyte-Powder
+- id: nuun-sport-tablets
+  name: "Nuun Sport Tablets"
+  brand: "Nuun"
+  module: energymax
+  need: electrolytes
+  alternative: true
+  concerns:
+  - electrolytes
+  - hydration
+  - sugar_free
+  - hot_days
+  - sweat
+  - workout
+  - water
+  url: https://www.amazon.com/dp/B019GU4ILQ
+  image: https://m.media-amazon.com/images/I/81qjVIWun+L._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 21.78
+  rating: 4.5
+  rating_count: 21478
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Low-sugar fizzy tablets that drop into a bottle, easy to carry."
+  references:
+  - ai_programs/energymax.md
+  - ai_programs/suppmax.md
+  slug: Nuun-Sport-Tablets
 - id: vital-proteins-collagen-peptides
   name: Vital Proteins Collagen Peptides Powder (Unflavored, 14.3 oz)
   brand: Vital Proteins
@@ -2260,6 +6213,102 @@ products:
   references:
   - ai_programs/suppmax.md
   slug: Vital-Proteins-Collagen-Peptides-Powder-Unflavored-143-Oz
+- id: sports-research-collagen-peptides
+  name: "Sports Research Collagen Peptides"
+  brand: "Sports Research"
+  module: suppmax
+  need: collagen
+  alternative: true
+  concerns:
+  - collagen
+  - collagen_peptides
+  - skin
+  - skinhairmax
+  - breakfast
+  - coffee
+  - protein
+  url: https://www.amazon.com/dp/B00XQ2XGAA
+  image: https://m.media-amazon.com/images/I/61q6dBjie4L._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 32.95
+  rating: 4.6
+  rating_count: 130374
+  checked: 2026-10-15
+  tags:
+    vegetarian: false
+    vegan: false
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Unflavored collagen that dissolves in coffee or water."
+  references:
+  - ai_programs/suppmax.md
+  slug: Sports-Research-Collagen-Peptides
+- id: great-lakes-wellness-collagen-peptides
+  name: "Great Lakes Wellness Collagen Peptides"
+  brand: "Great Lakes Wellness"
+  module: suppmax
+  need: collagen
+  alternative: true
+  concerns:
+  - collagen
+  - collagen_peptides
+  - skin
+  - skinhairmax
+  - breakfast
+  - coffee
+  - protein
+  url: https://www.amazon.com/dp/B005KG7EDU
+  image: https://m.media-amazon.com/images/I/61Gf+1NRqsL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 32.49
+  rating: 4.6
+  rating_count: 38156
+  checked: 2026-10-15
+  tags:
+    vegetarian: false
+    vegan: false
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Unflavored collagen peptides from a long-standing brand."
+  references:
+  - ai_programs/suppmax.md
+  slug: Great-Lakes-Wellness-Collagen-Peptides
+- id: orgain-hydrolyzed-collagen
+  name: "Orgain Hydrolyzed Collagen"
+  brand: "Orgain"
+  module: suppmax
+  need: collagen
+  alternative: true
+  concerns:
+  - collagen
+  - collagen_peptides
+  - skin
+  - skinhairmax
+  - breakfast
+  - coffee
+  - protein
+  url: https://www.amazon.com/dp/B07BL69CD2
+  image: https://m.media-amazon.com/images/I/71xTFyVevEL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 23.88
+  rating: 4.5
+  rating_count: 38816
+  checked: 2026-10-15
+  tags:
+    vegetarian: false
+    vegan: false
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "20 g per scoop at a lower price."
+  references:
+  - ai_programs/suppmax.md
+  slug: Orgain-Hydrolyzed-Collagen
 - id: nature-made-vitamin-d3-1000
   name: Nature Made Vitamin D3 1000 IU (300 Softgels)
   brand: Nature Made
@@ -2291,6 +6340,102 @@ products:
   references:
   - ai_programs/suppmax.md
   slug: Nature-Made-Vitamin-D3-1000-IU-300-Softgels
+- id: now-vitamin-d3-2-000-iu
+  name: "NOW Vitamin D3 2,000 IU"
+  brand: "NOW"
+  module: suppmax
+  need: vitamin_d3
+  alternative: true
+  concerns:
+  - vitamin_d
+  - vitamin_d3
+  - d3
+  - longevitymax
+  - breakfast
+  - low_sun
+  - usp_verified
+  url: https://www.amazon.com/dp/B001UZPY1O
+  image: https://m.media-amazon.com/images/I/71HcWE6hatL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 8.83
+  rating: 4.8
+  rating_count: 21363
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "2,000 IU softgels, a common daily amount; 240 last most of a year."
+  references:
+  - ai_programs/suppmax.md
+  slug: Now-Vitamin-D3-2-000-Iu
+- id: nature-s-bounty-vitamin-d3-1-000-iu
+  name: "Nature's Bounty Vitamin D3 1,000 IU"
+  brand: "Nature's Bounty"
+  module: suppmax
+  need: vitamin_d3
+  alternative: true
+  concerns:
+  - vitamin_d
+  - vitamin_d3
+  - d3
+  - longevitymax
+  - breakfast
+  - low_sun
+  - usp_verified
+  url: https://www.amazon.com/dp/B001KYOJC0
+  image: https://m.media-amazon.com/images/I/711eCm9xe2L._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 8.00
+  rating: 4.8
+  rating_count: 50261
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A lower 1,000 IU dose if you get some sun or eat fortified foods."
+  references:
+  - ai_programs/suppmax.md
+  slug: Nature-S-Bounty-Vitamin-D3-1-000-Iu
+- id: naturewise-vitamin-d3-1-000-iu
+  name: "NatureWise Vitamin D3 1,000 IU"
+  brand: "NatureWise"
+  module: suppmax
+  need: vitamin_d3
+  alternative: true
+  concerns:
+  - vitamin_d
+  - vitamin_d3
+  - d3
+  - longevitymax
+  - breakfast
+  - low_sun
+  - usp_verified
+  url: https://www.amazon.com/dp/B01J2ZA760
+  image: https://m.media-amazon.com/images/I/71jzamo-YwL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 12.30
+  rating: 4.7
+  rating_count: 9285
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Tiny 1,000 IU softgels that are easy to swallow."
+  references:
+  - ai_programs/suppmax.md
+  slug: Naturewise-Vitamin-D3-1-000-Iu
 - id: nordic-naturals-omega-3
   name: Nordic Naturals Omega-3 Fish Oil 690mg (Lemon, 120 ct)
   brand: Nordic Naturals
@@ -2322,6 +6467,103 @@ products:
   references:
   - ai_programs/suppmax.md
   slug: Nordic-Naturals-Omega-3-Fish-Oil-690mg-Lemon-120-Ct
+- id: sports-research-omega-3-fish-oil
+  name: "Sports Research Omega-3 Fish Oil"
+  brand: "Sports Research"
+  module: suppmax
+  need: omega3
+  alternative: true
+  concerns:
+  - omega3
+  - omega_3
+  - fish_oil
+  - epa
+  - dha
+  - longevitymax
+  - low_fish_diet
+  url: https://www.amazon.com/dp/B07DX89ZHN
+  image: https://m.media-amazon.com/images/I/61zNAqRyQ5L._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 31.17
+  rating: 4.7
+  rating_count: 61131
+  checked: 2026-10-15
+  tags:
+    vegetarian: false
+    vegan: false
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Triple-strength fish oil from wild Alaska pollock."
+  references:
+  - ai_programs/suppmax.md
+  slug: Sports-Research-Omega-3-Fish-Oil
+- id: nature-made-fish-oil-1000-mg
+  name: "Nature Made Fish Oil 1000 mg"
+  brand: "Nature Made"
+  module: suppmax
+  need: omega3
+  alternative: true
+  concerns:
+  - omega3
+  - omega_3
+  - fish_oil
+  - epa
+  - dha
+  - longevitymax
+  - low_fish_diet
+  url: https://www.amazon.com/dp/B0046XC528
+  image: https://m.media-amazon.com/images/I/71Kwk1NqazL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 18.89
+  rating: 4.8
+  rating_count: 48314
+  checked: 2026-10-15
+  tags:
+    vegetarian: false
+    vegan: false
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "USP-verified fish oil at a low price per softgel."
+  references:
+  - ai_programs/suppmax.md
+  slug: Nature-Made-Fish-Oil-1000-Mg
+- id: sports-research-vegan-omega-3-algae-oil
+  name: "Sports Research Vegan Omega-3 Algae Oil"
+  brand: "Sports Research"
+  module: suppmax
+  need: omega3
+  alternative: true
+  suits: [vegan]
+  concerns:
+  - omega3
+  - omega_3
+  - fish_oil
+  - epa
+  - dha
+  - longevitymax
+  - low_fish_diet
+  url: https://www.amazon.com/dp/B0842DJJYC
+  image: https://m.media-amazon.com/images/I/61ML3H+JFdL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 26.95
+  rating: 4.6
+  rating_count: 4922
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Omega-3 from algae instead of fish, for vegans or if fish oil doesn't sit well."
+  references:
+  - ai_programs/suppmax.md
+  slug: Sports-Research-Vegan-Omega-3-Algae-Oil
 - id: now-glycine-powder
   name: NOW Glycine Powder (1 lb)
   brand: NOW
@@ -2353,11 +6595,108 @@ products:
   references:
   - ai_programs/suppmax.md
   slug: NOW-Glycine-Powder-1-Lb
+- id: life-extension-glycine-1-000-mg
+  name: "Life Extension Glycine 1,000 mg"
+  brand: "Life Extension"
+  module: suppmax
+  need: glycine
+  alternative: true
+  concerns:
+  - glycine
+  - sleep
+  - wind_down
+  - pre_bed
+  - melatonin_alternative
+  - powder
+  - sleepmax
+  url: https://www.amazon.com/dp/B00B35A394
+  image: https://m.media-amazon.com/images/I/71krpVSblvL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 12.00
+  rating: 4.6
+  rating_count: 3554
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "1 g glycine capsules at the lowest price."
+  references:
+  - ai_programs/suppmax.md
+  slug: Life-Extension-Glycine-1-000-Mg
+- id: thorne-glycine
+  name: "THORNE Glycine"
+  brand: "THORNE"
+  module: suppmax
+  need: glycine
+  alternative: true
+  concerns:
+  - glycine
+  - sleep
+  - wind_down
+  - pre_bed
+  - melatonin_alternative
+  - powder
+  - sleepmax
+  url: https://www.amazon.com/dp/B000VYRROC
+  image: https://m.media-amazon.com/images/I/617ik-HrFML._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 31.00
+  rating: 4.6
+  rating_count: 1557
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "1 g glycine from a brand with third-party-tested products."
+  references:
+  - ai_programs/suppmax.md
+  slug: Thorne-Glycine
+- id: pure-encapsulations-glycine
+  name: "Pure Encapsulations Glycine"
+  brand: "Pure Encapsulations"
+  module: suppmax
+  need: glycine
+  alternative: true
+  concerns:
+  - glycine
+  - sleep
+  - wind_down
+  - pre_bed
+  - melatonin_alternative
+  - powder
+  - sleepmax
+  url: https://www.amazon.com/dp/B0016BX8O2
+  image: https://m.media-amazon.com/images/I/713wcUgnHdL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 35.00
+  rating: 4.7
+  rating_count: 1019
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Glycine capsules with no added fillers."
+  references:
+  - ai_programs/suppmax.md
+  slug: Pure-Encapsulations-Glycine
 - id: nature-made-multi-for-him
   name: Nature Made Multivitamin for Him (No Iron)
   brand: Nature Made
   module: suppmax
   need: multivitamin
+  suits: [male]
   concerns:
   - multivitamin
   - multi
@@ -2389,6 +6728,7 @@ products:
   brand: Nature Made
   module: suppmax
   need: multivitamin
+  suits: [female]
   concerns:
   - multivitamin
   - multi
@@ -2415,11 +6755,77 @@ products:
   references:
   - ai_programs/suppmax.md
   slug: Nature-Made-Multivitamin-For-Her
+- id: one-a-day-men-s-multivitamin
+  name: "One A Day Men's Multivitamin"
+  brand: "One A Day"
+  module: suppmax
+  need: multivitamin
+  alternative: true
+  suits: [male]
+  concerns:
+  - multivitamin
+  - multi
+  - limited_diet
+  - men
+  - no_iron
+  - breakfast
+  - vitamins
+  url: https://www.amazon.com/dp/B001F71XAI
+  image: https://m.media-amazon.com/images/I/71vCk5V1zvL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 17.47
+  rating: 4.7
+  rating_count: 58709
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A men's daily multi without iron."
+  references:
+  - ai_programs/suppmax.md
+  slug: One-A-Day-Men-S-Multivitamin
+- id: centrum-adults-multivitamin
+  name: "Centrum Adults Multivitamin"
+  brand: "Centrum"
+  module: suppmax
+  need: multivitamin
+  alternative: true
+  concerns:
+  - multivitamin
+  - multi
+  - limited_diet
+  - men
+  - no_iron
+  - breakfast
+  - vitamins
+  url: https://www.amazon.com/dp/B09BVYY7XR
+  image: https://m.media-amazon.com/images/I/61xv6xv-D-L._AC_SL1200_.jpg
+  price_tier: budget
+  price_usd: 12.36
+  rating: 4.7
+  rating_count: 8548
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A basic adult multi; 200 tablets last over six months."
+  references:
+  - ai_programs/suppmax.md
+  slug: Centrum-Adults-Multivitamin
 - id: now-methyl-b12-1000
   name: NOW Methyl B-12 1000 mcg (100 Lozenges)
   brand: NOW
   module: suppmax
   need: b12
+  suits: [vegan]
   concerns:
   - b12
   - vitamin_b12
@@ -2446,6 +6852,103 @@ products:
   references:
   - ai_programs/suppmax.md
   slug: NOW-Methyl-B-12-1000-Mcg-100-Lozenges
+- id: nature-made-vitamin-b12-1-000-mcg
+  name: "Nature Made Vitamin B12 1,000 mcg"
+  brand: "Nature Made"
+  module: suppmax
+  need: b12
+  alternative: true
+  concerns:
+  - b12
+  - vitamin_b12
+  - vegan
+  - vegetarian
+  - over_50
+  - metformin
+  - breakfast
+  url: https://www.amazon.com/dp/B00DS5BGDY
+  image: https://m.media-amazon.com/images/I/71dORcZxKSL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 17.48
+  rating: 4.7
+  rating_count: 45470
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "USP-verified 1,000 mcg B12 softgels."
+  references:
+  - ai_programs/suppmax.md
+  slug: Nature-Made-Vitamin-B12-1-000-Mcg
+- id: garden-of-life-organic-b-12-spray
+  name: "Garden of Life Organic B-12 Spray"
+  brand: "Garden of Life"
+  module: suppmax
+  need: b12
+  alternative: true
+  suits: [vegan]
+  concerns:
+  - b12
+  - vitamin_b12
+  - vegan
+  - vegetarian
+  - over_50
+  - metformin
+  - breakfast
+  url: https://www.amazon.com/dp/B00K5NEPJY
+  image: https://m.media-amazon.com/images/I/81BcRiOYY2L._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 13.99
+  rating: 4.6
+  rating_count: 15701
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "A vegan B12 spray if you'd rather not swallow pills."
+  references:
+  - ai_programs/suppmax.md
+  slug: Garden-Of-Life-Organic-B-12-Spray
+- id: jarrow-methyl-b-12-methyl-folate
+  name: "Jarrow Methyl B-12 & Methyl Folate"
+  brand: "Jarrow"
+  module: suppmax
+  need: b12
+  alternative: true
+  concerns:
+  - b12
+  - vitamin_b12
+  - vegan
+  - vegetarian
+  - over_50
+  - metformin
+  - breakfast
+  url: https://www.amazon.com/dp/B01IJR5VM2
+  image: https://m.media-amazon.com/images/I/71x4cCs1X2L._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 13.99
+  rating: 4.6
+  rating_count: 7872
+  checked: 2026-10-15
+  tags:
+    vegetarian: null
+    vegan: null
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: null
+  rationale: "Chewable B12 with folate."
+  references:
+  - ai_programs/suppmax.md
+  slug: Jarrow-Methyl-B-12-Methyl-Folate
 - id: optimum-nutrition-whey
   name: Optimum Nutrition Gold Standard 100% Whey Protein (Double Rich Chocolate, 2 lb)
   brand: Optimum Nutrition
@@ -2514,6 +7017,7 @@ products:
   brand: Orgain
   module: suppmax
   need: protein_powder
+  suits: [vegan]
   concerns:
   - protein
   - protein_powder
@@ -2545,6 +7049,7 @@ products:
   brand: KOS
   module: suppmax
   need: protein_powder
+  suits: [vegan]
   concerns:
   - protein
   - protein_powder
@@ -2603,6 +7108,99 @@ products:
   references:
   - ai_programs/peptidemax.md
   slug: BD-Sharps-Collector-14-Qt
+- id: alcedo-1-quart-sharps-container
+  name: "Alcedo 1 Quart Sharps Container"
+  brand: "Alcedo"
+  module: peptidemax
+  need: sharps_container
+  alternative: true
+  concerns:
+  - sharps_container
+  - sharps_disposal
+  - needles
+  - disposal
+  - safety
+  - injection_hygiene
+  url: https://www.amazon.com/dp/B0BFJW6X41
+  image: https://m.media-amazon.com/images/I/61WMNeM6iOL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 6.95
+  rating: 4.7
+  rating_count: 11626
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A small, sealable container for used needles."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Alcedo-1-Quart-Sharps-Container
+- id: biobox-small-sharps-container
+  name: "BioBox Small Sharps Container"
+  brand: "BioBox"
+  module: peptidemax
+  need: sharps_container
+  alternative: true
+  concerns:
+  - sharps_container
+  - sharps_disposal
+  - needles
+  - disposal
+  - safety
+  - injection_hygiene
+  url: https://www.amazon.com/dp/B0CP9ZV2WB
+  image: https://m.media-amazon.com/images/I/71Vzx128zBL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 6.49
+  rating: 4.6
+  rating_count: 5588
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A small travel-size sharps container."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Biobox-Small-Sharps-Container
+- id: oakridge-1-quart-sharps-container-10-pack
+  name: "Oakridge 1 Quart Sharps Container 10-Pack"
+  brand: "Oakridge"
+  module: peptidemax
+  need: sharps_container
+  alternative: true
+  concerns:
+  - sharps_container
+  - sharps_disposal
+  - needles
+  - disposal
+  - safety
+  - injection_hygiene
+  url: https://www.amazon.com/dp/B079HBYTGS
+  image: https://m.media-amazon.com/images/I/81zfERIxi9L._SL1500_.jpg
+  price_tier: mid
+  price_usd: 26.49
+  rating: 4.7
+  rating_count: 15299
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A 10-pack so you always have a fresh one."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Oakridge-1-Quart-Sharps-Container-10-Pack
 - id: 4allfamily-nomad-travel-cooler
   name: 4AllFamily Nomad Insulated Medication Travel Cooler
   brand: 4AllFamily
@@ -2634,6 +7232,102 @@ products:
   references:
   - ai_programs/peptidemax.md
   slug: 4AllFamily-Nomad-Insulated-Medication-Travel-Cooler
+- id: frio-cooling-wallet
+  name: "FRIO Cooling Wallet"
+  brand: "FRIO"
+  module: peptidemax
+  need: travel_cooler
+  alternative: true
+  concerns:
+  - cooler
+  - travel
+  - cold_chain
+  - cold_chain_check
+  - fridge
+  - storage
+  - insulated_case
+  url: https://www.amazon.com/dp/B0002262BM
+  image: https://m.media-amazon.com/images/I/51gUVkZmGbL._AC_SL1024_.jpg
+  price_tier: mid
+  price_usd: 28.95
+  rating: 4.2
+  rating_count: 10127
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A water-activated wallet that keeps vials cool for about two days without ice."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Frio-Cooling-Wallet
+- id: auvon-insulin-cooler-travel-case
+  name: "AUVON Insulin Cooler Travel Case"
+  brand: "AUVON"
+  module: peptidemax
+  need: travel_cooler
+  alternative: true
+  concerns:
+  - cooler
+  - travel
+  - cold_chain
+  - cold_chain_check
+  - fridge
+  - storage
+  - insulated_case
+  url: https://www.amazon.com/dp/B0CZ93YW2S
+  image: https://m.media-amazon.com/images/I/81SPhlnf86L._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 8.99
+  rating: 4.6
+  rating_count: 4436
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A cheap insulated case that works with an ice pack."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Auvon-Insulin-Cooler-Travel-Case
+- id: medicool-insulin-protector-case
+  name: "Medicool Insulin Protector Case"
+  brand: "Medicool"
+  module: peptidemax
+  need: travel_cooler
+  alternative: true
+  concerns:
+  - cooler
+  - travel
+  - cold_chain
+  - cold_chain_check
+  - fridge
+  - storage
+  - insulated_case
+  url: https://www.amazon.com/dp/B000VCXT1E
+  image: https://m.media-amazon.com/images/I/71s1YLv+tuL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 33.15
+  rating: 4.6
+  rating_count: 548
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A hard case with two freezer packs for about 16 hours of cooling."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Medicool-Insulin-Protector-Case
 - id: curad-alcohol-prep-pads
   name: Curad Alcohol Prep Pads (400 Count)
   brand: Curad
@@ -2664,6 +7358,99 @@ products:
   references:
   - ai_programs/peptidemax.md
   slug: Curad-Alcohol-Prep-Pads-400-Count
+- id: care-touch-alcohol-prep-pads-400-ct
+  name: "Care Touch Alcohol Prep Pads 400 ct"
+  brand: "Care Touch"
+  module: peptidemax
+  need: alcohol_pads
+  alternative: true
+  concerns:
+  - alcohol_pads
+  - alcohol_swabs
+  - injection_hygiene
+  - hygiene
+  - vial_top
+  - skin_prep
+  url: https://www.amazon.com/dp/B06XS38XH6
+  image: https://m.media-amazon.com/images/I/81V3dyKdg1L._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 12.99
+  rating: 4.7
+  rating_count: 55177
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A big box of 70% alcohol pads."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Care-Touch-Alcohol-Prep-Pads-400-Ct
+- id: dynarex-alcohol-prep-pads
+  name: "Dynarex Alcohol Prep Pads"
+  brand: "Dynarex"
+  module: peptidemax
+  need: alcohol_pads
+  alternative: true
+  concerns:
+  - alcohol_pads
+  - alcohol_swabs
+  - injection_hygiene
+  - hygiene
+  - vial_top
+  - skin_prep
+  url: https://www.amazon.com/dp/B005BFL0RQ
+  image: https://m.media-amazon.com/images/I/61WWs3yqX-L._SL1500_.jpg
+  price_tier: budget
+  price_usd: 5.47
+  rating: 4.7
+  rating_count: 34319
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Medical-grade 70% alcohol pads at a low price."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Dynarex-Alcohol-Prep-Pads
+- id: mckesson-sterile-alcohol-prep-pads
+  name: "McKesson Sterile Alcohol Prep Pads"
+  brand: "McKesson"
+  module: peptidemax
+  need: alcohol_pads
+  alternative: true
+  concerns:
+  - alcohol_pads
+  - alcohol_swabs
+  - injection_hygiene
+  - hygiene
+  - vial_top
+  - skin_prep
+  url: https://www.amazon.com/dp/B002C64GW8
+  image: https://m.media-amazon.com/images/I/61ukXcxIoaL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 6.73
+  rating: 4.7
+  rating_count: 3934
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Sterile 2-ply pads from a medical supplier."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Mckesson-Sterile-Alcohol-Prep-Pads
 - id: taylor-fridge-thermometer
   name: Taylor Analog Refrigerator Freezer Thermometer
   brand: Taylor
@@ -2696,6 +7483,102 @@ products:
   - ai_programs/peptidemax.md
   slug: Taylor-Analog-Refrigerator-Freezer-Thermometer
 
+- id: rubbermaid-fridge-freezer-thermometer
+  name: "Rubbermaid Fridge/Freezer Thermometer"
+  brand: "Rubbermaid"
+  module: peptidemax
+  need: fridge_thermometer
+  alternative: true
+  concerns:
+  - thermometer
+  - fridge
+  - refrigerator
+  - cold_chain
+  - cold_chain_check
+  - storage
+  - temperature
+  url: https://www.amazon.com/dp/B005KDEFNK
+  image: https://m.media-amazon.com/images/I/714EEZD+tRL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 13.34
+  rating: 4.7
+  rating_count: 13599
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A simple dial thermometer that hangs on a fridge shelf."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Rubbermaid-Fridge-Freezer-Thermometer
+- id: vouloir-digital-fridge-thermometer
+  name: "VOULOIR Digital Fridge Thermometer"
+  brand: "VOULOIR"
+  module: peptidemax
+  need: fridge_thermometer
+  alternative: true
+  concerns:
+  - thermometer
+  - fridge
+  - refrigerator
+  - cold_chain
+  - cold_chain_check
+  - storage
+  - temperature
+  url: https://www.amazon.com/dp/B07RPXTKMK
+  image: https://m.media-amazon.com/images/I/71OD+XxlEfL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 14.99
+  rating: 4.4
+  rating_count: 8309
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A digital thermometer that records the day's high and low."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Vouloir-Digital-Fridge-Thermometer
+- id: acurite-wireless-fridge-thermometer
+  name: "AcuRite Wireless Fridge Thermometer"
+  brand: "AcuRite"
+  module: peptidemax
+  need: fridge_thermometer
+  alternative: true
+  concerns:
+  - thermometer
+  - fridge
+  - refrigerator
+  - cold_chain
+  - cold_chain_check
+  - storage
+  - temperature
+  url: https://www.amazon.com/dp/B07XD68GX6
+  image: https://m.media-amazon.com/images/I/81Q3FtcmskL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 49.99
+  rating: 4.5
+  rating_count: 4367
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A wireless sensor with an alarm if the fridge gets too warm."
+  references:
+  - ai_programs/peptidemax.md
+  slug: Acurite-Wireless-Fridge-Thermometer
 # ── RETIRED: looks-era products. Kept for history; module `retired` must never be
 # recommended. Links/images below were NOT re-verified and some are known wrong.
 - id: paulas-choice-2-bha
@@ -2831,25 +7714,34 @@ products:
   - skinmax/anti_aging.md
   slug: Skinceuticals-C-E-Ferulic
 - id: la-roche-posay-cicaplast-b5
-  name: La Roche-Posay Cicaplast Baume B5
+  name: La Roche-Posay Cicaplast Balm B5
   brand: La Roche-Posay
-  module: retired
+  module: skinhairmax
+  need: ointment
+  alternative: true
+  suits: [dry, sensitive]
   concerns:
-  - barrier_repair
-  - irritation
-  - post_treatment
-  url: https://www.amazon.com/la-roche-posay-cicaplast-baume-b5/dp/B0060OUV5Y
-  image: https://m.media-amazon.com/images/P/B0060OUV5Y.jpg
-  price_tier: mid
+  - petroleum_jelly
+  - ointment
+  - pm_routine
+  - dryness
+  url: https://www.amazon.com/dp/B0060OUV5Y
+  image: https://m.media-amazon.com/images/I/713Ca5aXpyL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 13.69
+  rating: 4.7
+  rating_count: 23333
+  checked: 2026-10-15
   tags:
     vegetarian: true
-    vegan: false
+    vegan: null
     fragrance_free: true
     sulfate_free: true
-    cruelty_free: false
-  rationale: Healing balm with panthenol + madecassoside for compromised barrier.
+    gluten_free: null
+    dairy_free: null
+  rationale: "A soothing barrier balm for irritated or dry skin."
   references:
-  - skinmax/barrier.md
+  - ai_programs/skinhairmax.md
   slug: La-Roche-posay-Cicaplast-Baume-B5
 - id: rogaine-5-foam
   name: Men's Rogaine 5% Minoxidil Foam (3-month)

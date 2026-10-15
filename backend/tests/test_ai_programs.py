@@ -617,13 +617,26 @@ def test_clock_times_in_text_never_contradict_the_card():
     t = ap.validate_template("sleepmax", raw, _prof("06:30", "21:00", minutes=30))
     by = _by(t)
     assert by["morning_light"]["time"] == "07:30"
-    assert "08:00" not in by["morning_light"]["how"] and "the time on your plan" in by["morning_light"]["how"]
+    how = by["morning_light"]["how"]
+    assert "08:00" not in how and "the time on your plan" not in how and " for so " not in how
     assert by["caffeine_cutoff"]["title"] == "Last coffee"
     assert by["caffeine_cutoff"]["time"] <= "15:00" and "3:30" not in by["caffeine_cutoff"]["how"]
     # a time that matches the card stays
     t = ap.validate_template("sleepmax", _raw({**_h("morning_light", "07:30", 5), "how": "Go out at 7:30am."}),
                              _prof("06:30", "21:00", minutes=30))
     assert t["habits"][0]["how"] == "Go out at 7:30am."
+
+
+def test_stale_times_leave_readable_sentences():
+    anch = {"07:15", "12:30", "06:30", "22:30"}
+    fix = ap._fix_clock
+    assert fix("Step outside for your 7:10 commute.", {"07:05"}, anch) == "Step outside for your commute."
+    assert fix("finish by 7:30pm (3 hours before bed).", {"19:00"}, anch) == "finish (3 hours before bed)."
+    assert fix("block 9:10–9:35 on your calendar.", {"09:10"}, anch) == "block 9:10–9:35 on your calendar."
+    assert fix("after lunch at 12:30, walk.", {"13:00"}, anch) == "after lunch at 12:30, walk."   # a meal time is a fact
+    assert fix("check email at 10:00, 12:00, 3pm and 4:30pm only.", {"10:00"}, anch).count(":") == 3
+    assert fix("walk at the time on your plan.", set(), anch) == "walk."                    # old placeholder
+    assert fix("from your current after-3pm habit", set(), anch) == "from your current late habit"
 
 
 def test_supplements_share_one_meal_and_caffeine_stays_before_the_cutoff():
@@ -818,3 +831,15 @@ def test_steps_never_tell_people_to_set_alarms_to_remember_a_habit():
     for mid in ap.AI_PROGRAMS:                                       # library defaults are clean too
         for h in ap.get_program_doc(mid).habits:
             assert ap.drop_reminder_steps(h.id, h.how) == h.how, (mid, h.id)
+
+
+def test_protein_at_first_meal_goes_to_lunch_for_people_who_skip_breakfast():
+    meals = {"breakfast": "07:30", "lunch": "12:30", "dinner": "19:00"}
+    habit = {"habit_id": "protein_first_meal", "title": "protein at your first meal", "minutes": 2,
+             "time": "07:30", "days": list(ap.WEEKDAYS), "how": "add eggs or yogurt", "why": "w"}
+    eats = ap.validate_template("energymax", _raw(dict(habit)), {**PROFILE, "meals": meals})
+    skips = ap.validate_template("energymax", _raw(dict(habit)),
+                                 {**PROFILE, "meals": meals, "about": {"first_meal_style": "Coffee only"}})
+    assert eats["habits"][0]["time"] == "07:30"
+    assert skips["habits"][0]["time"] == "12:30"
+    assert "first_meal_style" in ap.ABOUT_KEYS
