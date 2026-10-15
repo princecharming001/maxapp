@@ -142,6 +142,7 @@ def plan_needs(active: list[tuple[str, dict]]) -> list[dict[str, Any]]:
                         words = {w for w in _STEP_WORDS if w in text} if need in ("moisturizer", "sunscreen") else set()
                         add(need, program, title, (base | words) - {""})
             continue
+        hints = _supp_hints(plan) if program == "suppmax" else set()
         for h in habits:
             hid = h.get("habit_id")
             title = str(h.get("title") or "").strip()
@@ -149,8 +150,79 @@ def plan_needs(active: list[tuple[str, dict]]) -> list[dict[str, Any]]:
                 # a program's own products only: supplements never ride in on a
                 # sleep habit, they come from the (screened) Suppmax plan
                 if p.module == program and p.need and hid in p.concerns:
-                    add(p.need, program, title, set())
+                    add(p.need, program, title, hints)
     return [by_need[n] for n in order]
+
+
+def _supp_hints(plan: dict) -> set[str]:
+    """Sex and diet from the Suppmax quiz pick the right multivitamin / protein."""
+    a = (plan or {}).get("answers") or {}
+    out = set()
+    sex = str(a.get("sex") or "").lower()
+    if sex in ("male", "female"):
+        out.add(sex)
+    if re.search(r"vegan|vegetarian", str(a.get("supp_diet") or "").lower()):
+        out.add("vegan")
+    return out
+
+
+# Words that show a step uses a need (guides attach each product to the step
+# that mentions it; anything unmatched goes on the first step).
+NEED_WORDS: dict[str, tuple[str, ...]] = {
+    "dark_room": ("dark", "mask", "blackout", "curtain"), "quiet_room": ("quiet", "noise", "earplug"),
+    "wake_light": ("light", "sunrise", "alarm"), "water_bottle": ("water", "bottle", "glass", "refill"),
+    "light_therapy": ("light", "lamp"), "electrolytes": ("electrolyte", "salt", "sodium"),
+    "protein_breakfast": ("protein", "shake", "breakfast"), "focus_timer": ("timer", "minutes", "block"),
+    "phone_lockbox": ("phone",), "focus_earplugs": ("noise", "earplug", "quiet"),
+    "daily_planner": ("write", "list", "plan"), "weekly_planner": ("week", "review", "write"),
+    "gratitude_journal": ("gratitude", "journal", "write"), "notebook": ("write", "notebook", "list"),
+    "everyday_earplugs": ("noise", "earplug"), "analog_alarm": ("alarm", "phone", "clock"),
+    "weights": ("dumbbell", "weight", "kettlebell", "squat", "press", "row"),
+    "resistance_bands": ("band",), "pull_up_bar": ("pull", "hang"), "recovery_roller": ("roll", "foam"),
+    "exercise_mat": ("floor", "mat", "stretch", "plank"), "jump_rope": ("rope", "jump"),
+    "workout_log": ("log", "write", "track"), "walking_pad": ("walk", "steps"), "step_tracker": ("steps", "track"),
+    "fiber": ("fiber", "psyllium"), "balance_pad": ("balance", "one leg", "stand"),
+    "face_cleanser": ("cleanser", "cleanse", "wash"), "moisturizer": ("moisturizer",),
+    "sunscreen": ("spf", "sunscreen"), "adapalene": ("adapalene",), "retinol_serum": ("retinol",),
+    "niacinamide_serum": ("niacinamide",), "vitamin_c_serum": ("vitamin c",), "azelaic_acid": ("azelaic",),
+    "bha_exfoliant": ("bha", "salicylic"), "aha_exfoliant": ("lactic", "pha", "aha", "glycolic"),
+    "hyaluronic_serum": ("hyaluronic", "hydrating serum"), "clay_mask": ("clay",), "ointment": ("petroleum",),
+    "ketoconazole_shampoo": ("shampoo", "ketoconazole"), "scalp_brush": ("brush", "scalp"),
+    "melatonin": ("melatonin",), "magnesium": ("magnesium",), "l_theanine": ("theanine",),
+    "creatine": ("creatine",), "collagen": ("collagen",), "vitamin_d3": ("vitamin d", "d3"),
+    "omega3": ("omega", "fish oil", "algae"), "glycine": ("glycine",), "multivitamin": ("multivitamin", "multi"),
+    "b12": ("b12",), "protein_powder": ("protein",),
+    "sharps_container": ("sharps", "needle"), "travel_cooler": ("cool", "travel"),
+    "alcohol_pads": ("alcohol", "swab", "wipe"), "fridge_thermometer": ("fridge", "temperature"),
+}
+
+
+def task_needs(active: list[tuple[str, dict]], maxx_id: str, habit_id: str, text: str) -> list[dict[str, Any]]:
+    """The needs of ONE task in the person's plan (the same ones the Products tab
+    shows for it). Folded supplement rows ("creatine + L-theanine") and skin
+    routine steps are matched by the words in the task's own text."""
+    t = (text or "").lower()
+    mine = [n for n in plan_needs(active) if n["program"] == maxx_id]
+    if maxx_id == SKIN:
+        found = {need for pattern, need in _SKIN_STEPS if re.search(pattern, t)}
+        return [n for n in mine if n["need"] in found]
+    if maxx_id == "suppmax":
+        hits = [n for n in mine if any(w in t for w in NEED_WORDS.get(n["need"], ()))]
+        if hits:
+            return hits
+    ids = {p.need for p in active_catalog() if p.module == maxx_id and habit_id in p.concerns}
+    return [n for n in mine if n["need"] in ids]
+
+
+def task_products(active: list[tuple[str, dict]], facts: Optional[dict], picks: dict,
+                  maxx_id: str, habit_id: str, text: str) -> list[tuple[str, dict[str, Any]]]:
+    """(need, product card) for one task: the person's pick for each need."""
+    out = []
+    for n in task_needs(active, maxx_id, habit_id, text):
+        opts = options_for(n, facts, picks)
+        if opts:
+            out.append((n["need"], {**_card(opts[0]), "need_label": NEED_LABELS.get(n["need"], n["need"])}))
+    return out
 
 
 def _fit(p: Product, hints: set[str]) -> int:

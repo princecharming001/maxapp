@@ -342,11 +342,11 @@ def test_work_hours_hold_only_work_native_habits():
     assert s + 10 <= 9 * 60 or s >= 17 * 60
 
 
-def test_week_one_keeps_three_habits():
+def test_default_plan_keeps_four_habits():
     ids = ["box_breathing", "brain_dump", "physiological_sigh", "connect_ping", "gratitude_note"]
     t = ap.validate_template("calmmax", _raw(*[_h(x, f"{8 + 2 * i:02d}:00", 3) for i, x in enumerate(ids)]),
                              _prof(minutes=120))
-    assert len(t["habits"]) == 3
+    assert len(t["habits"]) == 4
 
 
 def test_duplicate_idea_is_parked_and_comes_back_when_the_other_program_stops():
@@ -535,9 +535,10 @@ def test_week_one_cap_keeps_the_persons_priorities():
     # sim: "falling asleep" + a 9 pm bedtime lost its wind-down to the 3-habit cap because the cap
     # ignored Claude's order; it now cuts from the end of Claude's (most important first) list
     t = ap.validate_template("sleepmax", _raw(_h("wind_down", "20:15", 10), _h("fixed_wake_time", "06:30", 0),
-                                              _h("caffeine_cutoff", "13:00", 0), _h("morning_light", "07:30", 5)),
+                                              _h("caffeine_cutoff", "13:00", 0), _h("morning_light", "07:30", 5),
+                                              _h("bedroom_setup", "20:00", 5)),
                              _prof("06:30", "21:00", minutes=30))
-    assert _ids(t) == {"wind_down", "fixed_wake_time", "caffeine_cutoff"}
+    assert _ids(t) == {"wind_down", "fixed_wake_time", "caffeine_cutoff", "morning_light"}
 
 
 def test_a_minutes_only_refit_rewrites_the_stored_days():
@@ -690,7 +691,8 @@ async def test_intake_known_fact_question_is_retried_then_dropped(monkeypatch):
         return {"done": False, "ack": "", "question": "how much later do you wake on weekends?",
                 "options": ["same", "1h"], "fact_key": "weekend"}
     monkeypatch.setattr(ap, "_claude_tool", fake)
-    step = await ap.next_intake_step("sleepmax", {"wake_time": "07:00"}, {"a": "b"}, [{"question": "x"}])
+    # (the six habit programs use fixed quizzes now; Claude still runs Peptidemax's intake)
+    step = await ap.next_intake_step("peptidemax", {"wake_time": "07:00"}, {"a": "b"}, [{"question": "x"}])
     assert step["done"] is True and len(calls) == 2
     assert calls[1]["rejected_question"].startswith("how much later")
 

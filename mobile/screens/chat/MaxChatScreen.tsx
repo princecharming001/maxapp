@@ -382,7 +382,7 @@ function ProgramSetupCard({ programId }: { programId: string }) {
             <Text style={cg.setupEyebrow}>SETTING UP</Text>
             <Text style={cg.setupTitle}>{p.label}</Text>
             <Text style={cg.setupBody}>
-                I already know your day. A couple of quick questions, then I'll build {p.label} around it.
+                I already know your day. A few quick taps, then I'll build {p.label} around you.
             </Text>
         </View>
     );

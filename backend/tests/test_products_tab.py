@@ -89,3 +89,29 @@ def test_diet_facts_filter_options():
 def test_image_size_rewrite():
     assert _image("https://m.media-amazon.com/images/I/91j-EDBgLGL._AC_SX679_.jpg") == \
         "https://m.media-amazon.com/images/I/91j-EDBgLGL._AC_SL500_.jpg"
+
+
+def test_task_products_match_the_tab_and_cover_folded_rows():
+    from api.products import task_products
+    supp = {"habits": [{"habit_id": "creatine", "title": "creatine"}, {"habit_id": "l_theanine", "title": "theanine"}],
+            "answers": {}}
+    active = [("suppmax", supp)]
+    got = task_products(active, None, {"creatine": "thorne-creatine"}, "suppmax", "creatine",
+                        "creatine daily + L-theanine: stir 3-5 g of creatine ...")
+    assert [n for n, _ in got] == ["creatine", "l_theanine"]
+    assert got[0][1]["id"] == "thorne-creatine"                      # their Swap wins here too
+
+
+def test_task_products_for_skin_follow_that_routine_step_only():
+    from api.products import task_products
+    active = _skin("Fix dryness", "Tight, dry or flaky")
+    am = next(h for h in active[0][1]["habits"] if h["habit_id"] == "am_routine")
+    needs = [n for n, _ in task_products(active, None, {}, "skinhairmax", "am_routine", am["how"])]
+    assert "face_cleanser" not in needs                               # AM is a water rinse for dry skin
+    assert {"moisturizer", "sunscreen"} <= set(needs)
+
+
+def test_no_gear_habits_get_no_products():
+    from api.products import task_products
+    plan = {"habits": [{"habit_id": "posture_break", "title": "desk posture reset"}]}
+    assert task_products([("trainmax", plan)], None, {}, "trainmax", "posture_break", "roll shoulders") == []

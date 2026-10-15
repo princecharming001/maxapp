@@ -295,6 +295,10 @@ def _from_min(m: int) -> str:
     return f"{m // 60:02d}:{m % 60:02d}"
 
 
+# Facts about the person any program may ask once and every program then reuses.
+ABOUT_KEYS = ("age_band", "sex")
+
+
 def build_profile(state: dict) -> dict:
     """The compact picture of the user's day Claude plans around."""
     # The person's real wake and bed times. (Onboarding stores the WIND-DOWN
@@ -350,6 +354,8 @@ def build_profile(state: dict) -> dict:
         "timezone": state.get("timezone"),
         "known_facts": {k: v for k, v in (facts.items() if isinstance(facts, dict) else [])
                         if not str(k).startswith("_")},
+        # asked once by any program's quiz, then reused (never asked again)
+        "about": {k: state.get(k) for k in ABOUT_KEYS if str(state.get(k) or "").strip()},
     }
 
 
@@ -495,6 +501,14 @@ async def next_intake_step(maxx_id: str, profile: dict, answers: dict, asked: li
         # a fixed 3-question quiz: the routine builder needs exactly these
         from services import skin_routine
         return skin_routine.next_question(answers, asked)
+    if maxx_id == SUPP_PROGRAM:
+        # a fixed screen: goals, safety, meds, age, sex, gaps, current stack
+        from services import supp_intake
+        return supp_intake.next_question(answers, asked, profile)
+    from services import program_quiz
+    if maxx_id in program_quiz.QUIZ_PROGRAMS:
+        # every question in the program's doc, in order, minus what's known
+        return program_quiz.next_question(maxx_id, answers, asked, profile)
     pd = get_program_doc(maxx_id)
     if pd is None or len(asked) >= MAX_INTAKE_QUESTIONS:
         return {"done": True, "ack": "", "question": "", "options": [], "multi": False, "fact_key": ""}
@@ -637,15 +651,27 @@ async def build_plan(
         "and 1-minute reminders are free. Never shrink a habit below its library minimum to squeeze it "
         "in: leave it out instead (no 2-minute deep-work block). Only describe habits you actually "
         "include in the summary.\n"
-        + {"light": "- The user wants this LIGHT: 1 or 2 habits for this program, only the most valuable core ones "
+        + {"light": "- The user wants this LIGHT: 2 habits for this program, only the most valuable ones "
                     "for THIS person. ",
-           "full": "- The user asked for MORE: 4 or 5 habits for this program, the highest-value ones for THIS "
+           "full": "- The user asked for MORE: 5 or 6 habits for this program, the highest-value ones for THIS "
                    "person, still each easy to start. ",
-           }.get(level, "- Week 1 must feel easy: 2 or 3 habits for this program, the highest-value core ones for "
-                        "THIS person. ")
+           }.get(level, "- Build a real plan: 3 or 4 habits for this program, the highest-value ones for THIS "
+                        "person. ")
         + "List habits most important first for this person (their answers decide: someone who can't fall "
         f"asleep needs the wind-down before a fixed wake time); anything past the "
-        f"{ {'light': 'second', 'full': 'fifth'}.get(level, 'third') } is cut.\n"
+        f"{ {'light': 'second', 'full': 'sixth'}.get(level, 'fourth') } is cut.\n"
+        "- Personal, not generic: two people with different answers must get different plans. Every "
+        "habit's 'how' must use at least one specific thing from intake_answers or the profile (their "
+        "main problem, their equipment, their distraction, their eating style, their stress time, their "
+        "age), with concrete amounts for THEM (sets and reps for their level, step target from their "
+        "current steps, block length for their work type). 'why' says why it matters for them, in one "
+        "sentence that names their situation.\n"
+        "- already_doing in intake_answers: never schedule the beginner version of something they already "
+        "do. Simple habits they already have are left out so the plan adds something new; training "
+        "habits they already do (strength, cardio, steps, mobility) are scheduled one level up from "
+        "where they are (more sets, longer, harder variant) and the 'how' says so.\n"
+        "- Training habits: write the actual session (exercises with sets x reps or minutes, rest, how "
+        "to progress next week) for their equipment and experience, not 'do a workout'.\n"
         "- Do not duplicate a habit another program already schedules (same idea, e.g. morning light); "
         "if it is shared, leave it to the other program and pick something else.\n"
         "- Do not schedule two habits at the same minute as each other or as other programs' habits; "
@@ -682,6 +708,13 @@ async def build_plan(
         if isinstance(h, dict):
             h.pop("priority", None)      # this list's order IS the priority
     out["level"] = level
+    from services import program_quiz
+    skip = program_quiz.skip_ids(maxx_id, answers or {})
+    if skip and not request:
+        # simple habits they already do: the plan adds something new instead
+        kept = [h for h in out.get("habits") or [] if not (isinstance(h, dict) and h.get("habit_id") in skip)]
+        if kept:
+            out["habits"] = kept
     tmpl = validate_template(maxx_id, out, profile, others=other_plans,
                              keep_ids=set(sync_required or []))
     if not tmpl["habits"]:
@@ -939,7 +972,7 @@ def _fit_caps(maxx_id: str, habits: list[dict]) -> tuple[set, int]:
     if maxx_id == "skinhairmax":
         # the AM and PM routines ARE the program; scalp steps ride along
         return {h["habit_id"] for h in habits if h["habit_id"] in ("am_routine", "pm_routine")}, 4
-    return set(), 3
+    return set(), 4
 
 
 def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optional[dict] = None,
@@ -1271,6 +1304,16 @@ def _answers_text(answers: dict) -> str:
     return " | ".join(vals)
 
 
+def _supp_safety_text(answers: dict) -> str:
+    """What supplement avoid-if lists are matched against: the screening
+    answers only (a goal like 'Stress' or a diet note must never rule anything
+    out). Plans from before the fixed quiz keep matching all their answers."""
+    from services import supp_intake
+    if any(k in (answers or {}) for k in ("supp_goals", "supp_diet", "age_band")):
+        return supp_intake.safety_text(answers).lower()
+    return _answers_text(answers)
+
+
 def _contraindicated(h: "Habit", answers_text: str) -> bool:
     if not answers_text:
         return False
@@ -1282,13 +1325,29 @@ def _contraindicated(h: "Habit", answers_text: str) -> bool:
     return False
 
 
+SUPP_DAILY_MAX = 3   # week 1: at most this many supplements a day (the level slider moves it)
+
+
+def supp_answer_picks(answers: dict, active: set[str], profile: dict, synced: int) -> list[str]:
+    """Supplements the person's own quiz answers call for (gaps first, then
+    goals), safe ones only, filling the slots the program sync left. Someone
+    who named a gap or goal always gets at least one."""
+    from services import supp_intake
+    pd = get_program_doc(SUPP_PROGRAM)
+    if pd is None:
+        return []
+    atext = _supp_safety_text(answers)
+    picks = supp_intake.ordered_picks(answers, active, profile, pd.habits, lambda h: _contraindicated(h, atext))
+    return picks[: max(1, SUPP_DAILY_MAX - synced)] if picks else []
+
+
 def required_supplements(active: set[str], answers: dict, declined: set[str], present: set[str]) -> list["Habit"]:
     """The primary supplement for each active program that isn't covered yet,
     minus anything declined or contraindicated by the user's answers."""
     pd = get_program_doc(SUPP_PROGRAM)
     if pd is None:
         return []
-    atext = _answers_text(answers)
+    atext = _supp_safety_text(answers)
     covered = {p for hid in present for p in ((pd.habit(hid).programs if pd.habit(hid) else []) or [])}
     out: list[Habit] = []
     for mid in AI_PROGRAMS:
@@ -1340,7 +1399,7 @@ def _tag_supp_links(tmpl: dict, active: set[str], prev: Optional[dict] = None, *
 
 def _finalize_supp(tmpl: dict, profile: dict, answers: dict, active: set[str],
                    prev: Optional[dict] = None, *, user_requested: bool = False, enforce: bool = True,
-                   others: Optional[dict] = None) -> dict:
+                   others: Optional[dict] = None, also_required: Optional[list[str]] = None) -> dict:
     """Make the synced picks deterministic (Claude places them; this only fills
     a gap if Claude dropped one), fit the whole Suppmax plan into the day with
     the synced and user-chosen picks protected, then tag links."""
@@ -1350,7 +1409,12 @@ def _finalize_supp(tmpl: dict, profile: dict, answers: dict, active: set[str],
         missing = required_supplements(active, answers, declined, present)
         if missing:
             _insert_supps(tmpl, missing, profile)
-    needed = {h.id for h in required_supplements(active, answers, declined, set())}
+        pd = get_program_doc(SUPP_PROGRAM)
+        present = {h.get("habit_id") for h in tmpl.get("habits") or []}
+        extra = [pd.habit(hid) for hid in (also_required or []) if hid not in present and pd and pd.habit(hid)]
+        if extra:
+            _insert_supps(tmpl, extra, profile)
+    needed = {h.id for h in required_supplements(active, answers, declined, set())} | set(also_required or [])
     prev_keep = {h.get("habit_id") for h in (prev or {}).get("habits") or [] if h.get("keep")}
     have = {h.get("habit_id") for h in tmpl.get("habits") or []}
     keep_extra = {k: tmpl.get(k) for k in ("answers", "declined", "_draft") if k in tmpl}
@@ -1564,10 +1628,19 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
     if maxx_id == SUPP_PROGRAM:
         active_now = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
         sync_required = [h.id for h in required_supplements(active_now, answers, set(), set())]
+        sync_required += [h for h in supp_answer_picks(answers, active_now, profile, len(sync_required))
+                          if h not in sync_required]
+    if True:  # shared facts (age, sex) asked by any program are remembered for all
+        about = {k: answers[k] for k in ABOUT_KEYS if str(answers.get(k) or "").strip()}
+        if about:
+            from services.user_context_service import merge_context
+            await merge_context(user_id, about, db)
+            profile = {**profile, "about": {**(profile.get("about") or {}), **about}}
     tmpl = await build_plan(maxx_id, profile, answers, others, sync_required=sync_required)
     if tmpl is not None and maxx_id == SUPP_PROGRAM:
         tmpl["answers"] = answers
-        tmpl = _finalize_supp(tmpl, profile, answers, active_now, others=others)
+        tmpl = _finalize_supp(tmpl, profile, answers, active_now, others=others,
+                              also_required=sync_required)
     supp_preview: list[str] = []
     if tmpl is not None and maxx_id not in NO_SYNC_PROGRAMS:
         try:

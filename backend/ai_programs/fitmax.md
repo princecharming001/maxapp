@@ -156,15 +156,17 @@ Check with a professional first (CDC: people with chronic conditions should talk
 - source: https://doi.org/10.1249/MSS.0b013e318213fefb
 
 ## What the AI needs to know (intake)
-1. `training_experience` (required) — Sets starting volume, exercise choices and progression speed.
+1. `fitness_goal` (required) — Decides the plan's shape: muscle → more strength days and protein; fat loss → strength plus steps and zone 2; endurance → zone 2 and intervals lead; pain-free → mobility and posture lead, gentle strength.
+   Q: "What's your main fitness goal right now?" Options: Build muscle and strength | Lose fat | Better endurance | Move without aches | General fitness
+2. `training_experience` (required) — Sets starting volume, exercise choices and progression speed.
    Q: "How would you describe your training right now?" Options: New or returning after a long break | Some training, not consistent | Training regularly
-2. `equipment_access` (required) — Picks exercise variants.
+3. `equipment_access` (required) — Picks exercise variants.
    Q: "What can you train with?" Options: Just bodyweight | Bands or a few dumbbells at home | Full gym
-3. `health_flags` (required) — Decides whether to require "check with your doctor" and to remove intervals, jumps or heavy lifts.
+4. `health_flags` (required, multi) — Decides whether to require "check with your doctor" and to remove intervals, jumps or heavy lifts.
    Q: "Any of these apply to you?" Options: None | Heart or blood-pressure condition | Current pain or injury | Pregnant or recently gave birth | Prefer not to say (treat as cautious)
-4. `sessions_per_week` (optional) — Sets strength frequency (default 2 if not answered).
+5. `sessions_per_week` (optional) — Sets strength frequency (default 2 if not answered).
    Q: "How many workouts a week feels realistic?" Options: 2 | 3 | 4
-5. `current_steps` (optional) — Sets the starting step goal.
+6. `current_steps` (optional) — Sets the starting step goal.
    Q: "About how much do you walk on a normal day?" Options: Under 4,000 steps | 4,000–7,000 | 7,000–10,000 | 10,000+ | No idea
 
 ## Scheduling rules

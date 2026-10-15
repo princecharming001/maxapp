@@ -577,7 +577,11 @@ async def get_task_guide(
     title = task.get("title", "")
     description = task.get("description", "")
     duration = int(task.get("duration_minutes") or 5)
-    task_key = _normalise_key(title, maxx_id)
+    image_key = _normalise_key(title, maxx_id)
+    # The guide follows THIS plan's steps: two people's "AM skin routine" or
+    # "Full-body strength" differ, so the description is part of the key.
+    import hashlib as _hl
+    task_key = f"{image_key}|{_hl.sha1(description.strip().lower().encode()).hexdigest()[:10]}"
 
     # Cache hit — only honour entries on the current payload version. Stale-shape
     # entries (no per-step ingredients / hero image) fall through to regenerate.
@@ -618,8 +622,38 @@ async def get_task_guide(
                 _stamp(guide, maxx_id)
                 await _cache_set(task_key, guide, db)
 
-    resolved = await _resolve_for_user(guide, maxx_id, user_id, db, task_key=task_key)
+    resolved = await _resolve_for_user(guide, maxx_id, user_id, db, task_key=image_key)
+    try:
+        await _attach_routine_products(resolved, task, maxx_id, user_id, db)
+    except Exception as e:  # products are a bonus; the guide still works
+        logger.warning("[task_guide] routine products failed: %s", e)
     return {"task_key": task_key, "title": title, **resolved}
+
+
+async def _attach_routine_products(guide: dict, task: dict, maxx_id: Optional[str], user_id: str, db) -> None:
+    """Every product this task uses, on the step that uses it: the same pick the
+    Products tab shows for that need (their Swap included), never a name guess.
+    Anything no step mentions goes on the first step."""
+    from api.products import NEED_WORDS, _SKIN_STEPS, _context, task_products
+    habit_id = str(task.get("catalog_id") or "").split(".", 1)[-1]
+    text = f"{task.get('title') or ''} {task.get('description') or ''}"
+    active, facts, picks = await _context(str(user_id), db)
+    items = task_products(active, facts, picks, maxx_id or "", habit_id, text)
+    steps = guide.get("steps") or []
+    if not steps:
+        return
+    for s in steps:
+        s["ingredients"] = []
+    for need, card in items:
+        entry = {"name": card["name"], "generic_name": card["need_label"], "brand": card["brand"],
+                 "note": card["need_label"], "url": card["url"], "image": card["image"], "asin": card["asin"],
+                 "price_usd": card["price_usd"], "rating": card["rating"], "need": need}
+        words = NEED_WORDS.get(need, ())
+        pats = [p for p, n in _SKIN_STEPS if n == need]
+        home = next((s for s in steps if any(w in f"{s.get('title','')} {s.get('body','')}".lower() for w in words)
+                     or any(re.search(p, f"{s.get('title','')} {s.get('body','')}".lower()) for p in pats)), steps[0])
+        home["ingredients"].append(entry)
+    guide["products"] = [e for s in steps for e in s["ingredients"]]
 
 
 def _error_guide(msg: str) -> dict:

@@ -20,7 +20,7 @@ def test_level_changes_how_many_habits_fit():
     bal = ap.validate_template("energymax", raw, PROF)
     full = ap.validate_template("energymax", {**raw, "level": "full"}, PROF)
     assert len(light["habits"]) <= 2 < len(full["habits"])
-    assert len(light["habits"]) <= len(bal["habits"]) <= 3 <= len(full["habits"]) <= 5
+    assert len(light["habits"]) <= len(bal["habits"]) <= 4 <= len(full["habits"]) <= 6
     assert full["level"] == "full" and "level" not in bal and ap.plan_level(light) == "light"
 
 

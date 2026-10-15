@@ -48,6 +48,7 @@ import { fonts } from '../../theme/dark';
 import api from '../../services/api';
 import { queryKeys } from '../../lib/queryClient';
 import { maxxThumbCut } from '../../data/maxxThumbs';
+import { openAmazonProduct } from '../../lib/openAmazon';
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
@@ -148,14 +149,19 @@ function IngredientCard({ item, index, stepN }: { item: TaskGuideIngredient; ind
         <View style={c.card}>
             <View style={c.tile}>
                 {img ? (
-                    <ExpoImage source={{ uri: img }} style={c.tileImg} contentFit="cover" transition={150} />
+                    <ExpoImage source={{ uri: img }} style={c.tileImg} contentFit="contain" transition={150} />
                 ) : (
                     <Text style={c.tileInitials}>{initials(item.name)}</Text>
                 )}
             </View>
             <View style={c.cardText}>
                 <Text style={c.cardName} numberOfLines={2}>{item.name}</Text>
-                {item.note ? <Text style={c.cardNote} numberOfLines={1}>{item.note}</Text> : null}
+                {item.note || item.price_usd ? (
+                    <Text style={c.cardNote} numberOfLines={1}>
+                        {[item.note, item.price_usd ? `$${item.price_usd % 1 === 0 ? item.price_usd : item.price_usd.toFixed(2)}` : '']
+                            .filter(Boolean).join(' · ')}
+                    </Text>
+                ) : null}
             </View>
         </View>
     );
@@ -163,7 +169,12 @@ function IngredientCard({ item, index, stepN }: { item: TaskGuideIngredient; ind
         return (
             <TouchableOpacity
                 activeOpacity={0.8}
-                onPress={() => Linking.openURL(item.url!).catch(() => {})}
+                onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    // the Amazon app when installed, else Safari (account + cart there)
+                    if (item.asin) void openAmazonProduct(item.asin, item.url);
+                    else Linking.openURL(item.url!).catch(() => {});
+                }}
                 testID={testID}
                 accessibilityLabel={a11y}
                 accessibilityRole="button"
@@ -187,7 +198,7 @@ const c = StyleSheet.create({
         ...(Platform.OS === 'ios' ? { borderCurve: 'continuous' as any } : {}),
     },
     tile: {
-        width: 66, height: 66, borderRadius: 13, backgroundColor: CREAM,
+        width: 66, height: 66, borderRadius: 13, backgroundColor: '#FFFFFF',
         alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
         borderWidth: StyleSheet.hairlineWidth, borderColor: HAIRLINE,
     },
@@ -298,7 +309,7 @@ function StepPage({
                         testID={`guide-ingredients-${step.n}`}
                         accessibilityLabel={`Ingredients for step ${step.n}`}
                     >
-                        <Text style={sp.ingredientsLabel}>Ingredients</Text>
+                        <Text style={sp.ingredientsLabel}>What you'll use</Text>
                         <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}

@@ -15,6 +15,10 @@ export type TaskGuideIngredient = {
     url?: string;
     /** Product image URL; "" when none (card shows initials instead). */
     image?: string;
+    /** Amazon ASIN: opens the Amazon app (Safari without it). */
+    asin?: string;
+    price_usd?: number | null;
+    rating?: number | null;
 };
 
 export type TaskGuideStep = {

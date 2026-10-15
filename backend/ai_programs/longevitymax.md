@@ -157,7 +157,7 @@ Check with a professional first:
 
 ## What the AI needs to know (intake)
 1. `age_band` (required) — Changes step targets (6,000–8,000 for 60+ vs 8,000–10,000 under 60), balance priority and impact level. Skip if the general profile already has age.
-   Q: "Which age range are you in?" Options: Under 30 | 30–44 | 45–59 | 60+
+   Q: "How old are you?" Options: Under 18 | 18–29 | 30–49 | 50–59 | 60 or older
 2. `activity_baseline` (required) — Sets cardio and strength starting doses.
    Q: "How active are you in a normal week?" Options: Mostly sitting | Some walking | Exercise 1–2× a week | Exercise 3+ times a week
 3. `health_flags` (required) — Triggers "check with your doctor" and removes vigorous bursts if needed.
