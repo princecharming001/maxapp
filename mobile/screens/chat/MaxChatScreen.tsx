@@ -14,7 +14,7 @@ import MessageBlocks, { PLAN_LEVEL_TEXT } from '../../components/MessageBlocks';
 import ConfidenceInfoButton from '../../components/ConfidenceInfoButton';
 import { useChatHistoryQuery, useChatConversationsQuery, isPendingQuestionForThread } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
-import { toggleChoice } from '../../lib/chatChoices';
+import { isExclusiveChoice, toggleChoice } from '../../lib/chatChoices';
 import { ChatTypingIndicator, ChatTypingMode } from '../../components/ChatTypingIndicator';
 import { colors, spacing, borderRadius, typography, fonts } from '../../theme/dark';
 import { CachedImage } from '../../components/CachedImage';
@@ -86,8 +86,11 @@ interface Message {
 // Chips whose text means "my answer isn't here" — tapping one focuses the
 // text input so the user can type a custom answer instead of sending the
 // chip. The backend appends one of these ONLY to open-ended MCQs.
+// NOT "none of these": that IS an answer (the Suppmax safety question showed
+// it as "something else…" and opened the keyboard, so a healthy person had to
+// type "none").
 const CUSTOM_CHIP_LABELS = new Set([
-  'something else', 'other', 'none of these', 'type my own', 'type your own',
+  'something else', 'other', 'type my own', 'type your own',
 ]);
 const isCustomChip = (c: string) => CUSTOM_CHIP_LABELS.has(c.trim().toLowerCase());
 
@@ -1835,7 +1838,14 @@ export default function MaxChatScreen() {
                                             // Toggle the pick. The Submit button below
                                             // sends the joined comma-list so the backend
                                             // sees one user message containing all picks.
-                                            // "None" can't sit next to a real answer.
+                                            // "None" can't sit next to a real answer, and
+                                            // it IS the whole answer: send it right away
+                                            // instead of waiting on a second Submit tap.
+                                            if (isExclusiveChoice(choice)) {
+                                                setMultiPicked(new Set());
+                                                void sendMessage(choice);
+                                                return;
+                                            }
                                             setMultiPicked((prev) => toggleChoice(prev, choice));
                                         }}
                                         activeOpacity={0.7}

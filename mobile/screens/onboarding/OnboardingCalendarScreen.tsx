@@ -13,7 +13,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path, Text as SvgText } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,11 +38,21 @@ const SOFT = {
 const seenKey = (userId?: string) => `onboarding_calendar_seen:${userId ?? 'anon'}`;
 const STATUS_TIMEOUT_MS = 5000;
 
-const POINTS: { icon: keyof typeof Ionicons.glyphMap; text: string }[] = [
-    { icon: 'calendar-outline', text: 'Your routine fits around meetings, never on top of them' },
-    { icon: 'refresh-outline', text: 'Your plan moves when your week changes' },
-    { icon: 'eye-outline', text: 'Read-only. We never change your events' },
-];
+/** The Google Calendar app mark, drawn so it stays crisp at any size. */
+function GoogleCalendarLogo({ size }: { size: number }) {
+    return (
+        <Svg width={size} height={size} viewBox="0 0 200 200" accessibilityLabel="Google Calendar">
+            <Path fill="#FFFFFF" d="M152.632 47.368H47.368v105.263h105.264z" />
+            <Path fill="#EA4335" d="M152.632 200L200 152.632l-23.684-4.041-23.684 4.041-4.322 21.664z" />
+            <Path fill="#188038" d="M0 152.632v31.579C0 192.935 7.065 200 15.789 200h31.579l4.863-23.684-4.863-23.684-25.806-4.041z" />
+            <Path fill="#1967D2" d="M200 47.368V15.789C200 7.065 192.935 0 184.211 0h-31.579c-2.881 11.746-4.322 20.39-4.322 25.931 0 5.54 1.441 12.686 4.322 21.437 10.476 3 18.37 4.5 23.684 4.5 5.314 0 13.209-1.5 23.684-4.5z" />
+            <Path fill="#FBBC04" d="M200 47.368h-47.368v105.263H200z" />
+            <Path fill="#34A853" d="M152.632 152.632H47.368V200h105.264z" />
+            <Path fill="#4285F4" d="M152.632 0H15.789C7.065 0 0 7.065 0 15.789v136.842h47.368V47.368h105.264z" />
+            <SvgText x="100" y="128" fontSize="68" fontWeight="700" fill="#4285F4" textAnchor="middle">31</SvgText>
+        </Svg>
+    );
+}
 
 export default function OnboardingCalendarScreen() {
     const nav = useNavigation<any>();
@@ -124,23 +134,13 @@ export default function OnboardingCalendarScreen() {
 
     return (
         <View style={styles.root}>
-            <View style={[styles.inner, { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 16 }]}>
+            <View style={[styles.inner, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 16 }]}>
                 <View style={styles.center}>
-                    <View style={styles.badge}>
-                        <Ionicons name="calendar" size={30} color={INK} />
+                    <View style={styles.logoTile}>
+                        <GoogleCalendarLogo size={84} />
                     </View>
-                    <Text style={styles.title}>{'Plan around\nyour calendar'}</Text>
-                    <Text style={styles.sub}>
-                        Connect Google Calendar and we'll build your day around what's already on it.
-                    </Text>
-                    <View style={styles.card}>
-                        {POINTS.map((p, i) => (
-                            <View key={p.text} style={[styles.point, i > 0 && styles.pointGap]}>
-                                <Ionicons name={p.icon} size={20} color={INK} style={{ marginRight: 12 }} />
-                                <Text style={styles.pointText}>{p.text}</Text>
-                            </View>
-                        ))}
-                    </View>
+                    <Text style={styles.title}>Connect Google Calendar</Text>
+                    <Text style={styles.sub}>Your plan fits around your meetings.</Text>
                 </View>
 
                 <View>
@@ -153,7 +153,7 @@ export default function OnboardingCalendarScreen() {
                         accessibilityLabel="Connect Google Calendar"
                         accessibilityState={{ busy: connecting }}
                     >
-                        {connecting ? <ActivityIndicator color={ON_INK} /> : <Text style={styles.ctaText}>Connect Google Calendar</Text>}
+                        {connecting ? <ActivityIndicator color={ON_INK} /> : <Text style={styles.ctaText}>Connect</Text>}
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={onSkip}
@@ -164,7 +164,6 @@ export default function OnboardingCalendarScreen() {
                     >
                         <Text style={styles.skipText}>Not now</Text>
                     </TouchableOpacity>
-                    <Text style={styles.later}>You can connect it any time in Settings.</Text>
                 </View>
             </View>
         </View>
@@ -174,17 +173,14 @@ export default function OnboardingCalendarScreen() {
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: BG },
     inner: { flex: 1, width: '100%', maxWidth: 460, alignSelf: 'center', paddingHorizontal: 24, justifyContent: 'space-between' },
-    center: { alignItems: 'center' },
-    badge: {
-        width: 64, height: 64, borderRadius: 32, backgroundColor: CARD,
-        alignItems: 'center', justifyContent: 'center', marginBottom: 22, ...SOFT,
+    // the logo sits in the optical middle of the screen; the buttons stay at the bottom
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    logoTile: {
+        width: 132, height: 132, borderRadius: 34, borderCurve: 'continuous', backgroundColor: CARD,
+        alignItems: 'center', justifyContent: 'center', marginBottom: 28, ...SOFT,
     },
-    title: { fontFamily: 'Matter-Bold', fontSize: 30, color: INK, letterSpacing: -0.6, lineHeight: 36, textAlign: 'center' },
-    sub: { fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, marginTop: 12, lineHeight: 21, textAlign: 'center', paddingHorizontal: 12 },
-    card: { width: '100%', marginTop: 28, padding: 18, borderRadius: 22, backgroundColor: CARD, ...SOFT },
-    point: { flexDirection: 'row', alignItems: 'center' },
-    pointGap: { marginTop: 14 },
-    pointText: { flex: 1, fontFamily: 'Matter-Medium', fontSize: 14.5, color: INK, lineHeight: 20 },
+    title: { fontFamily: 'Matter-Bold', fontSize: 26, color: INK, letterSpacing: -0.5, lineHeight: 32, textAlign: 'center' },
+    sub: { fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, marginTop: 8, lineHeight: 21, textAlign: 'center' },
     cta: {
         height: 56, minWidth: 200, alignSelf: 'center', paddingHorizontal: 40, borderRadius: 999,
         backgroundColor: INK, alignItems: 'center', justifyContent: 'center', borderCurve: 'continuous', ...SOFT,
@@ -192,5 +188,4 @@ const styles = StyleSheet.create({
     ctaText: { fontFamily: 'Matter-SemiBold', fontSize: 16, color: ON_INK, letterSpacing: 0.2 },
     skip: { alignSelf: 'center', marginTop: 12, paddingVertical: 6, paddingHorizontal: 12 },
     skipText: { fontFamily: 'Matter-Medium', fontSize: 13.5, color: SUB },
-    later: { fontFamily: 'Matter-Regular', fontSize: 12, color: SUB, textAlign: 'center', marginTop: 4, opacity: 0.8 },
 });

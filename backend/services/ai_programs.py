@@ -465,14 +465,21 @@ _NONE_OPT = re.compile(r"^(none|no|nothing|not really|none of (these|the above)|
 _FREE_OPT = re.compile(r"^(something else|other|another|else)\W*$", re.I)
 
 
-def tidy_options(opts: list[str], *, multi: bool) -> list[str]:
-    """Chips a person can always answer: a 'pick any that apply' list gets a
-    'none of these' (a safety question with nothing that applies was a dead
-    end), and a free-text 'something else' goes last, never first."""
+# "do you take / have / do any of these…" — a question someone can honestly answer "none"
+_SCREEN_Q = re.compile(r"\b(any of these|apply to you|do you (take|have|use|already)|what do you (already )?(take|use)|"
+                       r"medications?|meds|conditions?|allerg|pregnan|injur)\b", re.I)
+
+
+def tidy_options(opts: list[str], *, multi: bool, question: str = "") -> list[str]:
+    """Chips a person can always answer: a 'pick any that apply' list, or any
+    screening question ("do you take any of these?"), gets a 'none of these'
+    FIRST (a safety question with nothing that applies was a dead end), and a
+    free-text 'something else' goes last, never first."""
     free = [o for o in opts if _FREE_OPT.match(o.strip(" .…"))]
     out = [o for o in opts if o not in free]
-    if multi and out and not any(_NONE_OPT.match(o) for o in out):
-        out.append("none of these")
+    if out and (multi or _SCREEN_Q.search(question or "")):
+        nones = [o for o in out if _NONE_OPT.match(o)]
+        out = (nones[:1] or ["none of these"]) + [o for o in out if not _NONE_OPT.match(o)]
     return out + free[:1]
 
 
@@ -529,9 +536,11 @@ async def next_intake_step(maxx_id: str, profile: dict, answers: dict, asked: li
             out = {**out, "done": True}
     if not out:
         return {"done": True, "ack": "", "question": "", "options": [], "multi": False, "fact_key": ""}
-    opts = tidy_options([str(o).strip() for o in (out.get("options") or []) if str(o).strip()][:5],
-                        multi=bool(out.get("multi")))
     q = str(out.get("question") or "").strip()
+    raw_opts = [str(o).strip() for o in (out.get("options") or []) if str(o).strip()]
+    # keep a "none" Claude offered even when it listed it sixth
+    raw_opts = ([o for o in raw_opts if _NONE_OPT.match(o)][:1] + [o for o in raw_opts if not _NONE_OPT.match(o)])[:6]
+    opts = tidy_options(raw_opts, multi=bool(out.get("multi")), question=q)
     done = bool(out.get("done")) or not q
     return {
         "done": done,

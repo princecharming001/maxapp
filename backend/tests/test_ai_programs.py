@@ -699,10 +699,13 @@ def test_multi_select_intake_always_has_a_none_answer():
     # sim (Suppmax safety question): no "none" chip, so a healthy person couldn't tap through
     opts = ap.tidy_options(["something else", "pregnant, trying, or breastfeeding", "kidney or liver condition",
                             "surgery in the next 2 weeks", "under 18"], multi=True)
-    assert opts[-2:] == ["none of these", "something else"]
-    assert opts[0] == "pregnant, trying, or breastfeeding"
-    assert ap.tidy_options(["None", "Heart condition"], multi=True) == ["None", "Heart condition"]
+    assert opts[0] == "none of these" and opts[-1] == "something else"
+    assert opts[1] == "pregnant, trying, or breastfeeding"
+    assert ap.tidy_options(["Heart condition", "None"], multi=True) == ["None", "Heart condition"]
     assert ap.tidy_options(["Falling asleep", "Waking at night"], multi=False) == ["Falling asleep", "Waking at night"]
+    # a single-choice screening question needs a way to say no too
+    assert ap.tidy_options(["Blood thinners", "Antidepressants"], multi=False,
+                           question="do you take any of these regularly?")[0] == "none of these"
 
 
 def test_daily_cap_holds_with_suppmax_rows_pinned():
