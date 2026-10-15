@@ -10,7 +10,7 @@ import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } 
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import api, { type VisualBlock, type MethodConfidence } from '../../services/api';
-import MessageBlocks from '../../components/MessageBlocks';
+import MessageBlocks, { PLAN_LEVEL_TEXT } from '../../components/MessageBlocks';
 import ConfidenceInfoButton from '../../components/ConfidenceInfoButton';
 import { useChatHistoryQuery, useChatConversationsQuery, isPendingQuestionForThread } from '../../hooks/useAppQueries';
 import { queryKeys } from '../../lib/queryClient';
@@ -1410,6 +1410,15 @@ export default function MaxChatScreen() {
         toggleVoice();
     };
 
+    // Only the newest plan card gets the Lighter · Balanced · More control.
+    let lastPlanIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === 'assistant' && (messages[i].blocks || []).some((b: any) => b?.type === 'plan')) {
+            lastPlanIndex = i;
+            break;
+        }
+    }
+
     const renderMessage = ({ item, index }: { item: Message; index: number }) => {
         if (programThread && item.role === 'user' && PROGRAM_OPENER_RE.test(String(item.content || '').trim())) {
             return null;
@@ -1479,7 +1488,12 @@ export default function MaxChatScreen() {
                         so they can't interfere with the char-by-char animation or
                         FlashList row recycling. Additive: null when no blocks. */}
                     {!animate && item.blocks && item.blocks.length > 0 ? (
-                        <MessageBlocks blocks={item.blocks} />
+                        <MessageBlocks
+                            blocks={item.blocks}
+                            onPlanLevel={index === lastPlanIndex && !loading
+                                ? (l) => { void sendMessage(PLAN_LEVEL_TEXT[l]); }
+                                : undefined}
+                        />
                     ) : null}
                     {image}
                     {!animate && displayText ? (
@@ -1628,7 +1642,7 @@ export default function MaxChatScreen() {
                         renderItem={renderMessage}
                         // Rows read refs/state outside `data` (finished reveals,
                         // the program thread); re-render them when those change.
-                        extraData={`${revealTick}:${programThread ?? ''}`}
+                        extraData={`${revealTick}:${programThread ?? ''}:${lastPlanIndex}:${loading ? 1 : 0}`}
                         ListHeaderComponent={programThread ? <ProgramSetupCard programId={programThread} /> : undefined}
                         keyExtractor={(item, i) =>
                             item.isTyping ? `typing-${item.typingMode ?? 'default'}` : i.toString()

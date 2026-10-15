@@ -156,7 +156,7 @@ async def test_intake_asks_claudes_questions_then_builds_the_plan(driver):
 
     text, choices, multi = await ap.chat_turn("u1", "c, d", db, start_maxx=None, conversation_id="c1")
     assert driver["built"] == [("sleepmax", {"k1": "a", "k2": "c, d"})]
-    assert "anything you want to change" in text
+    assert "does this feel like enough" in text
     assert choices == ap.AFTER_PLAN_CHOICES
     assert driver["ctx"][ap.INTAKE_KEY] is None
 

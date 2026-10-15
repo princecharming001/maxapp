@@ -596,6 +596,7 @@ async def build_plan(
     current_plan: Optional[dict] = None,
     request: Optional[str] = None,
     sync_required: Optional[list[str]] = None,
+    level: str = "balanced",
 ) -> Optional[dict]:
     """Claude builds (or rebuilds) the weekly template. Returns the validated
     template dict, or None if Claude was unavailable / produced nothing usable."""
@@ -605,9 +606,9 @@ async def build_plan(
     if maxx_id == "skinhairmax" and not request:
         from services import skin_routine
         raw = skin_routine.build_template(answers or {}, started_on=_local_today(profile))
-        tmpl = validate_template(maxx_id, raw, profile, others=other_plans)
+        tmpl = validate_template(maxx_id, {**raw, "level": level}, profile, others=other_plans)
         return tmpl if tmpl["habits"] else None
-    budget_total = int(profile.get("minutes_per_day_total") or 25)
+    budget_total = int(_level_profile(profile, level).get("minutes_per_day_total") or 25)
     used = _other_minutes_per_day(other_plans)
     remaining = _program_share(budget_total, other_plans)
     system = (
@@ -627,9 +628,15 @@ async def build_plan(
         "and 1-minute reminders are free. Never shrink a habit below its library minimum to squeeze it "
         "in: leave it out instead (no 2-minute deep-work block). Only describe habits you actually "
         "include in the summary.\n"
-        "- Week 1 must feel easy: 2 or 3 habits for this program, the highest-value core ones for THIS person. "
-        "List habits most important first for this person (their answers decide: someone who can't fall "
-        "asleep needs the wind-down before a fixed wake time); anything past the third is cut.\n"
+        + {"light": "- The user wants this LIGHT: 1 or 2 habits for this program, only the most valuable core ones "
+                    "for THIS person. ",
+           "full": "- The user asked for MORE: 4 or 5 habits for this program, the highest-value ones for THIS "
+                   "person, still each easy to start. ",
+           }.get(level, "- Week 1 must feel easy: 2 or 3 habits for this program, the highest-value core ones for "
+                        "THIS person. ")
+        + "List habits most important first for this person (their answers decide: someone who can't fall "
+        f"asleep needs the wind-down before a fixed wake time); anything past the "
+        f"{ {'light': 'second', 'full': 'fifth'}.get(level, 'third') } is cut.\n"
         "- Do not duplicate a habit another program already schedules (same idea, e.g. morning light); "
         "if it is shared, leave it to the other program and pick something else.\n"
         "- Do not schedule two habits at the same minute as each other or as other programs' habits; "
@@ -665,6 +672,7 @@ async def build_plan(
     for h in out.get("habits") or []:
         if isinstance(h, dict):
             h.pop("priority", None)      # this list's order IS the priority
+    out["level"] = level
     tmpl = validate_template(maxx_id, out, profile, others=other_plans,
                              keep_ids=set(sync_required or []))
     if not tmpl["habits"]:
@@ -851,6 +859,66 @@ def _lib(maxx_id: str) -> dict:
     return {h.id: h for h in (pd.habits if pd else [])}
 
 
+# How much of a program the person wants, set from the plan card's
+# Lighter · Balanced · More control (or "make it harder" in chat). It scales
+# this program's habit cap and its share of the person's daily minutes.
+PLAN_LEVELS = ("light", "balanced", "full")
+LEVEL_CONTROL = {"lighter, please": "light", "this feels right": "balanced", "give me more": "full"}
+_HARDER_RE = re.compile(r"\b(harder|more habits|add more|step it up|level up|more intense|push me|give me more|"
+                        r"too easy|too light|not enough|go further|go harder)\b", re.IGNORECASE)
+
+
+def plan_level(tmpl: Optional[dict]) -> str:
+    lv = str((tmpl or {}).get("level") or "balanced")
+    return lv if lv in PLAN_LEVELS else "balanced"
+
+
+def _level_cap(cap: int, protected: set, level: str) -> int:
+    if level == "light":
+        return max(len(protected), cap - 1 if protected else 2)
+    if level == "full":
+        return cap + 2
+    return cap
+
+
+def _level_profile(profile: dict, level: str) -> dict:
+    """The person's day as this program sees it at a level: lighter plans get a
+    smaller slice of their minutes, 'more' a bigger one (they asked for it)."""
+    total = int(profile.get("minutes_per_day_total") or 25)
+    if level == "light":
+        total = max(5, round(total * 0.6))
+    elif level == "full":
+        total = min(180, max(total + 10, round(total * 1.6)))
+        return {**profile, "minutes_per_day_total": total, "_task_cap": 14}
+    else:
+        return profile
+    return {**profile, "minutes_per_day_total": total}
+
+
+# what the planner is asked when the control is tapped
+LEVEL_REQUEST = {
+    "light": "make it lighter: fewer habits and less time, keep only what matters most for me",
+    "balanced": "make it a balanced amount: the core habits that matter most for me, nothing extra",
+    "full": ("give me more: keep every habit I have on the same days, and add the next most useful habits "
+             "for me on top. I'm ready for a fuller plan"),
+}
+
+
+def control_level(message: str) -> Optional[str]:
+    """The level a plan-card control tap asks for (its exact text), else None."""
+    return LEVEL_CONTROL.get((message or "").strip().lower().rstrip("."))
+
+
+def _implied_level(request: str, current: str) -> str:
+    """A typed 'make it lighter' / 'make it harder' also moves the level one step."""
+    i = PLAN_LEVELS.index(current)
+    if _HARDER_RE.search(request or ""):
+        return PLAN_LEVELS[min(2, i + 1)]
+    if _LIGHTER_RE.search(request or ""):
+        return PLAN_LEVELS[max(0, i - 1)]
+    return current
+
+
 def _fit_caps(maxx_id: str, habits: list[dict]) -> tuple[set, int]:
     """(protected habit ids, habit cap) for a program's week-1 load."""
     if maxx_id == SUPP_PROGRAM:
@@ -912,12 +980,14 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
         })
         seen.add(hid)
     protected, cap = _fit_caps(maxx_id, habits)
+    level = plan_level(raw)
+    cap = _level_cap(cap, protected, level)
     # (text is reconciled with the FINAL times after the fit, below)
     parked_in = [p for p in raw.get("parked") or []
                  if isinstance(p, dict) and (p.get("habit_id") in lib or str(p.get("habit_id", "")).startswith("custom_"))
                  and p.get("habit_id") not in seen]
     parked_out: list[dict] = []
-    placed, notes = ai_fit.fit(maxx_id, habits, profile, lib, others=others,
+    placed, notes = ai_fit.fit(maxx_id, habits, _level_profile(profile, level), lib, others=others,
                                prev_fit=(raw.get("fit_for") if isinstance(raw.get("fit_for"), dict) else None),
                                keep_ids=protected | set(keep_ids or set()), cap_habits=cap,
                                parked=parked_in, parked_out=parked_out)
@@ -938,6 +1008,7 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
         "fit_for": ai_fit.fit_signature(ai_fit.day_models(profile)),
         "fit_notes": notes,
         **{k: raw[k] for k in ("started_on", "skin_profile") if raw.get(k)},
+        **({"level": level} if level != "balanced" else {}),
         "built_at": datetime.utcnow().isoformat(),
     }
 
@@ -1677,7 +1748,36 @@ def _lighten(maxx_id: str, tmpl: dict, old: dict, profile: dict, others: dict) -
     return out
 
 
-async def redo_program_plan(user_id: str, maxx_id: str, request: str, db) -> Optional[dict]:
+def _is_heavier(new: dict, old: dict) -> bool:
+    n_new, n_old = len(new.get("habits") or []), len((old or {}).get("habits") or [])
+    return _week_minutes(new) > _week_minutes(old) or n_new > n_old
+
+
+_TIER_ORDER = {"core": 0, "medium": 1, "hard": 2}
+
+
+def _harden(maxx_id: str, tmpl: dict, profile: dict, others: dict, n: int = 2) -> dict:
+    """Deterministic 'give me more': add the next most valuable library habits
+    this plan doesn't have yet (the fit still decides what really fits)."""
+    lib = _lib(maxx_id)
+    have = {h.get("habit_id") for h in tmpl.get("habits") or []}
+    have |= {p.get("habit_id") for p in tmpl.get("parked") or []}
+    picks = [h for h in lib.values() if h.id not in have and not h.programs]
+    picks.sort(key=lambda h: _TIER_ORDER.get(h.tier, 1))
+    adds = []
+    for h in picks[:n]:
+        m = re.search(r"(\d)\s*x", h.frequency or "")
+        days = ["mon", "wed", "fri", "sat", "tue", "thu", "sun"][: int(m.group(1))] if m else list(WEEKDAYS)
+        adds.append({"habit_id": h.id, "title": h.title, "minutes": h.minutes_default, "time": "",
+                     "weekend_time": "", "days": days, "why": h.why, "how": h.how})
+    out = validate_template(maxx_id, {**tmpl, "habits": list(tmpl.get("habits") or []) + adds},
+                            profile, others=others)
+    out["_draft"] = {**(tmpl.get("_draft") or {}), "habits": []}     # summary must be rewritten
+    return out
+
+
+async def redo_program_plan(user_id: str, maxx_id: str, request: str, db, *,
+                            level: Optional[str] = None) -> Optional[dict]:
     """Rebuild an existing program's plan from the user's request. Updates the
     row in place (done tasks kept). Returns the new template, or None."""
     from sqlalchemy.orm.attributes import flag_modified
@@ -1689,19 +1789,36 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db) -> Opt
     _, _, state = await _user_state(user_id, db)
     profile = build_profile(state)
     others = await other_program_plans(user_id, db, except_maxx=maxx_id)
-    skin = skin_redo(current, request, profile, others) if maxx_id == "skinhairmax" else None
+    was = plan_level(current)
+    level = level if level in PLAN_LEVELS else _implied_level(request, was)
+    lighter = PLAN_LEVELS.index(level) < PLAN_LEVELS.index(was)
+    heavier = PLAN_LEVELS.index(level) > PLAN_LEVELS.index(was)
+    skin = skin_redo(current, request, profile, others) if maxx_id == "skinhairmax" and not (lighter or heavier) else None
     if skin is not None:
         tmpl = skin
     else:
         tmpl = await build_plan(maxx_id, profile, current.get("answers") or {}, others,
                                 current_plan={k: current.get(k) for k in ("summary", "habits")},
-                                request=request)
+                                request=request, level=level)
         if tmpl is not None:
             _keep_routines(tmpl, current)
     if tmpl is None:
         return None
+    if plan_level(tmpl) != level:
+        tmpl = validate_template(maxx_id, {**tmpl, "level": level}, profile, others=others)
     tmpl = _limit_swap(maxx_id, tmpl, current, request, profile, others)
-    if _LIGHTER_RE.search(request or "") and not _is_lighter(tmpl, current):
+    if heavier:
+        # "more" never quietly takes days away from a habit the person already has
+        prev_days = {h.get("habit_id"): set(h.get("days") or []) for h in current.get("habits") or []}
+        if any(prev_days.get(h["habit_id"], set()) - set(h.get("days") or []) for h in tmpl["habits"]):
+            hs = [{**h, "days": [d for d in WEEKDAYS if d in set(h.get("days") or []) | prev_days.get(h["habit_id"], set())]}
+                  for h in tmpl["habits"]]
+            draft = tmpl.get("_draft")
+            tmpl = validate_template(maxx_id, {**tmpl, "habits": hs}, profile, others=others)
+            tmpl["_draft"] = {**(draft or {}), "habits": []}
+    if heavier and not _is_heavier(tmpl, current):
+        tmpl = _harden(maxx_id, tmpl, profile, others)
+    if (lighter or _LIGHTER_RE.search(request or "")) and not _is_lighter(tmpl, current):
         # Claude "lightened" by shortening a habit below its minimum, which the
         # fit undid: ask once more with the reason, then cut it ourselves.
         retry = await build_plan(
@@ -1710,6 +1827,7 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db) -> Opt
             request=(f"{request}. (Your last version was not lighter once each habit's minimum minutes "
                      "were applied. Make it lighter by removing a habit or some days, never by shortening "
                      "a habit below its minimum.)"),
+            level=level,
         )
         if retry is not None and _is_lighter(retry, current):
             tmpl = retry
@@ -1873,6 +1991,7 @@ def plan_block(maxx_id: str, tmpl: dict, *, note: str = "") -> str:
             "total_minutes": max(1, round(sum(int(h.get("minutes") or 0) * len(h.get("days") or [])
                                               for h in habits if h.get("title")) / 7)),
             "note": note,
+            "level": plan_level(tmpl),
             "items": items,
         },
     }
@@ -1892,7 +2011,8 @@ def plan_reply(maxx_id: str, tmpl: dict, *, redo: bool = False, include_summary:
         maxx_id, tmpl,
         note="Updated on your Home and Planner" if redo else "Added to your Home and Planner",
     ))
-    parts.append("anything you want to change? move a time, swap a habit, make it lighter or harder, just tell me.")
+    parts.append("does this feel like enough? slide it lighter or ask for more below, or tell me anything "
+                 "else to change.")
     return "\n\n".join(parts)
 
 
@@ -1906,7 +2026,7 @@ def _pretty_time(hm: str) -> str:
     return f"{h12}:{m:02d}{suffix}" if m else f"{h12}{suffix}"
 
 
-AFTER_PLAN_CHOICES = ["looks good", "make it lighter", "move things later", "swap a habit"]
+AFTER_PLAN_CHOICES = ["looks good", "move things later", "swap a habit"]
 _CHANGE_RE = re.compile(
     r"\b(redo|rebuild|change|swap|replace|move|shift|earlier|later|lighter|harder|easier|"
     r"less|more|remove|drop|add|skip|weekend|morning|evening|night|instead|too (much|many|early|late))\b",
@@ -1990,8 +2110,10 @@ async def chat_turn(
             last = asked[-1]
             pending.setdefault("answers", {})[last.get("fact_key") or f"q{len(asked)}"] = msg[:300]
     else:
-        # A change request inside a program's own thread → Claude rebuilds it.
-        if not conv or not looks_like_change_request(msg):
+        # A change request (or a Lighter · Balanced · More tap on the plan card)
+        # inside a program's own thread → rebuild it.
+        lvl = control_level(msg)
+        if not conv or (lvl is None and not looks_like_change_request(msg)):
             return None
         from sqlalchemy import select
         from models.sqlalchemy_models import UserSchedule
@@ -2008,7 +2130,11 @@ async def chat_turn(
                 break
         if not target:
             return None
-        tmpl = await redo_program_plan(user_id, target, msg, db)
+        if lvl is not None:
+            cur = await active_ai_plan(user_id, target, db)
+            if plan_level(((cur.schedule_context or {}) if cur else {}).get("ai_plan")) == lvl:
+                return ("good, keeping it as it is. you can change it any time from here.", [], False)
+        tmpl = await redo_program_plan(user_id, target, LEVEL_REQUEST.get(lvl, msg), db, level=lvl)
         if tmpl is None:
             return ("i couldn't rebuild that just now. try again in a moment, or tell me the one change "
                     "you want most.", [], False)

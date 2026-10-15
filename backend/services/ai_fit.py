@@ -670,14 +670,17 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
     # TASK_CAP visible tasks (water-fill across the stack) and always at least
     # one slot, so a program added later is never starved to nothing and the
     # first programs are trimmed rather than emptied
+    # a program the person asked "more" of gets extra room (ai_programs._level_profile)
+    task_cap = int(profile.get("_task_cap") or TASK_CAP)
+
     def _slots(d: str) -> int:
         # Suppmax's synced picks are pinned (they follow the other programs),
         # so its rows are a fixed cost; the rest of the cap is shared fairly
         if maxx_id == SUPP:
-            return max(1, int(share_of_day(TASK_CAP, [day_count(t, d) for t in others.values()]) + 1e-9))
+            return max(1, int(share_of_day(task_cap, [day_count(t, d) for t in others.values()]) + 1e-9))
         fixed = day_count(others[SUPP], d, supp=True) if SUPP in others else 0
         rest = [day_count(t, d) for m, t in others.items() if m != SUPP]
-        return max(1, int(share_of_day(max(0, TASK_CAP - fixed), rest) + 1e-9))
+        return max(1, int(share_of_day(max(0, task_cap - fixed), rest) + 1e-9))
     slots = {d: _slots(d) for d in WEEKDAYS}
     for d in WEEKDAYS:
         on = sorted([h for h in hs if d in (h.get("days") or [])], key=rank)
@@ -813,7 +816,7 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
         h["priority"] = h.pop("_i", 0)
         placed.append(h)
     if maxx_id == SUPP and placed:
-        _fold_supp_rows(placed, lib, min(slots.values()) if slots else TASK_CAP)
+        _fold_supp_rows(placed, lib, min(slots.values()) if slots else task_cap)
         _unify_supp_weekends(placed, models)
     placed.sort(key=lambda x: _near(to_min(x["time"], 0), models["weekday"]))
     if parked_out is not None:

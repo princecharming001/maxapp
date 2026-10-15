@@ -5,8 +5,9 @@
  * untouched. Built from RN primitives only (no chart libs). Craft aesthetic:
  * ink text, cream/white cards, hairline rules, muted gold accents.
  */
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '../theme/dark';
 import LiquidGlass from './glass/LiquidGlass';
@@ -216,7 +217,65 @@ function clockLabel(v: any): string {
 // An AI program's plan (Sleepmax, …): one calm card — program icon + name,
 // then a slim timeline of time · habit · minutes · days. Replaces the old
 // bullet list so the plan reads like the planner, not a wall of text.
-function PlanBlock({ block }: { block: VisualBlock }) {
+// The plan card's "how much do you want?" control. Each stop sends its exact
+// text as a chat message (backend LEVEL_CONTROL), which rebuilds the plan at
+// that level and replies with a new card.
+export type PlanLevel = 'light' | 'balanced' | 'full';
+export const PLAN_LEVEL_TEXT: Record<PlanLevel, string> = {
+    light: 'Lighter, please',
+    balanced: 'This feels right',
+    full: 'Give me more',
+};
+const LEVELS: { key: PlanLevel; label: string }[] = [
+    { key: 'light', label: 'Lighter' },
+    { key: 'balanced', label: 'Balanced' },
+    { key: 'full', label: 'More' },
+];
+
+function LevelControl({ level, onPick }: { level: PlanLevel; onPick: (l: PlanLevel) => void }) {
+    const [picked, setPicked] = useState<PlanLevel>(level);
+    const [w, setW] = useState(0);
+    const x = useRef(new Animated.Value(0)).current;
+    const idx = LEVELS.findIndex((l) => l.key === picked);
+    useEffect(() => { setPicked(level); }, [level]);
+    useEffect(() => {
+        if (!w) return;
+        Animated.spring(x, { toValue: (idx * w) / 3, useNativeDriver: true, speed: 18, bounciness: 6 }).start();
+    }, [idx, w, x]);
+    return (
+        <View style={s.lvlWrap}>
+            <Text style={s.lvlAsk}>How much do you want?</Text>
+            <View style={s.lvlTrack} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+                {w ? (
+                    <Animated.View style={[s.lvlThumb, { width: w / 3, transform: [{ translateX: x }] }]} />
+                ) : null}
+                {LEVELS.map((l) => {
+                    const on = l.key === picked;
+                    return (
+                        <Pressable
+                            key={l.key}
+                            style={s.lvlStop}
+                            hitSlop={6}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: on }}
+                            accessibilityLabel={`${l.label} plan`}
+                            onPress={() => {
+                                if (l.key === picked) return;
+                                Haptics.selectionAsync().catch(() => {});
+                                setPicked(l.key);
+                                onPick(l.key);
+                            }}
+                        >
+                            <Text style={[s.lvlLabel, on && s.lvlLabelOn]}>{l.label}</Text>
+                        </Pressable>
+                    );
+                })}
+            </View>
+        </View>
+    );
+}
+
+function PlanBlock({ block, onLevel }: { block: VisualBlock; onLevel?: (l: PlanLevel) => void }) {
     const d: any = block.data || {};
     const items: any[] = (Array.isArray(d.items) ? d.items : []).filter((it: any) => it && typeof it === 'object' && txt(it.title));
     if (!items.length) return null;
@@ -254,11 +313,17 @@ function PlanBlock({ block }: { block: VisualBlock }) {
                     <Text style={s.planNote}>{txt(d.note)}</Text>
                 </View>
             ) : null}
+            {onLevel ? (
+                <LevelControl
+                    level={(['light', 'balanced', 'full'] as const).includes(d.level) ? d.level : 'balanced'}
+                    onPick={onLevel}
+                />
+            ) : null}
         </View>
     );
 }
 
-function OneBlock({ block }: { block: VisualBlock }) {
+function OneBlock({ block, onPlanLevel }: { block: VisualBlock; onPlanLevel?: (l: PlanLevel) => void }) {
     switch (block?.type) {
         case 'table': return <TableBlock block={block} />;
         case 'comparison': return <ComparisonBlock block={block} />;
@@ -266,16 +331,20 @@ function OneBlock({ block }: { block: VisualBlock }) {
         case 'flowchart': return <FlowchartBlock block={block} />;
         case 'stat_cards': return <StatCardsBlock block={block} />;
         case 'checklist': return <ChecklistBlock block={block} />;
-        case 'plan': return <PlanBlock block={block} />;
+        case 'plan': return <PlanBlock block={block} onLevel={onPlanLevel} />;
         default: return null;
     }
 }
 
-export default function MessageBlocks({ blocks }: { blocks?: VisualBlock[] | null }) {
+/** onPlanLevel: pass only for the newest plan card in the thread; older cards stay read-only. */
+export default function MessageBlocks({ blocks, onPlanLevel }: {
+    blocks?: VisualBlock[] | null;
+    onPlanLevel?: (l: PlanLevel) => void;
+}) {
     if (!blocks || blocks.length === 0) return null;
     return (
         <View style={s.wrap}>
-            {blocks.map((b, i) => <OneBlock key={i} block={b} />)}
+            {blocks.map((b, i) => <OneBlock key={i} block={b} onPlanLevel={onPlanLevel} />)}
         </View>
     );
 }
@@ -312,6 +381,23 @@ const s = StyleSheet.create({
         borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: HAIR,
     },
     planNote: { fontSize: 12.5, color: CHAT_MUTE },
+    lvlWrap: {
+        marginTop: 12, paddingTop: 12,
+        borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: HAIR,
+    },
+    lvlAsk: { fontSize: 13, color: CHAT_INK, fontWeight: '500', marginBottom: 8 },
+    lvlTrack: {
+        flexDirection: 'row', height: 36, borderRadius: 18, borderCurve: 'continuous',
+        backgroundColor: 'rgba(0,0,0,0.05)', overflow: 'hidden',
+    },
+    lvlThumb: {
+        position: 'absolute', top: 3, bottom: 3, left: 0,
+        borderRadius: 15, borderCurve: 'continuous', backgroundColor: CHAT_INK,
+        marginHorizontal: 3,
+    },
+    lvlStop: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    lvlLabel: { fontSize: 13, color: CHAT_MUTE, fontWeight: '500' },
+    lvlLabelOn: { color: '#FFFFFF' },
     card: {
         backgroundColor: CARD, borderRadius: 14, borderCurve: 'continuous',
         padding: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: HAIR,
