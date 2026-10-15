@@ -30,3 +30,4 @@ from .user_inbox import router as user_inbox_router
 from .creator_onboarding import router as creator_onboarding_router
 from .creators import router as creators_router
 from .config import router as config_router
+from .products import router as products_router

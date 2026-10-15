@@ -64,6 +64,17 @@ class Product:
     rationale: str
     references: tuple[str, ...]
     image: str = ""      # curated product image URL; "" when none (card renders without it)
+    # Listing facts read off the Amazon page (scripts/refresh_product_listings.py).
+    # Prices move: the app shows them as "about" with the date they were checked.
+    price_usd: Optional[float] = None
+    rating: Optional[float] = None       # stars, 0-5
+    rating_count: Optional[int] = None   # number of ratings
+    checked: str = ""                    # ISO date the listing facts were read
+
+    @property
+    def asin(self) -> str:
+        m = re.search(r"/dp/([A-Z0-9]{10})", self.url)
+        return m.group(1) if m else ""
 
     @property
     def display_url(self) -> str:
@@ -94,6 +105,13 @@ class Product:
 # --------------------------------------------------------------------------- #
 #  Loader                                                                     #
 # --------------------------------------------------------------------------- #
+
+def _num(v: Any, cast):
+    try:
+        return cast(v) if v is not None and str(v).strip() != "" else None
+    except (TypeError, ValueError):
+        return None
+
 
 @lru_cache(maxsize=1)
 def load_catalog() -> tuple[Product, ...]:
@@ -132,6 +150,10 @@ def load_catalog() -> tuple[Product, ...]:
                 rationale=str(entry.get("rationale") or "").strip(),
                 references=tuple(str(r).strip() for r in (entry.get("references") or [])),
                 image=str(entry.get("image") or "").strip(),
+                price_usd=_num(entry.get("price_usd"), float),
+                rating=_num(entry.get("rating"), float),
+                rating_count=_num(entry.get("rating_count"), int),
+                checked=str(entry.get("checked") or "").strip(),
             ))
         except Exception as e:
             logger.warning("[catalog] entry #%d skipped (%s): %s", i, e, entry.get("id"))

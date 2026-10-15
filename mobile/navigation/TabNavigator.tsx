@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { queryClient } from '../lib/queryClient';
 import { prefetchMainTabData } from '../lib/prefetchMainTabData';
 import HomeScreen from '../screens/home/HomeScreen';
+import ProductsScreen from '../screens/products/ProductsScreen';
 import MaxChatScreen from '../screens/chat/MaxChatScreen';
 import ForumsHomeV2Screen from '../screens/forums/ForumsHomeV2Screen';
 import ComingSoonOverlay from '../components/ComingSoonOverlay';
@@ -126,7 +127,7 @@ export default function TabNavigator() {
                 // Home when there's nothing valid to restore.
                 initialRouteName={tourDone
                     ? pickInitialTab(getRestoredTab(), [
-                        'Home', 'MasterScheduleTab', 'Explore', 'Chat', 'Forums',
+                        'Home', 'MasterScheduleTab', 'Explore', 'Products', 'Chat', 'Forums',
                     ])
                     : 'Home'}
                 screenOptions={{
@@ -182,6 +183,18 @@ export default function TabNavigator() {
                         tabBarButtonTestID: 'tab-explore',
                         tabBarIcon: ({ color }) => (
                             <Ionicons name="compass-outline" size={22} color={color} />
+                        ),
+                    }}
+                />
+                <Tab.Screen
+                    name="Products"
+                    component={ProductsScreen}
+                    options={{
+                        title: 'Products',
+                        tabBarLabel: 'Products',
+                        tabBarButtonTestID: 'tab-products',
+                        tabBarIcon: ({ color }) => (
+                            <Ionicons name="bag-handle-outline" size={22} color={color} />
                         ),
                     }}
                 />

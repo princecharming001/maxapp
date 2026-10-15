@@ -159,4 +159,10 @@ export function prefetchMainTabData(qc: QueryClient): void {
         queryKey: queryKeys.activeSchedulesSummary,
         queryFn: () => api.getActiveSchedules(),
     });
+    // Products tab: tiny and in-process server-side, so it opens instantly.
+    // Same key + queryFn as ProductsScreen.
+    void qc.prefetchQuery({
+        queryKey: ['products', 'for-me'],
+        queryFn: () => api.getProductsForMe(),
+    });
 }

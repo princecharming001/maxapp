@@ -63,6 +63,10 @@ products:
   url: https://www.amazon.com/dp/B07PRG2CQY
   image: https://m.media-amazon.com/images/I/91j-EDBgLGL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 39.00
+  rating: 4.4
+  rating_count: 15632
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -89,6 +93,10 @@ products:
   url: https://www.amazon.com/dp/B077RPXSF3
   image: https://m.media-amazon.com/images/I/51o9GXVUYCL._AC_SL1024_.jpg
   price_tier: mid
+  price_usd: 21.99
+  rating: 4.8
+  rating_count: 79542
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -115,6 +123,10 @@ products:
   url: https://www.amazon.com/dp/B00HD0ELFK
   image: https://m.media-amazon.com/images/I/61217alRDQL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 49.99
+  rating: 4.6
+  rating_count: 41071
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -142,6 +154,10 @@ products:
   url: https://www.amazon.com/dp/B0093162RM
   image: https://m.media-amazon.com/images/I/71e43scSB-L._AC_SL1500_.jpg
   price_tier: premium
+  price_usd: 76.29
+  rating: 4.3
+  rating_count: 14811
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -168,6 +184,10 @@ products:
   url: https://www.amazon.com/dp/B0051U7W32
   image: https://m.media-amazon.com/images/I/61NaHIMe0dL._AC_SL1327_.jpg
   price_tier: budget
+  price_usd: 9.89
+  rating: 4.5
+  rating_count: 51793
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -194,6 +214,10 @@ products:
   url: https://www.amazon.com/dp/B0D3V61JC8
   image: https://m.media-amazon.com/images/I/51vun8qtNlL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 24.95
+  rating: 4.1
+  rating_count: 34079
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -222,6 +246,10 @@ products:
   url: https://www.amazon.com/dp/B085DTZQNZ
   image: https://m.media-amazon.com/images/I/718RbhzhVbL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 29.99
+  rating: 4.6
+  rating_count: 141713
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -248,6 +276,10 @@ products:
   url: https://www.amazon.com/dp/B07YXM6XTF
   image: https://m.media-amazon.com/images/I/71vx3EAtSLL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 28.48
+  rating: 4.7
+  rating_count: 30996
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -274,6 +306,10 @@ products:
   url: https://www.amazon.com/dp/B07TBCFL6B
   image: https://m.media-amazon.com/images/I/51SACB5jFkL._AC_SL1500_.jpg
   price_tier: premium
+  price_usd: 69.99
+  rating: 4.5
+  rating_count: 4897
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -301,6 +337,10 @@ products:
   url: https://www.amazon.com/dp/B0BQ4G7LY8
   image: https://m.media-amazon.com/images/I/81na-Iiq8-L._SL1500_.jpg
   price_tier: mid
+  price_usd: 20.36
+  rating: 4.6
+  rating_count: 7921
+  checked: 2026-10-15
   tags:
     vegetarian: null
     vegan: null
@@ -313,6 +353,35 @@ products:
   - ai_programs/energymax.md
   - ai_programs/suppmax.md
   slug: Liquid-IV-Sugar-Free-Hydration-Electrolytes-Lemon-Lime-14-Ct
+
+- id: premier-protein-shake-30g
+  name: Premier Protein 30g High Protein Shake, Chocolate, 12 Pack
+  brand: Premier Protein
+  module: energymax
+  concerns:
+  - protein_first_meal
+  - protein
+  - breakfast
+  - ready_to_drink
+  - lunch_balance
+  url: https://www.amazon.com/dp/B07MJL8NXR
+  image: https://m.media-amazon.com/images/I/71Y8GT3GYvL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 31.99
+  rating: 4.6
+  rating_count: 61444
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: false
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: true
+    dairy_free: false
+  rationale: 30 g of protein in a grab-and-go bottle for days a protein breakfast won't happen.
+  references:
+  - ai_programs/energymax.md
+  slug: Premier-Protein-Shake-Chocolate-Pack
 
 # ── Focusmax: deep-work block, phone away, top-3 plan ─────────────────────────
 - id: time-timer-original-8
@@ -330,6 +399,10 @@ products:
   url: https://www.amazon.com/dp/B0G6662D9Q
   image: https://m.media-amazon.com/images/I/61y3H9jnl9L._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 27.95
+  rating: 4.4
+  rating_count: 2442
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -355,6 +428,10 @@ products:
   url: https://www.amazon.com/dp/B08HWCWY6Z
   image: https://m.media-amazon.com/images/I/61+hP+4jU6L._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 34.19
+  rating: 4.3
+  rating_count: 2479
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -381,6 +458,10 @@ products:
   url: https://www.amazon.com/dp/B00E92JXHG
   image: https://m.media-amazon.com/images/I/711KKHyXoXL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 59.90
+  rating: 4.5
+  rating_count: 1222
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -408,6 +489,10 @@ products:
   url: https://www.amazon.com/dp/B0DJR3GFCP
   image: https://m.media-amazon.com/images/I/51L+DPrbHdL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 59.95
+  rating: 4.2
+  rating_count: 8744
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -434,6 +519,10 @@ products:
   url: https://www.amazon.com/dp/B079RMVNMG
   image: https://m.media-amazon.com/images/I/71JFFdPQ-DL._AC_SL1500_.jpg
   price_tier: budget
+  price_usd: 9.95
+  rating: 4.8
+  rating_count: 950
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -445,6 +534,35 @@ products:
   references:
   - ai_programs/focusmax.md
   slug: Bloom-Daily-Planners-Daily-Planning-System-To-Do-Pad
+
+- id: taja-weekly-planner-pad
+  name: Taja Weekly To Do List Notepad, Undated Weekly Planner Pad
+  brand: Taja
+  module: focusmax
+  concerns:
+  - weekly_review
+  - planner
+  - planning
+  - to_do_list
+  - top_three_plan
+  url: https://www.amazon.com/dp/B0C74LCGGJ
+  image: https://m.media-amazon.com/images/I/71L4ljr1CRL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 6.99
+  rating: 4.8
+  rating_count: 2541
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "One tear-off page per week for the Friday review: wins, misses and next week's top three."
+  references:
+  - ai_programs/focusmax.md
+  slug: Taja-Weekly-Notepad-Undated-Planner
 
 # ── Calmmax: writing things down, quieter days, screen-free evening ───────────
 - id: five-minute-journal
@@ -462,6 +580,10 @@ products:
   url: https://www.amazon.com/dp/0991846206
   image: https://m.media-amazon.com/images/I/81fEup9dhbL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 29.99
+  rating: 4.5
+  rating_count: 17970
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -488,6 +610,10 @@ products:
   url: https://www.amazon.com/dp/8883701127
   image: https://m.media-amazon.com/images/I/81GN73tZ+aL._SL1500_.jpg
   price_tier: mid
+  price_usd: 24.95
+  rating: 4.8
+  rating_count: 12135
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -515,6 +641,10 @@ products:
   url: https://www.amazon.com/dp/B0D3V91CNY
   image: https://m.media-amazon.com/images/I/51syWGbPO1L._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 35.95
+  rating: 4.4
+  rating_count: 8396
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -540,6 +670,10 @@ products:
   url: https://www.amazon.com/dp/B073VF186Z
   image: https://m.media-amazon.com/images/I/61o37E4KXZL._AC_SL1000_.jpg
   price_tier: budget
+  price_usd: 11.49
+  rating: 4.3
+  rating_count: 8291
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -570,6 +704,10 @@ products:
   url: https://www.amazon.com/dp/B0FRNG2N5H
   image: https://m.media-amazon.com/images/I/61KE8cmqB+L._AC_SL1500_.jpg
   price_tier: premium
+  price_usd: 328.98
+  rating: 4.8
+  rating_count: 306
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -597,6 +735,10 @@ products:
   url: https://www.amazon.com/dp/B01AVDVHTI
   image: https://m.media-amazon.com/images/I/71S4-NjoTDL._AC_SL1500_.jpg
   price_tier: budget
+  price_usd: 9.98
+  rating: 4.5
+  rating_count: 137229
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -623,6 +765,10 @@ products:
   url: https://www.amazon.com/dp/B006NZZH18
   image: https://m.media-amazon.com/images/I/6160ZUZ26pL._AC_SL1000_.jpg
   price_tier: mid
+  price_usd: 49.97
+  rating: 4.5
+  rating_count: 3133
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -649,6 +795,10 @@ products:
   url: https://www.amazon.com/dp/B001EJMS6K
   image: https://m.media-amazon.com/images/I/51S48AlbfOS._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 47.99
+  rating: 4.5
+  rating_count: 25035
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -675,6 +825,10 @@ products:
   url: https://www.amazon.com/dp/B0040EGNIU
   image: https://m.media-amazon.com/images/I/71-MhWa5jWL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 28.99
+  rating: 4.7
+  rating_count: 23741
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -702,6 +856,10 @@ products:
   url: https://www.amazon.com/dp/B077V135W7
   image: https://m.media-amazon.com/images/I/910EtLaSVSL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 21.90
+  rating: 4.7
+  rating_count: 22219
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -728,6 +886,10 @@ products:
   url: https://www.amazon.com/dp/B079Q2VK45
   image: https://m.media-amazon.com/images/I/613L+7zD9sL._AC_SL1500_.jpg
   price_tier: budget
+  price_usd: 6.99
+  rating: 4.7
+  rating_count: 18223
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -739,6 +901,64 @@ products:
   references:
   - ai_programs/fitmax.md
   slug: Champion-Sports-Lacrosse-Balls-2-Pack
+
+- id: wod-nation-speed-jump-rope
+  name: WOD Nation Adjustable Speed Jump Rope
+  brand: WOD Nation
+  module: trainmax
+  concerns:
+  - vigorous_intervals
+  - stair_or_burst
+  - jump_rope
+  - conditioning
+  - cardio
+  url: https://www.amazon.com/dp/B00K1VOXYW
+  image: https://m.media-amazon.com/images/I/819FXnNXmEL._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 18.99
+  rating: 4.5
+  rating_count: 14054
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "The fastest hard-interval tool there is: two minutes of rounds anywhere, no machine."
+  references:
+  - ai_programs/fitmax.md
+  slug: WOD-Nation-Speed-Jump-Rope-Adjustable
+
+- id: nextnoid-workout-log-book
+  name: Nextnoid Hardcover Fitness Journal Workout Planner
+  brand: Nextnoid
+  module: trainmax
+  concerns:
+  - training_log
+  - workout_log
+  - progressive_overload
+  - strength_full_body
+  - journal
+  url: https://www.amazon.com/dp/B0BG7WY5BW
+  image: https://m.media-amazon.com/images/I/61U4D7oF96L._AC_SL1500_.jpg
+  price_tier: budget
+  price_usd: 13.99
+  rating: 4.8
+  rating_count: 2588
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: Write sets and weights down so next session you know exactly what to beat.
+  references:
+  - ai_programs/fitmax.md
+  slug: Nextnoid-Hardcover-Fitness-Journal-Workout
 
 # ── Longevitymax: steps, strength twice a week, fiber ─────────────────────────
 - id: urevo-walking-pad
@@ -757,6 +977,10 @@ products:
   url: https://www.amazon.com/dp/B097BKS6Z9
   image: https://m.media-amazon.com/images/I/71ZvHYhMkRL._AC_SL1500_.jpg
   price_tier: premium
+  price_usd: 139.99
+  rating: 4.2
+  rating_count: 776
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -784,6 +1008,10 @@ products:
   url: https://www.amazon.com/dp/B0731DFTR2
   image: https://m.media-amazon.com/images/I/71Pf-LFThjL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 26.41
+  rating: 4.8
+  rating_count: 28476
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -811,6 +1039,10 @@ products:
   url: https://www.amazon.com/dp/B0B5F9SZW7
   image: https://m.media-amazon.com/images/I/51bmPvRJ18L._AC_SL1500_.jpg
   price_tier: premium
+  price_usd: 88.00
+  rating: 4.2
+  rating_count: 28043
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -838,6 +1070,10 @@ products:
   url: https://www.amazon.com/dp/B003CT2YQY
   image: https://m.media-amazon.com/images/I/71vDfMFDQqL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 34.97
+  rating: 4.7
+  rating_count: 35809
+  checked: 2026-10-15
   tags:
     vegetarian: null
     vegan: null
@@ -865,6 +1101,10 @@ products:
   url: https://www.amazon.com/dp/B0D1DB2D6V
   image: https://m.media-amazon.com/images/I/81PGLfXs7LL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 25.99
+  rating: 4.5
+  rating_count: 1359
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -877,6 +1117,35 @@ products:
   - ai_programs/longevitymax.md
   - ai_programs/suppmax.md
   slug: Konsyl-Daily-Psyllium-Fiber-Powder-Unflavored-19-Oz
+
+- id: prosourcefit-balance-pad
+  name: ProsourceFit Exercise Balance Pad
+  brand: ProsourceFit
+  module: longevitymax
+  concerns:
+  - balance_practice
+  - balance
+  - stability
+  - fall_prevention
+  - mobility
+  url: https://www.amazon.com/dp/B07664K1CW
+  image: https://m.media-amazon.com/images/I/71YPoM9x53L._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 26.99
+  rating: 4.8
+  rating_count: 17363
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: A soft foam pad that makes one-leg balance work harder in a few minutes a day.
+  references:
+  - ai_programs/longevitymax.md
+  slug: ProsourceFit-Exercise-Balance-Pad
 
 # ── Skin & Hair: cleanse, moisturize, SPF, optional retinoid, scalp care ──────
 - id: cerave-hydrating-cleanser
@@ -895,6 +1164,10 @@ products:
   url: https://www.amazon.com/dp/B01MSSDEPK
   image: https://m.media-amazon.com/images/I/71V-hFCug0L._SL1500_.jpg
   price_tier: budget
+  price_usd: 15.48
+  rating: 4.7
+  rating_count: 133739
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: false
@@ -920,6 +1193,10 @@ products:
   url: https://www.amazon.com/dp/B01N1LL62W
   image: https://m.media-amazon.com/images/I/516r6ghtxaL._SL1000_.jpg
   price_tier: budget
+  price_usd: 15.97
+  rating: 4.8
+  rating_count: 76707
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: false
@@ -945,6 +1222,10 @@ products:
   url: https://www.amazon.com/dp/B01N7T7JKJ
   image: https://m.media-amazon.com/images/I/51Dk9TsVZ+L._SL1200_.jpg
   price_tier: mid
+  price_usd: 19.99
+  rating: 4.6
+  rating_count: 40057
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: false
@@ -970,6 +1251,10 @@ products:
   url: https://www.amazon.com/dp/B00365DABC
   image: https://m.media-amazon.com/images/I/61TuwUQ-qvL._SL1500_.jpg
   price_tier: budget
+  price_usd: 13.62
+  rating: 4.7
+  rating_count: 63776
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: false
@@ -995,6 +1280,10 @@ products:
   url: https://www.amazon.com/dp/B00TTD9BRC
   image: https://m.media-amazon.com/images/I/61EidjXUBrL._SL1000_.jpg
   price_tier: budget
+  price_usd: 18.96
+  rating: 4.7
+  rating_count: 148992
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: false
@@ -1020,6 +1309,10 @@ products:
   url: https://www.amazon.com/dp/B08BW46XXK
   image: https://m.media-amazon.com/images/I/61KvPxEVJlL._SL1500_.jpg
   price_tier: budget
+  price_usd: 13.97
+  rating: 4.6
+  rating_count: 26188
+  checked: 2026-10-15
   tags:
     vegetarian: true
     fragrance_free: true
@@ -1043,6 +1336,10 @@ products:
   url: https://www.amazon.com/dp/B01N9SPQHQ
   image: https://m.media-amazon.com/images/I/51x78epntaL._SL1060_.jpg
   price_tier: mid
+  price_usd: 24.99
+  rating: 4.6
+  rating_count: 52231
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: false
@@ -1069,6 +1366,10 @@ products:
   url: https://www.amazon.com/dp/B002MSN3QQ
   image: https://m.media-amazon.com/images/I/71GPnsZQ3TL._SL1500_.jpg
   price_tier: mid
+  price_usd: 45.00
+  rating: 4.5
+  rating_count: 71100
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1095,6 +1396,10 @@ products:
   url: https://www.amazon.com/dp/B002CML1VG
   image: https://m.media-amazon.com/images/I/61qA+KLguKL._SL1500_.jpg
   price_tier: mid
+  price_usd: 28.49
+  rating: 4.6
+  rating_count: 15278
+  checked: 2026-10-15
   tags:
     vegetarian: null
     vegan: null
@@ -1120,6 +1425,10 @@ products:
   url: https://www.amazon.com/dp/B084ZP848Y
   image: https://m.media-amazon.com/images/I/61gEzQByuUL._SL1500_.jpg
   price_tier: budget
+  price_usd: 12.91
+  rating: 4.4
+  rating_count: 22262
+  checked: 2026-10-15
   tags:
     vegetarian: null
     vegan: null
@@ -1144,6 +1453,10 @@ products:
   url: https://www.amazon.com/dp/B083VTP119
   image: https://m.media-amazon.com/images/I/71+Zr2TpExL._SL1500_.jpg
   price_tier: budget
+  price_usd: 8.77
+  rating: 4.4
+  rating_count: 22262
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1170,6 +1483,10 @@ products:
   url: https://www.amazon.com/dp/B07KL5K96X
   image: https://m.media-amazon.com/images/I/81x-ftwCzkL._SL1500_.jpg
   price_tier: budget
+  price_usd: 13.97
+  rating: 4.1
+  rating_count: 6810
+  checked: 2026-10-15
   tags:
     vegetarian: null
     vegan: null
@@ -1194,6 +1511,10 @@ products:
   url: https://www.amazon.com/dp/B072QXB8KX
   image: https://m.media-amazon.com/images/I/51aBWRo6BrL._SL1500_.jpg
   price_tier: budget
+  price_usd: 3.99
+  rating: 4.4
+  rating_count: 7077
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1219,6 +1540,10 @@ products:
   url: https://www.amazon.com/dp/B07L1PHSY9
   image: https://m.media-amazon.com/images/I/71VRnfHGbEL._SL1500_.jpg
   price_tier: budget
+  price_usd: 12.90
+  rating: 4.5
+  rating_count: 71893
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1245,6 +1570,10 @@ products:
   url: https://www.amazon.com/dp/B00AINMFAC
   image: https://m.media-amazon.com/images/I/71UKDMdW3KL._SL1500_.jpg
   price_tier: budget
+  price_usd: 16.88
+  rating: 4.6
+  rating_count: 113489
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: false
@@ -1269,6 +1598,10 @@ products:
   url: https://www.amazon.com/dp/B08LN7YSDK
   image: https://m.media-amazon.com/images/I/51Qok8XaN3L._SL1500_.jpg
   price_tier: budget
+  price_usd: 6.99
+  rating: 4.6
+  rating_count: 1210
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1296,6 +1629,10 @@ products:
   url: https://www.amazon.com/dp/B01LVU7THF
   image: https://m.media-amazon.com/images/I/61h02IUI3OL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 23.91
+  rating: 4.6
+  rating_count: 52213
+  checked: 2026-10-15
   tags:
     vegetarian: false
     vegan: false
@@ -1325,6 +1662,10 @@ products:
   url: https://www.amazon.com/dp/B005FKTWCC
   image: https://m.media-amazon.com/images/I/71ioxVXPvlL._AC_SL1500_.jpg
   price_tier: budget
+  price_usd: 5.59
+  rating: 4.7
+  rating_count: 19258
+  checked: 2026-10-15
   tags:
     vegetarian: null
     vegan: null
@@ -1351,6 +1692,10 @@ products:
   url: https://www.amazon.com/dp/B000BD0RT0
   image: https://m.media-amazon.com/images/I/61A-zRQCJiL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 23.99
+  rating: 4.6
+  rating_count: 76788
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1377,6 +1722,10 @@ products:
   url: https://www.amazon.com/dp/B0797HBLL3
   image: https://m.media-amazon.com/images/I/61-0NX05xYL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 52.00
+  rating: 4.4
+  rating_count: 2727
+  checked: 2026-10-15
   tags:
     vegetarian: null
     vegan: null
@@ -1404,6 +1753,10 @@ products:
   url: https://www.amazon.com/dp/B00GQV9YX6
   image: https://m.media-amazon.com/images/I/71ldyMrb8+L._AC_SL1500_.jpg
   price_tier: budget
+  price_usd: 15.87
+  rating: 4.7
+  rating_count: 8725
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1430,6 +1783,10 @@ products:
   url: https://www.amazon.com/dp/B07978VPPH
   image: https://m.media-amazon.com/images/I/71-lmdLaYmL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 44.00
+  rating: 4.7
+  rating_count: 18688
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1455,6 +1812,10 @@ products:
   url: https://www.amazon.com/dp/B002DYIZEO
   image: https://m.media-amazon.com/images/I/71IBf0W5hsL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 27.09
+  rating: 4.6
+  rating_count: 82914
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1481,6 +1842,10 @@ products:
   url: https://www.amazon.com/dp/B0013OXD38
   image: https://m.media-amazon.com/images/I/71xFTHDKJTL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 37.80
+  rating: 4.5
+  rating_count: 4845
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1508,6 +1873,10 @@ products:
   url: https://www.amazon.com/dp/B08ZJQ1XD4
   image: https://m.media-amazon.com/images/I/71O37o3ZoOL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 45.00
+  rating: 4.7
+  rating_count: 6820
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1534,6 +1903,10 @@ products:
   url: https://www.amazon.com/dp/B09BP3P58Q
   image: https://m.media-amazon.com/images/I/71WqvIj3skL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 22.86
+  rating: 4.6
+  rating_count: 70111
+  checked: 2026-10-15
   tags:
     vegetarian: false
     vegan: false
@@ -1560,6 +1933,10 @@ products:
   url: https://www.amazon.com/dp/B004U3Y8OM
   image: https://m.media-amazon.com/images/I/71Lm-iy+xoL._AC_SL1500_.jpg
   price_tier: budget
+  price_usd: 8.97
+  rating: 4.8
+  rating_count: 62656
+  checked: 2026-10-15
   tags:
     vegetarian: false
     vegan: false
@@ -1586,6 +1963,10 @@ products:
   url: https://www.amazon.com/dp/B002CQU53W
   image: https://m.media-amazon.com/images/I/61dvQszFFML._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 27.16
+  rating: 4.7
+  rating_count: 13868
+  checked: 2026-10-15
   tags:
     vegetarian: false
     vegan: false
@@ -1612,6 +1993,10 @@ products:
   url: https://www.amazon.com/dp/B0013OVZJW
   image: https://m.media-amazon.com/images/I/71NGfz0icuL._AC_SL1500_.jpg
   price_tier: budget
+  price_usd: 18.37
+  rating: 4.6
+  rating_count: 2342
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1638,6 +2023,10 @@ products:
   url: https://www.amazon.com/dp/B004QHGPQQ
   image: https://m.media-amazon.com/images/I/71pAIGySnNL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 21.85
+  rating: 4.7
+  rating_count: 16668
+  checked: 2026-10-15
   tags:
     vegetarian: null
     vegan: null
@@ -1664,6 +2053,10 @@ products:
   url: https://www.amazon.com/dp/B002ZWZJG6
   image: https://m.media-amazon.com/images/I/610x62MsX0L._AC_SL1415_.jpg
   price_tier: mid
+  price_usd: 22.32
+  rating: 4.7
+  rating_count: 5325
+  checked: 2026-10-15
   tags:
     vegetarian: null
     vegan: null
@@ -1690,6 +2083,10 @@ products:
   url: https://www.amazon.com/dp/B001F0R7VE
   image: https://m.media-amazon.com/images/I/712y-Dd83oL._AC_SL1500_.jpg
   price_tier: budget
+  price_usd: 6.49
+  rating: 4.7
+  rating_count: 4213
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1717,6 +2114,10 @@ products:
   url: https://www.amazon.com/dp/B002DYIZH6
   image: https://m.media-amazon.com/images/I/71aEQamI-aL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 48.83
+  rating: 4.6
+  rating_count: 100579
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: false
@@ -1743,6 +2144,10 @@ products:
   url: https://www.amazon.com/dp/B00HJR6SNK
   image: https://m.media-amazon.com/images/I/81VcGJVx7jL._AC_SL1500_.jpg
   price_tier: premium
+  price_usd: 91.05
+  rating: 4.5
+  rating_count: 21068
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: false
@@ -1769,6 +2174,10 @@ products:
   url: https://www.amazon.com/dp/B00J074W7Q
   image: https://m.media-amazon.com/images/I/711eSL4VeVL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 26.60
+  rating: 4.5
+  rating_count: 62481
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1795,6 +2204,10 @@ products:
   url: https://www.amazon.com/dp/B0767Z2Y25
   image: https://m.media-amazon.com/images/I/81zROJXRIuL._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 54.99
+  rating: 4.3
+  rating_count: 11928
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1822,6 +2235,10 @@ products:
   url: https://www.amazon.com/dp/B00EXPVFQQ
   image: https://m.media-amazon.com/images/I/41y5b35cS9L._SL1063_.jpg
   price_tier: budget
+  price_usd: 13.00
+  rating: 4.2
+  rating_count: 69
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1848,6 +2265,10 @@ products:
   url: https://www.amazon.com/dp/B08SR294KM
   image: https://m.media-amazon.com/images/I/710dE+mML-L._AC_SL1500_.jpg
   price_tier: mid
+  price_usd: 39.99
+  rating: 4.5
+  rating_count: 3660
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1873,6 +2294,10 @@ products:
   url: https://www.amazon.com/dp/B00KOSP454
   image: https://m.media-amazon.com/images/I/716L5aJWJyL._SL1500_.jpg
   price_tier: budget
+  price_usd: 4.49
+  rating: 4.8
+  rating_count: 62398
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true
@@ -1899,6 +2324,10 @@ products:
   url: https://www.amazon.com/dp/B000BPE88E
   image: https://m.media-amazon.com/images/I/71ppcfzJz7L._SL1500_.jpg
   price_tier: budget
+  price_usd: 8.79
+  rating: 4.5
+  rating_count: 12821
+  checked: 2026-10-15
   tags:
     vegetarian: true
     vegan: true

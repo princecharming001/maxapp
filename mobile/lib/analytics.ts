@@ -26,7 +26,10 @@ export type AnalyticsEvent =
     | 'purchase_failed'
     // Sheet dismissed / cancelled / verification declined — distinct from
     // purchase_failed (an error): the user simply didn't complete the buy.
-    | 'purchase_not_completed';
+    | 'purchase_not_completed'
+    // Products tab: the tab opened, a product sent to Amazon.
+    | 'products_view'
+    | 'product_open';
 
 let queue: { event: AnalyticsEvent; props?: Record<string, unknown> }[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;

@@ -218,7 +218,7 @@ export default function SettingsScreen() {
                     />
                     <Row
                         label="My products"
-                        onPress={() => navigation.navigate('MyProducts')}
+                        onPress={() => navigation.navigate('Main', { screen: 'Products' })}
                     />
                     {showCalendarRow ? (
                         <Row

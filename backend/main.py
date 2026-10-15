@@ -36,6 +36,7 @@ from api import (
     creator_onboarding_router,
     creators_router,
     config_router,
+    products_router,
 )
 
 
@@ -259,6 +260,7 @@ app.include_router(user_inbox_router, prefix="/api")
 app.include_router(creator_onboarding_router, prefix="/api")
 app.include_router(creators_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
+app.include_router(products_router, prefix="/api")
 
 # Mount uploads directory
 uploads_dir = os.path.join(os.path.dirname(__file__), "uploads")

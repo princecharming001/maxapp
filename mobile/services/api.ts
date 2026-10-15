@@ -61,6 +61,36 @@ export interface EarnedAchievement {
 }
 
 /** A structured visual emitted by the assistant (rendered natively in chat). */
+export interface ShopProduct {
+    id: string;
+    asin: string;
+    name: string;
+    brand: string;
+    image: string;
+    price_usd: number | null;
+    rating: number | null;
+    rating_count: number | null;
+    url: string;
+    why: string;
+    /** The habit in the user's plan this serves ("Wind-down routine"), else null. */
+    for_habit: string | null;
+}
+
+export interface ShopSection {
+    program: string;
+    label: string;
+    color: string;
+    active: boolean;
+    note: string;
+    products: ShopProduct[];
+}
+
+export interface ProductsForMe {
+    sections: ShopSection[];
+    /** ISO date the prices were last read off Amazon. */
+    checked: string;
+}
+
 export interface VisualBlock {
     type: 'table' | 'comparison' | 'timeline' | 'flowchart' | 'stat_cards' | 'checklist' | 'plan';
     title?: string | null;
@@ -1258,6 +1288,13 @@ class ApiService {
                 onboarding_completed: boolean;
             };
         };
+    }
+
+    /** Products tab: every program's catalog products, the user's programs
+     *  first, each with its live Amazon price/rating and the plan habit it serves. */
+    async getProductsForMe(): Promise<ProductsForMe> {
+        const response = await this.client.get('products/for-me');
+        return response.data;
     }
 
     /** Curated catalog products tailored to this user's onboarding signals. */

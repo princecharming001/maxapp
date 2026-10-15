@@ -42,6 +42,9 @@ ALLOWED_EVENTS = frozenset({
     # since 2026-08 but it was never allowlisted, so every "tapped Subscribe,
     # nothing happened" was invisible in the funnel.
     "purchase_not_completed",
+    # Products tab
+    "products_view",
+    "product_open",
 })
 
 _MAX_BATCH = 25
