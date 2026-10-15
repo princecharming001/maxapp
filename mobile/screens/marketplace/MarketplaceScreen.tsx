@@ -834,7 +834,7 @@ const styles = StyleSheet.create({
 
     gutter: { paddingHorizontal: GUTTER },
     head: { paddingHorizontal: GUTTER, minHeight: 46, justifyContent: 'center' },
-    h1: { fontFamily: SERIF, fontSize: 40, color: INK, letterSpacing: -1, lineHeight: 44, paddingRight: 52 },
+    h1: { fontFamily: SERIF, fontSize: 32, color: INK, letterSpacing: -0.8, lineHeight: 38, paddingRight: 52 },
     h1i: { fontFamily: SERIF_I, color: INK },
 
     // Sliding search (collapsed = 42px circle on the right; open = full width)

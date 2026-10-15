@@ -51,6 +51,7 @@ products:
   name: Manta Original Sleep Mask
   brand: Manta Sleep
   module: sleepmax
+  need: dark_room
   concerns:
   - sleep_mask
   - eye_mask
@@ -82,6 +83,7 @@ products:
   name: NICETOWN 100% Blackout Curtains (2 Panels, 84 in)
   brand: NICETOWN
   module: sleepmax
+  need: dark_room
   concerns:
   - blackout
   - curtains
@@ -112,6 +114,7 @@ products:
   name: Yogasleep Dohm Classic White Noise Machine
   brand: Yogasleep
   module: sleepmax
+  need: quiet_room
   concerns:
   - white_noise
   - sound_machine
@@ -142,6 +145,7 @@ products:
   name: Philips SmartSleep Wake-up Light (HF3520)
   brand: Philips
   module: sleepmax
+  need: wake_light
   concerns:
   - wake_up_light
   - sunrise_alarm
@@ -173,6 +177,7 @@ products:
   name: Mack's Ultra Soft Foam Earplugs (50 Pair)
   brand: Mack's
   module: sleepmax
+  need: quiet_room
   concerns:
   - earplugs
   - noise
@@ -203,6 +208,7 @@ products:
   name: Loop Quiet 2 Ear Plugs
   brand: Loop
   module: sleepmax
+  need: quiet_room
   concerns:
   - earplugs
   - reusable_earplugs
@@ -235,6 +241,7 @@ products:
   name: Owala FreeSip Stainless Steel Water Bottle (24 oz)
   brand: Owala
   module: energymax
+  need: water_bottle
   concerns:
   - water_bottle
   - water
@@ -265,6 +272,7 @@ products:
   name: Hydro Flask Wide Mouth Water Bottle (32 oz)
   brand: Hydro Flask
   module: energymax
+  need: water_bottle
   concerns:
   - water_bottle
   - water
@@ -295,6 +303,7 @@ products:
   name: Verilux HappyLight Luxe Light Therapy Lamp
   brand: Verilux
   module: energymax
+  need: light_therapy
   concerns:
   - light_therapy
   - lamp
@@ -326,6 +335,7 @@ products:
   name: Liquid I.V. Sugar-Free Hydration Electrolytes (Lemon Lime, 14 ct)
   brand: Liquid I.V.
   module: energymax
+  need: electrolytes
   concerns:
   - electrolytes
   - hydration
@@ -358,6 +368,7 @@ products:
   name: Premier Protein 30g High Protein Shake, Chocolate, 12 Pack
   brand: Premier Protein
   module: energymax
+  need: protein_breakfast
   concerns:
   - protein_first_meal
   - protein
@@ -388,6 +399,7 @@ products:
   name: Time Timer Original 8" Visual Timer
   brand: Time Timer
   module: focusmax
+  need: focus_timer
   concerns:
   - timer
   - visual_timer
@@ -418,6 +430,7 @@ products:
   name: Ticktime T6 Pomodoro Timer Cube
   brand: Ticktime
   module: focusmax
+  need: focus_timer
   concerns:
   - timer
   - pomodoro
@@ -447,6 +460,7 @@ products:
   name: Kitchen Safe Time Locking Container (Medium)
   brand: Kitchen Safe
   module: focusmax
+  need: phone_lockbox
   concerns:
   - phone_away
   - phone
@@ -478,6 +492,7 @@ products:
   name: Loop Switch 2 Adjustable Ear Plugs
   brand: Loop
   module: focusmax
+  need: focus_earplugs
   concerns:
   - earplugs
   - noise
@@ -508,6 +523,7 @@ products:
   name: bloom daily planners Daily Planning System To-Do Pad
   brand: bloom daily planners
   module: focusmax
+  need: daily_planner
   concerns:
   - planner
   - to_do_list
@@ -539,12 +555,12 @@ products:
   name: Taja Weekly To Do List Notepad, Undated Weekly Planner Pad
   brand: Taja
   module: focusmax
+  need: weekly_planner
   concerns:
   - weekly_review
   - planner
   - planning
   - to_do_list
-  - top_three_plan
   url: https://www.amazon.com/dp/B0C74LCGGJ
   image: https://m.media-amazon.com/images/I/71L4ljr1CRL._AC_SL1500_.jpg
   price_tier: budget
@@ -569,6 +585,7 @@ products:
   name: The Five Minute Journal
   brand: Intelligent Change
   module: calmmax
+  need: gratitude_journal
   concerns:
   - journal
   - gratitude
@@ -599,6 +616,7 @@ products:
   name: Moleskine Classic Notebook (Large, Ruled, Hard Cover)
   brand: Moleskine
   module: calmmax
+  need: notebook
   concerns:
   - notebook
   - brain_dump
@@ -630,6 +648,7 @@ products:
   name: Loop Engage 2 Ear Plugs
   brand: Loop
   module: calmmax
+  need: everyday_earplugs
   concerns:
   - earplugs
   - noise
@@ -660,6 +679,7 @@ products:
   name: Peakeep Battery Analog Alarm Clock (Silent, No Ticking)
   brand: Peakeep
   module: calmmax
+  need: analog_alarm
   concerns:
   - alarm_clock
   - screen_free_evening
@@ -692,6 +712,7 @@ products:
   name: Bowflex Results Series SelectTech 552 Dumbbells (Pair)
   brand: Bowflex
   module: trainmax
+  need: weights
   concerns:
   - dumbbells
   - adjustable_dumbbells
@@ -723,6 +744,7 @@ products:
   name: Fit Simplify Resistance Loop Exercise Bands (Set of 5)
   brand: Fit Simplify
   module: trainmax
+  need: resistance_bands
   concerns:
   - bands
   - loop_bands
@@ -754,6 +776,7 @@ products:
   name: Bodylastics Basic Series Resistance Band Set (with Handles)
   brand: Bodylastics
   module: trainmax
+  need: resistance_bands
   concerns:
   - bands
   - resistance
@@ -784,6 +807,7 @@ products:
   name: Iron Gym Total Upper Body Workout Bar
   brand: Iron Gym
   module: trainmax
+  need: pull_up_bar
   concerns:
   - pull_up_bar
   - pull_ups
@@ -814,6 +838,7 @@ products:
   name: TriggerPoint GRID Foam Roller
   brand: TriggerPoint
   module: trainmax
+  need: recovery_roller
   concerns:
   - foam_roller
   - mobility
@@ -844,6 +869,7 @@ products:
   name: Gaiam Premium 6mm Yoga Mat
   brand: Gaiam
   module: trainmax
+  need: exercise_mat
   concerns:
   - yoga_mat
   - mat
@@ -875,6 +901,7 @@ products:
   name: Champion Sports Lacrosse Balls (2-Pack)
   brand: Champion Sports
   module: trainmax
+  need: recovery_roller
   concerns:
   - lacrosse_ball
   - massage_ball
@@ -906,6 +933,7 @@ products:
   name: WOD Nation Adjustable Speed Jump Rope
   brand: WOD Nation
   module: trainmax
+  need: jump_rope
   concerns:
   - vigorous_intervals
   - stair_or_burst
@@ -935,6 +963,7 @@ products:
   name: Nextnoid Hardcover Fitness Journal Workout Planner
   brand: Nextnoid
   module: trainmax
+  need: workout_log
   concerns:
   - training_log
   - workout_log
@@ -965,6 +994,7 @@ products:
   name: UREVO Smart Walking Pad (Under-Desk Treadmill)
   brand: UREVO
   module: longevitymax
+  need: walking_pad
   concerns:
   - walking_pad
   - treadmill
@@ -997,6 +1027,7 @@ products:
   name: Amazon Basics Cast Iron Kettlebell (15 lb)
   brand: Amazon Basics
   module: longevitymax
+  need: weights
   concerns:
   - kettlebell
   - strength_2x
@@ -1028,6 +1059,7 @@ products:
   name: Fitbit Inspire 3 (Midnight Zen/Black)
   brand: Fitbit
   module: longevitymax
+  need: step_tracker
   concerns:
   - step_tracker
   - activity_tracker
@@ -1059,6 +1091,7 @@ products:
   name: Metamucil 4-in-1 Psyllium Fiber Powder (Sugar-Free, Orange, 180 tsp)
   brand: Metamucil
   module: longevitymax
+  need: fiber
   concerns:
   - fiber
   - psyllium
@@ -1090,6 +1123,7 @@ products:
   name: Konsyl Daily Psyllium Fiber Powder (Unflavored, 19 oz)
   brand: Konsyl
   module: longevitymax
+  need: fiber
   concerns:
   - fiber
   - psyllium
@@ -1122,6 +1156,7 @@ products:
   name: ProsourceFit Exercise Balance Pad
   brand: ProsourceFit
   module: longevitymax
+  need: balance_pad
   concerns:
   - balance_practice
   - balance
@@ -1152,6 +1187,8 @@ products:
   name: CeraVe Hydrating Facial Cleanser
   brand: CeraVe
   module: skinhairmax
+  need: face_cleanser
+  suits: [dry, normal, sensitive]
   concerns:
   - cleanser
   - gentle_cleansing
@@ -1182,6 +1219,8 @@ products:
   name: CeraVe Foaming Facial Cleanser
   brand: CeraVe
   module: skinhairmax
+  need: face_cleanser
+  suits: [oily, combination, acne]
   concerns:
   - cleanser
   - gentle_cleansing
@@ -1211,6 +1250,8 @@ products:
   name: La Roche-Posay Toleriane Hydrating Gentle Cleanser
   brand: La Roche-Posay
   module: skinhairmax
+  need: face_cleanser
+  suits: [sensitive, reactive, dry, redness]
   concerns:
   - cleanser
   - gentle_cleansing
@@ -1240,6 +1281,8 @@ products:
   name: CeraVe PM Facial Moisturizing Lotion
   brand: CeraVe
   module: skinhairmax
+  need: moisturizer
+  suits: [oily, combination, normal, lotion, gel, light]
   concerns:
   - moisturizer
   - am_moisturize
@@ -1269,6 +1312,8 @@ products:
   name: CeraVe Moisturizing Cream (Tub)
   brand: CeraVe
   module: skinhairmax
+  need: moisturizer
+  suits: [dry, cream, rich]
   concerns:
   - moisturizer
   - pm_moisturize
@@ -1298,6 +1343,8 @@ products:
   name: Vanicream Daily Facial Moisturizer
   brand: Vanicream
   module: skinhairmax
+  need: moisturizer
+  suits: [sensitive, reactive, fragrance-free, ceramide, normal]
   concerns:
   - moisturizer
   - am_moisturize
@@ -1325,6 +1372,8 @@ products:
   name: La Roche-Posay Toleriane Double Repair Face Moisturizer
   brand: La Roche-Posay
   module: skinhairmax
+  need: moisturizer
+  suits: [sensitive, ceramide, combination, redness]
   concerns:
   - moisturizer
   - am_moisturize
@@ -1354,6 +1403,8 @@ products:
   name: EltaMD UV Clear Broad-Spectrum SPF 46
   brand: EltaMD
   module: skinhairmax
+  need: sunscreen
+  suits: [oily, acne, combination, redness, broad-spectrum]
   concerns:
   - sunscreen
   - spf
@@ -1384,6 +1435,8 @@ products:
   name: La Roche-Posay Anthelios Melt-in Milk Sunscreen SPF 60
   brand: La Roche-Posay
   module: skinhairmax
+  need: sunscreen
+  suits: [normal, dry, broad-spectrum]
   concerns:
   - sunscreen
   - spf
@@ -1413,6 +1466,8 @@ products:
   name: Blue Lizard Sensitive Mineral Sunscreen SPF 50 (5 fl oz)
   brand: Blue Lizard
   module: skinhairmax
+  need: sunscreen
+  suits: [mineral, sensitive, reactive]
   concerns:
   - sunscreen
   - mineral_spf
@@ -1442,6 +1497,7 @@ products:
   name: Blue Lizard Sensitive Mineral Sunscreen Stick SPF 50+
   brand: Blue Lizard
   module: skinhairmax
+  need: sunscreen_stick
   concerns:
   - sunscreen_stick
   - spf_reapply
@@ -1471,6 +1527,8 @@ products:
   name: CeraVe Hydrating Mineral Sunscreen SPF 30 (Face)
   brand: CeraVe
   module: skinhairmax
+  need: sunscreen
+  suits: [mineral, dry, sensitive]
   concerns:
   - sunscreen
   - mineral_spf
@@ -1500,6 +1558,7 @@ products:
   name: Sun Bum Mineral SPF 30 Lip Balm
   brand: Sun Bum
   module: skinhairmax
+  need: lip_spf
   concerns:
   - lip_balm
   - lips
@@ -1529,6 +1588,7 @@ products:
   name: Differin Adapalene Gel 0.1%
   brand: Differin
   module: skinhairmax
+  need: adapalene
   concerns:
   - retinoid
   - pm_retinoid
@@ -1558,6 +1618,7 @@ products:
   name: Nizoral Anti-Dandruff Shampoo (Ketoconazole 1%)
   brand: Nizoral
   module: skinhairmax
+  need: ketoconazole_shampoo
   concerns:
   - shampoo
   - dandruff
@@ -1588,6 +1649,7 @@ products:
   name: HEETA Silicone Scalp Massager Shampoo Brush
   brand: HEETA
   module: skinhairmax
+  need: scalp_brush
   concerns:
   - scalp_massage
   - scalp_brush
@@ -1617,6 +1679,7 @@ products:
   name: ZIMASILK Mulberry Silk Pillowcase (Queen)
   brand: ZIMASILK
   module: skinhairmax
+  need: silk_pillowcase
   concerns:
   - pillowcase
   - silk
@@ -1645,11 +1708,282 @@ products:
   - ai_programs/skinhairmax.md
   slug: ZIMASILK-Mulberry-Silk-Pillowcase-Queen
 
+- id: the-ordinary-niacinamide-10-zinc-1
+  name: The Ordinary Niacinamide 10% + Zinc 1%
+  brand: The Ordinary
+  module: skinhairmax
+  need: niacinamide_serum
+  suits: [oily, acne, combination, reactive]
+  concerns:
+  - niacinamide
+  - serum
+  - am_routine
+  - oil_control
+  url: https://www.amazon.com/dp/B01MDTVZTZ
+  image: https://m.media-amazon.com/images/I/612NxRjAoCL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 6.00
+  rating: 4.7
+  rating_count: 68661
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A few drops in the morning; a gentle, well-tolerated serum for oily or blemish-prone skin."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: The-Ordinary-Niacinamide-10-Zinc-1
+
+- id: truskin-vitamin-c-serum
+  name: TruSkin Vitamin C Serum with Hyaluronic Acid
+  brand: TruSkin
+  module: skinhairmax
+  need: vitamin_c_serum
+  suits: [aging, spots, texture, normal]
+  concerns:
+  - vitamin_c
+  - serum
+  - am_routine
+  - brightening
+  url: https://www.amazon.com/dp/B01EKUBU5Y
+  image: https://m.media-amazon.com/images/I/61kOfe19nbL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 20.33
+  rating: 4.4
+  rating_count: 156893
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: null
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Morning vitamin C under sunscreen; the most-reviewed serum of its kind."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: TruSkin-Vitamin-C-Serum-Hyaluronic
+
+- id: the-ordinary-azelaic-acid-10
+  name: The Ordinary Azelaic Acid Suspension 10%
+  brand: The Ordinary
+  module: skinhairmax
+  need: azelaic_acid
+  suits: [redness, acne, spots, pregnant, reactive]
+  concerns:
+  - azelaic_acid
+  - treatment
+  - pm_routine
+  - redness
+  url: https://www.amazon.com/dp/B06WD5J8KY
+  image: https://m.media-amazon.com/images/I/51LloWpF62L._SL1500_.jpg
+  price_tier: budget
+  price_usd: 12.20
+  rating: 4.5
+  rating_count: 9765
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A thin layer of 10% azelaic acid, the gentler active for redness and uneven tone."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: The-Ordinary-Azelaic-Acid-Suspension
+
+- id: paulas-choice-2-bha-liquid
+  name: Paula's Choice SKIN PERFECTING 2% BHA Liquid Leave-On Exfoliant
+  brand: Paula's Choice
+  module: skinhairmax
+  need: bha_exfoliant
+  suits: [oily, acne, combination]
+  concerns:
+  - bha
+  - salicylic_acid
+  - exfoliant
+  - pm_routine
+  url: https://www.amazon.com/dp/B07C5SS6YD
+  image: https://m.media-amazon.com/images/I/61+k-VwGV8L._SL1500_.jpg
+  price_tier: budget
+  price_usd: 15.00
+  rating: 4.5
+  rating_count: 117090
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "The classic leave-on salicylic acid liquid for oily, congested skin."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Paulas-Choice-Perfecting-Exfoliant-Salicylic
+
+- id: the-ordinary-lactic-acid-5-ha
+  name: The Ordinary Lactic Acid 5% + Hyaluronic Acid 2%
+  brand: The Ordinary
+  module: skinhairmax
+  need: aha_exfoliant
+  suits: [dry, sensitive, texture, reactive, normal]
+  concerns:
+  - lactic_acid
+  - aha
+  - exfoliant
+  - pm_routine
+  url: https://www.amazon.com/dp/B01NA0F3FB
+  image: https://m.media-amazon.com/images/I/41o4LRgn+8L._SL1240_.jpg
+  price_tier: budget
+  price_usd: 8.10
+  rating: 4.6
+  rating_count: 8268
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A low-strength lactic acid serum: smoother skin without the sting of stronger acids."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: The-Ordinary-Lactic-Acid-Hyaluronic
+
+- id: the-ordinary-hyaluronic-acid-2-b5
+  name: The Ordinary Hyaluronic Acid 2% + B5
+  brand: The Ordinary
+  module: skinhairmax
+  need: hyaluronic_serum
+  suits: [dry, normal, sensitive]
+  concerns:
+  - hyaluronic_acid
+  - hydrating_serum
+  - am_routine
+  - pm_routine
+  url: https://www.amazon.com/dp/B01MYEZPC8
+  image: https://m.media-amazon.com/images/I/61Se8Z9n4oL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 9.90
+  rating: 4.7
+  rating_count: 42428
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "On damp skin before moisturizer, it pulls water into dry skin."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: The-Ordinary-Hyaluronic-Acid-B5
+
+- id: cerave-resurfacing-retinol-serum
+  name: CeraVe Resurfacing Retinol Face Serum
+  brand: CeraVe
+  module: skinhairmax
+  need: retinol_serum
+  suits: [aging, spots, normal, combination]
+  concerns:
+  - retinol
+  - retinoid
+  - serum
+  - pm_routine
+  url: https://www.amazon.com/dp/B07VWSN95S
+  image: https://m.media-amazon.com/images/I/71zvPJqU7FL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 16.49
+  rating: 4.6
+  rating_count: 57309
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "An over-the-counter retinol in a gentle base, for a pea-sized nightly step."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: CeraVe-Resurfacing-Retinol-Serum
+
+- id: aztec-secret-indian-healing-clay
+  name: Aztec Secret Indian Healing Clay Mask
+  brand: Aztec Secret
+  module: skinhairmax
+  need: clay_mask
+  suits: [oily, acne, combination]
+  concerns:
+  - clay_mask
+  - mask
+  - pm_routine
+  - pores
+  url: https://www.amazon.com/dp/B081FK6L1G
+  image: https://m.media-amazon.com/images/I/71OElrEWgCL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 16.95
+  rating: 4.6
+  rating_count: 99836
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Mix with water for the weekly T-zone clay mask; one tub lasts months."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Aztec-Secret-Indian-Healing-Clay
+
+- id: aquaphor-healing-ointment-7oz
+  name: Aquaphor Healing Ointment Skin Protectant, 7 oz
+  brand: Aquaphor
+  module: skinhairmax
+  need: ointment
+  suits: [dry]
+  concerns:
+  - petroleum_jelly
+  - ointment
+  - pm_routine
+  - dryness
+  url: https://www.amazon.com/dp/B0107QPFBU
+  image: https://m.media-amazon.com/images/I/61jSBOEVRzL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 12.97
+  rating: 4.8
+  rating_count: 58409
+  checked: 2026-10-15
+  tags:
+    vegetarian: true
+    vegan: false
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A thin layer over moisturizer on dry nights to keep moisture in."
+  references:
+  - ai_programs/skinhairmax.md
+  slug: Aquaphor-Healing-Ointment-Protectant
+
 # ── Suppmax: one third-party-tested pick per Suppmax habit (+ protein) ────────
 - id: nature-made-melatonin-3mg
   name: Nature Made Melatonin 3mg (120 Tablets)
   brand: Nature Made
   module: suppmax
+  need: melatonin
   concerns:
   - melatonin
   - sleep
@@ -1681,6 +2015,7 @@ products:
   name: Doctor's Best High Absorption Magnesium Glycinate Lysinate (240 ct)
   brand: Doctor's Best
   module: suppmax
+  need: magnesium
   concerns:
   - magnesium
   - magnesium_glycinate
@@ -1711,6 +2046,7 @@ products:
   name: Thorne Magnesium Bisglycinate Powder (60 Servings)
   brand: Thorne
   module: suppmax
+  need: magnesium
   concerns:
   - magnesium
   - magnesium_glycinate
@@ -1741,6 +2077,7 @@ products:
   name: NOW L-Theanine 200 mg (120 Veg Caps)
   brand: NOW
   module: suppmax
+  need: l_theanine
   concerns:
   - l_theanine
   - theanine
@@ -1772,6 +2109,7 @@ products:
   name: Thorne Creatine Monohydrate Powder (90 Servings)
   brand: Thorne
   module: suppmax
+  need: creatine
   concerns:
   - creatine
   - strength
@@ -1802,6 +2140,7 @@ products:
   name: Optimum Nutrition Creatine Monohydrate Powder (Unflavored, 120 Servings)
   brand: Optimum Nutrition
   module: suppmax
+  need: creatine
   concerns:
   - creatine
   - strength
@@ -1831,6 +2170,7 @@ products:
   name: NOW Sports Creatine Monohydrate Powder (2.2 lb)
   brand: NOW
   module: suppmax
+  need: creatine
   concerns:
   - creatine
   - strength
@@ -1861,6 +2201,7 @@ products:
   name: LMNT Zero Sugar Electrolytes (Watermelon Salt, 30 ct)
   brand: LMNT
   module: suppmax
+  need: electrolytes
   concerns:
   - electrolytes
   - hydration
@@ -1892,6 +2233,7 @@ products:
   name: Vital Proteins Collagen Peptides Powder (Unflavored, 14.3 oz)
   brand: Vital Proteins
   module: suppmax
+  need: collagen
   concerns:
   - collagen
   - collagen_peptides
@@ -1922,6 +2264,7 @@ products:
   name: Nature Made Vitamin D3 1000 IU (300 Softgels)
   brand: Nature Made
   module: suppmax
+  need: vitamin_d3
   concerns:
   - vitamin_d
   - vitamin_d3
@@ -1952,6 +2295,7 @@ products:
   name: Nordic Naturals Omega-3 Fish Oil 690mg (Lemon, 120 ct)
   brand: Nordic Naturals
   module: suppmax
+  need: omega3
   concerns:
   - omega3
   - omega_3
@@ -1982,6 +2326,7 @@ products:
   name: NOW Glycine Powder (1 lb)
   brand: NOW
   module: suppmax
+  need: glycine
   concerns:
   - glycine
   - sleep
@@ -2012,6 +2357,7 @@ products:
   name: Nature Made Multivitamin for Him (No Iron)
   brand: Nature Made
   module: suppmax
+  need: multivitamin
   concerns:
   - multivitamin
   - multi
@@ -2042,6 +2388,7 @@ products:
   name: Nature Made Multivitamin for Her
   brand: Nature Made
   module: suppmax
+  need: multivitamin
   concerns:
   - multivitamin
   - multi
@@ -2072,6 +2419,7 @@ products:
   name: NOW Methyl B-12 1000 mcg (100 Lozenges)
   brand: NOW
   module: suppmax
+  need: b12
   concerns:
   - b12
   - vitamin_b12
@@ -2102,6 +2450,7 @@ products:
   name: Optimum Nutrition Gold Standard 100% Whey Protein (Double Rich Chocolate, 2 lb)
   brand: Optimum Nutrition
   module: suppmax
+  need: protein_powder
   concerns:
   - protein
   - protein_powder
@@ -2133,6 +2482,7 @@ products:
   name: Dymatize ISO100 Hydrolyzed Whey Isolate (Gourmet Vanilla, 3 lb)
   brand: Dymatize
   module: suppmax
+  need: protein_powder
   concerns:
   - protein
   - protein_powder
@@ -2163,6 +2513,7 @@ products:
   name: Orgain Organic Vegan Protein Powder (Vanilla Bean, 2.03 lb)
   brand: Orgain
   module: suppmax
+  need: protein_powder
   concerns:
   - protein
   - protein_powder
@@ -2193,6 +2544,7 @@ products:
   name: KOS Organic Plant-Based Protein Powder (Chocolate)
   brand: KOS
   module: suppmax
+  need: protein_powder
   concerns:
   - protein
   - protein_powder
@@ -2225,6 +2577,7 @@ products:
   name: BD Sharps Collector (1.4 qt)
   brand: BD
   module: peptidemax
+  need: sharps_container
   concerns:
   - sharps_container
   - sharps_disposal
@@ -2254,6 +2607,7 @@ products:
   name: 4AllFamily Nomad Insulated Medication Travel Cooler
   brand: 4AllFamily
   module: peptidemax
+  need: travel_cooler
   concerns:
   - cooler
   - travel
@@ -2284,6 +2638,7 @@ products:
   name: Curad Alcohol Prep Pads (400 Count)
   brand: Curad
   module: peptidemax
+  need: alcohol_pads
   concerns:
   - alcohol_pads
   - alcohol_swabs
@@ -2313,6 +2668,7 @@ products:
   name: Taylor Analog Refrigerator Freezer Thermometer
   brand: Taylor
   module: peptidemax
+  need: fridge_thermometer
   concerns:
   - thermometer
   - fridge

@@ -70,6 +70,11 @@ class Product:
     rating: Optional[float] = None       # stars, 0-5
     rating_count: Optional[int] = None   # number of ratings
     checked: str = ""                    # ISO date the listing facts were read
+    # What the product is FOR ("dark_room", "creatine", "face_cleanser"). Products
+    # sharing a need are alternatives to each other; the Products tab shows one per need.
+    need: str = ""
+    # Who it suits best (skin types, "mineral", "gel", ...): ranks alternatives.
+    suits: tuple[str, ...] = ()
 
     @property
     def asin(self) -> str:
@@ -154,6 +159,8 @@ def load_catalog() -> tuple[Product, ...]:
                 rating=_num(entry.get("rating"), float),
                 rating_count=_num(entry.get("rating_count"), int),
                 checked=str(entry.get("checked") or "").strip(),
+                need=str(entry.get("need") or "").strip().lower(),
+                suits=tuple(str(x).strip().lower() for x in (entry.get("suits") or [])),
             ))
         except Exception as e:
             logger.warning("[catalog] entry #%d skipped (%s): %s", i, e, entry.get("id"))

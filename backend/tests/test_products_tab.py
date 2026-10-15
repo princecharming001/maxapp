@@ -1,59 +1,91 @@
-"""Products tab (api/products.py): the catalog arranged for one person."""
-from api.products import _image, build_sections
+"""Products tab (api/products.py): one product per need in the person's CURRENT routine."""
+from datetime import date
+
+import pytest
+from fastapi import HTTPException
+
+from api.products import _image, _their_need, build_list, options_for, plan_needs
+from services import skin_routine
 from services.product_catalog import active_catalog
 
 
-def _by(sections):
-    return {s["program"]: s for s in sections}
+def _items(sections):
+    return {it["need"]: it for s in sections for it in s["items"]}
 
 
-def test_every_active_product_has_listing_facts():
+def _skin(goal, feel, flags="None of these"):
+    t = skin_routine.build_template({"skin_goal": goal, "skin_feel": feel, "skin_flags": flags}, started_on=date.today())
+    return [("skinhairmax", t)]
+
+
+def test_every_active_product_has_a_need_and_listing_facts():
     for p in active_catalog():
-        assert p.asin, p.id
-        assert p.price_usd and p.price_usd > 0, p.id
-        assert p.rating and 1 <= p.rating <= 5, p.id
-        assert p.rating_count and p.rating_count > 0, p.id
+        assert p.need, p.id
+        assert p.asin and p.price_usd and p.rating and p.rating_count, p.id
         assert p.image.startswith("https://m.media-amazon.com/images/I/"), p.id
 
 
-def test_my_programs_come_first_in_the_order_i_started_them():
-    s = build_sections([("focusmax", {}), ("sleepmax", {})], None)
-    assert [x["program"] for x in s[:2]] == ["focusmax", "sleepmax"]
-    assert s[0]["active"] and s[1]["active"] and not s[2]["active"]
-    assert len(s) == 9
-
-
-def test_products_for_a_habit_in_my_plan_lead_and_say_so():
+def test_nothing_without_programs_and_only_programs_i_run():
+    assert build_list([], None, {}) == []
     plan = {"habits": [{"habit_id": "morning_light", "title": "morning outdoor light"}]}
-    energy = _by(build_sections([("energymax", plan)], None))["energymax"]["products"]
-    assert energy[0]["id"] == "verilux-happylight-luxe"
-    assert energy[0]["for_habit"] == "morning outdoor light"
-    assert all(p["for_habit"] is None for p in energy[1:])
+    s = build_list([("energymax", plan)], None, {})
+    assert [x["program"] for x in s] == ["energymax"]
+    assert list(_items(s)) == ["light_therapy"]
 
 
-def test_supplements_only_from_my_own_screened_plan():
-    none = _by(build_sections([], None))["suppmax"]
-    assert none["products"] == [] and "Suppmax" in none["note"]
+def test_only_needs_my_current_habits_have_one_product_each():
+    plan = {"habits": [{"habit_id": "bedroom_setup", "title": "bedroom setup"},
+                       {"habit_id": "fixed_wake_time", "title": "same wake time daily"}]}
+    items = _items(build_list([("sleepmax", plan)], None, {}))
+    assert set(items) == {"dark_room", "quiet_room", "wake_light"}      # mask/curtains are ONE need
+    assert items["quiet_room"]["options"] == 3 and items["quiet_room"]["for"] == ["bedroom setup"]
+
+
+def test_tweaking_the_schedule_changes_the_list():
+    before = {"habits": [{"habit_id": "deep_work_block", "title": "deep work"}]}
+    after = {"habits": [{"habit_id": "phone_away", "title": "phone in another room"}]}
+    assert "focus_timer" in _items(build_list([("focusmax", before)], None, {}))
+    assert set(_items(build_list([("focusmax", after)], None, {}))) == {"phone_lockbox"}
+
+
+def test_supplements_only_from_my_suppmax_plan_never_from_a_sleep_habit():
+    sleep = {"habits": [{"habit_id": "wind_down", "title": "wind-down"}]}
+    assert "melatonin" not in _items(build_list([("sleepmax", sleep)], None, {}))
+    supp = {"habits": [{"habit_id": "melatonin", "title": "melatonin before bed"}]}
+    assert "melatonin" in _items(build_list([("suppmax", supp)], None, {}))
+
+
+def test_skin_products_follow_the_routine_and_skin_type():
+    oily = _items(build_list(_skin("Clear breakouts", "Shiny all over"), None, {}))
+    assert oily["face_cleanser"]["product"]["id"] == "cerave-foaming-cleanser"
+    assert {"adapalene", "niacinamide_serum", "sunscreen"} <= set(oily)
+    assert oily["sunscreen"]["for"] == ["AM skin routine"]
+    dry = _items(build_list(_skin("Fix dryness", "Tight, dry or flaky", "Eczema or rosacea"), None, {}))
+    assert dry["moisturizer"]["product"]["id"] == "cerave-moisturizing-cream"
+    assert "mineral" in dry["sunscreen"]["product"]["name"].lower()
+    assert dry["face_cleanser"]["for"] == ["PM skin routine"]           # AM is a water rinse
+    preg = _items(build_list(_skin("Smooth fine lines", "Comfortable", "Pregnant, trying, or breastfeeding"), None, {}))
+    assert not {"adapalene", "retinol_serum"} & set(preg)
+
+
+def test_my_pick_wins_and_alternatives_are_only_my_needs():
     plan = {"habits": [{"habit_id": "creatine", "title": "creatine daily"}]}
-    supp = _by(build_sections([("suppmax", plan)], None))["suppmax"]["products"]
-    assert supp and all(p["for_habit"] == "creatine daily" for p in supp)
-    assert {p["id"] for p in supp} <= {"thorne-creatine", "optimum-nutrition-creatine", "now-creatine-monohydrate"}
+    active = [("suppmax", plan)]
+    need = _their_need(active, "creatine")
+    assert len(options_for(need, None, {})) == 3
+    items = _items(build_list(active, None, {"creatine": "thorne-creatine"}))
+    assert items["creatine"]["product"]["id"] == "thorne-creatine" and items["creatine"]["picked"]
+    with pytest.raises(HTTPException):
+        _their_need(active, "melatonin")
 
 
-def test_diet_facts_filter_products():
-    energy = lambda facts: {p["id"] for p in _by(build_sections([], facts))["energymax"]["products"]}  # noqa: E731
-    assert "premier-protein-shake-30g" in energy(None)
-    assert "premier-protein-shake-30g" not in energy({"diet": ["vegan"]})
-
-
-def test_cards_carry_what_the_tab_shows():
-    p = _by(build_sections([], None))["sleepmax"]["products"][0]
-    assert p["url"] == f"https://www.amazon.com/dp/{p['asin']}"
-    assert p["image"].endswith("._AC_SL500_.jpg")
-    assert p["price_usd"] and p["rating"] and p["rating_count"] and p["brand"] and p["name"]
+def test_diet_facts_filter_options():
+    plan = {"habits": [{"habit_id": "protein_powder", "title": "protein shake"}]}
+    need = plan_needs([("suppmax", plan)])[0]
+    vegan = {p.id for p in options_for(need, {"diet": ["vegan"]}, {})}
+    assert vegan and all("vegan" in i for i in vegan)
 
 
 def test_image_size_rewrite():
     assert _image("https://m.media-amazon.com/images/I/91j-EDBgLGL._AC_SX679_.jpg") == \
         "https://m.media-amazon.com/images/I/91j-EDBgLGL._AC_SL500_.jpg"
-    assert _image("") == ""

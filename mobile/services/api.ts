@@ -72,23 +72,40 @@ export interface ShopProduct {
     rating_count: number | null;
     url: string;
     why: string;
-    /** The habit in the user's plan this serves ("Wind-down routine"), else null. */
-    for_habit: string | null;
+}
+
+/** One thing the user's routine needs, and the product picked for it. */
+export interface ShopItem {
+    need: string;
+    need_label: string;
+    /** The habits in their plan that use it. */
+    for: string[];
+    product: ShopProduct;
+    /** How many products can fill this need (1 = no alternatives). */
+    options: number;
+    /** True when the product is one they chose themselves. */
+    picked: boolean;
 }
 
 export interface ShopSection {
     program: string;
     label: string;
     color: string;
-    active: boolean;
-    note: string;
-    products: ShopProduct[];
+    items: ShopItem[];
 }
 
 export interface ProductsForMe {
     sections: ShopSection[];
+    has_programs: boolean;
     /** ISO date the prices were last read off Amazon. */
     checked: string;
+}
+
+export interface ProductAlternatives {
+    need: string;
+    need_label: string;
+    for: string[];
+    options: (ShopProduct & { current: boolean })[];
 }
 
 export interface VisualBlock {
@@ -1294,6 +1311,18 @@ class ApiService {
      *  first, each with its live Amazon price/rating and the plan habit it serves. */
     async getProductsForMe(): Promise<ProductsForMe> {
         const response = await this.client.get('products/for-me');
+        return response.data;
+    }
+
+    /** Every product that can fill one of the user's needs, their current one first. */
+    async getProductAlternatives(need: string): Promise<ProductAlternatives> {
+        const response = await this.client.get('products/alternatives', { params: { need } });
+        return response.data;
+    }
+
+    /** Remember which product the user wants for a need. */
+    async pickProduct(need: string, productId: string): Promise<{ ok: boolean }> {
+        const response = await this.client.post('products/pick', { need, product_id: productId });
         return response.data;
     }
 

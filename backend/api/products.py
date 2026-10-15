@@ -1,16 +1,23 @@
 """
-Products tab — the catalog arranged for one person.
+Products tab — what to buy for the routine on YOUR schedule, nothing else.
 
-GET /products/for-me returns every program's products, the person's active
-programs first. Inside a program, products that serve a habit in their current
-plan come first and say which habit ("For your wind-down routine").
+The list is computed from the person's current plans every time:
 
-Supplements are the exception: Suppmax products are only listed when they match
-a supplement in the person's own Suppmax plan, which already went through its
-safety screen (pregnancy, medications, conditions). Without Suppmax there is
-nothing to list there, only the program's own explanation.
+  * only programs they run, in the order they started them;
+  * only NEEDS their current habits have. A need is what a product is for
+    ("dark_room", "creatine", "face_cleanser"); each catalog product has one,
+    and products sharing a need are alternatives to each other;
+  * ONE product per need: their own pick if they made one ("Other options"),
+    else the best fit (skin type, the routine's wording, ratings);
+  * Skin & Hair needs come from the steps of their routine ("A light gel
+    moisturizer", "Mineral SPF 30+"), so they match their skin;
+  * supplements only from their Suppmax plan, which passed its safety screen.
 
-Pure in-process (catalog YAML + the person's plans): no network, ~10 ms.
+Change programs or tweak a plan and the next load reflects it.
+
+GET  /products/for-me                 the list
+GET  /products/alternatives?need=...  every product for one of THEIR needs
+POST /products/pick {need, product_id} remember which one they want
 """
 from __future__ import annotations
 
@@ -19,24 +26,65 @@ import re
 from typing import Any, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
 from middleware import get_current_user
-from services.ai_programs import AI_PROGRAMS, SUPP_PROGRAM, _user_state, is_ai_program
+from services.ai_programs import AI_PROGRAMS, _user_state, is_ai_program
 from services.product_catalog import Product, _passes_user_facts, active_catalog
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
-# Program order when the person runs none of them (and for the rest after theirs).
-_ORDER = ["sleepmax", "energymax", "focusmax", "calmmax", "trainmax", "longevitymax",
-          "skinhairmax", "suppmax", "peptidemax"]
+PICKS_KEY = "product_picks"     # user context: {need: product_id}
+SKIN = "skinhairmax"
 
-# Skin plans are two routines (am/pm) whose steps name the product kinds.
-_SKIN_WORDS = ("cleanser", "moisturiz", "sunscreen", "spf", "adapalene", "retinoid", "shampoo",
-               "ketoconazole", "lip", "silk", "scalp")
+NEED_LABELS = {
+    "dark_room": "Darker bedroom", "quiet_room": "Quieter bedroom", "wake_light": "Wake-up light",
+    "water_bottle": "Water bottle", "light_therapy": "Light therapy", "electrolytes": "Electrolytes",
+    "protein_breakfast": "Protein breakfast", "focus_timer": "Focus timer", "phone_lockbox": "Phone lockbox",
+    "focus_earplugs": "Focus earplugs", "daily_planner": "Daily planner", "weekly_planner": "Weekly planner",
+    "gratitude_journal": "Gratitude journal", "notebook": "Notebook", "everyday_earplugs": "Earplugs",
+    "analog_alarm": "Alarm clock", "weights": "Weights", "resistance_bands": "Resistance bands",
+    "pull_up_bar": "Pull-up bar", "recovery_roller": "Recovery roller", "exercise_mat": "Exercise mat",
+    "jump_rope": "Jump rope", "workout_log": "Workout log", "walking_pad": "Walking pad",
+    "step_tracker": "Step tracker", "fiber": "Fiber", "balance_pad": "Balance pad",
+    "face_cleanser": "Cleanser", "moisturizer": "Moisturizer", "sunscreen": "Sunscreen",
+    "sunscreen_stick": "Sunscreen stick", "lip_spf": "Lip SPF", "adapalene": "Adapalene",
+    "retinol_serum": "Retinol", "niacinamide_serum": "Niacinamide", "vitamin_c_serum": "Vitamin C",
+    "azelaic_acid": "Azelaic acid", "bha_exfoliant": "BHA exfoliant", "aha_exfoliant": "Gentle acid",
+    "hyaluronic_serum": "Hydrating serum", "clay_mask": "Clay mask", "ointment": "Night seal",
+    "ketoconazole_shampoo": "Scalp shampoo", "scalp_brush": "Scalp brush", "silk_pillowcase": "Silk pillowcase",
+    "melatonin": "Melatonin", "magnesium": "Magnesium", "l_theanine": "L-theanine", "creatine": "Creatine",
+    "collagen": "Collagen", "vitamin_d3": "Vitamin D3", "omega3": "Omega-3", "glycine": "Glycine",
+    "multivitamin": "Multivitamin", "b12": "B12", "protein_powder": "Protein powder",
+    "sharps_container": "Sharps container", "travel_cooler": "Travel cooler", "alcohol_pads": "Alcohol pads",
+    "fridge_thermometer": "Fridge thermometer",
+}
+
+# Skin & Hair: what a routine step asks for → the need it creates. Order matters
+# only for display (cleanse → treat → moisturize → protect).
+_SKIN_STEPS: list[tuple[str, str]] = [
+    (r"ketoconazole", "ketoconazole_shampoo"),
+    (r"scalp brush", "scalp_brush"),
+    (r"gentle cleanser|wash with a .*cleanser", "face_cleanser"),
+    (r"adapalene", "adapalene"),
+    (r"\bretinol\b", "retinol_serum"),
+    (r"niacinamide", "niacinamide_serum"),
+    (r"vitamin c", "vitamin_c_serum"),
+    (r"azelaic", "azelaic_acid"),
+    (r"\bbha\b|salicylic", "bha_exfoliant"),
+    (r"lactic|\bpha\b|\baha\b|glycolic", "aha_exfoliant"),
+    (r"hyaluronic|hydrating serum", "hyaluronic_serum"),
+    (r"moisturizer", "moisturizer"),
+    (r"clay mask", "clay_mask"),
+    (r"petroleum jelly", "ointment"),
+    (r"spf 30\+", "sunscreen"),
+]
+# routine wording that says which kind fits ("a light gel moisturizer")
+_STEP_WORDS = ("gel", "lotion", "cream", "ceramide", "fragrance-free", "mineral", "broad-spectrum", "light", "rich")
 
 
 def _image(url: str) -> str:
@@ -51,40 +99,91 @@ def _score(p: Product) -> float:
     return p.rating * math.log10(10 + (p.rating_count or 0))
 
 
-def _plan_matches(p: Product, plan: Optional[dict]) -> Optional[str]:
-    """The title of the habit in this plan the product serves, else None."""
-    habits = (plan or {}).get("habits") or []
-    concerns = set(p.concerns)
-    for h in habits:
-        if h.get("habit_id") in concerns:
-            return str(h.get("title") or "").strip() or None
-    if p.module == "skinhairmax":
-        text = " ".join(
-            " ".join(str(h.get(k) or "") for k in ("title", "how"))
-            + " " + " ".join(str((v or {}).get("how") or "") for v in (h.get("variants") or {}).values())
-            for h in habits
-        ).lower()
-        for c in p.concerns:
-            word = c.replace("_", " ")
-            if any(w in word for w in _SKIN_WORDS) and word in text:
-                return "your skin routine"
-    return None
-
-
-def _card(p: Product, match: Optional[str]) -> dict[str, Any]:
+def _card(p: Product) -> dict[str, Any]:
     return {
-        "id": p.id,
-        "asin": p.asin,
-        "name": p.name,
-        "brand": p.brand,
-        "image": _image(p.image),
-        "price_usd": p.price_usd,
-        "rating": p.rating,
-        "rating_count": p.rating_count,
-        "url": f"https://www.amazon.com/dp/{p.asin}" if p.asin else p.url,
-        "why": p.rationale,
-        "for_habit": match,
+        "id": p.id, "asin": p.asin, "name": p.name, "brand": p.brand, "image": _image(p.image),
+        "price_usd": p.price_usd, "rating": p.rating, "rating_count": p.rating_count,
+        "url": f"https://www.amazon.com/dp/{p.asin}" if p.asin else p.url, "why": p.rationale,
     }
+
+
+def _skin_text(h: dict) -> str:
+    parts = [str(h.get("how") or "")]
+    parts += [str((v or {}).get("how") or "") for v in (h.get("variants") or {}).values()]
+    return " ".join(parts).lower()
+
+
+def plan_needs(active: list[tuple[str, dict]]) -> list[dict[str, Any]]:
+    """Every need the person's current plans have, in plan order, deduped.
+    Each: {need, program, habits: [titles], hints: {words that say which kind fits}}."""
+    by_need: dict[str, dict] = {}
+    order: list[str] = []
+    catalog = active_catalog()
+
+    def add(need: str, program: str, title: str, hints: set[str]):
+        if need not in by_need:
+            by_need[need] = {"need": need, "program": program, "habits": [], "hints": set()}
+            order.append(need)
+        n = by_need[need]
+        if title and title not in n["habits"]:
+            n["habits"].append(title)
+        n["hints"] |= hints
+
+    for program, plan in active:
+        habits = (plan or {}).get("habits") or []
+        if program == SKIN:
+            prof = (plan or {}).get("skin_profile") or {}
+            base = {str(prof.get("skin") or ""), str(prof.get("goal") or "")} | {str(f) for f in prof.get("flags") or []}
+            for h in habits:
+                text = _skin_text(h)
+                title = str(h.get("title") or "").strip()
+                for pattern, need in _SKIN_STEPS:
+                    if re.search(pattern, text):
+                        words = {w for w in _STEP_WORDS if w in text} if need in ("moisturizer", "sunscreen") else set()
+                        add(need, program, title, (base | words) - {""})
+            continue
+        for h in habits:
+            hid = h.get("habit_id")
+            title = str(h.get("title") or "").strip()
+            for p in catalog:
+                # a program's own products only: supplements never ride in on a
+                # sleep habit, they come from the (screened) Suppmax plan
+                if p.module == program and p.need and hid in p.concerns:
+                    add(p.need, program, title, set())
+    return [by_need[n] for n in order]
+
+
+def _fit(p: Product, hints: set[str]) -> int:
+    return len(set(p.suits) & hints)
+
+
+def options_for(need: dict, facts: Optional[dict], picks: dict) -> list[Product]:
+    """Every product for this need, best first: their pick, then fit, then ratings."""
+    pool = [p for p in active_catalog() if p.need == need["need"] and _passes_user_facts(p, facts)]
+    pick = picks.get(need["need"])
+    return sorted(pool, key=lambda p: (p.id != pick, -_fit(p, need["hints"]), -_score(p)))
+
+
+def build_list(active: list[tuple[str, dict]], facts: Optional[dict], picks: dict) -> list[dict[str, Any]]:
+    sections: dict[str, dict] = {}
+    for need in plan_needs(active):
+        opts = options_for(need, facts, picks)
+        if not opts:
+            continue
+        prog = need["program"]
+        meta = AI_PROGRAMS.get(prog) or {}
+        sec = sections.setdefault(prog, {"program": prog, "label": meta.get("label") or prog,
+                                         "color": meta.get("color") or "", "items": []})
+        sec["items"].append({
+            "need": need["need"],
+            "need_label": NEED_LABELS.get(need["need"], need["need"].replace("_", " ").capitalize()),
+            "for": need["habits"],
+            "product": _card(opts[0]),
+            "options": len(opts),
+            "picked": picks.get(need["need"]) == opts[0].id,
+        })
+    order = [m for m, _ in active]
+    return sorted(sections.values(), key=lambda s: order.index(s["program"]))
 
 
 async def _active_plans(user_id: str, db: AsyncSession) -> list[tuple[str, dict]]:
@@ -104,47 +203,57 @@ async def _active_plans(user_id: str, db: AsyncSession) -> list[tuple[str, dict]
     return out
 
 
-def build_sections(active: list[tuple[str, dict]], facts: Optional[dict]) -> list[dict[str, Any]]:
-    plans = dict(active)
-    order = [m for m, _ in active] + [m for m in _ORDER if m not in plans]
-    by_program: dict[str, list[Product]] = {}
-    for p in active_catalog():
-        if p.module in AI_PROGRAMS and _passes_user_facts(p, facts):
-            by_program.setdefault(p.module, []).append(p)
-    sections = []
-    for mid in order:
-        meta = AI_PROGRAMS.get(mid) or {}
-        cards = []
-        for p in by_program.get(mid, []):
-            match = _plan_matches(p, plans.get(mid))
-            if mid == SUPP_PROGRAM and not match:
-                continue  # supplements: only what their own screened plan holds
-            cards.append((0 if match else 1, -_score(p), _card(p, match)))
-        cards.sort(key=lambda t: (t[0], t[1]))
-        note = ""
-        if mid == SUPP_PROGRAM and not cards:
-            note = ("Supplements are matched to you after Suppmax's safety questions. "
-                    "Start Suppmax to see yours here.")
-        sections.append({
-            "program": mid,
-            "label": meta.get("label") or mid,
-            "color": meta.get("color") or "",
-            "active": mid in plans,
-            "note": note,
-            "products": [c for _, _, c in cards],
-        })
-    return sections
+async def _context(uid: str, db: AsyncSession) -> tuple[list, Optional[dict], dict]:
+    from services.user_context_service import get_context
+    _, onboarding, _state = await _user_state(uid, db)
+    facts = onboarding.get("user_facts") if isinstance(onboarding.get("user_facts"), dict) else None
+    ctx = await get_context(uid, db)
+    picks = ctx.get(PICKS_KEY) if isinstance(ctx.get(PICKS_KEY), dict) else {}
+    return await _active_plans(uid, db), facts, picks
 
 
 @router.get("/for-me")
-async def products_for_me(
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    uid = str(current_user["id"])
-    _, onboarding, _state = await _user_state(uid, db)
-    facts = onboarding.get("user_facts") if isinstance(onboarding.get("user_facts"), dict) else None
-    active = await _active_plans(uid, db)
-    sections = build_sections(active, facts)
+async def products_for_me(current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    active, facts, picks = await _context(str(current_user["id"]), db)
+    sections = build_list(active, facts, picks)
     checked = max((p.checked for p in active_catalog() if p.checked), default="")
-    return {"sections": sections, "checked": checked}
+    return {"sections": sections, "has_programs": bool(active), "checked": checked}
+
+
+def _their_need(active: list, need: str) -> dict:
+    hit = next((n for n in plan_needs(active) if n["need"] == need), None)
+    if hit is None:
+        # only needs their own routine has (keeps screened-only items screened)
+        raise HTTPException(status_code=404, detail="Not part of your routine")
+    return hit
+
+
+@router.get("/alternatives")
+async def alternatives(need: str, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    active, facts, picks = await _context(str(current_user["id"]), db)
+    n = _their_need(active, need)
+    opts = options_for(n, facts, picks)
+    return {
+        "need": need,
+        "need_label": NEED_LABELS.get(need, need),
+        "for": n["habits"],
+        "options": [{**_card(p), "current": i == 0} for i, p in enumerate(opts)],
+    }
+
+
+class PickIn(BaseModel):
+    need: str
+    product_id: str
+
+
+@router.post("/pick")
+async def pick(body: PickIn, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from services.user_context_service import merge_context
+    uid = str(current_user["id"])
+    active, facts, picks = await _context(uid, db)
+    n = _their_need(active, body.need)
+    if body.product_id not in {p.id for p in options_for(n, facts, picks)}:
+        raise HTTPException(status_code=400, detail="Not an option for this")
+    await merge_context(uid, {PICKS_KEY: {**picks, body.need: body.product_id}}, db)
+    await db.commit()
+    return {"ok": True}
