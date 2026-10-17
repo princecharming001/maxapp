@@ -24,8 +24,9 @@ from db.sqlalchemy import get_db
 from middleware.auth_middleware import get_current_user
 from middleware.rate_limit import rate_limit
 from models.sqlalchemy_models import User
-from services import referral_service
+from services import referral_service, share_unlock_service
 from services.referral_service import ReferralError
+from services.share_unlock_service import ShareUnlockError
 
 logger = logging.getLogger(__name__)
 
@@ -98,3 +99,62 @@ async def redeem_referral(
         logger.error("referral redeem failed: %s", e)
         raise HTTPException(status_code=500, detail="redeem_failed")
     return result
+
+
+# ── Share-to-unlock: text N friends, get the first week free ────────────────
+# The client opens the system Messages composer per friend and reports each
+# send; counting and the grant live in services/share_unlock_service.py.
+
+class ShareSendBody(BaseModel):
+    phone: str
+    result: str | None = None   # the composer's result; only 'sent' counts
+
+
+def _require_share_unlock() -> None:
+    if not getattr(settings, "share_unlock_enabled", True):
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+@router.get("/share-unlock")
+async def share_unlock_status(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_share_unlock()
+    user = await db.get(User, UUID(str(current_user["id"])))
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return await share_unlock_service.status(db, user)
+
+
+@router.post(
+    "/share-unlock/sends",
+    dependencies=[Depends(rate_limit(limit=30, window_s=600, scope="share_unlock_send"))],
+)
+async def share_unlock_send(
+    body: ShareSendBody,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_share_unlock()
+    if (body.result or "sent").lower() != "sent":
+        raise HTTPException(status_code=400, detail={"reason": "not_sent", "message": "that message wasn't sent."})
+    user = await db.get(User, UUID(str(current_user["id"])))
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        return await share_unlock_service.record_send(db, user, body.phone)
+    except ShareUnlockError as e:
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        status = 400 if e.reason == "bad_number" else 409
+        raise HTTPException(status_code=status, detail={"reason": e.reason, "message": e.message})
+    except Exception as e:  # noqa: BLE001
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        logger.error("share-unlock send failed: %s", e)
+        raise HTTPException(status_code=500, detail="share_unlock_failed")

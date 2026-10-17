@@ -15,6 +15,7 @@ import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import GoogleCalendarConnectScreen from '../screens/integrations/GoogleCalendarConnectScreen';
 import PaymentScreen from '../screens/payment/PaymentScreen';
 import ReferralCodeScreen from '../screens/payment/ReferralCodeScreen';
+import ShareUnlockScreen from '../screens/payment/ShareUnlockScreen';
 import CreateAccountScreen from '../screens/payment/CreateAccountScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import SettingsScreen from '../screens/profile/SettingsScreen';
@@ -182,6 +183,7 @@ export function RootNavigator() {
                     {/* Optional calendar connect before the schedule questions (flag onboardingCalendar). */}
                     <Stack.Screen name="OnboardingCalendar" component={OnboardingCalendarScreen} options={{ gestureEnabled: false }} />
                     <Stack.Screen name="ReferralCode" component={ReferralCodeScreen} />
+                    <Stack.Screen name="ShareUnlock" component={ShareUnlockScreen} />
                     <Stack.Screen name="Payment" component={PaymentScreen} />
                     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} options={{ headerShown: false }} />
@@ -193,6 +195,7 @@ export function RootNavigator() {
                     {/* Paid-gated actions (usePaywallGate) bounce free-tier users here, so
                         Payment must be reachable from this stack — not just the funnel. */}
                     <Stack.Screen name="ReferralCode" component={ReferralCodeScreen} />
+                    <Stack.Screen name="ShareUnlock" component={ShareUnlockScreen} />
                     <Stack.Screen name="Payment" component={PaymentScreen} />
                     <Stack.Screen name="Profile" component={ProfileScreen} />
                     <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />

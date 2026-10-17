@@ -354,6 +354,25 @@ export interface ReferralValidateResult {
     reason?: string | null;
 }
 
+export interface ShareUnlockStatus {
+    enabled: boolean;
+    eligible: boolean;
+    reason?: 'disabled' | 'already_entitled' | 'already_claimed' | null;
+    reason_message?: string | null;
+    target: number;
+    sent: number;
+    remaining: number;
+    granted: boolean;
+    granted_at?: string | null;
+    grant_days: number;
+    /** The preset text, with the app name and store link filled in. */
+    message: string;
+    link: string;
+    /** Only on a send response. */
+    counted?: boolean;
+    granted_now?: boolean;
+}
+
 export interface ReferralRedeemResult {
     result: 'comped' | 'discount_applied' | 'attributed';
     kind: string;
@@ -1529,6 +1548,19 @@ class ApiService {
         // slow-but-successful redemptions, and the caller then routed a
         // freshly-comped user to the PAYWALL. Give it real headroom.
         const response = await this.client.post('referral/redeem', { code, platform }, { timeout: 30_000 });
+        return response.data;
+    }
+
+    // --- Share-to-unlock: text N friends, first week free ---------------------
+    async getShareUnlock(): Promise<ShareUnlockStatus> {
+        const response = await this.client.get('referral/share-unlock');
+        return response.data;
+    }
+
+    /** Report one message the system composer says was sent. The server counts
+     *  distinct recipients and grants the week on the last one (never the client). */
+    async recordShareUnlockSend(phone: string, result: 'sent' = 'sent'): Promise<ShareUnlockStatus> {
+        const response = await this.client.post('referral/share-unlock/sends', { phone, result }, { timeout: 30_000 });
         return response.data;
     }
 

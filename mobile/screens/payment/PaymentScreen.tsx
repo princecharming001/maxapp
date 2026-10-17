@@ -14,7 +14,7 @@
  * choice is presentation only. Hard paywall: no free tier entry point.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -37,10 +37,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 const DUST = require('../../assets/landing-hero.webp');
 import { LiquidGlass } from '../../components/glass/LiquidGlass';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
-import api from '../../services/api';
+import api, { ShareUnlockStatus } from '../../services/api';
 import { track } from '../../lib/analytics';
 import { useAuth } from '../../context/AuthContext';
 import { useStripeSubscription } from '../../hooks/useStripeSubscription';
@@ -150,6 +150,17 @@ export default function PaymentScreen() {
     useEffect(() => {
         dotT.value = withRepeat(withTiming(1, { duration: 1800, easing: Easing.linear }), -1, false);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // "Text 15 friends, get a week free": the server says whether this account
+    // can still earn it (and how far along they are), re-read on every focus
+    // since the person may come back mid-way from the ShareUnlock screen.
+    const [shareUnlock, setShareUnlock] = useState<ShareUnlockStatus | null>(null);
+    useFocusEffect(useCallback(() => {
+        if (!IS_IOS) return;
+        let cancelled = false;
+        api.getShareUnlock().then((st) => { if (!cancelled) setShareUnlock(st); }).catch(() => undefined);
+        return () => { cancelled = true; };
+    }, []));
 
     // Where a successful purchase goes. Mid-funnel (onboarding incomplete) the
     // next step is claiming the account; a completed user hitting this as an
@@ -409,6 +420,25 @@ export default function PaymentScreen() {
                 >
                     <Text style={s.referralLink}>Have a referral code?</Text>
                 </TouchableOpacity>
+
+                {/* The other way in: text the preset message to N friends from the
+                    system composer and the server grants the first week (ShareUnlock). */}
+                {shareUnlock?.eligible ? (
+                    <TouchableOpacity
+                        style={s.referralLinkWrap}
+                        onPress={() => navigation.navigate('ShareUnlock', route?.params)}
+                        hitSlop={8}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Text friends to get your first week free"
+                    >
+                        <Text style={s.referralLink}>
+                            {shareUnlock.sent > 0
+                                ? `Keep texting friends for a free week (${shareUnlock.sent} of ${shareUnlock.target})`
+                                : `Or text ${shareUnlock.target} friends, get your first week free`}
+                        </Text>
+                    </TouchableOpacity>
+                ) : null}
 
                 {/* The funnel stack registers no Login route, so this is the ONLY
                     way a returning customer who tapped "Get started" (or a device

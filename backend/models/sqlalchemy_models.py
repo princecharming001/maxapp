@@ -1010,6 +1010,40 @@ class ReferralRedemption(Base):
     )
 
 
+class ShareUnlock(Base):
+    """Share-to-unlock progress: "text the preset message to 15 friends, get the
+    first week free" (services/share_unlock_service.py). One row per user so
+    the count survives reinstalls and the grant happens exactly once.
+    Auto-created by Base.metadata.create_all in init_db."""
+    __tablename__ = "share_unlocks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, unique=True)
+    sent_count = Column(Integer, nullable=False, default=0)
+    message_version = Column(String, nullable=True)   # short hash of the text they sent
+    last_send_at = Column(DateTime(timezone=True), nullable=True)
+    granted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class ShareUnlockSend(Base):
+    """One counted text. The recipient is kept only as an HMAC of the phone
+    number (server secret), so the same friend can't be counted twice and no
+    phone number is ever stored."""
+    __tablename__ = "share_unlock_sends"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+    recipient_hmac = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "recipient_hmac", name="uq_share_unlock_send_user_recipient"),
+        Index("idx_share_unlock_sends_user_id", user_id),
+    )
+
+
 class ScheduleChangeProposal(Base):
     """A pending chat-proposed schedule change (RALPH_CHAT_RESCHEDULE).
 

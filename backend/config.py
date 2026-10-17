@@ -244,6 +244,17 @@ class Settings(BaseSettings):
     referrals_enabled: bool = Field(default=True)
     referral_discounts_enabled: bool = Field(default=False)
     referral_rewards_enabled: bool = Field(default=False)
+    # Share-to-unlock: text the preset message to N friends from the system
+    # Messages composer, get the first week free (services/share_unlock_service).
+    # The message is a template: {app} = app_name, {link} = share_unlock_link.
+    share_unlock_enabled: bool = Field(default=True)
+    share_unlock_target: int = Field(default=15)
+    share_unlock_grant_days: int = Field(default=7)
+    share_unlock_link: str = Field(default="https://apps.apple.com/app/id6761345332")
+    # Brand spelled out on purpose: APP_NAME is "Max" on some environments.
+    share_unlock_message: str = Field(default="Join Superpower, biohacking for everyone, with me: {link}")
+    # Recipient numbers are stored only as HMACs; falls back to jwt_secret_key.
+    share_unlock_hmac_secret: str = Field(default="")
     # Creator-maxx card art: server-side Higgsfield auto-generation at approval.
     # OFF by default — art is attached manually via POST /admin/creators/{id}/art
     # (see services/creator_art.py for the intended pipeline).

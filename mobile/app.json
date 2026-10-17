@@ -75,6 +75,12 @@
       "expo-audio",
       "expo-font",
       [
+        "expo-contacts",
+        {
+          "contactsPermission": "Superpower opens the contacts picker so you can choose a friend to text. Only the contact you pick is used, and your contact list is never uploaded."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
