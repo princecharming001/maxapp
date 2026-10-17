@@ -368,9 +368,11 @@ export interface ShareUnlockStatus {
     /** The preset text, with the app name and store link filled in. */
     message: string;
     link: string;
-    /** Only on a send response. */
+    /** Only on a send / claim response. */
     counted?: boolean;
     granted_now?: boolean;
+    /** The uncounted send was this same request seen before (lost response), not a repeat friend. */
+    replay?: boolean;
 }
 
 export interface ReferralRedeemResult {
@@ -1558,9 +1560,22 @@ class ApiService {
     }
 
     /** Report one message the system composer says was sent. The server counts
-     *  distinct recipients and grants the week on the last one (never the client). */
-    async recordShareUnlockSend(phone: string, result: 'sent' = 'sent'): Promise<ShareUnlockStatus> {
-        const response = await this.client.post('referral/share-unlock/sends', { phone, result }, { timeout: 30_000 });
+     *  distinct recipients and grants the week on the last one (never the client).
+     *  `clientSendId` is made up when the composer closes and reused on a retry,
+     *  so a replay is answered with the same outcome instead of counting twice. */
+    async recordShareUnlockSend(phone: string, clientSendId: string): Promise<ShareUnlockStatus> {
+        const response = await this.client.post(
+            'referral/share-unlock/sends',
+            { phone, result: 'sent', client_send_id: clientSendId },
+            { timeout: 30_000 },
+        );
+        return response.data;
+    }
+
+    /** Pay out a finished set that couldn't be granted at the time (a store
+     *  subscription was live); a no-op unless the count is complete and eligible. */
+    async claimShareUnlock(): Promise<ShareUnlockStatus> {
+        const response = await this.client.post('referral/share-unlock/claim', {}, { timeout: 30_000 });
         return response.data;
     }
 

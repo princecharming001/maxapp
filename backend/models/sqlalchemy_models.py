@@ -1036,11 +1036,15 @@ class ShareUnlockSend(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), nullable=False)
     recipient_hmac = Column(String(64), nullable=False)
+    # Made up by the app when the composer closed; a replayed request carries
+    # the same one, which tells it apart from the same friend texted again.
+    client_send_id = Column(String(64), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
+    # The unique constraint's index leads with user_id, so it also serves the
+    # per-user lookups; no separate index.
     __table_args__ = (
         UniqueConstraint("user_id", "recipient_hmac", name="uq_share_unlock_send_user_recipient"),
-        Index("idx_share_unlock_sends_user_id", user_id),
     )
 
 

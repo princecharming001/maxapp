@@ -16,7 +16,7 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
@@ -106,8 +106,9 @@ async def redeem_referral(
 # send; counting and the grant live in services/share_unlock_service.py.
 
 class ShareSendBody(BaseModel):
-    phone: str
+    phone: str = Field(min_length=1, max_length=64)
     result: str | None = None   # the composer's result; only 'sent' counts
+    client_send_id: str | None = Field(default=None, max_length=64)
 
 
 def _require_share_unlock() -> None:
@@ -115,35 +116,17 @@ def _require_share_unlock() -> None:
         raise HTTPException(status_code=404, detail="Not found")
 
 
-@router.get("/share-unlock")
-async def share_unlock_status(
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
+async def _share_unlock_user(current_user: dict, db: AsyncSession) -> User:
     _require_share_unlock()
     user = await db.get(User, UUID(str(current_user["id"])))
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    return await share_unlock_service.status(db, user)
+    return user
 
 
-@router.post(
-    "/share-unlock/sends",
-    dependencies=[Depends(rate_limit(limit=30, window_s=600, scope="share_unlock_send"))],
-)
-async def share_unlock_send(
-    body: ShareSendBody,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    _require_share_unlock()
-    if (body.result or "sent").lower() != "sent":
-        raise HTTPException(status_code=400, detail={"reason": "not_sent", "message": "that message wasn't sent."})
-    user = await db.get(User, UUID(str(current_user["id"])))
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+async def _share_unlock_call(db: AsyncSession, coro):
     try:
-        return await share_unlock_service.record_send(db, user, body.phone)
+        return await coro
     except ShareUnlockError as e:
         try:
             await db.rollback()
@@ -156,5 +139,43 @@ async def share_unlock_send(
             await db.rollback()
         except Exception:
             pass
-        logger.error("share-unlock send failed: %s", e)
+        logger.error("share-unlock failed: %s", e)
         raise HTTPException(status_code=500, detail="share_unlock_failed")
+
+
+@router.get("/share-unlock")
+async def share_unlock_status(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await _share_unlock_user(current_user, db)
+    return await share_unlock_service.status(db, user)
+
+
+@router.post(
+    "/share-unlock/sends",
+    dependencies=[Depends(rate_limit(limit=30, window_s=600, scope="share_unlock_send"))],
+)
+async def share_unlock_send(
+    body: ShareSendBody,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if (body.result or "sent").lower() != "sent":
+        raise HTTPException(status_code=400, detail={"reason": "not_sent", "message": "that message wasn't sent."})
+    user = await _share_unlock_user(current_user, db)
+    return await _share_unlock_call(db, share_unlock_service.record_send(db, user, body.phone, body.client_send_id))
+
+
+@router.post(
+    "/share-unlock/claim",
+    dependencies=[Depends(rate_limit(limit=10, window_s=600, scope="share_unlock_claim"))],
+)
+async def share_unlock_claim(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """A set finished while a subscription was live is paid out here once
+    they're eligible again (the app calls this when the count is complete)."""
+    user = await _share_unlock_user(current_user, db)
+    return await _share_unlock_call(db, share_unlock_service.claim(db, user))

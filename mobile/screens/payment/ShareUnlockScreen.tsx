@@ -4,10 +4,16 @@
  * One friend at a time: the system contact picker (no contacts permission is
  * asked for; the app only ever sees the one contact the person picks), then
  * the system Messages composer with the preset text filled in. iOS reports
- * whether they tapped Send; each sent message is posted to the server, which
- * counts distinct recipients and grants the week on the last one. The client
- * never self-grants: it shows the server's count and, once granted, routes
- * exactly like a referral comp (ReferralCodeScreen.onComped).
+ * whether they tapped Send; each sent message is posted to the server with a
+ * send id made up right then, and the server counts distinct recipients and
+ * grants the week on the last one. The client never self-grants: it shows the
+ * server's count and, once granted, routes exactly like a referral comp
+ * (ReferralCodeScreen.onComped).
+ *
+ * A text that went out but couldn't be reported (offline, server blip) is
+ * kept in lib/shareUnlockPending and replayed with the same send id the next
+ * time this screen opens; the server answers a replay with its original
+ * outcome, so nothing is ever counted twice or lost.
  *
  * Simulator / devices without Messages: the composer is unavailable, so a
  * __DEV__-only fallback fakes a send to a random number to exercise the flow.
@@ -24,13 +30,15 @@ import { Alert } from '../../components/InAppAlert';
 import api, { ShareUnlockStatus } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { track } from '../../lib/analytics';
+import {
+    addPendingShareSend, loadPendingShareSends, newShareSendId, setPendingShareSends, PendingShareSend,
+} from '../../lib/shareUnlockPending';
 import { fonts } from '../../theme/dark';
 
 const INK = '#15130F';
 const SUB = '#6B6B6B';
 const BG = '#F4F2ED';
 const ACCENT = '#2F6B4E';
-const ERR = '#B23A2E';
 
 /** The number to text for a picked contact: a mobile-labelled one first. */
 function pickNumber(contact: Contacts.Contact): string | null {
@@ -46,6 +54,35 @@ function devFakeNumber(): string {
     return '1555' + String(Math.floor(1000000 + Math.random() * 8999999));
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** What a failed report means for a text that already went out. `final`: the
+ *  server has ruled on it (bad number, or the week is already earned), so
+ *  replaying it is pointless. Anything else (offline, 5xx, rate limit, auth
+ *  blip, feature off) is "not yet": keep it for a replay. */
+function classifyFailure(e: any): { final: boolean; reason: string; message?: string } {
+    const code = e?.response?.status as number | undefined;
+    const detail = e?.response?.data?.detail;
+    const reason = detail && typeof detail === 'object' ? String(detail.reason ?? '') : '';
+    const message = detail && typeof detail === 'object' ? (detail.message as string | undefined) : undefined;
+    return { final: code === 400 || code === 422 || reason === 'already_claimed', reason, message };
+}
+
+/** Report a send, retrying the "not yet" failures a few times first. */
+async function postSend(send: PendingShareSend): Promise<ShareUnlockStatus> {
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            return await api.recordShareUnlockSend(send.phone, send.id);
+        } catch (e) {
+            lastErr = e;
+            if (classifyFailure(e).final) throw e;
+            await sleep(600 * (attempt + 1));
+        }
+    }
+    throw lastErr;
+}
+
 export default function ShareUnlockScreen() {
     const nav = useNavigation<any>();
     const route = useRoute<any>();
@@ -56,34 +93,85 @@ export default function ShareUnlockScreen() {
     const [loadError, setLoadError] = useState(false);
     const [busy, setBusy] = useState(false);
     const busyRef = useRef(false);
-
-    const load = useCallback(async () => {
-        setLoadError(false);
-        try {
-            setStatus(await api.getShareUnlock());
-        } catch {
-            setLoadError(true);
-        }
-    }, []);
-
-    useEffect(() => {
-        track('share_unlock_view');
-        void load();
-    }, [load]);
+    const grantedRef = useRef(false);
+    // Read at call time, so callbacks keep one identity and the mount effect runs once.
+    const latest = useRef({ userId: '', onboarded: false, params: route?.params });
+    latest.current = { userId: String(user?.id ?? ''), onboarded: user?.onboarding?.completed === true, params: route?.params };
 
     // Granted: leave the same way a referral comp does. Navigate FIRST, then
     // refresh — refreshUser flips isPaid, and mid-funnel the navigator never
     // remounts (onboarding incomplete), so the route must be explicit.
-    const finish = async () => {
-        if (user?.onboarding?.completed !== true) {
-            nav.navigate('CreateAccount', route?.params);
+    const onGranted = useCallback((res: ShareUnlockStatus) => {
+        if (grantedRef.current) return;
+        grantedRef.current = true;
+        track('share_unlock_granted');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        if (!latest.current.onboarded) {
+            nav.navigate('CreateAccount', latest.current.params);
         } else {
             const names: string[] = ((nav.getState?.() as any)?.routeNames) ?? [];
             if (names.includes('Main')) nav.navigate('Main');
             else if (nav.canGoBack()) nav.goBack();
         }
-        try { await refreshUser(); } catch { /* the next /users/me catches up */ }
-    };
+        void refreshUser().catch(() => undefined);     // the next /users/me catches up otherwise
+        Alert.alert('Your free week is on', `${res.grant_days} days of full access, starting now.`);
+    }, [nav, refreshUser]);
+
+    const load = useCallback(async (): Promise<ShareUnlockStatus | null> => {
+        setLoadError(false);
+        try {
+            const st = await api.getShareUnlock();
+            setStatus(st);
+            return st;
+        } catch {
+            setLoadError(true);
+            return null;
+        }
+    }, []);
+
+    // Sends that went out earlier but never reached the server.
+    const flushPending = useCallback(async (): Promise<ShareUnlockStatus | null> => {
+        const uid = latest.current.userId;
+        if (!uid) return null;
+        const pending = await loadPendingShareSends(uid);
+        if (!pending.length) return null;
+        const left: PendingShareSend[] = [];
+        let last: ShareUnlockStatus | null = null;
+        for (const send of pending) {
+            try {
+                last = await api.recordShareUnlockSend(send.phone, send.id);
+            } catch (e) {
+                if (!classifyFailure(e).final) left.push(send);
+            }
+        }
+        await setPendingShareSends(uid, left);
+        return last;
+    }, []);
+
+    const started = useRef(false);
+    useEffect(() => {
+        if (started.current) return;
+        started.current = true;
+        track('share_unlock_view');
+        void (async () => {
+            const replayed = await flushPending();
+            const st = (await load()) ?? replayed;
+            if (!st) return;
+            if (st.granted) {                  // the week landed but this device never heard (lost response)
+                onGranted(st);
+                return;
+            }
+            if (st.eligible && st.sent >= st.target) {   // finished while a subscription was live: pay out now
+                try {
+                    const claimed = await api.claimShareUnlock();
+                    setStatus(claimed);
+                    if (claimed.granted) onGranted(claimed);
+                } catch {
+                    /* next open */
+                }
+            }
+        })();
+    }, [flushPending, load, onGranted]);
 
     const textAFriend = async () => {
         if (busyRef.current || !status?.eligible) return;
@@ -91,7 +179,7 @@ export default function ShareUnlockScreen() {
         setBusy(true);
         try {
             const available = await SMS.isAvailableAsync();
-            let phone: string | null = null;
+            let phone: string;
             if (!available) {
                 if (!__DEV__) {
                     Alert.alert('Messages is not available', 'This device cannot send texts, so this offer is not available here.');
@@ -101,35 +189,46 @@ export default function ShareUnlockScreen() {
             } else {
                 const contact = await Contacts.presentContactPickerAsync();
                 if (!contact) return;
-                phone = pickNumber(contact);
-                if (!phone) {
+                const picked = pickNumber(contact);
+                if (!picked) {
                     Alert.alert('No phone number', 'That contact has no phone number. Pick someone else.');
                     return;
                 }
+                phone = picked;
                 const { result } = await SMS.sendSMSAsync([phone], status.message);
                 if (result !== 'sent') return;       // cancelled in the composer: nothing to count
             }
-            const res = await api.recordShareUnlockSend(phone, 'sent');
+
+            const send: PendingShareSend = { phone, id: newShareSendId(), at: Date.now() };
+            let res: ShareUnlockStatus;
+            try {
+                res = await postSend(send);
+            } catch (e) {
+                const failure = classifyFailure(e);
+                if (!failure.final) {
+                    // The text went out; make sure it counts later.
+                    await addPendingShareSend(latest.current.userId, send);
+                    Alert.alert('Sent, not counted yet', 'We could not reach the server. That text is saved and will count the next time you open this screen.');
+                    return;
+                }
+                if (failure.reason === 'already_claimed') {   // the week is already theirs; go
+                    const st = await load();
+                    if (st) onGranted(st);
+                    return;
+                }
+                Alert.alert('Not counted', failure.message || 'That contact could not be counted. Pick someone else.');
+                return;
+            }
             setStatus(res);
-            track('share_unlock_send', { sent: res.sent, counted: res.counted === true });
-            if (!res.counted) {
+            track('share_unlock_send', { sent: res.sent, counted: res.counted === true, replay: res.replay === true });
+            if (!res.counted && !res.replay) {
                 Alert.alert('Already counted', 'You already texted that friend. Pick someone new.');
                 return;
             }
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            if (res.granted_now || res.granted) {
-                track('share_unlock_granted');
-                Alert.alert('Your free week is on', `${res.grant_days} days of full access, starting now.`,
-                    [{ text: 'Let\'s go', onPress: () => { void finish(); } }]);
-            }
-        } catch (e: any) {
-            const detail = e?.response?.data?.detail;
-            if (detail?.reason) {
-                await load();
-                Alert.alert('Not available', detail.message || 'This offer is not available for your account.');
-            } else {
-                Alert.alert('Something went wrong', 'Check your connection and try again. Your sent texts are saved.');
-            }
+            Haptics.selectionAsync().catch(() => {});
+            if (res.granted) onGranted(res);
+        } catch {
+            Alert.alert('Something went wrong', 'Please try again.');
         } finally {
             busyRef.current = false;
             setBusy(false);
@@ -206,7 +305,7 @@ export default function ShareUnlockScreen() {
                         </TouchableOpacity>
 
                         <Text style={styles.fine}>
-                            Your progress is saved. We use the number you pick only to count that friend once, and keep it as an irreversible code, never as the number itself. Your contact list is never uploaded.
+                            Your progress is saved. The number you pick is used only to count that friend once; our servers keep it as an irreversible code, never as the number itself. Your contact list is never uploaded.
                         </Text>
                     </>
                 )}
@@ -244,5 +343,4 @@ const styles = StyleSheet.create({
     skip: { marginTop: 18, alignItems: 'center' },
     skipText: { fontFamily: fonts.sans, fontSize: 14, color: SUB, textDecorationLine: 'underline' },
     fine: { fontFamily: fonts.sans, fontSize: 12, color: SUB, marginTop: 22, lineHeight: 17 },
-    err: { color: ERR },
 });

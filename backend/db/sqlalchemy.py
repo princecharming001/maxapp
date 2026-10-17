@@ -482,6 +482,8 @@ async def _run_column_migrations():
     others.
     """
     migrations = [
+        # --- Share-to-unlock: per-send id, added after the table first shipped #
+        "ALTER TABLE share_unlock_sends ADD COLUMN IF NOT EXISTS client_send_id VARCHAR(64)",
         # --- Google Calendar routine mirror -------------------------------- #
         "ALTER TABLE calendar_connections ADD COLUMN IF NOT EXISTS app_calendar_id VARCHAR",
         """CREATE TABLE IF NOT EXISTS gcal_event_links (
