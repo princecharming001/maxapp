@@ -21,9 +21,10 @@ const TITLES: Record<LegalDocId, string> = {
     terms: 'Terms of service',
     community: 'Community guidelines',
     cookies: 'Cookie notice',
+    health: 'Consumer health data',
 };
 
-const DOC_IDS: LegalDocId[] = ['privacy', 'terms', 'community', 'cookies'];
+const DOC_IDS: LegalDocId[] = ['privacy', 'terms', 'community', 'cookies', 'health'];
 
 export default function LegalDocumentScreen() {
     const navigation = useNavigation();

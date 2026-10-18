@@ -167,6 +167,9 @@ def build_desired(view: list[dict], user_id: str, tz_name: str) -> dict[str, Des
             ev_iso = event_date.isoformat()
 
             title = str(t.get("title") or "Superpower task")
+            # calendars get shared: Peptidemax tasks are mirrored as "Private reminder"
+            from services.outbound_privacy import task_title
+            title = task_title(t, title)
             if str(t.get("status") or "") == "completed":
                 title = _DONE_PREFIX + title
 

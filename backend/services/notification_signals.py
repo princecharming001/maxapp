@@ -191,6 +191,9 @@ def engine_tasks(raw: list[dict], wake_min: int, sleep_min: int) -> list[ne.Engi
             continue
         title = str(t.get("title") or "").strip() or "your routine"
         key = _task_key(t) or f"{t.get('maxx_id') or ''}:{title.lower()}:{tm}"
+        # pushes show on a lock screen: Peptidemax tasks go out as "Private reminder"
+        from services.outbound_privacy import task_title
+        title = task_title(t, title)
         if key in seen:
             continue
         seen.add(key)

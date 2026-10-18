@@ -1,4 +1,5 @@
 import type { LegalBlock } from './legalTypes';
+import { healthDataBlocks } from './healthData';
 import { APPLE_APP_REVIEW_BUSINESS, APPLE_APP_REVIEW_LEGAL, APPLE_APP_REVIEW_SAFETY } from './legalConstants';
 
 /** Privacy policy — March 23, 2026 (in-app; cross-page HTML links removed). */
@@ -206,6 +207,12 @@ export const privacyBlocks: LegalBlock[] = [
         text:
             'Residents of certain U.S. states (including California, Colorado, Virginia, and others as laws evolve) may have additional rights to know, delete, correct, and opt out of certain “sales” or “sharing” of personal information. Submit requests via the email above. We will not discriminate against you for exercising privacy rights where prohibited by law.',
     },
+    {
+        type: 'p',
+        text:
+            'Health information you give us (for example your goals, supplements, peptides and the answers to their safety questions) is covered by our Consumer Health Data Privacy Policy (Settings › Consumer health data policy), including how to access, delete or stop sharing it. We never sell health data or use it for advertising.',
+    },
+    { type: 'external', label: 'Consumer Health Data Privacy Policy', url: 'https://maxmaxmax.today/legal/health-data' },
 
     { type: 'h2', text: '10. Children' },
     {
@@ -588,7 +595,7 @@ export const cookiesBlocks: LegalBlock[] = [
     { type: 'mailtoLine', before: '', after: '' },
 ];
 
-export type LegalDocId = 'privacy' | 'terms' | 'community' | 'cookies';
+export type LegalDocId = 'privacy' | 'terms' | 'community' | 'cookies' | 'health';
 
 export function getLegalBlocks(id: LegalDocId): LegalBlock[] {
     switch (id) {
@@ -600,6 +607,8 @@ export function getLegalBlocks(id: LegalDocId): LegalBlock[] {
             return communityBlocks;
         case 'cookies':
             return cookiesBlocks;
+        case 'health':
+            return healthDataBlocks;
         default:
             return [];
     }

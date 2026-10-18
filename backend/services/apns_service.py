@@ -161,6 +161,9 @@ async def send_apns_alert(
 
     title = filter_text(title, fallback="Superpower", context="apns_title")
     body = filter_text(body, context="apns_body")
+    # Privacy gate: no peptide or medication name on a lock screen, ever.
+    from services.outbound_privacy import scrub_alert
+    title, body, custom = scrub_alert(title, body, custom)
 
     aps: dict[str, Any] = {"alert": {"title": title, "body": body}, "sound": "default"}
     if badge is not None:

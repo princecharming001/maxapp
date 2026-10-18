@@ -638,7 +638,8 @@ CONSENT_TEXT = (
     "who handles it: our hosting and AI providers process it for us under contract. it's never sold, never used "
     "for ads, and never shared with ad or social media companies.\n"
     "your control: stop peptidemax any time and i delete your answers and plan details; delete this chat or "
-    "your account to erase the rest.\n\n"
+    "your account to erase the rest. the full policy is in settings › consumer health data policy "
+    "(maxmaxmax.today/legal/health-data).\n\n"
     "this organizes what your prescriber set. it isn't medical advice, and it never chooses or doses anything. "
     "ok to collect this?")
 

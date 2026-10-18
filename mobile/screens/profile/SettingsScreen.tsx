@@ -33,6 +33,7 @@ const LEGAL_ROWS: { id: LegalDocId; label: string }[] = [
     { id: 'terms', label: 'Terms of service' },
     { id: 'community', label: 'Community guidelines' },
     { id: 'cookies', label: 'Cookie notice' },
+    { id: 'health', label: 'Consumer health data policy' },
 ];
 
 /* ── Primitives ──────────────────────────────────────────────────── */

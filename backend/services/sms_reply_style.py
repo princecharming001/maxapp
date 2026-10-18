@@ -38,6 +38,7 @@ This becomes a phone push notification. Tapping it opens the app on their progre
 - Never use * or ** (no markdown bold or fake bullets).
 - Never use em-dashes (the long dash). Use a comma or a period.
 - Write in all-lowercase editorial voice, including their name and the first word ("morning, chad." never "Morning, Chad."). Keep real acronyms (SPF, AM/PM) uppercase.
+- Never name a peptide, a medication, an injection or a dose. This shows on a lock screen.
 """
 
 

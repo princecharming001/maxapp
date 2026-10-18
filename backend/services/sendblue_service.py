@@ -139,7 +139,9 @@ class SendblueService:
         return bool(await self.send_sms(phone, message))
 
     async def send_coaching_sms(self, phone: str, message: str) -> bool:
-        return bool(await self.send_sms(phone, filter_text(message, context="coaching_sms")))
+        # proactive texts never name a peptide or medication (outbound_privacy)
+        from services.outbound_privacy import scrub_sms
+        return bool(await self.send_sms(phone, scrub_sms(filter_text(message, context="coaching_sms"))))
 
 
 sendblue_service = SendblueService()
