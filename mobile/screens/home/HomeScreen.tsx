@@ -15,7 +15,7 @@ import { useFirstRunWalkthrough } from '../../features/mainTour/useMainAppTour';
 import FirstRunWalkthrough from '../../features/mainTour/FirstRunWalkthrough';
 import { colors, spacing, typography, fonts, borderRadius } from '../../theme/dark';
 import { normalizeMaxxTintHex } from '../../components/MaxxProgramRow';
-import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, moduleColorForSchedule, type MergedScheduleTask } from '../../utils/scheduleAggregation';
+import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, moduleColorForSchedule, ruleDisplayLine, type MergedScheduleRule, type MergedScheduleTask } from '../../utils/scheduleAggregation';
 import { continuousDates, dayCloses, journeyDayNumber, localDateISO, resolveTodayISO, xpToastLine } from '../../lib/dayProgress';
 import { useMaxxesQuery, useActiveSchedulesFullQuery } from '../../hooks/useAppQueries';
 import { useReviewTriggers } from '../../hooks/useReviewTriggers';
@@ -171,6 +171,8 @@ function GradientHabit({
     // the lighter brand hues like amber — don't flip to dark on those).
     const txt = done ? '#FFFFFF' : '#111113';
     const subColor = done ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.45)';
+    const minutes = Math.round(Number(row.duration_minutes) || 0);
+    const isSetup = String(row.kind || '').toLowerCase() === 'setup';
     return (
         <TouchableOpacity style={gh.card} activeOpacity={0.92} onPress={onOpen} testID={testID} accessibilityLabel={row.title}>
             {done ? (
@@ -212,23 +214,41 @@ function GradientHabit({
                     )}
                 </TouchableOpacity>
                 <View style={gh.body}>
-                    <Text style={[gh.title, { color: txt }]} numberOfLines={1}>{row.title}</Text>
-                    {row.moduleLabel ? (
-                        <Text style={[gh.sub, { color: subColor }]} numberOfLines={1}>
-                            {row.moduleLabel}
-                        </Text>
+                    {/* Up to two lines: "Morning light walk outside" must read
+                        in full, not as "Morning light wal…". */}
+                    <Text style={[gh.title, { color: txt }]} numberOfLines={2}>{row.title}</Text>
+                    {row.moduleLabel || isSetup ? (
+                        <View style={gh.subRow}>
+                            {row.moduleLabel ? (
+                                <Text style={[gh.sub, { color: subColor }]} numberOfLines={1}>
+                                    {row.moduleLabel}
+                                </Text>
+                            ) : null}
+                            {/* A setup habit (C1 kind "setup") is done once, not daily. */}
+                            {isSetup ? (
+                                <View style={[gh.onceTag, { borderColor: done ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.18)' }]}>
+                                    <Text style={[gh.onceText, { color: subColor }]}>once</Text>
+                                </View>
+                            ) : null}
+                        </View>
                     ) : null}
                 </View>
                 {/* The time the plan gives this habit — the same minute its
-                    reminder fires. Right-aligned, quiet, tabular so a column
-                    of cards lines up. "late" only after a late completion. */}
+                    reminder fires — and how long it takes. Right-aligned, quiet,
+                    tabular so a column of cards lines up. "late" only after a
+                    late completion. */}
                 {row.time ? (
                     <View style={gh.when}>
                         <Text style={[gh.time, { color: done ? 'rgba(255,255,255,0.9)' : '#111113' }]} numberOfLines={1}>
                             {formatTimeTo12Hour(row.time)}
                         </Text>
-                        {done && row.completed_on_time === false ? (
-                            <Text style={[gh.late, { color: subColor }]}>late</Text>
+                        {minutes > 1 || (done && row.completed_on_time === false) ? (
+                            <Text style={[gh.late, { color: subColor }]} numberOfLines={1}>
+                                {[
+                                    minutes > 1 ? `${minutes} min` : null,
+                                    done && row.completed_on_time === false ? 'late' : null,
+                                ].filter(Boolean).join(' · ')}
+                            </Text>
                         ) : null}
                     </View>
                 ) : null}
@@ -248,7 +268,10 @@ const gh = StyleSheet.create({
     checkOpen: { width: 48, height: 48, borderRadius: 24, borderWidth: 2 },
     body: { flex: 1, minWidth: 0 },
     title: { fontSize: 17, fontFamily: fonts.sansSemiBold, fontWeight: '600', letterSpacing: -0.3 },
-    sub: { fontSize: 13.5, fontFamily: fonts.sans, marginTop: 3 },
+    sub: { fontSize: 13.5, fontFamily: fonts.sans, flexShrink: 1 },
+    subRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
+    onceTag: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 },
+    onceText: { fontSize: 10.5, fontFamily: fonts.sansMedium, letterSpacing: 0.4 },
     when: { alignItems: 'flex-end', justifyContent: 'center', marginLeft: 4 },
     time: { fontSize: 14, fontFamily: fonts.sansMedium, letterSpacing: -0.2, fontVariant: ['tabular-nums'] },
     late: { fontSize: 11, fontFamily: fonts.sans, marginTop: 2, letterSpacing: 0.2 },
@@ -360,10 +383,11 @@ export default function HomeScreen() {
 
     // Day strip + "Day X of N" \u2014 derived from the full schedule horizon. Each
     // entry is one scheduled date with its completion tally.
-    const { days, todayIndex, dayCount, byDate, today } = useMemo(() => {
+    const { days, todayIndex, dayCount, byDate, rulesByDate, today } = useMemo(() => {
         const full = schedulesQuery.data;
         const fallbackToday = localDateISO();
-        if (!full) return { days: [] as DayCell[], todayIndex: 1, dayCount: 0, byDate: {} as Record<string, MergedScheduleTask[]>, today: fallbackToday };
+        const noRules = {} as Record<string, MergedScheduleRule[]>;
+        if (!full) return { days: [] as DayCell[], todayIndex: 1, dayCount: 0, byDate: {} as Record<string, MergedScheduleTask[]>, rulesByDate: noRules, today: fallbackToday };
         try {
             const { labels, colors: colorMap } = buildMaxxMaps(maxes);
             const merged = mergeSchedules(full.schedules || [], labels, colorMap);
@@ -374,7 +398,8 @@ export default function HomeScreen() {
                 full.today_date || full.schedule_streak?.today_date,
                 fallbackToday,
             );
-            // Stable Day-1 anchor from the backend (account/first-max date).
+            // Stable Day-1 anchor from the backend: the day the user's first
+            // plan started (C7), not account creation.
             // Day numbers are real calendar days since then — advancing every
             // day whether or not the app was opened, immune to regeneration —
             // computed here from the anchor + today rather than read off the
@@ -400,9 +425,9 @@ export default function HomeScreen() {
                 dayNumberFor(today) ??
                 backendDayNumber ??
                 (dates.filter((d) => d <= today).length || 1);
-            return { days: cells, todayIndex: tIndex, dayCount: dates.length, byDate: merged.byDate, today };
+            return { days: cells, todayIndex: tIndex, dayCount: dates.length, byDate: merged.byDate, rulesByDate: merged.rulesByDate, today };
         } catch {
-            return { days: [] as DayCell[], todayIndex: 1, dayCount: 0, byDate: {} as Record<string, MergedScheduleTask[]>, today: fallbackToday };
+            return { days: [] as DayCell[], todayIndex: 1, dayCount: 0, byDate: {} as Record<string, MergedScheduleTask[]>, rulesByDate: noRules, today: fallbackToday };
         }
     }, [schedulesQuery.data, maxes]);
 
@@ -416,6 +441,9 @@ export default function HomeScreen() {
     const scrolledToTodayRef = useRef<string | null>(null);
     const activeDate = selectedDate ?? today;
     const selectedRows = byDate[activeDate] || [];
+    // The day's boundaries (C1 rules): shown as a strip, never as habits —
+    // no checkbox, not in the done/total count.
+    const selectedRules = rulesByDate[activeDate] || [];
 
     // The strip is ALWAYS shown — even with no program, so the day rhythm reads.
     // When there's no real schedule yet, synthesize a 30-day strip (today = 1).
@@ -641,7 +669,13 @@ export default function HomeScreen() {
 
     return (
         <View style={s.root}>
+            {/* The scroll view starts BELOW the status bar, over a solid band of
+                the page colour: scrolled content (the bell/avatar bar, the day
+                strip, habit cards) never draws under the clock and battery, and
+                never shows through behind a sheet presented over Home. The
+                pull-to-refresh spinner appears below the band too. */}
             <ScrollView
+                style={{ marginTop: insets.top }}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={s.scroll}
                 refreshControl={
@@ -655,7 +689,7 @@ export default function HomeScreen() {
                 <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
 
                     {/* ── TOP BAR ── */}
-                    <View style={[s.topBar, { paddingTop: Math.max(insets.top + 12, 52) }]}>
+                    <View style={[s.topBar, { paddingTop: Math.max(12, 52 - insets.top) }]}>
                         <View style={{ flex: 1 }} />
                         <View style={s.topRight}>
                             {scheduleStreak.current > 0 && (
@@ -766,6 +800,29 @@ export default function HomeScreen() {
                         />
                     ) : null}
 
+                    {/* ── TODAY'S RULES — boundaries, not tasks (C1) ── */}
+                    {selectedRules.length > 0 ? (
+                        <View style={s.rulesSection} testID="home-rules">
+                            <Text style={s.rulesLabel}>
+                                {activeDate === today ? 'TODAY\u2019S RULES' : 'RULES'}
+                            </Text>
+                            <View style={s.rulesCard}>
+                                {selectedRules.map((r, i) => (
+                                    <View
+                                        key={r.key}
+                                        style={[s.ruleRow, i > 0 && s.ruleRowDivided]}
+                                        accessibilityLabel={ruleDisplayLine(r, formatTimeTo12Hour)}
+                                    >
+                                        <View style={[s.ruleBar, { backgroundColor: r.moduleColor || BW.mute }]} />
+                                        <Text style={s.ruleText} numberOfLines={2}>
+                                            {ruleDisplayLine(r, formatTimeTo12Hour)}
+                                        </Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+                    ) : null}
+
                     {/* ── HABITS ── */}
                     <View style={s.section}>
                             <Text style={s.sectionLabel}>HABITS</Text>
@@ -839,7 +896,7 @@ export default function HomeScreen() {
                     )}
 
                     <Text style={s.wellnessNote}>
-                        General wellness only — not medical advice. Follow routines at your own risk.
+                        General wellness, not medical advice. Check with a clinician before starting supplements or if you have a health condition.
                     </Text>
 
                 </Animated.View>
@@ -914,6 +971,21 @@ const s = StyleSheet.create({
         marginTop: 28,
         paddingHorizontal: PAD + 8,
     },
+
+    /* Today's rules strip */
+    rulesSection: { paddingHorizontal: PAD, paddingTop: 22 },
+    rulesLabel: {
+        fontSize: 12, fontFamily: fonts.sansSemiBold, fontWeight: '600',
+        color: BW.mute, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10,
+    },
+    rulesCard: {
+        backgroundColor: BW.card, borderRadius: 16, paddingHorizontal: 14,
+        borderWidth: StyleSheet.hairlineWidth, borderColor: BW.hair,
+    },
+    ruleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11 },
+    ruleRowDivided: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BW.hair },
+    ruleBar: { width: 3, height: 16, borderRadius: 2 },
+    ruleText: { flex: 1, fontSize: 14, fontFamily: fonts.sansMedium, color: BW.ink, letterSpacing: -0.1 },
 
     /* Top bar */
     topBar: {

@@ -172,6 +172,12 @@ async def get_all_active_schedules_full(
     # response must not eat the celebration; the client host dedupes by code
     # and marks seen on display). Best-effort, never fatal. The key keeps its
     # historical name so every shipped client still reads it.
+    #
+    # Cost: this endpoint is refetched on every Home open and after every chat
+    # turn. The streak sync is a pure dry pass that writes only when something
+    # changed, and evaluate() memoizes "nothing to award, nothing unseen" per
+    # day-state fingerprint (see services.achievements), so an unchanged
+    # refetch does no badge queries at all.
     newly_earned: list = []
     try:
         from services.achievements import evaluate as _evaluate_achievements

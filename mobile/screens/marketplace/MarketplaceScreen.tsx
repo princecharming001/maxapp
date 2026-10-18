@@ -432,6 +432,18 @@ export default function MarketplaceScreen() {
     const featureW = Math.min(320, width - GUTTER * 2 - 36);
     const gridW = (width - GUTTER * 2 - 14) / 2;
     const gridLabel = tab === 'native' ? 'All maxes' : tab === 'creator' ? 'Creators' : 'All';
+    // Native programs carry an "Included" pill; say once what it means. Shown
+    // under the first section on the All / Native tabs (the "New" carousel on
+    // All, else the grid).
+    const showIncludedNote =
+        (tab === 'all' || tab === 'native') &&
+        [...combined, ...(tab === 'all' ? suggested : [])].some((it) => it.native);
+    const includedNoteOnNew = showIncludedNote && tab === 'all' && suggested.length > 0;
+    const includedNote = (
+        <Text style={[styles.gutter, styles.includedNote]} testID="explore-included-note">
+            Included: part of your Superpower subscription.
+        </Text>
+    );
 
     // Search slides from a 42px circle (right) to the full content width,
     // fading the title out underneath it.
@@ -598,6 +610,7 @@ export default function MarketplaceScreen() {
                         <View style={[styles.sectionHead, styles.gutter]}>
                             <Text style={styles.sectionLabel}>New</Text>
                         </View>
+                        {includedNoteOnNew ? includedNote : null}
                         <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}
@@ -619,6 +632,7 @@ export default function MarketplaceScreen() {
                         <View style={[styles.sectionHead, styles.gutter, { marginTop: 34 }]}>
                             <Text style={styles.sectionLabel}>{gridLabel}</Text>
                         </View>
+                        {showIncludedNote && !includedNoteOnNew ? includedNote : null}
                         <View style={[styles.gutter, styles.grid]}>
                             {combined.map((it) => (
                                 <GridCard key={it.id} item={it} width={gridW} onPress={() => open(it)} />
@@ -904,6 +918,7 @@ const styles = StyleSheet.create({
 
     sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 26, marginBottom: 14 },
     sectionLabel: { fontFamily: 'Matter-SemiBold', fontSize: 18, color: INK, letterSpacing: -0.2 },
+    includedNote: { fontFamily: 'Matter-Regular', fontSize: 13, color: SUB, marginTop: -8, marginBottom: 14 },
 
     // Creator handle tag (top-left on a poster)
     creatorTag: { position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },

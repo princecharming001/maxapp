@@ -10,8 +10,12 @@
  *     overlapping calendar event so the block underneath stays legible. Cards
  *     stack (a card tucks below the previous one when they would collide) so
  *     every title reads in full; long titles wrap to a second line. A block's
- *     name never hides under a card: cards start below it, and if a card
- *     from earlier still covers it, the name slides to the next free line.
+ *     name is PINNED to the block's top-left and never moves: cards flow
+ *     around it (a card that would cover a name line tucks just below it).
+ *     Names are never drawn in the hour gutter.
+ *   • RULES: a plan's day boundaries ("No caffeine after 4:15 PM") are a thin
+ *     line at their minute with a small caption — no tick, no card. Their
+ *     caption line is pinned like a block name, so cards flow around it.
  *
  * One type family throughout. On today only: a live "now" line, and past
  * items are dimmed.
@@ -29,6 +33,7 @@ import {
   toMin,
   fmt12Compact,
   isExact,
+  eveMin,
   obligationsForDay,
 } from './plannerModel';
 
@@ -56,6 +61,8 @@ const CARD_RADIUS = 14;
 const CARD_INSET = 14;             // habit cards cascade in from the block's left edge
 const BLOCK_LABEL_H = 24;          // the name line at the top of a block
 const BLOCK_MIN_H = BLOCK_LABEL_H + 4;
+const RULE_H = 18;                 // a rule's caption line (the rule line sits at its top)
+const RULE_ACCENT = 'rgba(17,17,19,0.38)';
 
 type Span = {
   key: string;
@@ -87,6 +94,16 @@ export type CalendarEventRow = {
   end?: string;
   label: string;
   all_day?: boolean;
+};
+
+/** A plan rule (C1): drawn as a thin line at its time, no tick, no card. */
+export type GridRuleRow = {
+  key: string;
+  /** HH:MM */
+  time: string;
+  /** Full display line, e.g. "No caffeine after 4:15 PM". */
+  label: string;
+  color?: string;
 };
 
 /** One habit from the plan, placed on the grid at the minute its reminder fires. */
@@ -183,10 +200,13 @@ function buildSpans(
     });
   }
   {
+    // Evening-normalised: a wind-down that runs past midnight (11:30 PM –
+    // 12:30 AM) extends below the "12 AM" line instead of collapsing to a
+    // 25-minute stub, and a 12:30 AM bedtime sits at the END of the day.
     const sw = day.sleepWindow;
-    const s = toMin(sw[0]);
+    const s = eveMin(sw[0]);
     spans.push({
-      key: 'sleep', start: s, end: endOf(s, toMin(sw[1])), label: 'Wind down',
+      key: 'sleep', start: s, end: endOf(s, eveMin(sw[1])), label: 'Wind down',
       detail: `bed by ${fmt12Compact(isExact(sw) ? sw[0] : sw[1])}`,
       accent: NEUTRAL_ACCENT, wash: SHAPE_WASH, onPress: () => onEditShape('sleep'),
     });
@@ -221,8 +241,19 @@ function buildCards(tasks: GridTaskRow[]): Card[] {
   return out.sort((a, b) => a.start - b.start);
 }
 
+type RuleMark = { key: string; start: number; label: string; color: string };
+
+function buildRules(rules: GridRuleRow[]): RuleMark[] {
+  const out: RuleMark[] = [];
+  for (const r of rules) {
+    if (!r.time || !/^\d{1,2}:\d{2}$/.test(r.time)) continue;
+    out.push({ key: r.key, start: eveMin(r.time), label: r.label, color: r.color || RULE_ACCENT });
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+
 export default function ScheduleGrid({
-  day, obligations, scope, onEditShape, onEditObligation, onAddAt, isToday = false, calendarEvents = [], tasks = [],
+  day, obligations, scope, onEditShape, onEditObligation, onAddAt, isToday = false, calendarEvents = [], tasks = [], rules = [],
 }: {
   day: DayShape;
   obligations: Obligation[];
@@ -235,9 +266,12 @@ export default function ScheduleGrid({
   calendarEvents?: CalendarEventRow[];
   /** The plan's habits for this date; a tap opens the habit. */
   tasks?: GridTaskRow[];
+  /** The plan's rules for this date (boundaries, not tasks). */
+  rules?: GridRuleRow[];
 }) {
   const spans = buildSpans(day, obligations, scope, onEditShape, onEditObligation, calendarEvents);
   const cards = buildCards(tasks);
+  const ruleMarks = buildRules(rules);
 
   // Live "now" — only ticks while viewing today (keeps the indicator current).
   const [now, setNow] = useState(nowMinutes);
@@ -248,7 +282,7 @@ export default function ScheduleGrid({
     return () => clearInterval(id);
   }, [isToday]);
 
-  if (spans.length === 0 && cards.length === 0) {
+  if (spans.length === 0 && cards.length === 0 && ruleMarks.length === 0) {
     return (
       <View style={styles.wrap}>
         <Text style={styles.emptyText}>No times set for this day yet.</Text>
@@ -258,7 +292,11 @@ export default function ScheduleGrid({
 
   // The axis runs from the first whole hour anything starts to the hour after
   // the last thing ends — every hour at full scale.
-  const extents = [...spans, ...cards.map((c) => ({ start: c.start, end: c.start + c.minutes }))];
+  const extents = [
+    ...spans,
+    ...cards.map((c) => ({ start: c.start, end: c.start + c.minutes })),
+    ...ruleMarks.map((r) => ({ start: r.start, end: r.start + 15 })),
+  ];
   const minStart = Math.min(...extents.map((e) => e.start));
   const maxEnd = Math.max(...extents.map((e) => e.end));
   const startHour = Math.floor(minStart / 60);
@@ -269,52 +307,72 @@ export default function ScheduleGrid({
   const yOf = (min: number) => TOP_PAD + (Math.min(Math.max(min, gridStart), gridEnd) - gridStart) * PX_PER_MIN;
   const minAtY = (y: number) => gridStart + Math.max(0, y - TOP_PAD) / PX_PER_MIN;
 
-  // Blocks fill their real span; the name line sits at their top.
+  // Blocks fill their real span.
   const blocks = spans.map((sp) => {
     const top = yOf(sp.start);
     return { sp, top, bottom: Math.max(yOf(sp.end), top + BLOCK_MIN_H) };
   });
 
-  // Habit cards: at their minute, nudged just past a block's name line when
-  // they would start on it, and tucked below the previous card when the two
-  // would collide.
+  // Pinned lines: every block's name sits at its block's top-left, every rule
+  // caption at its minute. These never move for a card. Two that would
+  // overprint each other (blocks starting at the same minute, a rule on a
+  // block's top) stack — the later one tucks just below — and a block grows
+  // to keep its own name inside it.
+  type Pin = { key: string; top: number; bottom: number };
+  const pins: Pin[] = [];
+  const placePin = (key: string, want: number, h: number): number => {
+    let y = want;
+    for (let guard = 0; guard < 40; guard++) {
+      const hit = pins.find((p) => p.top < y + h && p.bottom > y);
+      if (!hit) break;
+      y = hit.bottom + 2;
+    }
+    pins.push({ key, top: y, bottom: y + h });
+    return y;
+  };
+  const pinOrder = [
+    ...blocks.map((b, i) => ({ kind: 'block' as const, i, y: b.top })),
+    ...ruleMarks.map((r, i) => ({ kind: 'rule' as const, i, y: yOf(r.start) })),
+  ].sort((a, b) => a.y - b.y || (a.kind === b.kind ? 0 : a.kind === 'block' ? -1 : 1));
+  const labelY = new Map<string, number>();
+  const ruleY = new Map<string, number>();
+  for (const it of pinOrder) {
+    if (it.kind === 'block') {
+      const b = blocks[it.i];
+      const y = placePin(`b-${b.sp.key}`, b.top, BLOCK_LABEL_H);
+      labelY.set(b.sp.key, y);
+      b.bottom = Math.max(b.bottom, y + BLOCK_LABEL_H + 2);
+    } else {
+      const r = ruleMarks[it.i];
+      ruleY.set(r.key, placePin(`r-${r.key}`, yOf(r.start), RULE_H));
+    }
+  }
+
+  // Habit cards: at their minute, tucked below the previous card when the two
+  // would collide, and flowed past any pinned name/rule line they'd cover —
+  // a cluster of morning cards never pushes a block's name out of its block.
   const rows: Row[] = cards.map((c) => {
     const tall = c.title.length > TITLE_WRAP_AT;
     return { key: `card-${c.key}`, start: c.start, h: tall ? CARD_H_TALL : CARD_H, card: c, tall };
   });
   let prevBottom = -Infinity;
   const placed = rows.map((r) => {
-    let top = yOf(r.start);
-    for (const b of blocks) {
-      if (top >= b.top - 1 && top < b.top + BLOCK_LABEL_H + 2) top = b.top + BLOCK_LABEL_H + 2;
+    let top = Math.max(yOf(r.start), prevBottom + ROW_GAP);
+    for (let guard = 0; guard < 60; guard++) {
+      const hit = pins.find((p) => p.top < top + r.h && p.bottom > top);
+      if (!hit) break;
+      top = hit.bottom + 2;
     }
-    top = Math.max(top, prevBottom + ROW_GAP);
     prevBottom = top + r.h;
     return { r, top };
   });
 
-  // A block's name never hides under a card: start on the block's top line,
-  // slide down past whatever covers it, else sit just under (or above) it.
-  const occupied: { top: number; bottom: number }[] = placed.map((p) => ({ top: p.top, bottom: p.top + p.r.h }));
-  const free = (y: number) => y >= 0 && !occupied.some((o) => o.top < y + BLOCK_LABEL_H && o.bottom > y);
-  const labelY = new Map<string, number>();
-  const gutterY = new Map<string, number>();   // last resort: the block names itself beside the hour axis
-  for (const { sp, top, bottom } of blocks) {
-    let y = top;
-    for (let guard = 0; guard < 24 && y + BLOCK_LABEL_H <= bottom && !free(y); guard++) {
-      y = Math.max(...occupied.filter((o) => o.top < y + BLOCK_LABEL_H && o.bottom > y).map((o) => o.bottom)) + 2;
-    }
-    let chosen: number | null = y + BLOCK_LABEL_H <= bottom && free(y) ? y : null;
-    if (chosen === null && free(bottom + 2)) chosen = bottom + 2;
-    if (chosen === null && free(top - BLOCK_LABEL_H - 2)) chosen = top - BLOCK_LABEL_H - 2;
-    if (chosen !== null) {
-      labelY.set(sp.key, chosen);
-      occupied.push({ top: chosen, bottom: chosen + BLOCK_LABEL_H });
-    } else {
-      gutterY.set(sp.key, top + 9);
-    }
-  }
-  const gridHeight = Math.max(axisHeight, prevBottom + ROW_GAP, ...blocks.map((b) => b.bottom), ...Array.from(labelY.values()).map((y) => y + BLOCK_LABEL_H)) + BOTTOM_PAD;
+  const gridHeight = Math.max(
+    axisHeight,
+    prevBottom + ROW_GAP,
+    ...blocks.map((b) => b.bottom),
+    ...pins.map((p) => p.bottom),
+  ) + BOTTOM_PAD;
   const showNow = isToday && now >= gridStart && now <= gridEnd;
 
   return (
@@ -383,6 +441,26 @@ export default function ScheduleGrid({
           })}
         </View>
 
+        {/* Rules — a thin line at the minute, a quiet caption under it. No
+            tick and no card: a rule is a boundary, not something to do. */}
+        <View pointerEvents="none" style={styles.lane}>
+          {ruleMarks.map((r) => {
+            const y = ruleY.get(r.key) ?? yOf(r.start);
+            const past = isToday && r.start <= now;
+            return (
+              <View
+                key={`rule-${r.key}`}
+                style={[styles.ruleRow, { top: y, height: RULE_H }, past && styles.past]}
+                accessibilityLabel={r.label}
+                testID={`planner-rule-${r.key}`}
+              >
+                <View style={[styles.ruleLine, { backgroundColor: r.color }]} />
+                <Text style={styles.ruleText} numberOfLines={1}>{r.label}</Text>
+              </View>
+            );
+          })}
+        </View>
+
         {/* Habit cards — liquid glass, laid over the blocks, cascaded in from the left. */}
         <View pointerEvents="box-none" style={styles.lane}>
           {placed.map(({ r, top }, idx) => {
@@ -417,20 +495,6 @@ export default function ScheduleGrid({
             );
           })}
         </View>
-
-        {/* A block whose name had nowhere to go names itself in the gutter,
-            under the hour it starts. */}
-        {blocks.map(({ sp }) => {
-          const y = gutterY.get(sp.key);
-          if (y === undefined) return null;
-          return (
-            <View key={`gutter-${sp.key}`} pointerEvents="none" style={[styles.gutterCaption, { top: y }]}>
-              <Text style={[styles.gutterCaptionText, sp.icon === 'calendar' && { color: CAL_ACCENT }]} numberOfLines={2}>
-                {sp.label.toLowerCase()}
-              </Text>
-            </View>
-          );
-        })}
 
         {/* "Now" indicator — today only: a dot at the axis + a thin line. */}
         {showNow ? (
@@ -495,8 +559,14 @@ const styles = StyleSheet.create({
   cardTime: { fontFamily: fonts.sansMedium, fontSize: 12.5, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   cardMinutes: { fontFamily: fonts.sans, fontSize: 12, color: colors.textMuted },
 
-  gutterCaption: { position: 'absolute', left: 0, width: GUTTER - 8 },
-  gutterCaptionText: { fontFamily: fonts.sans, fontSize: 10.5, lineHeight: 12, color: colors.textMuted, letterSpacing: 0.1 },
+  // Rule: a hairline-thin line across the lane at its minute; the caption
+  // sits just under the line, left-aligned with block names.
+  ruleRow: { position: 'absolute', left: 0, right: 6 },
+  ruleLine: { height: 1, opacity: 0.9 },
+  ruleText: {
+    fontFamily: fonts.sansMedium, fontSize: 11.5, lineHeight: 15, color: colors.textSecondary,
+    letterSpacing: 0.1, marginTop: 1, marginLeft: 12,
+  },
 
   nowRow: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center' },
   nowDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: NOW_ACCENT, marginLeft: GUTTER - 7 },

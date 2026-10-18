@@ -342,7 +342,8 @@ async def test_achievements_concurrent_evaluate_awards_each_badge_once(Session, 
     monkeypatch.setattr(ach, "_send_milestone_push", AsyncMock())
     today_iso = _today().isoformat()
     streak = {"current": 0, "armed_freezes": 0, "fresh_start_today": False, "last_perfect_date": None, "today_date": today_iso}
-    schedules = [{"maxx_id": "skinmax", "days": []}]
+    # One completed task: exactly what earns First Steps (and nothing else).
+    schedules = [{"maxx_id": "skinmax", "days": [{"date": today_iso, "tasks": [{"task_id": "t1", "status": "completed"}]}]}]
     uid = await _seed_user(Session, {XP_KEY: 0})
     async with Session() as A, Session() as B:
         ua, ub = await A.get(User, uid), await B.get(User, uid)
@@ -356,6 +357,82 @@ async def test_achievements_concurrent_evaluate_awards_each_badge_once(Session, 
         rows = (await R.execute(select(UserAchievement.code).where(UserAchievement.user_id == uid))).scalars().all()
         assert rows == ["first_routine"]
     assert (await _read_profile(Session, uid))[XP_KEY] == achievement_xp("first_routine")
+
+
+@pytest.mark.asyncio
+async def test_first_steps_is_returned_the_first_time_it_is_earned_despite_the_memo(Session, monkeypatch):
+    # /active/full memoizes "nothing to award" per fingerprint. The first call
+    # after the first completion must still award + return First Steps, and it
+    # keeps coming back (unseen) until the client marks it seen.
+    monkeypatch.setattr(ach, "_fact_count", AsyncMock(return_value=0))
+    monkeypatch.setattr(ach, "_send_milestone_push", AsyncMock())
+    today_iso = _today().isoformat()
+    streak = {"current": 0, "armed_freezes": 0, "fresh_start_today": False, "last_perfect_date": None, "today_date": today_iso}
+    pending = [{"id": "s1", "maxx_id": "skinmax", "days": [{"date": today_iso, "tasks": [{"task_id": "t1", "status": "pending"}]}]}]
+    done = [{"id": "s1", "maxx_id": "skinmax", "days": [{"date": today_iso, "tasks": [{"task_id": "t1", "status": "completed"}]}]}]
+    uid = await _seed_user(Session, {XP_KEY: 0})
+    async with Session() as A:
+        u = await A.get(User, uid)
+        assert await ach.evaluate(A, u, streak=streak, schedules=pending) == []
+        assert await ach.evaluate(A, u, streak=streak, schedules=pending) == []  # memo hit
+        first = await ach.evaluate(A, u, streak=streak, schedules=done)
+        assert [a["code"] for a in first] == ["first_routine"]
+        again = await ach.evaluate(A, u, streak=streak, schedules=done)
+        assert [a["code"] for a in again] == ["first_routine"]  # unseen → handed back
+        assert await ach.mark_seen(A, u, ["first_routine"]) == 1
+        assert await ach.evaluate(A, u, streak=streak, schedules=done) == []
+
+
+@pytest.mark.asyncio
+async def test_existing_first_steps_is_kept_without_a_completed_task(Session, monkeypatch):
+    # Earned under the old "started a plan" rule: never clawed back.
+    monkeypatch.setattr(ach, "_fact_count", AsyncMock(return_value=0))
+    today_iso = _today().isoformat()
+    uid = await _seed_user(Session, {XP_KEY: 10})
+    async with Session() as db:
+        db.add(UserAchievement(user_id=uid, code="first_routine", earned_at=datetime.now(timezone.utc), seen=True))
+        await db.commit()
+    streak = {"current": 0, "armed_freezes": 0, "fresh_start_today": False, "last_perfect_date": None, "today_date": today_iso}
+    async with Session() as A:
+        u = await A.get(User, uid)
+        assert await ach.evaluate(A, u, streak=streak, schedules=[{"id": "s1", "maxx_id": "skinmax", "days": []}]) == []
+        listed = await ach.list_for_user(A, u, streak=streak, schedules=[])
+    by = {a["code"]: a for a in listed["achievements"]}
+    assert by["first_routine"]["earned"] is True
+
+
+@pytest.mark.asyncio
+async def test_journey_starts_on_the_first_plan_day_not_account_creation(Session):
+    # Account made 2026-01-01; first plan created three days ago (UTC tz).
+    today = _today()
+    uid = await _seed_user(Session, {ss.JOURNEY_START_KEY: "2026-01-01"})  # legacy anchor
+    plan_day = today - timedelta(days=2)
+    async with Session() as db:
+        db.add(UserSchedule(
+            id=uuid.uuid4(), user_id=uid, schedule_type="maxx", maxx_id="sleepmax", is_active=True,
+            days=[{"date": today.isoformat(), "tasks": []}], completion_stats={},
+            created_at=datetime(plan_day.year, plan_day.month, plan_day.day, 12, tzinfo=timezone.utc),
+        ))
+        await db.commit()
+    async with Session() as A:
+        user = await A.get(User, uid)
+        payload = await ss.sync_master_schedule_streak(user, [{"id": "s", "maxx_id": "sleepmax", "days": []}], A)
+    assert payload["journey_start_date"] == plan_day.isoformat()
+    assert payload["day_number"] == 3
+    stored = await _read_profile(Session, uid)
+    assert stored[ss.JOURNEY_START_KEY] == plan_day.isoformat()
+    assert stored[ss.JOURNEY_SOURCE_KEY] == ss.JOURNEY_SOURCE_FIRST_PLAN
+    # A later plan (or a regen re-minting rows) never moves Day 1 again.
+    async with Session() as db:
+        db.add(UserSchedule(
+            id=uuid.uuid4(), user_id=uid, schedule_type="maxx", maxx_id="energymax", is_active=True,
+            days=[], completion_stats={}, created_at=datetime.now(timezone.utc),
+        ))
+        await db.commit()
+    async with Session() as A:
+        user = await A.get(User, uid)
+        payload = await ss.sync_master_schedule_streak(user, [{"id": "s", "maxx_id": "sleepmax", "days": []}], A)
+    assert payload["journey_start_date"] == plan_day.isoformat()
 
 
 # --- fallback + structure: run anywhere -----------------------------------------

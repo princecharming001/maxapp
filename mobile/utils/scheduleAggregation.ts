@@ -135,7 +135,77 @@ export type MergedScheduleTask = {
   completed_on_time?: boolean;
   /** Recurring identity shared across days. Used to remove a whole routine part. */
   catalog_id?: string;
+  /** Habit kind (BETA1 contract C1): 'action' | 'setup' | 'checkin'. Rules never
+   *  arrive as tasks — they ride on `day.rules` (see MergedScheduleRule). */
+  kind?: string;
 };
+
+/** A day boundary from a plan (C1 `rule`): "No caffeine after 4:15 PM". Never a
+ *  task: no checkbox, no completion, no XP, never counted in progress. */
+export type MergedScheduleRule = {
+  key: string;
+  title: string;
+  /** HH:MM, or '' when the rule has no clock time. */
+  time: string;
+  catalog_id?: string;
+  maxx_id?: string;
+  note?: string;
+  scheduleId: string;
+  moduleLabel: string;
+  moduleColor: string;
+};
+
+/** Raw rule as it appears on `user_schedules.days[i].rules`. */
+type RawRule = { title?: string; time?: string; catalog_id?: string; maxx_id?: string; note?: string };
+
+/** Identity used to dedupe a rule across schedules (two plans can carry the
+ *  same boundary, e.g. a caffeine cutoff). catalog_id when present, else the
+ *  normalised title. */
+function ruleIdentity(r: { catalog_id?: string; title?: string }): string {
+  const cid = r.catalog_id ? String(r.catalog_id).trim() : '';
+  return cid ? `c:${cid}` : `t:${normalizeRoutineTitle(r.title || '')}`;
+}
+
+/** Merge one schedule-day's rules into the day's list, deduped by catalog_id.
+ *  When two plans carry the same boundary at different times, the EARLIER time
+ *  wins (the stricter cutoff). */
+function addRules(
+  into: Map<string, MergedScheduleRule>,
+  raw: RawRule[],
+  scheduleId: string,
+  moduleLabel: string,
+  moduleColor: string,
+): void {
+  for (const r of raw || []) {
+    if (!r || typeof r !== 'object') continue;
+    const title = stripMaxxTitlePrefix(String(r.title || '').trim());
+    if (!title) continue;
+    const time = typeof r.time === 'string' && /^\d{1,2}:\d{2}$/.test(r.time.trim()) ? r.time.trim() : '';
+    const id = ruleIdentity({ catalog_id: r.catalog_id, title });
+    const prev = into.get(id);
+    if (prev && (!time || (prev.time && prev.time <= time))) continue;
+    into.set(id, {
+      key: id,
+      title,
+      time,
+      catalog_id: r.catalog_id ? String(r.catalog_id) : undefined,
+      maxx_id: r.maxx_id ? String(r.maxx_id) : undefined,
+      note: r.note ? String(r.note) : undefined,
+      scheduleId,
+      moduleLabel,
+      moduleColor,
+    });
+  }
+}
+
+/** Display line for a rule: "No caffeine after 4:15 PM" when the title ends in
+ *  a time preposition, else "Fixed wake time · 7:00 AM"; title alone without a time. */
+export function ruleDisplayLine(rule: { title: string; time?: string }, fmtTime: (hhmm: string) => string): string {
+  const title = (rule.title || '').trim();
+  if (!rule.time) return title;
+  const t = fmtTime(rule.time);
+  return /\b(after|before|by|until|till|at|from|past)$/i.test(title) ? `${title} ${t}` : `${title} · ${t}`;
+}
 
 /** One distinct recurring part of the routine (collapsed across every day it
  *  appears). Backs the plain-language routine review where the user prunes
@@ -322,10 +392,13 @@ export function mergeSchedules(
   maxxColors: Record<string, string>,
 ): {
   byDate: Record<string, MergedScheduleTask[]>;
+  /** The day's rules (C1), deduped by catalog_id across schedules, by time. */
+  rulesByDate: Record<string, MergedScheduleRule[]>;
   dates: string[];
   legend: { id: string; label: string; color: string }[];
 } {
   const byDate: Record<string, MergedScheduleTask[]> = {};
+  const rulesMap: Record<string, Map<string, MergedScheduleRule>> = {};
   const legendMap = new Map<string, { label: string; color: string }>();
   const activeMaxxIds = new Set<string>();
   for (const s of schedules || []) {
@@ -351,7 +424,18 @@ export function mergeSchedules(
     for (const day of s.days || []) {
       const d = day.date;
       if (!d) continue;
+      if (Array.isArray(day.rules) && day.rules.length) {
+        if (!rulesMap[d]) rulesMap[d] = new Map();
+        addRules(rulesMap[d], day.rules, s.id, label, color);
+      }
       for (const t of day.tasks || []) {
+        // Defensive: a rule must never render as a tick-box even if an older
+        // payload put it in `tasks`. Route it to the day's rules instead.
+        if (t && String(t.kind || '').toLowerCase() === 'rule') {
+          if (!rulesMap[d]) rulesMap[d] = new Map();
+          addRules(rulesMap[d], [t], s.id, label, color);
+          continue;
+        }
         const blobEarly = `${t.title || ''} ${t.description || ''}`;
         const skinEarly = SKIN_TASK_RE.test(blobEarly);
         const hairEarly = HAIR_TASK_RE.test(blobEarly);
@@ -383,13 +467,20 @@ export function mergeSchedules(
     byDate[d] = dedupeMasterTasksForDay(byDate[d]);
   }
 
+  const rulesByDate: Record<string, MergedScheduleRule[]> = {};
+  for (const d of Object.keys(rulesMap)) {
+    rulesByDate[d] = Array.from(rulesMap[d].values()).sort(
+      (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || a.title.localeCompare(b.title),
+    );
+  }
+
   const legend = Array.from(legendMap.entries()).map(([id, v]) => ({
     id,
     label: v.label,
     color: v.color,
   }));
 
-  return { byDate, dates, legend };
+  return { byDate, rulesByDate, dates, legend };
 }
 
 export function moduleColorForSchedule(

@@ -44,7 +44,9 @@ def test_checks_fire_at_thresholds():
     assert by["streak_3"].check({**base, "streak": 3})
     assert by["streak_7"].check({**base, "streak": 9})
     assert not by["streak_30"].check({**base, "streak": 29})
-    assert by["first_routine"].check({**base, "active_count": 1})
+    # First Steps = the first COMPLETED task, not merely starting a plan (C7).
+    assert not by["first_routine"].check({**base, "active_count": 1})
+    assert by["first_routine"].check({**base, "active_count": 1, "tasks_completed": 1})
     assert by["two_maxxes"].check({**base, "active_count": 2})
     assert by["tasks_50"].check({**base, "tasks_completed": 50})
     # the face-scan badges were retired with the scan

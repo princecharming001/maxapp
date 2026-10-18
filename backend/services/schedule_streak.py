@@ -40,10 +40,16 @@ FREEZE_CREDITED_ON_KEY = "master_schedule_streak_freeze_credited_on"
 PERFECT_COMPLETED_KEY = "master_schedule_streak_perfect_completed"
 RESET_ON_KEY = "master_schedule_streak_reset_on"
 MAX_ARMED_FREEZES = 2
-# Stable journey anchor: "Day 1" is the day the user onboarded their first max
-# (proxied by account creation in their tz). Persisted once so the day counter
+# Stable journey anchor: "Day 1" is the day the user's FIRST PLAN started (the
+# earliest user_schedules row, in their tz) — not account creation, which made
+# a user who browsed for a week before starting land on "Day 8" (BETA1 C7).
+# Persisted once (with JOURNEY_SOURCE_KEY = "first_plan") so the day counter
 # keeps incrementing day-over-day and never resets when schedules regenerate.
+# Before any plan exists the account-creation date stands in, unmarked, so the
+# first plan re-anchors it.
 JOURNEY_START_KEY = "master_journey_start_date"
+JOURNEY_SOURCE_KEY = "master_journey_start_source"
+JOURNEY_SOURCE_FIRST_PLAN = "first_plan"
 
 
 # ---------------------------------------------------------------------------
@@ -221,15 +227,56 @@ def local_today_date(onboarding: dict | None) -> date:
     return datetime.now(_user_tz(onboarding)).date()
 
 
-def _journey_start(user: User, profile: dict[str, Any], onboarding: dict | None, today: date) -> date:
-    """The fixed Day-1 anchor. Once persisted it never moves; otherwise it's the
-    account-creation date in the user's tz (≈ first-max onboarding day)."""
+def _local_date(ts, onboarding: dict | None) -> date | None:
+    if ts is None:
+        return None
+    try:
+        if isinstance(ts, datetime):
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=ZoneInfo("UTC"))
+            return ts.astimezone(_user_tz(onboarding)).date()
+        if isinstance(ts, date):
+            return ts
+    except Exception:
+        return None
+    return None
+
+
+def _stored_journey_start(profile: dict[str, Any]) -> date | None:
     raw = profile.get(JOURNEY_START_KEY)
-    if raw:
-        try:
-            return date.fromisoformat(str(raw))
-        except (TypeError, ValueError):
-            pass
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        return None
+
+
+def _journey_anchored_to_plan(profile: dict[str, Any]) -> bool:
+    return (
+        profile.get(JOURNEY_SOURCE_KEY) == JOURNEY_SOURCE_FIRST_PLAN
+        and _stored_journey_start(profile) is not None
+    )
+
+
+def _journey_start(
+    user: User,
+    profile: dict[str, Any],
+    onboarding: dict | None,
+    today: date,
+    first_plan_on: date | None = None,
+) -> date:
+    """The fixed Day-1 anchor: the day the first plan started. Once anchored to
+    a plan it never moves. `first_plan_on` (the earliest schedule's local date)
+    re-anchors a legacy / pre-plan value; without a plan yet, the stored value
+    or the account-creation date stands in."""
+    if _journey_anchored_to_plan(profile):
+        return _stored_journey_start(profile)  # type: ignore[return-value]
+    if first_plan_on is not None and first_plan_on <= today:
+        return first_plan_on
+    stored = _stored_journey_start(profile)
+    if stored is not None:
+        return stored
     created = getattr(user, "created_at", None)
     if created:
         try:
@@ -454,6 +501,44 @@ def streak_payload_from_profile(profile: dict[str, Any], today: date) -> dict[st
     }
 
 
+# Users with no schedule row at all: remember that for a few minutes so the
+# day-state endpoint doesn't re-run the lookup on every Home open.
+_NO_PLAN_TTL_S = 300.0
+_no_plan_seen: dict[str, float] = {}
+
+
+async def first_plan_date(user: User, db: AsyncSession, onboarding: dict | None, *, has_active: bool) -> date | None:
+    """Local date of the user's earliest user_schedules row (active or not),
+    or None. Only called until the anchor is persisted."""
+    import time as _time
+
+    uid = str(getattr(user, "id", "") or "")
+    if not uid:
+        return None
+    if not has_active:
+        seen = _no_plan_seen.get(uid)
+        if seen is not None and _time.monotonic() - seen < _NO_PLAN_TTL_S:
+            return None
+    try:
+        from models.sqlalchemy_models import UserSchedule
+        from sqlalchemy import func
+
+        first = (await db.execute(
+            select(func.min(UserSchedule.created_at)).where(UserSchedule.user_id == user.id)
+        )).scalar()
+    except Exception as e:  # never fatal to the day-state response
+        logger.debug("first plan lookup failed for %s: %s", uid, e)
+        return None
+    d = _local_date(first, onboarding)
+    if d is None:
+        if len(_no_plan_seen) > 10_000:
+            _no_plan_seen.clear()
+        _no_plan_seen[uid] = _time.monotonic()
+    else:
+        _no_plan_seen.pop(uid, None)
+    return d
+
+
 async def sync_master_schedule_streak(
     user: User | None,
     schedules: list[dict],
@@ -476,11 +561,17 @@ async def sync_master_schedule_streak(
     onboarding = dict(user.onboarding or {})
     today = local_today_date(onboarding)
 
+    # Day-1 anchor = the first plan's start date. Looked up only until it's
+    # persisted (one cheap indexed MIN), never once anchored.
+    first_plan_on: date | None = None
+    if not _journey_anchored_to_plan(dict(user.profile or {})):
+        first_plan_on = await first_plan_date(user, db, onboarding, has_active=bool(schedules))
+
     # Dry pass on the session's snapshot: the common case (already reconciled
     # today, nothing to credit) stays lock-free and write-free — this runs on
     # the hottest endpoint, on every Home open.
     profile = copy.deepcopy(user.profile or {})
-    changed, start = _apply_streak_rules(profile, schedules, today, user, onboarding)
+    changed, start = _apply_streak_rules(profile, schedules, today, user, onboarding, first_plan_on)
 
     if changed:
         # Real pass: the same pure rules re-run on the FRESH row under the
@@ -490,10 +581,10 @@ async def sync_master_schedule_streak(
         # Single-table transaction: nothing else is pending in this session.
         profile = await write_profile_keys(
             db, user,
-            lambda p: _apply_streak_rules(p, schedules, today, user, onboarding),
+            lambda p: _apply_streak_rules(p, schedules, today, user, onboarding, first_plan_on),
         )
         await db.commit()
-        start = _journey_start(user, profile, onboarding, today)
+        start = _journey_start(user, profile, onboarding, today, first_plan_on)
 
     payload = streak_payload_from_profile(profile, today)
     payload["journey_start_date"] = start.isoformat()
@@ -507,6 +598,7 @@ def _apply_streak_rules(
     today: date,
     user: User,
     onboarding: dict | None,
+    first_plan_on: date | None = None,
 ) -> tuple[bool, date]:
     """Pure streak transition on `profile` IN PLACE (never commits): reconcile
     missed days -> credit today -> un-credit -> streak XP -> journey anchor.
@@ -532,8 +624,13 @@ def _apply_streak_rules(
         pass
 
     # Anchor (and persist once) the Day-1 date so the day counter is stable.
-    start = _journey_start(user, profile, onboarding, today)
+    # Marked "first_plan" once it comes from a real plan, so it never moves again.
+    anchored = _journey_anchored_to_plan(profile)
+    start = _journey_start(user, profile, onboarding, today, first_plan_on)
     if profile.get(JOURNEY_START_KEY) != start.isoformat():
         profile[JOURNEY_START_KEY] = start.isoformat()
+        changed = True
+    if not anchored and first_plan_on is not None and start == first_plan_on:
+        profile[JOURNEY_SOURCE_KEY] = JOURNEY_SOURCE_FIRST_PLAN
         changed = True
     return changed, start
