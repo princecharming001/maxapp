@@ -16,6 +16,7 @@ Check with a professional first:
 
 ### `physiological_sigh` — Cyclic sighing
 - minutes: 1 / 5
+- kind: action
 - anchor: work_break or any stress moment (also after_work)
 - frequency: daily
 - tier: core
@@ -26,6 +27,7 @@ Check with a professional first:
 
 ### `box_breathing` — Box breathing
 - minutes: 2 / 5
+- kind: action
 - anchor: before_work or before a stressful meeting
 - frequency: 3–5× per week (alternative to cyclic sighing)
 - tier: medium
@@ -36,6 +38,7 @@ Check with a professional first:
 
 ### `slow_belly_breathing` — Slow belly breathing
 - minutes: 3 / 5
+- kind: action
 - anchor: wind_down or any time
 - frequency: daily
 - tier: core (default for anyone who should avoid breath holds)
@@ -46,16 +49,18 @@ Check with a professional first:
 
 ### `outdoor_walk` — Outdoor walk
 - minutes: 10 / 20
+- kind: action
 - anchor: lunch, after_work or weekend
 - frequency: 3–5× per week (aim for about 120 min/week total outdoors)
 - tier: core
 - why: People reporting at least 120 min a week in nature were more likely to report good health and wellbeing; it did not matter how the time was split.
-- how: 1) Pick a park, tree-lined street or waterfront. 2) Walk without email; music or a podcast is fine. 3) Notice 3 things you can see or hear.
+- how: 1) Head to a park, tree-lined street or waterfront. 2) Walk without email; music or a podcast is fine. 3) Notice 3 things you can see or hear.
 - conflicts/synergies: Counts toward LongevityMax steps, EnergyMax post-meal walk and SleepMax morning light if timed right.
 - source: https://doi.org/10.1038/s41598-019-44097-3
 
 ### `expressive_writing` — Expressive writing
 - minutes: 10 / 15
+- kind: action
 - anchor: after_work or weekend
 - frequency: 3–4 sessions in a row, then as needed
 - tier: medium
@@ -66,6 +71,7 @@ Check with a professional first:
 
 ### `brain_dump` — 3-minute brain dump
 - minutes: 3 / 5
+- kind: action
 - anchor: wind_down
 - frequency: daily or as needed
 - tier: core
@@ -76,6 +82,7 @@ Check with a professional first:
 
 ### `body_scan` — Body scan / NSDR
 - minutes: 10 / 15
+- kind: action
 - anchor: afternoon, after_work or pre_bed
 - frequency: 3–5× per week
 - tier: medium
@@ -86,6 +93,7 @@ Check with a professional first:
 
 ### `connect_ping` — Reach out to someone
 - minutes: 2 / 10
+- kind: action
 - anchor: commute, lunch or after_work
 - frequency: 3–5× per week
 - tier: core
@@ -96,16 +104,18 @@ Check with a professional first:
 
 ### `screen_free_evening` — Screen-free last hour
 - minutes: 0 / 0 (a boundary)
+- kind: rule
 - anchor: pre_bed (last 30–60 min)
 - frequency: daily (start 3–4×/week)
 - tier: core
 - why: Late news and social feeds keep the mind activated; AASM advises devices off at least 30 min before bed.
 - how: 1) Set a phone "bedtime" mode. 2) Charge it outside the bedroom. 3) Replace with reading, stretching or talking.
-- conflicts/synergies: Same as SleepMax `screens_off`; count once.
+- conflicts/synergies: Same as SleepMax `screens_off`; count once. Its time is at or before the start of SleepMax `wind_down`.
 - source: https://sleepeducation.org/healthy-sleep/healthy-sleep-habits/
 
 ### `commute_buffer` — Commute decompression
 - minutes: 3 / 5
+- kind: action
 - anchor: after_work (start of commute home, or 5 min after work ends for remote workers)
 - frequency: every workday
 - tier: medium
@@ -116,6 +126,7 @@ Check with a professional first:
 
 ### `gratitude_note` — Three good things
 - minutes: 2 / 3
+- kind: action
 - anchor: wind_down or dinner
 - frequency: 3–7× per week
 - tier: hard
@@ -126,6 +137,7 @@ Check with a professional first:
 
 ### `move_it_out` — Move to shake off stress
 - minutes: 10 / 20
+- kind: action
 - anchor: after_work
 - frequency: 2–3× per week
 - tier: hard
@@ -136,11 +148,12 @@ Check with a professional first:
 
 ### `weekend_unplug` — Weekend unplug block
 - minutes: 30 / 60
+- kind: action
 - anchor: weekend
 - frequency: 1× per week
 - tier: hard
 - why: A longer screen-free block outdoors or with people combines the strongest calm levers.
-- how: 1) Pick a 1–2 hour window. 2) Leave the phone at home or in a bag on silent. 3) Spend it outside, with people, or on a hobby.
+- how: 1) Put the phone away at home or in a bag on silent. 2) Spend the next 1–2 hours outside, with people, or on a hobby. 3) Check messages only when the block ends.
 - conflicts/synergies: Good place for LongevityMax `long_easy_cardio` (a hike) or social time.
 - source: https://doi.org/10.1038/s41598-019-44097-3
 

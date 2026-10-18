@@ -17,26 +17,31 @@ Check with a professional first:
 
 ### `water_on_waking` — Water on waking
 - minutes: 1 / 2
+- kind: action
+- order: first
 - anchor: wake
 - frequency: daily
 - tier: core
 - why: Many people start the day after 7–9 hours without fluids; regular drinks across the day support normal hydration (pale-straw urine is a simple guide).
-- how: 1) Leave a full glass or bottle by the bed or kettle. 2) Drink it before coffee. 3) Refill and take it to work.
-- conflicts/synergies: Stacks with `morning_light`. Do not set fixed liters for users with fluid-restricted conditions.
+- how: 1) Drink a glass of water when you get up. 2) Have it before your coffee. 3) Refill the glass or bottle and keep it with you.
+- conflicts/synergies: First among the wake habits; `morning_light` comes right after it (water first, then light). Tip: a glass or bottle left by the bed or kettle the evening before makes this effortless. Do not set fixed liters for users with fluid-restricted conditions.
 - source: https://www.nhs.uk/live-well/eat-well/food-guidelines-and-food-labels/water-drinks-nutrition/
 
 ### `morning_light` — Morning outdoor light
 - minutes: 5 / 10
+- kind: action
+- after: water_on_waking
 - anchor: wake or commute
 - frequency: daily
 - tier: core
 - why: Daytime bright light supports alertness and sets the body clock, which helps both daytime energy and night sleep.
-- how: 1) Get outside within an hour of waking. 2) Walk part of the commute or have coffee by a window or outside. 3) 5–15 min is enough.
-- conflicts/synergies: Same habit as SleepMax `morning_light`; schedule once and credit both.
+- how: 1) Get outside within an hour of waking, after your glass of water. 2) Walk part of the commute, or have your coffee outside or by a bright window. 3) 5–15 min is enough.
+- conflicts/synergies: Same habit as SleepMax `morning_light`; schedule once and credit both. Comes after `water_on_waking` (water first, then light); neither has to happen before everything else.
 - source: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6751071/
 
 ### `delay_first_coffee` — Coffee after water
 - minutes: 0 / 0
+- kind: rule
 - anchor: get_ready
 - frequency: daily
 - tier: medium
@@ -47,36 +52,40 @@ Check with a professional first:
 
 ### `protein_first_meal` — Protein in first meal
 - minutes: 2 / 5
+- kind: action
 - anchor: their first meal: breakfast, or lunch when `first_meal_style` says they skip breakfast or have coffee only
 - frequency: daily (5×/week)
 - tier: core
 - why: Protein and fiber make a meal more filling than a sugar-only start, and getting protein in at each meal helps people reach the daily intake that supports muscle (see FitMax).
-- how: 1) Pick one protein option you like (eggs, Greek yogurt, cottage cheese, tofu, leftovers, a protein-rich bar). 2) Add fruit or whole grains. 3) If you don't eat breakfast, apply this to your first meal.
+- how: 1) Include one protein you like (eggs, Greek yogurt, cottage cheese, tofu, leftovers, a protein-rich bar). 2) Add fruit or whole grains. 3) If you don't eat breakfast, apply this to your first meal.
 - conflicts/synergies: Synergy with FitMax `protein_each_meal`. Not a breakfast mandate: skipping breakfast is fine if the user prefers.
 - source: https://bjsm.bmj.com/content/52/6/376
 
 ### `movement_snack` — Movement snack
 - minutes: 2 / 3
+- kind: action
 - anchor: work_break (every 60–90 min of sitting)
 - frequency: 3–6× per workday
 - tier: core
 - why: Breaking up sitting with short walks lowered post-meal blood sugar compared with sitting all day; short bouts also feel energizing.
-- how: 1) Set a timer for every 60–90 min. 2) Walk to get water, take stairs, or do 10 squats. 3) Return to work.
+- how: 1) Stand up from your desk. 2) Walk to get water, take the stairs, or do 10 squats. 3) Sit back down and carry on.
 - conflicts/synergies: Overlaps with FocusMax breaks and LongevityMax steps; count steps toward both.
 - source: https://doi.org/10.1007/s40279-022-01649-4
 
 ### `post_meal_walk` — Walk after meals
 - minutes: 5 / 10
+- kind: action
 - anchor: lunch or dinner (start within 30 min of finishing)
 - frequency: daily (at least one meal)
 - tier: core
 - why: Light walking after eating helps blood sugar rise and fall more gently than sitting.
-- how: 1) After lunch, walk for 5–15 min (around the block, a phone call while walking). 2) After dinner, a short stroll works too. 3) Easy pace.
+- how: 1) Start walking within about 30 min of finishing the meal. 2) 5–15 min around the block, or take a phone call on the move. 3) Easy pace.
 - conflicts/synergies: Counts toward LongevityMax steps and CalmMax outdoor time. Fine in the evening for sleep (easy intensity).
 - source: https://doi.org/10.1007/s40279-022-01649-4
 
 ### `lunch_balance` — Balanced lunch plate
 - minutes: 0 / 2
+- kind: action
 - anchor: lunch
 - frequency: 5× per week
 - tier: medium
@@ -87,6 +96,7 @@ Check with a professional first:
 
 ### `slump_reset` — Afternoon slump reset
 - minutes: 5 / 10
+- kind: action
 - anchor: afternoon (2–4 pm, or the user's slump time)
 - frequency: daily on workdays
 - tier: core
@@ -97,6 +107,7 @@ Check with a professional first:
 
 ### `caffeine_cutoff` — Caffeine cutoff
 - minutes: 0 / 0
+- kind: rule
 - anchor: afternoon
 - frequency: daily
 - tier: core
@@ -107,6 +118,7 @@ Check with a professional first:
 
 ### `vigorous_burst` — 1-minute vigorous burst
 - minutes: 1 / 2
+- kind: action
 - anchor: work_break or after_work
 - frequency: 1–3× per day
 - tier: medium
@@ -117,26 +129,29 @@ Check with a professional first:
 
 ### `water_bottle_refill` — Midday refill
 - minutes: 1 / 1
+- kind: action
 - anchor: lunch
 - frequency: daily
 - tier: medium
 - why: Spreading fluids across the day is easier than catching up at night (which can also wake you to use the bathroom).
-- how: 1) Refill your bottle at lunch. 2) Finish it by mid-afternoon. 3) Taper fluids in the last 1–2 hours before bed.
-- conflicts/synergies: Pairs with SleepMax (fewer night wakings).
+- how: 1) Refill your bottle now. 2) Keep it where you can see it. 3) Aim to finish it by mid-afternoon.
+- conflicts/synergies: Pairs with SleepMax (fewer night wakings): taper fluids in the last 1–2 hours before bed.
 - source: https://www.nhs.uk/live-well/eat-well/food-guidelines-and-food-labels/water-drinks-nutrition/
 
 ### `energy_check_in` — Energy check-in
 - minutes: 1 / 1
+- kind: checkin
 - anchor: afternoon
 - frequency: daily for 2 weeks, then 3×/week
 - tier: hard
 - why: Logging when you dip shows whether sleep, lunch or caffeine is the main driver, so the plan can adapt.
-- how: 1) Rate energy 1–5. 2) Tap the likely cause (short sleep, big lunch, long sitting, stress). 3) Review weekly.
+- how: 1) Rate energy 1–5. 2) Tap the likely cause (short sleep, big lunch, long sitting, stress). 3) Glance at the last few check-ins to spot a pattern.
 - conflicts/synergies: Feeds plan tuning across SleepMax and FocusMax.
 - source: https://doi.org/10.1371/journal.pone.0272460
 
 ### `outdoor_lunch` — Lunch outside
 - minutes: 10 / 15
+- kind: action
 - anchor: lunch
 - frequency: 2–3× per week
 - tier: hard
@@ -158,7 +173,7 @@ Check with a professional first:
    Q: "How much of your workday is spent sitting?" Options: Most of it | About half | I'm on my feet a lot
 
 ## Scheduling rules
-- Water on waking at wake time; morning light within 60 min of wake (share with SleepMax).
+- Water on waking first, at wake time (`order: first`); morning light right after it, within 60 min of wake (`after: water_on_waking`, shared with SleepMax). Neither is framed as "before anything else".
 - Caffeine: cutoff at least 8 hours before bed (minimum 6). Prefer caffeine after water or food. Never schedule a caffeine habit after the cutoff.
 - Post-meal walk: start within 30 min after the user's stored meal time; easy intensity.
 - Movement snacks: every 60–90 min inside work hours; skip during meetings marked busy; max 6 per day.

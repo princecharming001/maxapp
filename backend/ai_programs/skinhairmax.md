@@ -17,6 +17,7 @@ Check with a dermatologist or clinician first:
 
 ### `am_routine` — AM skin routine
 - minutes: 2 / 3
+- kind: action
 - anchor: get_ready (right after the shower or washing up)
 - frequency: daily
 - tier: core
@@ -27,6 +28,7 @@ Check with a dermatologist or clinician first:
 
 ### `pm_routine` — PM skin routine
 - minutes: 2 / 4
+- kind: action
 - anchor: wind_down
 - frequency: daily
 - tier: core
@@ -37,6 +39,7 @@ Check with a dermatologist or clinician first:
 
 ### `spf_reapply` — Reapply SPF outdoors
 - minutes: 1 / 2
+- kind: action
 - anchor: lunch or before an outdoor block (walks, weekend)
 - frequency: outdoor days
 - tier: medium
@@ -46,6 +49,7 @@ Check with a dermatologist or clinician first:
 
 ### `keto_wash` — Ketoconazole shampoo wash
 - minutes: 5 / 5
+- kind: action
 - anchor: get_ready (in the shower)
 - frequency: 2x per week
 - tier: core
@@ -55,6 +59,7 @@ Check with a dermatologist or clinician first:
 
 ### `scalp_massage` — Scalp massage
 - minutes: 4 / 4
+- kind: action
 - anchor: wind_down
 - frequency: daily
 - tier: medium

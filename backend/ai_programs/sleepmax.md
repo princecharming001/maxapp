@@ -17,6 +17,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 
 ### `fixed_wake_time` — Same wake time daily
 - minutes: 0 / 0 (it is an anchor, not a task)
+- kind: rule
 - anchor: wake
 - frequency: daily (including weekends, within 60 min)
 - tier: core
@@ -27,16 +28,19 @@ Check with a professional first (the app should suggest this, not diagnose):
 
 ### `morning_light` — Morning outdoor light
 - minutes: 5 / 10
+- kind: action
+- after: water_on_waking
 - anchor: wake (within 60 min of waking); commute counts if outdoors
 - frequency: daily
 - tier: core
 - why: Bright light early in the day is the main signal that sets the body clock and supports earlier, easier sleep onset.
-- how: 1) Step outside within an hour of waking, even if it is cloudy. 2) Walk, drink coffee, or commute on foot for 5–15 min. 3) Do not stare at the sun; sunglasses off if comfortable and safe.
-- conflicts/synergies: Same habit as EnergyMax `morning_light`; schedule once and credit both. Pairs with CalmMax outdoor walk.
+- how: 1) Step outside within an hour of waking (after your glass of water, if that is in your plan), even if it is cloudy. 2) Walk, have your coffee, or commute on foot for 5–15 min. 3) Do not stare at the sun; sunglasses off if comfortable and safe.
+- conflicts/synergies: Same habit as EnergyMax `morning_light`; schedule once and credit both. When EnergyMax `water_on_waking` is also on, water comes first and light follows; neither has to happen before everything else. Pairs with CalmMax outdoor walk.
 - source: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6751071/
 
 ### `caffeine_cutoff` — Caffeine cutoff
 - minutes: 0 / 0 (a rule plus a reminder)
+- kind: rule
 - anchor: lunch or afternoon (reminder fires at cutoff time)
 - frequency: daily
 - tier: core
@@ -47,6 +51,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 
 ### `alcohol_buffer` — Alcohol buffer before bed
 - minutes: 0 / 0
+- kind: rule
 - anchor: dinner
 - frequency: on days the user drinks (reminder only if they said they drink)
 - tier: medium
@@ -57,28 +62,31 @@ Check with a professional first (the app should suggest this, not diagnose):
 
 ### `wind_down` — Wind-down routine
 - minutes: 10 / 20
+- kind: action
 - anchor: wind_down (starts 30–60 min before bed)
 - frequency: daily
 - tier: core
 - why: A consistent, calm pre-sleep routine and less bright light in the evening make it easier to fall asleep.
-- how: 1) Dim the lights and put screens away. 2) Finish small chores and set out tomorrow's things. 3) Do something calm: reading, stretching, a shower.
-- conflicts/synergies: Merge with CalmMax `screen_free_evening` and FocusMax `shutdown_ritual` (shutdown earlier, wind-down later). SkinHair PM routine fits inside it.
+- how: 1) Screens away: dim the lights and put the phone and laptop out of reach. 2) Finish small chores and lay out what you need for tomorrow. 3) Do something calm: reading, stretching, a shower.
+- conflicts/synergies: `screens_off` is a rule whose time is at or before the start of this wind-down (never after it), so step 1 simply confirms screens are already away. Merge with CalmMax `screen_free_evening` and FocusMax `shutdown_ritual` (shutdown earlier, wind-down later). SkinHair PM routine fits inside it.
 - source: https://sleepeducation.org/healthy-sleep/healthy-sleep-habits/
 
 ### `screens_off` — Screens off before bed
 - minutes: 0 / 0 (a boundary)
+- kind: rule
 - anchor: pre_bed (30–60 min before bed)
 - frequency: daily (start 4×/week if resistant)
 - tier: medium
 - why: Bright light and engaging content late at night delay sleepiness; AASM advises devices off at least 30 min before bed.
-- how: 1) Charge the phone outside the bedroom or across the room. 2) Use a regular alarm clock if needed. 3) Swap scrolling for a paper book or audio.
-- conflicts/synergies: Same as CalmMax `screen_free_evening`; count once.
+- how: 1) At this time, put the phone on its charger outside the bedroom or across the room. 2) Swap scrolling for a paper book or audio. 3) Use a regular alarm clock if needed.
+- conflicts/synergies: Same as CalmMax `screen_free_evening`; count once. Its time is at or before the start of SleepMax `wind_down`, never after it, because wind-down step 1 is screens away.
 - source: https://sleepeducation.org/healthy-sleep/healthy-sleep-habits/
 
 ### `bedroom_setup` — Cool, dark, quiet room
-- minutes: 5 / 10 (one-time setup, then weekly check)
-- anchor: weekend
-- frequency: once in week 1, then 1×/week check
+- minutes: 5 / 10 (one-time setup)
+- kind: setup
+- anchor: weekend (first weekend)
+- frequency: once in week 1 (if sleep slips later, re-check the room during a weekly review; not a weekly task)
 - tier: core
 - why: A cool, dark, quiet room supports sleep; many sources suggest roughly 65–68°F (18–20°C).
 - how: 1) Block light (curtains or an eye mask). 2) Reduce noise (earplugs, fan, white noise). 3) Set the thermostat cooler at night or use lighter bedding.
@@ -87,6 +95,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 
 ### `late_meal_buffer` — Finish big meals earlier
 - minutes: 0 / 0
+- kind: rule
 - anchor: dinner
 - frequency: daily
 - tier: medium
@@ -97,6 +106,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 
 ### `exercise_timing` — Train earlier when possible
 - minutes: 0 / 0 (a placement rule on FitMax sessions)
+- kind: rule
 - anchor: n/a (applies to FitMax/LongevityMax sessions)
 - frequency: per session
 - tier: core
@@ -107,6 +117,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 
 ### `twenty_minute_rule` — Get up if awake
 - minutes: 0 / 10 (only when it happens)
+- kind: rule
 - anchor: pre_bed (education card, not a scheduled task)
 - frequency: as needed
 - tier: medium
@@ -117,6 +128,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 
 ### `worry_list` — Tomorrow list
 - minutes: 3 / 5
+- kind: action
 - anchor: wind_down
 - frequency: daily (or 3×/week)
 - tier: medium
@@ -127,6 +139,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 
 ### `nap_rule` — Short early naps only
 - minutes: 10 / 20
+- kind: rule
 - anchor: afternoon (before ~3 pm or 7+ hours before bed)
 - frequency: optional, as needed
 - tier: hard
@@ -137,6 +150,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 
 ### `weekend_anchor` — Limit weekend drift
 - minutes: 0 / 0
+- kind: rule
 - anchor: weekend
 - frequency: Saturday and Sunday
 - tier: core
@@ -147,11 +161,12 @@ Check with a professional first (the app should suggest this, not diagnose):
 
 ### `sleep_log` — 30-second sleep check-in
 - minutes: 1 / 1
+- kind: checkin
 - anchor: wake
 - frequency: daily for 2 weeks, then 3×/week
 - tier: hard
 - why: A simple log shows patterns (late caffeine, late screens) and gives the planner feedback.
-- how: 1) Rate sleep 1–5. 2) Note bedtime, wake time and one factor. 3) Look at the week on Sunday.
+- how: 1) Rate last night's sleep 1–5. 2) Note bedtime, wake time and one factor (late caffeine, late screens, stress). 3) Glance at the last few entries to spot a pattern.
 - conflicts/synergies: Feeds plan adjustments. Never present it as a diagnostic tool.
 - source: https://sleepeducation.org/healthy-sleep/healthy-sleep-habits/
 
@@ -176,12 +191,12 @@ The general profile already has wake/bed, work hours, commute, meals, workout ti
 - Alcohol: finish at least 3 hours before bed when drinking (reminder only if the user drinks).
 - Big meals: finish 2–3 hours before bed when possible.
 - Vigorous exercise: should end at least 2 hours before bed; nothing more than easy movement in the last hour.
-- Wind-down: starts 30–60 min before bed; screens off at least 30 min before bed.
+- Wind-down: starts 30–60 min before bed; screens off at least 30 min before bed. `screens_off` is a rule whose time is at or before the wind-down start, never after it (wind-down step 1 is screens away).
 - Naps: 10–20 min, and not within 7 hours of bedtime.
 - Week 1 ramp: 2–3 habits only: `fixed_wake_time`, `morning_light`, plus either `caffeine_cutoff` or `wind_down` (based on `sleep_main_issue`). Do `bedroom_setup` once on the first weekend. Add 1 habit per week if adherence is 70% or more.
 - Scaling by time budget (SleepMax's share): about 5 min → wake anchor, light (on commute), caffeine rule. 10–20 min → add wind-down and tomorrow list. 20+ min → add sleep log, longer wind-down with stretching or reading, weekend check.
 - Many SleepMax habits are rules (0 min). Do not count them against the time budget, but cap visible daily tasks at 4 for this program.
-- Weekend handling: keep the wake anchor within 60 min; move morning light to a walk; schedule the bedroom check and a weekly review.
+- Weekend handling: keep the wake anchor within 60 min; move morning light to a walk; the bedroom setup happens once, on the first weekend only; a short weekly review is fine.
 - If the user's bed time is after 1 am or wake time changes a lot by day, do not try to fix it fast. Steady the wake time first.
 
 ## Safety and claims
