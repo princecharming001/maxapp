@@ -159,7 +159,34 @@ export const tests: Record<string, () => void | Promise<void>> = {
     },
 
     'screen and prefetch share one cache key shape': () => {
-        assert.deepStrictEqual(taskGuideQueryKey('s1', 'a'), ['taskGuide', 's1', 'a']);
+        assert.deepStrictEqual(taskGuideQueryKey('s1', 'a'), ['taskGuide', 's1', 'a', '', 0]);
+        // C5: time + duration are in the key, so a retimed task refetches.
+        assert.deepStrictEqual(
+            taskGuideQueryKey('s1', 'a', { time: '07:30', duration_minutes: 10 }),
+            ['taskGuide', 's1', 'a', '07:30', 10],
+        );
+        assert.notDeepStrictEqual(
+            taskGuideQueryKey('s1', 'a', { time: '07:30', duration_minutes: 10 }),
+            taskGuideQueryKey('s1', 'a', { time: '08:00', duration_minutes: 10 }),
+        );
+        const [target] = collectTodayGuideTargets(
+            { schedules: [{ id: 's1', days: [{ date: TODAY, tasks: [{ task_id: 'a', catalog_id: 'spf', title: 'SPF', time: '07:30', duration_minutes: 2 }] }] }] },
+            TODAY,
+        );
+        assert.deepStrictEqual(taskGuideQueryKey(target.scheduleId, target.taskId, target), ['taskGuide', 's1', 'a', '07:30', 2]);
+    },
+
+    'same habit at a different time is its own guide request': () => {
+        const targets = collectTodayGuideTargets(
+            { schedules: [{ id: 's1', days: [{ date: TODAY, tasks: [
+                { task_id: 'a', catalog_id: 'spf', title: 'SPF', time: '07:30', duration_minutes: 2 },
+                { task_id: 'b', catalog_id: 'spf', title: 'SPF', time: '13:00', duration_minutes: 2 },
+                { task_id: 'c', catalog_id: 'spf', title: 'SPF', time: '13:00', duration_minutes: 2 },
+            ] }] }] },
+            TODAY,
+        );
+        assert.strictEqual(targets.length, 2);
+        assert.deepStrictEqual(targets.find((t) => t.taskId === 'b')?.siblingTaskIds, ['c']);
     },
 
     'pending question is restored only under its own thread': () => {

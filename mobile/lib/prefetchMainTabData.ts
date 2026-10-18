@@ -15,6 +15,9 @@ export const GUIDE_PREFETCH_CONCURRENCY = 3;
 export type GuidePrefetchTarget = {
     scheduleId: string;
     taskId: string;
+    /** Part of the guide's cache key (C5): a retimed task is a new guide. */
+    time: string;
+    duration_minutes: number;
     siblingTaskIds: string[];
 };
 
@@ -69,12 +72,17 @@ export function collectTodayGuideTargets(data: any, today: string): GuidePrefetc
                 const taskId = task?.task_id ? String(task.task_id) : null;
                 if (!taskId || seenTaskIds.has(taskId)) continue;
                 seenTaskIds.add(taskId);
-                const ck = guideCatalogKey(task) ?? `id:${taskId}`;
+                const time = String(task?.time ?? '');
+                const duration_minutes = Number(task?.duration_minutes) || 0;
+                // Same habit at the same time + length shares one guide; the
+                // server writes a guide per time/duration (C5), so a second
+                // instance at another time is its own request.
+                const ck = `${guideCatalogKey(task) ?? `id:${taskId}`}|${time}|${duration_minutes}`;
                 const existing = byCatalog.get(ck);
                 if (existing) {
                     existing.siblingTaskIds.push(taskId);
                 } else {
-                    byCatalog.set(ck, { scheduleId, taskId, siblingTaskIds: [] });
+                    byCatalog.set(ck, { scheduleId, taskId, time, duration_minutes, siblingTaskIds: [] });
                 }
             }
         }
@@ -112,7 +120,7 @@ async function prefetchTodayTaskGuides(qc: QueryClient): Promise<void> {
     if (!data) return;
     const targets = collectTodayGuideTargets(data, scheduleTodayISO(data));
     const thunks = targets.map((t) => async () => {
-        const key = taskGuideQueryKey(t.scheduleId, t.taskId);
+        const key = taskGuideQueryKey(t.scheduleId, t.taskId, t);
         const state = qc.getQueryState(key);
         if (!state?.data && state?.status !== 'error') {
             await qc.prefetchQuery({
@@ -127,7 +135,7 @@ async function prefetchTodayTaskGuides(qc: QueryClient): Promise<void> {
         // Same habit, other instance today: the server would return the same
         // guide (its cache is per task_key), so seed it instead of requesting.
         for (const sib of t.siblingTaskIds) {
-            const sibKey = taskGuideQueryKey(t.scheduleId, sib);
+            const sibKey = taskGuideQueryKey(t.scheduleId, sib, t);
             if (!qc.getQueryData(sibKey)) qc.setQueryData(sibKey, guide);
         }
     });

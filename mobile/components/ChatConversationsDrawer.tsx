@@ -93,23 +93,32 @@ export type ChatConversationsDrawerProps = {
    The three named coaches replace the old softcore/mediumcore/hardcore tone
    pills. Each rides on an existing backend `coaching_tone` slug so no schema
    change is needed; the persona voices themselves are filled in backend-side.
-     Goggins    → hardcore   (hard motivation)
-     Clavicular → influencer (looksmaxxing-coded)
-     Big Daddy  → gentle     (supportive) */
+     Goggins    → hardcore   (tough love)
+     Clavicular → influencer (sharp, high standards)
+     Big Daddy  → gentle     (warm and encouraging)
+   No coach    → default    (plain, direct — the backend default). A user on
+   'default' sees NO coach selected; tapping the selected coach again returns
+   to it. */
 type PersonaId = 'goggins' | 'clavicular' | 'bigdaddy';
+/** No coach picked: the backend's plain, direct 'default' tone. */
+const NO_COACH_HINT = 'No coach: plain, direct replies';
 type ToneBackend = 'gentle' | 'default' | 'hardcore' | 'influencer';
 
 const PERSONA_OPTIONS: { id: PersonaId; backend: ToneBackend; label: string; img: any; glow: string; desc: string }[] = [
-    { id: 'goggins',    backend: 'hardcore',   label: 'Goggins',    img: require('../assets/personas/goggins.png'),    glow: '#EC7E5C', desc: 'no excuses, pure accountability' },
-    { id: 'clavicular', backend: 'influencer', label: 'Clavicular', img: require('../assets/personas/clavicular.png'), glow: '#5B8DEF', desc: 'sharp, looksmaxxing-obsessed' },
-    { id: 'bigdaddy',   backend: 'gentle',     label: 'Big Daddy',  img: require('../assets/personas/bigdaddy.png'),   glow: '#E0A15B', desc: 'warm, always in your corner' },
+    { id: 'goggins',    backend: 'hardcore',   label: 'Goggins',    img: require('../assets/personas/goggins.png'),    glow: '#EC7E5C', desc: 'tough love' },
+    { id: 'clavicular', backend: 'influencer', label: 'Clavicular', img: require('../assets/personas/clavicular.png'), glow: '#5B8DEF', desc: 'sharp, high standards' },
+    { id: 'bigdaddy',   backend: 'gentle',     label: 'Big Daddy',  img: require('../assets/personas/bigdaddy.png'),   glow: '#E0A15B', desc: 'warm and encouraging' },
 ];
+// 'default' (and anything unknown) maps to no coach — never Clavicular: the
+// backend answers a 'default' user in its plain voice, so showing a coach
+// selected there misdescribed every reply.
 const PERSONA_BY_BACKEND: Record<string, PersonaId> = {
     hardcore: 'goggins',
     influencer: 'clavicular',
     gentle: 'bigdaddy',
-    default: 'clavicular',   // legacy 'default' users land on the on-brand middle coach
 };
+const personaForTone = (tone?: string | null): PersonaId | null =>
+    PERSONA_BY_BACKEND[String(tone || 'default')] ?? null;
 
 /* A persona avatar that gently floats in place (Explore-style motion). The
    selected coach renders full-strength; the others sit dimmed. */
@@ -207,19 +216,19 @@ export default function ChatConversationsDrawer({
     const [renameValue, setRenameValue] = useState('');
 
     /* Preferences */
-    const initialPersona: PersonaId =
-        PERSONA_BY_BACKEND[user?.coaching_tone || 'default'] || 'clavicular';
+    const initialPersona: PersonaId | null = personaForTone(user?.coaching_tone);
     const initialLength: LengthId =
         (user?.onboarding?.response_length as LengthId) || 'medium';
 
-    const [persona, setPersona] = useState<PersonaId>(initialPersona);
+    const [persona, setPersona] = useState<PersonaId | null>(initialPersona);
     const [length, setLength] = useState<LengthId>(initialLength);
-    const [savingPersona, setSavingPersona] = useState<PersonaId | null>(null);
+    // 'none' while returning to the default (no coach) tone.
+    const [savingPersona, setSavingPersona] = useState<PersonaId | 'none' | null>(null);
     const [savingLength, setSavingLength] = useState<LengthId | null>(null);
 
     React.useEffect(() => {
         if (!user) return;
-        setPersona(PERSONA_BY_BACKEND[user.coaching_tone || 'default'] || 'clavicular');
+        setPersona(personaForTone(user.coaching_tone));
         setLength((user?.onboarding?.response_length as LengthId) || 'medium');
     }, [user]);
 
@@ -312,15 +321,17 @@ export default function ChatConversationsDrawer({
     );
 
     const applyPersona = useCallback(
-        async (next: PersonaId) => {
-            if (next === persona || savingPersona) return;
-            const target = PERSONA_OPTIONS.find((p) => p.id === next);
-            if (!target) return;
+        async (tapped: PersonaId) => {
+            if (savingPersona) return;
+            // Tapping the selected coach again deselects it → plain 'default' tone.
+            const next: PersonaId | null = tapped === persona ? null : tapped;
+            const target = next ? PERSONA_OPTIONS.find((p) => p.id === next) : null;
+            if (next && !target) return;
             const previous = persona;
             setPersona(next);
-            setSavingPersona(next);
+            setSavingPersona(next ?? 'none');
             try {
-                await api.patchCoachingTone(target.backend);
+                await api.patchCoachingTone(target ? target.backend : 'default');
                 await refreshUser().catch(() => undefined);
             } catch (e: any) {
                 setPersona(previous);
@@ -499,6 +510,8 @@ export default function ChatConversationsDrawer({
                                     activeOpacity={0.8}
                                     disabled={!!savingPersona}
                                     accessibilityLabel={`Coach: ${opt.label}`}
+                                    accessibilityState={{ selected: active }}
+                                    accessibilityHint={active ? 'Tap again for no coach' : undefined}
                                 >
                                     <View
                                         style={[
@@ -522,7 +535,7 @@ export default function ChatConversationsDrawer({
                         })}
                     </View>
                     <Text style={s.personaHint}>
-                        {PERSONA_OPTIONS.find((p) => p.id === persona)?.desc}
+                        {(persona && PERSONA_OPTIONS.find((p) => p.id === persona)?.desc) || NO_COACH_HINT}
                     </Text>
 
                     <Text style={[s.label, { marginTop: 14 }]}>Length</Text>

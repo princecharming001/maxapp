@@ -18,6 +18,8 @@ export type PendingChat = {
     chatIntent?: string;
     /** Stable per-turn id: a replay re-sends it so the server can dedupe. */
     clientTurnId?: string;
+    /** Automatic replays already made for this turn (capped by the chat screen). */
+    attempts?: number;
     at: number;
 };
 

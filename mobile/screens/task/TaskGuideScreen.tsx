@@ -43,7 +43,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { useQuery } from '@tanstack/react-query';
-import { useTaskGuide, type TaskGuideStep, type TaskGuideIngredient } from '../../hooks/useTaskGuide';
+import { useTaskGuide, findTaskTiming, type TaskGuideStep, type TaskGuideIngredient } from '../../hooks/useTaskGuide';
 import { fonts } from '../../theme/dark';
 import api from '../../services/api';
 import { queryKeys } from '../../lib/queryClient';
@@ -57,6 +57,22 @@ const INK = '#111113';
 const CREAM = '#F7F6F2';
 const MUTE = '#9A9A9A';
 const HAIRLINE = '#E2E0DA';
+
+// F41: TaskGuide is presented as a page sheet on iOS (`presentation: 'modal'`),
+// which already starts below the status bar — the device's top inset is not
+// this page's, and adding it pushed content down / misplaced the pinned
+// controls. Space from the sheet's own top edge there; Android/web present it
+// full-screen, so they keep the safe-area inset.
+const SHEET_TOP = 12;
+function useSheetTopInset(): number {
+    const insets = useSafeAreaInsets();
+    return Platform.OS === 'ios' ? SHEET_TOP : insets.top;
+}
+
+/** Equipment goes under "Gear"; everything else is "What you'll use" (C5). */
+function isGear(it: TaskGuideIngredient): boolean {
+    return String(it?.kind || '').toLowerCase() === 'gear';
+}
 
 // One constant icon per program (same glossy art as Explore — shared map in
 // data/maxxThumbs.ts). Pinned top-right of the guide and identical for every
@@ -83,6 +99,9 @@ type RouteParams = {
         maxx?: string;
         schedule_id?: string;
         task_id?: string;
+        /** Optional: the task's time / length (else read from the day-state cache). */
+        time?: string;
+        duration_minutes?: number;
     };
 };
 
@@ -140,11 +159,21 @@ function initials(name: string): string {
 }
 
 // ── Ingredient card ──────────────────────────────────────────────────────────
-function IngredientCard({ item, index, stepN }: { item: TaskGuideIngredient; index: number; stepN: number }) {
+function IngredientCard({
+    item, index, stepN, onOtherOptions,
+}: {
+    item: TaskGuideIngredient;
+    index: number;
+    stepN: number;
+    /** Opens the Products tab on this product's need (its other options). */
+    onOtherOptions?: (need: string) => void;
+}) {
     const img = api.resolveAttachmentUrl(item.image);
     const tappable = !!item.url;
     const testID = `ingredient-card-${stepN}-${index}`;
-    const a11y = `Ingredient ${item.name}${item.note ? `, ${item.note}` : ''}`;
+    const strength = typeof item.strength === 'string' ? item.strength.trim() : '';
+    const a11y = `${item.name}${strength ? `, ${strength}` : ''}${item.note ? `, ${item.note}` : ''}`;
+    const need = typeof item.need === 'string' ? item.need.trim() : '';
     const Inner = (
         <View style={c.card}>
             <View style={c.tile}>
@@ -156,11 +185,22 @@ function IngredientCard({ item, index, stepN }: { item: TaskGuideIngredient; ind
             </View>
             <View style={c.cardText}>
                 <Text style={c.cardName} numberOfLines={2}>{item.name}</Text>
-                {item.note || item.price_usd ? (
+                {strength || item.note || item.price_usd ? (
                     <Text style={c.cardNote} numberOfLines={1}>
-                        {[item.note, item.price_usd ? `$${item.price_usd % 1 === 0 ? item.price_usd : item.price_usd.toFixed(2)}` : '']
+                        {[strength, item.note, item.price_usd ? `$${item.price_usd % 1 === 0 ? item.price_usd : item.price_usd.toFixed(2)}` : '']
                             .filter(Boolean).join(' · ')}
                     </Text>
+                ) : null}
+                {need && onOtherOptions ? (
+                    <TouchableOpacity
+                        onPress={() => onOtherOptions(need)}
+                        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                        accessibilityRole="link"
+                        accessibilityLabel={`Other options for ${item.generic_name || item.name}`}
+                        testID={`${testID}-options`}
+                    >
+                        <Text style={c.cardOptions}>Other options</Text>
+                    </TouchableOpacity>
                 ) : null}
             </View>
         </View>
@@ -207,6 +247,7 @@ const c = StyleSheet.create({
     cardText: { flex: 1 },
     cardName: { fontFamily: fonts.sansSemiBold, fontSize: 13.5, color: INK, lineHeight: 18 },
     cardNote: { fontFamily: fonts.sans, fontSize: 12, color: MUTE, marginTop: 3 },
+    cardOptions: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: INK, marginTop: 5, textDecorationLine: 'underline' },
 });
 
 // ── Left vertical progress rail ──────────────────────────────────────────────
@@ -228,7 +269,7 @@ const pr = StyleSheet.create({
 
 // ── One step page ────────────────────────────────────────────────────────────
 function StepPage({
-    step, index, total, height, scrollY, onWatch,
+    step, index, total, height, scrollY, onWatch, onOtherOptions,
 }: {
     step: TaskGuideStep;
     index: number;
@@ -236,8 +277,10 @@ function StepPage({
     height: number;
     scrollY: SharedValue<number>;
     onWatch: (url: string) => void;
+    onOtherOptions: (need: string) => void;
 }) {
     const insets = useSafeAreaInsets();
+    const topInset = useSheetTopInset();
     // Shorter instruction sizing on short screens (iPhone SE).
     const isSmall = height < 740;
     const top = index * height;
@@ -252,14 +295,17 @@ function StepPage({
         ],
     }));
 
-    const ingredients = step.ingredients ?? [];
+    // C5: consumables under "What you'll use", equipment under "Gear".
+    const all = Array.isArray(step.ingredients) ? step.ingredients : [];
+    const ingredients = all.filter((it) => !isGear(it));
+    const gear = [...(Array.isArray(step.gear) ? step.gear : []), ...all.filter(isGear)];
 
     return (
         <View style={[sp.page, { height }]} testID={`guide-step-${step.n}`} accessibilityLabel={`Step ${step.n}`}>
             {/* Watch ▶ pill — only when the step has a video */}
             {step.video ? (
                 <TouchableOpacity
-                    style={[sp.watch, { top: insets.top + 8 }]}
+                    style={[sp.watch, { top: topInset + 8 }]}
                     activeOpacity={0.85}
                     onPress={() => onWatch(step.video!)}
                     testID="guide-watch"
@@ -275,7 +321,7 @@ function StepPage({
                 visible/reachable on every device (SC5). The page itself never scrolls,
                 so full-screen swipe-to-page (SC6) is preserved. */}
             <Animated.View
-                style={[sp.content, { paddingTop: insets.top + 102, paddingBottom: insets.bottom + 20 }, contentStyle]}
+                style={[sp.content, { paddingTop: topInset + 102, paddingBottom: insets.bottom + 20 }, contentStyle]}
             >
                 <Text style={sp.kicker}>Step {padN(step.n)}</Text>
 
@@ -307,7 +353,7 @@ function StepPage({
                     <View
                         style={sp.ingredients}
                         testID={`guide-ingredients-${step.n}`}
-                        accessibilityLabel={`Ingredients for step ${step.n}`}
+                        accessibilityLabel={`What you'll use for step ${step.n}`}
                     >
                         <Text style={sp.ingredientsLabel}>What you'll use</Text>
                         <ScrollView
@@ -316,7 +362,26 @@ function StepPage({
                             contentContainerStyle={sp.ingredientsRow}
                         >
                             {ingredients.map((it, i) => (
-                                <IngredientCard key={`${it.name}-${i}`} item={it} index={i} stepN={step.n} />
+                                <IngredientCard key={`${it.name}-${i}`} item={it} index={i} stepN={step.n} onOtherOptions={onOtherOptions} />
+                            ))}
+                        </ScrollView>
+                    </View>
+                ) : null}
+
+                {gear.length > 0 ? (
+                    <View
+                        style={sp.ingredients}
+                        testID={`guide-gear-${step.n}`}
+                        accessibilityLabel={`Gear for step ${step.n}`}
+                    >
+                        <Text style={sp.ingredientsLabel}>Gear</Text>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={sp.ingredientsRow}
+                        >
+                            {gear.map((it, i) => (
+                                <IngredientCard key={`gear-${it.name}-${i}`} item={it} index={ingredients.length + i} stepN={step.n} onOtherOptions={onOtherOptions} />
                             ))}
                         </ScrollView>
                     </View>
@@ -360,6 +425,7 @@ const sp = StyleSheet.create({
 // ── Screen ───────────────────────────────────────────────────────────────────
 export default function TaskGuideScreen() {
     const insets = useSafeAreaInsets();
+    const topInset = useSheetTopInset();
     const { height: winH } = useWindowDimensions();
     const navigation = useNavigation<any>();
     const route = useRoute<RouteProp<RouteParams, 'TaskGuide'>>();
@@ -401,7 +467,24 @@ export default function TaskGuideScreen() {
     const unresolvable = needsResolve && !resolved && !fullQuery.isPending;
     const maxImg = maxxIcon(maxxId);
 
-    const { data: guide, isLoading, isError } = useTaskGuide(scheduleId ?? '', taskId ?? '');
+    // C5: the guide is keyed on the task's time + duration, so a retimed task
+    // refetches. Read them from the day-state cache (callers pass only ids);
+    // explicit params win when a caller sends them.
+    const cachedTiming = useMemo(
+        () => findTaskTiming(fullQuery.data, scheduleId, taskId),
+        [fullQuery.data, scheduleId, taskId],
+    );
+    const timing = p.time || p.duration_minutes
+        ? { time: p.time ?? cachedTiming?.time ?? null, duration_minutes: p.duration_minutes ?? cachedTiming?.duration_minutes ?? null }
+        : cachedTiming;
+    const { data: guide, isLoading, isError } = useTaskGuide(scheduleId ?? '', taskId ?? '', timing);
+
+    // F29: a product's "Other options" opens the Products tab on that need
+    // (its alternatives sheet). Navigating to the tab container pops this sheet.
+    const openOtherOptions = useCallback((need: string) => {
+        Haptics.selectionAsync().catch(() => {});
+        navigation.navigate('Main', { screen: 'Products', params: { need } });
+    }, [navigation]);
 
     const scrollY = useSharedValue(0);
     const lastPage = useRef(0);
@@ -432,8 +515,8 @@ export default function TaskGuideScreen() {
     // ── Loading / error ──────────────────────────────────────────────────────
     if (isLoading || resolving || isError || !guide) {
         return (
-            <View style={[s.screen, { paddingTop: insets.top }]}>
-                <CloseButton onPress={() => navigation.goBack()} top={insets.top} />
+            <View style={[s.screen, { paddingTop: topInset }]}>
+                <CloseButton onPress={() => navigation.goBack()} top={topInset} />
                 <View style={s.center}>
                     {isLoading || resolving ? (
                         <>
@@ -472,22 +555,25 @@ export default function TaskGuideScreen() {
                             height={pageH}
                             scrollY={scrollY}
                             onWatch={handleWatch}
+                            onOtherOptions={openOtherOptions}
                         />
                     ))}
                 </AnimatedScrollView>
             )}
 
             {/* Global ✕ — closes from any step */}
-            <CloseButton onPress={() => navigation.goBack()} top={insets.top} />
+            <CloseButton onPress={() => navigation.goBack()} top={topInset} />
 
             {/* Constant per-Max icon, pinned top-right. Rendered once at the
                 screen level so it never changes or moves between steps. */}
-            {maxImg ? <MaxBadge icon={maxImg} top={insets.top} /> : null}
+            {maxImg ? <MaxBadge icon={maxImg} top={topInset} /> : null}
 
             {/* Video modal (expo-video) */}
             <Modal visible={!!videoUrl} animationType="slide" onRequestClose={() => setVideoUrl(null)}>
                 <View style={s.videoModal}>
-                    <CloseButton onPress={() => setVideoUrl(null)} top={insets.top + 4} dark />
+                    {/* The video Modal is full-screen (not the sheet): it does
+                        sit under the status bar, so it keeps a real inset. */}
+                    <CloseButton onPress={() => setVideoUrl(null)} top={Math.max(insets.top, Platform.OS === 'ios' ? 44 : 0) + 4} dark />
                     {videoUrl ? (
                         <VideoView style={s.video} player={player} allowsFullscreen contentFit="contain" />
                     ) : null}

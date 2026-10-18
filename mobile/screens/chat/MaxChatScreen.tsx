@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { AppState, type AppStateStatus, View, Text, StyleSheet, TextInput, TouchableOpacity, Pressable, PanResponder, Animated, KeyboardAvoidingView, Platform, ActivityIndicator, Linking, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Pressable, PanResponder, Animated, KeyboardAvoidingView, Platform, ActivityIndicator, Linking, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +26,9 @@ import { usePaywallGate } from '../../hooks/usePaywallGate';
 import { useAuth } from '../../context/AuthContext';
 import { savePendingChat, loadPendingChat, clearPendingChat, newClientTurnId } from '../../lib/pendingChat';
 import { userFacingError } from '../../lib/userFacingError';
+import { classifySendFailure, probeOnline, watchReconnect, SEND_FAILURE_COPY, type SendFailure } from '../../lib/connectivity';
+import { normalizeChatTimes } from '../../lib/chatTimes';
+import { setOverlayUp } from '../../lib/overlayTurns';
 import { isBiohackProgramId, BIOHACK_PROGRAMS, BIOHACK_PROGRAM_BY_ID } from '../../utils/maxxDisplay';
 import { maxxThumbCut } from '../../data/maxxThumbs';
 import { Image as ExpoImage } from 'expo-image';
@@ -37,6 +40,16 @@ import { maxMeta } from '../../utils/scheduleAggregation';
 
 /** Copy for a send that failed for a reason the user can't act on. */
 const SEND_FAILED_COPY = 'Something went wrong. Try sending that again in a sec.';
+/** A failed message that won't go out by itself any more (replay cap hit, or
+ *  another message took the queue slot). */
+const NOT_SENT_COPY = 'Not sent. Tap to retry.';
+/** Automatic re-sends of one queued message, across reconnects and relaunches. */
+const MAX_AUTO_REPLAYS = 3;
+/** The celebration hold stays up this long after a reply finishes revealing. */
+const CHAT_HOLD_TAIL_MS = 1500;
+
+/** The row key a message's typewriter reveal is tracked under. */
+const msgKeyOf = (m: { id?: string; role: string; content: string }) => m.id ?? `local:${m.role}:${m.content}`;
 
 /** Widgets the chat knows how to render inline (slider question / habit picker). */
 function isRenderableWidget(w: any): boolean {
@@ -81,6 +94,15 @@ interface Message {
   blocks?: VisualBlock[];
   /** Per-method confidence, surfaced behind a small "i" button. */
   methodMetadata?: { methods: MethodConfidence[] } | null;
+  /** User turns: the per-turn id sent to the server. Stable across retries so
+   *  the server dedupes a replay instead of running the turn twice. */
+  clientTurnId?: string;
+  /** User turns that didn't go through: why (drives the copy + Retry). */
+  failed?: SendFailure;
+  /** A failed turn still queued to go out by itself when we're back online. */
+  autoRetry?: boolean;
+  /** What a failed turn carried, so a retry re-sends exactly that. */
+  sendMeta?: { initContext?: string; chatIntent?: string; forceNew?: boolean };
 }
 
 // Chips whose text means "my answer isn't here" — tapping one focuses the
@@ -394,6 +416,7 @@ const CG_INK = '#0D0D0D';
 const CG_USER_BUBBLE = '#F4F4F4';
 const CG_MUTE = '#8E8E93';
 const CG_ICON = '#5D5D5D';
+const CG_FAIL = '#C2410C';
 const HS = { top: 10, bottom: 10, left: 10, right: 10 };
 
 // "Thinking" — ChatGPT's shimmering placeholder while the reply is generated.
@@ -534,10 +557,10 @@ export default function MaxChatScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const gate = usePaywallGate();
-    // Owner of any pending (interrupted) send. A ref so the mount-time replay
-    // and the AppState listener read the CURRENT user, not the one captured
-    // at mount.
-    const { user } = useAuth();
+    // Owner of any pending (interrupted) send. A ref so the mount-time restore
+    // and the reconnect replay read the CURRENT user, not the one captured at
+    // mount.
+    const { user, refreshUser } = useAuth();
     const userId = user?.id ?? null;
     const userIdRef = useRef<string | null>(userId);
     userIdRef.current = userId;
@@ -548,6 +571,8 @@ export default function MaxChatScreen() {
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const chatHistoryQuery = useChatHistoryQuery(activeConversationId);
     const [messages, setMessages] = useState<Message[]>([]);
+    const messagesRef = useRef<Message[]>([]);
+    messagesRef.current = messages;
     /** Keys on the active conversation so switching threads forces a re-seed
      *  from the query data (prevents stale messages from the previous thread). */
     const [seededForConversation, setSeededForConversation] = useState<string | null>(null);
@@ -559,6 +584,8 @@ export default function MaxChatScreen() {
     const [setupProgram, setSetupProgram] = useState<string | null>(null);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const loadingRef = useRef(false);
+    loadingRef.current = loading;
     // Lets the Stop button cancel an in-flight reply. A fresh controller is
     // created per send; tapping Stop aborts it (axios throws a cancel error,
     // which the catch treats as a clean stop, not a failure).
@@ -610,6 +637,15 @@ export default function MaxChatScreen() {
     const shownMsgKeysRef = useRef<Set<string>>(new Set());
     // Bumped when a reveal finishes, so blocks gated on !animate render then.
     const [revealTick, setRevealTick] = useState(0);
+    // Keys whose typewriter reveal has FINISHED (shownMsgKeysRef marks the
+    // start). The answer affordances (chips, slider, picker, Yes/No) wait for
+    // this so they never appear under a question that is still typing out.
+    const revealDoneKeysRef = useRef<Set<string>>(new Set());
+    const markRevealDone = useCallback((key: string) => {
+        if (revealDoneKeysRef.current.has(key)) return;
+        revealDoneKeysRef.current.add(key);
+        setRevealTick((t) => t + 1);
+    }, []);
     /** Voice dictation (Web Speech API on web; keyboard-dictation fallback on native). */
     const [listening, setListening] = useState(false);
     const recognitionRef = useRef<any>(null);
@@ -620,7 +656,6 @@ export default function MaxChatScreen() {
     const transcribingRef = useRef(false);
     const initScheduleHandled = useRef(false);
     const initQuestionHandled = useRef<string | null>(null);
-    const appStateRef = useRef<AppStateStatus>(AppState.currentState);
     /** Prevents auto "start schedule" running before history fetch finishes (otherwise setMessages(history) wipes the optimistic user line). */
     const [historyReady, setHistoryReady] = useState(false);
 
@@ -759,15 +794,124 @@ export default function MaxChatScreen() {
         sendMessageWithContext(initQuestion);
     }, [route.params?.initQuestion, loading, historyReady]);
 
-    const sendMessageWithContext = async (msg: string, initContext?: string, chatIntent?: string, forceNewConversation?: boolean, turnId?: string) => {
+    // Schedule + maxes can change as a side effect of any chat turn (start a
+    // maxx, complete onboarding, schedule regenerated, …). By key, not by
+    // reference: queries restored from the persisted cache after a relaunch
+    // carry fresh array objects, so a `===` predicate never matched and Home
+    // kept showing "no habits" after a plan was built here. refetchType 'all'
+    // also refreshes the tabs that aren't focused right now (Home, Planner,
+    // Master Schedule) — invalidate alone (active only) was the cause of the
+    // "made a schedule but home/master didn't update" lag.
+    // C3: a turn that changed the day shape (wake/bed/windows/commitments/
+    // daily minutes) also refreshes the user (the planner sheet hydrates from
+    // it), the planner's day view and any open task guide.
+    const invalidateAfterTurn = (dayShapeChanged?: boolean) => {
+        for (const key of [queryKeys.schedulesActiveFull, queryKeys.activeSchedulesSummary, queryKeys.maxes]) {
+            queryClient.invalidateQueries({ queryKey: key, refetchType: 'all' });
+        }
+        if (dayShapeChanged) {
+            void refreshUser().catch(() => undefined);
+            queryClient.invalidateQueries({ queryKey: ['plannerToday'], refetchType: 'all' });
+            queryClient.invalidateQueries({ queryKey: ['taskGuide'] });
+        }
+    };
+
+    // ── Failed sends (F27) ────────────────────────────────────────────────
+    // A send that didn't go through keeps its user bubble, flagged `failed`,
+    // with copy for WHY (offline vs our side) and a tap-to-retry. A retry or
+    // an automatic replay re-sends the same text with the same clientTurnId and
+    // reuses that bubble — it never appends a second one.
+    const replayAttemptsRef = useRef<Map<string, number>>(new Map());
+    const stopReconnectRef = useRef<(() => void) | null>(null);
+    const replayPendingRef = useRef<() => Promise<void>>(async () => undefined);
+    useEffect(() => () => { stopReconnectRef.current?.(); stopReconnectRef.current = null; }, []);
+
+    /** Start watching for the API to come back (one watcher at a time). It
+     *  fires once per offline→online transition, never on a mere foreground. */
+    const armReconnect = () => {
+        if (stopReconnectRef.current) return;
+        stopReconnectRef.current = watchReconnect(() => {
+            stopReconnectRef.current = null;
+            void replayPendingRef.current();
+        });
+    };
+
+    /** Flag a user turn failed (dropping the typing bubble). */
+    const markTurnFailed = (turnId: string, failure: SendFailure, autoRetry: boolean) => {
+        setMessages((prev) => prev
+            .filter((m) => !m.isTyping)
+            // Only one message can sit in the auto-replay slot: any other
+            // queued bubble now needs a tap.
+            .map((m) => (m.clientTurnId === turnId
+                ? { ...m, failed: failure, autoRetry }
+                : m.autoRetry && autoRetry ? { ...m, autoRetry: false } : m)));
+    };
+
+    /** This send took the single queue slot and went through, so an older
+     *  queued bubble no longer goes out by itself: it now needs a tap. */
+    const releaseQueuedBubbles = () => {
+        setMessages((prev) => (prev.some((m) => m.autoRetry)
+            ? prev.map((m) => (m.autoRetry ? { ...m, autoRetry: false } : m))
+            : prev));
+    };
+
+    /** A retry / replay is starting: the bubble goes back to "sending". */
+    const markTurnSending = (turnId: string, typingMode: ChatTypingMode) => {
+        setMessages((prev) => [
+            ...prev.filter((m) => !m.isTyping).map((m) => (m.clientTurnId === turnId
+                ? { ...m, failed: undefined, autoRetry: undefined }
+                : m)),
+            { role: 'assistant', content: '', isTyping: true, typingMode },
+        ]);
+    };
+
+    /**
+     * Shared catch for both text send paths. Returns false when the server
+     * answered with a 4xx the user should read (the caller shows it as a
+     * reply). Otherwise the bubble is flagged: 'offline' stays queued and goes
+     * out by itself on reconnect (up to MAX_AUTO_REPLAYS), 'server' waits for a
+     * tap.
+     */
+    const handleRetryableFailure = async (
+        e: unknown,
+        turn: { clientTurnId: string; msg: string; initContext?: string; chatIntent?: string },
+    ): Promise<boolean> => {
+        const failure = await classifySendFailure(e);
+        if (!failure) return false;
+        const uid = userIdRef.current;
+        const attempts = replayAttemptsRef.current.get(turn.clientTurnId) ?? 0;
+        const autoRetry = failure === 'offline' && !!uid && attempts < MAX_AUTO_REPLAYS;
+        if (autoRetry && uid) {
+            await savePendingChat({
+                userId: uid, msg: turn.msg, initContext: turn.initContext, chatIntent: turn.chatIntent,
+                clientTurnId: turn.clientTurnId, attempts, at: Date.now(),
+            });
+            armReconnect();
+        } else {
+            await clearPendingChat();
+        }
+        markTurnFailed(turn.clientTurnId, failure, autoRetry);
+        return true;
+    };
+
+    const sendMessageWithContext = async (
+        msg: string,
+        initContext?: string,
+        chatIntent?: string,
+        forceNewConversation?: boolean,
+        turnId?: string,
+        opts?: { retry?: boolean },
+    ) => {
         const clientTurnId = turnId || newClientTurnId();
+        const retry = !!opts?.retry;
         if (!msg.trim() || loading) return;
         // Free tier: chat is paid — every send path (typed, chips, max-onboarding
         // auto-init) funnels through here, so one gate covers them all.
         if (gate('chat_send')) return;
         setLoading(true);
-        // Snapshot the current question affordances so a 5xx can restore them
-        // (the user isn't stranded on a dead chat with the chips/slider gone).
+        // Snapshot the current question affordances so a failed send can
+        // restore them (the user isn't stranded on a dead chat with the
+        // chips/slider gone).
         const prevChoices = serverChoices;
         const prevMulti = multiChoice;
         const prevWidget = inputWidget;
@@ -777,47 +921,59 @@ export default function MaxChatScreen() {
         // conversation id (so the request carries none and the backend creates a
         // dedicated thread) and clear the visible transcript so the new max's
         // intake doesn't render under the previous max's messages.
-        if (forceNewConversation) {
+        if (forceNewConversation && !retry) {
             setActiveConversationId(null);
             setSeededForConversation(null);
             setMessages([]);
         }
-        setMessages((prev) => [
-            ...prev,
-            { role: 'user', content: msg },
-            { role: 'assistant', content: '', isTyping: true, typingMode: pickTypingMode(msg, initContext, chatIntent) },
-        ]);
+        const typingMode = pickTypingMode(msg, initContext, chatIntent);
+        if (retry) {
+            markTurnSending(clientTurnId, typingMode);
+        } else {
+            setMessages((prev) => [
+                ...prev,
+                { role: 'user', content: msg, clientTurnId, sendMeta: { initContext, chatIntent, forceNew: !!forceNewConversation } },
+                { role: 'assistant', content: '', isTyping: true, typingMode },
+            ]);
+        }
         // Capture-then-clear the reply target before the request fires so a
         // subsequent send while this is in flight starts fresh.
-        const replyId = replyTarget?.id ?? undefined;
-        if (replyTarget) setReplyTarget(null);
+        const replyId = retry ? undefined : replyTarget?.id ?? undefined;
+        if (replyTarget && !retry) setReplyTarget(null);
         // Persist the in-flight message BEFORE the request fires. Previously the
         // pending blob was only written in the catch on a network error, so a
         // force-kill / OS-suspend that happened WHILE the request was in flight
         // (no catch ever runs) lost the message entirely. Writing it up front
-        // means the foreground retry below picks it up after any interruption.
-        // It's cleared the instant a response arrives; the only downside is that
-        // a kill in the tiny window after the server commits but before the
-        // clear could re-send (a duplicate user turn — far better than a lost one).
+        // means the next launch restores it (as a failed bubble) and replays it
+        // once. It's cleared the instant a response arrives; a kill in the tiny
+        // window after the server commits but before the clear replays the same
+        // clientTurnId, which the server dedupes.
         // Stamped with the user id so it can only ever replay under THIS account.
         if (userIdRef.current) {
-            await savePendingChat({ userId: userIdRef.current, msg, initContext, chatIntent, clientTurnId, at: Date.now() });
+            await savePendingChat({
+                userId: userIdRef.current, msg, initContext, chatIntent, clientTurnId,
+                attempts: replayAttemptsRef.current.get(clientTurnId) ?? 0, at: Date.now(),
+            });
         }
         try {
             abortRef.current = new AbortController();
-            const { response, choices, multi_choice, input_widget, products, conversation_id, visual_blocks, method_metadata } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, products, conversation_id, visual_blocks, method_metadata, day_shape_changed } = await api.sendChatMessage(
                 msg,
                 undefined,
                 undefined,
                 initContext,
                 chatIntent,
-                forceNewConversation ? undefined : await ensureThreadId(),
+                // A retried program opener still opens its own thread unless the
+                // first try already got one assigned.
+                forceNewConversation && (!retry || !activeConversationId) ? undefined : await ensureThreadId(),
                 replyId,
                 abortRef.current.signal,
                 clientTurnId,
             );
             // Committed server-side — drop the pending blob so it isn't re-sent.
             await clearPendingChat();
+            replayAttemptsRef.current.delete(clientTurnId);
+            releaseQueuedBubbles();
             // Adopt the server-assigned conversation on first message so the
             // mobile client stays aligned with backend routing (no second call).
             // CRITICAL: also bump seededForConversation in lockstep so the seed
@@ -864,122 +1020,162 @@ export default function MaxChatScreen() {
             }
             // Invalidate the conversations list so the sidebar reorders + renames.
             queryClient.invalidateQueries({ queryKey: queryKeys.chatConversations });
-            // Schedule + maxes can change as a side effect of any chat turn
-            // (start a maxx, complete onboarding, schedule regenerated, etc).
-            // refetchType:'all' forces *inactive* observers to refetch too,
-            // so when the user navigates to Master Schedule or Home next,
-            // they see the updated state immediately instead of the stale
-            // cached version. invalidate alone (active only) was the cause
-            // of the "made a schedule but home/master didn't update" lag.
-            queryClient.invalidateQueries({
-                queryKey: queryKeys.schedulesActiveFull,
-                refetchType: 'all',
-            });
-            queryClient.invalidateQueries({
-                queryKey: queryKeys.activeSchedulesSummary,
-                refetchType: 'all',
-            });
-            queryClient.invalidateQueries({
-                queryKey: queryKeys.maxes,
-                refetchType: 'all',
-            });
+            invalidateAfterTurn(!!day_shape_changed);
         } catch (e: any) {
             if (isAbortError(e)) {
                 // User tapped Stop: drop the typing bubble and clear the queued
-                // message so the foreground retry doesn't resend it.
+                // message so it isn't replayed later.
                 setMessages(prev => prev.filter((m) => !m.isTyping));
                 await clearPendingChat();
                 return;
             }
             console.error('sendMessageWithContext error:', e?.response?.data || e?.message || e);
-            const status = e?.response?.status;
-            const isServerError = typeof status === 'number' && status >= 500;
-            // On a 5xx, never surface the raw server detail (e.g. "Internal
-            // server error") and don't strand the user: show a friendly
-            // retryable line and restore the question chips/slider cleared at
-            // send-start so they can answer again. Everything else goes through
-            // userFacingError: only a short, plain 4xx `detail` written for
-            // users passes; a 422 array / "Network Error" / axios status text
-            // never renders as a bubble.
-            const serverMsg = isServerError ? undefined : userFacingError(e, SEND_FAILED_COPY);
-            // HTTP error => the server received and rejected this turn; clear the
-            // pre-persisted pending blob so it doesn't auto-retry a request that
-            // will just fail again (matches the prior "don't retry HTTP errors"
-            // behaviour). Network error / no response => LEAVE it queued so the
-            // foreground retry (trySendPending) resends when connectivity is back.
-            if (e?.response) {
-                await clearPendingChat();
-            }
-            setMessages(prev => [
-                ...prev.filter((m) => !m.isTyping),
-                {
-                    role: 'assistant',
-                    content: isServerError
-                        ? 'Hit a snag on my end — tap to resend that.'
-                        : (serverMsg || SEND_FAILED_COPY),
-                },
-            ]);
-            if (isServerError) {
+            // Offline / timeout / 5xx: the user bubble shows why + Retry (and an
+            // offline one goes out by itself on reconnect). The question chips/
+            // slider cleared at send-start come back so they can answer again.
+            if (await handleRetryableFailure(e, { clientTurnId, msg, initContext, chatIntent })) {
                 setServerChoices(prevChoices);
                 setMultiChoice(prevMulti);
                 setInputWidget(prevWidget);
+                return;
             }
+            // The server read this turn and rejected it (4xx): its short plain
+            // `detail` is written for users (userFacingError filters the rest).
+            // Not retryable, so drop the pending blob.
+            await clearPendingChat();
+            setMessages(prev => [
+                ...prev.filter((m) => !m.isTyping),
+                { role: 'assistant', content: userFacingError(e, SEND_FAILED_COPY) },
+            ]);
         } finally {
             setLoading(false);
         }
     };
 
-    // Always retry with the LATEST sendMessageWithContext (via a ref) so a
-    // recovered message targets the current conversation, not the null id
-    // captured at mount.
+    // Always send with the LATEST functions (via refs) so a recovered message
+    // targets the current conversation, not the null id captured at mount.
     const sendMessageRef = useRef(sendMessageWithContext);
     sendMessageRef.current = sendMessageWithContext;
+    // Assigned right after sendMessage is defined below.
+    const sendTypedRef = useRef<(preset?: unknown, opts?: { retryTurnId?: string }) => Promise<void>>(async () => undefined);
     const retryingRef = useRef(false);
 
-    // Retry any message that was queued while offline / interrupted mid-send.
-    useEffect(() => {
-        const trySendPending = async () => {
-            if (retryingRef.current) return; // don't stack concurrent retries
-            // User-scoped: a blob left by a previous account on this device is
-            // dropped by the loader, never replayed under this user.
-            const uid = userIdRef.current;
-            if (!uid) return;
-            const queued = await loadPendingChat(uid);
-            if (!queued?.msg) return;
-            // IMPORTANT: do NOT remove the blob here. sendMessageWithContext
-            // re-persists it before its request and clears it only on success
-            // (or HTTP rejection). If the send bails because another send is in
-            // flight, or fails again, the message stays queued for the next
-            // retry instead of being deleted-then-dropped (the old bug).
-            retryingRef.current = true;
-            try {
-                await sendMessageRef.current(queued.msg, queued.initContext, queued.chatIntent, undefined, queued.clientTurnId);
-            } finally {
-                retryingRef.current = false;
-            }
-        };
-        const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
-            const prev = appStateRef.current;
-            appStateRef.current = next;
-            if (prev.match(/inactive|background/) && next === 'active') {
-                void trySendPending();
-            }
-        });
-        // Also check on mount (cold start), and again if the signed-in user
-        // changes under a mounted screen.
-        void trySendPending();
-        return () => sub.remove();
-    }, [userId]);
+    /**
+     * Replay the queued message ONCE — called when the API comes back (an
+     * offline→online transition seen by the probe) or on launch when a probe
+     * says we're online. Never on a mere inactive→active app state change.
+     * Reuses the failed bubble (restoring it after a relaunch if the screen
+     * doesn't have it yet) and re-sends the same clientTurnId, so the server
+     * dedupes and no second user bubble is ever added.
+     */
+    /**
+     * Make sure the queued turn has a bubble, never a duplicate. After a
+     * relaunch the transcript came from the server: a matching last user line
+     * is adopted (false when it already has an answer after it — the turn went
+     * through before the kill); otherwise the queued line is shown as failed.
+     */
+    const ensureQueuedBubble = (queued: { msg: string; initContext?: string; chatIntent?: string; attempts?: number }, turnId: string, autoRetry: boolean): boolean => {
+        const cur = messagesRef.current;
+        if (cur.some((m) => m.clientTurnId === turnId)) return true;
+        let lastUserIdx = -1;
+        for (let i = cur.length - 1; i >= 0; i--) {
+            if (cur[i].role === 'user') { lastUserIdx = i; break; }
+        }
+        const lastUser = lastUserIdx >= 0 ? cur[lastUserIdx] : null;
+        if (lastUser && !lastUser.clientTurnId && lastUser.content === queued.msg) {
+            if (cur.slice(lastUserIdx + 1).some((m) => m.role === 'assistant' && !m.isTyping && !!m.content)) return false;
+            setMessages((prev) => prev.map((m) => (m === lastUser ? { ...m, clientTurnId: turnId, failed: 'offline', autoRetry } : m)));
+            return true;
+        }
+        setMessages((prev) => (prev.some((m) => m.clientTurnId === turnId) ? prev : [...prev, {
+            role: 'user', content: queued.msg, clientTurnId: turnId, failed: 'offline', autoRetry,
+            sendMeta: { initContext: queued.initContext, chatIntent: queued.chatIntent },
+        }]));
+        return true;
+    };
 
-    const sendMessage = async (presetArg?: unknown) => {
+    replayPendingRef.current = async () => {
+        if (retryingRef.current) return; // don't stack concurrent replays
+        // User-scoped: a blob left by a previous account on this device is
+        // dropped by the loader, never replayed under this user.
+        const uid = userIdRef.current;
+        if (!uid) return;
+        const queued = await loadPendingChat(uid);
+        if (!queued?.msg) return;
+        const turnId = queued.clientTurnId || newClientTurnId();
+        const attempts = queued.attempts ?? 0;
+        if (attempts >= MAX_AUTO_REPLAYS) {
+            // Cap reached: stop trying by itself; the bubble keeps a Retry tap.
+            await clearPendingChat();
+            setMessages((prev) => prev.map((m) => (m.clientTurnId === turnId ? { ...m, failed: m.failed ?? 'offline', autoRetry: false } : m)));
+            return;
+        }
+        if (loadingRef.current) {
+            // Another turn is in flight; try this same reconnect again shortly.
+            setTimeout(() => void replayPendingRef.current(), 3000);
+            return;
+        }
+        if (!ensureQueuedBubble(queued, turnId, true)) {
+            // The transcript already has this line answered: it went through
+            // before the kill — nothing to replay.
+            await clearPendingChat();
+            return;
+        }
+        replayAttemptsRef.current.set(turnId, attempts + 1);
+        retryingRef.current = true;
+        try {
+            // Same path it was first sent on: a typed turn (no context) goes
+            // back through sendMessage so a Yes/No proposal still renders.
+            if (queued.initContext || queued.chatIntent) {
+                await sendMessageRef.current(queued.msg, queued.initContext, queued.chatIntent, undefined, turnId, { retry: true });
+            } else {
+                await sendTypedRef.current(queued.msg, { retryTurnId: turnId });
+            }
+        } finally {
+            retryingRef.current = false;
+        }
+    };
+
+    // Launch / account switch: a message left queued by a kill or an offline
+    // send is restored as a failed bubble and replayed once if we can reach the
+    // API; otherwise it waits for the reconnect watcher. Runs after the
+    // history seed so the seed can't wipe the restored bubble.
+    const restoredForUserRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!userId || !historyReady || restoredForUserRef.current === userId) return;
+        restoredForUserRef.current = userId;
+        let cancelled = false;
+        void (async () => {
+            const queued = await loadPendingChat(userId);
+            if (cancelled || !queued?.msg) return;
+            if (await probeOnline()) {
+                if (!cancelled) await replayPendingRef.current();
+                return;
+            }
+            if (cancelled) return;
+            const turnId = queued.clientTurnId || newClientTurnId();
+            if (!ensureQueuedBubble(queued, turnId, (queued.attempts ?? 0) < MAX_AUTO_REPLAYS)) {
+                await clearPendingChat();
+                return;
+            }
+            if (!queued.clientTurnId) {
+                await savePendingChat({ ...queued, clientTurnId: turnId });
+            }
+            armReconnect();
+        })();
+        return () => { cancelled = true; };
+    }, [userId, historyReady]);
+
+    const sendMessage = async (presetArg?: unknown, opts?: { retryTurnId?: string }) => {
+        const retryTurnId = opts?.retryTurnId;
         const fromPreset = typeof presetArg === 'string' ? presetArg.trim() : '';
-        const fromInput = String(input ?? '').trim();
+        const fromInput = retryTurnId ? '' : String(input ?? '').trim();
         const userContent = fromPreset || fromInput;
         if (!userContent || loading) return;
         // Free tier: chat is paid — gate BEFORE loading state so nothing spins.
         if (gate('chat_send')) return;
         setLoading(true);
-        // Snapshot question affordances so a 5xx can restore them (see catch).
+        // Snapshot question affordances so a failed send can restore them (see catch).
         const prevChoices = serverChoices;
         const prevMulti = multiChoice;
         const prevWidget = inputWidget;
@@ -991,17 +1187,29 @@ export default function MaxChatScreen() {
         // the user's own line and the reply scroll into view even if they'd been
         // reading history above.
         isAtBottomRef.current = true;
-        setMessages(prev => [
-            ...prev,
-            { role: 'user', content: userContent },
-            { role: 'assistant', content: '', isTyping: true, typingMode: 'default' },
-        ]);
-        const replyId = replyTarget?.id ?? undefined;
-        if (replyTarget) setReplyTarget(null);
-        const typedTurnId = newClientTurnId();
+        const typedTurnId = retryTurnId || newClientTurnId();
+        if (retryTurnId) {
+            markTurnSending(typedTurnId, 'default');
+        } else {
+            setMessages(prev => [
+                ...prev,
+                { role: 'user', content: userContent, clientTurnId: typedTurnId },
+                { role: 'assistant', content: '', isTyping: true, typingMode: 'default' },
+            ]);
+        }
+        const replyId = retryTurnId ? undefined : replyTarget?.id ?? undefined;
+        if (replyTarget && !retryTurnId) setReplyTarget(null);
+        // Pre-persist (see sendMessageWithContext): a kill mid-request restores
+        // and replays this turn on the next launch instead of losing it.
+        if (userIdRef.current) {
+            await savePendingChat({
+                userId: userIdRef.current, msg: userContent, clientTurnId: typedTurnId,
+                attempts: replayAttemptsRef.current.get(typedTurnId) ?? 0, at: Date.now(),
+            });
+        }
         try {
             abortRef.current = new AbortController();
-            const { response, choices, multi_choice, input_widget, products, conversation_id, confirm, visual_blocks, method_metadata } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, products, conversation_id, confirm, visual_blocks, method_metadata, day_shape_changed } = await api.sendChatMessage(
                 userContent,
                 undefined,
                 undefined,
@@ -1012,6 +1220,9 @@ export default function MaxChatScreen() {
                 abortRef.current.signal,
                 typedTurnId,
             );
+            await clearPendingChat();
+            replayAttemptsRef.current.delete(typedTurnId);
+            releaseQueuedBubbles();
             // Adopt server-assigned conversation in lockstep so a refetch
             // doesn't clobber the optimistic turns (same race that hit
             // sendMessageWithContext for the start-schedule path).
@@ -1049,47 +1260,43 @@ export default function MaxChatScreen() {
                     conversationId: (conversation_id ?? activeConversationId) ?? null,
                 };
             });
-            // By key, not by reference: queries restored from the persisted
-            // cache after a relaunch carry fresh array objects, so a `===`
-            // predicate never matched and Home kept showing "no habits" after a
-            // plan was built here. refetchType 'all' also refreshes the tabs
-            // that aren't focused right now (Home, Planner).
-            for (const key of [queryKeys.schedulesActiveFull, queryKeys.activeSchedulesSummary, queryKeys.maxes]) {
-                queryClient.invalidateQueries({ queryKey: key, refetchType: 'all' });
-            }
+            invalidateAfterTurn(!!day_shape_changed);
         } catch (e: any) {
             if (isAbortError(e)) {
                 setMessages(prev => prev.filter((m) => !m.isTyping));
+                await clearPendingChat();
                 return;
             }
             console.error(e);
-            const status = e?.response?.status;
-            const isServerError = typeof status === 'number' && status >= 500;
-            // 5xx: friendly retryable line (never the raw "Internal server
-            // error" detail) + restore the chips/slider so the user isn't stuck.
-            // Other failures: user copy via userFacingError (see the other path).
-            const serverMsg = isServerError ? undefined : userFacingError(e, SEND_FAILED_COPY);
-            // No response at all (offline / killed connection): queue it for the
-            // foreground retry, scoped to this user.
-            if (!e?.response && userIdRef.current) {
-                await savePendingChat({ userId: userIdRef.current, msg: userContent, clientTurnId: typedTurnId, at: Date.now() });
-            }
-            setMessages(prev => [
-                ...prev.filter((m) => !m.isTyping),
-                {
-                    role: 'assistant',
-                    content: isServerError
-                        ? 'Hit a snag on my end — tap to resend that.'
-                        : (serverMsg || SEND_FAILED_COPY),
-                },
-            ]);
-            if (isServerError) {
+            // Offline / timeout / 5xx → failed bubble with Retry (offline ones
+            // replay by themselves on reconnect) + restore the chips/slider.
+            if (await handleRetryableFailure(e, { clientTurnId: typedTurnId, msg: userContent })) {
                 setServerChoices(prevChoices);
                 setMultiChoice(prevMulti);
                 setInputWidget(prevWidget);
+                return;
             }
+            // 4xx: user copy via userFacingError (see the other path).
+            await clearPendingChat();
+            setMessages(prev => [
+                ...prev.filter((m) => !m.isTyping),
+                { role: 'assistant', content: userFacingError(e, SEND_FAILED_COPY) },
+            ]);
         }
         finally { setLoading(false); }
+    };
+
+    sendTypedRef.current = sendMessage;
+
+    /** Tap on a failed bubble: re-send the same text + clientTurnId, same path. */
+    const retryTurn = (m: Message) => {
+        if (loading || !m.clientTurnId || !m.content?.trim()) return;
+        const meta = m.sendMeta ?? {};
+        if (meta.initContext || meta.chatIntent || meta.forceNew) {
+            void sendMessageWithContext(m.content, meta.initContext, meta.chatIntent, !!meta.forceNew, m.clientTurnId, { retry: true });
+        } else {
+            void sendMessage(m.content, { retryTurnId: m.clientTurnId });
+        }
     };
 
     // Yes → apply the EXACT stored proposal server-side (deterministic/idempotent),
@@ -1106,15 +1313,15 @@ export default function MaxChatScreen() {
             inputRef.current?.focus();
         }
         try {
-            const { message } = await api.confirmScheduleChange(proposal.proposal_id, decision);
+            const res = await api.confirmScheduleChange(proposal.proposal_id, decision);
+            const { message } = res;
             if (message) {
                 setMessages(prev => [...prev, { role: 'assistant', content: message, justArrived: true }]);
             }
             if (decision === 'yes') {
-                // The schedule changed — refetch everything the Planner/Home/Today read.
-                queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull, refetchType: 'all' });
-                queryClient.invalidateQueries({ queryKey: queryKeys.activeSchedulesSummary, refetchType: 'all' });
-                queryClient.invalidateQueries({ queryKey: queryKeys.maxes, refetchType: 'all' });
+                // The schedule changed — refetch everything the Planner/Home/Today
+                // read (and the user, if the change moved the day shape — C3).
+                invalidateAfterTurn(!!(res as { day_shape_changed?: boolean }).day_shape_changed);
             } else {
                 // Keep focus on the composer after the re-prompt bubble lands.
                 setTimeout(() => inputRef.current?.focus(), 50);
@@ -1127,6 +1334,39 @@ export default function MaxChatScreen() {
             setConfirmInFlight(false);
         }
     };
+
+    // F34: is the newest reply still typing out? Same reveal state the plan
+    // card / action row use (StreamingText's onDone). A safety timer covers a
+    // reveal that never mounts (user scrolled up, so the row isn't rendered):
+    // ~the typewriter's own duration, then the chips show anyway.
+    const lastMsg = messages[messages.length - 1];
+    const lastMsgKey = lastMsg ? msgKeyOf(lastMsg) : '';
+    const lastRevealing =
+        !!lastMsg && lastMsg.role === 'assistant' && !lastMsg.isTyping && !!lastMsg.justArrived &&
+        !!lastMsg.content?.trim() && !revealDoneKeysRef.current.has(lastMsgKey);
+    useEffect(() => {
+        if (!lastRevealing) return;
+        const len = lastMsg?.content?.length ?? 0;
+        const per = Math.max(2, Math.round(len / 200));
+        const ms = Math.min(6000, Math.ceil(len / per) * 18 + 1200);
+        const t = setTimeout(() => markRevealDone(lastMsgKey), ms);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lastMsgKey, lastRevealing, markRevealDone]);
+    const answersReady = !loading && !lastRevealing;
+
+    // F35: hold badge celebrations while the chat is answering — loading, or
+    // a reply (plan card included) still revealing — and for a beat after.
+    const chatBusy = loading || lastRevealing;
+    useEffect(() => {
+        if (chatBusy) {
+            setOverlayUp('chat', true);
+            return;
+        }
+        const t = setTimeout(() => setOverlayUp('chat', false), CHAT_HOLD_TAIL_MS);
+        return () => clearTimeout(t);
+    }, [chatBusy]);
+    useEffect(() => () => setOverlayUp('chat', false), []);
 
     const quickReplies = serverChoices
         .map((c) => (typeof c === 'string' ? c.trim() : String(c ?? '').trim()))
@@ -1208,9 +1448,7 @@ export default function MaxChatScreen() {
                 { role: 'assistant', content: `Updated your plan — ${parts.join(', ')}. Check the Schedule tab to see it.` },
             ]);
             // The plan changed — refresh the schedule-driven views.
-            queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull, refetchType: 'all' });
-            queryClient.invalidateQueries({ queryKey: queryKeys.activeSchedulesSummary, refetchType: 'all' });
-            queryClient.invalidateQueries({ queryKey: queryKeys.maxes, refetchType: 'all' });
+            invalidateAfterTurn(false);
         } catch (e: any) {
             setInputWidget(null);
             setMessages((prev) => [
@@ -1249,7 +1487,7 @@ export default function MaxChatScreen() {
             }
             const uploadRes = await api.uploadChatFile(formData);
             abortRef.current = new AbortController();
-            const { response, choices, multi_choice, input_widget, products, conversation_id, visual_blocks, method_metadata } = await api.sendChatMessage(
+            const { response, choices, multi_choice, input_widget, products, conversation_id, visual_blocks, method_metadata, day_shape_changed } = await api.sendChatMessage(
                 caption || 'What do you think of this?',
                 uploadRes.url,
                 'image',
@@ -1291,6 +1529,7 @@ export default function MaxChatScreen() {
                 });
             }
             queryClient.invalidateQueries({ queryKey: queryKeys.chatConversations });
+            if (day_shape_changed) invalidateAfterTurn(true);
         } catch (e: any) {
             if (isAbortError(e)) {
                 setMessages((prev) => prev.filter((m) => !m.isTyping));
@@ -1423,7 +1662,8 @@ export default function MaxChatScreen() {
     }
 
     const renderMessage = ({ item, index }: { item: Message; index: number }) => {
-        if (programThread && item.role === 'user' && PROGRAM_OPENER_RE.test(String(item.content || '').trim())) {
+        // (A failed opener stays visible: it carries the Retry.)
+        if (programThread && item.role === 'user' && !item.failed && PROGRAM_OPENER_RE.test(String(item.content || '').trim())) {
             return null;
         }
         if (item.isTyping) {
@@ -1440,7 +1680,9 @@ export default function MaxChatScreen() {
         // Products are returned structured (item.products) and rendered as
         // preview cards; the prose no longer carries inline links.
         const productCards = isAssistant ? (item.products ?? []) : [];
-        const displayText = item.content;
+        // F40: one clock style ("8:00 AM") in the coach's prose; the user's own
+        // words are shown exactly as typed.
+        const displayText = isAssistant ? normalizeChatTimes(item.content) : item.content;
         const canReply = !!item.id; // optimistic turns have no real id yet
         const isLast = index === messages.length - 1;
 
@@ -1468,7 +1710,7 @@ export default function MaxChatScreen() {
             // Animate ONCE: only a freshly-arrived last message that hasn't
             // already revealed. The shown-key guard survives FlashList row
             // recycling so scrolling away and back never replays the reveal.
-            const msgKey = item.id ?? `local:${item.role}:${item.content}`;
+            const msgKey = msgKeyOf(item);
             const animate =
                 !!item.justArrived && isLast && !loading && !shownMsgKeysRef.current.has(msgKey);
             const content = (
@@ -1481,7 +1723,7 @@ export default function MaxChatScreen() {
                             plainStyle={cg.assistantText}
                             renderRich={(t) => renderLinkedText(t, [cg.assistantText])}
                             onShown={() => shownMsgKeysRef.current.add(msgKey)}
-                            onDone={() => setRevealTick((t) => t + 1)}
+                            onDone={() => markRevealDone(msgKey)}
                         />
                     ) : null}
                     {productCards.length > 0 && (
@@ -1517,15 +1759,40 @@ export default function MaxChatScreen() {
             return <ReplySwipeableRow onCommit={commitReply}>{content}</ReplySwipeableRow>;
         }
 
-        // User: light-gray rounded bubble, right-aligned.
-        const userBlock = (
-            <View style={cg.userRow}>
-                <View style={cg.userBubble}>
-                    {replyQuote}
-                    {displayText ? <Text style={cg.userText}>{displayText}</Text> : null}
-                    {image}
-                </View>
+        // User: light-gray rounded bubble, right-aligned. A turn that didn't go
+        // through says why under the bubble, and the whole row taps to retry.
+        const failedCopy = item.failed
+            ? (item.failed === 'offline' && item.autoRetry ? SEND_FAILURE_COPY.offline
+                : item.failed === 'server' ? SEND_FAILURE_COPY.server
+                : NOT_SENT_COPY)
+            : null;
+        const bubble = (
+            <View style={[cg.userBubble, failedCopy ? cg.userBubbleFailed : null]}>
+                {replyQuote}
+                {displayText ? <Text style={cg.userText}>{displayText}</Text> : null}
+                {image}
             </View>
+        );
+        const userBlock = failedCopy ? (
+            <Pressable
+                style={cg.userRowFailed}
+                onPress={() => retryTurn(item)}
+                disabled={loading}
+                accessibilityRole="button"
+                accessibilityLabel={`Message not sent. ${failedCopy}`}
+                accessibilityHint="Sends it again"
+                testID="chat-failed-retry"
+            >
+                {bubble}
+                <View style={cg.failedRow}>
+                    <Ionicons name="alert-circle" size={13} color={CG_FAIL} />
+                    <Text style={cg.failedText}>{failedCopy}</Text>
+                    {/* The other copies already say "Tap to retry". */}
+                    {item.failed === 'offline' && item.autoRetry ? <Text style={cg.failedRetry}>Retry</Text> : null}
+                </View>
+            </Pressable>
+        ) : (
+            <View style={cg.userRow}>{bubble}</View>
         );
         if (!canReply) return userBlock;
         return <ReplySwipeableRow onCommit={commitReply}>{userBlock}</ReplySwipeableRow>;
@@ -1679,6 +1946,10 @@ export default function MaxChatScreen() {
                             if (isAtBottomRef.current) flatListRef.current?.scrollToEnd({ animated: false });
                         }}
                         showsVerticalScrollIndicator={false}
+                        // Dragging the transcript drops the keyboard; a tap on a
+                        // chip/link inside it still lands (Avni).
+                        keyboardDismissMode="on-drag"
+                        keyboardShouldPersistTaps="handled"
                         ListEmptyComponent={ListEmpty}
                     />
                 )}
@@ -1707,7 +1978,7 @@ export default function MaxChatScreen() {
                     {/* Numeric question → slider widget. Mutually exclusive with
                         the quick-reply chip row below: when the backend asks
                         for a number it sends `input_widget`, not `choices`. */}
-                    {!loading && inputWidget && inputWidget.type === 'slider' && (
+                    {answersReady && inputWidget && inputWidget.type === 'slider' && (
                         <View style={styles.quickReplyStack}>
                             <ChatSliderInput
                                 spec={inputWidget}
@@ -1716,7 +1987,7 @@ export default function MaxChatScreen() {
                         </View>
                     )}
                     {/* Per-max habit picker → shown right after a schedule is built. */}
-                    {!loading && inputWidget && inputWidget.type === 'habit_picker' && (
+                    {answersReady && inputWidget && inputWidget.type === 'habit_picker' && (
                         <View style={styles.quickReplyStack}>
                             <ChatHabitPicker
                                 spec={inputWidget}
@@ -1727,7 +1998,7 @@ export default function MaxChatScreen() {
                         </View>
                     )}
                     {/* Schedule-change confirm: Yes applies the proposal, No re-prompts. */}
-                    {!loading && pendingConfirm && (
+                    {answersReady && pendingConfirm && (
                         <View style={styles.confirmRow}>
                             <TouchableOpacity
                                 testID="chat-confirm-yes"
@@ -1755,7 +2026,7 @@ export default function MaxChatScreen() {
                             </TouchableOpacity>
                         </View>
                     )}
-                    {!loading && !pendingConfirm && !inputWidget && quickReplies.length > 0 && !multiChoice && (
+                    {answersReady && !pendingConfirm && !inputWidget && quickReplies.length > 0 && !multiChoice && (
                         <ScrollView
                             style={styles.quickReplyScroll}
                             contentContainerStyle={styles.quickReplyStackInner}
@@ -1792,7 +2063,7 @@ export default function MaxChatScreen() {
                             })}
                         </ScrollView>
                     )}
-                    {!loading && !inputWidget && quickReplies.length > 0 && multiChoice && (
+                    {answersReady && !inputWidget && quickReplies.length > 0 && multiChoice && (
                         <View style={styles.quickReplyStack}>
                             <ScrollView
                                 style={styles.quickReplyScrollMulti}
@@ -2315,6 +2586,11 @@ const cg = StyleSheet.create({
     caret: { color: CG_INK },
 
     userRow: { alignItems: 'flex-end', marginBottom: 10, paddingHorizontal: 4 },
+    userRowFailed: { alignItems: 'flex-end', marginBottom: 10, paddingHorizontal: 4 },
+    userBubbleFailed: { opacity: 0.7 },
+    failedRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5, maxWidth: '90%' },
+    failedText: { fontSize: 12, color: CG_MUTE, flexShrink: 1 },
+    failedRetry: { fontSize: 12, fontWeight: '600', color: CG_FAIL, marginLeft: 2 },
     userBubble: { maxWidth: '84%', backgroundColor: CG_USER_BUBBLE, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 11 },
     userText: { fontSize: 16, lineHeight: 23, color: CG_INK },
 

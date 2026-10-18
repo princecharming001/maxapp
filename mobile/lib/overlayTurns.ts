@@ -7,14 +7,18 @@
  * "want a ping at 9:30?" card. Each surface now publishes whether it is up (or
  * about to be), and each waits for the other.
  *
+ * 'chat' is not an overlay but a hold: MaxChatScreen raises it while a reply
+ * is loading or still revealing (and ~1.5 s after), so a badge earned by the
+ * plan being built never pops over the plan as it streams in.
+ *
  * A tiny external store (no React context, so the app-level host and the Home
  * screen can share it without a provider) read via useSyncExternalStore.
  */
 import { useSyncExternalStore } from 'react';
 
-export type OverlayName = 'celebration' | 'primer';
+export type OverlayName = 'celebration' | 'primer' | 'chat';
 
-const state: Record<OverlayName, boolean> = { celebration: false, primer: false };
+const state: Record<OverlayName, boolean> = { celebration: false, primer: false, chat: false };
 const listeners = new Set<() => void>();
 
 export function setOverlayUp(name: OverlayName, up: boolean): void {
@@ -47,5 +51,6 @@ export function useOverlayUp(name: OverlayName): boolean {
 export function __resetOverlayTurns(): void {
     state.celebration = false;
     state.primer = false;
+    state.chat = false;
     listeners.clear();
 }

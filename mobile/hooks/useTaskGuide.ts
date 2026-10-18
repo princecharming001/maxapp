@@ -19,6 +19,13 @@ export type TaskGuideIngredient = {
     asin?: string;
     price_usd?: number | null;
     rating?: number | null;
+    /** C5: the Products-tab need id this product fills ("Other options" opens it). */
+    need?: string;
+    /** C5: dose/strength of this product ("1 mg"), when it has one. */
+    strength?: string | null;
+    /** 'gear' for equipment (bottles, masks…) — listed under "Gear", not
+     *  "What you'll use". Absent = a consumable. */
+    kind?: string;
 };
 
 export type TaskGuideStep = {
@@ -33,6 +40,8 @@ export type TaskGuideStep = {
     video?: string | null;
     /** Items used in this step, resolved per-user. */
     ingredients?: TaskGuideIngredient[];
+    /** C5: equipment for this step, shown under "Gear". */
+    gear?: TaskGuideIngredient[];
 };
 
 export type TaskGuide = {
@@ -64,10 +73,30 @@ export function isTaskGuideUnavailableError(e: unknown): boolean {
     return !!e && typeof e === 'object' && (e as { code?: unknown }).code === TASK_GUIDE_UNAVAILABLE;
 }
 
+/** When the task happens. C5: the server regenerates a guide when the task's
+ *  time or duration changes, so both are part of the cache key — a retimed
+ *  task is a different key and refetches instead of showing the old guide. */
+export type TaskGuideTiming = { time?: string | null; duration_minutes?: number | null };
+
 /** The ONE cache key for a task's guide — shared by the screen hook and the boot
  *  prefetch so both read/write the same entry. */
-export const taskGuideQueryKey = (scheduleId: string, taskId: string) =>
-    ['taskGuide', scheduleId, taskId] as const;
+export const taskGuideQueryKey = (scheduleId: string, taskId: string, timing?: TaskGuideTiming | null) =>
+    ['taskGuide', scheduleId, taskId, String(timing?.time ?? ''), Number(timing?.duration_minutes) || 0] as const;
+
+/** The task's time/duration from the cached /schedules/active/full payload. */
+export function findTaskTiming(data: any, scheduleId?: string, taskId?: string): TaskGuideTiming | null {
+    if (!scheduleId || !taskId) return null;
+    const schedules: any[] = Array.isArray(data?.schedules) ? data.schedules : [];
+    const sched = schedules.find((s) => String(s?.id) === String(scheduleId));
+    for (const d of (Array.isArray(sched?.days) ? sched.days : []) as any[]) {
+        for (const t of (Array.isArray(d?.tasks) ? d.tasks : []) as any[]) {
+            if (String(t?.task_id ?? '') === String(taskId)) {
+                return { time: t?.time ?? null, duration_minutes: t?.duration_minutes ?? null };
+            }
+        }
+    }
+    return null;
+}
 
 /** The ONE queryFn for a task's guide (screen + prefetch). Throws on the
  *  server's `unavailable` placeholder so React Query keeps it out of the data
@@ -90,9 +119,13 @@ export function taskGuideStaleTime(data: TaskGuide | undefined): number {
     return data?.degraded ? 0 : Infinity;
 }
 
-export function useTaskGuide(scheduleId: string, taskId: string) {
+export function useTaskGuide(scheduleId: string, taskId: string, timing?: TaskGuideTiming | null) {
     return useQuery<TaskGuide>({
-        queryKey: taskGuideQueryKey(scheduleId, taskId),
+        queryKey: taskGuideQueryKey(scheduleId, taskId, timing),
+        // The key also changes when the task's timing first becomes known
+        // (day-state loaded after the screen opened): keep showing what we
+        // have while that refetches instead of flashing the spinner.
+        placeholderData: (prev) => prev,
         queryFn: () => fetchTaskGuide(scheduleId, taskId),
         staleTime: (q) => taskGuideStaleTime(q.state.data),
         // An `unavailable` answer is deterministic (the task id is gone from the

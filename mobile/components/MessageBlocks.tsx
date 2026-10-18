@@ -14,6 +14,7 @@ import LiquidGlass from './glass/LiquidGlass';
 import type { VisualBlock } from '../services/api';
 import { Image as ExpoImage } from 'expo-image';
 import { maxxThumbCut } from '../data/maxxThumbs';
+import { formatTime12 } from '../lib/chatTimes';
 
 const INK = colors.foreground;      // #111113
 const SUB = colors.textSecondary;   // #555
@@ -206,12 +207,23 @@ function ChecklistBlock({ block }: { block: VisualBlock }) {
     );
 }
 
-// "5am" / "5:30pm" → "5:00 AM" / "5:30 PM" (anything else passes through).
+// "5am" / "17:30" → "5:00 AM" / "5:30 PM" — the app's one clock style
+// (lib/chatTimes). Anything else passes through.
 function clockLabel(v: any): string {
-    const t = txt(v).trim();
-    const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i.exec(t);
-    if (!m) return t;
-    return `${m[1]}:${m[2] ?? '00'} ${m[3].toUpperCase()}`;
+    return formatTime12(txt(v));
+}
+
+/** "30 min weekdays · 45 min weekends", or "30 min a day" when they match or
+ *  the backend predates the split (C2: total_minutes == weekday minutes). */
+export function planMinutesLabel(d: any): string {
+    const wd = Number(d?.weekday_minutes);
+    const we = Number(d?.weekend_minutes);
+    const hasSplit = Number.isFinite(wd) && Number.isFinite(we) && d?.weekday_minutes != null && d?.weekend_minutes != null;
+    if (hasSplit && Math.round(wd) !== Math.round(we)) {
+        return `${Math.round(wd)} min weekdays · ${Math.round(we)} min weekends`;
+    }
+    const perDay = hasSplit ? Math.round(wd) : Number(d?.total_minutes) || 0;
+    return perDay > 0 ? `${perDay} min a day` : '';
 }
 
 // An AI program's plan (Sleepmax, …): one calm card — program icon + name,
@@ -281,17 +293,26 @@ function PlanBlock({ block, onLevel }: { block: VisualBlock; onLevel?: (l: PlanL
     if (!items.length) return null;
     const accent = /^#[0-9a-f]{6}$/i.test(txt(d.color)) ? txt(d.color) : CHAT_INK;
     const thumb = maxxThumbCut(txt(d.program));
-    const perDay = Number(d.total_minutes) || 0;
+    const minutesLabel = planMinutesLabel(d);
     return (
         <View style={s.planCard}>
             <View style={s.planHead}>
                 {thumb ? <ExpoImage source={thumb} style={s.planIcon} contentFit="contain" /> : null}
-                <Text style={s.planTitle} numberOfLines={1}>{txt(block.title) || 'Your plan'}</Text>
-                {perDay > 0 ? <Text style={s.planMeta}>{perDay} min a day</Text> : null}
+                <View style={s.planHeadText}>
+                    <Text style={s.planTitle} numberOfLines={1}>{txt(block.title) || 'Your plan'}</Text>
+                    {minutesLabel ? <Text style={s.planMeta} numberOfLines={1}>{minutesLabel}</Text> : null}
+                </View>
             </View>
             {items.map((it, i) => {
                 const last = i === items.length - 1;
-                const mins = Number(it.minutes) || 0;
+                // C1/C2: a rule is a boundary (0 min, nothing to tick) and a
+                // setup item happens once — neither gets a "N min" label as if
+                // it were a daily task.
+                const kind = txt(it.kind).toLowerCase();
+                const isRule = kind === 'rule';
+                const isSetup = kind === 'setup';
+                const mins = isRule ? 0 : Number(it.minutes) || 0;
+                const tag = isRule ? 'rule' : isSetup ? 'once' : '';
                 const sub = [mins ? `${mins} min` : '', txt(it.days)].filter(Boolean).join(' · ');
                 return (
                     <View key={i} style={s.planRow}>
@@ -302,7 +323,16 @@ function PlanBlock({ block, onLevel }: { block: VisualBlock; onLevel?: (l: PlanL
                         </View>
                         <View style={[s.planBody, !last && s.planBodyGap]}>
                             <Text style={s.planHabit}>{txt(it.title)}</Text>
-                            {sub ? <Text style={s.planSub}>{sub}</Text> : null}
+                            {tag || sub ? (
+                                <View style={s.planSubRow}>
+                                    {tag ? (
+                                        <View style={s.planTag}>
+                                            <Text style={s.planTagText}>{tag}</Text>
+                                        </View>
+                                    ) : null}
+                                    {sub ? <Text style={s.planSub}>{sub}</Text> : null}
+                                </View>
+                            ) : null}
                         </View>
                     </View>
                 );
@@ -364,8 +394,9 @@ const s = StyleSheet.create({
         borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: HAIR,
     },
     planIcon: { width: 26, height: 26 },
-    planTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: CHAT_INK, letterSpacing: -0.2 },
-    planMeta: { fontSize: 12.5, color: CHAT_MUTE, fontVariant: ['tabular-nums'] },
+    planHeadText: { flex: 1 },
+    planTitle: { fontSize: 15, fontWeight: '600', color: CHAT_INK, letterSpacing: -0.2 },
+    planMeta: { fontSize: 12.5, color: CHAT_MUTE, fontVariant: ['tabular-nums'], marginTop: 2 },
     planRow: { flexDirection: 'row' },
     planTime: { width: 70, fontSize: 13, color: CHAT_INK, fontWeight: '500', fontVariant: ['tabular-nums'], paddingTop: 1 },
     planRail: { width: 16, alignItems: 'center' },
@@ -374,7 +405,13 @@ const s = StyleSheet.create({
     planBody: { flex: 1, paddingLeft: 6 },
     planBodyGap: { paddingBottom: 14 },
     planHabit: { fontSize: 15, color: CHAT_INK, lineHeight: 20 },
-    planSub: { fontSize: 12.5, color: CHAT_MUTE, marginTop: 2 },
+    planSub: { fontSize: 12.5, color: CHAT_MUTE },
+    planSubRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' },
+    planTag: {
+        paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4,
+        borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.18)',
+    },
+    planTagText: { fontSize: 11, color: CHAT_MUTE, letterSpacing: 0.2 },
     planFoot: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
         marginTop: 12, paddingTop: 10,
