@@ -419,6 +419,8 @@ class ScheduleService:
             raise ValueError("Schedule not found")
         schedule.is_active = False
         schedule.updated_at = datetime.utcnow()
+        from services.ai_programs import scrub_peptide_details
+        scrub_peptide_details(schedule)
         await db.commit()
         try:
             from services.gcal_mirror import kick_gcal_mirror
@@ -440,9 +442,11 @@ class ScheduleService:
         schedules = result.scalars().all()
         if not schedules:
             return None
+        from services.ai_programs import scrub_peptide_details
         for schedule in schedules:
             schedule.is_active = False
             schedule.updated_at = datetime.utcnow()
+            scrub_peptide_details(schedule)
         await db.commit()
         try:
             from services.gcal_mirror import kick_gcal_mirror
@@ -1109,6 +1113,8 @@ class ScheduleService:
                     carried_ctx[k] = v
             sched.is_active = False
             sched.updated_at = datetime.utcnow()
+            from services.ai_programs import scrub_peptide_details
+            scrub_peptide_details(sched)
         # NOTE: do NOT commit here. The deactivation must land in the SAME
         # transaction as the new INSERT below (single commit at the end) so a
         # crash/DB error between them can never leave the user with the old

@@ -507,6 +507,11 @@ async def next_intake_step(maxx_id: str, profile: dict, answers: dict, asked: li
         # a fixed screen: goals, safety, meds, age, sex, gaps, current stack
         from services import supp_intake
         return supp_intake.next_question(answers, asked, profile)
+    if maxx_id == PEPTIDE_PROGRAM:
+        # the protocol check: consent, age, situation, each peptide's label,
+        # class-specific screens, prescriber awareness, label confirmation
+        from services import peptide_intake
+        return peptide_intake.next_question(answers, asked, profile)
     from services import program_quiz
     if maxx_id in program_quiz.QUIZ_PROGRAMS:
         # every question in the program's doc, in order, minus what's known
@@ -632,6 +637,15 @@ async def build_plan(
         from services import skin_routine
         raw = skin_routine.build_template(answers or {}, started_on=_local_today(profile))
         tmpl = validate_template(maxx_id, {**raw, "level": level}, profile, others=other_plans)
+        return tmpl if tmpl["habits"] else None
+    if maxx_id == PEPTIDE_PROGRAM and not request:
+        # who gets what is decided by rules, never by the model (no invented doses)
+        from services import peptide_intake
+        raw = peptide_intake.build_template(answers or {}, profile, started_on=_local_today(profile).isoformat(),
+                                            runs_fitmax="trainmax" in (other_plans or {}))
+        tmpl = validate_template(maxx_id, {**raw, "level": level}, profile, others=other_plans,
+                                 keep_ids={h["habit_id"] for h in raw["habits"]})
+        tmpl["summary"] = raw["summary"]
         return tmpl if tmpl["habits"] else None
     budget_total = int(_level_profile(profile, level).get("minutes_per_day_total") or 25)
     used = _other_minutes_per_day(other_plans)
@@ -970,7 +984,8 @@ def _fit_caps(maxx_id: str, habits: list[dict]) -> tuple[set, int]:
         return synced, len(synced) + 2
     if maxx_id == PEPTIDE_PROGRAM:
         doses = {h["habit_id"] for h in habits if str(h.get("habit_id", "")).startswith("custom_dose")}
-        return doses, len(doses) + 3
+        required = {h["habit_id"] for h in habits if h.get("_required")}
+        return doses | required, len(doses | required) + 3
     if maxx_id == "skinhairmax":
         # the AM and PM routines ARE the program; scalp steps ride along
         return {h["habit_id"] for h in habits if h["habit_id"] in ("am_routine", "pm_routine")}, 4
@@ -1021,6 +1036,10 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
                              for k, v in h["variants"].items() if isinstance(v, dict)},
                 "schedule": h.get("schedule") or []} if isinstance(h.get("variants"), dict) else {}),
             **({"_required": True} if hid in (keep_ids or set()) else {}),
+            **({"weeks": sorted({int(w) for w in h["weeks"] if str(w).isdigit() and int(w) > 0})}
+               if isinstance(h.get("weeks"), list) and h["weeks"] else {}),
+            **({"every_weeks": int(h["every_weeks"])} if str(h.get("every_weeks") or "").isdigit()
+               and int(h["every_weeks"]) > 1 else {}),
         })
         seen.add(hid)
     protected, cap = _fit_caps(maxx_id, habits)
@@ -1052,7 +1071,7 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
         **({"parked": parked_out} if parked_out else {}),
         "fit_for": ai_fit.fit_signature(ai_fit.day_models(profile)),
         "fit_notes": notes,
-        **{k: raw[k] for k in ("started_on", "skin_profile") if raw.get(k)},
+        **{k: raw[k] for k in ("started_on", "skin_profile", "peptide_profile") if raw.get(k)},
         **({"level": level} if level != "balanced" else {}),
         "built_at": datetime.utcnow().isoformat(),
     }
@@ -1067,7 +1086,7 @@ def refit_template(maxx_id: str, tmpl: dict, profile: dict, others: Optional[dic
         rebuilt = skin_routine.build_template(tmpl.get("answers") or {}, started_on=_local_today(profile))
         tmpl = {**tmpl, **rebuilt, "answers": tmpl.get("answers") or {}}
     out = validate_template(maxx_id, tmpl, profile, others=others)
-    for k in ("answers", "declined", "built_at", "started_on", "skin_profile"):
+    for k in ("answers", "declined", "built_at", "started_on", "skin_profile", "peptide_profile"):
         if k in tmpl:
             out[k] = tmpl[k]
     out["summary"] = tmpl.get("summary") or out.get("summary") or ""
@@ -1218,6 +1237,67 @@ def _local_today(profile: dict) -> date:
         return date.today()
 
 
+def _peptide_guard(new: dict, current: dict) -> dict:
+    """A chat change to Peptidemax can move times or lighten support habits,
+    but dose reminders are exactly the ones the protocol check approved: a
+    request can't add a peptide (that goes through the check again) or drop
+    one silently, and their wording stays the label-first wording."""
+    approved = {h["habit_id"]: h for h in current.get("habits") or []
+                if str(h.get("habit_id", "")).startswith("custom_dose")}
+    habits = []
+    for h in new.get("habits") or []:
+        hid = str(h.get("habit_id", ""))
+        if hid.startswith("custom_dose"):
+            if hid not in approved:
+                continue
+            h = {**h, "how": approved[hid].get("how") or h.get("how"), "title": approved[hid].get("title") or h.get("title")}
+        habits.append(h)
+    have = {h.get("habit_id") for h in habits}
+    habits += [dict(h) for hid, h in approved.items() if hid not in have]
+    out = {**new, "habits": habits}
+    for k in ("peptide_profile", "started_on"):
+        if current.get(k):
+            out[k] = current[k]
+    return out
+
+
+def scrub_peptide_details(sched) -> None:
+    """Peptidemax answers are consumer health data (Washington's My Health My
+    Data Act and friends). When its plan stops or is replaced, keep only what
+    the streak and XP history count (task times and statuses), and drop the
+    answers, the decision, and every task's drug names and reasons."""
+    if getattr(sched, "maxx_id", None) != PEPTIDE_PROGRAM:
+        return
+    sc = dict(sched.schedule_context or {})
+    plan = sc.get("ai_plan") or {}
+    sc["ai_plan"] = {"scrubbed": True, "started_on": plan.get("started_on")}
+    sc.pop("summary", None)
+    sched.schedule_context = sc
+    sched.days = [
+        {**day, "tasks": [{**task, "title": "Peptidemax task", "description": "", "why": "",
+                           "catalog_id": f"{PEPTIDE_PROGRAM}.task"} for task in (day.get("tasks") or [])]}
+        for day in (sched.days or [])
+    ]
+
+
+def _plan_week(started_on, d: date) -> int:
+    """1 for the plan's first 7 days, 2 for the next 7, ... (1 when unknown)."""
+    try:
+        start = date.fromisoformat(str(started_on)[:10])
+    except (TypeError, ValueError):
+        return 1
+    return max(1, (d - start).days // 7 + 1)
+
+
+def _in_plan_week(h: dict, week_no: int) -> bool:
+    """A habit limited to some weeks ('weeks': [1]) or a cadence ('every_weeks': 4,
+    i.e. weeks 1, 5, 9...). Both set = either one. Neither = every week."""
+    weeks, every = h.get("weeks"), h.get("every_weeks")
+    if not weeks and not every:
+        return True
+    return bool((weeks and week_no in weeks) or (every and (week_no - 1) % int(every) == 0))
+
+
 def expand_template(maxx_id: str, tmpl: dict, *, start_date: date, n_days: int = AI_PLAN_DAYS) -> list[dict]:
     """Template → dated day dicts in the persisted task shape. Pure."""
     days: list[dict] = []
@@ -1225,8 +1305,11 @@ def expand_template(maxx_id: str, tmpl: dict, *, start_date: date, n_days: int =
         d = start_date + timedelta(days=i)
         wd = WEEKDAYS[d.weekday()]
         tasks = []
+        week_no = _plan_week(tmpl.get("started_on"), d)
         for h in tmpl.get("habits") or []:
             if wd not in (h.get("days") or []):
+                continue
+            if not _in_plan_week(h, week_no):
                 continue
             t = h.get("weekend_time") if wd in ("sat", "sun") and h.get("weekend_time") else h.get("time")
             v = _routine_variant(h, d, tmpl.get("started_on")) or {}
@@ -1815,6 +1898,7 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
     for prior in res.scalars().all():
         prior.is_active = False
         prior.updated_at = datetime.utcnow()
+        scrub_peptide_details(prior)
 
     row = UserSchedule(
         user_id=UUID(user_id), schedule_type="maxx", maxx_id=maxx_id,
@@ -2052,6 +2136,8 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db, *,
         else:
             tmpl = _lighten(maxx_id, tmpl, current, profile, others)
     tmpl["answers"] = current.get("answers") or {}
+    if maxx_id == PEPTIDE_PROGRAM:
+        tmpl = _peptide_guard(tmpl, current)
     if maxx_id == SUPP_PROGRAM:
         # A synced pick the user just asked to drop stays dropped on later syncs.
         new_ids = {h.get("habit_id") for h in tmpl.get("habits") or []}
@@ -2230,8 +2316,13 @@ def plan_reply(maxx_id: str, tmpl: dict, *, redo: bool = False, include_summary:
         maxx_id, tmpl,
         note="Updated on your Home and Planner" if redo else "Added to your Home and Planner",
     ))
-    parts.append("does this feel like enough? slide it lighter or ask for more below, or tell me anything "
-                 "else to change.")
+    if maxx_id == PEPTIDE_PROGRAM:
+        parts.append("anything here different from your label, or did your prescriber change something? tell me "
+                     "and i'll update it. severe belly pain, trouble breathing, swelling or a hot, spreading "
+                     "injection site: get care now.")
+    else:
+        parts.append("does this feel like enough? slide it lighter or ask for more below, or tell me anything "
+                     "else to change.")
     return "\n\n".join(parts)
 
 
@@ -2400,6 +2491,14 @@ async def chat_turn(
     answers = pending.get("answers") or {}
     await merge_context(user_id, {INTAKE_KEY: None}, db)
     await db.commit()
+    if mid == PEPTIDE_PROGRAM:
+        from services import peptide_intake
+        # the one outside check an app can make: is the compounding pharmacy registered?
+        answers = await peptide_intake.check_registry(answers)
+        blocked = peptide_intake.blocked_reply(peptide_intake.decide(answers, profile))
+        if blocked:
+            # nothing is built, and (no consent) nothing they said is kept
+            return blocked, [], False
     built = await create_program_schedule(user_id, mid, db, answers=answers)
     if built is None:
         # Keep the answers so a retry doesn't re-ask.

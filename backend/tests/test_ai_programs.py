@@ -704,8 +704,11 @@ async def test_intake_known_fact_question_is_retried_then_dropped(monkeypatch):
         return {"done": False, "ack": "", "question": "how much later do you wake on weekends?",
                 "options": ["same", "1h"], "fact_key": "weekend"}
     monkeypatch.setattr(ap, "_claude_tool", fake)
-    # (the six habit programs use fixed quizzes now; Claude still runs Peptidemax's intake)
-    step = await ap.next_intake_step("peptidemax", {"wake_time": "07:00"}, {"a": "b"}, [{"question": "x"}])
+    # every program has a fixed quiz now (Peptidemax: the protocol check), so
+    # route one back through the Claude intake to keep its retry covered
+    from services import program_quiz
+    monkeypatch.setattr(program_quiz, "QUIZ_PROGRAMS", set(program_quiz.QUIZ_PROGRAMS) - {"sleepmax"})
+    step = await ap.next_intake_step("sleepmax", {"wake_time": "07:00"}, {"a": "b"}, [{"question": "x"}])
     assert step["done"] is True and len(calls) == 2
     assert calls[1]["rejected_question"].startswith("how much later")
 
