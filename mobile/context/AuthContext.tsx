@@ -11,6 +11,7 @@ import api, { subscribeAuthLost, subscribeEntitlementLost } from '../services/ap
 import { clearOnboardingDraft } from '../lib/onboardingDraft';
 import { clearPendingChat } from '../lib/pendingChat';
 import { clearRestoredTab } from '../lib/navState';
+import { queryKeys } from '../lib/queryClient';
 import { clearTodayWidget } from '../lib/widgetSync';
 import { loadFreeTierChoice, saveFreeTierChoice, clearFreeTierChoice } from '../lib/freeTier';
 import {
@@ -459,11 +460,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
+    // Sign-in into an existing account swaps the whole navigator (guest or
+    // funnel stack -> Main). Without this the new stack mounted onto an empty
+    // cache and painted a blank white Home while its first fetches ran (often
+    // seconds), then jumped to the restored tab. Warm what Main paints first
+    // BEFORE flipping the user, so the swap lands on a filled screen; the
+    // sign-in button's spinner covers the wait. Bounded, best-effort.
+    const userIdRef = useRef<string | null>(null);
+    useEffect(() => { userIdRef.current = user?.id ? String(user.id) : null; }, [user?.id]);
+    const primeSignedIn = useCallback(async (next: User) => {
+        if (userIdRef.current && String(next.id) !== userIdRef.current) {
+            // another account's (e.g. the anon funnel's) cached data must never show
+            queryClient.clear();
+        }
+        if (!(next?.is_paid && next?.onboarding?.completed === true)) return;
+        const warm = Promise.allSettled([
+            queryClient.prefetchQuery({ queryKey: queryKeys.schedulesActiveFull, queryFn: () => api.getActiveSchedulesFull() }),
+            queryClient.prefetchQuery({ queryKey: queryKeys.maxes, queryFn: () => api.getMaxxes() }),
+        ]);
+        await Promise.race([warm, new Promise((r) => setTimeout(r, 6000))]);
+    }, [queryClient]);
+
     const login = useCallback(async (identifier: string, password: string) => {
         await api.login(identifier, password);
         const userData = await getMeResilient();
+        await primeSignedIn(userData);
         setUser(userData);
-    }, [getMeResilient]);
+    }, [getMeResilient, primeSignedIn]);
 
     const signup = useCallback(
         async (email: string, password: string, first_name: string, last_name: string, username: string, phone_number?: string) => {
@@ -571,9 +594,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signInWithGoogle = useCallback(async (idToken: string) => {
         await api.googleSignIn(idToken);
         const userData = await getMeResilient();
+        await primeSignedIn(userData);
         setUser(userData);
         return userData;
-    }, []);
+    }, [getMeResilient, primeSignedIn]);
 
     const signInWithGoogleDev = useCallback(async (email: string, name?: string) => {
         await api.googleSignInDev(email, name);
@@ -588,9 +612,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ) => {
         await api.appleSignIn(identityToken, opts);
         const userData = await getMeResilient();
+        await primeSignedIn(userData);
         setUser(userData);
         return userData;
-    }, []);
+    }, [getMeResilient, primeSignedIn]);
 
     const logout = useCallback(async () => {
         await api.clearTokens();
