@@ -486,7 +486,7 @@ async def get_task_guide_endpoint(
 ):
     """
     Return a step-by-step how-to guide for a specific schedule task.
-    Generated once via LLM (grounded on maxx protocols) and cached indefinitely.
+    Per user and per scheduled instance (time, minutes, day shape); cached 30 days.
     """
     try:
         guide = await get_task_guide(
