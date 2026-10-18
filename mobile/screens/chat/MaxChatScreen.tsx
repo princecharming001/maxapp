@@ -404,7 +404,7 @@ function ProgramSetupCard({ programId }: { programId: string }) {
             <Text style={cg.setupEyebrow}>SETTING UP</Text>
             <Text style={cg.setupTitle}>{p.label}</Text>
             <Text style={cg.setupBody}>
-                I already know your day. A few quick taps, then I'll build {p.label} around you.
+                I'll use the wake, bed and work times you set. A few quick questions about {p.label.toLowerCase()}, then I'll build it around your day.
             </Text>
         </View>
     );

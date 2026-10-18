@@ -332,7 +332,11 @@ def _from_min(m: int) -> str:
 # Facts about the person any program may ask once and every program then reuses
 # (first_meal_style: the fit puts "protein at your first meal" at lunch for
 # people who skip breakfast).
-ABOUT_KEYS = ("age_band", "sex", "first_meal_style")
+# Facts any program's quiz asks once and every program reuses (beta 1, F33:
+# Energymax asked about caffeine minutes after Sleepmax did, then set a 4:15 pm
+# cutoff for someone whose last caffeine is before noon)
+ABOUT_KEYS = ("age_band", "sex", "first_meal_style", "caffeine_last_time", "caffeine_pattern",
+              "drinks_alcohol", "evening_screens", "sitting_hours")
 
 
 def _window(w) -> Optional[list[str]]:
@@ -775,7 +779,7 @@ async def build_plan(
             h.pop("priority", None)      # this list's order IS the priority
     out["level"] = level
     from services import program_quiz
-    skip = program_quiz.skip_ids(maxx_id, answers or {})
+    skip = program_quiz.skip_ids(maxx_id, {**((profile or {}).get("about") or {}), **(answers or {})})
     if skip and not request:
         # simple habits they already do: the plan adds something new instead
         kept = [h for h in out.get("habits") or [] if not (isinstance(h, dict) and h.get("habit_id") in skip)]
@@ -783,6 +787,8 @@ async def build_plan(
             out["habits"] = kept
     # every plan knows its week 1, so setups, cycles and trials can count weeks
     out["started_on"] = str((current_plan or {}).get("started_on") or _local_today(profile).isoformat())[:10]
+    if (current_plan or {}).get("declined"):
+        out["declined"] = list(current_plan["declined"])
     tmpl = validate_template(maxx_id, out, profile, others=other_plans,
                              keep_ids=set(sync_required or []))
     if not tmpl["habits"]:
@@ -1063,6 +1069,8 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
             continue
         if hid not in lib and not hid.startswith("custom_"):
             continue
+        if hid in set(raw.get("declined") or []) and hid not in (keep_ids or set()):
+            continue            # the person removed it; a rebuild never brings it back
         days = [d for d in WEEKDAYS if d in (h.get("days") or [])]
         if not days:
             continue
@@ -1138,7 +1146,7 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
         **({"parked": parked_out} if parked_out else {}),
         "fit_for": ai_fit.fit_signature(ai_fit.day_models(profile)),
         "fit_notes": notes,
-        **{k: raw[k] for k in ("started_on", "skin_profile", "peptide_profile") if raw.get(k)},
+        **{k: raw[k] for k in ("started_on", "skin_profile", "peptide_profile", "declined", "accepted") if raw.get(k)},
         **({"level": level} if level != "balanced" else {}),
         "built_at": datetime.utcnow().isoformat(),
     }
@@ -2165,6 +2173,13 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
         return None
     tmpl["answers"] = answers
     tmpl = await sync_summary(maxx_id, tmpl, profile)
+    if maxx_id != PEPTIDE_PROGRAM:
+        cleaned = strip_unsupported_claims(tmpl.get("summary") or "", answers, profile)
+        tmpl["summary"] = cleaned or plain_summary(tmpl)
+    if maxx_id == "sleepmax":
+        note = _short_night_note(profile)
+        if note:
+            tmpl["summary"] = (tmpl.get("summary") or "").rstrip() + "\n\n" + note
 
     today = local_today_date(state)
     # Same pipeline as regenerate_active_schedules (so a fresh plan and its
@@ -2389,7 +2404,7 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db, *,
         tmpl = skin
     else:
         tmpl = await build_plan(maxx_id, profile, current.get("answers") or {}, others,
-                                current_plan={k: current.get(k) for k in ("summary", "habits", "started_on")},
+                                current_plan={k: current.get(k) for k in ("summary", "habits", "started_on", "declined")},
                                 request=request, level=level)
         if tmpl is not None:
             _keep_routines(tmpl, current)
@@ -2414,7 +2429,7 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db, *,
         # fit undid: ask once more with the reason, then cut it ourselves.
         retry = await build_plan(
             maxx_id, profile, current.get("answers") or {}, others,
-            current_plan={k: current.get(k) for k in ("summary", "habits", "started_on")},
+            current_plan={k: current.get(k) for k in ("summary", "habits", "started_on", "declined")},
             request=(f"{request}. (Your last version was not lighter once each habit's minimum minutes "
                      "were applied. Make it lighter by removing a habit or some days, never by shortening "
                      "a habit below its minimum.)"),
@@ -2425,6 +2440,8 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db, *,
         else:
             tmpl = _lighten(maxx_id, tmpl, current, profile, others)
     tmpl["answers"] = current.get("answers") or {}
+    if current.get("declined") and maxx_id != SUPP_PROGRAM:
+        tmpl["declined"] = sorted(set(current.get("declined") or []) | set(tmpl.get("declined") or []))
     if maxx_id == PEPTIDE_PROGRAM:
         tmpl = _peptide_guard(tmpl, current)
     if maxx_id == SUPP_PROGRAM:
@@ -2643,6 +2660,73 @@ def redo_reply(maxx_id: str, tmpl: dict, changes: list[dict]) -> str:
     return plan_reply(maxx_id, tmpl, redo=True, include_summary=False, note=lead)
 
 
+# Claims about the person a summary may only make when their answers or day
+# say so (beta 1, F6: "working late into the night on short sleep" from
+# answers that mentioned neither)
+_CLAIMS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"short sleep|not (getting|sleeping) enough|sleep(ing)? too little|sleep[- ]deprived|under-?slept", re.I),
+     "short_sleep"),
+    (re.compile(r"late (into the )?nights?|working late|night owl|up late|stay(ing)? up late", re.I), "late"),
+    (re.compile(r"\bstress(ed|ful)?\b|\banxious|\banxiety", re.I), "stress"),
+    (re.compile(r"skip(ping)? breakfast|no breakfast|don'?t eat breakfast", re.I), "no_breakfast"),
+    (re.compile(r"drink(ing)? (a lot|heavily|most nights|every night)|heavy drink", re.I), "drinks"),
+    (re.compile(r"\bshift work|night shifts?\b", re.I), "shift"),
+]
+
+
+def _claim_supported(kind: str, answers: dict, profile: dict) -> bool:
+    text = " ".join(str(v) for v in list((answers or {}).values())
+                    + list(((profile or {}).get("about") or {}).values())).lower()
+    wake = _to_min(_hm(profile.get("wake_time"), "07:00"))
+    bed = _to_min(_hm(profile.get("bed_time"), "23:00"))
+    night = (wake - bed) % 1440
+    if kind == "short_sleep":
+        return 0 < night < 7 * 60
+    if kind == "late":
+        return 60 <= bed < 360 or bool(re.search(r"\blate\b|evening", text)) and "screen" in text
+    if kind == "stress":
+        return bool(re.search(r"stress|anx|overwhelm|tense", text))
+    if kind == "no_breakfast":
+        return bool(re.search(r"coffee only|later in the day|skip", text))
+    if kind == "drinks":
+        return bool(re.search(r"3\+ nights|most nights|every night", text))
+    if kind == "shift":
+        return "shift" in text
+    return True
+
+
+def strip_unsupported_claims(summary: str, answers: dict, profile: dict) -> str:
+    """The summary without sentences that state things about the person they
+    never said."""
+    if not summary:
+        return summary
+    parts = re.split(r"(?<=[.!?])\s+", summary.strip())
+    keep = []
+    for s in parts:
+        bad = [k for rx, k in _CLAIMS if rx.search(s) and not _claim_supported(k, answers, profile)]
+        if not bad:
+            keep.append(s)
+            continue
+        # keep the plan part of a sentence that opened with an invented picture
+        tail = re.split(r"\b(?:this plan|your plan|so (?:this|the) plan|the plan)\b", s, maxsplit=1, flags=re.I)
+        if len(tail) == 2 and not any(rx.search(tail[1]) for rx, _ in _CLAIMS):
+            keep.append(("this plan" + tail[1]).strip())
+    return " ".join(keep).strip()
+
+
+def _short_night_note(profile: dict) -> str:
+    wake = _to_min(_hm(profile.get("wake_time"), "07:00"))
+    bed = _to_min(_hm(profile.get("bed_time"), "23:00"))
+    night = (wake - bed) % 1440
+    if 0 < night < 7 * 60:
+        h, m = divmod(night, 60)
+        return (f"heads up: bed at {_pretty_time(_hm(profile.get('bed_time'), '23:00'))} and up at "
+                f"{_pretty_time(_hm(profile.get('wake_time'), '07:00'))} leaves {h} h{f' {m} min' if m else ''} "
+                "for sleep, and most adults need 7 or more. if either time is off, fix it in planner settings or "
+                "tell me your real wake and bed times.")
+    return ""
+
+
 def _pretty_time(hm: str) -> str:
     try:
         h, m = (int(x) for x in hm.split(":"))
@@ -2819,8 +2903,8 @@ async def chat_turn(
         if is_opener and typed_start:
             # A Start tap opens the program's own thread, where the app shows a
             # setup card that already says this; only a typed start needs it.
-            lead = (f"let's set up {program_label(mid).lower()}. i already know your day, so just "
-                    f"{'a couple' if MAX_INTAKE_QUESTIONS > 1 else 'one'} quick things.\n\n")
+            lead = (f"let's set up {program_label(mid).lower()}. i'll use the wake, bed and work times you set, "
+                    "so these are only about this program.\n\n")
         elif step["ack"]:
             lead = step["ack"].rstrip() + "\n\n"
         return lead + step["question"], step["options"], step["multi"]

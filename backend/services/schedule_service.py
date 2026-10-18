@@ -3396,6 +3396,18 @@ class ScheduleService:
         ctx = dict(schedule.schedule_context or {})
         ctx["wanted_catalog_ids"] = wanted
         ctx["avoided_catalog_ids"] = avoided
+        plan = ctx.get("ai_plan")
+        if isinstance(plan, dict) and plan.get("habits") is not None:
+            # An AI program's removal lives in the plan itself, so a later
+            # rebuild or sync can't quietly bring it back (the avoided list is
+            # cleared by a redo).
+            gone = {c.split(".", 1)[1] for c in avoided if "." in c and c.split(".", 1)[0] == schedule.maxx_id}
+            if gone:
+                plan = dict(plan)
+                plan["habits"] = [h for h in plan["habits"] if h.get("habit_id") not in gone]
+                plan["declined"] = sorted(set(plan.get("declined") or []) | gone)
+                plan["accepted"] = sorted(set(plan.get("accepted") or []) - gone)
+                ctx["ai_plan"] = plan
         schedule.schedule_context = ctx
         flag_modified(schedule, "schedule_context")
         schedule.updated_at = datetime.utcnow()

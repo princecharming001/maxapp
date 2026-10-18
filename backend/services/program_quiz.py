@@ -124,8 +124,8 @@ def next_question(maxx_id: str, answers: dict, asked: list, profile: Optional[di
         key = q["fact_key"]
         if key in asked_keys or str(answers.get(key) or "").strip():
             continue
-        if q.get("shared") and str(about.get(key) or "").strip():
-            continue
+        if (q.get("shared") or key in _shared_keys()) and str(about.get(key) or "").strip():
+            continue            # another program already asked it
         if asks_known_fact(q["question"]):
             continue
         n = len(asked or [])
@@ -145,6 +145,20 @@ def already_doing(maxx_id: str, answers: dict) -> set[str]:
     return out
 
 
+def _shared_keys() -> set[str]:
+    from services.ai_programs import ABOUT_KEYS
+    return set(ABOUT_KEYS)
+
+
+_EARLY_OR_NO_CAFFEINE = re.compile(r"before noon|don'?t have caffeine|^none$|no caffeine", re.I)
+
+
 def skip_ids(maxx_id: str, answers: dict) -> set[str]:
-    """Habits to leave out: simple ones they already do (training ones level up instead)."""
-    return already_doing(maxx_id, answers) - ALREADY_LEVEL_UP
+    """Habits to leave out: simple ones they already do (training ones level up
+    instead), and a caffeine cutoff for someone whose caffeine already stops by
+    noon or who has none (a 4:15 pm cutoff for them contradicted their answer)."""
+    out = already_doing(maxx_id, answers) - ALREADY_LEVEL_UP
+    caff = " ".join(str((answers or {}).get(k) or "") for k in ("caffeine_last_time", "caffeine_pattern")).strip()
+    if caff and any(_EARLY_OR_NO_CAFFEINE.search(p.strip()) for p in caff.split("  ") + [caff]):
+        out.add("caffeine_cutoff")
+    return out
