@@ -1051,7 +1051,7 @@ def _fit_caps(maxx_id: str, habits: list[dict]) -> tuple[set, int]:
 
 
 def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optional[dict] = None,
-                      keep_ids: Optional[set] = None) -> dict:
+                      keep_ids: Optional[set] = None, refit: bool = False) -> dict:
     """Repair Claude's plan into something always schedulable: library ids
     only (or an explicit custom_), valid weekdays, human text, sane minutes —
     then fit it to the person's real day and the rest of their stack
@@ -1115,6 +1115,11 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
     protected, cap = _fit_caps(maxx_id, habits)
     level = plan_level(raw)
     cap = _level_cap(cap, protected, level)
+    if refit:
+        # the week-1 cap shapes a NEW plan; re-fitting a stored one (another
+        # program started, the day changed) never drops a habit they already have
+        cap = max(cap, len([h for h in habits if (lib.get(h["habit_id"]) is None
+                                                  or not lib[h["habit_id"]].is_rule)]))
     # (text is reconciled with the FINAL times after the fit, below)
     parked_in = [p for p in raw.get("parked") or []
                  if isinstance(p, dict) and (p.get("habit_id") in lib or str(p.get("habit_id", "")).startswith("custom_"))
@@ -1160,7 +1165,7 @@ def refit_template(maxx_id: str, tmpl: dict, profile: dict, others: Optional[dic
         from services import skin_routine
         rebuilt = skin_routine.build_template(tmpl.get("answers") or {}, started_on=_local_today(profile))
         tmpl = {**tmpl, **rebuilt, "answers": tmpl.get("answers") or {}}
-    out = validate_template(maxx_id, tmpl, profile, others=others)
+    out = validate_template(maxx_id, tmpl, profile, others=others, refit=True)
     for k in ("answers", "declined", "accepted", "built_at", "started_on", "skin_profile", "peptide_profile"):
         if k in tmpl:
             out[k] = tmpl[k]

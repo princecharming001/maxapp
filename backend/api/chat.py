@@ -1563,6 +1563,13 @@ def _looks_like_informational_question(text: str) -> bool:
     return False
 
 
+def _is_plain_question(text: str) -> bool:
+    """'what time do i wake up?' asks; 'can you move my wake to 8?' requests."""
+    t = (text or "").lower().strip()
+    return bool(re.match(r"(what|when|why|how|which|where|who|is|are|do|does|did|am|was)\b", t)) and \
+        not re.search(r"\b(can|could|would|will) you\b|\bplease\b", t)
+
+
 def _user_requests_schedule_change(text: str) -> bool:
     """
     True when the user is clearly asking to change wake/sleep/times on an existing schedule.
@@ -1570,7 +1577,7 @@ def _user_requests_schedule_change(text: str) -> bool:
     """
     if not text or len(text.strip()) < 15:
         return False
-    if _looks_like_informational_question(text):
+    if _looks_like_informational_question(text) or _is_plain_question(text):
         return False
     t = text.lower()
     change_intent = any(
@@ -1613,6 +1620,11 @@ def _looks_like_schedule_mutation_request(text: str) -> bool:
         return False
     t = text.lower().strip()
     if len(t) < 6:
+        return False
+    # a question about the plan is not a request to change it ("what time do i
+    # wake up?" got "tell me what to change" in beta 1)
+    if re.match(r"(what|when|why|how|which|where|who|is|are|do|does|did|am|was)\b", t) and \
+            not re.search(r"\b(can|could|would|will) you\b|\bplease\b", t):
         return False
     schedule_objs = ("schedule", "task", "tasks", "routine", "today")
     mutation_ops = (

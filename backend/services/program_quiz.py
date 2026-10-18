@@ -126,6 +126,8 @@ def next_question(maxx_id: str, answers: dict, asked: list, profile: Optional[di
             continue
         if (q.get("shared") or key in _shared_keys()) and str(about.get(key) or "").strip():
             continue            # another program already asked it
+        if any(str(about.get(k) or answers.get(k) or "").strip() for k in SAME_TOPIC.get(key, ())):
+            continue            # the same topic was already covered (one caffeine question per person)
         if asks_known_fact(q["question"]):
             continue
         n = len(asked or [])
@@ -143,6 +145,10 @@ def already_doing(maxx_id: str, answers: dict) -> set[str]:
         if label.lower() in raw:
             out |= set(ids)
     return out
+
+
+# questions that cover the same topic as one already answered elsewhere
+SAME_TOPIC = {"caffeine_pattern": ("caffeine_last_time",), "caffeine_last_time": ("caffeine_pattern",)}
 
 
 def _shared_keys() -> set[str]:

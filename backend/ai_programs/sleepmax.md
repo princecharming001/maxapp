@@ -34,7 +34,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - frequency: daily
 - tier: core
 - why: Bright light early in the day is the main signal that sets the body clock and supports earlier, easier sleep onset.
-- how: 1) Step outside within an hour of waking (after your glass of water, if that is in your plan), even if it is cloudy. 2) Walk, have your coffee, or commute on foot for 5–15 min. 3) Do not stare at the sun; sunglasses off if comfortable and safe.
+- how: 1) Step outside within an hour of waking (after your glass of water, if that is in your plan); on cloudy days stay toward the longer end. 2) Walk, have your coffee, or commute on foot for 5–15 min. 3) Do not stare at the sun; sunglasses off if comfortable and safe.
 - conflicts/synergies: Same habit as EnergyMax `morning_light`; schedule once and credit both. When EnergyMax `water_on_waking` is also on, water comes first and light follows; neither has to happen before everything else. Pairs with CalmMax outdoor walk.
 - source: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6751071/
 

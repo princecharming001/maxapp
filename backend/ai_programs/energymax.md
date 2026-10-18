@@ -35,7 +35,7 @@ Check with a professional first:
 - frequency: daily
 - tier: core
 - why: Daytime bright light supports alertness and sets the body clock, which helps both daytime energy and night sleep.
-- how: 1) Get outside within an hour of waking, after your glass of water. 2) Walk part of the commute, or have your coffee outside or by a bright window. 3) 5–15 min is enough.
+- how: 1) Get outside within an hour of waking, after your glass of water. 2) Walk part of the commute, or have your coffee outside or by a bright window. 3) 5–15 min is enough, the longer end on cloudy days; never look straight at the sun.
 - conflicts/synergies: Same habit as SleepMax `morning_light`; schedule once and credit both. Comes after `water_on_waking` (water first, then light); neither has to happen before everything else.
 - source: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6751071/
 
