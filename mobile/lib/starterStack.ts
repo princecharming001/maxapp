@@ -142,6 +142,7 @@ type Anchor =
     | 'afternoon'
     | 'after_work'
     | 'dinner'
+    | 'workout'
     | 'wind_down'
     | 'pre_bed';
 
@@ -183,7 +184,7 @@ const CARDS: Record<BiohackGoal, Card[]> = {
     ],
     training: [
         { id: 'mobility', title: 'Morning mobility', minutes: 8, value: 8, anchor: 'get_ready', why: 'loosens you up for the day', how: 'Hip openers, cat-cow, shoulder circles. Slow and easy.' },
-        { id: 'training_session', title: 'Training session', minutes: 30, value: 10, anchor: 'after_work', why: 'strength is the base for everything else', how: 'Full-body strength: squat, push, pull, hinge. Three rounds.' },
+        { id: 'training_session', title: 'Training session', minutes: 30, value: 10, anchor: 'workout', why: 'strength is the base for everything else', how: 'Full-body strength: squat, push, pull, hinge. Three rounds.' },
         { id: 'protein_breakfast', title: 'Protein-first breakfast', minutes: 5, value: 6, anchor: 'get_ready', why: 'fuels recovery and keeps you full', how: 'Build breakfast around eggs, yogurt or another protein you like.' },
         { id: 'stretch_down', title: 'Evening stretch', minutes: 8, value: 5, anchor: 'wind_down', why: 'recovery starts before bed', how: 'Hamstrings, hips and chest. Hold each stretch for 30 seconds.' },
     ],
@@ -212,6 +213,8 @@ export type DayShape = {
     commuteMin: number;
     lunchMin?: number;
     dinnerMin?: number;
+    /** When they usually work out; training habits land there. */
+    workoutMin?: number;
 };
 
 export type StackItem = {
@@ -250,6 +253,8 @@ function anchorTime(anchor: Anchor, d: DayShape): number {
             return workEnd != null ? workEnd + commute + 20 : 17 * 60 + 30;
         case 'dinner':
             return (d.dinnerMin ?? 19 * 60) + 30;
+        case 'workout':
+            return d.workoutMin ?? (workEnd != null ? workEnd + commute + 20 : 17 * 60 + 30);
         case 'wind_down':
             return eve(d.windDownMin);
         case 'pre_bed':
@@ -258,19 +263,28 @@ function anchorTime(anchor: Anchor, d: DayShape): number {
 }
 
 /** Habits that are fine during a working day: short breaks at a desk or at lunch. */
-const WORK_BREAK_OK = new Set<Anchor>(['lunch', 'afternoon']);
+const WORK_BREAK_OK = new Set<Anchor>(['lunch', 'afternoon', 'workout']);
 
 /**
  * Pick and place the stack. Round-robins the goals by card value so two goals
  * share the budget, keeps adding while the level's habit count and minute
  * budget allow, then resolves each card to a real time in the user's day.
  */
-export function buildStarterStack(goals: string[], budgetIn: BiohackLevel | number, day: DayShape): StackItem[] {
+export function buildStarterStack(
+    goals: string[],
+    budgetIn: BiohackLevel | number,
+    day: DayShape,
+    opts: { maxPrograms?: number } = {},
+): StackItem[] {
     // A level ('low' | 'medium' | 'high') or an exact minutes-a-day budget.
     const preset = typeof budgetIn === 'string' ? BIOHACK_LEVELS.find((l) => l.id === budgetIn) ?? BIOHACK_LEVELS[1] : null;
-    const lvl = preset ?? { minutes: budgetIn as number, habits: habitsForMinutes(budgetIn as number) };
-    const picked = goals.filter((g): g is BiohackGoal => g in CARDS).slice(0, MAX_GOALS);
+    const base = preset ?? { minutes: budgetIn as number, habits: habitsForMinutes(budgetIn as number) };
+    const picked = goals.filter((g): g is BiohackGoal => g in CARDS).slice(0, opts.maxPrograms ?? MAX_GOALS);
     if (picked.length === 0) return [];
+    // Each program past the first two (the preview lets people try more) adds a
+    // habit and a little time, the way stacking another program does in the app.
+    const extra = Math.max(0, picked.length - MAX_GOALS);
+    const lvl = { minutes: base.minutes + extra * 10, habits: Math.min(9, base.habits + extra) };
 
     const queues = picked.map((g) => [...CARDS[g]].sort((a, b) => b.value - a.value));
     const chosen: Card[] = [];

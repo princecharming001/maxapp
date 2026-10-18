@@ -19,7 +19,8 @@ import { STORAGE_KEYS } from './resilienceKeys';
 // v5: the biohacking onboarding (goals + level; no scan, age, gender or
 // motivation). Version bumps deliberately discard older drafts — step indexes
 // and fields moved, so a stale draft would resume into the wrong question.
-const DRAFT_VERSION = 5;
+// v6: the schedule questions moved before the paywall (intro step indexes moved).
+const DRAFT_VERSION = 6;
 
 export type OnboardingAnswers = {
     goals: string[];
@@ -168,7 +169,54 @@ export function seedAnswersFromServerOnboarding(ob: unknown): Partial<Onboarding
     }
     if (typeof o.biohack_level === 'string' && VALID_LEVELS.has(o.biohack_level)) out.level = o.biohack_level;
     if (typeof o.daily_minutes === 'number' && o.daily_minutes >= 5 && o.daily_minutes <= 60) out.dailyMinutes = o.daily_minutes;
+    // The day itself is answered before the paywall now and saved server-side
+    // then: restore it, so finishing on another phone never overwrites the
+    // real answers with the screen's defaults.
+    const win = (v: unknown): [number, number] | null => {
+        if (!Array.isArray(v) || v.length < 2) return null;
+        const a = minOf(v[0]), b = minOf(v[1]);
+        return a == null || b == null ? null : [a, b];
+    };
+    const wake = minOf(o.wake_time);
+    if (wake != null) out.wakeMin = wake;
+    const gr = win(o.get_ready_window);
+    if (gr) { out.grStart = gr[0]; out.grEnd = gr[1]; }
+    const wd = win(o.wind_down_window);
+    if (wd) { out.wdStart = wd[0]; out.wdEnd = wd[1]; }
+    if (Array.isArray(o.obligations)) {
+        const w = (o.obligations as any[]).find((x) => x && typeof x === 'object');
+        out.works = !!w;
+        if (w) {
+            const s = minOf(w.start), e = minOf(w.end);
+            if (s != null) out.workStartMin = s;
+            if (e != null) out.workEndMin = e;
+        }
+    }
+    if (typeof o.work_location === 'string') out.workLocation = o.work_location;
+    if (typeof o.commute_minutes === 'number' && o.commute_minutes > 0) out.commuteMin = o.commute_minutes;
+    const skipped = Array.isArray(o.meals_skipped) ? (o.meals_skipped as unknown[]).map(String) : null;
+    for (const [key, minKey, skipKey] of [
+        ['breakfast_time', 'breakfastMin', 'skipBreakfast'],
+        ['lunch_time', 'lunchMin', 'skipLunch'],
+        ['dinner_time', 'dinnerMin', 'skipDinner'],
+    ] as const) {
+        const m = minOf(o[key]);
+        if (m != null) (out as any)[minKey] = m;
+        if (skipped) (out as any)[skipKey] = skipped.includes(key.replace('_time', ''));
+    }
+    if (typeof o.shower_time === 'string' && o.shower_time) out.showerTime = o.shower_time;
+    const wo = minOf(o.workout_time);
+    if (wo != null) out.workoutMin = wo;
+    if (typeof o.weekend_shift === 'boolean') out.weekendShift = o.weekend_shift;
     return out;
+}
+
+/** "07:30" -> 450 minutes from midnight; null when it isn't a clock time. */
+function minOf(v: unknown): number | null {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(v ?? ''));
+    if (!m) return null;
+    const h = Number(m[1]), mm = Number(m[2]);
+    return h < 24 && mm < 60 ? h * 60 + mm : null;
 }
 
 /** Index of the first intro question (goals, level) without an answer; day shape after that. */

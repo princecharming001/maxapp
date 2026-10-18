@@ -110,6 +110,23 @@ export const tests: Record<string, () => void | Promise<void>> = {
         assert.deepStrictEqual(lib.seedAnswersFromServerOnboarding({ goals: ['skinmax', 'energy'], biohack_level: 'max' }), { goals: ['energy'] });
     },
 
+    'the whole day is restored from the server, so finishing on a new phone keeps the real answers': () => {
+        const seed = lib.seedAnswersFromServerOnboarding({
+            goals: ['sleep'], biohack_level: 'medium', daily_minutes: 25,
+            wake_time: '06:30', get_ready_window: ['06:45', '07:15'], wind_down_window: ['21:45', '22:30'],
+            obligations: [{ label: 'Work', start: '08:00', end: '16:30', days: 'weekdays' }],
+            work_location: 'office', commute_minutes: 20,
+            breakfast_time: null, lunch_time: '12:15', dinner_time: '18:45', meals_skipped: ['breakfast'],
+            shower_time: 'night', workout_time: '17:30', weekend_shift: false,
+        });
+        assert.strictEqual(seed.wakeMin, 390);
+        assert.deepStrictEqual([seed.grStart, seed.grEnd, seed.wdStart, seed.wdEnd], [405, 435, 1305, 1350]);
+        assert.deepStrictEqual([seed.works, seed.workStartMin, seed.workEndMin, seed.commuteMin], [true, 480, 990, 20]);
+        assert.deepStrictEqual([seed.skipBreakfast, seed.skipLunch, seed.lunchMin, seed.dinnerMin], [true, false, 735, 1125]);
+        assert.deepStrictEqual([seed.showerTime, seed.workoutMin, seed.weekendShift], ['night', 1050, false]);
+        assert.strictEqual(lib.seedAnswersFromServerOnboarding({ obligations: [] }).works, false);
+    },
+
     'firstUnansweredIntroStep jumps past everything the server already knows': () => {
         assert.strictEqual(lib.firstUnansweredIntroStep({}), 0);
         assert.strictEqual(lib.firstUnansweredIntroStep({ goals: [] }), 0);

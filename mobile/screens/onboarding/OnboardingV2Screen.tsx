@@ -8,12 +8,13 @@
  * pill. One decision per screen. Times are set with a wheel picker.
  *
  * Two phases (same screen, different slices):
- *   intro    — goals (up to 2) · level (low / medium / high) · day shape ·
- *              work or school · where you work (only when they work) ·
- *              "your first stack" preview  → referral code → paywall → account
- *   schedule — fine-tune after purchase: meals · workout · weekends · shower ·
- *              recap → finish() → Main. Every fine-tune screen can be skipped
- *              (defaults are sensible), so value never waits on them.
+ *   intro    — the whole picture BEFORE the paywall: goals (up to 2) ·
+ *              intensity · day shape · work or school · where you work (only
+ *              when they work) · meals · workout · weekends · shower ·
+ *              "here's your day" · "your first stack" (an interactive preview:
+ *              their day with basic habits in it, programs and intensity to
+ *              flip)  → referral code → paywall → account
+ *   schedule — one "All set" confirmation after purchase → finish() → Main.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -49,6 +50,7 @@ import {
     setOnboardingFunnelStage,
     seedAnswersFromServerOnboarding,
     firstUnansweredIntroStep,
+    type OnboardingAnswers,
 } from '../../lib/onboardingDraft';
 import {
     BIOHACK_GOALS,
@@ -78,6 +80,7 @@ const STEP_KEYS: Record<string, string> = {
     'Weekends?': 'weekend_rhythm',
     'When do you\nusually shower?': 'shower',
     "Here's\nyour day": 'recap',
+    'All set': 'all_set',
 };
 
 // Cal AI × Stoic palette — black ink, Stoic's soft gray canvas, white
@@ -554,6 +557,34 @@ export default function OnboardingV2Screen() {
     // wizard would flash step 0 / default answers before the saved step loads.
     const [draftLoaded, setDraftLoaded] = useState(false);
 
+    // Apply saved answers (server seed or local draft). Each field only when
+    // present and the right type, so a partial/old record falls back to the
+    // screen's defaults instead of crashing.
+    const applyAnswers = (a: Partial<OnboardingAnswers>) => {
+        if (Array.isArray(a.goals)) setGoals(a.goals.slice(0, MAX_GOALS));
+        if (a.level === 'low' || a.level === 'medium' || a.level === 'high') setLevel(a.level);
+        if (typeof a.dailyMinutes === 'number') setDailyMinutes(a.dailyMinutes);
+        if (typeof a.wakeMin === 'number') setWakeMin(a.wakeMin);
+        if (typeof a.grStart === 'number') setGrStart(a.grStart);
+        if (typeof a.grEnd === 'number') setGrEnd(a.grEnd);
+        if (typeof a.wdStart === 'number') setWdStart(a.wdStart);
+        if (typeof a.wdEnd === 'number') setWdEnd(a.wdEnd);
+        if (typeof a.works === 'boolean') setWorks(a.works);
+        if (typeof a.workStartMin === 'number') setWorkStartMin(a.workStartMin);
+        if (typeof a.workEndMin === 'number') setWorkEndMin(a.workEndMin);
+        if (typeof a.workLocation === 'string') setWorkLocation(a.workLocation);
+        if (typeof a.commuteMin === 'number') setCommuteMin(a.commuteMin);
+        if (typeof a.breakfastMin === 'number') setBreakfastMin(a.breakfastMin);
+        if (typeof a.lunchMin === 'number') setLunchMin(a.lunchMin);
+        if (typeof a.dinnerMin === 'number') setDinnerMin(a.dinnerMin);
+        if (typeof a.skipBreakfast === 'boolean') setSkipBreakfast(a.skipBreakfast);
+        if (typeof a.skipLunch === 'boolean') setSkipLunch(a.skipLunch);
+        if (typeof a.skipDinner === 'boolean') setSkipDinner(a.skipDinner);
+        if (typeof a.showerTime === 'string') setShowerTime(a.showerTime);
+        if (typeof a.workoutMin === 'number') setWorkoutMin(a.workoutMin);
+        if (typeof a.weekendShift === 'boolean') setWeekendShift(a.weekendShift);
+    };
+
     // Restore an interrupted onboarding on mount. Each field is applied only
     // when present + the right type, so a partial/old draft falls back to
     // defaults instead of crashing.
@@ -565,9 +596,7 @@ export default function OnboardingV2Screen() {
         // twice, and never let finish() re-send them empty). The local draft,
         // when present, overrides on top.
         const seed = seedAnswersFromServerOnboarding(user?.onboarding);
-        if (seed.goals) setGoals(seed.goals);
-        if (seed.level) setLevel(seed.level as BiohackLevel);
-        if (typeof seed.dailyMinutes === 'number') setDailyMinutes(seed.dailyMinutes);
+        applyAnswers(seed);
         void (uid ? loadOnboardingDraft(uid) : Promise.resolve(null))
             .then((d) => {
                 if (cancelled) return;
@@ -580,29 +609,7 @@ export default function OnboardingV2Screen() {
                     }
                     return;
                 }
-                const a = d.answers || {};
-                if (Array.isArray(a.goals)) setGoals(a.goals.slice(0, MAX_GOALS));
-                if (a.level === 'low' || a.level === 'medium' || a.level === 'high') setLevel(a.level);
-                if (typeof a.dailyMinutes === 'number') setDailyMinutes(a.dailyMinutes);
-                if (typeof a.wakeMin === 'number') setWakeMin(a.wakeMin);
-                if (typeof a.grStart === 'number') setGrStart(a.grStart);
-                if (typeof a.grEnd === 'number') setGrEnd(a.grEnd);
-                if (typeof a.wdStart === 'number') setWdStart(a.wdStart);
-                if (typeof a.wdEnd === 'number') setWdEnd(a.wdEnd);
-                if (typeof a.works === 'boolean') setWorks(a.works);
-                if (typeof a.workStartMin === 'number') setWorkStartMin(a.workStartMin);
-                if (typeof a.workEndMin === 'number') setWorkEndMin(a.workEndMin);
-                if (typeof a.workLocation === 'string') setWorkLocation(a.workLocation);
-                if (typeof a.commuteMin === 'number') setCommuteMin(a.commuteMin);
-                if (typeof a.breakfastMin === 'number') setBreakfastMin(a.breakfastMin);
-                if (typeof a.lunchMin === 'number') setLunchMin(a.lunchMin);
-                if (typeof a.dinnerMin === 'number') setDinnerMin(a.dinnerMin);
-                if (typeof a.skipBreakfast === 'boolean') setSkipBreakfast(a.skipBreakfast);
-                if (typeof a.skipLunch === 'boolean') setSkipLunch(a.skipLunch);
-                if (typeof a.skipDinner === 'boolean') setSkipDinner(a.skipDinner);
-                if (typeof a.showerTime === 'string') setShowerTime(a.showerTime);
-                if (typeof a.workoutMin === 'number') setWorkoutMin(a.workoutMin);
-                if (typeof a.weekendShift === 'boolean') setWeekendShift(a.weekendShift);
+                applyAnswers(d.answers || {});
                 // Resume into the phase the user left — unless the navigator
                 // explicitly routed here with a phase param (hand-off wins).
                 if (!route?.params?.phase && (d.phase === 'intro' || d.phase === 'schedule')) {
@@ -753,14 +760,30 @@ export default function OnboardingV2Screen() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     });
 
-    // Everything the intro learned, persisted before the paywall so a relaunch
-    // or a new phone never re-asks it (fire-and-forget — a transient failure
-    // must never block the funnel; finish() re-sends it all).
+    const routineFields = () => ({
+        breakfast_time: skipBreakfast ? null : hhmm(breakfastMin),
+        lunch_time: skipLunch ? null : hhmm(lunchMin),
+        dinner_time: skipDinner ? null : hhmm(dinnerMin),
+        meals_skipped: [
+            skipBreakfast && 'breakfast',
+            skipLunch && 'lunch',
+            skipDinner && 'dinner',
+        ].filter(Boolean) as string[],
+        shower_time: showerTime,
+        workout_time: hhmm(workoutMin),
+        weekend_shift: weekendShift,
+    });
+
+    // Everything the intro learned (the whole day now, not just goals),
+    // persisted before the paywall so a relaunch or a new phone never re-asks
+    // it (fire-and-forget: a transient failure must never block the funnel;
+    // finish() re-sends it all).
     const introPayload = () => ({
         goals,
         priority_order: priorityTokensFor(goals),
         ...levelFields(),
         ...dayFields(),
+        ...routineFields(),
         completed: false,
     });
 
@@ -772,20 +795,11 @@ export default function OnboardingV2Screen() {
                 priority_order: priorityTokensFor(goals),
                 ...levelFields(),
                 ...dayFields(),
-                breakfast_time: skipBreakfast ? null : hhmm(breakfastMin),
-                lunch_time: skipLunch ? null : hhmm(lunchMin),
-                dinner_time: skipDinner ? null : hhmm(dinnerMin),
-                meals_skipped: [
-                    skipBreakfast && 'breakfast',
-                    skipLunch && 'lunch',
-                    skipDinner && 'dinner',
-                ].filter(Boolean) as string[],
-                shower_time: showerTime,
-                workout_time: hhmm(workoutMin),
-                weekend_shift: weekendShift,
-                // V4: the schedule questions are the LAST funnel step (post-pay,
-                // post-account), so finishing them completes onboarding outright —
-                // the navigator remounts onto Main. No reveal step.
+                ...routineFields(),
+                // The post-pay "All set" step is the LAST funnel step (every
+                // question was answered before the paywall), so finishing it
+                // completes onboarding outright: the navigator remounts onto
+                // Main. No reveal step.
                 completed: true,
             };
         // Returns false when the post-save refresh never came back — the
@@ -891,7 +905,7 @@ export default function OnboardingV2Screen() {
     // works — it's spread in conditionally; the progress bar adapts to length.
     // The first-stack preview: the user's own goals + level, placed into the
     // day they just described (today's weekday shape).
-    const stack = buildStarterStack(goals, dailyMinutes ?? DEFAULT_MINUTES, {
+    const dayShape = {
         wakeMin,
         getReadyMin: grStart,
         windDownMin: wdStart,
@@ -900,8 +914,40 @@ export default function OnboardingV2Screen() {
         workStartMin,
         workEndMin,
         commuteMin: hasCommute ? commuteMin : 0,
-        lunchMin: 12 * 60 + 30,
-    });
+        lunchMin: skipLunch ? undefined : lunchMin,
+        dinnerMin: skipDinner ? undefined : dinnerMin,
+        workoutMin,
+    };
+    const stack = buildStarterStack(goals, dailyMinutes ?? DEFAULT_MINUTES, dayShape);
+
+    // The preview can try programs beyond the ones they picked (and turn picked
+    // ones off) to see how a day could look. Preview only: the plan still
+    // starts with their picked goals.
+    const PREVIEW_MAX = 4;
+    const [previewOff, setPreviewOff] = useState<string[]>([]);
+    const [previewExtra, setPreviewExtra] = useState<string[]>([]);
+    const previewGoals = [
+        ...goals.filter((g) => !previewOff.includes(g)),
+        ...previewExtra.filter((g) => !goals.includes(g)),
+    ].slice(0, PREVIEW_MAX);
+    const togglePreview = (id: string) => {
+        if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
+        if (goals.includes(id)) {
+            setPreviewOff((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
+        } else {
+            setPreviewExtra((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
+        }
+        track('onboarding_step', { step: 'preview_toggle', program: id });
+    };
+    const previewStack = buildStarterStack(previewGoals, dailyMinutes ?? DEFAULT_MINUTES, dayShape, { maxPrograms: PREVIEW_MAX });
+    // Their day (quiet rows) with the preview habits placed into it, in order.
+    type TimelineRow =
+        | { kind: 'day'; icon: string; label: string; value: string; at: number }
+        | { kind: 'habit'; item: (typeof previewStack)[number]; at: number };
+    const previewTimeline: TimelineRow[] = [
+        ...recap.map((r) => ({ kind: 'day' as const, icon: r.icon, label: r.label, value: r.value, at: eve(r.sort) })),
+        ...previewStack.map((h) => ({ kind: 'habit' as const, item: h, at: eve(h.timeMin) })),
+    ].sort((x, y) => x.at - y.at || (x.kind === 'day' ? -1 : 1));
     const toggleDone = (id: string) => {
         if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         setDoneHabits((d) => (d.includes(id) ? d.filter((x) => x !== id) : [...d, id]));
@@ -1117,69 +1163,9 @@ export default function OnboardingV2Screen() {
                 ),
             }]
             : []),
-        // the first stack — the intro's payoff, shown before the paywall
-        {
-            phase: 'intro',
-            title: 'Your first\nstack',
-            sub: stack.length
-                ? `${stack.length} habits at a ${intensityShown.label.toLowerCase()} pace, placed around your real day. Tap one to start it now.`
-                : 'Pick a goal to see your first habits.',
-            canNext: stack.length > 0,
-            cta: 'Looks right',
-            body: (
-                <>
-                    <View style={styles.recapList}>
-                        {stack.map((h, i) => {
-                            const open = openHabit === h.id;
-                            const done = doneHabits.includes(h.id);
-                            return (
-                                <View key={h.id}>
-                                    {i > 0 ? <View style={styles.hairline} /> : null}
-                                    <TouchableOpacity
-                                        style={styles.stackRow}
-                                        activeOpacity={0.75}
-                                        onPress={() => setOpenHabit(open ? null : h.id)}
-                                        accessibilityRole="button"
-                                        accessibilityState={{ expanded: open }}
-                                        accessibilityLabel={`${h.title}, ${fmt12(h.timeMin)}, ${h.minutes} minutes`}
-                                    >
-                                        <View style={[styles.stackCheck, done && styles.stackCheckDone]}>
-                                            {done ? <Ionicons name="checkmark" size={14} color={ON_INK} /> : null}
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={[styles.stackTitle, done && styles.stackTitleDone]}>{h.title}</Text>
-                                            <Text style={styles.stackWhy}>{h.minutes} min · {h.why}</Text>
-                                        </View>
-                                        <Text style={styles.stackTime}>{fmt12(h.timeMin)}</Text>
-                                    </TouchableOpacity>
-                                    {open ? (
-                                        <View style={styles.stackDetail}>
-                                            <Text style={styles.stackHow}>{h.how}</Text>
-                                            <TouchableOpacity
-                                                style={[styles.stackDoBtn, done && styles.stackDoBtnDone]}
-                                                onPress={() => toggleDone(h.id)}
-                                                accessibilityRole="button"
-                                                accessibilityLabel={done ? `Undo ${h.title}` : `Do ${h.title} now`}
-                                            >
-                                                <Text style={[styles.stackDoText, done && styles.stackDoTextDone]}>
-                                                    {done ? 'Done' : 'Do it now'}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    ) : null}
-                                </View>
-                            );
-                        })}
-                    </View>
-                    <Text style={styles.wellnessNote}>
-                        General wellness only — not medical advice. Follow routines at your own risk.
-                    </Text>
-                </>
-            ),
-        },
         // meals
         {
-            phase: 'schedule',
+            phase: 'intro',
             title: 'When do\nyou eat?',
             sub: 'Superpower keeps your routines clear of the meals you keep.',
             canNext: true,
@@ -1218,7 +1204,7 @@ export default function OnboardingV2Screen() {
         },
         // workout time
         {
-            phase: 'schedule',
+            phase: 'intro',
             title: 'When do you\nwork out?',
             sub: 'So things land when they actually happen.',
             canNext: true,
@@ -1241,7 +1227,7 @@ export default function OnboardingV2Screen() {
         },
         // weekend rhythm
         {
-            phase: 'schedule',
+            phase: 'intro',
             title: 'Weekends?',
             sub: 'Do you keep the same schedule, or shift things later?',
             canNext: true,
@@ -1262,7 +1248,7 @@ export default function OnboardingV2Screen() {
         },
         // shower timing (single-select; anchors hygiene/skin routines)
         {
-            phase: 'schedule',
+            phase: 'intro',
             title: 'When do you\nusually shower?',
             sub: 'So Superpower anchors your skin and hygiene routines at the right time.',
             canNext: !!showerTime,
@@ -1283,9 +1269,9 @@ export default function OnboardingV2Screen() {
         },
         // recap
         {
-            phase: 'schedule',
+            phase: 'intro',
             title: "Here's\nyour day",
-            sub: 'Superpower fits your routines into the gaps. You can drag any of this later in Plan.',
+            sub: 'This is the day your plan will fit around. Next: a preview of what goes in it.',
             canNext: true,
             body: (
                 <>
@@ -1307,6 +1293,155 @@ export default function OnboardingV2Screen() {
                         General wellness only — not medical advice. Follow routines at your own risk.
                     </Text>
                 </>
+            ),
+        },
+        // the first stack: the intro's payoff, shown before the paywall. A
+        // preview on the day they just described, with programs and intensity
+        // they can flip to see how a day could look.
+        {
+            phase: 'intro',
+            title: 'Your first\nstack',
+            sub: previewStack.length
+                ? 'Just the basics, placed into your day. Flip programs and intensity to see how a day could look.'
+                : 'Turn on a program to see your first habits.',
+            canNext: goals.length > 0,
+            cta: 'Looks right',
+            body: (
+                <>
+                    <View style={styles.previewNote}>
+                        <Ionicons name="information-circle-outline" size={18} color={SUB} />
+                        <Text style={styles.previewNoteText}>
+                            A preview, not your plan. Inside the app every program asks you a few questions and builds around you, so your real plan is far more personal than this.
+                        </Text>
+                    </View>
+
+                    <Text style={[styles.groupLabel, { marginTop: 18 }]}>PROGRAMS</Text>
+                    <View style={styles.chipWrap}>
+                        {BIOHACK_GOALS.map((g) => {
+                            const on = previewGoals.includes(g.id);
+                            const full = !on && previewGoals.length >= PREVIEW_MAX;
+                            return (
+                                <TouchableOpacity
+                                    key={g.id}
+                                    style={[styles.chip, on && styles.chipOn, full && styles.chipFull]}
+                                    onPress={() => togglePreview(g.id)}
+                                    disabled={full}
+                                    accessibilityRole="switch"
+                                    accessibilityState={{ checked: on, disabled: full }}
+                                    accessibilityLabel={`${g.label} program`}
+                                >
+                                    <Ionicons name={(on ? 'checkmark' : 'add') as any} size={14} color={on ? ON_INK : INK} />
+                                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{g.label}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+
+                    <Text style={[styles.groupLabel, { marginTop: 16 }]}>INTENSITY</Text>
+                    <View style={styles.seg}>
+                        {INTENSITY_LEVELS.map((l) => {
+                            const active = l.id === intensityShown.id;
+                            return (
+                                <TouchableOpacity
+                                    key={l.id}
+                                    style={[styles.segItem, active && styles.segItemActive]}
+                                    onPress={() => pickMinutes(l.minutes)}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: active }}
+                                    accessibilityLabel={`${l.label} intensity`}
+                                >
+                                    <Text style={[styles.segText, active && styles.segTextActive]} numberOfLines={1}>{l.label}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+
+                    <Text style={[styles.groupLabel, { marginTop: 18 }]}>A DAY LIKE YOURS</Text>
+                    <View style={styles.recapList}>
+                        {previewTimeline.map((row, i) => {
+                            if (row.kind === 'day') {
+                                return (
+                                    <View key={`d-${row.label}`}>
+                                        {i > 0 ? <View style={styles.hairline} /> : null}
+                                        <View style={styles.dayRow}>
+                                            <Ionicons name={row.icon as any} size={15} color={MUTE} />
+                                            <Text style={styles.dayRowLabel}>{row.label}</Text>
+                                            <Text style={styles.dayRowTime}>{row.value}</Text>
+                                        </View>
+                                    </View>
+                                );
+                            }
+                            const h = row.item;
+                            const open = openHabit === h.id;
+                            const done = doneHabits.includes(h.id);
+                            return (
+                                <View key={h.id}>
+                                    {i > 0 ? <View style={styles.hairline} /> : null}
+                                    <TouchableOpacity
+                                        style={styles.stackRow}
+                                        activeOpacity={0.75}
+                                        onPress={() => setOpenHabit(open ? null : h.id)}
+                                        accessibilityRole="button"
+                                        accessibilityState={{ expanded: open }}
+                                        accessibilityLabel={`${h.title}, ${fmt12(h.timeMin)}, ${h.minutes} minutes`}
+                                    >
+                                        <View style={[styles.stackCheck, done && styles.stackCheckDone]}>
+                                            {done ? <Ionicons name="checkmark" size={14} color={ON_INK} /> : null}
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.stackTitle, done && styles.stackTitleDone]}>{h.title}</Text>
+                                            <Text style={styles.stackWhy}>{h.why}</Text>
+                                        </View>
+                                        <Text style={styles.stackTime}>{fmt12(h.timeMin)}</Text>
+                                    </TouchableOpacity>
+                                    {open ? (
+                                        <View style={styles.stackDetail}>
+                                            <Text style={styles.stackHow}>{h.how}</Text>
+                                            <TouchableOpacity
+                                                style={[styles.stackDoBtn, done && styles.stackDoBtnDone]}
+                                                onPress={() => toggleDone(h.id)}
+                                                accessibilityRole="button"
+                                                accessibilityLabel={done ? `Undo ${h.title}` : `Do ${h.title} now`}
+                                            >
+                                                <Text style={[styles.stackDoText, done && styles.stackDoTextDone]}>
+                                                    {done ? 'Done' : 'Do it now'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ) : null}
+                                </View>
+                            );
+                        })}
+                    </View>
+                    <Text style={styles.wellnessNote}>
+                        General wellness only, not medical advice. Your plan starts with the {goals.length > 1 ? 'two programs' : 'program'} you picked first; you can add more inside the app.
+                    </Text>
+                </>
+            ),
+        },
+        // post-pay, post-account: every question was answered before the
+        // paywall, so this only confirms and builds.
+        {
+            phase: 'schedule',
+            title: 'All set',
+            sub: 'Your plan is built around the day you described. You can change any of it later.',
+            canNext: true,
+            cta: 'Build my day',
+            body: (
+                <View style={styles.recapList}>
+                    {recap.map((r, i) => (
+                        <View key={r.label}>
+                            {i > 0 ? <View style={styles.hairline} /> : null}
+                            <View style={styles.recapRow}>
+                                <View style={styles.recapIcon}>
+                                    <Ionicons name={r.icon as any} size={17} color={MUTE} />
+                                </View>
+                                <Text style={styles.recapLabel}>{r.label}</Text>
+                                <Text style={styles.recapValue}>{r.value}</Text>
+                            </View>
+                        </View>
+                    ))}
+                </View>
             ),
         },
     ];
@@ -1345,6 +1480,7 @@ export default function OnboardingV2Screen() {
                     goals,
                     level,
                     habits: stack.length,
+                    preview_programs: previewGoals,
                     tried_now: doneHabits.length,
                 });
                 // Funnel checkpoint: a relaunch from here on resumes at the
@@ -1638,6 +1774,23 @@ const styles = StyleSheet.create({
     stackDoText: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: ON_INK },
     stackDoTextDone: { color: INK },
     // time slider
+    previewNote: {
+        flexDirection: 'row', gap: 8, alignItems: 'flex-start', padding: 12, borderRadius: 14,
+        backgroundColor: 'rgba(0,0,0,0.04)',
+    },
+    previewNoteText: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 13, lineHeight: 18, color: SUB },
+    chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    chip: {
+        flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, height: 34, borderRadius: 17,
+        backgroundColor: CARD, ...SOFT,
+    },
+    chipOn: { backgroundColor: INK },
+    chipFull: { opacity: 0.4 },
+    chipText: { fontFamily: 'Matter-Medium', fontSize: 13, color: INK },
+    chipTextOn: { color: ON_INK },
+    dayRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
+    dayRowLabel: { flex: 1, fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE },
+    dayRowTime: { fontFamily: 'Matter-Regular', fontSize: 13, color: MUTE },
     intensityBars: { width: 38, height: 26, flexDirection: 'row', alignItems: 'flex-end', gap: 3, marginRight: 4 },
     intensityBar: { width: 6, borderRadius: 2, backgroundColor: 'rgba(21,19,15,0.12)' },
     intensityBarOn: { backgroundColor: INK },

@@ -1,7 +1,7 @@
 /**
  * CreateAccountScreen — "Save your stack". Sits right after the paywall. It
  * CLAIMS the anonymous account minted at "Get started" (real email + password +
- * name, or Apple / Google), then hands off to the onboarding fine-tune phase.
+ * name, or Apple / Google), then hands off to the onboarding "All set" step.
  * A returning user who lands here gets a clear "email already registered" error
  * (they sign in from Landing instead).
  *

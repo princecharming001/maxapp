@@ -129,4 +129,22 @@ export const tests = {
         assert.deepStrictEqual(priorityTokensFor(['training', 'skin_hair']), ['body', 'skin', 'hair']);
         assert.deepStrictEqual(priorityTokensFor(['sleep', 'focus']), []);
     },
+
+    'the preview can stack more programs, and each one adds habits': () => {
+        const two = buildStarterStack(['sleep', 'energy'], 25, NINE_TO_FIVE, { maxPrograms: 4 });
+        const four = buildStarterStack(['sleep', 'energy', 'focus', 'longevity'], 25, NINE_TO_FIVE, { maxPrograms: 4 });
+        assert.ok(four.length > two.length, `${four.length} > ${two.length}`);
+        // the plan itself still caps at two programs
+        assert.deepStrictEqual(
+            buildStarterStack(['sleep', 'energy', 'focus'], 25, NINE_TO_FIVE).map((h) => h.id),
+            buildStarterStack(['sleep', 'energy'], 25, NINE_TO_FIVE).map((h) => h.id),
+        );
+    },
+
+    'a training session lands at their workout time': () => {
+        const s = buildStarterStack(['training'], 60, { ...NINE_TO_FIVE, workoutMin: 6 * 60 + 30 + 60 });
+        const session = s.find((h) => h.id === 'training_session');
+        assert.ok(session, 'training session present');
+        assert.strictEqual(session!.timeMin, 7 * 60 + 30);
+    },
 };
