@@ -151,6 +151,23 @@ class Habit:
     primary_for: str = ""
     avoid: list[str] = field(default_factory=list)
     timing: str = ""
+    dose_note: str = ""
+    # what sort of thing it is (BETA1_CONTRACTS C1): an action you tick, a
+    # rule (a boundary with nothing to tick), a one-time setup, or a check-in
+    kind: str = ""
+    order: str = ""            # "first": first habit after waking
+    after: str = ""            # placed after this habit when both are planned
+    cycle_on: int = 0          # weeks on / weeks off, repeating ("4 on / 1 off")
+    cycle_off: int = 0
+    trial_weeks: int = 0       # weeks 1..N only, then a review ("trial 12")
+
+    @property
+    def is_rule(self) -> bool:
+        return self.kind == "rule" or (not self.kind and self.minutes_min == 0 and self.minutes_default == 0)
+
+    @property
+    def habit_kind(self) -> str:
+        return self.kind or ("rule" if self.is_rule else "action")
 
 
 @dataclass
@@ -227,6 +244,22 @@ def parse_program_doc(maxx_id: str, text: str) -> ProgramDoc:
                        if x.strip() and x.strip().lower() != "none"]
         elif key == "timing":
             h.timing = val
+        elif key == "dose note":
+            h.dose_note = val
+        elif key == "kind":
+            k = val.split()[0].lower() if val else ""
+            h.kind = k if k in ("action", "rule", "setup", "checkin") else ""
+        elif key == "order":
+            h.order = val.split()[0].lower() if val else ""
+        elif key == "after":
+            h.after = val.strip("` ").split()[0].lower() if val else ""
+        elif key == "cycle":
+            mc = re.fullmatch(r"(\d+)\s*on\s*/\s*(\d+)\s*off", val.strip().lower())
+            mt = re.fullmatch(r"trial\s*(\d+)", val.strip().lower())
+            if mc:
+                h.cycle_on, h.cycle_off = int(mc.group(1)), int(mc.group(2))
+            elif mt:
+                h.trial_weeks = int(mt.group(1))
     if cur:
         habits.append(cur["h"])
     return ProgramDoc(maxx_id=maxx_id, text=text, habits=habits)
@@ -301,6 +334,15 @@ def _from_min(m: int) -> str:
 ABOUT_KEYS = ("age_band", "sex", "first_meal_style")
 
 
+def _window(w) -> Optional[list[str]]:
+    """["23:30","00:15"] → normalized HH:MM pair, else None."""
+    if isinstance(w, (list, tuple)) and len(w) == 2:
+        a, b = _hm(w[0], ""), _hm(w[1], "")
+        if a and b:
+            return [a, b]
+    return None
+
+
 def build_profile(state: dict) -> dict:
     """The compact picture of the user's day Claude plans around."""
     # The person's real wake and bed times. (Onboarding stores the WIND-DOWN
@@ -347,15 +389,22 @@ def build_profile(state: dict) -> dict:
             "breakfast": state.get("breakfast_time"), "lunch": state.get("lunch_time"),
             "dinner": state.get("dinner_time"),
         },
-        "workout_time": state.get("workout_time"),
+        # onboarding stores the workout as preferred_workout_*; nothing writes
+        # "workout_time", which left every plan thinking there was no workout
+        # (or, via a stale anchor, a "7am workout" that didn't exist)
+        "workout_time": _hm(state.get("preferred_workout_time") or state.get("workout_time"), "") or None,
+        "workout_window": _window(state.get("preferred_workout_window")),
+        "wind_down_window": _window(state.get("wind_down_window") or state.get("sleep_window")),
+        "get_ready_window": _window(state.get("get_ready_window")),
         "weekend_shift": bool(state.get("weekend_shift")),
         "weekly_timings": state.get("weekly_timings") or {},
         "shower_time": state.get("shower_time"),
         "minutes_per_day_total": max(5, min(120, minutes)),
         "goals": state.get("goals") or [],
         "timezone": state.get("timezone"),
+        # the day shape above is the truth; a fact copy of it can only be stale
         "known_facts": {k: v for k, v in (facts.items() if isinstance(facts, dict) else [])
-                        if not str(k).startswith("_")},
+                        if not str(k).startswith("_") and k not in ("wake_time", "sleep_time")},
         # asked once by any program's quiz, then reused (never asked again)
         "about": {k: state.get(k) for k in ABOUT_KEYS if str(state.get(k) or "").strip()},
     }
@@ -731,6 +780,8 @@ async def build_plan(
         kept = [h for h in out.get("habits") or [] if not (isinstance(h, dict) and h.get("habit_id") in skip)]
         if kept:
             out["habits"] = kept
+    # every plan knows its week 1, so setups, cycles and trials can count weeks
+    out["started_on"] = str((current_plan or {}).get("started_on") or _local_today(profile).isoformat())[:10]
     tmpl = validate_template(maxx_id, out, profile, others=other_plans,
                              keep_ids=set(sync_required or []))
     if not tmpl["habits"]:
@@ -1040,6 +1091,11 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
                if isinstance(h.get("weeks"), list) and h["weeks"] else {}),
             **({"every_weeks": int(h["every_weeks"])} if str(h.get("every_weeks") or "").isdigit()
                and int(h["every_weeks"]) > 1 else {}),
+            **({"cycle": [int(h["cycle"][0]), int(h["cycle"][1])]}
+               if isinstance(h.get("cycle"), list) and len(h["cycle"]) == 2 else {}),
+            **({"kind": h["kind"]} if hid.startswith("custom_") and h.get("kind") in ("action", "setup", "checkin")
+               else {}),
+            **({"review_of": h["review_of"]} if h.get("review_of") else {}),
         })
         seen.add(hid)
     protected, cap = _fit_caps(maxx_id, habits)
@@ -1058,12 +1114,17 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
         h.pop("_required", None)
     for h in placed:
         h["how"] = drop_reminder_steps(h["habit_id"], h.get("how") or "")
-        # a time in the steps can only be right if the habit has ONE time
+        # a time in the steps can only be right if the habit has ONE time, and
+        # only that time: "with your 8am breakfast" on a 12:30 task, "after your
+        # 7am workout" with no workout in the plan, "set an alarm for 7:00" after
+        # the wake time moved (beta 1) were all "facts about the day" kept here
         times = set() if h.get("weekend_time") else ({_hm(h.get("time"), "")} - {""})
         h["title"] = _strip_clock(h.get("title") or "")
-        anchors = _day_anchors(profile)
-        h["how"] = _fix_clock(h.get("how") or "", times, anchors)
-        h["why"] = _fix_clock(h.get("why") or "", times, anchors)
+        h["how"] = _fix_clock(h.get("how") or "", times, set())
+        h["why"] = _fix_clock(h.get("why") or "", times, set())
+        h["how"] = _fix_meal_words(h["how"], h.get("time"), profile)
+        h["how"] = _fix_minutes(h["how"], int(h.get("minutes") or 0), lib.get(h["habit_id"]))
+    _apply_kinds_and_cycles(placed, lib)
     return {
         "version": 2,
         "summary": _clean_text(str(raw.get("summary") or ""), 600),
@@ -1156,6 +1217,78 @@ def _day_anchors(profile: dict) -> set[str]:
 
 
 _PLAN_PHRASE = r"the time on your plan"   # what older plans wrote in place of a time
+
+_MEAL_WORDS = ("breakfast", "lunch", "dinner")
+
+
+def _fix_meal_words(text: str, time: Any, profile: dict) -> str:
+    """Steps that name a different meal than the one the habit sits at ("with
+    your breakfast" on a task moved to lunch) name the right one."""
+    t = _hm(time, "")
+    meals = {k: _hm(v, "") for k, v in ((profile or {}).get("meals") or {}).items() if _hm(v, "")}
+    if not t or not meals or not text:
+        return text
+    tm = _to_min(t)
+    near = min(meals.items(), key=lambda kv: abs(_to_min(kv[1]) - tm))
+    if abs(_to_min(near[1]) - tm) > 60:
+        return text
+    named = {m for m in _MEAL_WORDS if re.search(rf"\b{m}\b", text, re.I)}
+    if len(named) != 1 or near[0] in named:
+        return text
+    wrong = named.pop()
+    return re.sub(rf"\b{wrong}\b", lambda m: near[0].capitalize() if m.group(0)[0].isupper() else near[0], text,
+                  flags=re.I)
+
+
+def _fix_minutes(text: str, minutes: int, lib_h: Optional["Habit"]) -> str:
+    """'Spend the full 10 minutes outside' on a habit the fit shortened to 6
+    says 6. Only the habit's own duration numbers change (never 'wait 30
+    minutes after')."""
+    if not text or minutes < 2:
+        return text
+    own = {minutes}
+    if lib_h is not None:
+        own |= {lib_h.minutes_default, lib_h.minutes_min}
+    own.discard(0)
+
+    def sub(m: re.Match) -> str:
+        n = int(m.group(2))
+        return m.group(0) if n == minutes or n not in own else f"{m.group(1) or ''}{minutes}{m.group(3)}"
+    return re.sub(r"\b(the full |a full |full )?(\d{1,3})(\s?(?:-\s?)?(?:minutes?|mins?)\b)", sub, text, flags=re.I)
+
+
+def _apply_kinds_and_cycles(placed: list[dict], lib: dict) -> None:
+    """Library kinds and protocol lengths become schedule fields: a setup runs
+    in week 1 on one day; a cycle ('4 on / 1 off') and a trial ('12 weeks, then
+    review') are weeks the planner keeps (BETA1_CONTRACTS C1)."""
+    extra: list[dict] = []
+    have = {h["habit_id"] for h in placed}
+    for h in placed:
+        lh = lib.get(h["habit_id"])
+        if lh is None:
+            continue
+        if lh.habit_kind == "setup":
+            h.setdefault("weeks", [1])
+            h.pop("every_weeks", None)
+            days = h.get("days") or []
+            one = next((d for d in ("sat", "sun") if d in days), days[0] if days else "sat")
+            h["days"] = [one]
+        if lh.cycle_on and not h.get("cycle"):
+            h["cycle"] = [lh.cycle_on, lh.cycle_off]
+        if lh.trial_weeks and not h.get("weeks"):
+            h["weeks"] = list(range(1, lh.trial_weeks + 1))
+            rid = f"custom_review_{h['habit_id']}"[:40]
+            if rid not in have:
+                extra.append({
+                    "habit_id": rid, "title": f"{lh.title.split('(')[0].strip()}: {lh.trial_weeks}-week check"[:40],
+                    "how": "1) Look back over the trial: did it help? 2) Keep it only if it did. "
+                           "3) Tell me here to drop it or keep going.",
+                    "why": "A trial only means something if you check it at the end.",
+                    "minutes": 2, "time": h.get("time") or "", "weekend_time": h.get("weekend_time") or "",
+                    "days": (h.get("days") or ["sat"])[:1], "weeks": [lh.trial_weeks + 1],
+                    "kind": "checkin", "review_of": h["habit_id"],
+                })
+    placed.extend(extra)
 
 
 def _fix_clock(text: str, times: set, anchors: Optional[set] = None) -> str:
@@ -1292,6 +1425,12 @@ def _plan_week(started_on, d: date) -> int:
 def _in_plan_week(h: dict, week_no: int) -> bool:
     """A habit limited to some weeks ('weeks': [1]) or a cadence ('every_weeks': 4,
     i.e. weeks 1, 5, 9...). Both set = either one. Neither = every week."""
+    cyc = h.get("cycle")
+    if isinstance(cyc, (list, tuple)) and len(cyc) == 2 and int(cyc[0] or 0) > 0:
+        # "4 on / 1 off": weeks 1-4 on, 5 off, 6-9 on ... (melatonin)
+        on, off = int(cyc[0]), int(cyc[1] or 0)
+        if (week_no - 1) % (on + off) >= on:
+            return False
     weeks, every = h.get("weeks"), h.get("every_weeks")
     if not weeks and not every:
         return True
@@ -1305,6 +1444,7 @@ def expand_template(maxx_id: str, tmpl: dict, *, start_date: date, n_days: int =
         d = start_date + timedelta(days=i)
         wd = WEEKDAYS[d.weekday()]
         tasks = []
+        rules = []
         week_no = _plan_week(tmpl.get("started_on"), d)
         for h in tmpl.get("habits") or []:
             if wd not in (h.get("days") or []):
@@ -1312,6 +1452,16 @@ def expand_template(maxx_id: str, tmpl: dict, *, start_date: date, n_days: int =
             if not _in_plan_week(h, week_no):
                 continue
             t = h.get("weekend_time") if wd in ("sat", "sun") and h.get("weekend_time") else h.get("time")
+            kind = habit_kind(maxx_id, h)
+            if kind == "rule":
+                # a boundary, not a task: no checkbox, no XP, not in progress
+                # or day close (BETA1_CONTRACTS C1)
+                rules.append({
+                    "title": h.get("title") or h["habit_id"], "time": t,
+                    "catalog_id": f"{maxx_id}.{h['habit_id']}", "maxx_id": maxx_id,
+                    "note": _rule_note(h.get("how") or ""),
+                })
+                continue
             v = _routine_variant(h, d, tmpl.get("started_on")) or {}
             tasks.append({
                 "task_id": str(uuid.uuid4()),
@@ -1325,6 +1475,7 @@ def expand_template(maxx_id: str, tmpl: dict, *, start_date: date, n_days: int =
                 "tags": ["ai_program", maxx_id, "foundation"],
                 "status": "pending",
                 "intensity": 0.5,
+                "kind": kind,
             })
         if maxx_id == SUPP_PROGRAM:
             tasks = _group_same_time(tasks)
@@ -1333,8 +1484,26 @@ def expand_template(maxx_id: str, tmpl: dict, *, start_date: date, n_days: int =
         fit_for = (tmpl.get("fit_for") or {}).get("weekend" if wd in ("sat", "sun") else "weekday") or []
         wake = _hm(fit_for[0], "") if fit_for else ""
         tasks.sort(key=lambda x: (x["time"] < wake if wake else False, x["time"]))
-        days.append({"day_index": i, "date": d.isoformat(), "tasks": tasks})
+        days.append({"day_index": i, "date": d.isoformat(), "tasks": tasks,
+                     **({"rules": sorted(rules, key=lambda r: r["time"] or "")} if rules else {})})
     return days
+
+
+def habit_kind(maxx_id: str, h: dict) -> str:
+    """action | rule | setup | checkin for a planned habit (plans stored before
+    kinds existed are read from the library)."""
+    k = h.get("kind")
+    if k in ("action", "rule", "setup", "checkin"):
+        return k
+    lh = _lib(maxx_id).get(h.get("habit_id") or "")
+    return lh.habit_kind if lh is not None else "action"
+
+
+def _rule_note(how: str) -> str:
+    """The first step of a rule's how, as one short line."""
+    first = re.split(r"\s*\d\)\s*", how or "")
+    first = next((s for s in first if s.strip()), "")
+    return _clean_text(first.strip().rstrip("."), 90)
 
 
 def _short_supp_name(title: str) -> str:
@@ -1738,7 +1907,7 @@ async def sync_supplements(user_id: str, db) -> Optional[dict]:
         labels = ", ".join(sorted({program_label(h.primary_for) for h in adds}))
         tmpl = await build_plan(
             SUPP_PROGRAM, profile, answers, others,
-            current_plan={"summary": prev.get("summary"), "habits": kept},
+            current_plan={"summary": prev.get("summary"), "habits": kept, "started_on": prev.get("started_on")},
             request=(f"sync: the user now runs {labels}. add {', '.join(h.id for h in adds)} at the right "
                      "time for each and keep every other supplement exactly as it is."),
             sync_required=[h.id for h in adds],
@@ -2100,7 +2269,7 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db, *,
         tmpl = skin
     else:
         tmpl = await build_plan(maxx_id, profile, current.get("answers") or {}, others,
-                                current_plan={k: current.get(k) for k in ("summary", "habits")},
+                                current_plan={k: current.get(k) for k in ("summary", "habits", "started_on")},
                                 request=request, level=level)
         if tmpl is not None:
             _keep_routines(tmpl, current)
@@ -2125,7 +2294,7 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db, *,
         # fit undid: ask once more with the reason, then cut it ourselves.
         retry = await build_plan(
             maxx_id, profile, current.get("answers") or {}, others,
-            current_plan={k: current.get(k) for k in ("summary", "habits")},
+            current_plan={k: current.get(k) for k in ("summary", "habits", "started_on")},
             request=(f"{request}. (Your last version was not lighter once each habit's minimum minutes "
                      "were applied. Make it lighter by removing a habit or some days, never by shortening "
                      "a habit below its minimum.)"),

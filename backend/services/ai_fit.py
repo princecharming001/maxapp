@@ -90,11 +90,39 @@ class Day:
     bed: int                                   # > wake (past-midnight bed is +1440)
     busy: list[tuple[str, int, int]] = field(default_factory=list)   # (kind, start, end)
     work: Optional[tuple[int, int]] = None
+    wind: Optional[int] = None                 # start of the wind-down window the person set
 
 
 def _frame(m: int, wake: int) -> int:
     """Put a clock time on the wake-anchored frame (after-midnight → +1440)."""
     return m + 1440 if m < wake else m
+
+
+def _ob_days(o: dict) -> set[str]:
+    """The weekdays a commitment covers."""
+    days = o.get("days")
+    if isinstance(days, (list, tuple)):
+        out = {str(x).lower()[:3] for x in days}
+        return {d for d in out if d in WEEKDAYS} or set(WEEKDAYS[:5])
+    s = str(days or "weekdays").lower()
+    if s in ("weekends", "weekend"):
+        return set(WEEKEND)
+    if s in ("everyday", "every day", "daily", "all", "all days"):
+        return set(WEEKDAYS)
+    return set(WEEKDAYS[:5])
+
+
+def _frame_block(s: int, e: int, w: int) -> tuple[int, int]:
+    """A commitment on the wake-anchored frame. Only a block that ends before
+    waking belongs to the coming night; one that starts before waking but runs
+    into the day (Work 9-5 for someone who said they wake at 10) is today's.
+    (Framing each end separately pushed that work block to tomorrow, so every
+    morning habit was scheduled inside work hours.)"""
+    if e <= s:
+        e += 1440
+    if e <= w:
+        s, e = s + 1440, e + 1440
+    return s, e
 
 
 def day_models(profile: dict) -> dict[str, Day]:
@@ -112,21 +140,21 @@ def day_models(profile: dict) -> dict[str, Day]:
         delta = (w - wake) if weekend else 0
         busy: list[tuple[str, int, int]] = []
         work = None
-        if not weekend:
-            for o in profile.get("obligations") or []:
-                days = str((o or {}).get("days") or "weekdays").lower()
-                if days in ("weekends",):
-                    continue
-                s, e = to_min(o.get("start")), to_min(o.get("end"))
-                if s is None or e is None:
-                    continue
-                s, e = _frame(s, w), _frame(e, w)
-                if e <= s:
-                    e += 1440
-                kind = "commute" if "commute" in str(o.get("label", "")).lower() else "work"
-                busy.append((kind, s, e))
-                if kind == "work" and (work is None or e - s > work[1] - work[0]):
-                    work = (s, e)
+        for o in profile.get("obligations") or []:
+            if not isinstance(o, dict):
+                continue
+            # a weekday model holds every commitment on any weekday (a Mon/Wed
+            # class is avoided on all weekdays: the template has one weekday time)
+            if not (_ob_days(o) & (set(WEEKEND) if weekend else set(WEEKDAYS[:5]))):
+                continue
+            s, e = to_min(o.get("start")), to_min(o.get("end"))
+            if s is None or e is None:
+                continue
+            s, e = _frame_block(s, e, w)
+            kind = "commute" if "commute" in str(o.get("label", "")).lower() else "work"
+            busy.append((kind, s, e))
+            if kind == "work" and (work is None or e - s > work[1] - work[0]):
+                work = (s, e)
         for meal in ("breakfast", "lunch", "dinner"):
             t = to_min(meals.get(meal))
             if t is not None:
@@ -135,8 +163,15 @@ def day_models(profile: dict) -> dict[str, Day]:
                     tf = _frame((t + delta) % 1440, w)
                 if tf + MEAL_MIN <= b:
                     busy.append((meal, tf, tf + MEAL_MIN))
-        return Day(wake=w, bed=b, busy=busy, work=work)
+        wind = None
+        wdw = profile.get("wind_down_window")
+        if isinstance(wdw, (list, tuple)) and len(wdw) == 2 and to_min(wdw[0]) is not None:
+            ws = _frame(to_min(wdw[0]), w) + ((b - bed_f) if weekend else 0)
+            if w + 60 <= ws < b:
+                wind = ws
+        return Day(wake=w, bed=b, busy=busy, work=work, wind=wind)
 
+    bed_f = bed if bed > wake else bed + 1440
     return {"weekday": model(wake, bed, False), "weekend": model(wk_wake, wk_bed, True)}
 
 
@@ -167,14 +202,20 @@ class HabitInfo:
     minutes_min: int
     tier: str
     anchor: str
+    kind: str = "action"
+    order: str = ""
+    after: str = ""
 
 
 def info(hid: str, lib: dict) -> HabitInfo:
     h = lib.get(hid)
     if h is None:      # custom_ habit (user asked for it) or unknown
         return HabitInfo(rule=False, minutes_min=1, tier="core", anchor="")
-    return HabitInfo(rule=(h.minutes_min == 0 and h.minutes_default == 0), minutes_min=max(1, h.minutes_min),
-                     tier=h.tier or "core", anchor=(h.anchor or "").lower())
+    rule = getattr(h, "is_rule", h.minutes_min == 0 and h.minutes_default == 0)
+    return HabitInfo(rule=bool(rule), minutes_min=max(1, h.minutes_min),
+                     tier=h.tier or "core", anchor=(h.anchor or "").lower(),
+                     kind=getattr(h, "habit_kind", "rule" if rule else "action"),
+                     order=getattr(h, "order", "") or "", after=getattr(h, "after", "") or "")
 
 
 def meals_for(hid: str, inf: HabitInfo) -> list[str]:
@@ -217,7 +258,9 @@ def kind_of(hid: str, inf: HabitInfo) -> str:
     a = inf.anchor
     if hid == "caffeine_cutoff":
         return "caffeine"
-    if hid in ("wind_down", "screens_off", "screen_free_evening"):
+    if hid in ("screens_off", "screen_free_evening"):
+        return "screens_off"
+    if hid == "wind_down":
         return "wind_down"
     if hid in ("melatonin", "glycine", "pm_retinoid") or a.startswith("pre_bed"):
         return "pre_bed"
@@ -245,7 +288,7 @@ def kind_of(hid: str, inf: HabitInfo) -> str:
 
 
 SHIFTS_WITH_WAKE = {"wake", "wake_exact", "get_ready"}
-SHIFTS_WITH_BED = {"wind_down", "pre_bed", "evening", "caffeine", "nap"}
+SHIFTS_WITH_BED = {"wind_down", "screens_off", "pre_bed", "evening", "caffeine", "nap"}
 
 
 def window(kind: str, dur: int, d: Day, *, weekday: bool) -> tuple[int, int]:
@@ -259,10 +302,17 @@ def window(kind: str, dur: int, d: Day, *, weekday: bool) -> tuple[int, int]:
         return min(w + GAP, w + 60), min(w + 60, hi)
     if kind == "get_ready":
         return min(w + GAP, w + 90), min(w + 90, hi)
+    if kind == "screens_off":
+        # a boundary at (or before) the start of the wind-down, never after it
+        s = d.wind if d.wind is not None else max(w, b - 60)
+        return s, s
     if kind == "wind_down":
+        if d.wind is not None:
+            return d.wind, max(d.wind, min(d.wind + 15, b - 15 - dur))
         return max(w, b - 60), max(w, b - 30)
     if kind == "pre_bed":
-        return max(w, b - 60), max(w, b - 15)
+        lo = d.wind if d.wind is not None else max(w, b - 60)
+        return lo, max(lo, b - 15)
     if kind == "evening":
         return max(w, b - 120), max(w, b - 10)
     if kind == "caffeine":
@@ -299,7 +349,9 @@ def _why_here(kind: str, asked: int, d: Day, meals: list[str]) -> str:
     if kind in ("wake", "wake_exact", "get_ready"):
         return "it belongs within an hour of waking"
     if kind == "wind_down":
-        return "a wind-down starts 30 to 60 minutes before bed"
+        return "it starts when your wind-down starts"
+    if kind == "screens_off":
+        return "screens go away when your wind-down starts"
     if kind in ("pre_bed", "evening"):
         return "it belongs in the last hour or two before bed"
     if kind == "caffeine":
@@ -344,6 +396,7 @@ class Taken:
     start: int
     dur: int
     days: set
+    hid: str = ""
 
 
 def _near(t: int, d: Day) -> int:
@@ -363,15 +416,18 @@ def _occupied(others: dict[str, dict], models: dict[str, Day]) -> dict[str, list
     out: dict[str, list[Taken]] = {"weekday": [], "weekend": []}
     for tmpl in (others or {}).values():
         for h in (tmpl or {}).get("habits") or []:
+            if h.get("kind") == "rule":
+                continue            # a boundary line takes no time and no slot
             days = set(h.get("days") or [])
             dur = int(h.get("minutes") or 1)
+            hid = str(h.get("habit_id") or "")
             wkd, wke = days - set(WEEKEND), days & set(WEEKEND)
             t = to_min(h.get("time"))
             if wkd and t is not None:
-                out["weekday"].append(Taken(_near(t, models["weekday"]), dur, wkd))
+                out["weekday"].append(Taken(_near(t, models["weekday"]), dur, wkd, hid))
             te = to_min(h.get("weekend_time")) if h.get("weekend_time") else t
             if wke and te is not None:
-                out["weekend"].append(Taken(_near(te, models["weekend"]), dur, wke))
+                out["weekend"].append(Taken(_near(te, models["weekend"]), dur, wke, hid))
     return out
 
 
@@ -446,7 +502,8 @@ SUPP = "suppmax"
 def day_count(tmpl: dict, day: str, *, supp: bool = False) -> int:
     """Visible tasks a program puts on a day. Suppmax picks taken together at
     the same time show as one task ("Creatine + Vitamin D3")."""
-    hs = [h for h in (tmpl or {}).get("habits") or [] if day in (h.get("days") or [])]
+    hs = [h for h in (tmpl or {}).get("habits") or []
+          if day in (h.get("days") or []) and h.get("kind") != "rule"]
     if supp:
         key = "weekend_time" if day in WEEKEND else "time"
         return len({(h.get(key) or h.get("time") or h.get("habit_id")) for h in hs})
@@ -564,11 +621,13 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
             have.add(p["habit_id"])
     waiting: list[dict] = []
 
-    # minutes: library floor; rules are 1-minute reminders
+    # minutes: library floor; rules are boundaries (0 min, nothing to tick)
     for h in hs:
         inf = info(h["habit_id"], lib)
+        h["kind"] = "rule" if inf.rule else (h.get("kind") if h["habit_id"].startswith("custom_") and h.get("kind")
+                                             else inf.kind if inf.kind != "rule" else "action")
         m = int(h.get("minutes") or 0)
-        h["minutes"] = 1 if inf.rule else max(inf.minutes_min, min(90, m or inf.minutes_min))
+        h["minutes"] = 0 if inf.rule else max(inf.minutes_min, min(90, m or inf.minutes_min))
 
     def protected(h: dict) -> bool:
         return h["habit_id"] in keep_ids or h["habit_id"].startswith("custom_")
@@ -602,8 +661,9 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
 
     # week 1 stays easy
     cap = cap_habits if cap_habits is not None else 3
-    if len(hs) > cap:
-        ordered = sorted(hs, key=rank)
+    tasks_only = [h for h in hs if h.get("kind") != "rule"]       # rules are free boundaries
+    if len(tasks_only) > cap:
+        ordered = sorted(tasks_only, key=rank)
         drop = {id(h) for h in ordered[cap:] if not protected(h)}
         for h in hs:
             if id(h) in drop:
@@ -624,10 +684,18 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
             break
         on_day = [h for h in hs if day in (h.get("days") or []) and cost(h) > 0]
         shrinkable = [h for h in on_day if h["minutes"] > info(h["habit_id"], lib).minutes_min]
+        # a habit's minutes are the same every day it runs: only shorten one
+        # whose every day is over budget (a Saturday-only overage must not cut
+        # a daily habit all week)
+        over_days = {d for d in WEEKDAYS if day_load(hs, d) - allow[d] > 1e-6}
+        shrinkable = [h for h in shrinkable if set(h.get("days") or []) <= over_days]
         if shrinkable:
             h = max(shrinkable, key=lambda x: x["minutes"])
             floor = info(h["habit_id"], lib).minutes_min
-            h["minutes"] = max(floor, int(h["minutes"] - excess))
+            new_m = max(floor, int(h["minutes"] - excess))
+            notes.append(f"shortened {h['habit_id']} from {h['minutes']} to {new_m} min: "
+                         f"your {budget_total} min a day is shared with your other programs")
+            h["minutes"] = new_m
             continue
         droppable = [h for h in on_day if not protected(h)]
         if not droppable:
@@ -743,7 +811,12 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
         votes = {m: sum(1 for h in hs if m in supp_meals(h["habit_id"], info(h["habit_id"], lib))) for m in MEALS}
         best = max(votes.values(), default=0)
         stack_meal = next((m for m in MEALS if votes[m] == best), None) if best >= 2 else None
-    for h in sorted(hs, key=lambda x: (order[kind_of(x["habit_id"], info(x["habit_id"], lib))],
+    order["screens_off"] = order["wind_down"]
+
+    def seq(x: dict) -> int:
+        inf_ = info(x["habit_id"], lib)
+        return 0 if inf_.order == "first" else 2 if inf_.after else 1
+    for h in sorted(hs, key=lambda x: (order[kind_of(x["habit_id"], info(x["habit_id"], lib))], seq(x),
                                         to_min(x.get("time"), 0))):
         inf = info(h["habit_id"], lib)
         kind = kind_of(h["habit_id"], inf)
@@ -769,6 +842,8 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
                 continue
             d = models[key]
             pref = pref_for(key, h, kind)
+            if inf.order == "first" and kind in ("wake", "get_ready"):
+                pref = d.wake + GAP
             mw = meal_windows(meals, dur, d, pref) if kind == "meal" else []
             if mw and maxx_id == SUPP and stack_meal in meals:
                 mw.sort(key=lambda x: 0 if any(k == stack_meal and s0 == x[0] for k, s0, _ in d.busy) else 1)
@@ -782,7 +857,24 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
                     if ends:
                         pref = min(ends, key=lambda e: abs(e - pref))
                         lo = max(lo, min(ends))
+                if inf.after:
+                    # placed after the habit it follows (water before light),
+                    # wherever that one sits in the stack
+                    ends = [t.start + t.dur for t in taken[key] if t.hid == inf.after and t.days & ds]
+                    if ends:
+                        lo = max(lo, max(ends))
+                        hi = max(hi, lo)
+                        pref = max(pref, lo)
                 tries = [(lo, hi, pref)]
+            if inf.rule:
+                # a boundary line: its time comes from its rule window, it
+                # shares the moment with any task and occupies nothing
+                lo0, hi0, p0 = tries[0]
+                if caffeinated(h["habit_id"]) or kind == "caffeine":
+                    hi0 = min(hi0, d.bed - 360)
+                s = min(max(p0, lo0), max(lo0, hi0))
+                h["_" + key] = hhmm(s)
+                continue
             if caffeinated(h["habit_id"]):
                 # caffeine (with theanine, or before a focus block) never after the cutoff
                 cut = d.bed - 360
@@ -811,7 +903,7 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
             asked = to_min(h.get("weekend_time") if key == "weekend" and h.get("weekend_time") else h.get("time"))
             if key == "weekday" and asked is not None and abs(_near(asked, d) - s) > 10:
                 notes.append(f"kept {h['habit_id']} at {hhmm(s)}: {_why_here(kind, _near(asked, d), d, meals)}")
-            tk = Taken(s, dur, set(ds))
+            tk = Taken(s, dur, set(ds), h["habit_id"])
             taken[key].append(tk)
             if ck is not None and ck not in cluster:
                 cluster[ck] = tk

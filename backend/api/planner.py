@@ -1105,10 +1105,14 @@ async def confirm_weekly_facts(
             except (ValueError, AttributeError):
                 valid = False
             if valid:
-                ob["wake_time"] = value
+                wake_patch = {"wake_time": value}
                 plan_changed = True
     ob["confirmed_facts"] = stored
     user.onboarding = ob
+    if plan_changed:
+        # the one day-shape writer: windows and mirrors move with the scalar
+        from services import day_shape
+        await day_shape.write(user, db, wake_patch, source="weekly_review", regen=False)
     await db.commit()
 
     if plan_changed:

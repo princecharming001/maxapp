@@ -369,40 +369,16 @@ async def _persist_user_wake_sleep(user, db, wake_time, sleep_time) -> None:
     from sqlalchemy.orm.attributes import flag_modified
 
     if not user:
-        return
-    ob = dict(user.onboarding or {})
-    changed = False
+        return None
     w = _normalize_clock_hhmm(wake_time) if wake_time and str(wake_time).strip() else None
     s = _normalize_clock_hhmm(sleep_time) if sleep_time and str(sleep_time).strip() else None
-    if w:
-        ob["wake_time"] = w
-        changed = True
-    if s:
-        ob["sleep_time"] = s
-        changed = True
-    if not changed:
-        return
-    user.onboarding = ob
-    flag_modified(user, "onboarding")
-    sp = dict(user.schedule_preferences or {})
-    if w:
-        sp["wake_time"] = w
-    if s:
-        sp["sleep_time"] = s
-    user.schedule_preferences = sp
-    flag_modified(user, "schedule_preferences")
-    await db.flush()
-
-    # Re-expand every active doc-driven schedule so AM/PM task times shift
-    # to the new wake/sleep. Skeleton expand is <1ms — cheap to do eagerly.
-    # Skipped silently for users with no active doc-driven schedules.
-    try:
-        from services.schedule_runtime import regenerate_active_schedules
-        await regenerate_active_schedules(
-            user_id=str(user.id), db=db, reason="wake_sleep_change",
-        )
-    except Exception as _e:
-        logger.warning("regen after wake/sleep change failed (non-fatal): %s", _e)
+    patch = {k: v for k, v in (("wake_time", w), ("sleep_time", s)) if v}
+    if not patch:
+        return None
+    # one writer for the day shape: windows, per-day timings, user_facts, context
+    # copies and every plan move together (services/day_shape.py)
+    from services import day_shape
+    return await day_shape.write(user, db, patch, source="chat")
 
 
 # Map the timing-anchor keys the bot may pass to their canonical onboarding
@@ -427,14 +403,11 @@ async def _persist_onboarding_clock(user, db, key: str, value) -> bool:
     norm = _normalize_clock_hhmm(value) if value and str(value).strip() else None
     if not norm:
         return False
-    ob = dict(user.onboarding or {})
-    if ob.get(key) == norm:
+    if (user.onboarding or {}).get(key) == norm:
         return False
-    ob[key] = norm
-    user.onboarding = ob
-    flag_modified(user, "onboarding")
-    await db.flush()
-    return True
+    from services import day_shape
+    res = await day_shape.write(user, db, {key: norm}, source="chat", regen=False)
+    return bool(res["changed"])
 
 
 async def _persist_get_ready_minutes(user, db, value) -> bool:
@@ -1970,8 +1943,13 @@ def make_chat_tools(
                 pass
             list_keys = {"product_dislikes", "explicit_avoidances", "equipment_owned",
                          "skipped_repeatedly", "reported_issues"}
+            from services.day_shape import DAY_SHAPE_KEYS
+            day_keys = set(DAY_SHAPE_KEYS) | {"preferred_wake_time", "preferred_sleep_time",
+                                              "get_ready_duration", "get_ready_mins"}
             async with db_mutation_lock:
-                if lk in list_keys and not isinstance(parsed_val, list):
+                if lk in day_keys:
+                    pass        # persisted to onboarding above; a raw context copy would go stale
+                elif lk in list_keys and not isinstance(parsed_val, list):
                     await append_to_list(user_id, lk, parsed_val, db)
                 else:
                     await merge_context(user_id, {lk: parsed_val}, db)

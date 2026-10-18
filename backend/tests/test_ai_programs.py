@@ -61,7 +61,8 @@ def test_validate_clamps_times_into_the_waking_day_and_weekend_window():
 
 
 def test_validate_spaces_out_same_minute_habits():
-    lib = ap.get_program_doc("trainmax").habits
+    # two habits that take time (rules are boundaries and share any moment)
+    lib = [h for h in ap.get_program_doc("trainmax").habits if not h.is_rule]
     t = ap.validate_template("trainmax", _raw(
         {"habit_id": lib[2].id, "title": "a", "how": "", "why": "", "minutes": 2, "time": "08:00", "weekend_time": "", "days": ["mon", "tue"]},
         {"habit_id": lib[3].id, "title": "b", "how": "", "why": "", "minutes": 2, "time": "08:00", "weekend_time": "", "days": ["tue"]},
@@ -274,7 +275,10 @@ def test_no_task_starts_inside_another_task():
     t = ap.validate_template("focusmax", _raw(_h("deep_work_block", "11:15", 25, days=days),
                                               _h("phone_away", "11:20", 1, days=days)), prof)
     by = {k: _m(v["time"]) for k, v in _by(t).items()}
-    assert not (by["deep_work_block"] <= by["phone_away"] < by["deep_work_block"] + 25)
+    # phone-away is a rule (a boundary over the block), so it may share the
+    # moment; a habit that takes time never starts inside another
+    if _by(t)["phone_away"].get("kind") != "rule":
+        assert not (by["deep_work_block"] <= by["phone_away"] < by["deep_work_block"] + 25)
     # across programs too
     other = {"trainmax": {"habits": [_h("strength_full_body", "18:00", 20, days=["mon"])]}}
     t = ap.validate_template("calmmax", _raw(_h("box_breathing", "18:05", 3, days=["mon"])), _prof(minutes=60),
@@ -538,7 +542,10 @@ def test_week_one_cap_keeps_the_persons_priorities():
                                               _h("caffeine_cutoff", "13:00", 0), _h("morning_light", "07:30", 5),
                                               _h("bedroom_setup", "20:00", 5)),
                              _prof("06:30", "21:00", minutes=30))
-    assert _ids(t) == {"wind_down", "fixed_wake_time", "caffeine_cutoff", "morning_light"}
+    # rules (fixed wake, caffeine cutoff) are boundaries that don't count toward the cap,
+    # so the setup task fits too; the wind-down (Claude's first pick) is never the one cut
+    assert {"wind_down", "fixed_wake_time", "caffeine_cutoff", "morning_light"} <= _ids(t)
+    assert all(h["kind"] == "rule" for h in t["habits"] if h["habit_id"] in ("fixed_wake_time", "caffeine_cutoff"))
 
 
 def test_a_minutes_only_refit_rewrites_the_stored_days():

@@ -1421,31 +1421,19 @@ async def _persist_user_wake_sleep(
     wake_time: Optional[str],
     sleep_time: Optional[str],
 ) -> None:
-    """Store global wake/sleep on User.onboarding (+ mirror on schedule_preferences)."""
+    """Store global wake/sleep through the one day-shape writer, which also
+    moves the windows, user_facts and every active plan (services/day_shape.py).
+    (This used to write only the scalar, so "retimed your active schedules"
+    was said while nothing was retimed.)"""
     if not user:
-        return
-    ob = dict(user.onboarding or {})
-    changed = False
+        return None
     w = _normalize_clock_hhmm(wake_time) if wake_time and str(wake_time).strip() else None
     s = _normalize_clock_hhmm(sleep_time) if sleep_time and str(sleep_time).strip() else None
-    if w:
-        ob["wake_time"] = w
-        changed = True
-    if s:
-        ob["sleep_time"] = s
-        changed = True
-    if not changed:
-        return
-    user.onboarding = ob
-    flag_modified(user, "onboarding")
-    sp = dict(user.schedule_preferences or {})
-    if w:
-        sp["wake_time"] = w
-    if s:
-        sp["sleep_time"] = s
-    user.schedule_preferences = sp
-    flag_modified(user, "schedule_preferences")
-    await db.flush()
+    patch = {k: v for k, v in (("wake_time", w), ("sleep_time", s)) if v}
+    if not patch:
+        return None
+    from services import day_shape
+    return await day_shape.write(user, db, patch, source="chat")
 
 
 def _safe_int_age(val) -> Optional[int]:

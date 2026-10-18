@@ -177,7 +177,12 @@ def merged_user_state(onboarding: dict | None, context: dict | None, extras: dic
     if onboarding:
         out.update(onboarding)
     if context:
-        out.update(context)
+        # the day shape is owned by onboarding (services/day_shape.py): a stale
+        # context copy of a wake time must never beat it
+        from services.day_shape import DAY_SHAPE_KEYS
+        ob = onboarding or {}
+        out.update({k: v for k, v in context.items()
+                    if not (k in DAY_SHAPE_KEYS and not _is_empty(ob.get(k)))})
     if extras:
         out.update(extras)
     # Lowest-precedence layer: only set keys the user left unanswered.

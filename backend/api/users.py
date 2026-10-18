@@ -732,8 +732,11 @@ async def save_onboarding(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Update onboarding data (normalize body metrics to chosen unit system)
-    onboarding_data = data.model_dump()
+    # A MERGE, not a replace: screens send only what they changed (the day
+    # planner sheet used to re-post the whole cached blob and revert a wake
+    # time the coach had just changed). Explicit nulls still clear a key.
+    incoming = data.model_dump(exclude_unset=True)
+    onboarding_data = {**dict(user.onboarding or {}), **incoming}
     # Strip server-owned entitlement keys — marketplace access is derived from
     # the Purchase table, never from a client-supplied onboarding field (P0-1).
     for _entitlement_key in ("entered_maxxes", "entered_courses"):
@@ -751,8 +754,10 @@ async def save_onboarding(
         else:
             onboarding_data.pop(_k, None)
     unit = str(onboarding_data.get("unit_system") or "imperial").strip().lower()
-    height = onboarding_data.get("height")
-    weight = onboarding_data.get("weight")
+    # re-normalizing stored metrics on every save would convert them again
+    height = onboarding_data.get("height") if "height" in incoming else None
+    weight = onboarding_data.get("weight") if "weight" in incoming else None
+    _metrics_sent = "height" in incoming or "weight" in incoming
 
     def _round1(x):
         try:
@@ -767,7 +772,10 @@ async def save_onboarding(
     height_cm = None
     weight_kg = None
 
-    if unit == "metric":
+    if not _metrics_sent:
+        height_cm = onboarding_data.get("height_cm")
+        weight_kg = onboarding_data.get("weight_kg")
+    elif unit == "metric":
         # height: cm, weight: kg
         height_cm = height_f
         weight_kg = weight_f
@@ -870,6 +878,16 @@ async def save_onboarding(
         wt["saturday"] = {**weekend, **(wt.get("saturday") or {})}
         wt["sunday"] = {**weekend, **(wt.get("sunday") or {})}
         onboarding_data["weekly_timings"] = wt
+    # The day shape moves as one: a new wake time drags its window, per-day
+    # timings and get-ready with it (services/day_shape.py).
+    from services import day_shape as _day_shape
+    _day_patch = {k: onboarding_data.get(k) for k in _day_shape.DAY_SHAPE_KEYS if k in incoming}
+    if _day_patch:
+        _base = {**onboarding_data, **{k: _existing_ob.get(k) for k in _day_patch}}
+        onboarding_data = _day_shape.normalize(_base, _day_patch)
+        # derived commute blocks were computed above from the merged blob; keep them
+        onboarding_data["obligations"] = obs
+    _warnings = _day_shape.warnings(onboarding_data)
     # The first Max is built by the USER through the guided walkthrough
     # (Home → Explore → start a schedule), never pre-built here: a plan the
     # user didn't choose read as "a Max already built in" and skipped the
@@ -899,6 +917,10 @@ async def save_onboarding(
             merged = merge_facts(existing_ctx.get(FACTS_KEY) or {}, ob_facts)
             await merge_context(str(user_uuid), {FACTS_KEY: merged}, db)
     await best_effort(db, "onboarding->user_facts sync", _sync_user_facts)
+
+    async def _sync_day_shape_mirrors():
+        await _day_shape.sync_mirrors(str(user_uuid), onboarding_data, db)
+    await best_effort(db, "onboarding->day shape mirrors", _sync_day_shape_mirrors)
 
     # Editing lifestyle (wake/sleep/work hours, workout time, get-ready time)
     # must propagate to the user's live schedules immediately — otherwise the
@@ -934,6 +956,7 @@ async def save_onboarding(
         "message": "Onboarding completed",
         "data": onboarding_data,
         "first_routine": _starter_preview(first_routine),
+        "warnings": _warnings,
     }
 
 
@@ -1463,28 +1486,31 @@ async def planner_chat(
             "changed": False,
         }
 
-    prev["completed"] = True
-    user.onboarding = prev
+    # One writer for the day shape (services/day_shape.py): windows, per-day
+    # timings, user_facts and every active plan move together.
+    from services import day_shape
+    original = dict(user.onboarding or {})
+    patch = {k: prev.get(k) for k in set(prev) | set(original)
+             if k in day_shape.DAY_SHAPE_KEYS and prev.get(k) != original.get(k)}
+    res = await day_shape.write(user, db, patch, source="planner_chat", regen=False)
     user.updated_at = datetime.utcnow()
-    await db.flush()
-    # Persist the plan update before the best-effort regen so a regen DB error
-    # can't roll it back (see db.best_effort).
     await db.commit()
 
-    # Propagate to live schedules + coach context, same as save_onboarding.
     async def _regen():
         from services.schedule_runtime import regenerate_active_schedules
         from services.user_context_service import invalidate as _invalidate_ctx
         _invalidate_ctx(str(user_uuid))
         await regenerate_active_schedules(user_id=str(user_uuid), db=db, reason="planner_chat")
     await best_effort(db, "planner_chat schedule regen", _regen)
+    ob_now = dict(user.onboarding or {})
 
     return {
         "message": "Plan updated",
         "summary": summary,
-        "defaults": _public_defaults(prev),
-        "weekly_timings": prev.get("weekly_timings"),
+        "defaults": _public_defaults(ob_now),
+        "weekly_timings": ob_now.get("weekly_timings"),
         "changed": True,
+        "warnings": res["warnings"],
     }
 
 
