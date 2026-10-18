@@ -420,7 +420,7 @@ function getExpoDevBundlerHost(): string | null {
 // .env), resolveApiBaseUrl() used to THROW at module scope — since API_BASE_URL
 // is computed at import time, that crashed the entire bundle for every user
 // before a single screen could render. Fail-soft beats a fatal at import.
-const PRODUCTION_API_BASE_URL_FALLBACK = 'https://maxapp-api.onrender.com/api/';
+const PRODUCTION_API_BASE_URL_FALLBACK = 'https://maxapp-api-va.onrender.com/api/';
 
 function resolveApiBaseUrl(): string {
     const envValue = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
