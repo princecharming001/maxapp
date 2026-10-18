@@ -16,6 +16,7 @@ Check with a professional first:
 
 ### `top_three_plan` — Plan your top 3
 - minutes: 2 / 5
+- kind: action
 - anchor: before_work (first 15 min of work hours)
 - frequency: every workday
 - tier: core
@@ -26,16 +27,18 @@ Check with a professional first:
 
 ### `deep_work_block` — Deep-work block
 - minutes: 25 / 60 (scheduled as a work task, does not count against the habit budget beyond the 2-min start ritual)
+- kind: action
 - anchor: before_work or within work hours (the user's peak time; default first 2–3 hours of work)
 - frequency: 3–5× per week
 - tier: core
 - why: Switching between tasks leaves "attention residue" that lowers performance on the next task; one uninterrupted block avoids it.
-- how: 1) Block 25–90 min on your calendar as busy. 2) One task only; close email and chat. 3) Note where you stopped before switching.
-- conflicts/synergies: Requires `phone_away`. Avoid putting it right after a heavy lunch or during the user's slump time (EnergyMax).
+- how: 1) Pick the one task for this block. 2) Close email and chat and work on that task only. 3) Before you switch, note where you stopped.
+- conflicts/synergies: Requires `phone_away`. Marking the block busy on your calendar ahead of time helps protect it. Avoid putting it right after a heavy lunch or during the user's slump time (EnergyMax).
 - source: https://doi.org/10.1016/j.obhdp.2009.04.002
 
 ### `phone_away` — Phone in another room
-- minutes: 0 / 0 (a setup action at the block start)
+- minutes: 0 / 0 (a boundary for the deep-work block)
+- kind: rule
 - anchor: start of deep-work block
 - frequency: every deep-work block
 - tier: core
@@ -45,9 +48,10 @@ Check with a professional first:
 - source: https://www.journals.uchicago.edu/doi/10.1086/691462
 
 ### `notification_cleanup` — Notification cleanup
-- minutes: 5 / 10
-- anchor: weekend (one-time, then monthly)
-- frequency: once in week 1, then 1× per month
+- minutes: 5 / 10 (one-time setup)
+- kind: setup
+- anchor: weekend (first weekend)
+- frequency: once in week 1 (revisit during a weekly review if alerts creep back)
 - tier: core
 - why: In a one-week experiment, turning phone alerts off lowered reported inattention and hyperactivity compared with alerts on.
 - how: 1) Turn off notifications for all apps except calls, messages from key people, and calendar. 2) Remove badge counts for email and social apps. 3) Schedule a Focus mode for work hours.
@@ -56,16 +60,18 @@ Check with a professional first:
 
 ### `batch_inbox` — Batch email and chat
 - minutes: 0 / 0 (a placement rule)
+- kind: rule
 - anchor: work hours (2–4 fixed check times)
 - frequency: every workday
 - tier: medium
 - why: Checking messages constantly creates the task switching and residue that deep work avoids.
-- how: 1) Pick 2–4 check times (for example 11:00, 14:00, 16:30). 2) Close the email tab between. 3) Tell your team your response window if needed.
+- how: 1) Pick 2–4 check times (for example late morning, mid-afternoon and before you finish). 2) Close the email tab between. 3) Tell your team your response window if needed.
 - conflicts/synergies: Never schedule a check inside the deep-work block.
 - source: https://doi.org/10.1016/j.obhdp.2009.04.002
 
 ### `micro_break` — Real micro-break
 - minutes: 3 / 5
+- kind: action
 - anchor: work_break (after each 50–90 min focus period)
 - frequency: 2–4× per workday
 - tier: core
@@ -76,6 +82,7 @@ Check with a professional first:
 
 ### `nsdr_break` — NSDR / yoga nidra
 - minutes: 10 / 15
+- kind: action
 - anchor: afternoon or lunch
 - frequency: 2–5× per week
 - tier: medium
@@ -86,6 +93,7 @@ Check with a professional first:
 
 ### `single_tab_rule` — One tab, one task
 - minutes: 0 / 0
+- kind: rule
 - anchor: during the deep-work block
 - frequency: every deep-work block
 - tier: medium
@@ -96,6 +104,7 @@ Check with a professional first:
 
 ### `shutdown_ritual` — Workday shutdown
 - minutes: 3 / 5
+- kind: action
 - anchor: after_work (last 10 min of work hours)
 - frequency: every workday
 - tier: core
@@ -106,6 +115,7 @@ Check with a professional first:
 
 ### `caffeine_for_focus` — Time caffeine to the block
 - minutes: 0 / 0
+- kind: rule
 - anchor: before_work
 - frequency: workdays (if the user uses caffeine)
 - tier: medium
@@ -116,6 +126,7 @@ Check with a professional first:
 
 ### `walk_to_think` — Walking think-time
 - minutes: 10 / 15
+- kind: action
 - anchor: lunch or afternoon
 - frequency: 2–3× per week
 - tier: hard
@@ -126,6 +137,7 @@ Check with a professional first:
 
 ### `weekly_review` — Weekly review
 - minutes: 10 / 20
+- kind: checkin
 - anchor: weekend (or Friday afternoon)
 - frequency: 1× per week
 - tier: hard
@@ -136,6 +148,7 @@ Check with a professional first:
 
 ### `meeting_free_block` — Protect one morning
 - minutes: 0 / 0 (calendar rule)
+- kind: rule
 - anchor: within work hours
 - frequency: 1–2× per week
 - tier: hard

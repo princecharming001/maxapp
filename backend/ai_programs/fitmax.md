@@ -17,6 +17,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `strength_full_body` — Full-body strength
 - minutes: 20 / 30 (up to 40)
+- kind: action
 - anchor: user's stored workout time; else before_work, lunch or after_work
 - frequency: 2–3× per week (4 for users with 40+ min and experience)
 - tier: core
@@ -27,6 +28,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `zone2_cardio` — Easy cardio (zone 2)
 - minutes: 20 / 30 (up to 45)
+- kind: action
 - anchor: before_work, lunch, after_work, or commute (bike or brisk walk)
 - frequency: 2–3× per week
 - tier: core
@@ -37,6 +39,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `daily_steps` — Daily step goal
 - minutes: 0 / 0 (accumulated through the day)
+- kind: rule
 - anchor: all day; commute and post-meal walks count
 - frequency: daily
 - tier: core
@@ -47,6 +50,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `mobility_flow` — 5-minute mobility
 - minutes: 5 / 8
+- kind: action
 - anchor: get_ready, work_break or wind_down
 - frequency: 3–5× per week
 - tier: core
@@ -57,6 +61,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `posture_break` — Desk posture reset
 - minutes: 2 / 3
+- kind: action
 - anchor: work_break
 - frequency: 2–4× per workday
 - tier: core
@@ -67,6 +72,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `upper_back_strength` — Upper-back strength
 - minutes: 5 / 8
+- kind: action
 - anchor: after_work or inside a strength session
 - frequency: 2–3× per week
 - tier: medium
@@ -77,6 +83,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `protein_each_meal` — Protein at each meal
 - minutes: 0 / 2
+- kind: action
 - anchor: get_ready, lunch, dinner
 - frequency: daily
 - tier: core
@@ -87,16 +94,18 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `post_workout_meal` — Eat after training
 - minutes: 0 / 2
+- kind: action
 - anchor: within ~2 hours after a strength session
 - frequency: per strength session
 - tier: medium
 - why: Spreading protein over the day, including after training, helps people hit their total intake.
-- how: 1) Plan training before a usual meal. 2) If not, have a simple protein snack. 3) Include water.
-- conflicts/synergies: Late sessions: keep the post-workout meal light if close to bed (SleepMax).
+- how: 1) If a usual meal is within about 2 hours, make it your post-workout meal with a protein. 2) If not, have a simple protein snack now. 3) Drink some water.
+- conflicts/synergies: Easiest when training sits just before a usual meal. Late sessions: keep the post-workout meal light if close to bed (SleepMax).
 - source: https://bjsm.bmj.com/content/52/6/376
 
 ### `vigorous_intervals` — Short interval session
 - minutes: 10 / 15
+- kind: action
 - anchor: before_work, lunch or after_work (never in the last 2 hours before bed)
 - frequency: 1× per week (only after 3–4 weeks of consistent training)
 - tier: hard
@@ -107,6 +116,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `stair_or_burst` — Movement burst
 - minutes: 1 / 2
+- kind: action
 - anchor: work_break
 - frequency: 1–3× per day
 - tier: medium
@@ -117,6 +127,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `balance_drill` — Balance practice
 - minutes: 2 / 3
+- kind: action
 - anchor: get_ready (while brushing teeth)
 - frequency: 3–5× per week
 - tier: medium (core for 60+)
@@ -127,6 +138,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `recovery_day` — Rest and recovery day
 - minutes: 0 / 15
+- kind: rule
 - anchor: weekend or between strength days
 - frequency: at least 1–2× per week
 - tier: core
@@ -137,6 +149,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `long_walk_weekend` — Weekend long walk
 - minutes: 30 / 60
+- kind: action
 - anchor: weekend
 - frequency: 1× per week
 - tier: hard
@@ -147,6 +160,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 
 ### `training_log` — Quick training log
 - minutes: 1 / 2
+- kind: checkin
 - anchor: right after each session
 - frequency: per session
 - tier: medium

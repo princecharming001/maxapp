@@ -17,6 +17,7 @@ Check with a professional first:
 
 ### `zone2_cardio` — Easy cardio (zone 2)
 - minutes: 20 / 30 (up to 45)
+- kind: action
 - anchor: before_work, lunch, after_work or commute
 - frequency: 2–4× per week (toward 150 min/week of moderate activity in total, counting walks)
 - tier: core
@@ -27,6 +28,7 @@ Check with a professional first:
 
 ### `strength_2x` — Strength twice a week
 - minutes: 20 / 30
+- kind: action
 - anchor: user's workout time, or before_work / after_work
 - frequency: 2× per week, ≥48 h apart
 - tier: core
@@ -37,6 +39,7 @@ Check with a professional first:
 
 ### `daily_steps` — Daily steps
 - minutes: 0 / 0 (accumulated)
+- kind: rule
 - anchor: all day; commute, calls, post-meal walks
 - frequency: daily
 - tier: core
@@ -47,6 +50,7 @@ Check with a professional first:
 
 ### `stair_snack` — Vigorous minute
 - minutes: 1 / 2
+- kind: action
 - anchor: work_break or commute
 - frequency: 1–3× per day
 - tier: medium
@@ -57,26 +61,29 @@ Check with a professional first:
 
 ### `veg_first` — Vegetables first
 - minutes: 0 / 2
+- kind: action
 - anchor: lunch and dinner
 - frequency: daily (at least one meal)
 - tier: core
 - why: Higher fiber intake (about 25–29 g/day or more) was linked to lower risk of death and several chronic diseases; most adults eat about half that.
-- how: 1) Start lunch or dinner with vegetables or a salad. 2) Aim for half the plate as vegetables. 3) Keep frozen vegetables on hand for busy nights.
+- how: 1) Start lunch or dinner with vegetables or a salad. 2) Aim for half the plate as vegetables. 3) Frozen or pre-cut vegetables count just as much.
 - conflicts/synergies: Same as EnergyMax `lunch_balance`. Raise fiber gradually with water to avoid discomfort.
 - source: https://doi.org/10.1016/S0140-6736(18)31809-9
 
 ### `fiber_swap` — One fiber swap
 - minutes: 0 / 2
+- kind: action
 - anchor: get_ready, lunch or dinner
 - frequency: daily
 - tier: medium
 - why: Swapping refined grains for whole grains, beans and lentils is the simplest way to raise fiber.
-- how: 1) Pick one swap: white → whole-grain bread or rice, add beans or lentils to a meal, oats at breakfast, fruit or nuts as a snack. 2) Add one new swap per week. 3) Drink water with it.
+- how: 1) Make one swap at this meal: whole-grain bread or rice instead of white, beans or lentils added, oats at breakfast, or fruit or nuts as a snack. 2) Repeat the same swap until it is easy, then try another. 3) Drink water with it.
 - conflicts/synergies: Pairs with EnergyMax `protein_first_meal` (oats + yogurt).
 - source: https://doi.org/10.1016/S0140-6736(18)31809-9
 
 ### `sleep_regularity` — Regular sleep window
 - minutes: 0 / 0 (a rule)
+- kind: rule
 - anchor: wake and pre_bed
 - frequency: daily
 - tier: core
@@ -87,18 +94,20 @@ Check with a professional first:
 
 ### `social_connection` — Connect with someone
 - minutes: 5 / 15
+- kind: action
 - anchor: commute, lunch, after_work or weekend
 - frequency: 3–5× per week (at least 1 in-person plan per week)
 - tier: core
 - why: A meta-analysis of 148 studies found stronger social relationships linked to about 50% higher odds of survival, comparable to well-known risk factors.
-- how: 1) Call or voice-note one person. 2) Book a recurring walk, meal or class with someone. 3) Say yes to one invite this week.
+- how: 1) Call or voice-note one person. 2) Suggest a walk, meal or class together. 3) Ask one real question.
 - conflicts/synergies: Same as CalmMax `connect_ping`. Combine with walks (walk-and-talk).
 - source: https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.1000316
 
 ### `checkup_reminder` — Routine checkup reminder
 - minutes: 5 / 10 (to book, not to attend)
+- kind: setup
 - anchor: weekend
-- frequency: 1× per year (plus a nudge if the user says they're overdue)
+- frequency: once in week 1 (then once a year, plus a nudge if the user says they're overdue)
 - tier: core
 - why: Preventive visits, screenings and vaccines can find problems before symptoms; which ones you need depends on age, sex and history.
 - how: 1) Use the MyHealthfinder tool or ask your clinician what is due for you. 2) Book a yearly checkup and any due screenings. 3) Add dental and eye checks.
@@ -107,6 +116,7 @@ Check with a professional first:
 
 ### `balance_practice` — Balance practice
 - minutes: 2 / 3
+- kind: action
 - anchor: get_ready (while brushing teeth)
 - frequency: 3–5× per week
 - tier: medium (core for 60+)
@@ -117,16 +127,18 @@ Check with a professional first:
 
 ### `nature_time` — Weekly nature time
 - minutes: 20 / 30
+- kind: action
 - anchor: weekend or lunch
 - frequency: aim for about 120 min/week total (can be split)
 - tier: medium
 - why: People with at least 120 min of nature contact a week more often reported good health and wellbeing.
-- how: 1) Walk in a park, by water or on a trail. 2) Split into 3–4 shorter visits if needed. 3) Bring someone.
+- how: 1) Walk in a park, by water or on a trail. 2) Shorter visits add up: 3–4 a week is fine. 3) Bring someone if you can.
 - conflicts/synergies: Counts as CalmMax `outdoor_walk` and step time.
 - source: https://doi.org/10.1038/s41598-019-44097-3
 
 ### `alcohol_awareness` — Alcohol-free days
 - minutes: 0 / 0
+- kind: rule
 - anchor: dinner
 - frequency: shown only if the user drinks; aim for more alcohol-free days per week
 - tier: medium
@@ -137,16 +149,18 @@ Check with a professional first:
 
 ### `move_after_sitting` — Break up long sitting
 - minutes: 2 / 3
+- kind: action
 - anchor: work_break (every 60–90 min)
 - frequency: 3–6× per workday
 - tier: core
 - why: Short walking breaks during long sitting lowered post-meal blood sugar compared with uninterrupted sitting.
-- how: 1) Set a 60–90 min timer. 2) Walk 2–3 min. 3) Return to work.
+- how: 1) Stand up from your seat. 2) Walk for 2–3 min. 3) Sit back down and carry on.
 - conflicts/synergies: Same as EnergyMax `movement_snack` / FitMax `posture_break`; merge.
 - source: https://doi.org/10.1007/s40279-022-01649-4
 
 ### `weekly_long_walk` — Weekend long walk
 - minutes: 30 / 60
+- kind: action
 - anchor: weekend
 - frequency: 1× per week
 - tier: hard
