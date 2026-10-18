@@ -56,12 +56,11 @@ import {
     LEVEL_TO_EFFORT,
     LEVEL_TO_INTENSITY,
     MAX_GOALS,
-    MINUTES_MAX,
-    MINUTES_MIN,
     buildStarterStack,
     levelForMinutes,
+    INTENSITY_LEVELS,
+    intensityForMinutes,
     priorityTokensFor,
-    stackMinutes,
     type BiohackLevel,
 } from '../../lib/starterStack';
 
@@ -903,21 +902,17 @@ export default function OnboardingV2Screen() {
         commuteMin: hasCommute ? commuteMin : 0,
         lunchMin: 12 * 60 + 30,
     });
-    const stackTotal = stackMinutes(stack);
     const toggleDone = (id: string) => {
         if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         setDoneHabits((d) => (d.includes(id) ? d.filter((x) => x !== id) : [...d, id]));
     };
 
-    // Time slider: continuous minutes a day, 25 until the user moves it.
+    // Intensity: a named level (Minimal ... Intense), Steady until they pick.
+    // Each level carries a minute budget the planner fits habits into.
     const minutesShown = dailyMinutes ?? DEFAULT_MINUTES;
-    const lastTick = useRef(minutesShown);
+    const intensityShown = intensityForMinutes(minutesShown);
     const pickMinutes = (m: number) => {
-        // A light tick every 5 minutes so the drag feels physical, not buzzy.
-        if (Platform.OS !== 'web' && Math.floor(m / 5) !== Math.floor(lastTick.current / 5)) {
-            Haptics.selectionAsync().catch(() => {});
-        }
-        lastTick.current = m;
+        if (Platform.OS !== 'web' && m !== dailyMinutes) Haptics.selectionAsync().catch(() => {});
         setDailyMinutes(m);
         setLevel(levelForMinutes(m));
     };
@@ -974,32 +969,48 @@ export default function OnboardingV2Screen() {
                 </View>
             ),
         },
-        // time — how many minutes a day they'll commit (continuous slider)
+        // intensity — how hard they want to go (named levels, not minutes)
         {
             phase: 'intro',
             title: 'How much time can\nyou give this?',
-            sub: 'Your plan fits inside it. You can change it anytime.',
+            sub: 'Your plan fits the level you pick. You can change it anytime.',
             canNext: true,
-            // The slider always shows a value (25 until moved), so Continue
-            // commits it even if the user never drags.
+            // A level is always selected (Steady until they tap), so Continue
+            // commits it even if the user never taps.
             onContinue: () => { if (dailyMinutes == null) pickMinutes(minutesShown); },
             body: (
-                <View>
-                    <View style={styles.levelReadout}>
-                        <Text style={styles.levelNumber}>{minutesShown}</Text>
-                        <Text style={styles.levelUnit}>min a day</Text>
-                    </View>
-                    <Slider
-                        value={minutesShown}
-                        min={MINUTES_MIN}
-                        max={MINUTES_MAX}
-                        step={1}
-                        onChange={pickMinutes}
-                    />
-                    <View style={styles.sliderEnds}>
-                        <Text style={styles.sliderEndText}>{MINUTES_MIN} min</Text>
-                        <Text style={styles.sliderEndText}>{MINUTES_MAX} min</Text>
-                    </View>
+                <View style={{ gap: 10 }}>
+                    {INTENSITY_LEVELS.map((l) => {
+                        const active = l.id === intensityShown.id;
+                        return (
+                            <TouchableOpacity
+                                key={l.id}
+                                style={[styles.tile, active && styles.tileActive]}
+                                onPress={() => pickMinutes(l.minutes)}
+                                activeOpacity={0.85}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: active }}
+                                accessibilityLabel={`${l.label}, ${l.sub}`}
+                            >
+                                <View style={styles.intensityBars}>
+                                    {[1, 2, 3, 4].map((b) => (
+                                        <View
+                                            key={b}
+                                            style={[
+                                                styles.intensityBar,
+                                                { height: 6 + b * 4 },
+                                                b <= l.bars && (active ? styles.intensityBarOnActive : styles.intensityBarOn),
+                                            ]}
+                                        />
+                                    ))}
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.tileLabel, active && styles.tileLabelActive]}>{l.label}</Text>
+                                    <Text style={[styles.tileTag, active && styles.tileTagActive]}>{l.sub}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
             ),
         },
@@ -1111,7 +1122,7 @@ export default function OnboardingV2Screen() {
             phase: 'intro',
             title: 'Your first\nstack',
             sub: stack.length
-                ? `${stack.length} habits, about ${stackTotal} min a day, placed around your real day. Tap one to start it now.`
+                ? `${stack.length} habits at a ${intensityShown.label.toLowerCase()} pace, placed around your real day. Tap one to start it now.`
                 : 'Pick a goal to see your first habits.',
             canNext: stack.length > 0,
             cta: 'Looks right',
@@ -1627,6 +1638,10 @@ const styles = StyleSheet.create({
     stackDoText: { fontFamily: 'Matter-SemiBold', fontSize: 13.5, color: ON_INK },
     stackDoTextDone: { color: INK },
     // time slider
+    intensityBars: { width: 38, height: 26, flexDirection: 'row', alignItems: 'flex-end', gap: 3, marginRight: 4 },
+    intensityBar: { width: 6, borderRadius: 2, backgroundColor: 'rgba(21,19,15,0.12)' },
+    intensityBarOn: { backgroundColor: INK },
+    intensityBarOnActive: { backgroundColor: '#FFFFFF' },
     levelReadout: { alignItems: 'center', marginBottom: 28 },
     levelNumber: { fontFamily: 'Matter-SemiBold', fontSize: 64, lineHeight: 70, color: INK, letterSpacing: -2 },
     levelUnit: { fontFamily: 'Matter-Regular', fontSize: 15, color: SUB, marginTop: 2 },

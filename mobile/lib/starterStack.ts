@@ -46,6 +46,21 @@ export const MINUTES_MIN = 5;
 export const MINUTES_MAX = 60;
 export const DEFAULT_MINUTES = 25;
 
+/** The "how much can you give this" scale: named levels, not minutes. Each
+ *  still carries a minute budget under the hood, because the planner fits
+ *  habits into a daily budget. */
+export const INTENSITY_LEVELS: { id: string; label: string; sub: string; minutes: number; bars: number }[] = [
+    { id: 'minimal', label: 'Minimal', sub: 'one or two tiny habits, for packed days', minutes: 10, bars: 1 },
+    { id: 'steady', label: 'Steady', sub: 'a few easy habits through your day', minutes: 25, bars: 2 },
+    { id: 'committed', label: 'Committed', sub: 'a real routine, morning to night', minutes: 40, bars: 3 },
+    { id: 'intense', label: 'Intense', sub: 'the full stack, for when you are all in', minutes: 60, bars: 4 },
+];
+
+/** The level a stored minute budget belongs to (older drafts saved minutes). */
+export function intensityForMinutes(m: number): (typeof INTENSITY_LEVELS)[number] {
+    return INTENSITY_LEVELS.reduce((best, l) => (Math.abs(l.minutes - m) < Math.abs(best.minutes - m) ? l : best));
+}
+
 /** Coarse level for a minute budget (drives the scheduler's intensity ramp). */
 export function levelForMinutes(m: number): BiohackLevel {
     if (m <= 15) return 'low';
