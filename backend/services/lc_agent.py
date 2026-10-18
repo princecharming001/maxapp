@@ -857,12 +857,6 @@ async def build_agent_system_prompt(
     sms_extra = sms_chat_appendix(delivery_channel)
     if sms_extra:
         chat_prompt += "\n\n" + sms_extra
-    from services.prompt_constants import KNOWLEDGE_GUARDRAILS
-    chat_prompt += KNOWLEDGE_GUARDRAILS
-    chat_prompt += (
-        "\n- Never say you changed, moved, paused or removed anything unless a tool you called this turn did it "
-        "and returned success; quote what the tool said changed. There is no pause or travel tool.\n"
-    )
 
     # Response-length preference — OVERRIDES any sentence-count rule in the base prompt.
     onboarding = (user_context or {}).get("onboarding") or {}
@@ -910,9 +904,13 @@ async def build_agent_system_prompt(
             preserve_head_chars=preserve_head,
             preserve_tail_chars=preserve_tail,
         )
-    # Appended AFTER the token trim so the visual/confidence grammar always
-    # survives (it's small + must reach the model intact to be usable).
-    return chat_prompt + CHAT_VISUAL_GRAMMAR
+    # Appended AFTER the token trim so the visual/confidence grammar and the
+    # answer/claims guardrails always survive (small, must reach the model whole).
+    from services.prompt_constants import KNOWLEDGE_GUARDRAILS
+    return (chat_prompt + KNOWLEDGE_GUARDRAILS
+            + "- Never say you changed, moved, paused or removed anything unless a tool you called this turn "
+              "did it and returned success; say only what the tool said changed. There is no pause or travel tool.\n"
+            + CHAT_VISUAL_GRAMMAR)
 
 
 # ---------------------------------------------------------------------------
