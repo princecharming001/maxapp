@@ -326,9 +326,33 @@ def _parse_gcal_time(node: dict) -> datetime | None:
     return dt.replace(tzinfo=timezone.utc)
 
 
-async def sync_google_calendar(user_id, db: AsyncSession) -> dict[str, int]:
+def events_fingerprint(rows: list[dict]) -> str:
+    """Order-free fingerprint of the events the planner DISPLAYS (busy or
+    not): id, start, end, all-day, busy, title. Lets a sync tell the app
+    whether there is anything new to show."""
+    import hashlib
+
+    parts = sorted(
+        "|".join((
+            str(r.get("external_event_id") or ""),
+            str(r.get("starts_at") or ""),
+            str(r.get("ends_at") or ""),
+            "1" if r.get("all_day") else "0",
+            "1" if r.get("is_busy") else "0",
+            str(r.get("title") or ""),
+        ))
+        for r in rows
+    )
+    return hashlib.sha1("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+async def sync_google_calendar(user_id, db: AsyncSession) -> dict[str, Any]:
     """Pull the next SYNC_WINDOW_DAYS of events into calendar_events with
-    window-replace semantics (deletions on Google propagate)."""
+    window-replace semantics (deletions on Google propagate).
+
+    Returns `synced` (events stored), `changed` (the displayed events differ
+    from the previous sync — the app refetches the planner day only then) and
+    `replanned` (active plans were reflowed around a moved commitment)."""
     conn = (await db.execute(
         select(CalendarConnection).where(
             (CalendarConnection.user_id == user_id)
@@ -337,7 +361,7 @@ async def sync_google_calendar(user_id, db: AsyncSession) -> dict[str, int]:
         )
     )).scalars().first()
     if conn is None:
-        return {"synced": 0}
+        return {"synced": 0, "changed": False}
     try:
         access = await _fresh_access_token(conn, db)
     except GoogleTransientError as e:
@@ -418,6 +442,7 @@ async def sync_google_calendar(user_id, db: AsyncSession) -> dict[str, int]:
             "status": "confirmed", "is_busy": (transparency == "opaque"),
             "all_day": "date" in (ev.get("start") or {}),
             "external_event_id": str(ev.get("id") or ""), "raw": {},
+            "title": str(ev.get("summary") or "")[:255],
         })
     conn.last_synced_at = datetime.utcnow()
     await db.commit()
@@ -426,19 +451,37 @@ async def sync_google_calendar(user_id, db: AsyncSession) -> dict[str, int]:
     # again on every app foreground, so a plain "we synced" trigger would
     # regenerate plans constantly. Fingerprinting only the events that can
     # displace a task means an unchanged calendar costs nothing.
+    outcome = {"changed": True, "replanned": False}
     try:
-        await _maybe_regen_on_calendar_drift(user_id, fresh_rows, db)
+        outcome = await _maybe_regen_on_calendar_drift(
+            user_id, fresh_rows, db, events_fp=events_fingerprint(fresh_rows),
+        )
     except Exception as e:
         logger.warning("calendar drift check failed for %s: %s", user_id, e)
 
-    return {"synced": synced}
+    return {"synced": synced, **outcome}
 
 
 _DRIFT_DEBOUNCE_MINUTES = 15
 
 
-async def _maybe_regen_on_calendar_drift(user_id, rows: list[dict], db) -> None:
-    """Reflow active plans when the user's real calendar has changed shape."""
+_EVENTS_FP_KEY = "gcal_events_fp"
+
+
+async def _remember_events_fp(user, events_fp: str | None, db) -> None:
+    """Store the displayed-events fingerprint as a targeted profile merge."""
+    if not events_fp:
+        return
+    from services.schedule_streak import write_profile_keys
+
+    await write_profile_keys(db, user, lambda p: p.__setitem__(_EVENTS_FP_KEY, events_fp))
+    await db.commit()
+
+
+async def _maybe_regen_on_calendar_drift(user_id, rows: list[dict], db, events_fp: str | None = None) -> dict[str, bool]:
+    """Reflow active plans when the user's real calendar has changed shape.
+    Returns {"changed": displayed events differ from last sync, "replanned":
+    active plans were regenerated}."""
     from sqlalchemy.orm.attributes import flag_modified
 
     from models.sqlalchemy_models import User, UserSchedule
@@ -446,18 +489,25 @@ async def _maybe_regen_on_calendar_drift(user_id, rows: list[dict], db) -> None:
 
     user = await db.get(User, user_id)
     if user is None:
-        return
+        return {"changed": True, "replanned": False}
     prof = dict(user.profile or {})
+    events_changed = events_fp is None or prof.get(_EVENTS_FP_KEY) != events_fp
     fp = busy_fingerprint(rows)
     if prof.get("gcal_busy_fp") == fp:
-        return  # calendar unchanged — nothing to do
+        # Busy time unchanged — no reflow. A free event may still have been
+        # added/renamed, which the planner shows.
+        if events_changed:
+            await _remember_events_fp(user, events_fp, db)
+        return {"changed": events_changed, "replanned": False}
 
     now = datetime.utcnow()
     last = prof.get("gcal_drift_regen_at")
     if last:
         try:
             if (now - datetime.fromisoformat(last)).total_seconds() < _DRIFT_DEBOUNCE_MINUTES * 60:
-                return
+                if events_changed:
+                    await _remember_events_fp(user, events_fp, db)
+                return {"changed": events_changed, "replanned": False}
         except Exception:
             pass
 
@@ -468,6 +518,8 @@ async def _maybe_regen_on_calendar_drift(user_id, rows: list[dict], db) -> None:
     )).first() is not None
 
     prof["gcal_busy_fp"] = fp
+    if events_fp:
+        prof[_EVENTS_FP_KEY] = events_fp
     if has_active:
         prof["gcal_drift_regen_at"] = now.isoformat()
     user.profile = prof
@@ -475,10 +527,11 @@ async def _maybe_regen_on_calendar_drift(user_id, rows: list[dict], db) -> None:
     await db.commit()
 
     if not has_active:
-        return
+        return {"changed": True, "replanned": False}
     from services.schedule_runtime import regenerate_active_schedules
     await regenerate_active_schedules(user_id=str(user_id), db=db, reason="calendar_drift")
     await db.commit()
+    return {"changed": True, "replanned": True}
 
 
 # ---------------------------------------------------------------------------

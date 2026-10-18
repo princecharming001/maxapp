@@ -16,6 +16,8 @@ returning after a miss: the opposite of shaming a broken streak.
 from __future__ import annotations
 
 import logging
+import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
@@ -51,9 +53,12 @@ class Achievement:
 
 CATALOG: list[Achievement] = [
     # ── Consistency — showing up, the core loop ───────────────────────────
-    Achievement("first_routine", "First Steps", "You started your first routine.",
+    # Earned on the first COMPLETED task, not on starting a plan: a badge that
+    # pops before you've done anything reads as noise (BETA1 C7 / F43). Users
+    # who earned it under the old rule keep it — earned rows are never revoked.
+    Achievement("first_routine", "First Steps", "You finished your first task.",
                 "bronze", "consistency", "spark",
-                lambda s: s["active_count"] >= 1),
+                lambda s: s["tasks_completed"] >= 1),
     Achievement("streak_3", "Rolling", "Three days straight. Momentum's real.",
                 "bronze", "consistency", "flame",
                 lambda s: s["streak"] >= 3, lambda s: (min(s["streak"], 3), 3)),
@@ -85,7 +90,7 @@ CATALOG: list[Achievement] = [
     Achievement("tasks_100", "Relentless", "One hundred tasks. Quiet, compounding work.",
                 "gold", "milestones", "leaf",
                 lambda s: s["tasks_completed"] >= 100, lambda s: (min(s["tasks_completed"], 100), 100)),
-    Achievement("two_maxxes", "Stacking", "Two maxxes running at once.",
+    Achievement("two_maxxes", "Stacking", "Two maxes running at once.",
                 "silver", "milestones", "layers",
                 lambda s: s["active_count"] >= 2),
     # (The face-scan "progress" badges first_scan / three_scans were retired
@@ -175,6 +180,74 @@ def _public(a: Achievement, *, earned: bool, seen: bool, stats: Optional[dict] =
     }
 
 
+# --- evaluation memo ----------------------------------------------------------
+#
+# /schedules/active/full runs on every Home open, every tab switch and after
+# every chat turn, and almost every one of those calls changes nothing a badge
+# depends on. The memo remembers, per user and per process, the inputs of the
+# last FULL evaluation that found nothing to award and nothing unseen; the same
+# inputs again skip the earned-badges read, the fact count and the checks.
+#
+# Safe because:
+#   * it is only written when that evaluation returned [] (no unseen badge, no
+#     new award), so it can never swallow a celebration — a badge earned and
+#     not yet seen keeps being handed back on every call until marked seen;
+#   * every input a check reads is in the fingerprint except the fact count
+#     (chat-learned facts), which the TTL bounds: a "knows_me" badge lands at
+#     most _EVAL_MEMO_TTL_S late;
+#   * a new completion, a new day, a streak/freeze change or an added/removed
+#     plan changes the fingerprint and forces a full evaluation, so the first
+#     call after a badge's condition becomes true always evaluates it.
+_EVAL_MEMO_TTL_S = 600.0
+_EVAL_MEMO_MAX = 5000
+_eval_memo: "OrderedDict[str, tuple[tuple, float]]" = OrderedDict()
+
+
+def _eval_fingerprint(streak: dict, schedules: list[dict]) -> tuple:
+    st = streak or {}
+    today = str(st.get("today_date") or "")
+    completed_today = 0
+    for sch in schedules or []:
+        for day in (sch.get("days") or []):
+            if str(day.get("date") or "") != today:
+                continue
+            for t in (day.get("tasks") or []):
+                if isinstance(t, dict) and str(t.get("status") or "").lower() == "completed":
+                    completed_today += 1
+    return (
+        today,
+        int(st.get("current") or 0),
+        int(st.get("armed_freezes") or 0),
+        bool(st.get("fresh_start_today")),
+        str(st.get("last_perfect_date") or ""),
+        _active_count(schedules),
+        _count_completed_tasks(schedules),
+        completed_today,
+        tuple(sorted(str(s.get("id") or s.get("maxx_id") or "") for s in (schedules or []))),
+    )
+
+
+def _memo_hit(user_key: str, fp: tuple) -> bool:
+    hit = _eval_memo.get(user_key)
+    if hit is None:
+        return False
+    if hit[0] != fp or time.monotonic() - hit[1] > _EVAL_MEMO_TTL_S:
+        _eval_memo.pop(user_key, None)
+        return False
+    return True
+
+
+def _memo_store(user_key: str, fp: tuple) -> None:
+    _eval_memo[user_key] = (fp, time.monotonic())
+    _eval_memo.move_to_end(user_key)
+    while len(_eval_memo) > _EVAL_MEMO_MAX:
+        _eval_memo.popitem(last=False)
+
+
+def _memo_forget(user_key: str) -> None:
+    _eval_memo.pop(user_key, None)
+
+
 # --- award + read -----------------------------------------------------------
 
 async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict]) -> list[dict]:
@@ -190,6 +263,10 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
     The client host dedupes by code and marks seen only when it actually shows
     the badge, so repeating an unseen one across calls is harmless."""
     if user is None:
+        return []
+    user_key = str(getattr(user, "id", "") or "")
+    fp = _eval_fingerprint(streak, schedules)
+    if user_key and _memo_hit(user_key, fp):
         return []
     try:
         # Read what's already earned FIRST — if everything is earned, skip the
@@ -207,6 +284,8 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
             if not seen and code in CATALOG_BY_CODE
         ]
         if len(earned & CATALOG_BY_CODE.keys()) >= len(CATALOG):
+            if not unseen and user_key:
+                _memo_store(user_key, fp)
             return unseen
         stats = await compute_stats(db, user, streak=streak, schedules=schedules)
         candidates: list[Achievement] = []
@@ -219,6 +298,8 @@ async def evaluate(db: AsyncSession, user, *, streak: dict, schedules: list[dict
             except Exception as e:
                 logger.debug("achievement check failed for %s: %s", a.code, e)
         if not candidates:
+            if not unseen and user_key:
+                _memo_store(user_key, fp)
             return unseen
 
         # Write phase. Lock the app_users row FIRST (lock discipline in
@@ -406,4 +487,7 @@ async def mark_seen(db: AsyncSession, user, codes: list[str]) -> int:
             n += 1
     if n:
         await db.commit()
+    # Nothing memoized can be stale here (the memo only records empty results),
+    # but drop it anyway so the next day-state call re-reads earned state.
+    _memo_forget(str(getattr(user, "id", "") or ""))
     return n

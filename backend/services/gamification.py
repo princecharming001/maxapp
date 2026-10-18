@@ -52,9 +52,10 @@ ON_TIME_GRACE_MIN = 90        # minutes past the printed time that still count a
 STREAK_MILESTONE_EVERY = 7
 TASK_LEDGER_KEY = "xp_task_ledger"  # {"date": iso, "ids": [task ids already paid today]}
 
-# Badge XP scales with what the badge took. Setup badges are earned by simply
-# finishing onboarding, so they are a token — they must never level a user up
-# on their own. Keyed by services.achievements CATALOG code.
+# Badge XP scales with what the badge took. Setup badges take almost nothing
+# (First Steps = the first completed task, Stacking = a second plan, Open Book =
+# three facts), so they are a token — they must never level a user up on their
+# own. Keyed by services.achievements CATALOG code.
 XP_BADGE_SETUP = 10
 XP_BADGE_BY_TIER = {"bronze": 25, "silver": 75, "gold": 200}
 _SETUP_BADGES = frozenset({"first_routine", "two_maxxes", "knows_me"})

@@ -58,6 +58,7 @@ const WORKOUT_MIN_SPAN = 30; // a workout window stays at least 30 min wide
 const READY_DEFAULT_HHMM: [string, string] = ['07:00', '07:30'];
 
 const clampN = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
+const WARN = '#9A6A12'; // amber: a heads-up about the saved day, not an error
 
 // When an arrow on the timeline is tapped, the sheet opens scoped to just that
 // one item rather than the whole day. `undefined` shows every control.
@@ -116,6 +117,8 @@ export default function DayEditorSheet({
   onClose,
   onCommit,
   onReset,
+  warnings = [],
+  sleepWarningCodes,
 }: {
   visible: boolean;
   scope: Scope;
@@ -125,6 +128,10 @@ export default function DayEditorSheet({
   onClose: () => void;
   onCommit: (target: DayRecurrence, day: DayShape) => void;
   onReset: (scope: Weekday) => void;
+  /** Notes from the last save (C4: overlap, short sleep), shown inline. */
+  warnings?: { code: string; message: string }[];
+  /** Codes that belong under the sleep section; the rest show at the top. */
+  sleepWarningCodes?: Set<string>;
 }) {
   const insets = useSafeAreaInsets();
   const { height: winH } = useWindowDimensions();
@@ -155,6 +162,23 @@ export default function DayEditorSheet({
 
   // With a focus, render only that item's control; without one, the full day.
   const show = (k: ShapeFocus) => !focus || focus === k;
+
+  // Save warnings: sleep ones under the sleep card, the rest (overlaps) at the
+  // top. Hidden once the user starts editing — they describe the saved state.
+  const isSleepWarning = (code: string) => (sleepWarningCodes ? sleepWarningCodes.has(code) : code === 'short_sleep');
+  const topWarnings = dirty ? [] : warnings.filter((w) => !isSleepWarning(w.code));
+  const sleepWarnings = dirty ? [] : warnings.filter((w) => isSleepWarning(w.code));
+  const WarnLines = ({ items }: { items: { code: string; message: string }[] }) =>
+    items.length ? (
+      <View style={styles.warnWrap}>
+        {items.map((w, i) => (
+          <View key={`${w.code}-${i}`} style={styles.warnRow}>
+            <Ionicons name="alert-circle-outline" size={13} color={WARN} />
+            <Text style={styles.warnText}>{w.message}</Text>
+          </View>
+        ))}
+      </View>
+    ) : null;
 
   // ── Wake (absolute minutes) ────────────────────────────────────────────────
   const setWakeWin = (win: [string, string]) => {
@@ -371,6 +395,8 @@ export default function DayEditorSheet({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
+              <WarnLines items={topWarnings} />
+
               {/* Wake */}
               {show('wake') ? (
                 <>
@@ -453,6 +479,7 @@ export default function DayEditorSheet({
                     )}
                   </Card>
                   <Text style={styles.hint}>{sleepHint}</Text>
+                  <WarnLines items={sleepWarnings} />
                 </>
               ) : null}
 
@@ -672,6 +699,9 @@ const styles = StyleSheet.create({
   },
   hair: { height: StyleSheet.hairlineWidth, backgroundColor: WT.HAIR },
   hint: { fontSize: 12.5, color: WT.SUB, letterSpacing: 0.1, marginTop: 8, marginLeft: 4 },
+  warnWrap: { marginTop: 8, marginLeft: 4, gap: 3 },
+  warnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
+  warnText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: WARN, fontFamily: fonts.sansMedium, letterSpacing: 0.1 },
   autoInCard: {
     fontSize: 13,
     color: WT.MUTE,

@@ -8,6 +8,18 @@ import { Platform } from 'react-native';
 import { getItemAsync, setItemAsync, deleteItemAsync } from './storage';
 import { sanitizeCategoryPrefs, type NotificationCategoryPrefs } from '../lib/notificationPrefs';
 
+/** A non-blocking note from a day-shape save (BETA1 contract C4), e.g.
+ *  {code: 'overlap', message: 'Get ready (9:00–9:30) overlaps Work (9:00–5:00).'}
+ *  or {code: 'short_sleep', message: 'That leaves 6 h 45 min for sleep.'}. */
+export interface DayShapeWarning {
+    code: string;
+    message: string;
+}
+
+/** React Query key for GET google/status — shared by the planner, settings and
+ *  the main-tab prefetch so all of them read one cache entry. */
+export const GOOGLE_STATUS_QUERY_KEY = ['googleStatus'] as const;
+
 export interface PersonalMemory {
     id: string;
     dimension: string;
@@ -1183,10 +1195,12 @@ class ApiService {
         return response.data;
     }
 
-    // Onboarding
+    // Onboarding. The server MERGES top-level keys into the stored blob (C4), so
+    // a caller may send only what it changed (the planner sends day-shape keys
+    // only). The response carries `warnings` for overlaps / short sleep.
     async saveOnboarding(data: {
-        goals: string[];
-        experience_level: string;
+        goals?: string[];
+        experience_level?: string;
         gender?: string;
         age?: number;
         height?: number;
@@ -1222,7 +1236,9 @@ class ApiService {
         // (DayRecurrence) and the backend re-normalises via _norm_days.
         obligations?: Array<{ label: string; start: string; end: string; days?: string | string[] }> | null;
         weekly_timings?: Record<string, any> | null;
-    }) {
+        // Day-shape windows written by the planner (plannerModel.dayShapeToServer).
+        [key: string]: any;
+    }): Promise<{ warnings?: DayShapeWarning[]; [key: string]: any }> {
         // 12s default was timing out on Edit Lifestyle saves when the
         // server cold-starts (Render free tier wakes ~5-8s) or when the
         // post-save schedule regenerator runs synchronously. 30s gives
@@ -1876,7 +1892,10 @@ class ApiService {
         return response.data;
     }
 
-    async googleSyncNow(): Promise<{ synced: number }> {
+    /** `changed`: the calendar's events differ from the last sync (refetch the
+     *  planner day only then); `replanned`: active plans were reflowed around
+     *  them (refetch schedules). Both absent on an older backend. */
+    async googleSyncNow(): Promise<{ synced: number; changed?: boolean; replanned?: boolean }> {
         const response = await this.client.post('google/sync');
         return response.data;
     }

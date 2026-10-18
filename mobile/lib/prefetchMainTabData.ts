@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import api from '../services/api';
+import api, { GOOGLE_STATUS_QUERY_KEY } from '../services/api';
 import { queryKeys } from './queryClient';
 import { fetchChatHistory } from '../hooks/useAppQueries';
 import { fetchTaskGuide, taskGuideQueryKey } from '../hooks/useTaskGuide';
@@ -158,6 +158,14 @@ export function prefetchMainTabData(qc: QueryClient): void {
     void qc.prefetchQuery({
         queryKey: queryKeys.activeSchedulesSummary,
         queryFn: () => api.getActiveSchedules(),
+    });
+    // Planner: Google Calendar status. The planner reads it to decide whether
+    // to show calendar events; warming it here means the planner never waits
+    // on it before its first paint. Same key + queryFn as DayPlannerScreen.
+    void qc.prefetchQuery({
+        queryKey: GOOGLE_STATUS_QUERY_KEY,
+        queryFn: () => api.getGoogleStatus(),
+        staleTime: 60_000,
     });
     // Products tab: tiny and in-process server-side, so it opens instantly.
     // Same key + queryFn as ProductsScreen.

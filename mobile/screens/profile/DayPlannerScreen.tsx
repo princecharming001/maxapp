@@ -38,7 +38,6 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Path, Rect } from 'react-native-svg';
-import api from '../../services/api';
 import { Linking, AppState } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import {
@@ -56,9 +55,10 @@ import { useFlag } from '../../constants/featureFlags';
 import { experienceTier } from '../../lib/personalization';
 import { colors, spacing, fonts } from '../../theme/dark';
 import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
-import ScheduleGrid, { CalendarEventRow, GridTaskRow } from '../../components/planner/ScheduleGrid';
+import ScheduleGrid, { CalendarEventRow, GridRuleRow, GridTaskRow } from '../../components/planner/ScheduleGrid';
 import { useActiveSchedulesFullQuery, useMaxxesQuery } from '../../hooks/useAppQueries';
-import { buildMaxxMaps, mergeSchedules, normalizeMaxxId } from '../../utils/scheduleAggregation';
+import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, ruleDisplayLine } from '../../utils/scheduleAggregation';
+import api, { GOOGLE_STATUS_QUERY_KEY, type DayShapeWarning } from '../../services/api';
 import ObligationsManager, { ObligationsManagerHandle } from '../../components/planner/ObligationsManager';
 import {
   DayShape,
@@ -81,9 +81,58 @@ import {
   hasOverride,
   obligationColor,
   fmt12Compact,
+  fmt12,
   daysLabel,
   toMin,
 } from '../../components/planner/plannerModel';
+
+// The onboarding keys the planner owns, grouped so a change to one field of a
+// group (wake_time ↔ wake_window) always sends its siblings with it. The server
+// MERGES top-level keys (BETA1 contract C4), so the sheet sends only the
+// groups that changed — never the whole stale blob, which used to revert a wake
+// time the coach had just changed in chat.
+const PLANNER_KEY_GROUPS: string[][] = [
+  ['wake_time', 'wake_window'],
+  ['sleep_time', 'sleep_window', 'wind_down_window'],
+  ['get_ready_window', 'get_ready_time', 'get_ready_minutes'],
+  ['preferred_workout_window', 'preferred_workout_time'],
+  ['weekly_timings'],
+  ['obligations'],
+];
+
+/** Every planner-owned key for a (defaults, weekly, obligations) snapshot. */
+function plannerPayload(
+  nd: DayShape,
+  nw: Partial<Record<Weekday, Partial<DayShape>>>,
+  no: Obligation[],
+): Record<string, any> {
+  const weeklyOut = serializeWeekly(nw);
+  return {
+    ...dayShapeToServer(nd),
+    weekly_timings: Object.keys(weeklyOut).length ? weeklyOut : null,
+    obligations: obligationsToServer(no),
+  };
+}
+
+/** Only the key groups whose value differs from `base`. */
+function changedGroups(next: Record<string, any>, base: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {};
+  const same = (k: string) => JSON.stringify(next[k] ?? null) === JSON.stringify(base[k] ?? null);
+  for (const group of PLANNER_KEY_GROUPS) {
+    if (group.every(same)) continue;
+    for (const k of group) out[k] = next[k] ?? null;
+  }
+  return out;
+}
+
+/** The planner payload as the SERVER currently has it (re-serialised through
+ *  the same hydrate → serialise path, so an untouched field diffs equal). */
+function serverPlannerPayload(ob: Record<string, any>): Record<string, any> {
+  return plannerPayload(hydrateDayShape(ob), hydrateWeekly(ob.weekly_timings), hydrateObligations(ob));
+}
+
+// Which save warnings belong to the sleep section of the editor sheet.
+const SLEEP_WARNING_CODES = new Set(['short_sleep', 'sleep']);
 
 // JS Date.getDay() (0=Sun…6=Sat) → our Monday-indexed Weekday keys.
 const JS_DAY_TO_KEY: Weekday[] = [
@@ -131,6 +180,9 @@ const STRIP_PAGE_DAYS = 60;      // append this many each time the end is reache
 // One restrained accent for the assistant surface only.
 const ACCENT = '#2F6B4E';
 const ACCENT_WASH = 'rgba(47,107,78,0.10)';
+// Amber for save warnings (overlap, short sleep): informative, not an error.
+const WARN = '#9A6A12';
+const WARN_WASH = 'rgba(214,158,46,0.12)';
 
 // Warm "Craft" palette — shared with Profile and the rest of the app so the
 // planner reads as one surface family: a cream canvas with floating white cards
@@ -252,6 +304,48 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   );
   const [obligations, setObligations] = useState<Obligation[]>(() => hydrateObligations(ob));
 
+  // Save bookkeeping. `pendingSavesRef` counts saves in flight; `unsavedRef`
+  // is set when a save failed (the screen shows edits the server never got).
+  // While either is set the screen keeps its local state; otherwise it always
+  // mirrors the auth user, so a wake time changed in chat shows up here.
+  const pendingSavesRef = useRef(0);
+  const unsavedRef = useRef(false);
+  const inflightSaveRef = useRef<Promise<void> | null>(null);
+  // What the server will hold once the in-flight saves land (the diff base for
+  // the next save); null = use the auth user's onboarding.
+  const sentBaseRef = useRef<Record<string, any> | null>(null);
+  // Warnings from the last save (C4): overlaps, short sleep.
+  const [shapeWarnings, setShapeWarnings] = useState<DayShapeWarning[]>([]);
+
+  const userRef = useRef(user);
+  userRef.current = user;
+  const hydrateFromUser = useCallback(() => {
+    if (pendingSavesRef.current > 0 || unsavedRef.current) return;
+    const o = (userRef.current?.onboarding || {}) as Record<string, any>;
+    setDefaults(hydrateDayShape(o));
+    setWeekly(hydrateWeekly(o.weekly_timings));
+    setObligations(hydrateObligations(o));
+    sentBaseRef.current = null;
+  }, []);
+  // Whenever the auth user changes (refreshUser after a chat turn, another
+  // screen's save), re-read the day shape.
+  React.useEffect(() => {
+    hydrateFromUser();
+  }, [user?.onboarding, hydrateFromUser]);
+  // On focus: re-read what we have, then pull a fresh copy (throttled) so a
+  // change made elsewhere — chat, another device — lands without a restart.
+  const lastFocusRefreshRef = useRef(0);
+  useFocusEffect(
+    useCallback(() => {
+      hydrateFromUser();
+      const now = Date.now();
+      if (now - lastFocusRefreshRef.current > 30_000) {
+        lastFocusRefreshRef.current = now;
+        refreshUser().catch(() => undefined);
+      }
+    }, [hydrateFromUser, refreshUser]),
+  );
+
   // Day strip — today leftmost, scrolls infinitely into the FUTURE (never the
   // past). We grow the list as the user reaches the end.
   const [stripCount, setStripCount] = useState(STRIP_INITIAL_DAYS);
@@ -286,9 +380,10 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
   const qc = useQueryClient();
 
-  // Google Calendar status (cached, stale-1m) — used to gate the calendar fetch.
+  // Google Calendar status (cached, stale-1m; warmed by prefetchMainTabData so
+  // the planner never waits on it).
   const googleStatusQ = useQuery({
-    queryKey: ['googleStatus'],
+    queryKey: GOOGLE_STATUS_QUERY_KEY,
     queryFn: () => api.getGoogleStatus(),
     staleTime: 60_000,
   });
@@ -441,8 +536,12 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     if (now - lastAutoSyncRef.current < 60_000) return;
     lastAutoSyncRef.current = now;
     try {
-      await api.googleSyncNow();
-      qc.invalidateQueries({ queryKey: ['plannerToday'] });
+      // Background: nothing waits on this. Only refetch the day when the sync
+      // says the calendar actually changed (an older backend that doesn't
+      // report `changed` keeps the old always-refetch behaviour).
+      const res = await api.googleSyncNow();
+      if (res?.changed !== false) qc.invalidateQueries({ queryKey: ['plannerToday'] });
+      if (res?.replanned) invalidateSchedules();
     } catch { /* silent: the 30-min background job + manual resync still cover it */ }
   }, [calConnected, qc]);
 
@@ -456,14 +555,18 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     return () => sub.remove();
   }, [autoSyncCalendar]);
 
-  // Fetch calendar events for the selected day, only when connected + flag on.
+  // Calendar events for the selected day. Not gated on the status call: while
+  // the status is still unknown the day is fetched in parallel (the server
+  // only returns calendar rows for a connected account); once the status says
+  // "not connected" it stops.
+  const statusKnown = !!googleStatusQ.data;
   const calendarDayQ = useQuery({
     queryKey: ['plannerToday', selectedIso],
     queryFn: () => api.getPlannerToday(selectedIso),
-    enabled: calConnected,
+    enabled: statusKnown ? calConnected : true,
     staleTime: 5 * 60_000,
   });
-  const calendarEvents: CalendarEventRow[] = (calendarDayQ.data?.structure ?? [])
+  const calendarEvents: CalendarEventRow[] = (statusKnown && !calConnected ? [] : calendarDayQ.data?.structure ?? [])
     .filter((s: any) => s.source === 'calendar')
     .map((s: any) => ({
       event_id: s.event_id as string,
@@ -478,15 +581,19 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   // reminder fires. Tapping one opens the habit like the Home card does.
   const schedulesQ = useActiveSchedulesFullQuery();
   const maxesQ = useMaxxesQuery();
-  const dayTasks = useMemo<GridTaskRow[]>(() => {
+  const { dayTasks, dayRules } = useMemo<{ dayTasks: GridTaskRow[]; dayRules: GridRuleRow[] }>(() => {
     const full = schedulesQ.data;
-    if (!full) return [];
+    if (!full) return { dayTasks: [], dayRules: [] };
     try {
       const { labels, colors: colorMap } = buildMaxxMaps(maxesQ.data?.maxes ?? []);
       const merged = mergeSchedules(full.schedules || [], labels, colorMap);
       const maxxBySchedule: Record<string, string> = {};
       for (const s of (full.schedules || []) as any[]) maxxBySchedule[String(s.id)] = normalizeMaxxId(s.maxx_id);
-      return (merged.byDate[selectedIso] || []).map((row) => {
+      // Rules (C1): a line at their time on the grid, never a habit card.
+      const rules: GridRuleRow[] = (merged.rulesByDate[selectedIso] || [])
+        .filter((r) => !!r.time)
+        .map((r) => ({ key: r.key, time: r.time, label: ruleDisplayLine(r, fmt12), color: r.moduleColor }));
+      const tasks = (merged.byDate[selectedIso] || []).map((row) => {
         const done = row.status === 'completed';
         return {
           key: `${row.scheduleId}:${row.task_id}`,
@@ -505,8 +612,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           }),
         };
       });
+      return { dayTasks: tasks, dayRules: rules };
     } catch {
-      return [];
+      return { dayTasks: [], dayRules: [] };
     }
   }, [schedulesQ.data, maxesQ.data, selectedIso, navigation]);
 
@@ -527,32 +635,29 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     queryClient.invalidateQueries({ queryKey: queryKeys.maxes, refetchType: 'all' });
   };
 
-  // Full onboarding payload from a (defaults, weekly) snapshot. Spreads the
-  // existing onboarding so required fields (goals, experience_level, …) ride
-  // along untouched and only the planner fields are rewritten.
-  const buildOnboarding = (
+  // The patch for one save: only the planner key groups that differ from what
+  // the server holds (or will hold once in-flight saves land), plus the
+  // timezone. A legacy fixed work block is nulled alongside an obligations
+  // change — Work lives in obligations now, and leaving both would double-book.
+  const buildPlannerPatch = (
     nd: DayShape,
     nw: Partial<Record<Weekday, Partial<DayShape>>>,
     no: Obligation[],
-  ): Record<string, any> => {
-    const base = { ...(user?.onboarding || {}) } as Record<string, any>;
-    const tz =
-      base.timezone ||
+  ): { patch: Record<string, any>; next: Record<string, any> } => {
+    const serverOb = (user?.onboarding || {}) as Record<string, any>;
+    const next = plannerPayload(nd, nw, no);
+    const base = sentBaseRef.current ?? serverPlannerPayload(serverOb);
+    const patch = changedGroups(next, base);
+    if (Object.keys(patch).length === 0) return { patch, next };
+    if ('obligations' in patch && (serverOb.work_schedule || serverOb.work_start || serverOb.work_end)) {
+      patch.work_schedule = null;
+      patch.work_start = null;
+      patch.work_end = null;
+    }
+    patch.timezone =
+      serverOb.timezone ||
       (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC');
-    const weeklyOut = serializeWeekly(nw);
-    return {
-      ...base,
-      completed: true,
-      timezone: tz,
-      ...dayShapeToServer(nd),
-      // Work is just an obligation now — drop the legacy work block so the
-      // scheduler never double-books it alongside the migrated "Work" obligation.
-      obligations: obligationsToServer(no),
-      work_schedule: null,
-      work_start: null,
-      work_end: null,
-      weekly_timings: Object.keys(weeklyOut).length ? weeklyOut : null,
-    };
+    return { patch, next };
   };
 
   const persist = async (
@@ -560,19 +665,38 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     nw: Partial<Record<Weekday, Partial<DayShape>>>,
     no: Obligation[],
   ) => {
+    const { patch, next } = buildPlannerPatch(nd, nw, no);
+    if (Object.keys(patch).length === 0) return; // nothing changed — no request
+    sentBaseRef.current = next;
+    pendingSavesRef.current += 1;
     setSaving(true);
-    try {
-      await api.saveOnboarding(buildOnboarding(nd, nw, no) as any);
-      await refreshUser();
-      invalidateSchedules();
-    } catch (error: any) {
-      // Never the raw axios/library string ("Request failed with status code
-      // 500", "Network Error") — userFacingError maps transport failures to
-      // plain copy and only passes through a short backend `detail`.
-      Alert.alert('Error', userFacingError(error, 'Could not save your week.'));
-    } finally {
-      setSaving(false);
-    }
+    let counted = true;
+    const run = (async () => {
+      try {
+        const res = await api.saveOnboarding(patch);
+        setShapeWarnings(Array.isArray(res?.warnings) ? res.warnings : []);
+        unsavedRef.current = false;
+        // Settle the counter BEFORE refreshing so the fresh user re-hydrates
+        // the screen (the server may normalise what we sent).
+        pendingSavesRef.current -= 1;
+        counted = false;
+        await refreshUser();
+        invalidateSchedules();
+      } catch (error: any) {
+        unsavedRef.current = true;
+        sentBaseRef.current = null;
+        // Never the raw axios/library string ("Request failed with status code
+        // 500", "Network Error") — userFacingError maps transport failures to
+        // plain copy and only passes through a short backend `detail`.
+        Alert.alert('Error', userFacingError(error, 'Could not save your week.'));
+      } finally {
+        if (counted) pendingSavesRef.current -= 1;
+        if (pendingSavesRef.current <= 0) setSaving(false);
+      }
+    })();
+    inflightSaveRef.current = run;
+    await run;
+    if (inflightSaveRef.current === run) inflightSaveRef.current = null;
   };
 
   // Commit an edit to a recurrence target:
@@ -628,10 +752,18 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
     setChatReply(null);
     setChatReplyTone('success');
     try {
-      // Flush the current canvas first so the assistant reasons over — and never
-      // discards — exactly what's on screen, then re-hydrate from its result.
-      await api.saveOnboarding(buildOnboarding(defaults, weekly, obligations) as any);
+      // Let an in-flight save land first, then flush ONLY if the screen holds
+      // edits the server never got (a failed save). Otherwise the server copy
+      // is already what's on screen, and re-sending it would only risk
+      // reverting a change made elsewhere (chat) since this screen loaded.
+      if (inflightSaveRef.current) await inflightSaveRef.current.catch(() => undefined);
+      if (unsavedRef.current) {
+        const { patch } = buildPlannerPatch(defaults, weekly, obligations);
+        if (Object.keys(patch).length) await api.saveOnboarding(patch);
+        unsavedRef.current = false;
+      }
       const res = await api.plannerChat(text);
+      sentBaseRef.current = null;
       applyServerState(res.defaults, res.weekly_timings);
       // A no-op result ("couldn't tell which day you meant") must not read as a
       // success, so flag the bubble as a warning when nothing changed.
@@ -768,6 +900,18 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           {/* Breathing room between the weekday strip and where the day begins. */}
           <View style={styles.scheduleGap} />
 
+          {/* What the last save flagged (C4): an overlap, short sleep. */}
+          {shapeWarnings.length > 0 ? (
+            <View style={styles.warnBox} testID="planner-warnings">
+              {shapeWarnings.map((w, i) => (
+                <View key={`${w.code}-${i}`} style={styles.warnRow}>
+                  <Ionicons name="alert-circle-outline" size={14} color={WARN} />
+                  <Text style={styles.warnText}>{w.message}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {/* The day as a calendar — hour gutter + events on the time axis. */}
           <ScheduleGrid
             day={dayForScope}
@@ -784,6 +928,7 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             }}
             calendarEvents={calendarEvents}
             tasks={dayTasks}
+            rules={dayRules}
           />
 
           <Text style={styles.gridHint}>
@@ -967,6 +1112,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         onClose={() => setSheetVisible(false)}
         onCommit={commitRecurrence}
         onReset={resetScope}
+        warnings={shapeWarnings}
+        sleepWarningCodes={SLEEP_WARNING_CODES}
       />
 
       {/* Google Calendar sheet */}
@@ -1159,6 +1306,16 @@ function WeekDayPill({
 const styles = StyleSheet.create({
   // Warm cream canvas, matching every other page.
   container: { flex: 1, backgroundColor: BG },
+  warnBox: {
+    backgroundColor: WARN_WASH,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+    gap: 4,
+  },
+  warnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  warnText: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 12.5, lineHeight: 17, color: WARN },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
