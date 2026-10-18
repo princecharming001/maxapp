@@ -13,7 +13,9 @@ Order of picks (most deserved first, capped by the daily max):
      program when the default is ruled out)
   3. the default for each other program they run (the existing sync)
 Anything matching an avoid-if (conditions, meds, age, pregnancy) is left out.
-Under 18 or a skipped screen: nothing is picked; the plan is the stack audit.
+Under 18: a short teen plan from an allowlist (TEEN_ALLOWED: vitamin D, B12,
+omega-3, a basic multi), at most two, always with a parent/doctor check and
+food first. A skipped screen: nothing is picked; the plan is the stack audit.
 """
 from __future__ import annotations
 
@@ -21,6 +23,19 @@ import re
 from typing import Optional
 
 SAFETY_KEYS = ("supp_safety_flags", "supp_medications", "age_band")
+
+# Under 18: the only supplements a teen plan may hold (everything else is
+# adult-only), how many a day, and the routines every teen plan carries.
+TEEN_ALLOWED = ("vitamin_d3", "b12", "omega3", "multivitamin")
+TEEN_DAILY_MAX = 2
+TEEN_ROUTINES = ("parent_check", "food_first")
+# Adult wording a teen should never get (the library's how is written for adults).
+TEEN_HOW = {
+    "vitamin_d3": "1) Ask a parent or your doctor first. 2) Pick a D3 at 600 to 1,000 IU with a USP or NSF seal, never a higher dose. 3) Take it with breakfast or lunch.",
+    "multivitamin": "1) Ask a parent or your doctor first. 2) Pick a basic teen multivitamin at about 100% of the Daily Value, not a mega dose. 3) Take it with breakfast.",
+    "omega3": "1) Try fish like salmon or tuna twice a week first. 2) If you rarely eat fish, ask a parent or doctor about a fish or algae oil. 3) Take the serving on the label with a meal.",
+    "b12": "1) Ask a parent or your doctor first. 2) Pick a third-party tested B12, any form. 3) Take it with breakfast; many plant milks and cereals have it added too.",
+}
 
 GOALS = {
     "Sleep": "sleepmax", "Energy": "energymax", "Focus": "focusmax", "Stress": "calmmax",
@@ -75,15 +90,17 @@ def _under_18(answers: dict, profile: Optional[dict]) -> bool:
     return "under 18" in age.lower()
 
 
+def is_minor(answers: dict, profile: Optional[dict] = None) -> bool:
+    return _under_18(answers or {}, profile)
+
+
 def next_question(answers: dict, asked: list, profile: Optional[dict] = None) -> dict:
     """The next unanswered quiz step, in the shape next_intake_step returns.
-    Age and sex already on the profile are not asked again; under 18 stops after
-    the age question (nothing will be picked)."""
+    Age and sex already on the profile are not asked again. Teens get the whole
+    quiz too: their diet answers decide the (small) teen plan."""
     asked_keys = {a.get("fact_key") for a in asked or []}
     for q in QUIZ:
         if q["fact_key"] in asked_keys or _known(q["fact_key"], answers, profile):
-            continue
-        if _under_18(answers, profile) and q["fact_key"] not in SAFETY_KEYS:
             continue
         return {"done": False, "ack": q["ack"], "question": q["question"], "options": list(q["options"]),
                 "multi": q["multi"], "fact_key": q["fact_key"]}
@@ -122,8 +139,10 @@ def ordered_picks(answers: dict, active: set[str], profile: Optional[dict], lib_
                   contraindicated) -> list[str]:
     """Habit ids in the order they deserve a slot, safe ones only."""
     a = read_answers(answers, profile)
-    if a["under_18"] or not safety_text(answers, profile).strip():
+    if not safety_text(answers, profile).strip():
         return []
+    if a["under_18"]:
+        return _teen_picks(a, lib_habits, contraindicated)
     by_id = {h.id: h for h in lib_habits}
     safe = lambda hid: hid in by_id and not contraindicated(by_id[hid])  # noqa: E731
     out: list[str] = []
@@ -155,3 +174,27 @@ def ordered_picks(answers: dict, active: set[str], profile: Optional[dict], lib_
     for mid in sorted(active):
         for_program(mid)
     return out
+
+
+def _teen_picks(a: dict, lib_habits: list, contraindicated) -> list[str]:
+    """Under 18: only allowlisted picks, only for a gap (or "just the basics"),
+    vitamin D when nothing else applies, never more than TEEN_DAILY_MAX."""
+    by_id = {h.id: h for h in lib_habits}
+    out: list[str] = []
+
+    def add(hid: str):
+        if hid in TEEN_ALLOWED and hid in by_id and hid not in out and not contraindicated(by_id[hid]):
+            out.append(hid)
+
+    gaps = a["gaps"]
+    if "plant_based" in gaps:
+        add("b12")
+    if "low_sun" in gaps:
+        add("vitamin_d3")
+    if "low_fish" in gaps:
+        add("omega3")
+    if gaps & {"plant_based", "low_protein", "low_fiber"} or "basics" in a["goals"]:
+        add("multivitamin")
+    if not out:
+        add("vitamin_d3")       # the most common teen shortfall, low risk at a teen dose
+    return out[:TEEN_DAILY_MAX]

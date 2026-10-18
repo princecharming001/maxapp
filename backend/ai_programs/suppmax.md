@@ -11,7 +11,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - Anyone on regular prescription medication, especially blood thinners, antidepressants (SSRIs and others), sedatives or sleep medicines, blood pressure or heart medicines, diabetes medicines, thyroid medicine, immunosuppressants, seizure medicines or stimulant (ADHD) medicines. A pharmacist can check the whole list in a few minutes.
 - Kidney or liver disease: several items (magnesium, creatine, protein powder, electrolytes, ashwagandha) are not appropriate without medical advice.
 - Surgery in the next 2 weeks: omega-3, ashwagandha and other items should usually be paused; follow the surgical team.
-- Under 18: Suppmax is built for adults. Do not schedule melatonin, creatine, caffeine pairings, ashwagandha, rhodiola or iron for minors.
+- Under 18: a short, parent-checked teen plan only. The ONLY supplements allowed are `vitamin_d3` (600–1,000 IU, never more), `b12`, `omega3` and a basic teen `multivitamin`, each only when a gap calls for it, always with `parent_check` and `food_first` and never more than two supplements a day. Never schedule melatonin, creatine, caffeine pairings, protein powder, ashwagandha, rhodiola, iron, magnesium, glycine, L-theanine, collagen, psyllium or electrolytes for minors. Write every step for a teenager, and say plainly that food comes first.
 - Anyone who suspects a deficiency (very tired, pale, hair shedding, numbness or tingling, restrictive diet): get bloodwork first. Iron in particular is never added without a test.
 - Ongoing insomnia, anxiety, low mood, fatigue or hair loss: these can have medical causes. A supplement should not delay seeing a clinician.
 
@@ -286,6 +286,36 @@ Check with a professional first (the app should suggest this, not diagnose):
 - how: 1) Take the dose your clinician set. 2) Take it on its own, away from the breakfast stack (coffee, tea and calcium block it). 3) Store it out of children's reach.
 - conflicts/synergies: Must not share a slot with `multivitamin` (calcium), `magnesium_glycinate`, coffee or tea. If the user is tired and asks about iron, suggest bloodwork, not a supplement.
 - source: https://ods.od.nih.gov/factsheets/Iron-HealthProfessional/
+
+### `parent_check` — Check with a parent or doctor (under 18)
+- minutes: 5 / 10
+- anchor: weekend (first weekend)
+- frequency: once in week 1, before starting anything (under 18 only)
+- tier: core
+- programs: none
+- primary for: none
+- avoid if: none
+- dose note: n/a (a check-in, not a supplement)
+- timing: First weekend, before the first supplement.
+- why: Supplement doses and safety research are mostly done in adults, and teens are still growing. A parent, pediatrician or pharmacist can confirm the plan fits, check it against any medicine you take, and decide whether a blood test makes more sense than guessing.
+- how: 1) Show this plan to a parent or your doctor before you start anything. 2) Bring the labels of anything you already take, including sports drinks and gummies. 3) Start only what they are happy with, at the dose on the label.
+- conflicts/synergies: Replaces `stack_audit` for anyone under 18. Always first in a teen plan.
+- source: https://www.healthychildren.org/English/healthy-living/nutrition/Pages/Dietary-Supplements-for-Children.aspx
+
+### `food_first` — Food first at every meal (under 18)
+- minutes: 2 / 5
+- anchor: breakfast, lunch and dinner
+- frequency: daily (under 18 only)
+- tier: core
+- programs: none
+- primary for: none
+- avoid if: none
+- dose note: n/a (food, not a supplement)
+- timing: At each meal you already eat.
+- why: For teens, food covers almost everything a supplement would, plus energy for growth and training. The gaps teens most often have (vitamin D, calcium, omega-3, iron, protein) are easiest to fill on the plate: dairy or fortified milk, fish, eggs, beans and lean meat.
+- how: 1) Get one protein at each meal: eggs, yogurt, milk, chicken, fish, beans or tofu. 2) Add a fruit or vegetable you like. 3) Drink water or milk with it, and skip energy drinks.
+- conflicts/synergies: The backbone of every teen plan; supplements are only an add-on to it.
+- source: https://www.dietaryguidelines.gov/
 
 ### `stack_audit` — One-time stack audit
 - minutes: 5 / 10

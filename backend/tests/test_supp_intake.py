@@ -32,12 +32,6 @@ def test_known_age_and_sex_are_not_asked_again():
     assert "age_band" not in {a["fact_key"] for a in asked} and "sex" not in {a["fact_key"] for a in asked}
 
 
-def test_under_18_stops_and_gets_nothing():
-    asked, answers = _run({**BASE, "age_band": "Under 18"})
-    assert [a["fact_key"] for a in asked][-1] == "age_band"
-    assert _picks(answers) == []
-
-
 def test_goal_sleep_gets_its_default_and_gaps_come_first():
     assert _picks(BASE) == ["melatonin"]
     gaps = {**BASE, "supp_diet": "Vegan or vegetarian, Little sun, indoors most days"}
@@ -103,3 +97,59 @@ def test_filled_in_picks_land_at_their_anchor_not_a_word_in_the_notes():
     assert at("electrolytes") == "18:00"            # its notes say "not close to bedtime"
     assert at("caffeine_theanine") == "07:15" and at("rhodiola") == "07:15"
     assert at("melatonin") == "21:45" and at("magnesium_glycinate") == "19:00"
+
+
+# ── under 18: a real, parent-checked teen plan ──────────────────────────────
+
+def test_teens_get_the_whole_quiz_now():
+    asked, _ = _run({**BASE, "age_band": "Under 18"})
+    keys = [a["fact_key"] for a in asked]
+    assert "supp_diet" in keys and "supp_current_stack" in keys
+
+
+def test_teen_picks_are_allowlisted_capped_and_never_empty():
+    teen = {**BASE, "age_band": "Under 18"}
+    assert _picks(teen) == ["vitamin_d3"]                         # nothing named: the common teen gap
+    vegan = {**teen, "supp_diet": "Vegan or vegetarian, Little sun, indoors most days, Rarely eat fish"}
+    p = _picks(vegan)
+    assert len(p) == 2 and set(p) <= set(si.TEEN_ALLOWED)
+    sleepy = {**teen, "supp_goals": "Sleep, Training and recovery, Focus"}
+    assert "melatonin" not in _picks(sleepy) and "creatine" not in _picks(sleepy)
+    assert set(_picks(sleepy, active={"sleepmax", "trainmax"})) <= set(si.TEEN_ALLOWED)
+
+
+def test_age_known_from_another_program_still_screens_a_minor():
+    """The quiz skips age it already knows; the screen must still see it."""
+    profile = {"about": {"age_band": "Under 18"}}
+    answers = ap._supp_answers({k: v for k, v in BASE.items() if k != "age_band"}, profile)
+    assert si.is_minor(answers)
+    assert "melatonin" not in [h.id for h in ap.required_supplements({"sleepmax"}, answers, set(), set())]
+    assert set(ap.supp_answer_picks(answers, {"sleepmax"}, profile, 0)) <= set(si.TEEN_ALLOWED)
+
+
+def test_teen_plan_keeps_only_safe_items_with_teen_wording():
+    tmpl = {"habits": [
+        {"habit_id": "melatonin", "how": "x"}, {"habit_id": "creatine", "how": "x"},
+        {"habit_id": "vitamin_d3", "how": "Pick D3 at 1,000-2,000 IU"}, {"habit_id": "omega3", "how": "x"},
+        {"habit_id": "multivitamin", "how": "x"}, {"habit_id": "stack_audit", "how": "x"},
+        {"habit_id": "custom_preworkout", "how": "x"}, {"habit_id": "parent_check", "how": "x"},
+        {"habit_id": "food_first", "how": "x"},
+    ]}
+    ap._teen_only(tmpl)
+    ids = [h["habit_id"] for h in tmpl["habits"]]
+    assert ids == ["vitamin_d3", "omega3", "parent_check", "food_first"]
+    d3 = next(h for h in tmpl["habits"] if h["habit_id"] == "vitamin_d3")
+    assert "600 to 1,000 IU" in d3["how"] and "2,000" not in d3["how"]
+
+
+def test_teen_library_routines_exist():
+    pd = ap.get_program_doc("suppmax")
+    for hid in si.TEEN_ROUTINES + si.TEEN_ALLOWED:
+        assert pd.habit(hid) is not None, hid
+
+
+def test_a_teen_summary_never_names_adult_only_items():
+    s = ("you're under 18, so this starts with a parent check. vitamin d3 at breakfast. "
+         "creatine and post-training protein can be added later when there's room. food comes first.")
+    out = ap._teen_summary(s)
+    assert "creatine" not in out and "vitamin d3" in out and "food comes first" in out

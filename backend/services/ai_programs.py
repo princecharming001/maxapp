@@ -1393,7 +1393,22 @@ def supp_answer_picks(answers: dict, active: set[str], profile: dict, synced: in
         return []
     atext = _supp_safety_text(answers)
     picks = supp_intake.ordered_picks(answers, active, profile, pd.habits, lambda h: _contraindicated(h, atext))
-    return picks[: max(1, SUPP_DAILY_MAX - synced)] if picks else []
+    cap = supp_intake.TEEN_DAILY_MAX if supp_intake.is_minor(answers, profile) else SUPP_DAILY_MAX
+    return picks[: max(1, cap - synced)] if picks else []
+
+
+def supp_intake_is_minor(answers: dict, profile: Optional[dict] = None) -> bool:
+    from services import supp_intake
+    return supp_intake.is_minor(answers, profile)
+
+
+def _supp_answers(answers: dict, profile: dict) -> dict:
+    """Suppmax answers with the shared facts filled in. Age asked by another
+    program is skipped in this quiz, but the screen still has to see it: an
+    under-18 who answered age elsewhere must never get adult-only picks."""
+    about = (profile or {}).get("about") or {}
+    shared = {k: about[k] for k in ("age_band", "sex") if str(about.get(k) or "").strip()}
+    return {**shared, **(answers or {})}
 
 
 def required_supplements(active: set[str], answers: dict, declined: set[str], present: set[str]) -> list["Habit"]:
@@ -1402,7 +1417,9 @@ def required_supplements(active: set[str], answers: dict, declined: set[str], pr
     pd = get_program_doc(SUPP_PROGRAM)
     if pd is None:
         return []
+    from services import supp_intake
     atext = _supp_safety_text(answers)
+    minor = supp_intake.is_minor(answers)
     covered = {p for hid in present for p in ((pd.habit(hid).programs if pd.habit(hid) else []) or [])}
     out: list[Habit] = []
     for mid in AI_PROGRAMS:
@@ -1410,6 +1427,8 @@ def required_supplements(active: set[str], answers: dict, declined: set[str], pr
             continue
         cand = next((h for h in pd.habits if h.primary_for == mid), None)
         if cand is None or cand.id in declined or cand.id in present or _contraindicated(cand, atext):
+            continue
+        if minor and cand.id not in supp_intake.TEEN_ALLOWED:
             continue
         if cand.id not in {h.id for h in out}:
             out.append(cand)
@@ -1442,6 +1461,38 @@ def _default_supp_time(h: "Habit", profile: dict) -> str:
     return breakfast
 
 
+def _teen_only(tmpl: dict) -> None:
+    """Under 18, whatever Claude or a request put in: only the allowlisted
+    supplements (at most TEEN_DAILY_MAX, in plan order) and the teen routines,
+    with teen wording. Custom and adult-only items are dropped."""
+    from services import supp_intake
+    keep_routines = set(supp_intake.TEEN_ROUTINES) | {"weekly_stack_checkin", "refill_check"}
+    out, n_supps = [], 0
+    for h in tmpl.get("habits") or []:
+        hid = h.get("habit_id")
+        if hid in supp_intake.TEEN_ALLOWED:
+            if n_supps >= supp_intake.TEEN_DAILY_MAX:
+                continue
+            n_supps += 1
+            h = {**h, "how": supp_intake.TEEN_HOW.get(hid, h.get("how") or "")}
+        elif hid not in keep_routines:
+            continue
+        out.append(h)
+    tmpl["habits"] = out
+
+
+# Adult-only items a teen's summary must never name, even as "later".
+_TEEN_NEVER = re.compile(
+    r"creatine|melatonin|protein (powder|shake)|pre-?workout|ashwagandha|rhodiola|caffeine|"
+    r"l-?theanine|glycine|magnesium|collagen|psyllium|electrolyte|iron\b|tart cherry", re.I)
+
+
+def _teen_summary(text: str) -> str:
+    """Drop any sentence of a teen's plan summary that names an adult-only item."""
+    parts = re.split(r"(?<=[.!?])\s+", str(text or "").strip())
+    return " ".join(s for s in parts if s and not _TEEN_NEVER.search(s)).strip()
+
+
 def _insert_supps(tmpl: dict, habits: list["Habit"], profile: dict) -> None:
     for h in habits:
         tmpl.setdefault("habits", []).append({
@@ -1470,7 +1521,11 @@ def _finalize_supp(tmpl: dict, profile: dict, answers: dict, active: set[str],
     """Make the synced picks deterministic (Claude places them; this only fills
     a gap if Claude dropped one), fit the whole Suppmax plan into the day with
     the synced and user-chosen picks protected, then tag links."""
+    from services import supp_intake
     declined = set((prev or {}).get("declined") or []) | set(tmpl.get("declined") or [])
+    minor = supp_intake.is_minor(answers, profile)
+    if minor:
+        also_required = list(dict.fromkeys([*supp_intake.TEEN_ROUTINES, *(also_required or [])]))
     if enforce:
         present = {h.get("habit_id") for h in tmpl.get("habits") or []}
         missing = required_supplements(active, answers, declined, present)
@@ -1481,6 +1536,9 @@ def _finalize_supp(tmpl: dict, profile: dict, answers: dict, active: set[str],
         extra = [pd.habit(hid) for hid in (also_required or []) if hid not in present and pd and pd.habit(hid)]
         if extra:
             _insert_supps(tmpl, extra, profile)
+    if minor:
+        _teen_only(tmpl)
+        tmpl["summary"] = _teen_summary(tmpl.get("summary") or "")
     needed = {h.id for h in required_supplements(active, answers, declined, set())} | set(also_required or [])
     prev_keep = {h.get("habit_id") for h in (prev or {}).get("habits") or [] if h.get("keep")}
     have = {h.get("habit_id") for h in tmpl.get("habits") or []}
@@ -1572,7 +1630,9 @@ async def sync_supplements(user_id: str, db) -> Optional[dict]:
     sctx = dict(sched.schedule_context or {})
     prev = sctx.get("ai_plan") or {}
     active = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
-    answers = prev.get("answers") or {}
+    _, _, state = await _user_state(user_id, db)
+    profile = build_profile(state)
+    answers = _supp_answers(prev.get("answers") or {}, profile)
     declined = set(prev.get("declined") or [])
 
     kept, removed = [], []
@@ -1588,8 +1648,6 @@ async def sync_supplements(user_id: str, db) -> Optional[dict]:
     if not removed and not adds and not relink:
         return None
 
-    _, _, state = await _user_state(user_id, db)
-    profile = build_profile(state)
     base = {**prev, "habits": kept}
     tmpl: Optional[dict] = None
     others = await other_program_plans(user_id, db, except_maxx=SUPP_PROGRAM)
@@ -1693,6 +1751,7 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
     others = await other_program_plans(user_id, db, except_maxx=maxx_id)
     sync_required = None
     if maxx_id == SUPP_PROGRAM:
+        answers = _supp_answers(answers, profile)
         active_now = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
         sync_required = [h.id for h in required_supplements(active_now, answers, set(), set())]
         sync_required += [h for h in supp_answer_picks(answers, active_now, profile, len(sync_required))
@@ -1706,8 +1765,14 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
     tmpl = await build_plan(maxx_id, profile, answers, others, sync_required=sync_required)
     if tmpl is not None and maxx_id == SUPP_PROGRAM:
         tmpl["answers"] = answers
+        drafted = {h.get("habit_id") for h in tmpl.get("habits") or []}
         tmpl = _finalize_supp(tmpl, profile, answers, active_now, others=others,
                               also_required=sync_required)
+        if {h.get("habit_id") for h in tmpl.get("habits") or []} != drafted:
+            # the summary must describe the plan they actually got
+            tmpl = await sync_summary(SUPP_PROGRAM, tmpl, profile, changed=True)
+        if supp_intake_is_minor(answers, profile):
+            tmpl["summary"] = _teen_summary(tmpl.get("summary") or "")
     supp_preview: list[str] = []
     if tmpl is not None and maxx_id not in NO_SYNC_PROGRAMS:
         try:
@@ -1994,6 +2059,7 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db, *,
                    if h.get("linked_to") and h.get("habit_id") not in new_ids}
         tmpl["declined"] = sorted(set(current.get("declined") or []) | dropped)
         active = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
+        tmpl["answers"] = _supp_answers(tmpl["answers"], profile)
         tmpl = _finalize_supp(tmpl, profile, tmpl["answers"], active, prev=current, others=others,
                               user_requested=True, enforce=False)
     tmpl = await sync_summary(maxx_id, tmpl, profile)
