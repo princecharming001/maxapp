@@ -123,6 +123,7 @@ AI_PLAN_DAYS = 28
 
 MAX_INTAKE_QUESTIONS = 3
 INTAKE_KEY = "_ai_intake"
+SUPP_OFFER_KEY = "_supp_offer"       # a supplement Suppmax asked to add, waiting for yes/no
 WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 
@@ -1072,7 +1073,12 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
         lib_h = lib.get(hid)
         habits.append({
             "habit_id": hid,
-            "title": _clean_text(str(h.get("title") or "") or (lib_h.title if lib_h else hid.replace("_", " ")), 40),
+            # one name everywhere (Tune, Home, Planner, chat): the library's. A
+            # model-written title carried a time or a reason that went stale
+            # ("vitamin D3 at breakfast" at 12:30, "electrolytes post-workout"
+            # with no workout) and differed from the Tune sheet (beta 1, F36)
+            "title": (_library_title(lib_h) if lib_h else
+                      _clean_text(str(h.get("title") or "") or hid.replace("_", " "), 40)),
             "how": _clean_text(str(h.get("how") or (lib_h.how if lib_h else "")), 700),
             "why": _clean_text(str(h.get("why") or (lib_h.why if lib_h else "")), 200),
             "minutes": minutes,
@@ -1147,7 +1153,7 @@ def refit_template(maxx_id: str, tmpl: dict, profile: dict, others: Optional[dic
         rebuilt = skin_routine.build_template(tmpl.get("answers") or {}, started_on=_local_today(profile))
         tmpl = {**tmpl, **rebuilt, "answers": tmpl.get("answers") or {}}
     out = validate_template(maxx_id, tmpl, profile, others=others)
-    for k in ("answers", "declined", "built_at", "started_on", "skin_profile", "peptide_profile"):
+    for k in ("answers", "declined", "accepted", "built_at", "started_on", "skin_profile", "peptide_profile"):
         if k in tmpl:
             out[k] = tmpl[k]
     out["summary"] = tmpl.get("summary") or out.get("summary") or ""
@@ -1257,6 +1263,17 @@ def _fix_minutes(text: str, minutes: int, lib_h: Optional["Habit"]) -> str:
     return re.sub(r"\b(the full |a full |full )?(\d{1,3})(\s?(?:-\s?)?(?:minutes?|mins?)\b)", sub, text, flags=re.I)
 
 
+def _library_title(h: "Habit") -> str:
+    """A library title for the card: notes for the planner ("(caution)",
+    "(vegans, 50+)") left out."""
+    return _clean_text(re.sub(r"\s*\([^)]*\)", "", h.title or h.id).strip() or h.id, 40)
+
+
+_TIMES_A_WEEK = re.compile(r"(\d)\s*(?:[–-]\s*(\d)\s*)?times? a week", re.I)
+_SPREAD = {1: ["sat"], 2: ["tue", "fri"], 3: ["mon", "wed", "fri"], 4: ["mon", "tue", "thu", "fri"],
+           5: ["mon", "tue", "wed", "thu", "fri"]}
+
+
 def _apply_kinds_and_cycles(placed: list[dict], lib: dict) -> None:
     """Library kinds and protocol lengths become schedule fields: a setup runs
     in week 1 on one day; a cycle ('4 on / 1 off') and a trial ('12 weeks, then
@@ -1271,6 +1288,12 @@ def _apply_kinds_and_cycles(placed: list[dict], lib: dict) -> None:
             days = h.get("days") or []
             one = next((d for d in ("sat", "sun") if d in days), days[0] if days else "sat")
             h["days"] = [one]
+        m = _TIMES_A_WEEK.search(lh.frequency or "")
+        if m and len(h.get("days") or []) == 7 and lh.habit_kind != "setup":
+            # "2–3 times a week on workout or hot days (never daily)": a daily
+            # electrolytes task contradicted its own library entry (beta 1, F18)
+            n = int(m.group(2) or m.group(1))
+            h["days"] = _SPREAD.get(n, h["days"])
         if lh.cycle_on and not h.get("cycle"):
             h["cycle"] = [lh.cycle_on, lh.cycle_off]
         if lh.trial_weeks and not h.get("weeks"):
@@ -1665,28 +1688,81 @@ def _supp_answers(answers: dict, profile: dict) -> dict:
     return {**shared, **(answers or {})}
 
 
-def required_supplements(active: set[str], answers: dict, declined: set[str], present: set[str]) -> list["Habit"]:
+# avoid-if words that name a medicine: "other daily meds" rules these out
+_MED_WORDS = ("meds", "medic", "thinner", "ssri", "antidep", "sedative", "seizure", "immunosupp", "antibiotic",
+              "antipsych", "water pill", "statin", "insulin", "stimulant", "osteoporosis", "thyroid", "diabetes")
+# "what do you already take?" → what that already covers
+_STACK_COVERS = {
+    "magnesium, melatonin or a sleep aid": {"melatonin", "magnesium_glycinate", "glycine"},
+    "vitamin d or fish oil": {"vitamin_d3", "omega3"},
+    "multivitamin": {"multivitamin"},
+    "protein, creatine or pre-workout": {"protein_powder", "creatine", "caffeine_theanine"},
+}
+
+
+def supp_screen_complete(answers: dict) -> bool:
+    """The Suppmax safety screen was answered (conditions and medicines). Without
+    it nothing is ever added: an empty screen used to rule nothing out."""
+    a = answers or {}
+    return bool(str(a.get("supp_safety_flags") or "").strip()) and bool(str(a.get("supp_medications") or "").strip())
+
+
+def supp_block_reason(h: "Habit", answers: dict) -> Optional[str]:
+    """Why this supplement can't be added for this person (None = it can)."""
+    from services import supp_intake
+    a = answers or {}
+    if not supp_screen_complete(a):
+        return "the suppmax safety check isn't done"
+    flags = str(a.get("supp_safety_flags") or "").lower()
+    meds = str(a.get("supp_medications") or "").lower()
+    if "pregnan" in flags or "breastfeed" in flags:
+        return "you're pregnant, trying or breastfeeding"
+    if supp_intake.is_minor(a) and h.id not in supp_intake.TEEN_ALLOWED:
+        return "it isn't for under 18s"
+    if _contraindicated(h, _supp_safety_text(a)):
+        return "something you told me rules it out"
+    if "other daily meds" in meds and any(w in " ".join(h.avoid) for w in _MED_WORDS):
+        return "it can interact with daily medicines"
+    stack = str(a.get("supp_current_stack") or "").lower()
+    if any(label in stack and h.id in ids for label, ids in _STACK_COVERS.items()):
+        return "you already take something that covers it"
+    return None
+
+
+def required_supplements(active: set[str], answers: dict, declined: set[str], present: set[str],
+                         accepted: Optional[set[str]] = None) -> list["Habit"]:
     """The primary supplement for each active program that isn't covered yet,
-    minus anything declined or contraindicated by the user's answers."""
+    minus anything declined or ruled out by the screen. With `accepted`, only
+    the ones the person said yes to (a sync never adds anything unasked)."""
     pd = get_program_doc(SUPP_PROGRAM)
     if pd is None:
         return []
-    from services import supp_intake
-    atext = _supp_safety_text(answers)
-    minor = supp_intake.is_minor(answers)
     covered = {p for hid in present for p in ((pd.habit(hid).programs if pd.habit(hid) else []) or [])}
     out: list[Habit] = []
     for mid in AI_PROGRAMS:
         if mid not in active or mid in covered or mid in NO_SYNC_PROGRAMS:
             continue
         cand = next((h for h in pd.habits if h.primary_for == mid), None)
-        if cand is None or cand.id in declined or cand.id in present or _contraindicated(cand, atext):
+        if cand is None or cand.id in declined or cand.id in present or supp_block_reason(cand, answers):
             continue
-        if minor and cand.id not in supp_intake.TEEN_ALLOWED:
+        if accepted is not None and cand.id not in accepted:
             continue
         if cand.id not in {h.id for h in out}:
             out.append(cand)
     return out
+
+
+def supp_offer_text(habits: list["Habit"]) -> str:
+    """The question that asks before a supplement goes in (beta 1: melatonin was
+    added with no question about age, medicine, pregnancy or whether they wanted it)."""
+    names = " and ".join(h.title.split("(")[0].strip().lower() for h in habits)
+    skips = []
+    for h in habits:
+        skips += [a for a in h.avoid if a not in skips]
+    skip = ", ".join(skips[:6])
+    return (f"suppmax can add {names} for this. skip it if you have or take: {skip}. "
+            "take only the serving on the label, and check with your clinician if you take other medicines. "
+            "want me to add it?")
 
 
 def _default_supp_time(h: "Habit", profile: dict) -> str:
@@ -1796,7 +1872,7 @@ def _finalize_supp(tmpl: dict, profile: dict, answers: dict, active: set[str],
     needed = {h.id for h in required_supplements(active, answers, declined, set())} | set(also_required or [])
     prev_keep = {h.get("habit_id") for h in (prev or {}).get("habits") or [] if h.get("keep")}
     have = {h.get("habit_id") for h in tmpl.get("habits") or []}
-    keep_extra = {k: tmpl.get(k) for k in ("answers", "declined", "_draft") if k in tmpl}
+    keep_extra = {k: tmpl.get(k) for k in ("answers", "declined", "accepted", "_draft") if k in tmpl}
     tmpl = {**validate_template(SUPP_PROGRAM, tmpl, profile, others=others,
                                 keep_ids=(needed | prev_keep) & have),
             "summary": tmpl.get("summary") or "", **keep_extra}
@@ -1871,7 +1947,8 @@ def pending_intake_question(ctx: dict, conversation_id: Optional[str]) -> Option
 
 
 async def preview_supp_adds(user_id: str, db, *, with_program: Optional[str] = None) -> list[str]:
-    """Titles the next sync will add (for the chat reply), without writing."""
+    """Supplement ids Suppmax could add for the user's programs, to OFFER (never
+    added without a yes). Same screen and answers the sync uses."""
     sched = await active_ai_plan(user_id, SUPP_PROGRAM, db)
     if sched is None:
         return []
@@ -1879,9 +1956,33 @@ async def preview_supp_adds(user_id: str, db, *, with_program: Optional[str] = N
     active = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
     if with_program:
         active.add(with_program)
+    _, _, state = await _user_state(user_id, db)
+    answers = _supp_answers(tmpl.get("answers") or {}, build_profile(state))
     present = {h.get("habit_id") for h in tmpl.get("habits") or []}
-    adds = required_supplements(active, tmpl.get("answers") or {}, set(tmpl.get("declined") or []), present)
-    return [h.title for h in adds]
+    declined = set(tmpl.get("declined") or [])
+    adds = required_supplements(active, answers, declined, present)
+    accepted = set(tmpl.get("accepted") or [])
+    return [h.id for h in adds if h.id not in accepted]
+
+
+async def answer_supp_offer(user_id: str, ids: list[str], yes: bool, db) -> None:
+    """A yes puts the offered picks in Suppmax (then the sync places them); a
+    no keeps them out for good."""
+    from sqlalchemy.orm.attributes import flag_modified
+    sched = await active_ai_plan(user_id, SUPP_PROGRAM, db)
+    if sched is None or not ids:
+        return
+    sctx = dict(sched.schedule_context or {})
+    tmpl = dict(sctx.get("ai_plan") or {})
+    key = "accepted" if yes else "declined"
+    tmpl[key] = sorted(set(tmpl.get(key) or []) | set(ids))
+    sctx["ai_plan"] = tmpl
+    sched.schedule_context = sctx
+    flag_modified(sched, "schedule_context")
+    await db.flush()
+    if yes:
+        await sync_supplements(user_id, db)
+    await db.commit()
 
 
 async def sync_supplements(user_id: str, db) -> Optional[dict]:
@@ -1909,7 +2010,8 @@ async def sync_supplements(user_id: str, db) -> Optional[dict]:
         else:
             kept.append(dict(h))
     present = {h.get("habit_id") for h in kept}
-    adds = required_supplements(active, answers, declined, present)
+    # only what the person said yes to (or what's already there) is ever added
+    adds = required_supplements(active, answers, declined, present, accepted=set(prev.get("accepted") or []))
     relink = any(sorted(set(h.get("linked_to") or []) & active) != sorted(h.get("linked_to") or []) for h in kept)
     if not removed and not adds and not relink:
         return None
@@ -1934,6 +2036,7 @@ async def sync_supplements(user_id: str, db) -> Optional[dict]:
     tmpl["answers"] = answers
     tmpl["summary"] = tmpl.get("summary") or prev.get("summary") or ""
     tmpl["declined"] = sorted(declined)
+    tmpl["accepted"] = sorted(set(prev.get("accepted") or []))
     # Claude only places the additions: never let a sync silently drop a kept one.
     have = {h.get("habit_id") for h in tmpl.get("habits") or []}
     for h in kept:
@@ -2019,7 +2122,9 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
     if maxx_id == SUPP_PROGRAM:
         answers = _supp_answers(answers, profile)
         active_now = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
-        sync_required = [h.id for h in required_supplements(active_now, answers, set(), set())]
+        # starting Suppmax after its safety screen is the yes for its own picks
+        program_picks = [h.id for h in required_supplements(active_now, answers, set(), set())]
+        sync_required = list(program_picks)
         sync_required += [h for h in supp_answer_picks(answers, active_now, profile, len(sync_required))
                           if h not in sync_required]
     # shared facts (age, sex, first meal) asked by any program are remembered for all
@@ -2031,6 +2136,7 @@ async def create_program_schedule(user_id: str, maxx_id: str, db, *, answers: di
     tmpl = await build_plan(maxx_id, profile, answers, others, sync_required=sync_required)
     if tmpl is not None and maxx_id == SUPP_PROGRAM:
         tmpl["answers"] = answers
+        tmpl["accepted"] = sorted(program_picks)
         drafted = {h.get("habit_id") for h in tmpl.get("habits") or []}
         tmpl = _finalize_supp(tmpl, profile, answers, active_now, others=others,
                               also_required=sync_required)
@@ -2327,6 +2433,7 @@ async def redo_program_plan(user_id: str, maxx_id: str, request: str, db, *,
         dropped = {h.get("habit_id") for h in current.get("habits") or []
                    if h.get("linked_to") and h.get("habit_id") not in new_ids}
         tmpl["declined"] = sorted(set(current.get("declined") or []) | dropped)
+        tmpl["accepted"] = sorted(set(current.get("accepted") or []) - dropped)
         active = (await _active_program_ids(user_id, db)) - set(NO_SYNC_PROGRAMS)
         tmpl["answers"] = _supp_answers(tmpl["answers"], profile)
         tmpl = _finalize_supp(tmpl, profile, tmpl["answers"], active, prev=current, others=others,
@@ -2607,6 +2714,24 @@ async def chat_turn(
     if pending and not is_ai_program(pending.get("max")):
         pending = None
 
+    offer = ctx.get(SUPP_OFFER_KEY) if isinstance(ctx.get(SUPP_OFFER_KEY), dict) else None
+    if offer and not start_maxx and (not offer.get("conv") or offer.get("conv") == conv):
+        await merge_context(user_id, {SUPP_OFFER_KEY: None}, db)
+        await db.commit()
+        yes = bool(re.match(r"\s*(yes|yeah|yep|sure|ok|okay|add)\b", msg, re.I))
+        no = bool(re.match(r"\s*(no|nope|nah|not now|skip|don'?t)\b", msg, re.I))
+        if yes or no:
+            ids = [x for x in offer.get("ids") or [] if isinstance(x, str)]
+            await answer_supp_offer(user_id, ids, yes, db)
+            pd = get_program_doc(SUPP_PROGRAM)
+            names = " and ".join((pd.habit(x).title.split("(")[0].strip().lower() if pd and pd.habit(x) else x)
+                                 for x in ids)
+            if yes:
+                return (f"added {names} to suppmax. it's on your home and planner; take the serving on the "
+                        "label, and stop if anything feels off.", AFTER_PLAN_CHOICES, False)
+            return (f"no problem, {names} stays out of your plan and i won't offer it again.",
+                    AFTER_PLAN_CHOICES, False)
+
     typed_start = False
     if not start_maxx and not pending:
         start_maxx = detect_program_start(msg)
@@ -2729,8 +2854,15 @@ async def chat_turn(
         flag_modified(sched, "schedule_context")
         await db.commit()
     lead = (step["ack"].rstrip() + "\n\n") if step.get("ack") and not is_opener else ""
-    note = ""
-    if built.get("supp_added"):
-        names = " and ".join(t.lower() for t in built["supp_added"])
-        note = f"since you run suppmax, i'm adding {names} to that plan too."
-    return lead + plan_reply(mid, built["template"], note=note), AFTER_PLAN_CHOICES, False
+    reply = lead + plan_reply(mid, built["template"])
+    offer = [x for x in built.get("supp_added") or []]
+    pd = get_program_doc(SUPP_PROGRAM)
+    habits = [h for h in (pd.habit(x) for x in offer) if h is not None] if pd else []
+    if habits:
+        # never added without a yes (beta 1, F1): ask, with who should skip it
+        await merge_context(user_id, {SUPP_OFFER_KEY: {"conv": conv, "ids": [h.id for h in habits]}}, db)
+        await db.commit()
+        short = habits[0].title.split("(")[0].strip().lower() if len(habits) == 1 else "them"
+        return (reply + "\n\n" + supp_offer_text(habits),
+                [f"Yes, add {short}", "No thanks"], False)
+    return reply, AFTER_PLAN_CHOICES, False

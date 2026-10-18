@@ -38,6 +38,9 @@ DOC = """# Suppmax
 ## Safety and claims
 """
 
+# a completed Suppmax safety screen: without one nothing is ever added (beta 1, F1)
+SAFE = {"supp_safety_flags": "None of these", "supp_medications": "None"}
+
 PROFILE = {"wake_time": "07:00", "bed_time": "23:00", "weekend_shift": False, "weekly_timings": {},
            "meals": {"breakfast": "07:30", "dinner": "19:00"}, "minutes_per_day_total": 30}
 
@@ -58,25 +61,36 @@ def test_link_fields_parse(supp_doc):
 
 
 def test_required_follows_active_programs():
-    ids = [h.id for h in ap.required_supplements({"sleepmax", "trainmax"}, {}, set(), set())]
+    ids = [h.id for h in ap.required_supplements({"sleepmax", "trainmax"}, SAFE, set(), set())]
     assert ids == ["melatonin", "creatine"]
     # Peptidemax never pulls anything in.
-    assert ap.required_supplements({"peptidemax"}, {}, set(), set()) == []
+    assert ap.required_supplements({"peptidemax"}, SAFE, set(), set()) == []
+    # no screen, nothing (an empty screen used to rule nothing out)
+    assert ap.required_supplements({"sleepmax", "trainmax"}, {}, set(), set()) == []
+    # a sync only adds what the person said yes to
+    assert ap.required_supplements({"sleepmax", "trainmax"}, SAFE, set(), set(), accepted={"creatine"})[0].id == "creatine"
 
 
 def test_required_skips_declined_contraindicated_and_covered():
-    assert ap.required_supplements({"sleepmax"}, {}, {"melatonin"}, set()) == []
-    assert ap.required_supplements({"sleepmax"}, {"safety": "pregnant or breastfeeding"}, set(), set()) == []
-    assert ap.required_supplements({"sleepmax"}, {"safety": "no"}, set(), set())[0].id == "melatonin"
+    assert ap.required_supplements({"sleepmax"}, SAFE, {"melatonin"}, set()) == []
+    preg = {**SAFE, "supp_safety_flags": "Pregnant, trying, or breastfeeding"}
+    assert ap.required_supplements({"sleepmax", "trainmax"}, preg, set(), set()) == []   # nothing at all
+    assert ap.required_supplements({"sleepmax"}, SAFE, set(), set())[0].id == "melatonin"
     # Magnesium already covers sleep, so melatonin isn't forced in on top.
-    assert ap.required_supplements({"sleepmax"}, {}, set(), {"magnesium"}) == []
+    assert ap.required_supplements({"sleepmax"}, SAFE, set(), {"magnesium"}) == []
+    # already takes melatonin or a sleep aid: not offered again
+    stack = {**SAFE, "supp_current_stack": "Magnesium, melatonin or a sleep aid"}
+    assert ap.required_supplements({"sleepmax"}, stack, set(), set()) == []
+    # "other daily meds" rules out anything with a medicine interaction
+    meds = {**SAFE, "supp_medications": "Diabetes, thyroid or other daily meds"}
+    assert ap.required_supplements({"sleepmax"}, meds, set(), set()) == []
 
 
 def test_finalize_inserts_missing_and_tags_links():
     tmpl = {"summary": "s", "habits": [
         {"habit_id": "vitamin_d", "title": "Vitamin D3", "how": "", "why": "", "minutes": 1,
          "time": "07:30", "weekend_time": "", "days": ap.WEEKDAYS}]}
-    out = ap._finalize_supp(tmpl, PROFILE, {}, {"sleepmax"})
+    out = ap._finalize_supp(tmpl, PROFILE, SAFE, {"sleepmax"})
     by = {h["habit_id"]: h for h in out["habits"]}
     assert set(by) == {"vitamin_d", "melatonin"}
     assert by["melatonin"]["linked_to"] == ["sleepmax"] and by["melatonin"]["keep"] is False
@@ -100,7 +114,7 @@ class _DB:
 @pytest.fixture
 def world(monkeypatch):
     state = {"active": {"suppmax", "trainmax"}, "regen": 0}
-    plan = {"summary": "your stack.", "answers": {}, "declined": [], "habits": [
+    plan = {"summary": "your stack.", "answers": dict(SAFE), "declined": [], "accepted": ["creatine"], "habits": [
         {"habit_id": "melatonin", "title": "Low-dose melatonin", "how": "", "why": "", "minutes": 1,
          "time": "22:15", "weekend_time": "", "days": ap.WEEKDAYS, "linked_to": ["sleepmax"], "keep": False},
         {"habit_id": "magnesium", "title": "Magnesium glycinate", "how": "", "why": "", "minutes": 1,
@@ -168,7 +182,7 @@ async def test_sync_never_readds_a_declined_pick(world):
 
 
 def test_supplements_sit_at_their_meal():
-    out = ap._finalize_supp({"summary": "s", "habits": []}, PROFILE, {}, {"calmmax", "trainmax"})
+    out = ap._finalize_supp({"summary": "s", "habits": []}, PROFILE, SAFE, {"calmmax", "trainmax"})
     by = {h["habit_id"]: h for h in out["habits"]}
     assert by["magnesium"]["time"] == "19:00"          # dinner
     assert by["creatine"]["time"] == "07:30"           # breakfast
@@ -183,5 +197,21 @@ def test_synced_and_kept_picks_survive_a_full_day():
     tmpl = {"summary": "s", "habits": [
         {"habit_id": "vitamin_d", "title": "Vitamin D3", "how": "", "why": "", "minutes": 1,
          "time": "07:30", "weekend_time": "", "days": ap.WEEKDAYS}]}
-    out = ap._finalize_supp(tmpl, PROFILE, {}, {"sleepmax"}, prev=prev, others=others)
+    out = ap._finalize_supp(tmpl, PROFILE, SAFE, {"sleepmax"}, prev=prev, others=others)
     assert {h["habit_id"] for h in out["habits"]} == {"vitamin_d", "melatonin"}
+
+
+@pytest.mark.asyncio
+async def test_sync_never_adds_what_was_not_accepted(world):
+    # beta 1 (F1): starting Sleepmax added melatonin with no question asked
+    world["active"] = {"suppmax", "sleepmax"}
+    plan = world["sched"].schedule_context["ai_plan"]
+    plan["habits"] = []
+    plan["accepted"] = []
+    out = await ap.sync_supplements("u1", _DB())
+    assert out is None or not out["added"]
+
+
+def test_offer_text_names_who_should_skip(supp_doc):
+    text = ap.supp_offer_text([supp_doc.habit("melatonin")])
+    assert "melatonin" in text and "pregnancy" in text and "want me to add it?" in text

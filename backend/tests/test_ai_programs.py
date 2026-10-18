@@ -476,7 +476,8 @@ async def test_summary_is_rewritten_when_the_fit_leaves_a_habit_out(monkeypatch)
     out = await ap.sync_summary("focusmax", t, prof)
     assert out["summary"].startswith("plan your top 3") and "_draft" not in out
     assert calls[0]["left_out"] == ["Deep-work block"]
-    assert [h["title"] for h in calls[0]["final_habits"]] == ["top three plan"]
+    # library titles everywhere (beta 1, F36)
+    assert [h["title"] for h in calls[0]["final_habits"]] == ["Plan your top 3"]
 
 
 @pytest.mark.asyncio
@@ -486,7 +487,7 @@ async def test_summary_falls_back_to_a_plain_truthful_one(monkeypatch):
     monkeypatch.setattr(ap, "_claude_tool", down)
     t, prof = _focus_5min()
     s = (await ap.sync_summary("focusmax", t, prof))["summary"]
-    assert s.startswith("week 1 keeps it simple: top three plan.")
+    assert s.startswith("week 1 keeps it simple: plan your top 3.")
     assert "deep-work block can come in later" in s
 
 
@@ -626,7 +627,7 @@ def test_clock_times_in_text_never_contradict_the_card():
     assert by["morning_light"]["time"] == "07:30"
     how = by["morning_light"]["how"]
     assert "08:00" not in how and "the time on your plan" not in how and " for so " not in how
-    assert by["caffeine_cutoff"]["title"] == "Last coffee"
+    assert by["caffeine_cutoff"]["title"] == "Caffeine cutoff"     # the library's name, never a stale time
     assert by["caffeine_cutoff"]["time"] <= "15:00" and "3:30" not in by["caffeine_cutoff"]["how"]
     # a time that matches the card stays
     t = ap.validate_template("sleepmax", _raw({**_h("morning_light", "07:30", 5), "how": "Go out at 7:30am."}),

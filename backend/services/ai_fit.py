@@ -44,6 +44,8 @@ TASK_CAP = 10           # visible tasks on one day, all programs together
 MEAL_MIN = 30           # assumed meal length
 
 HARD = {"strength_full_body", "strength_2x", "vigorous_intervals", "resistance_training"}
+# daytime only: sodium and fluids close to bed mean night-time bathroom trips
+DAYTIME = {"electrolytes"}
 WORKOUT = HARD | {"zone2_cardio", "move_it_out"}
 
 # One idea, one program. Order within the stack decides who keeps it (the
@@ -258,6 +260,8 @@ def kind_of(hid: str, inf: HabitInfo) -> str:
     a = inf.anchor
     if hid == "caffeine_cutoff":
         return "caffeine"
+    if hid in DAYTIME:
+        return "daytime"
     if hid in ("screens_off", "screen_free_evening"):
         return "screens_off"
     if hid == "wind_down":
@@ -320,6 +324,8 @@ def window(kind: str, dur: int, d: Day, *, weekday: bool) -> tuple[int, int]:
         return max(w, min(target, b - 360)), max(w, b - 360)
     if kind == "workout":
         return w, max(w, b - 120 - dur)
+    if kind == "daytime":
+        return min(w + 15, hi), max(min(w + 15, hi), b - 180 - dur)
     if kind == "nap":
         return max(w + 300, w), max(w, b - 420 - dur)
     if kind == "work_start" and weekday and d.work:
@@ -527,7 +533,7 @@ def _free_fallback(lib: dict, others: dict, *, exclude: set) -> Optional[dict]:
     return None
 
 
-def _fold_supp_rows(placed: list[dict], lib: dict, allow: int) -> None:
+def _fold_supp_rows(placed: list[dict], lib: dict, allow: int, d: Optional["Day"] = None) -> None:
     """A crowded day leaves Suppmax only a couple of rows: picks without a
     fixed timing (L-theanine, electrolytes) are taken with the nearest stack it
     already has (breakfast, pre-bed) instead of adding their own reminder."""
@@ -535,7 +541,7 @@ def _fold_supp_rows(placed: list[dict], lib: dict, allow: int) -> None:
 
     def rows() -> set:
         return {h["time"] for h in placed}
-    fixed = [h for h in placed if kind_of(h["habit_id"], info(h["habit_id"], lib)) != "any"
+    fixed = [h for h in placed if kind_of(h["habit_id"], info(h["habit_id"], lib)) not in ("any", "daytime")
              or supp_meals(h["habit_id"], info(h["habit_id"], lib))]
     flexible = sorted((h for h in placed if h not in fixed), key=lambda h: -int(h.get("_i", h.get("priority", 0)) or 0))
     # one (weekday, weekend) slot per stack; the weekend time comes from a pick
@@ -549,7 +555,13 @@ def _fold_supp_rows(placed: list[dict], lib: dict, allow: int) -> None:
         return
     for h in flexible:
         t = to_min(h["time"], 0)
-        best = min(anchors, key=lambda a: abs(to_min(a[0], 0) - t))
+        pool = anchors
+        if d is not None and kind_of(h["habit_id"], info(h["habit_id"], lib)) == "daytime":
+            # a daytime pick never joins the pre-bed stack
+            pool = [a for a in anchors if _near(to_min(a[0], 0), d) <= d.bed - 180] or []
+            if not pool:
+                continue
+        best = min(pool, key=lambda a: abs(to_min(a[0], 0) - t))
         # right next to a stack: just take it with that stack
         if abs(to_min(best[0], 0) - t) <= 30 or len(rows()) > allow:
             h["time"], h["weekend_time"] = best
@@ -812,6 +824,7 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
         best = max(votes.values(), default=0)
         stack_meal = next((m for m in MEALS if votes[m] == best), None) if best >= 2 else None
     order["screens_off"] = order["wind_down"]
+    order["daytime"] = order["any"]
 
     def seq(x: dict) -> int:
         inf_ = info(x["habit_id"], lib)
@@ -918,7 +931,7 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
         h["priority"] = h.pop("_i", 0)
         placed.append(h)
     if maxx_id == SUPP and placed:
-        _fold_supp_rows(placed, lib, min(slots.values()) if slots else task_cap)
+        _fold_supp_rows(placed, lib, min(slots.values()) if slots else task_cap, models["weekday"])
         _unify_supp_weekends(placed, models)
     placed.sort(key=lambda x: _near(to_min(x["time"], 0), models["weekday"]))
     if parked_out is not None:
