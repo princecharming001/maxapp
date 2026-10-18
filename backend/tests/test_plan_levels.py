@@ -47,10 +47,12 @@ def test_control_texts_and_typed_requests_map_to_levels():
     assert ap._implied_level("move it later", "light") == "light"
 
 
-def test_plan_card_carries_the_level_and_asks_if_it_is_enough():
+def test_plan_card_carries_the_level_without_promising_a_slider():
+    # beta 1 (F28): "slide it lighter" was promised on every reply, slider or not;
+    # the Lighter/Balanced/More control under the card is the affordance
     t = ap.validate_template("sleepmax", {"summary": "s", "habits": _lib_habits("sleepmax", 3), "level": "light"}, PROF)
     text = ap.plan_reply("sleepmax", t)
-    assert '"level":"light"' in text and "does this feel like enough" in text
+    assert '"level":"light"' in text and "slide it lighter" not in text
 
 
 def test_a_control_tap_redoes_the_plan_at_that_level(monkeypatch):
@@ -86,7 +88,10 @@ def test_a_control_tap_redoes_the_plan_at_that_level(monkeypatch):
     monkeypatch.setattr("services.user_context_service.get_context", fake_ctx)
     out = asyncio.run(ap.chat_turn("00000000-0000-0000-0000-000000000001", "lighter, please", DB(), start_maxx=None, conversation_id="c1"))
     assert calls["args"] == ("sleepmax", ap.LEVEL_REQUEST["light"], "light")
-    assert "lighter now" in out[0]
+    # the reply tells what actually changed (here: nothing, the fake plan is empty),
+    # never the model's own summary of the request (beta 1, F23)
+    assert "lighter now" not in out[0] and "nothing in your plan changed" in out[0]
+    assert '"level":"light"' in out[0]
     same = asyncio.run(ap.chat_turn("00000000-0000-0000-0000-000000000001", "this feels right", DB(), start_maxx=None, conversation_id="c1"))
     assert "keeping it as it is" in same[0]
 

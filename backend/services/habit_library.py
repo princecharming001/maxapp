@@ -183,11 +183,15 @@ def library_range(entry: dict) -> Optional[DoseRange]:
     if r:
         return r
     note = str(entry.get("dose note") or "")
-    for sent in re.split(r"(?<=[.;])\s+", note):
-        if re.search(r"\b(start|most people|common labels?|usually)\b", sent, re.IGNORECASE):
-            r = parse_range(sent)
-            if r:
-                return r
+    sents = re.split(r"(?<=[.;])\s+", note)
+    # "most people start at 0.5–3 mg" beats "studied amounts range 0.3 to 5 mg,
+    # more than most people need" (both mention most people)
+    for pat in (r"\bstart", r"\b(most people|common labels?|usually)\b"):
+        for sent in sents:
+            if re.search(pat, sent, re.IGNORECASE):
+                r = parse_range(sent)
+                if r:
+                    return r
     return parse_range(note)
 
 
