@@ -41,6 +41,9 @@
 #   rationale     one short sentence, <=120 chars, no medical or treatment claims
 #   references    [str] backend-relative docs that endorse it, e.g. ai_programs/sleepmax.md
 #   slug          title-case slug used to render the long-form Amazon URL
+#   strength      optional: labelled strength of ONE serving ("3 mg", "1,000 IU").
+#                 Read off the name when absent (mg/mcg/IU only). Task guides
+#                 compare it with the Suppmax dose range for the habit.
 #
 # Last full verification: 2026-10-13 (scripts/verify_product_catalog.py).
 

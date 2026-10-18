@@ -104,7 +104,42 @@ def _card(p: Product) -> dict[str, Any]:
         "id": p.id, "asin": p.asin, "name": p.name, "brand": p.brand, "image": _image(p.image),
         "price_usd": p.price_usd, "rating": p.rating, "rating_count": p.rating_count,
         "url": f"https://www.amazon.com/dp/{p.asin}" if p.asin else p.url, "why": p.rationale,
+        "need": p.need, "strength": p.strength or None,
     }
+
+
+# Needs whose product is used up (taken, applied, mixed in). Everything else is
+# gear: bought once, never listed under "What you'll use" in a task guide.
+CONSUMABLE_NEEDS = frozenset({
+    "electrolytes", "protein_breakfast", "fiber", "alcohol_pads",
+    "melatonin", "magnesium", "l_theanine", "creatine", "collagen", "vitamin_d3", "omega3",
+    "glycine", "multivitamin", "b12", "protein_powder",
+    "face_cleanser", "moisturizer", "sunscreen", "sunscreen_stick", "lip_spf", "adapalene",
+    "retinol_serum", "niacinamide_serum", "vitamin_c_serum", "azelaic_acid", "bha_exfoliant",
+    "aha_exfoliant", "hyaluronic_serum", "clay_mask", "ointment", "ketoconazole_shampoo",
+})
+
+
+def is_gear(need: str) -> bool:
+    return bool(need) and need not in CONSUMABLE_NEEDS
+
+
+def _dose_rank(p: Product) -> int:
+    """1 = labelled strength outside the library's dose range for this need,
+    else 0 (inside, or unknown: a product without a strength on its name is not
+    pushed under one that has it). Supplements only."""
+    if not p.strength or p.need not in CONSUMABLE_NEEDS:
+        return 0
+    try:
+        from services.habit_library import need_range, parse_strength
+        rng = need_range(p.need)
+        got = parse_strength(p.strength)
+        if not rng or not got:
+            return 0
+        inside = rng.contains(*got)
+    except Exception:
+        return 0
+    return 1 if inside is False else 0
 
 
 def _skin_text(h: dict) -> str:
@@ -221,7 +256,8 @@ def task_products(active: list[tuple[str, dict]], facts: Optional[dict], picks: 
     for n in task_needs(active, maxx_id, habit_id, text):
         opts = options_for(n, facts, picks)
         if opts:
-            out.append((n["need"], {**_card(opts[0]), "need_label": NEED_LABELS.get(n["need"], n["need"])}))
+            out.append((n["need"], {**_card(opts[0]), "need": n["need"],
+                                    "need_label": NEED_LABELS.get(n["need"], n["need"])}))
     return out
 
 
@@ -232,11 +268,13 @@ def _fit(p: Product, hints: set[str]) -> int:
 
 
 def options_for(need: dict, facts: Optional[dict], picks: dict) -> list[Product]:
-    """Every product for this need, best first: their pick, then fit, then the
-    researched pick ahead of its alternatives, then ratings."""
+    """Every product for this need, best first: their pick, then a strength
+    inside the library's dose range, then fit, then the researched pick ahead of
+    its alternatives, then ratings."""
     pool = [p for p in active_catalog() if p.need == need["need"] and _passes_user_facts(p, facts)]
     pick = picks.get(need["need"])
-    return sorted(pool, key=lambda p: (p.id != pick, -_fit(p, need["hints"]), p.alternative, -_score(p)))
+    return sorted(pool, key=lambda p: (p.id != pick, _dose_rank(p), -_fit(p, need["hints"]), p.alternative,
+                                       -_score(p)))
 
 
 def build_list(active: list[tuple[str, dict]], facts: Optional[dict], picks: dict) -> list[dict[str, Any]]:

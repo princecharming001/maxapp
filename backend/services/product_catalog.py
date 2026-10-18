@@ -78,6 +78,11 @@ class Product:
     # An alternative for Swap: listed under the researched pick, never ahead of it
     # unless it fits the person better (or they chose it).
     alternative: bool = False
+    # Labelled strength of one serving ("3 mg", "1,000 IU"): the YAML's
+    # `strength` when set, else read off the name. "" when unknown (gear,
+    # powders sold by the tub). Task guides compare it with the library's
+    # dose range so a card never quietly contradicts the step.
+    strength: str = ""
 
     @property
     def asin(self) -> str:
@@ -119,6 +124,19 @@ def _num(v: Any, cast):
         return cast(v) if v is not None and str(v).strip() != "" else None
     except (TypeError, ValueError):
         return None
+
+
+def _strength(entry: dict) -> str:
+    """Explicit `strength:` in the YAML, else the first mg/mcg/IU in the name."""
+    explicit = str(entry.get("strength") or "").strip()
+    if explicit:
+        return explicit
+    try:
+        from services.habit_library import format_strength, parse_strength
+        got = parse_strength(str(entry.get("name") or ""))
+        return format_strength(*got) if got else ""
+    except Exception:
+        return ""
 
 
 @lru_cache(maxsize=1)
@@ -165,6 +183,7 @@ def load_catalog() -> tuple[Product, ...]:
                 need=str(entry.get("need") or "").strip().lower(),
                 suits=tuple(str(x).strip().lower() for x in (entry.get("suits") or [])),
                 alternative=bool(entry.get("alternative")),
+                strength=_strength(entry),
             ))
         except Exception as e:
             logger.warning("[catalog] entry #%d skipped (%s): %s", i, e, entry.get("id"))

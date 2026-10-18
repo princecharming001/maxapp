@@ -1,10 +1,16 @@
-"""End to end: every task guide shows the products the Products tab picked for it.
+"""End to end: every task guide shows the products the Products tab picked for it,
+and says nothing that contradicts the task card (Beta-1 W3).
 
 One account sets up several programs through chat on a LOCAL backend (scheduler
 off), then opens the guide for every distinct task in its schedules and checks:
   - each product on a step is the Products tab's current pick for that need
-  - every need the tab lists FOR the task's habit appears in that guide
-  - a task whose habit has no products shows none
+  - every CONSUMABLE need the tab lists FOR the task's habit is under "What you'll
+    use" (step `ingredients`); gear only under step `gear`, never on water on waking
+  - no clock time in the guide other than the task's scheduled time
+  - duration_minutes == the task's minutes, and no minute count above it
+  - no shopping / alarm / night-before wording
+  - a product's strength is inside the dose range the step states, or the step
+    says plainly what this one is ("This one is 3 mg")
 Then it swaps one product on the tab and checks the guide follows the swap.
 
     RUN_SCHEDULER=false ../.venv/bin/python scripts/qa_task_guides.py [--programs skinhairmax,suppmax] [--out guides.json]
@@ -14,6 +20,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 
 sys.path.insert(0, ".")
@@ -68,22 +75,87 @@ def habit_title(s: dict, task: dict) -> str:
     return next((str(h.get("title") or "").strip() for h in plan.get("habits") or [] if h.get("habit_id") == hid), "")
 
 
+_BAD_WORDS = re.compile(r"\b(buy|buying|purchase|order (?:a|some|one)|shop(?:ping)?|pick up|stock up)\b"
+                        r"|\balarm\b(?! clock)|\b(?:the )?night before\b|\bin advance\b", re.I)
+
+
+def _texts(guide: dict) -> list[str]:
+    out = [str(guide.get("overview") or ""), str(guide.get("why_it_matters") or "")]
+    for st in guide.get("steps") or []:
+        out += [str(st.get("title") or ""), str(st.get("body") or ""), str(st.get("tip") or "")]
+    return out
+
+
+def text_problems(guide: dict, task: dict) -> list[str]:
+    """Clock times, minutes and banned wording, against the task card."""
+    from services.ai_programs import _CLOCK
+    from services.task_guide_service import _clock_ok, minutes_ok
+    problems = []
+    tm = str(task.get("time") or "")
+    dur = int(task.get("duration_minutes") or task.get("duration_min") or 0)
+    texts = _texts(guide)
+    for t in texts:
+        for m in _CLOCK.finditer(t):
+            if not _clock_ok(m.group(0), tm):
+                problems.append(f"clock time {m.group(0)!r} but the task is at {tm}")
+        bad = _BAD_WORDS.search(t)
+        if bad:
+            problems.append(f"banned wording {bad.group(0)!r}: {t[:80]}")
+    if dur and int(guide.get("duration_minutes") or 0) != dur:
+        problems.append(f"duration {guide.get('duration_minutes')} != scheduled {dur}")
+    if dur and not minutes_ok([x for x in texts[2:]], dur):
+        problems.append(f"minute counts don't fit the scheduled {dur} min")
+    return problems
+
+
+def strength_problems(guide: dict) -> list[str]:
+    from services.habit_library import parse_range, parse_strength
+    problems = []
+    for st in guide.get("steps") or []:
+        body = str(st.get("body") or "")
+        for it in st.get("ingredients") or []:
+            strength = it.get("strength")
+            got = parse_strength(strength or "")
+            if not got:
+                continue
+            rng = parse_range(body)
+            honest = f"this one is {strength}".lower() in body.lower()
+            if rng and rng.contains(*got) is False and not honest:
+                problems.append(f"{it.get('need')}: {strength} outside the step's {rng.text}")
+            elif not rng and it.get("strength_note") and not honest:
+                problems.append(f"{it.get('need')}: strength note missing from the step")
+    return problems
+
+
 def check(guide: dict, task: dict, s: dict, tab: dict) -> dict:
+    from api.products import is_gear
     mid = s.get("maxx_id")
     needs = tab.get(mid) or {}
     title = habit_title(s, task)
-    want = {n for n, v in needs.items() if title and title in v["for"]}
+    hid = str(task.get("catalog_id") or "").split(".", 1)[-1]
+    # gear only shows when a step uses it, so only consumables are required
+    want = {n for n, v in needs.items() if title and title in v["for"] and not is_gear(n)}
     if mid == "skinhairmax":
         # night variants differ (mask night has no adapalene): only what THIS night's steps use
-        import re
         from api.products import _SKIN_STEPS
         desc = str(task.get("description") or "").lower()
         want = {n for n in want if any(re.search(p, desc) for p, k in _SKIN_STEPS if k == n)}
     got = [(i.get("need"), i.get("asin"), si) for si, st in enumerate(guide.get("steps") or [])
-           for i in st.get("ingredients") or []]
+           for i in (st.get("ingredients") or []) + (st.get("gear") or [])]
     problems = []
     if guide.get("unavailable"):
         problems.append(f"guide unavailable: {guide.get('error')}")
+    for st in guide.get("steps") or []:
+        for i in st.get("ingredients") or []:
+            if is_gear(i.get("need") or ""):
+                problems.append(f"{i.get('need')}: gear listed under What you'll use")
+        for i in st.get("gear") or []:
+            if not is_gear(i.get("need") or ""):
+                problems.append(f"{i.get('need')}: consumable listed as gear")
+            if hid == "water_on_waking" and i.get("need") == "water_bottle":
+                problems.append("water bottle on water on waking (any glass works)")
+    problems += text_problems(guide, task)
+    problems += strength_problems(guide)
     for need, asin, _ in got:
         if need not in needs:
             problems.append(f"{need}: not a need on the Products tab")
@@ -133,7 +205,8 @@ async def main() -> None:
         s = next(s for s in scheds if s.get("maxx_id") == r["program"])
         t = next(t for t in distinct_tasks(s) if t.get("title") == r["task"])
         g2 = await api.get(f"/schedules/{s['id']}/tasks/{t['task_id']}/guide")
-        shown = [i.get("asin") for st in g2.get("steps") or [] for i in st.get("ingredients") or [] if i.get("need") == need]
+        shown = [i.get("asin") for st in g2.get("steps") or []
+                 for i in (st.get("ingredients") or []) + (st.get("gear") or []) if i.get("need") == need]
         swap_ok = shown == [new["asin"]]
         print(f"swap {need} → {new['name']}: guide shows {shown} ({'ok' if swap_ok else 'PROBLEM'})")
     if args.out:
@@ -141,4 +214,5 @@ async def main() -> None:
     print(f"\nSUMMARY: {len(results) - len(bad)}/{len(results)} guides clean; swap {'ok' if swap_ok else swap_ok}")
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
