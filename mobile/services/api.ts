@@ -2035,6 +2035,11 @@ class ApiService {
         visual_blocks?: VisualBlock[];
         // Per-method confidence, surfaced behind a small "i" button.
         method_metadata?: { methods: MethodConfidence[] } | null;
+        /** C3: this turn changed wake/bed/windows/commitments/daily minutes →
+         *  the app refreshes the user and the planner/schedule queries. */
+        day_shape_changed?: boolean;
+        /** C3: any plan's habits changed this turn. */
+        plan_changed?: boolean;
     }> {
         const body: any = {
             message,

@@ -11,8 +11,11 @@
  *
  * Tapping a product opens it in the Amazon app, or Safari without it
  * (lib/openAmazon) — never an in-app browser, so their account and cart are there.
+ *
+ * Optional route param `need`: opened from a task guide's "Other options", it
+ * jumps straight to that need's options sheet (then clears itself).
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Modal,
@@ -27,7 +30,7 @@ import {
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -248,6 +251,8 @@ function OptionsSheet({ item, onClose }: { item: ShopItem | null; onClose: () =>
 export default function ProductsScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
+    const focusNeed: string | undefined = typeof route.params?.need === 'string' ? route.params.need : undefined;
     const [filter, setFilter] = useState<string>(ALL);
     const [refreshing, setRefreshing] = useState(false);
     const [swapping, setSwapping] = useState<ShopItem | null>(null);
@@ -275,6 +280,21 @@ export default function ProductsScreen() {
         [filter, sections],
     );
     const total = sections.reduce((n, s) => n + s.items.length, 0);
+
+    // Arrived from a guide's "Other options": open that need's options sheet
+    // once the list has it. The param is cleared either way so coming back to
+    // the tab later doesn't re-open it.
+    useEffect(() => {
+        if (!focusNeed || q.isLoading) return;
+        const hit = sections.flatMap((sec) => sec.items).find((it) => it.need === focusNeed);
+        // Not in the cached list yet: wait for the focus refetch before giving up.
+        if (!hit && q.isFetching) return;
+        if (hit) {
+            setFilter(ALL);
+            setSwapping(hit);
+        }
+        try { navigation.setParams({ need: undefined }); } catch { /* nav not ready */ }
+    }, [focusNeed, q.isLoading, q.isFetching, sections, navigation]);
 
     const onRefresh = async () => {
         setRefreshing(true);

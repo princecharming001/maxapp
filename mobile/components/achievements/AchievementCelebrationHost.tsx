@@ -9,7 +9,10 @@
  *
  * Timing: the badge is captured immediately, but the overlay is HELD while the
  * user is in a focused flow (onboarding, paywall, auth) so it never pops
- * over the camera. It appears once they land on a calm screen.
+ * over the camera, and while the chat is answering (loading, or a reply/plan
+ * card still revealing — MaxChatScreen raises the 'chat' hold in
+ * lib/overlayTurns and drops it ~1.5 s after the reveal). It appears once
+ * they land on a calm screen.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { InteractionManager } from 'react-native';
@@ -19,7 +22,7 @@ import { queryKeys } from '../../lib/queryClient';
 import { navigationRef } from '../../lib/navigationRef';
 import { useWalkthroughVisible } from '../../features/mainTour/useMainAppTour';
 import CelebrationOverlay from './CelebrationOverlay';
-import { setOverlayUp, useOverlayUp } from '../../lib/overlayTurns';
+import { isOverlayUp, setOverlayUp, useOverlayUp } from '../../lib/overlayTurns';
 
 // Screens where a full-screen celebration would interrupt — the
 // flow, the onboarding + paywall funnel, auth, and setup flows. The badge still
@@ -87,6 +90,10 @@ export default function AchievementCelebrationHost() {
     // yields to a queued celebration before rising — lib/overlayTurns).
     const primerUp = useOverlayUp('primer');
     const onSafeScreen = !!routeName && !SUPPRESS_ROUTES.has(routeName) && !walkthroughUp && !primerUp;
+    // Chat is mid-answer: queue, don't promote. Only gates PROMOTION — a
+    // celebration already on screen is never yanked away by a new send.
+    const chatBusy = useOverlayUp('chat');
+    const canPromote = onSafeScreen && !chatBusy;
 
     // Publish "a celebration is queued or showing" so the primer waits its turn.
     const celebrationBusy = !!showing || queue.length > 0;
@@ -106,7 +113,7 @@ export default function AchievementCelebrationHost() {
     // modal presentation, which iOS resolves by stranding an invisible
     // touch-eating Modal window. Never present mid-transition.
     useEffect(() => {
-        if (showing || !onSafeScreen || !queue.length) return;
+        if (showing || !canPromote || !queue.length) return;
         let cancelled = false;
         const task = InteractionManager.runAfterInteractions(() => {
             if (cancelled) return;
@@ -114,12 +121,13 @@ export default function AchievementCelebrationHost() {
                 ? (navigationRef.getCurrentRoute() as { name?: string } | undefined)?.name
                 : undefined;
             if (!route || SUPPRESS_ROUTES.has(route)) return; // re-runs on next route change
+            if (isOverlayUp('chat')) return; // re-runs when the chat hold drops
             const batch = queue;
             setShowing(batch);
             api.markAchievementsSeen(batch.map((a) => a.code)).catch(() => {});
         });
         return () => { cancelled = true; task.cancel(); };
-    }, [showing, onSafeScreen, queue]);
+    }, [showing, canPromote, queue]);
 
     if (!showing || !onSafeScreen) return null;
     return (
