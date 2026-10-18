@@ -1095,7 +1095,7 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
                if isinstance(h.get("cycle"), list) and len(h["cycle"]) == 2 else {}),
             **({"kind": h["kind"]} if hid.startswith("custom_") and h.get("kind") in ("action", "setup", "checkin")
                else {}),
-            **({"review_of": h["review_of"]} if h.get("review_of") else {}),
+            **({"trial": int(h["trial"])} if str(h.get("trial") or "").isdigit() else {}),
         })
         seen.add(hid)
     protected, cap = _fit_caps(maxx_id, habits)
@@ -1261,8 +1261,6 @@ def _apply_kinds_and_cycles(placed: list[dict], lib: dict) -> None:
     """Library kinds and protocol lengths become schedule fields: a setup runs
     in week 1 on one day; a cycle ('4 on / 1 off') and a trial ('12 weeks, then
     review') are weeks the planner keeps (BETA1_CONTRACTS C1)."""
-    extra: list[dict] = []
-    have = {h["habit_id"] for h in placed}
     for h in placed:
         lh = lib.get(h["habit_id"])
         if lh is None:
@@ -1276,19 +1274,9 @@ def _apply_kinds_and_cycles(placed: list[dict], lib: dict) -> None:
         if lh.cycle_on and not h.get("cycle"):
             h["cycle"] = [lh.cycle_on, lh.cycle_off]
         if lh.trial_weeks and not h.get("weeks"):
+            # the review in the week after is added when the days are expanded
             h["weeks"] = list(range(1, lh.trial_weeks + 1))
-            rid = f"custom_review_{h['habit_id']}"[:40]
-            if rid not in have:
-                extra.append({
-                    "habit_id": rid, "title": f"{lh.title.split('(')[0].strip()}: {lh.trial_weeks}-week check"[:40],
-                    "how": "1) Look back over the trial: did it help? 2) Keep it only if it did. "
-                           "3) Tell me here to drop it or keep going.",
-                    "why": "A trial only means something if you check it at the end.",
-                    "minutes": 2, "time": h.get("time") or "", "weekend_time": h.get("weekend_time") or "",
-                    "days": (h.get("days") or ["sat"])[:1], "weeks": [lh.trial_weeks + 1],
-                    "kind": "checkin", "review_of": h["habit_id"],
-                })
-    placed.extend(extra)
+            h["trial"] = lh.trial_weeks
 
 
 def _fix_clock(text: str, times: set, anchors: Optional[set] = None) -> str:
@@ -1449,9 +1437,23 @@ def expand_template(maxx_id: str, tmpl: dict, *, start_date: date, n_days: int =
         for h in tmpl.get("habits") or []:
             if wd not in (h.get("days") or []):
                 continue
+            t = h.get("weekend_time") if wd in ("sat", "sun") and h.get("weekend_time") else h.get("time")
+            trial = int(h.get("trial") or 0)
+            if trial and week_no == trial + 1 and wd == [x for x in WEEKDAYS if x in h["days"]][0]:
+                # the end of a trial: one check-in, then the habit stops
+                tasks.append({
+                    "task_id": str(uuid.uuid4()),
+                    "catalog_id": f"{maxx_id}.{h['habit_id']}_review",
+                    "title": f"{str(h.get('title') or h['habit_id']).split('(')[0].strip()}: {trial}-week check"[:48],
+                    "description": "1) Look back over the trial: did it help? 2) Keep it only if it did. "
+                                   "3) Tell me in chat to drop it or keep going.",
+                    "why": "A trial only means something if you check it at the end.",
+                    "time": t, "duration_min": 2, "duration_minutes": 2,
+                    "tags": ["ai_program", maxx_id, "foundation"], "status": "pending", "intensity": 0.5,
+                    "kind": "checkin",
+                })
             if not _in_plan_week(h, week_no):
                 continue
-            t = h.get("weekend_time") if wd in ("sat", "sun") and h.get("weekend_time") else h.get("time")
             kind = habit_kind(maxx_id, h)
             if kind == "rule":
                 # a boundary, not a task: no checkbox, no XP, not in progress
@@ -1814,7 +1816,7 @@ async def _active_program_ids(user_id: str, db) -> set[str]:
     return {m for (m,) in res.all() if is_ai_program(m)}
 
 
-async def active_programs_brief(user_id: str, db, *, max_habits: int = 6) -> str:
+async def active_programs_brief(user_id: str, db, *, max_habits: int = 8) -> str:
     """One line per active AI program with its habits and times, for chat
     context: lets a knowledge answer say 'your sleepmax wind-down at 22:15'."""
     from sqlalchemy import select
@@ -1830,9 +1832,21 @@ async def active_programs_brief(user_id: str, db, *, max_habits: int = 6) -> str
             continue
         plan = (s.schedule_context or {}).get("ai_plan") or {}
         habits = sorted(plan.get("habits") or [], key=lambda h: h.get("time") or "")
-        bits = [f"{h.get('title')} {h.get('time')}" for h in habits[:max_habits] if h.get("title")]
-        lines.append(f"{program_label(s.maxx_id)}: " + (", ".join(bits) or "set up"))
-    return ("ACTIVE PROGRAMS (their real plan, use it): " + " | ".join(lines)) if lines else ""
+        bits = []
+        for h in habits[:max_habits]:
+            if not h.get("title"):
+                continue
+            kind = habit_kind(s.maxx_id, h)
+            when = _pretty_time(h.get("time") or "")
+            if h.get("weekend_time"):
+                when += f" (weekends {_pretty_time(h['weekend_time'])})"
+            how = _clean_text(re.sub(r"\s+", " ", str(h.get("how") or "")), 160)
+            bits.append(f"{h.get('title')} [{'rule' if kind == 'rule' else str(h.get('minutes') or 1) + ' min'}, "
+                        f"{when}, {_days_label(h.get('days') or [])}]" + (f": {how}" if how else ""))
+        lines.append(f"{program_label(s.maxx_id)}: " + ("; ".join(bits) or "set up"))
+    return ("ACTIVE PROGRAMS (the user's real plan: what each habit is, when, and the steps they see. "
+            "It is the truth for their plan: never contradict its times or steps, and never describe "
+            "anything not in it as part of their plan): " + " | ".join(lines)) if lines else ""
 
 
 def pending_intake_question(ctx: dict, conversation_id: Optional[str]) -> Optional[dict]:
@@ -2440,6 +2454,16 @@ def _days_label(days: list) -> str:
     return " · ".join(_DAY_ABBR.get(d, d) for d in days)
 
 
+def plan_day_minutes(maxx_id: str, tmpl: dict) -> tuple[int, int]:
+    """(weekday, weekend) minutes on a busiest regular day: every task that
+    runs that day every week, rules and once-only setups left out."""
+    def load(day: str) -> int:
+        return sum(int(h.get("minutes") or 0) for h in tmpl.get("habits") or []
+                   if day in (h.get("days") or []) and not h.get("weeks") and not h.get("trial")
+                   and habit_kind(maxx_id, h) not in ("rule", "setup"))
+    return (max(load(d) for d in WEEKDAYS[:5]), max(load(d) for d in WEEKDAYS[5:]))
+
+
 def plan_block(maxx_id: str, tmpl: dict, *, note: str = "") -> str:
     """The plan as a [VISUAL_BLOCK] marker the app renders as a native card
     (time · habit · minutes · days). Lives in the stored text, so a reopened
@@ -2452,18 +2476,22 @@ def plan_block(maxx_id: str, tmpl: dict, *, note: str = "") -> str:
     items = [{
         "time": _pretty_time(h.get("time") or ""),
         "title": str(h.get("title") or "").strip()[:60],
-        "minutes": int(h.get("minutes") or 0),
+        "minutes": 0 if habit_kind(maxx_id, h) == "rule" else int(h.get("minutes") or 0),
         "days": _days_label(h.get("days") or []),
+        "kind": habit_kind(maxx_id, h),
     } for h in habits if h.get("title")]
+    wkd, wke = plan_day_minutes(maxx_id, tmpl)
     block = {
         "type": "plan",
         "title": f"{program_label(maxx_id)} plan",
         "data": {
             "program": maxx_id,
             "color": meta.get("color") or "",
-            # the honest average: 20-min sessions twice a week count as ~6 min a day
-            "total_minutes": max(1, round(sum(int(h.get("minutes") or 0) * len(h.get("days") or [])
-                                              for h in habits if h.get("title")) / 7)),
+            # real per-day sums (rules and once-only setups excluded), so
+            # the card's number is what the person's day actually holds
+            "total_minutes": wkd,
+            "weekday_minutes": wkd,
+            "weekend_minutes": wke,
             "note": note,
             "level": plan_level(tmpl),
             "items": items,
@@ -2489,10 +2517,23 @@ def plan_reply(maxx_id: str, tmpl: dict, *, redo: bool = False, include_summary:
         parts.append("anything here different from your label, or did your prescriber change something? tell me "
                      "and i'll update it. severe belly pain, trouble breathing, swelling or a hot, spreading "
                      "injection site: get care now.")
-    else:
-        parts.append("does this feel like enough? slide it lighter or ask for more below, or tell me anything "
-                     "else to change.")
+    # (no "slide it lighter" line: the Lighter / Balanced / More control under
+    # the card is the affordance, and it isn't always there)
     return "\n\n".join(parts)
+
+
+def redo_reply(maxx_id: str, tmpl: dict, changes: list[dict]) -> str:
+    """A changed plan, told from what actually changed (never from the request:
+    beta 1's 'moved your workout to evening' had no workout behind it)."""
+    from services import plan_diff
+    said = plan_diff.describe([c for c in changes if c["type"] != "program_added"])
+    if said:
+        lead = f"done. {said[0].lower()}{said[1:]}"
+    else:
+        why = [n.split(":", 1)[1].strip() for n in tmpl.get("fit_notes") or [] if ":" in n][:2]
+        lead = ("nothing in your plan changed" + (f": {'; '.join(why)}." if why else ". ")
+                + " tell me which habit and what to change, and i'll do it.")
+    return plan_reply(maxx_id, tmpl, redo=True, include_summary=False, note=lead)
 
 
 def _pretty_time(hm: str) -> str:
@@ -2613,11 +2654,14 @@ async def chat_turn(
             cur = await active_ai_plan(user_id, target, db)
             if plan_level(((cur.schedule_context or {}) if cur else {}).get("ai_plan")) == lvl:
                 return ("good, keeping it as it is. you can change it any time from here.", [], False)
+        from services import plan_diff
+        before = await plan_diff.snapshot(user_id, db)
         tmpl = await redo_program_plan(user_id, target, LEVEL_REQUEST.get(lvl, msg), db, level=lvl)
         if tmpl is None:
             return ("i couldn't rebuild that just now. try again in a moment, or tell me the one change "
                     "you want most.", [], False)
-        return plan_reply(target, tmpl, redo=True), AFTER_PLAN_CHOICES, False
+        return redo_reply(target, tmpl, plan_diff.diff(before, await plan_diff.snapshot(user_id, db))), \
+            AFTER_PLAN_CHOICES, False
 
     mid = pending["max"]
     _, _, state = await _user_state(user_id, db)

@@ -367,3 +367,17 @@ sources if you have none. Do NOT invent studies.
 
 [METHOD_CONFIDENCE]{"methods":[{"title":"Morning sunlight","confidence":80,"rationale":"strong circadian evidence"},{"title":"Blue-light glasses","confidence":40,"rationale":"mixed, small studies"}]}[/METHOD_CONFIDENCE]
 """
+
+
+# Beta 1 (F25, F26): answers about supplements, amounts and the user's own plan.
+KNOWLEDGE_GUARDRAILS = """
+
+## Answering health and plan questions (always)
+- Answer the exact question first, in one or two sentences. Don't add advice they didn't ask for (no food lists, no extra habits).
+- If the question names an amount, compare it with the known limit and say so plainly. Example: about 400 mg of caffeine is roughly the daily ceiling for most healthy adults, so 400 mg in one sitting is a lot, more so with a pre-workout or energy drink.
+- Never make absolute claims like "no X has been studied". Say what is approved, what the evidence shows, and how limited it is.
+- Supplements: never give a dose. Say "take the serving on your label", mention the form that matters (e.g. magnesium glycinate vs oxide), and if you don't know their medicines, ask before saying it's fine to combine.
+- Medicines plus fasting, supplements or new routines: give the real reason to check with their prescriber in plain words, without overstating the risk, and tell them to ask before changing anything.
+- Questions about their own plan ("why is X at lunch?", "what's my skincare plan?"): use the ACTIVE PROGRAMS block as the truth for what, when and the steps. Explain the reason for that time from the steps; never mention things that aren't in their plan as if they were.
+- Times: write them like 8:00 AM or 7:30 PM.
+"""

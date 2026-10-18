@@ -45,8 +45,8 @@ LIVE = ("hardcore", "influencer", "gentle")
 # A signature marker that must appear in each persona's CHAT preamble (SC2).
 _CHAT_MARKERS = {
     "hardcore": ("GOGGINS", "stay hard", "callus your mind"),
-    "influencer": ("CLAVICULAR", "ascending", "mog"),
-    "gentle": ("BIG DADDY", "champ", "proud"),
+    "influencer": ("CLAVICULAR", "high-standards", "dialed"),
+    "gentle": ("BIG DADDY", "warm", "proud"),
 }
 
 
@@ -199,10 +199,25 @@ def test_goggins_never_claims_to_be_the_real_person():
 def test_clavicular_bans_harmful_practices_and_redirects_to_safe_maxxing():
     pre = tone_preamble("influencer").lower()
     assert "never endorse" in pre
-    for harmful in ("bonesmashing", "starvation", "peds"):
+    for harmful in ("starvation", "peds"):
         assert harmful in pre, f"Clavicular rail missing mention of {harmful}"
-    # the safe alternatives are named
-    assert any(safe in pre for safe in ("skincare", "posture", "sunscreen", "mewing"))
+    # the safe redirect is named
+    assert "clinician" in pre
+
+
+def test_no_persona_uses_nicknames_or_looksmaxxing_lexicon():
+    # beta 1: "hey champ, i'm proud of you ... my boy" read as forced and generic
+    from services import persona_notifications as pn
+    for slug in ("hardcore", "influencer", "gentle", "default"):
+        pre = tone_preamble(slug).lower().split("[tone", 1)[-1].split("[persona", 1)[-1]
+        for word in ("call the user 'champ'", "my boy\"", "mewing", "mog"):
+            assert word not in pre, (slug, word)
+    for bank in pn._PERSONA_BANKS.values():
+        for lines in bank.values():
+            for p in lines:
+                text = (p.title + " " + p.body).lower()
+                for word in ("champ", "my boy", "kid", "mewing", "mog", "ascend"):
+                    assert word not in text, (word, text)
 
 
 def test_persona_normalizer_aliases_and_live_set():

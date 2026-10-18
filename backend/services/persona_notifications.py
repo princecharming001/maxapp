@@ -7,8 +7,8 @@ returns the line rewritten in the active persona's voice.
 
 Personas (see ``persona_voice_research.md`` + ``persona_prompts.py``):
   Goggins     (slug ``hardcore``)   — terse callout + command, push the work
-  Clavicular  (slug ``influencer``) — looksmaxxing-coded, "ascending", the stack
-  Big Daddy   (slug ``gentle``)     — warm father-figure, "champ", proud, no shame
+  Clavicular  (slug ``influencer``) — sharp, high standards, precise
+  Big Daddy   (slug ``gentle``)     — warm and encouraging, no nicknames, no shame
 
 SAFETY: every line here must also clear ``copy_filter`` (no shame/FOMO/body-threat
 lexicon), because the send path re-filters. So Goggins pushes are intense but
@@ -62,7 +62,7 @@ class _P:
 
 # Per-persona, per-category banks. Slots match notification_copy._slots:
 #   {name_c} ", anish" or "" · {task} · {streak} · {count} · {why}
-# Big Daddy addresses the user as "champ"/"kid" instead of using {name_c}.
+# Every persona uses {name_c} (never a nickname).
 _GOGGINS: dict[str, list[_P]] = {
     # task_due fires once per task (up to ~8 a day), so each voice needs enough
     # ungated lines that a full day doesn't read the same sentence twice.
@@ -100,62 +100,63 @@ _GOGGINS: dict[str, list[_P]] = {
 
 _CLAVICULAR: dict[str, list[_P]] = {
     CAT_TASK_DUE: [
-        _P("day {streak}: {task}", "{task}{name_c}. tongue on the palate, stack the fundamentals.", frozenset({"streak"})),
-        _P("{task}", "{task} time{name_c}. lock it in, you're ascending."),
-        _P("{task}", "{task}{name_c}. fundamentals first, that's how the glow-up compounds."),
-        _P("{task}", "{task} is up{name_c}. small reps, real ascension."),
-        _P("{task} now", "{task}{name_c}. stack it, then back to your day."),
-        _P("{task}", "{task}{name_c}. consistency mogs intensity. lock in."),
-        _P("{task}", "{task} o'clock{name_c}. the halo is built on boring reps."),
+        _P("day {streak}: {task}", "{task}{name_c}. same time as yesterday, that's the whole trick.", frozenset({"streak"})),
+        _P("{task}", "{task} time{name_c}. two minutes, then back to your day."),
+        _P("{task}", "{task}{name_c}. fundamentals first, they compound."),
+        _P("{task}", "{task} is up{name_c}. small reps, real results."),
+        _P("{task} now", "{task}{name_c}. do it, then back to your day."),
+        _P("{task}", "{task}{name_c}. consistency beats intensity. lock in."),
+        _P("{task}", "{task} o'clock{name_c}. results are built on boring reps."),
     ],
     CAT_MORNING_PREVIEW: [
-        _P("morning{name_c}", "today's stack is short. run it and mog the day."),
+        _P("morning{name_c}", "today's list is short. run it."),
     ],
     CAT_EVENING_RECAP: [
-        _P("close the stack", "{count} left{name_c}. finish before bed, stay on the ladder.", frozenset({"count"})),
+        _P("close it out", "{count} left{name_c}. finish before bed.", frozenset({"count"})),
     ],
     CAT_STREAK: [
-        _P("day {streak}", "softmaxxing compounds{name_c}. one rep keeps you ascending.", frozenset({"streak"})),
+        _P("day {streak}", "it compounds{name_c}. one rep keeps the streak.", frozenset({"streak"})),
     ],
     CAT_REENGAGE: [
-        _P("the stack's here", "one rep back on the ladder{name_c}. we're so back."),
+        _P("your plan's here", "one rep gets you back{name_c}. start small."),
     ],
     CAT_MILESTONE: [
-        _P("day {streak}", "that's a mog{name_c}. the halo effect is earned, keep going.", frozenset({"streak"})),
-        _P("you're ascending", "real progress{name_c}. the stack is working. see it in your profile."),
+        _P("day {streak}", "that's real{name_c}. keep going.", frozenset({"streak"})),
+        _P("real progress", "it's working{name_c}. see it in your profile."),
     ],
     CAT_TIP: [
-        _P("quick maxx", "spf now{name_c}. the skin barrier is half the halo."),
+        _P("quick one", "water before coffee{name_c}. easy win."),
     ],
 }
 
+# Big Daddy: warm, never nicknames (beta 1: "hey champ ... my boy" read as forced)
 _BIG_DADDY: dict[str, list[_P]] = {
     CAT_TASK_DUE: [
-        _P("one step, kid", "time for {task}, champ. we go at your pace, but we don't quit."),
-        _P("hey champ", "{task} whenever you're ready, champ. one small step, i've got you."),
-        _P("{task}, champ", "{task} time, kid. nice and easy, you've got this."),
-        _P("one small thing", "{task} is up, champ. just this one, then go enjoy your day."),
-        _P("{task}", "hey kid, {task} now? proud of you for showing up."),
-        _P("right on time, champ", "{task}, kid. one small step, then take a breath."),
+        _P("one step", "time for {task}{name_c}. we go at your pace, but we don't quit."),
+        _P("{task}", "{task} whenever you're ready{name_c}. one small step."),
+        _P("{task}", "{task} time{name_c}. nice and easy, you've got this."),
+        _P("one small thing", "{task} is up{name_c}. just this one, then enjoy your day."),
+        _P("{task}", "{task} now{name_c}? glad you're showing up."),
+        _P("right on time", "{task}{name_c}. one small step, then take a breath."),
     ],
     CAT_MORNING_PREVIEW: [
-        _P("morning, champ", "short list today, kid. one at a time. i'm right here."),
+        _P("morning{name_c}", "short list today. one at a time."),
     ],
     CAT_EVENING_RECAP: [
-        _P("almost there, kid", "just {count} left, champ. no rush, i'm proud of you already.", frozenset({"count"})),
+        _P("almost there", "just {count} left{name_c}. no rush.", frozenset({"count"})),
     ],
     CAT_STREAK: [
-        _P("day {streak}, champ", "look at you go, kid. one more and i'm beaming.", frozenset({"streak"})),
+        _P("day {streak}", "look at you go{name_c}. one more today.", frozenset({"streak"})),
     ],
     CAT_REENGAGE: [
-        _P("hey champ", "your spot's still warm, kid. one small thing today? i've got you."),
+        _P("welcome back", "your plan's still here{name_c}. one small thing today?"),
     ],
     CAT_MILESTONE: [
-        _P("day {streak}, my boy", "that's real, champ. so proud of you. let's keep rolling.", frozenset({"streak"})),
-        _P("proud of you, kid", "you hit something real, champ. take a look, you earned it."),
+        _P("day {streak}", "that's real{name_c}. let's keep rolling.", frozenset({"streak"})),
+        _P("you earned this", "you hit something real{name_c}. take a look."),
     ],
     CAT_TIP: [
-        _P("quick one, kid", "stand tall for 30 seconds, champ. small wins stack up."),
+        _P("quick one", "stand tall for 30 seconds{name_c}. small wins stack up."),
     ],
 }
 

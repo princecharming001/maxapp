@@ -3185,6 +3185,15 @@ Ask ONE question at a time. Your very first response must ask the concern questi
     tone_prefix = tone_preamble(getattr(user, "coaching_tone", None) if user else None)
     if tone_prefix:
         extras.append(tone_prefix)
+    # the user's real plan (every program, every habit's time and steps), so a
+    # change or a "why is X at lunch" never works from a guess (beta 1)
+    try:
+        from services.ai_programs import active_programs_brief as _apb2
+        _plan_line = await _apb2(str(user_id), db)
+        if _plan_line:
+            extras.append(_plan_line)
+    except Exception as _e:
+        logger.warning("[chat] active programs brief for agent failed (non-fatal): %s", _e)
     if retrieved_chunks:
         lines = [
             "[COURSE CONTEXT -- answer using this when the user asks about the course. "
@@ -5201,10 +5210,68 @@ async def _send_message_locked(
         if cached is not None:
             logger.info("[chat] replayed turn %s for user=%s served from cache", turn_id, current_user["id"])
             return cached
+    # Bracket the turn: what the reply may claim is what changed in the plans
+    # (services/plan_diff.py). Beta 1 had "plan paused", "moved your workout"
+    # and "retimed your schedules" with nothing changed behind them.
+    from services import plan_diff as _pd
+    _uid = str(current_user["id"])
+    _before = await _pd.snapshot(_uid, db)
+    _ds_before = await _day_shape_sig(_uid, db)
     resp = await _send_message_locked_inner(data, background_tasks, current_user, db, rds_db)
+    try:
+        _after = await _pd.snapshot(_uid, db)
+        _changes = _pd.diff(_before, _after)
+        _ds_changed = (await _day_shape_sig(_uid, db)) != _ds_before
+        _new = _pd.guard_reply(resp.response or "", _changes, day_shape_changed=_ds_changed)
+        if _new != (resp.response or ""):
+            await _rewrite_last_assistant(db, _uid, resp.response or "", _new)
+            resp.response = _new
+            if not _changes and not _ds_changed:
+                resp.visual_blocks = []
+        resp.plan_changed = bool(_changes)
+        resp.day_shape_changed = _ds_changed
+    except Exception:  # noqa: BLE001  the guard must never cost the user their reply
+        logger.exception("[chat] plan diff guard failed")
     if key is not None:
         _turn_cache_put(key, resp)
     return resp
+
+
+async def _day_shape_sig(user_id: str, db) -> dict:
+    """The day-shape keys as they are now (C3 day_shape_changed)."""
+    from services.day_shape import DAY_SHAPE_KEYS
+    try:
+        u = await db.get(User, UUID(user_id))
+        if u is None:
+            return {}
+        await db.refresh(u, ["onboarding"])
+        ob = u.onboarding or {}
+        return {k: ob.get(k) for k in DAY_SHAPE_KEYS}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+async def _rewrite_last_assistant(db, user_id: str, old: str, new: str) -> None:
+    """Keep the stored reply in step with what was shown (history re-renders it)."""
+    from sqlalchemy import select as _select
+    try:
+        row = (await db.execute(
+            _select(ChatHistory).where((ChatHistory.user_id == UUID(user_id)) & (ChatHistory.role == "assistant"))
+            .order_by(ChatHistory.created_at.desc()).limit(1))).scalar_one_or_none()
+        if row is None:
+            return
+        content = row.content or ""
+        if new.startswith(old.rstrip()) and old.strip():
+            row.content = content.rstrip() + new[len(old.rstrip()):]
+        else:
+            row.content = new
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        logger.warning("[chat] could not rewrite the stored reply", exc_info=True)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
 
 
 async def _send_message_locked_inner(
@@ -5305,6 +5372,27 @@ async def _send_message_locked_inner(
                 await mark_onboarding_plan_dirty(user_id, db)
     except Exception as _e:
         logger.warning("fact extractor failed (non-fatal): %s", _e)
+
+    # Plan requests the coach must answer truthfully before any model sees
+    # them: pause, travel, "only N minutes", a habit that isn't in the plan
+    # (services/plan_intents.py). Never inside a setup quiz.
+    try:
+        from services import plan_intents as _pi
+        from services.ai_programs import INTAKE_KEY as _INTAKE_KEY
+        from services.user_context_service import get_context as _gc
+        _pending = (await _gc(user_id, db)).get(_INTAKE_KEY)
+        _starting = _coerce_chat_intent(data.chat_intent) == "start_schedule"
+        _pi_text = None if (_pending or _starting) else await _pi.handle(user_id, data.message, db)
+    except Exception:
+        logger.exception("plan intents failed; falling through")
+        _pi_text = None
+    if _pi_text:
+        await _persist_turn(
+            db, user_id=user_id, user_message=data.message,
+            assistant_text=_pi_text, conversation_id=_acid.get(),
+        )
+        conv_id = await _response_conversation_id(db, user_id=user_id, data=data)
+        return ChatResponse(response=user_visible(_pi_text), conversation_id=conv_id)
 
     # AI programs (Sleepmax, Energymax, …): Claude-driven intake, planning and
     # "change my plan" redo. Owns the turn when it belongs to one of them;

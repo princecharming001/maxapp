@@ -671,7 +671,7 @@ def test_fit_says_why_a_habit_stayed_where_it_is():
     assert "kept protein_first_meal at 09:30: it goes with breakfast" in t["fit_notes"]
 
 
-def test_plan_card_header_is_the_weekly_average_in_waking_order():
+def test_plan_card_header_is_the_real_day_total_in_waking_order():
     # sim: "1 min a day" on a card with a 5-min habit 3x/week and 20-min strength 2x/week;
     # a night owl's 00:45 wind-down sorted first
     t = {"fit_for": {"weekday": ["09:30", "01:30"]}, "habits": [
@@ -681,7 +681,11 @@ def test_plan_card_header_is_the_weekly_average_in_waking_order():
         {"habit_id": "strength_full_body", "title": "Strength", "minutes": 20, "time": "21:30", "days": ["mon", "thu"]},
         {"habit_id": "wind_down", "title": "Wind-down", "minutes": 10, "time": "00:45", "days": ALL}]}
     block = json.loads(ap.plan_block("trainmax", t).split("[VISUAL_BLOCK]")[1].split("[/VISUAL_BLOCK]")[0])
-    assert block["data"]["total_minutes"] == round((7 + 15 + 40 + 70) / 7)
+    # beta 1 (F15): "22 min a day" was a 7-day average nobody's day matches. Now the
+    # busiest regular weekday and weekend day, rules (step goal) left out
+    assert block["data"]["weekday_minutes"] == 30 and block["data"]["total_minutes"] == 30   # mon/thu: 20 + 10
+    assert block["data"]["weekend_minutes"] == 15                                           # sun: 5 + 10
+    assert {i["title"]: i["kind"] for i in block["data"]["items"]}["Daily step goal"] == "rule"
     assert [i["title"] for i in block["data"]["items"]] == ["5-minute mobility", "Daily step goal", "Strength",
                                                             "Wind-down"]
     # morning habits never take a work-break slot at the start of work (sim: mobility at 11:00, work 11-19)

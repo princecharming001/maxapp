@@ -99,6 +99,11 @@ class ChatResponse(BaseModel):
     # Each item: {name, brand, url, description (our-words), image}. Authoritative
     # name/brand/url come straight from the catalog so titles are always correct.
     products: list[dict] = Field(default_factory=list)
+    # BETA1_CONTRACTS C3: this turn changed the day shape (wake/bed/windows/
+    # commitments/minutes) or a plan's habits. The app refreshes the user and
+    # the planner when set.
+    day_shape_changed: bool = False
+    plan_changed: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     # Echo back the conversation the message landed in — lets the mobile client
     # discover the server-assigned id on first message without a separate call.

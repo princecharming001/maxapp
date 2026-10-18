@@ -1451,6 +1451,34 @@ async def planner_chat(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # A habit named in the request ("move my AM skin routine to 8") is a plan
+    # change, not a daily-rhythm one: the rhythm editor below only knows wake,
+    # bed, windows and commitments (beta 1: "'AM skin routine' was not found in
+    # your current obligations"). Route it to the program that owns the habit.
+    try:
+        from services import plan_diff as _pd, plan_intents as _pi
+        from services.ai_programs import redo_program_plan as _redo, redo_reply as _redo_reply
+        _before = await _pd.snapshot(str(user_uuid), db)
+        _phrase, _hits = _pi.resolve_target(instruction, _pi.plan_items(_before))
+        _progs = {h["program"] for h in _hits}
+        if _phrase and len(_progs) == 1:
+            _mid = _progs.pop()
+            _tmpl = await _redo(str(user_uuid), _mid, instruction, db)
+            if _tmpl is not None:
+                _changes = _pd.diff(_before, await _pd.snapshot(str(user_uuid), db))
+                _said = _pd.describe(_changes)
+                ob_now = dict(user.onboarding or {})
+                return {
+                    "message": "Plan updated" if _changes else "No changes applied",
+                    "summary": _said or "Nothing in your plan changed. Name the habit and the new time.",
+                    "defaults": _public_defaults(ob_now),
+                    "weekly_timings": ob_now.get("weekly_timings"),
+                    "changed": bool(_changes),
+                    "plan_changed": bool(_changes),
+                }
+    except Exception:
+        logger.exception("planner_chat habit route failed; falling back to the rhythm editor")
+
     prev = dict(user.onboarding or {})
     _migrate_work_to_obligation(prev)  # legacy fixed-work block → weekday "Work" obligation
     cur_defaults = _public_defaults(prev)

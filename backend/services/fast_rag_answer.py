@@ -13,7 +13,7 @@ from typing import Optional
 from config import settings
 from services.chat_telemetry import log_prompt_budget
 from services.lc_providers import get_chat_llm_with_fallback
-from services.prompt_constants import MAX_CHAT_SYSTEM_PROMPT, CHAT_VISUAL_GRAMMAR
+from services.prompt_constants import MAX_CHAT_SYSTEM_PROMPT, CHAT_VISUAL_GRAMMAR, KNOWLEDGE_GUARDRAILS
 from services.prompt_loader import PromptKey, resolve_prompt
 from services.rag_prompt_selector import _LEXICONS, select_rag_system_prompt
 from services.rag_service import retrieve_chunks, VALID_MAXX_IDS
@@ -705,6 +705,7 @@ The user asked where to buy something. Never paste URLs: the app shows tappable 
         + selection.system_prompt
         + _length_suffix(length_key)
         + grounding_suffix
+        + KNOWLEDGE_GUARDRAILS
         + product_block
         + CHAT_VISUAL_GRAMMAR
     )
