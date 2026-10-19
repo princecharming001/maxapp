@@ -42,7 +42,7 @@ const NIGHT_OWL: DayShape = {
 };
 
 const eve = (m: number) => (m < 4 * 60 ? m + 1440 : m);
-const BREAK_OK = new Set(['caffeine_cutoff', 'movement_snack', 'breathing_reset', 'lunch_walk', 'strength_snack']);
+const BREAK_OK = new Set(['caffeine_cutoff', 'movement_snack', 'breathing_reset', 'lunch_walk', 'strength_snack', 'movement_burst', 'nsdr']);
 
 function assertFits(day: DayShape, goals: string[], level: 'low' | 'medium' | 'high') {
     const items = buildStarterStack(goals, level, day);
@@ -146,5 +146,16 @@ export const tests = {
         const session = s.find((h) => h.id === 'training_session');
         assert.ok(session, 'training session present');
         assert.strictEqual(session!.timeMin, 7 * 60 + 30);
+    },
+
+    'every preview habit is a biology lever, never a planner or journal habit': () => {
+        // mirrors backend/services/biohack_scope.py
+        const productivity = /\b(to-?do|top (3|three)|deep[- ]work|time[- ]block|pomodoro|inbox|shutdown ritual|weekly review|journal|gratitude|brain ?dump|write (down|out)|three lines|goals?)\b/i;
+        for (const g of ['energy', 'sleep', 'focus', 'stress', 'training', 'skin_hair', 'longevity']) {
+            for (const h of buildStarterStack([g], 120, NINE_TO_FIVE)) {
+                const text = `${h.title} ${h.why} ${h.how}`;
+                assert.ok(!productivity.test(text), `${g}.${h.id}: ${text}`);
+            }
+        }
     },
 };

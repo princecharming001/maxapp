@@ -21,7 +21,7 @@ export type BiohackProgram = {
 export const BIOHACK_PROGRAMS: BiohackProgram[] = [
     { id: 'sleepmax', label: 'Sleepmax', tagline: 'fall asleep faster, wake up rested', icon: 'moon-outline', color: '#5B6CD9' },
     { id: 'energymax', label: 'Energymax', tagline: 'steadier energy all day', icon: 'flash-outline', color: '#E0A21B' },
-    { id: 'focusmax', label: 'Focusmax', tagline: 'longer stretches of deep work', icon: 'locate-outline', color: '#2F8F83' },
+    { id: 'focusmax', label: 'Focusmax', tagline: 'sharper, steadier attention', icon: 'locate-outline', color: '#2F8F83' },
     { id: 'calmmax', label: 'Calmmax', tagline: 'calmer days, quicker resets', icon: 'leaf-outline', color: '#4F9D5D' },
     { id: 'trainmax', label: 'Fitmax', tagline: 'move more, recover better', icon: 'barbell-outline', color: '#D9534F' },
     { id: 'skinhairmax', label: 'Skin & Hair', tagline: 'simple daily care that adds up', icon: 'water-outline', color: '#C77DBA' },

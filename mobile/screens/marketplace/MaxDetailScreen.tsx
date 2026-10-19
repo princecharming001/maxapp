@@ -520,11 +520,11 @@ export default function MaxDetailScreen() {
     const PROGRAM_BLURB: Record<string, string> = {
         sleepmax: 'A wind-down, a steady bedtime and morning light, timed around your real day. Small habits that make falling asleep easier and mornings less groggy.',
         energymax: 'Light, movement, meals and caffeine timing spread through your day, so your energy holds steady instead of crashing mid-afternoon.',
-        focusmax: 'Protected deep-work blocks, smart breaks and fewer distractions, scheduled into the gaps you actually have.',
-        calmmax: 'Short breathing resets, walks and wind-down moments placed through your day, so stress has somewhere to go.',
+        focusmax: 'The biology of attention: daylight, caffeine and green tea timed right, short bursts of movement, cold water and deep rest, placed around the hours you need to be sharp.',
+        calmmax: 'Your nervous system, trained: slow breathing and physiological sighs, daylight walks, cold and heat, and deep rest, placed through your day so your body comes down faster.',
         trainmax: 'Workouts, daily movement and recovery that fit your week, whether you have twenty minutes or an hour.',
         skinhairmax: 'A simple morning and evening care routine for skin and hair, kept short enough to stick.',
-        longevitymax: 'The basics that compound over years: sleep, movement, daylight, good food and connection, built into your routine.',
+        longevitymax: 'The levers that compound over years: cardio fitness, strength, steps, steady sleep, fiber and knowing your numbers, built into your routine.',
         suppmax: 'The few supplements with real evidence for your goals, each timed right around your day. It stays in sync with your other programs: add Sleepmax and its sleep pick joins, stop it and that pick comes off.',
         peptidemax: 'For the protocol your clinician already set. Dose reminders in your own words, site rotation, storage checks, a side-effect log and bloodwork follow-ups. It never picks peptides or doses for you.',
     };

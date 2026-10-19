@@ -68,7 +68,7 @@ export const PEPTIDEMAX_COURSE: CourseModule = {
                         'Site rotation and clean steps folded into each dose',
                         'A 30-second side-effect log on dose days',
                         'Set up a sharps container once',
-                        'One short weekly review on the weekend',
+                        'One short weekly protocol review on the weekend',
                     ],
                 },
                 {
@@ -715,16 +715,16 @@ export const PEPTIDEMAX_COURSE: CourseModule = {
                     icon: 'cart-outline',
                     eta: '1 min',
                     bullets: [
-                        'Count what is left at your weekly review',
+                        'Count what is left at your weekly protocol review',
                         'Request the refill from your prescriber and licensed pharmacy',
                         'Supply gap? Talk to your prescriber, not a website',
                         'Expired or frozen product counts as gone',
                     ],
                 },
                 {
-                    id: 'weekly-review',
+                    id: 'weekly-protocol-review',
                     number: '8.5',
-                    title: 'Weekly Review',
+                    title: 'Weekly Protocol Review',
                     subtitle: 'Five minutes on the weekend: doses, side effects and what is coming up.',
                     icon: 'checkmark-done-outline',
                     eta: '2 min',

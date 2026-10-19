@@ -217,7 +217,7 @@ const SUGGESTIONS_BEGINNER: Suggestion[] = [
 const SUGGESTIONS_ADVANCED: Suggestion[] = [
   { chip: 'Add a workout', text: 'Add gym 6-7pm Mon, Wed, Fri' },
   { chip: 'Add a second session', text: 'Add a mobility session 7-7:30am on weekdays' },
-  { chip: 'Protect deep work', text: 'Block 9-11am on weekdays for focused work' },
+  { chip: 'Add a sauna slot', text: 'Sauna 7-7:30pm on Tuesdays and Thursdays' },
   { chip: 'Sleep in weekends', text: 'Sleep in until 10 on weekends' },
 ];
 function suggestionsForTier(tier: 'beginner' | 'intermediate' | 'advanced' | 'unknown'): Suggestion[] {

@@ -390,9 +390,9 @@ export const SUPPMAX_COURSE: CourseModule = {
                     icon: 'cafe-outline',
                     eta: '2 min',
                     bullets: [
-                        'In trials the pair improved task switching and alertness',
+                        'In trials the pair improved attention-switching accuracy and alertness',
                         'Keep your usual coffee or tea; add one L-theanine serving',
-                        'Take it 20 to 30 minutes before your focus block',
+                        'Take it 20 to 30 minutes before your focus window',
                         'Effects are modest and last an hour or two',
                     ],
                 },

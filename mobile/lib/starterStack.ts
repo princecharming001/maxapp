@@ -9,7 +9,9 @@
  * real gap in their day (never inside work, never outside wake → bedtime).
  *
  * Copy rule: routines and timing only. No supplements, doses or treatment
- * claims (App Store 1.4.1 / FTC).
+ * claims (App Store 1.4.1 / FTC). Every card pulls a biological lever (light,
+ * temperature, caffeine, food, movement, breathing, rest); never a planning or
+ * journaling habit (backend/services/biohack_scope.py).
  */
 
 export type BiohackGoal =
@@ -26,7 +28,7 @@ export type BiohackLevel = 'low' | 'medium' | 'high';
 export const BIOHACK_GOALS: { id: BiohackGoal; label: string; tagline: string; icon: string }[] = [
     { id: 'energy', label: 'Energy', tagline: 'steadier energy all day', icon: 'flash-outline' },
     { id: 'sleep', label: 'Sleep', tagline: 'fall asleep faster, wake up rested', icon: 'moon-outline' },
-    { id: 'focus', label: 'Focus', tagline: 'longer stretches of deep work', icon: 'locate-outline' },
+    { id: 'focus', label: 'Focus', tagline: 'sharper, steadier attention', icon: 'locate-outline' },
     { id: 'stress', label: 'Stress', tagline: 'calmer days, quicker resets', icon: 'leaf-outline' },
     { id: 'training', label: 'Training and recovery', tagline: 'move more, recover better', icon: 'barbell-outline' },
     { id: 'skin_hair', label: 'Skin and hair', tagline: 'simple daily care that adds up', icon: 'sparkles-outline' },
@@ -171,15 +173,15 @@ const CARDS: Record<BiohackGoal, Card[]> = {
         { id: 'cool_room', title: 'Cool, dark room', minutes: 2, value: 6, anchor: 'pre_bed', why: 'a cooler room helps you stay asleep', how: 'Drop the thermostat a couple of degrees and close the blinds.' },
     ],
     focus: [
-        { id: 'top_three', title: 'Pick your top 3', minutes: 5, value: 10, anchor: 'before_work', why: 'decide before the day decides for you', how: 'Write down the three things that would make today a win.' },
-        { id: 'breathing_reset', title: 'Breathing reset', minutes: 3, value: 7, anchor: 'afternoon', why: 'a fast way to clear your head', how: 'Box breathing: in 4, hold 4, out 4, hold 4. Repeat for three minutes.' },
-        { id: 'lunch_walk', title: 'Walk after lunch', minutes: 10, value: 8, anchor: 'lunch', why: 'a sharper afternoon', how: 'A ten-minute walk right after you eat, outside if you can.' },
-        { id: 'shutdown', title: 'Shutdown ritual', minutes: 5, value: 5, anchor: 'after_work', why: 'stops work following you home', how: 'Close tabs, note tomorrow’s first task, say "done for today".' },
+        { id: 'green_tea', title: 'Green tea, not a third coffee', minutes: 3, value: 10, anchor: 'get_ready', why: 'gentle caffeine with a calmer edge', how: 'Brew a cup of green tea or matcha and sip it as you start your hardest work.' },
+        { id: 'morning_light', title: 'Morning light', minutes: 10, value: 9, anchor: 'wake', why: 'daylight makes you alert sooner', how: 'Step outside within an hour of waking. No sunglasses, phone in your pocket.' },
+        { id: 'movement_burst', title: 'Move before you focus', minutes: 5, value: 8, anchor: 'afternoon', why: 'a short burst sharpens attention afterwards', how: 'Five minutes of brisk stairs, jumping jacks or a fast walk, then straight back to the task.' },
+        { id: 'nsdr', title: 'NSDR reset', minutes: 10, value: 7, anchor: 'lunch', why: 'deep rest restores focus without a nap', how: 'Sit back or lie down, eyes closed, and follow a 10-minute yoga nidra or NSDR audio.' },
     ],
     stress: [
         { id: 'breathing_reset', title: 'Breathing reset', minutes: 3, value: 9, anchor: 'afternoon', why: 'a fast way to clear your head', how: 'Box breathing: in 4, hold 4, out 4, hold 4. Repeat for three minutes.' },
-        { id: 'outside_walk', title: 'Walk outside', minutes: 15, value: 8, anchor: 'after_work', why: 'a real break between work and home', how: 'Fifteen minutes outside, no podcast, just walk.' },
-        { id: 'three_lines', title: 'Write three lines', minutes: 5, value: 7, anchor: 'wind_down', why: 'gets the day out of your head', how: 'What happened, what’s on your mind, one thing that went well.' },
+        { id: 'outside_walk', title: 'Walk outside', minutes: 15, value: 8, anchor: 'after_work', why: 'daylight and an easy pace lower stress hormones', how: 'Fifteen minutes outside, no podcast, just walk.' },
+        { id: 'warm_shower', title: 'Warm shower to wind down', minutes: 10, value: 7, anchor: 'wind_down', why: 'warming up, then cooling off, readies your body for sleep', how: 'A warm shower or bath, then keep the bedroom cool.' },
         { id: 'body_scan', title: 'Body scan', minutes: 10, value: 6, anchor: 'pre_bed', why: 'helps you switch off', how: 'Lie down, eyes closed, and slowly relax from your feet to your face.' },
     ],
     training: [

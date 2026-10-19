@@ -32,7 +32,7 @@ const LADDER = [
     { name: 'Ares', minLevel: 30, icon: require('../../assets/ranks/ares.webp'), line: 'Discipline as a weapon.' },
     { name: 'Apollo', minLevel: 40, icon: require('../../assets/ranks/apollo.webp'), line: 'Sun-up energy, every day.' },
     { name: 'Athena', minLevel: 52, icon: require('../../assets/ranks/athena.webp'), line: 'Wisdom earned the hard way.' },
-    { name: 'Hades', minLevel: 65, icon: require('../../assets/ranks/hades.webp'), line: 'Master of the deep work.' },
+    { name: 'Hades', minLevel: 65, icon: require('../../assets/ranks/hades.webp'), line: 'Master of the depths.' },
     { name: 'Poseidon', minLevel: 80, icon: require('../../assets/ranks/poseidon.webp'), line: 'You move oceans now.' },
     { name: 'Zeus', minLevel: 100, icon: require('../../assets/ranks/zeus.webp'), line: 'The summit of Olympus.' },
 ];
