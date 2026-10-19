@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    Animated, ActivityIndicator, RefreshControl, Alert,
+    Animated, ActivityIndicator, RefreshControl, Alert, LayoutAnimation,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect, CommonActions } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -279,6 +280,8 @@ const gh = StyleSheet.create({
 
 /* ─── Screen ─── */
 
+const RULES_OPEN_KEY = 'home.rulesOpen';
+
 export default function HomeScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
@@ -444,6 +447,19 @@ export default function HomeScreen() {
     // The day's boundaries (C1 rules): shown as a strip, never as habits —
     // no checkbox, not in the done/total count.
     const selectedRules = rulesByDate[activeDate] || [];
+    // Rules are a quiet reference, not the day's work: collapsed by default,
+    // and the choice sticks (per device).
+    const [rulesOpen, setRulesOpen] = useState(false);
+    useEffect(() => {
+        AsyncStorage.getItem(RULES_OPEN_KEY).then((v) => { if (v === '1') setRulesOpen(true); }).catch(() => undefined);
+    }, []);
+    const toggleRules = () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setRulesOpen((o) => {
+            AsyncStorage.setItem(RULES_OPEN_KEY, o ? '0' : '1').catch(() => undefined);
+            return !o;
+        });
+    };
 
     // The strip is ALWAYS shown — even with no program, so the day rhythm reads.
     // When there's no real schedule yet, synthesize a 30-day strip (today = 1).
@@ -803,10 +819,22 @@ export default function HomeScreen() {
                     {/* ── TODAY'S RULES — boundaries, not tasks (C1) ── */}
                     {selectedRules.length > 0 ? (
                         <View style={s.rulesSection} testID="home-rules">
-                            <Text style={s.rulesLabel}>
-                                {activeDate === today ? 'TODAY\u2019S RULES' : 'RULES'}
-                            </Text>
-                            <View style={s.rulesCard}>
+                            <TouchableOpacity
+                                style={s.rulesHeader}
+                                onPress={toggleRules}
+                                activeOpacity={0.6}
+                                hitSlop={{ top: 8, bottom: 8 }}
+                                accessibilityRole="button"
+                                accessibilityState={{ expanded: rulesOpen }}
+                                accessibilityLabel={`${selectedRules.length} rules. ${rulesOpen ? 'Hide' : 'Show'}`}
+                                testID="home-rules-toggle"
+                            >
+                                <Text style={[s.rulesLabel, { marginBottom: 0 }]}>
+                                    {activeDate === today ? 'TODAY\u2019S RULES' : 'RULES'} · {selectedRules.length}
+                                </Text>
+                                <Ionicons name={rulesOpen ? 'chevron-up' : 'chevron-down'} size={14} color={BW.mute} />
+                            </TouchableOpacity>
+                            {rulesOpen ? <View style={s.rulesCard}>
                                 {selectedRules.map((r, i) => (
                                     <View
                                         key={r.key}
@@ -819,7 +847,7 @@ export default function HomeScreen() {
                                         </Text>
                                     </View>
                                 ))}
-                            </View>
+                            </View> : null}
                         </View>
                     ) : null}
 
@@ -976,7 +1004,9 @@ const s = StyleSheet.create({
         fontSize: 12, fontFamily: fonts.sansSemiBold, fontWeight: '600',
         color: BW.mute, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10,
     },
+    rulesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 2 },
     rulesCard: {
+        marginTop: 10,
         backgroundColor: BW.card, borderRadius: 16, paddingHorizontal: 14,
         borderWidth: StyleSheet.hairlineWidth, borderColor: BW.hair,
     },
