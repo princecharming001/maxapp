@@ -429,32 +429,32 @@ _COURSE_DETAIL: dict[str, dict[str, Any]] = {
 # outcomes + how-it-works + proof rather than a fixed syllabus.
 _MAXX_DETAIL: dict[str, dict[str, Any]] = {
     "sleepmax": {
-        "long_description": "A steady body clock without overhauling your life. Superpower asks a couple of questions, then places small habits around your real wake and bed times: morning light, a caffeine cutoff, a short wind-down and a bedroom set up for sleep.",
-        "outcomes": ["A wind-down that starts at the right time for you", "Morning light and caffeine timed to your day", "Weekends that don't undo your week", "Change anything by just asking in chat"],
+        "long_description": "Your body clock, sleep pressure and the evening temperature drop, tuned around your real wake and bed times: morning daylight, dim evenings, a caffeine cutoff, a warm shower before bed, a cool dark room and slow breathing to switch off.",
+        "outcomes": ["Light timed to set your body clock", "Caffeine and alcohol kept clear of sleep", "A warm-then-cool evening that helps you drop off", "Change anything by just asking in chat"],
     },
     "energymax": {
-        "long_description": "Fewer afternoon slumps from the small things that move energy most: water and light after waking, smarter caffeine timing, movement snacks and a walk after meals, all fitted between your meetings.",
-        "outcomes": ["A morning start that sets the day up", "Caffeine timed so it helps, not hurts", "Movement snacks that fit a desk day", "A plan that flexes when your week does"],
+        "long_description": "Fewer crashes from the biology that drives them: water and daylight after waking, protein first and carbs last, a walk after meals to flatten glucose, stair bursts and short naps for the dip, and caffeine timed so it never costs you sleep.",
+        "outcomes": ["Steadier glucose after meals", "Caffeine timed so it helps, not hurts", "A real fix for the afternoon dip", "A plan that flexes when your week does"],
     },
     "focusmax": {
-        "long_description": "Protect the hours that matter. Plan your top three, guard one deep-work block, keep the phone out of reach and close the day with a shutdown ritual, placed inside your actual work hours.",
-        "outcomes": ["One protected deep-work block a day", "A two-minute plan for your top three", "Breaks that actually reset you", "A clean end to the workday"],
+        "long_description": "The biology of attention: caffeine timed against adenosine and your sleep, green tea instead of a third coffee, daylight to lift alertness, a movement primer before hard thinking, water, fresh air, NSDR or a short nap, and an optional cold finish to the shower.",
+        "outcomes": ["Caffeine that lands when you need to be sharp", "Movement and light that lift alertness", "Rest that resets focus without a crash", "Every habit backed by a study"],
     },
     "calmmax": {
-        "long_description": "Quick resets for busy days: breathing you can do anywhere, walks outside, an evening brain dump and screen-free time before bed, short enough to fit between everything else.",
-        "outcomes": ["Breathing resets that take two minutes", "Time outside built into your week", "An evening routine that switches you off", "Gentle, never another thing to stress about"],
+        "long_description": "Body-first stress tools: cyclic sighing and slow breathing that work the vagal brake, cold water on the face for the dive reflex, sauna or a hot bath, daylight walks, aerobic exercise, NSDR and dim evenings, with a caffeine ceiling if you run hot.",
+        "outcomes": ["Breathing resets that take two minutes", "Cold and heat dosed safely", "HRV and stress you can track", "Gentle, never another thing to stress about"],
     },
     "trainmax": {
-        "long_description": "Strength and movement that fit the time you have. Two to four short sessions a week, a daily steps floor, mobility and posture work, scheduled around your real calendar.",
-        "outcomes": ["Short full-body sessions you can keep up", "A daily steps floor", "Mobility and posture work for desk days", "Rest days placed where they belong"],
+        "long_description": "Muscle and cardio fitness, plus the recovery biology that makes them stick: progressive strength, an aerobic base and 4×4 intervals, protein at each meal, heat after training, cold kept away from lifting, caffeine timed to sleep and a readiness check.",
+        "outcomes": ["Short full-body sessions you can keep up", "VO2max work that fits your week", "Recovery levers placed where they belong", "Rest days that keep you training"],
     },
     "skinhairmax": {
         "long_description": "Simple, evidence-based care: cleanse, moisturize and SPF in the morning, a calm evening routine, and gentle scalp care, introduced slowly and fitted around your showers.",
         "outcomes": ["A short AM and PM routine", "Daily SPF that actually happens", "Gentle scalp and hair care", "New steps added slowly, never all at once"],
     },
     "longevitymax": {
-        "long_description": "The basics that compound: easy cardio, strength twice a week, daily steps, vegetables first and steady sleep, plus reminders to keep up your routine checkups.",
-        "outcomes": ["Zone-2 cardio that fits your week", "Strength twice a week", "A steps habit that sticks", "Checkup reminders, no medical advice"],
+        "long_description": "The strongest levers on healthspan: cardio fitness and intervals for VO2max, strength twice a week, steps, balance, sauna, fiber and olive oil, a steady wake time, alcohol kept low, and your blood pressure, ApoB and Lp(a) logged.",
+        "outcomes": ["VO2max and strength, built steadily", "Sauna and balance work that compound", "Your key biomarkers in one place", "No medical advice, no lifespan promises"],
     },
     "suppmax": {
         "long_description": "The few supplements with real evidence behind them, timed around your day and kept in sync with the rest of your stack. Run Sleepmax and Suppmax adds its sleep pick; stop Sleepmax and it comes off. Safety questions come first, and nothing goes past the label.",

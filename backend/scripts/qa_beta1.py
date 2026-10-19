@@ -21,9 +21,10 @@ from qa_personas import new_account, onboarding  # noqa: E402
 OB = onboarding(wake="07:00", bed="00:15", minutes=25, level="medium", goals=["sleep", "energy"],
                 work=("09:00", "17:00"), commute=15, meals=("08:00", "12:30", "19:30"), workout="18:00")
 
-WORK_OK = {"post_meal_walk",       # their lunch break (they said they can walk after lunch)
-           "movement_snack", "move_after_sitting", "micro_break", "posture_break", "stair_snack", "phone_away",
-           "deep_work_block", "top_three_plan", "batch_inbox", "physiological_sigh"}
+WORK_OK = {"post_meal_walk", "outdoor_lunch",   # their lunch break
+           "movement_snack", "move_after_sitting", "micro_break", "stair_snack", "vigorous_burst",
+           "move_before_focus", "hydrate_to_focus", "fresh_air_flush", "physiological_sigh", "box_breathing",
+           "cold_face_reset", "caffeine_for_focus", "green_tea_afternoon", "lunch_balance", "protein_first_lunch"}
 
 
 def _m(hm: str) -> int:
@@ -196,8 +197,46 @@ async def guides(problems: list[str]) -> None:
                   == int(t.get("duration_minutes") or 0), f"F14 {t['catalog_id']} guide minutes differ")
 
 
+async def biohacking(problems: list[str]) -> None:
+    """Every planned habit pulls a body lever (no planner habits), the shared
+    health answer rules levers out, and asking for a journal gets a no."""
+    import services.ai_programs as ap
+    from services import biohack_scope
+    api = await new_account(OB)
+    await start(api, "focusmax", {"caffeine": "1 cup", "sharp": "Start of my workday",
+                                  "apply to you": "Raynaud's or cold sensitivity",
+                                  "cold water": "Up for a cold finish to my shower", "recline": "No"})
+    await start(api, "calmmax", {"hit you hardest": "During the workday", "cold water": "Not for me",
+                                 "most weeks": "Neither", "caffeine affect": "No noticeable effect"})
+    p = await plans(api)
+    check(problems, {"focusmax", "calmmax"} <= set(p), f"plans missing: {sorted(p)}")
+    for mid, x in p.items():
+        lib = {h.id: h for h in (ap.get_program_doc(mid).habits if ap.get_program_doc(mid) else [])}
+        for h in x["plan"].get("habits") or []:
+            hid = h["habit_id"]
+            check(problems, hid in lib or hid.startswith("custom_"), f"{mid}.{hid} not in the library")
+            if hid in lib:
+                check(problems, lib[hid].lever in biohack_scope.LEVERS, f"{mid}.{hid} has no lever")
+            text = f"{h.get('title')} {h.get('how')} {h.get('why')}"
+            check(problems, not biohack_scope.is_productivity(text),
+                  f"{mid}.{hid} planner talk: {biohack_scope.productivity_terms(text)}")
+        check(problems, not biohack_scope.is_productivity(x["plan"].get("summary") or ""),
+              f"{mid} summary planner talk: {x['plan'].get('summary', '')[:120]}")
+    hids = {h["habit_id"] for x in p.values() for h in x["plan"].get("habits") or []}
+    for bad in ("cold_shower_finish", "cold_face_reset", "power_nap", "nsdr_break", "heat_session", "caffeine_ceiling"):
+        check(problems, bad not in hids, f"{bad} planned despite their answers")
+    before = {m: [h["habit_id"] for h in x["plan"]["habits"]] for m, x in p.items()}
+    r = await chat(api, "can you add a gratitude journal every night?")
+    check(problems, "biology" in (r.get("response") or "").lower(), f"journal ask: {r.get('response', '')[:140]}")
+    r = await chat(api, "what should I do to focus better this afternoon?")
+    check(problems, not biohack_scope.is_productivity(r.get("response") or ""),
+          f"coach suggested planner habits: {r.get('response', '')[:200]}")
+    after = {m: [h["habit_id"] for h in x["plan"]["habits"]] for m, x in (await plans(api)).items()}
+    check(problems, before == after, "plans changed after the journal ask")
+
+
 SCENARIOS = {"day_shape": day_shape, "coach": coach, "supplements": supplements,
-             "planner_sheet": planner_sheet, "guides": guides}
+             "planner_sheet": planner_sheet, "guides": guides, "biohacking": biohacking}
 
 
 async def main() -> int:

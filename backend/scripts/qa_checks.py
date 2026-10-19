@@ -89,10 +89,8 @@ CONCEPTS = [
     {"morning_light"}, {"caffeine_cutoff"}, {"zone2_cardio"}, {"daily_steps"},
     {"balance_drill", "balance_practice"}, {"screens_off", "screen_free_evening"},
     {"strength_full_body", "strength_2x", "resistance_training"},
-    {"long_walk_weekend", "weekly_long_walk"},
-    {"brain_dump", "worry_list"},
-    {"move_after_sitting", "movement_snack", "posture_break"},
-    {"stair_snack", "stair_or_burst"},
+    {"move_after_sitting", "movement_snack", "micro_break"},
+    {"stair_snack", "vigorous_burst"},
     {"protein_each_meal", "protein_at_meals", "protein_first_meal"},
 ]
 SUPP_WORDS = re.compile(r"\b(melatonin|magnesium|creatine|ashwagandha|theanine|glycine|vitamin d|d3|omega[- ]?3|"
@@ -306,8 +304,7 @@ _STOP = {"daily", "morning", "evening", "night", "weekly", "weekend", "short", "
          "movement", "recovery", "energy", "three", "steps", "cardio", "focus", "calm", "regular", "gentle",
          "afternoon", "protect", "evening", "night", "morning", "protocol", "prescriber", "reminder",
          "review", "window", "slump", "fiber"}
-ALIASES = {"post_meal_walk": r"post-?(lunch|meal|dinner) walk|walk after (lunch|dinner|meals?)",
-           "notification_cleanup": r"notification", "deep_work_block": r"deep[- ]?work"}
+ALIASES = {"post_meal_walk": r"post-?(lunch|meal|dinner) walk|walk after (lunch|dinner|meals?)"}
 
 
 def _keywords(title: str) -> list[str]:

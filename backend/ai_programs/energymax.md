@@ -1,205 +1,263 @@
 # EnergyMax
 
 ## What it is
-EnergyMax helps you feel steadier through the day with small, low-effort habits: water early, morning light, a protein-containing first meal, short movement breaks, a walk after meals, and smarter caffeine timing. The goal is fewer crashes and a gentler afternoon slump, built around your existing schedule. It is not a treatment for fatigue that has a medical cause.
+EnergyMax works on the biology behind energy crashes. The body clock: morning light sets it earlier, so the afternoon dip is shallower. Glucose swings after meals: eating carbs last and walking after meals blunt the spike and the dip that follows. Sleep pressure: caffeine blocks adenosine, but a late dose costs sleep (about 45 minutes in trials), while a short nap clears sleep pressure without grogginess. Mild dehydration: losing about 1.4% of body water raises fatigue. Arousal from muscle work and cold: a walk or a stair burst lifts energy at once, and cold water triggers a short alertness jolt. Every habit pulls one of these levers in about 0–10 minutes. It is not a treatment for fatigue that has a medical cause.
 
 ## Who it fits / who should check with a professional first
-Fits: busy adults who feel sluggish in the morning, crash after lunch, or lean on caffeine and sugar to get through the afternoon.
+Fits: healthy adults with mid-morning or afternoon crashes, people who lean on coffee or sugar to get through the day, and desk-bound workers.
 
 Check with a professional first:
-- Ongoing tiredness that does not improve with rest, unexplained weight change, shortness of breath, fainting, or feeling low for weeks (fatigue can have medical causes such as anemia, thyroid issues or depression; the app should suggest a check-up, not guess).
-- Diabetes or blood-sugar medications: meal timing and post-meal walks are generally fine, but changes to meals should go through their care team.
-- Heart, kidney or liver conditions, or fluid restriction: do not push water targets.
-- Pregnancy: keep caffeine low (follow their clinician); keep habits gentle.
-- History of disordered eating: do not use food rules, skipping meals or tracking; keep food habits as gentle "add" habits only, or skip them.
+- Fatigue lasting 4 weeks or more, or with red flags (weight loss, night sweats, shortness of breath, heavy periods, loud snoring with daytime sleepiness): suggest bloodwork (CBC and ferritin, TSH, B12, HbA1c) and a sleep-apnea screen; the app suggests a check-up, it never guesses.
+- Heart disease, an arrhythmia, uncontrolled high blood pressure or pregnancy: these gate `vigorous_burst` and `cold_shower_finish`.
+- Insulin or sulfonylurea users: meal order and post-meal walks lower glucose; tell the care team.
+- Fluid restriction for heart or kidney failure: no water targets.
+- Active eating disorder or a history of one: no food rules without their care team.
+- Low mood: fatigue can be a symptom of depression.
 
 ## Habit library
 
-### `water_on_waking` — Water on waking
+### `water_on_waking` — Water before coffee
 - minutes: 1 / 2
 - kind: action
+- lever: hydration
+- anchor: wake (first thing, before any caffeine)
+- frequency: daily
+- tier: core
 - order: first
-- anchor: wake
-- frequency: daily
-- tier: core
-- why: Many people start the day after 7–9 hours without fluids; regular drinks across the day support normal hydration (pale-straw urine is a simple guide).
-- how: 1) Drink a glass of water when you get up. 2) Have it before your coffee. 3) Refill the glass or bottle and keep it with you.
-- conflicts/synergies: First among the wake habits; `morning_light` comes right after it (water first, then light). Tip: a glass or bottle left by the bed or kettle the evening before makes this effortless. Do not set fixed liters for users with fluid-restricted conditions.
-- source: https://www.nhs.uk/live-well/eat-well/food-guidelines-and-food-labels/water-drinks-nutrition/
+- avoid if: fluid-restricted heart failure, fluid-restricted kidney disease, history of low sodium
+- why: Mild dehydration of about 1.4% of body mass raised fatigue and headaches and lowered concentration, and low drinkers who drank more felt less tired within days.
+- how: 1) Fill a large glass (about 300–500 ml) at the tap. 2) Drink it before any coffee or tea. 3) Refill it, or your bottle, and keep it in sight for the morning.
+- conflicts/synergies: Comes before `morning_light` and the first coffee (water, light, food, coffee). Shown once if other programs also hydrate (FocusMax `hydrate_to_focus` is the work-start glass).
+- source: https://pubmed.ncbi.nlm.nih.gov/22190027/
 
-### `morning_light` — Morning outdoor light
-- minutes: 5 / 10
-- kind: action
-- after: water_on_waking
-- anchor: wake or commute
-- frequency: daily
-- tier: core
-- why: Daytime bright light supports alertness and sets the body clock, which helps both daytime energy and night sleep.
-- how: 1) Get outside within an hour of waking, after your glass of water. 2) Walk part of the commute, or have your coffee outside or by a bright window. 3) 5–15 min is enough, the longer end on cloudy days; never look straight at the sun.
-- conflicts/synergies: Same habit as SleepMax `morning_light`; schedule once and credit both. Comes after `water_on_waking` (water first, then light); neither has to happen before everything else.
-- source: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6751071/
-
-### `delay_first_coffee` — Coffee after water
-- minutes: 0 / 0
-- kind: rule
-- anchor: get_ready
-- frequency: daily
-- tier: medium
-- why: Pairing caffeine with water and food (not on an empty stomach and dehydrated) tends to feel smoother; the evidence for a specific "wait 90 minutes" rule is weak, so keep it flexible.
-- how: 1) Have water first. 2) Have coffee with or after breakfast if possible. 3) Keep total daily caffeine moderate (FDA: up to about 400 mg/day for most healthy adults).
-- conflicts/synergies: Works with SleepMax `caffeine_cutoff`. Do not make this a strict rule.
-- source: https://www.fda.gov/consumers/consumer-updates/spilling-beans-how-much-caffeine-too-much
-
-### `protein_first_meal` — Protein in first meal
-- minutes: 2 / 5
-- kind: action
-- anchor: their first meal: breakfast, or lunch when `first_meal_style` says they skip breakfast or have coffee only
-- frequency: daily (5×/week)
-- tier: core
-- why: Protein and fiber make a meal more filling than a sugar-only start, and getting protein in at each meal helps people reach the daily intake that supports muscle (see FitMax).
-- how: 1) Include one protein you like (eggs, Greek yogurt, cottage cheese, tofu, leftovers, a protein-rich bar). 2) Add fruit or whole grains. 3) If you don't eat breakfast, apply this to your first meal.
-- conflicts/synergies: Synergy with FitMax `protein_each_meal`. Not a breakfast mandate: skipping breakfast is fine if the user prefers.
-- source: https://bjsm.bmj.com/content/52/6/376
-
-### `movement_snack` — Movement snack
-- minutes: 2 / 3
-- kind: action
-- anchor: work_break (every 60–90 min of sitting)
-- frequency: 3–6× per workday
-- tier: core
-- why: Breaking up sitting with short walks lowered post-meal blood sugar compared with sitting all day; short bouts also feel energizing.
-- how: 1) Stand up from your desk. 2) Walk to get water, take the stairs, or do 10 squats. 3) Sit back down and carry on.
-- conflicts/synergies: Overlaps with FocusMax breaks and LongevityMax steps; count steps toward both.
-- source: https://doi.org/10.1007/s40279-022-01649-4
-
-### `post_meal_walk` — Walk after meals
-- minutes: 5 / 10
-- kind: action
-- anchor: lunch or dinner (start within 30 min of finishing)
-- frequency: daily (at least one meal)
-- tier: core
-- why: Light walking after eating helps blood sugar rise and fall more gently than sitting.
-- how: 1) Start walking within about 30 min of finishing the meal. 2) 5–15 min around the block, or take a phone call on the move. 3) Easy pace.
-- conflicts/synergies: Counts toward LongevityMax steps and CalmMax outdoor time. Fine in the evening for sleep (easy intensity).
-- source: https://doi.org/10.1007/s40279-022-01649-4
-
-### `lunch_balance` — Balanced lunch plate
-- minutes: 0 / 2
-- kind: action
-- anchor: lunch
-- frequency: 5× per week
-- tier: medium
-- why: Very large, refined-carb-heavy lunches are commonly followed by a slump; adding protein, vegetables and fiber makes meals more filling.
-- how: 1) Fill about half the plate with vegetables or salad. 2) Add a palm of protein. 3) Choose whole grains when you can.
-- conflicts/synergies: Same as LongevityMax `veg_first`. No calorie counting.
-- source: https://doi.org/10.1016/S0140-6736(18)31809-9
-
-### `slump_reset` — Afternoon slump reset
-- minutes: 5 / 10
-- kind: action
-- anchor: afternoon (2–4 pm, or the user's slump time)
-- frequency: daily on workdays
-- tier: core
-- why: Short breaks of 10 min or less increased vigor and reduced fatigue in a meta-analysis.
-- how: 1) Stand up and leave the screen. 2) Get outside or by a window for 5 min, or do a brisk stair climb. 3) Drink water. 4) Optional: 10 min NSDR or a short nap if sleep is short (see rules).
-- conflicts/synergies: Replaces a late coffee to protect SleepMax caffeine cutoff. Overlaps with FocusMax `nsdr_break`.
-- source: https://doi.org/10.1371/journal.pone.0272460
-
-### `caffeine_cutoff` — Caffeine cutoff
-- minutes: 0 / 0
-- kind: rule
-- anchor: afternoon
-- frequency: daily
-- tier: core
-- why: Late caffeine reduces sleep without people noticing, which drains next-day energy.
-- how: 1) Last caffeine at least 8 hours before bedtime (minimum 6). 2) Swap to decaf, sparkling water or herbal tea. 3) Count energy drinks and pre-workouts.
-- conflicts/synergies: Shared with SleepMax; enforce the same time.
-- source: https://pmc.ncbi.nlm.nih.gov/articles/PMC3805807/
-
-### `vigorous_burst` — 1-minute vigorous burst
-- minutes: 1 / 2
-- kind: action
-- anchor: work_break or after_work
-- frequency: 1–3× per day
-- tier: medium
-- why: Short bursts of vigorous daily activity (like fast stair climbing) were linked to lower mortality in non-exercisers, and they wake you up.
-- how: 1) Climb stairs fast, or walk very briskly uphill, for about 1 min. 2) Or do 20 seconds of jumping jacks or squats, 3 times. 3) Stop if dizzy or in pain.
-- conflicts/synergies: Same as LongevityMax `stair_snack`. Not within 1 hour of bed. Skip for users with heart conditions unless cleared.
-- source: https://doi.org/10.1038/s41591-022-02100-x
-
-### `water_bottle_refill` — Midday refill
-- minutes: 1 / 1
-- kind: action
-- anchor: lunch
-- frequency: daily
-- tier: medium
-- why: Spreading fluids across the day is easier than catching up at night (which can also wake you to use the bathroom).
-- how: 1) Refill your bottle now. 2) Keep it where you can see it. 3) Aim to finish it by mid-afternoon.
-- conflicts/synergies: Pairs with SleepMax (fewer night wakings): taper fluids in the last 1–2 hours before bed.
-- source: https://www.nhs.uk/live-well/eat-well/food-guidelines-and-food-labels/water-drinks-nutrition/
-
-### `energy_check_in` — Energy check-in
-- minutes: 1 / 1
-- kind: checkin
-- anchor: afternoon
-- frequency: daily for 2 weeks, then 3×/week
-- tier: hard
-- why: Logging when you dip shows whether sleep, lunch or caffeine is the main driver, so the plan can adapt.
-- how: 1) Rate energy 1–5. 2) Tap the likely cause (short sleep, big lunch, long sitting, stress). 3) Glance at the last few check-ins to spot a pattern.
-- conflicts/synergies: Feeds plan tuning across SleepMax and FocusMax.
-- source: https://doi.org/10.1371/journal.pone.0272460
-
-### `outdoor_lunch` — Lunch outside
+### `morning_light` — Outdoor light in your first hour
 - minutes: 10 / 15
 - kind: action
-- anchor: lunch
-- frequency: 2–3× per week
+- lever: light
+- anchor: wake (within the first hour after waking; right after water)
+- frequency: daily
+- tier: core
+- after: water_on_waking
+- avoid if: bipolar disorder, photosensitizing medication, retinal disease
+- why: A week of natural light alone moved the body clock about 2 hours earlier, and a single weekend produced most of that shift; an earlier clock means less morning grogginess.
+- how: 1) Step outside (doorstep, balcony or a short walk); light through a window doesn't count. 2) Face the bright sky, but never look at the sun. 3) Stay about 10 min on bright days and 20–30 min when it's overcast.
+- conflicts/synergies: Same habit as SleepMax and FocusMax `morning_light`; schedule once. Shares the wake card with LongevityMax `sleep_regularity`. Walking outside counts toward `daily_steps`.
+- source: https://pubmed.ncbi.nlm.nih.gov/23910656/
+
+### `delay_first_coffee` — Coffee after food, not before
+- minutes: 0 / 0
+- kind: rule
+- lever: caffeine
+- anchor: breakfast (first caffeine comes after the first food of the day)
+- frequency: daily
+- tier: core
+- avoid if: none
+- why: After a broken night, strong black coffee on an empty stomach raised the glucose peak and insulin about 32% after a sugary drink; the popular "wait 90 minutes" rule has no trial behind it.
+- how: 1) Eat first, at least the protein part of your breakfast. 2) Then have your coffee or tea. 3) For a gentler lift, make this cup green tea or matcha (less caffeine, plus L-theanine).
+- conflicts/synergies: Follows `protein_first_meal`. For people who skip breakfast, the gate is their first meal. Counts toward the `caffeine_cutoff` budget; same cup as FocusMax `caffeine_for_focus`.
+- source: https://pubmed.ncbi.nlm.nih.gov/32475359/
+
+### `protein_first_meal` — Protein-forward first meal
+- minutes: 2 / 5
+- kind: action
+- lever: nutrition
+- anchor: breakfast (or the first meal of the day if breakfast is skipped)
+- frequency: daily
+- tier: core
+- avoid if: advanced kidney disease, active eating disorder
+- why: A 35 g-protein breakfast (vs 13 g) increased fullness all day and cut evening high-fat snacking, and a low-carb breakfast lowered 24-hour glucose in type 2 diabetes.
+- how: 1) Build the meal around about 25–35 g of protein: 3 eggs with Greek yogurt, a tofu scramble, cottage cheese or leftovers. 2) Add fiber: fruit, oats or vegetables. 3) Eat the protein part first; leave juice or pastries for last, or skip them.
+- conflicts/synergies: Same idea as LongevityMax and FitMax `protein_each_meal` at breakfast; show once. It is the gate for `delay_first_coffee`.
+- source: https://pubmed.ncbi.nlm.nih.gov/23446906/
+
+### `lunch_balance` — Carbs-last lunch
+- minutes: 0 / 0
+- kind: rule
+- lever: nutrition
+- anchor: lunch (the meal before the usual afternoon dip)
+- frequency: daily
+- tier: core
+- avoid if: insulin or sulfonylurea use, active eating disorder
+- why: In prediabetes, eating vegetables and protein 10 minutes before carbs cut the glucose peak by more than 40% and total glucose by 39%; carbs first caused marked swings.
+- how: 1) Start with the vegetables or salad. 2) Then eat the protein. 3) Save bread, rice, pasta, potatoes and sweets for the last part of the meal.
+- conflicts/synergies: Same mechanism as LongevityMax `veg_first` and FocusMax `protein_first_lunch`; one lunch card. Pairs with `outdoor_lunch` straight after.
+- source: https://pubmed.ncbi.nlm.nih.gov/30101510/
+
+### `post_meal_walk` — Walk after dinner
+- minutes: 2 / 10
+- kind: action
+- lever: movement
+- anchor: dinner (start within about 15 min of finishing; breakfast also works)
+- frequency: daily
+- tier: core
+- avoid if: none
+- why: Walking 10 minutes after each meal lowered post-meal glucose 12% more than one 30-minute daily walk (22% after dinner), and even 2–5 minute walks blunted glucose.
+- how: 1) Stand up when you finish eating. 2) Walk at an easy, chatty pace: around the block, down the hallway, or pacing on a call. 3) Keep going for 2–10 minutes; longer is fine.
+- conflicts/synergies: Counts toward `daily_steps`. The lunch version is `outdoor_lunch`; don't schedule both after lunch.
+- source: https://pubmed.ncbi.nlm.nih.gov/27747394/
+
+### `outdoor_lunch` — Daylight walk after lunch
+- minutes: 10 / 15
+- kind: action
+- lever: light
+- anchor: lunch (straight after eating, outdoors)
+- frequency: weekdays
+- tier: medium
+- avoid if: none
+- why: Inactive employees who took lunchtime walks 3 times a week for 10 weeks felt more enthusiastic and relaxed in the afternoon, and the walk blunts the lunch glucose rise.
+- how: 1) Finish eating and head straight outside. 2) Walk 10–15 min at an easy-to-brisk pace. 3) Keep your eyes up toward the sky (never at the sun), with your phone in your pocket.
+- conflicts/synergies: Replaces `post_meal_walk` at lunch. Same idea as CalmMax `outdoor_walk` and FocusMax `walk_to_think`; schedule once. If their dip is right after lunch, this is that day's slump card.
+- source: https://pubmed.ncbi.nlm.nih.gov/25559067/
+
+### `movement_snack` — Break up sitting
+- minutes: 2 / 5
+- kind: action
+- lever: movement
+- anchor: work_break (after every 45–60 min of sitting)
+- frequency: weekdays
+- tier: core
+- avoid if: none
+- why: Six 5-minute walks spread across a sitting day raised energy and vigor and, unlike one 30-minute walk, cut fatigue and food cravings by the end of the day.
+- how: 1) Stand up. 2) Walk for 2–5 minutes: stairs, a hallway lap, or a water refill. 3) Sit back down and carry on.
+- conflicts/synergies: Same concept group as FocusMax `micro_break`, FitMax `posture_break` and LongevityMax `move_after_sitting`: one card. Skip the hour that holds `outdoor_lunch` or `slump_reset`.
+- source: https://pubmed.ncbi.nlm.nih.gov/27809874/
+
+### `slump_reset` — Stairs instead of a snack
+- minutes: 5 / 10
+- kind: action
+- lever: movement
+- anchor: afternoon (at their slump time)
+- frequency: weekdays
+- tier: medium
+- avoid if: chest pain or dizziness on exertion, knee or hip pain on stairs
+- why: In short-sleeping young women, 10 minutes of easy stair walking lifted vigor more than a 50 mg caffeine capsule.
+- how: 1) Open a window or step outside for fresh air. 2) Walk the stairs up and down at a steady, comfortable pace for 10 min, or take a brisk flat walk. 3) Have a glass of water instead of the extra coffee or sugar.
+- conflicts/synergies: Use `slump_reset` or `power_nap` for a given dip, not both. Stale, crowded-room air raised fatigue in lab studies, hence step 1. Counts toward `daily_steps`.
+- source: https://pubmed.ncbi.nlm.nih.gov/28302573/
+
+### `power_nap` — 10-minute nap
+- minutes: 10 / 20
+- kind: action
+- lever: sleep
+- anchor: afternoon (early in the slump window, at least 7 h before bed)
+- frequency: weekdays on low-energy days
+- tier: medium
+- avoid if: insomnia, untreated sleep apnea, habitual naps over 30 min
+- why: After a short night, a 10-minute nap improved sleepiness, fatigue, vigor and thinking at once for up to 155 minutes, while a 30-minute nap caused grogginess first.
+- how: 1) Lie down or recline somewhere quiet and cover your eyes. 2) Set a 20-minute timer and aim for about 10 minutes of actual sleep. 3) Get up when it ends even if you didn't drop off, then step into daylight or splash your face.
+- conflicts/synergies: Replaces `slump_reset` that day. Same habit as FocusMax `power_nap`; schedule once. A coffee right before the nap beat the nap alone, but only before `caffeine_cutoff`. Follows SleepMax `nap_rule`.
+- source: https://pubmed.ncbi.nlm.nih.gov/16796222/
+
+### `caffeine_cutoff` — Caffeine curfew
+- minutes: 0 / 0
+- kind: rule
+- lever: caffeine
+- anchor: afternoon (about 9 h before usual bedtime, 13 h for energy drinks and pre-workout)
+- frequency: daily
+- tier: core
+- avoid if: none
+- why: Across 24 studies, caffeine cut total sleep by 45 minutes and sleep efficiency by 7%; coffee needs about 9 h before bed and a pre-workout about 13 h.
+- how: 1) From now on, only caffeine-free drinks today. 2) Switch to water, herbal tea or decaf. 3) Watch for hidden caffeine: cola, energy drinks, pre-workout, some teas, dark chocolate and some painkillers.
+- conflicts/synergies: Same rule as SleepMax and FocusMax `caffeine_cutoff`; schedule once and the strictest wins. Blocks a late caffeine nap. In pregnancy, total caffeine stays at or below 200 mg a day.
+- source: https://pubmed.ncbi.nlm.nih.gov/36870101/
+
+### `vigorous_burst` — 60-second stair sprint
+- minutes: 1 / 3
+- kind: action
+- lever: movement
+- anchor: work_break (mid-morning or mid-afternoon, at least 1 h apart)
+- frequency: 3 times a week
 - tier: hard
-- why: Combines daylight, a walk and a real break from screens.
-- how: 1) Take lunch outside or walk to get it. 2) Leave the phone in your pocket. 3) 10–15 min.
-- conflicts/synergies: Counts as CalmMax `outdoor_walk` and LongevityMax steps.
-- source: https://doi.org/10.1038/s41598-019-44097-3
+- avoid if: heart disease, arrhythmia, uncontrolled high blood pressure, chest pain or fainting on exertion, pregnancy, recent surgery or joint injury
+- why: Three 20-second all-out stair climbs, 3 days a week for 6 weeks, raised fitness (VO2peak) by 12% in sedentary women, and each burst is an immediate wake-up.
+- how: 1) Walk one easy flight to warm up. 2) Climb 2–3 flights as fast as is safe, a hand near the rail, for 20–60 seconds. 3) Walk down slowly to recover; repeat once or twice if you feel good.
+- conflicts/synergies: Same mechanism as LongevityMax `stair_snack` and FitMax `stair_or_burst`; one burst counts for all. Not within 1 h of bed. FocusMax `move_before_focus` can carry the burst on focus days.
+- source: https://pubmed.ncbi.nlm.nih.gov/28009784/
+
+### `cold_shower_finish` — 30-second cold finish
+- minutes: 1 / 2
+- kind: action
+- lever: temperature
+- anchor: get_ready (end of the morning shower)
+- frequency: daily
+- tier: hard
+- avoid if: heart disease, arrhythmia, uncontrolled high blood pressure, raynaud's, cold urticaria, pregnancy, history of fainting
+- why: In 3,018 adults, ending showers with 30–90 seconds of cold for 30 days cut self-reported sickness-absence days by 29%, and cold immersion left people feeling more alert.
+- how: 1) Finish your normal warm shower. 2) Turn the tap fully cold for 30 seconds, building toward 60–90 seconds over the weeks. 3) Breathe slowly and steadily through the gasp, then dry off and dress warmly.
+- conflicts/synergies: Same habit as FocusMax and CalmMax `cold_shower_finish`; schedule once. Keep it at least 4 h away from strength training when building muscle (cold right after lifting blunted gains). Never with breath holds.
+- source: https://pubmed.ncbi.nlm.nih.gov/27631616/
+
+### `energy_check_in` — Rate your energy 1–5
+- minutes: 1 / 1
+- kind: checkin
+- lever: tracking
+- anchor: afternoon (at their slump time)
+- frequency: daily
+- tier: core
+- avoid if: none
+- why: Self-rated energy is what these trials moved, and two weeks of your own scores show which levers actually lift you.
+- how: 1) Rate your energy right now, 1–5. 2) Tap anything that applies: short sleep, late caffeine, big lunch, no walk, no daylight. 3) Done.
+- conflicts/synergies: Merge with SleepMax `sleep_log` and CalmMax `stress_checkin` when they land together. Mostly 2 or lower for 2+ weeks despite good adherence: show the fatigue bloodwork note.
+- source: https://pubmed.ncbi.nlm.nih.gov/27809874/
 
 ## What the AI needs to know (intake)
-1. `slump_time` (required) — Places the slump reset and caffeine swap at the right time.
+1. `slump_time` (required) — Places the slump reset, the nap and the check-in.
    Q: "When does your energy dip the most?" Options: Mornings | After lunch | Late afternoon | Evenings | It's pretty steady
-2. `caffeine_pattern` (required) — Sets cutoff strictness and whether to taper.
+2. `caffeine_pattern` (required) — Sets the coffee-after-food wording, the cutoff (9 h, or 13 h with energy drinks) and the over-400 mg note.
    Q: "How much caffeine do you have on a typical day?" Options: None | 1 cup | 2–3 cups | 4+ or energy drinks
-3. `first_meal_style` (required) — Decides how to frame the protein habit (breakfast vs first meal vs skip).
+3. `first_meal_style` (required) — Decides how to frame the protein habit (breakfast vs first meal).
    Q: "What does your morning eating look like?" Options: Real breakfast | Something quick | Coffee only | I eat later in the day
-4. `can_walk_after_lunch` (optional) — Decides whether post-meal walks go after lunch or dinner.
-   Q: "Could you take a short walk after lunch on workdays?" Options: Yes, most days | Sometimes | Not really
-5. `sitting_hours` (optional) — Sets the number of movement snacks.
-   Q: "How much of your workday is spent sitting?" Options: Most of it | About half | I'm on my feet a lot
+4. `health_flags` (required, multi) — Gates the stair sprint, the cold finish and water targets (shared across programs).
+   Q: "Do any of these apply to you?" Options: None of these | Heart or blood-pressure condition | Pregnant or breastfeeding | Pain or injury | Raynaud's or cold sensitivity | Panic attacks, seizures or fainting | Prefer not to say
+5. `rest_spot` (optional) — Turns the 10-minute nap on or off (shared with FocusMax).
+   Q: "Could you lie down or recline for 15 minutes during the day?" Options: Yes, at work | Only at home or on days off | No
 
 ## Scheduling rules
-- Water on waking first, at wake time (`order: first`); morning light right after it, within 60 min of wake (`after: water_on_waking`, shared with SleepMax). Neither is framed as "before anything else".
-- Caffeine: cutoff at least 8 hours before bed (minimum 6). Prefer caffeine after water or food. Never schedule a caffeine habit after the cutoff.
-- Post-meal walk: start within 30 min after the user's stored meal time; easy intensity.
-- Movement snacks: every 60–90 min inside work hours; skip during meetings marked busy; max 6 per day.
-- Slump reset: at the user's `slump_time` (default 2:30–3:30 pm). Any nap ends 7+ hours before bed and lasts ≤20 min.
-- Vigorous bursts: not within 1 hour of bed; not on the same hour as a FitMax hard session.
-- Fluids: taper in the last 1–2 hours before bed.
-- Week 1 ramp: `water_on_waking`, `morning_light`, plus one of `post_meal_walk` or `slump_reset` (by `slump_time`). Add `protein_first_meal` and `movement_snack` in week 2.
-- Scaling: ~5 min → water, light (commute), caffeine rule. 10–20 min → add post-meal walk and slump reset. 20+ min → add movement snacks, outdoor lunch, bursts, check-in.
-- Weekend: keep water and light; swap work-break movement snacks for one longer walk; slump reset optional.
+- Morning order: `water_on_waking`, then `morning_light` within the first hour, then `protein_first_meal`, then the first coffee (`delay_first_coffee`).
+- Caffeine cutoff: bedtime minus 9 h for coffee or tea, minus 13 h with energy drinks or pre-workout. A caffeine nap only before the cutoff.
+- Slump: if it comes right after lunch, `outdoor_lunch` fills the slot and the next slump card moves about 2 h later. Otherwise `slump_reset`, or `power_nap` when `rest_spot` allows, never both on one day. Naps end at least 7 h before bed.
+- Walks: `post_meal_walk` starts within about 15 min of finishing the meal, dinner first; `outdoor_lunch` replaces it at lunch.
+- `movement_snack` every 45–60 min of sitting during work, at most 6 a day, skipping the hour with `outdoor_lunch` or `slump_reset`.
+- `vigorous_burst` on non-consecutive days, never within 1 h of bed, only with health flags "None of these".
+- `cold_shower_finish` mornings only, at least 4 h from strength training, only with clear health flags and a cold answer that isn't "Not for me".
+- `energy_check_in` daily at the slump time. From day 14, the coach ranks levers by how they track with the scores.
+- Tiers: core first; medium after 7 days at 60%+ adherence; hard only with clear health flags.
+- Week 1: `water_on_waking`, `morning_light`, `delay_first_coffee`, `caffeine_cutoff`, `post_meal_walk`. Week 2: add `protein_first_meal`, `lunch_balance`, `movement_snack`, `energy_check_in`. Week 3+: add the slump card, `outdoor_lunch`, then hard habits if eligible.
 
 ## Safety and claims
-- Do not diagnose causes of fatigue (anemia, thyroid, sleep apnea, depression, long COVID). If fatigue is persistent or severe, suggest a check-up.
-- Energymax plans never include supplements (electrolytes live in Suppmax, information only). No energy-drink recommendations, "adrenal fatigue" claims, IV drips, stimulants or nootropics. No caffeine pills.
-- No fasting protocols, meal skipping or calorie targets. No blood-glucose claims beyond "may help smooth the rise after meals"; no CGM interpretation.
-- Never set fixed water volumes for people with heart, kidney or liver conditions or fluid restrictions; never push very large fluid intakes.
-- Caffeine: never above about 400 mg/day framing; for pregnancy, defer to their clinician.
-- No promises like "never crash again" or "double your energy".
+- Wording: "lowered post-meal glucose in trials" for meal order and walking, "people reported more energy" for walks, stairs and naps. Never "cures fatigue", "boosts metabolism", "boosts immunity" or "balances hormones/cortisol".
+- Cold showers: "fewer self-reported sick days in one trial", not "prevents illness" (illness days didn't change).
+- Persistent fatigue is a medical symptom: show a talk-to-a-clinician note (ferritin and CBC, TSH, B12, HbA1c, a sleep-apnea screen) when fatigue lasts 4+ weeks or check-ins stay at 2 or lower for 2+ weeks. EnergyMax never doses iron, B12, vitamin D or creatine; those go to Suppmax.
+- Stop rules: chest pain, fainting, palpitations or unusual shortness of breath means stop and seek care.
+- Glucose: walks and meal order lower glucose; insulin or sulfonylurea users get a one-time tell-your-care-team note.
+- Light: durations are practical rules of thumb, not trial doses. Never tell anyone to look at the sun.
+- Not offered: vinegar shots before meals (small acute trials, enamel and esophagus risks, low blood sugar with insulin), hyperventilation breathwork for energy (fainting risk), and strict caffeine-delay rules.
 
 ## Sources
-- https://www.nhs.uk/live-well/eat-well/food-guidelines-and-food-labels/water-drinks-nutrition/
-- https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6751071/
-- https://www.fda.gov/consumers/consumer-updates/spilling-beans-how-much-caffeine-too-much
-- https://pmc.ncbi.nlm.nih.gov/articles/PMC3805807/
-- https://doi.org/10.1007/s40279-022-01649-4
-- https://doi.org/10.1371/journal.pone.0272460
-- https://doi.org/10.1038/s41591-022-02100-x
-- https://doi.org/10.1016/S0140-6736(18)31809-9
-- https://bjsm.bmj.com/content/52/6/376
-- https://doi.org/10.1038/s41598-019-44097-3
+- https://pubmed.ncbi.nlm.nih.gov/27747394/
+- https://pubmed.ncbi.nlm.nih.gov/35147898/
+- https://pubmed.ncbi.nlm.nih.gov/26106234/
+- https://pubmed.ncbi.nlm.nih.gov/30101510/
+- https://pubmed.ncbi.nlm.nih.gov/36870101/
+- https://pubmed.ncbi.nlm.nih.gov/24235903/
+- https://pubmed.ncbi.nlm.nih.gov/32475359/
+- https://pubmed.ncbi.nlm.nih.gov/22190027/
+- https://pubmed.ncbi.nlm.nih.gov/24728141/
+- https://pubmed.ncbi.nlm.nih.gov/23910656/
+- https://pubmed.ncbi.nlm.nih.gov/28162893/
+- https://pubmed.ncbi.nlm.nih.gov/27809874/
+- https://pubmed.ncbi.nlm.nih.gov/28302573/
+- https://pubmed.ncbi.nlm.nih.gov/16796222/
+- https://pubmed.ncbi.nlm.nih.gov/14652086/
+- https://pubmed.ncbi.nlm.nih.gov/25559067/
+- https://pubmed.ncbi.nlm.nih.gov/23446906/
+- https://pubmed.ncbi.nlm.nih.gov/30968140/
+- https://pubmed.ncbi.nlm.nih.gov/28009784/
+- https://pubmed.ncbi.nlm.nih.gov/30374942/
+- https://pubmed.ncbi.nlm.nih.gov/27631616/
+- https://pubmed.ncbi.nlm.nih.gov/36829490/
+- https://pubmed.ncbi.nlm.nih.gov/26174323/
+- https://pubmed.ncbi.nlm.nih.gov/26825447/
+- https://pubmed.ncbi.nlm.nih.gov/24946991/
+- https://pubmed.ncbi.nlm.nih.gov/22777991/
+- https://pubmed.ncbi.nlm.nih.gov/28292654/

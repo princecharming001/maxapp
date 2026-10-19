@@ -20,6 +20,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `melatonin` — Low-dose melatonin
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - cycle: 4 on / 1 off
 - anchor: wind_down (30–60 min before bed)
 - frequency: nightly, 4 weeks on then 1 week off with a review at each break (or only on travel nights)
@@ -37,6 +38,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `l_theanine` — L-theanine for calm
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - anchor: afternoon (or 30–60 min before a known stressful part of the day; wind_down if evenings are worst)
 - frequency: daily
 - tier: core
@@ -53,6 +55,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `magnesium_glycinate` — Magnesium glycinate
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - anchor: dinner (or wind_down)
 - frequency: daily
 - tier: medium
@@ -69,6 +72,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `glycine` — Glycine before bed
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - cycle: trial 2
 - anchor: pre_bed (30–60 min before bed)
 - frequency: nightly for a 2-week trial, then keep only if the user notices a difference
@@ -86,6 +90,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `ashwagandha` — Ashwagandha (caution)
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - cycle: trial 8
 - anchor: dinner
 - frequency: daily for an 8-week trial (studied range 8–12 weeks), then stop and review (only if the user asks and clears the avoid-if list)
@@ -103,6 +108,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `tart_cherry` — Tart cherry (weak evidence)
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - cycle: trial 2
 - anchor: breakfast and pre_bed (1–2 hours before bed)
 - frequency: daily for a 2-week trial (only if the user asks)
@@ -120,6 +126,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `caffeine_theanine` — L-theanine with your coffee
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - anchor: breakfast or the coffee before the focus block (never after the caffeine cutoff)
 - frequency: workdays (on deep-work days)
 - tier: core
@@ -136,6 +143,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `creatine` — Creatine monohydrate
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - anchor: workout (or breakfast on rest days)
 - frequency: daily, including rest days
 - tier: core
@@ -152,6 +160,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `protein_powder` — Protein shake (food first)
 - minutes: 2 / 2
 - kind: action
+- lever: compound
 - anchor: workout (within a few hours after) or a low-protein meal
 - frequency: training days or when meals fall short
 - tier: medium
@@ -168,6 +177,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `electrolytes` — Electrolytes on sweaty days
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - anchor: workout (during or after) or the morning water on hot days
 - frequency: 2–3 times a week on workout or hot days (never daily by default)
 - tier: core
@@ -184,6 +194,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `rhodiola` — Rhodiola (mixed evidence)
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - cycle: trial 4
 - anchor: breakfast
 - frequency: daily for a 4-week trial (only if the user asks)
@@ -201,6 +212,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `collagen_peptides` — Collagen peptides (12-week trial)
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - cycle: trial 12
 - anchor: breakfast (stirred into coffee, a smoothie or oats)
 - frequency: daily for a 12-week trial, then keep only if the user sees a difference
@@ -218,6 +230,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `vitamin_d3` — Vitamin D3 with a meal
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - anchor: breakfast or lunch (the meal with some fat)
 - frequency: daily
 - tier: core
@@ -234,6 +247,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `omega3` — Omega-3 (fish or algae oil)
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - anchor: breakfast or dinner (with a meal)
 - frequency: daily
 - tier: medium
@@ -250,6 +264,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `psyllium_fiber` — Psyllium fiber
 - minutes: 1 / 2
 - kind: action
+- lever: compound
 - anchor: lunch or dinner (with a full glass of water)
 - frequency: daily (start every other day in week 1)
 - tier: medium
@@ -266,6 +281,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `multivitamin` — Basic multivitamin
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - anchor: breakfast
 - frequency: daily (only when the user's diet or goal calls for it)
 - tier: medium
@@ -282,6 +298,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `b12` — Vitamin B12 (vegans, 50+)
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - anchor: breakfast
 - frequency: daily (only when it applies: vegan or vegetarian, over 50, or long-term metformin or acid reducers)
 - tier: medium
@@ -298,6 +315,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `iron` — Iron (bloodwork only)
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - anchor: wake or mid-morning (on an empty stomach, away from coffee and tea)
 - frequency: as a clinician directs after a blood test (often every other day); only when the user says a blood test showed low iron and a clinician advised iron
 - tier: hard
@@ -314,6 +332,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `parent_check` — Check with a parent or doctor (under 18)
 - minutes: 5 / 10
 - kind: setup
+- lever: compound
 - anchor: weekend (first weekend)
 - frequency: once in week 1, before starting anything (under 18 only)
 - tier: core
@@ -330,6 +349,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `food_first` — Food first at every meal (under 18)
 - minutes: 2 / 5
 - kind: action
+- lever: nutrition
 - anchor: breakfast, lunch and dinner
 - frequency: daily (under 18 only)
 - tier: core
@@ -346,6 +366,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `stack_audit` — One-time stack audit
 - minutes: 5 / 10
 - kind: setup
+- lever: compound
 - anchor: weekend (first weekend)
 - frequency: once in week 1, then whenever a medicine changes
 - tier: core
@@ -362,6 +383,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `weekly_stack_checkin` — Weekly stack check-in
 - minutes: 2 / 3
 - kind: checkin
+- lever: tracking
 - anchor: weekend
 - frequency: weekly
 - tier: core
@@ -378,6 +400,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `refill_check` — Refill and label check
 - minutes: 2 / 2
 - kind: checkin
+- lever: tracking
 - anchor: weekend
 - frequency: every 2–4 weeks (when a bottle is about a week from empty)
 - tier: medium

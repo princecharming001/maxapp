@@ -19,7 +19,7 @@ never comes out different just because a different path wrote it:
   * hard sessions never on back-to-back days (across programs)
   * every time sits inside that day's waking window (weekday vs weekend),
     obeys the doc rule for its kind (light within an hour of waking, wind-down
-    30-60 min before bed, caffeine cutoff 8h before bed, workouts done 2h
+    30-60 min before bed, caffeine cutoff ~9h before bed, heat done 1h and workouts 2h
     before bed, naps 7h before bed), stays clear of work / commute / meals
     unless it is naturally done there, never overlaps another task and starts
     5+ minutes from every other task in the stack; meal habits (protein at
@@ -43,10 +43,13 @@ GAP = 5                 # minutes between task starts across the whole stack
 TASK_CAP = 10           # visible tasks on one day, all programs together
 MEAL_MIN = 30           # assumed meal length
 
-HARD = {"strength_full_body", "strength_2x", "vigorous_intervals", "resistance_training"}
+HARD = {"strength_full_body", "strength_2x", "vigorous_intervals", "interval_4x4", "resistance_training"}
 # daytime only: sodium and fluids close to bed mean night-time bathroom trips
 DAYTIME = {"electrolytes"}
 WORKOUT = HARD | {"zone2_cardio", "move_it_out"}
+# sauna or a hot bath: finished at least an hour before bed (heat raises core
+# temperature, and the drop afterwards is what helps sleep)
+HEAT = {"sauna_session", "heat_session", "sauna_after_training"}
 
 # One idea, one program. Order within the stack decides who keeps it (the
 # program that already has it).
@@ -59,18 +62,27 @@ CONCEPT_GROUPS: list[set[str]] = [
     {"balance_drill", "balance_practice"},
     {"screens_off", "screen_free_evening"},
     {"strength_full_body", "strength_2x", "resistance_training"},
-    {"long_walk_weekend", "weekly_long_walk"},
-    {"brain_dump", "worry_list"},
-    {"move_after_sitting", "movement_snack", "posture_break", "micro_break", "stair_snack", "stair_or_burst"},
+    {"move_after_sitting", "movement_snack", "micro_break"},
+    {"stair_snack", "vigorous_burst"},
     {"protein_each_meal", "protein_at_meals", "protein_first_meal"},
-    {"outdoor_walk", "nature_time", "walk_to_think"},
+    {"outdoor_walk", "walk_to_think", "outdoor_lunch"},
+    {"lunch_balance", "protein_first_lunch"},
+    {"cold_shower_finish"},
+    {"power_nap"},
+    {"nsdr_break", "body_scan"},
+    {"sauna_session", "heat_session", "sauna_after_training"},
+    {"vigorous_intervals", "interval_4x4"},
+    {"slow_belly_breathing", "wind_down"},
+    {"alcohol_buffer", "alcohol_awareness"},
 ]
 _GROUP_OF = {h: i for i, g in enumerate(CONCEPT_GROUPS) for h in g}
 
-# Allowed inside work hours by nature (structure the work itself / a desk break).
-WORK_NATIVE = {"top_three_plan", "deep_work_block", "phone_away", "batch_inbox", "single_tab_rule",
-               "meeting_free_block", "shutdown_ritual", "micro_break", "movement_snack", "posture_break",
-               "move_after_sitting", "stair_snack", "stair_or_burst", "physiological_sigh", "caffeine_for_focus"}
+# Allowed inside work hours by nature: short body levers done at a desk or on a
+# break (a drink, a burst of stairs, a window open, a breath). Never planner
+# habits: Superpower schedules biology (services/biohack_scope.py).
+WORK_NATIVE = {"micro_break", "movement_snack", "move_after_sitting", "stair_snack", "vigorous_burst",
+               "move_before_focus", "hydrate_to_focus", "fresh_air_flush", "physiological_sigh", "box_breathing",
+               "cold_face_reset", "caffeine_for_focus", "green_tea_afternoon"}
 TIER_RANK = {"core": 0, "medium": 1, "hard": 2}
 
 
@@ -249,7 +261,7 @@ def supp_meals(hid: str, inf: HabitInfo) -> list[str]:
     return meals_for(hid, inf) or [m for m in MEALS if m in inf.anchor]
 
 
-CAFFEINATED = ("caffeine_theanine", "caffeine_for_focus", "coffee", "pre_workout")
+CAFFEINATED = ("caffeine_theanine", "caffeine_for_focus", "coffee", "pre_workout", "preworkout", "green_tea")
 
 
 def caffeinated(hid: str) -> bool:
@@ -272,7 +284,11 @@ def kind_of(hid: str, inf: HabitInfo) -> str:
         return "evening"
     if hid in WORKOUT:
         return "workout"
-    if hid == "nap_rule":
+    if hid in HEAT:
+        return "heat"
+    if hid == "warm_shower":
+        return "bath"
+    if hid in ("nap_rule", "power_nap"):
         return "nap"
     if hid in ("fixed_wake_time", "sleep_regularity"):
         return "wake_exact"
@@ -284,15 +300,11 @@ def kind_of(hid: str, inf: HabitInfo) -> str:
         return "meal"
     if a.startswith("get_ready"):
         return "get_ready"
-    if hid == "top_three_plan":
-        return "work_start"
-    if hid == "shutdown_ritual":
-        return "work_end"
     return "any"
 
 
 SHIFTS_WITH_WAKE = {"wake", "wake_exact", "get_ready"}
-SHIFTS_WITH_BED = {"wind_down", "screens_off", "pre_bed", "evening", "caffeine", "nap"}
+SHIFTS_WITH_BED = {"wind_down", "screens_off", "pre_bed", "evening", "caffeine", "nap", "heat", "bath"}
 
 
 def window(kind: str, dur: int, d: Day, *, weekday: bool) -> tuple[int, int]:
@@ -320,18 +332,20 @@ def window(kind: str, dur: int, d: Day, *, weekday: bool) -> tuple[int, int]:
     if kind == "evening":
         return max(w, b - 120), max(w, b - 10)
     if kind == "caffeine":
-        target = b - 480 if b - 480 >= w + 180 else b - 360
+        # about 9 h before bed (a coffee costs sleep closer than ~8.8 h), never under 6
+        target = next((b - g for g in (540, 480) if b - g >= w + 180), b - 360)
         return max(w, min(target, b - 360)), max(w, b - 360)
     if kind == "workout":
         return w, max(w, b - 120 - dur)
+    if kind == "heat":
+        return min(w + 15, hi), max(min(w + 15, hi), b - 60 - dur)
+    if kind == "bath":
+        # ends 1-2 h before bed
+        return max(w, b - 120 - dur), max(w, b - 60 - dur)
     if kind == "daytime":
         return min(w + 15, hi), max(min(w + 15, hi), b - 180 - dur)
     if kind == "nap":
         return max(w + 300, w), max(w, b - 420 - dur)
-    if kind == "work_start" and weekday and d.work:
-        return d.work[0], d.work[0] + 15
-    if kind == "work_end" and weekday and d.work:
-        return max(d.work[0], d.work[1] - 10), d.work[1]
     # anything else: not on top of waking up, and the last half hour before
     # bed belongs to the wind-down (no step-goal reminder at 22:59)
     return min(w + 15, hi), max(min(w + 15, hi), b - 30 - dur)
@@ -364,10 +378,10 @@ def _why_here(kind: str, asked: int, d: Day, meals: list[str]) -> str:
         return "caffeine has to stop at least 6 hours before bed"
     if kind == "workout":
         return "workouts finish at least 2 hours before bed"
-    if kind == "work_start":
-        return "it's the first thing when work starts"
-    if kind == "work_end":
-        return "it closes out the workday"
+    if kind == "heat":
+        return "heat has to end at least an hour before bed"
+    if kind == "bath":
+        return "a warm shower works best 1 to 2 hours before bed"
     for k, a, b in d.busy:
         if a <= asked < b:
             return f"that time is inside your {_bkind(k) if k not in MEALS else k}"

@@ -236,6 +236,12 @@ def build_template(answers: dict, *, started_on: Optional[date] = None) -> dict:
                                          "Leave it on for 3 to 5 minutes, then rinse.",
                                          "Condition the lengths only."]),
                           "why": "Calms flaking and an oily, itchy scalp; often used alongside hair-thinning care."})
+    # light and food levers that cost no time (rules: nothing to tick)
+    habits.append({"habit_id": "uv_shade_rule", "title": "Shade and a hat when UV is 3+", "minutes": 0,
+                   "time": "", "weekend_time": "", "days": ALL, "how": "", "why": ""})
+    if goal == "acne":
+        habits.append({"habit_id": "low_gi_swap", "title": "Slow-carb swap for breakouts", "minutes": 0,
+                       "time": "", "weekend_time": "", "days": ALL, "how": "", "why": ""})
     if "thinning" in flags:
         habits.append({"habit_id": "scalp_massage", "title": "Scalp massage", "minutes": 4,
                        "time": "", "weekend_time": "", "days": ALL,

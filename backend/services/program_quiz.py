@@ -21,12 +21,22 @@ import re
 from functools import lru_cache
 from typing import Optional
 
+from services import biohack_scope
+
 QUIZ_PROGRAMS = ("sleepmax", "energymax", "focusmax", "calmmax", "trainmax", "longevitymax")
 
 # One age question for every program (Longevitymax and Suppmax both use it).
 AGE_OPTIONS = ["Under 18", "18–29", "30–49", "50–59", "60 or older"]
 SHARED = {
     "age_band": {"question": "how old are you?", "options": AGE_OPTIONS, "multi": False},
+    # cold water, heat, breath holds and all-out effort are wrong for some
+    # people; asked once, every program's avoid-if lines read it
+    "health_flags": {"question": biohack_scope.HEALTH_QUESTION, "options": biohack_scope.HEALTH_OPTIONS,
+                     "multi": True},
+    # the same cold, heat and rest answers decide habits in several programs
+    "cold_tolerance": {"question": biohack_scope.COLD_QUESTION, "options": biohack_scope.COLD_OPTIONS, "multi": False},
+    "heat_access": {"question": biohack_scope.HEAT_QUESTION, "options": biohack_scope.HEAT_OPTIONS, "multi": False},
+    "rest_spot": {"question": biohack_scope.REST_QUESTION, "options": biohack_scope.REST_OPTIONS, "multi": False},
 }
 
 # "What do you already do?" — label → the habits it means. Simple daily habits
@@ -48,17 +58,17 @@ ALREADY = {
         "Get up and move every hour": ["movement_snack"],
     },
     "focusmax": {
-        "Plan my top tasks each day": ["top_three_plan"],
-        "Blocks of focused time": ["deep_work_block"],
-        "Phone out of reach while working": ["phone_away"],
-        "Notifications mostly off": ["notification_cleanup"],
-        "A clear end to my workday": ["shutdown_ritual"],
+        "Coffee or tea timed before hard work": ["caffeine_for_focus"],
+        "Daylight soon after waking": ["morning_light"],
+        "Exercise or a walk before hard work": ["move_before_focus"],
+        "Naps or NSDR during the day": ["power_nap", "nsdr_break"],
+        "Cold showers": ["cold_shower_finish"],
     },
     "calmmax": {
         "Breathing exercises": ["physiological_sigh", "slow_belly_breathing"],
         "Walks outside": ["outdoor_walk"],
-        "Writing things down": ["brain_dump", "expressive_writing"],
-        "Regular time with friends or family": ["connect_ping"],
+        "Regular cardio": ["move_it_out"],
+        "Yoga": ["slow_yoga"],
         "Screens off before bed": ["screen_free_evening"],
     },
     "trainmax": {
@@ -74,6 +84,7 @@ ALREADY = {
         "Walking most days": ["daily_steps"],
         "Plenty of vegetables": ["veg_first"],
         "A regular sleep schedule": ["sleep_regularity"],
+        "Sauna most weeks": ["sauna_session"],
     },
 }
 ALREADY_LEVEL_UP = {"strength_full_body", "zone2_cardio", "daily_steps", "strength_2x", "mobility_flow"}
@@ -159,12 +170,56 @@ def _shared_keys() -> set[str]:
 _EARLY_OR_NO_CAFFEINE = re.compile(r"before noon|don'?t have caffeine|^none$|no caffeine", re.I)
 
 
+def safety_skip_ids(maxx_id: str, answers: dict) -> set[str]:
+    """Habits this person must never get: a heart condition rules out the cold
+    plunge and the sauna, Raynaud's rules out cold water, panic attacks rule
+    out breath holds (each habit's `avoid if:` line). Applied to every build
+    and every redo, even when it leaves the plan short."""
+    from services.ai_programs import get_program_doc
+    pd = get_program_doc(maxx_id)
+    if pd is None:
+        return set()
+    return {h.id for h in pd.habits if h.avoid and biohack_scope.health_blocks(h.avoid, answers or {})}
+
+
 def skip_ids(maxx_id: str, answers: dict) -> set[str]:
     """Habits to leave out: simple ones they already do (training ones level up
-    instead), and a caffeine cutoff for someone whose caffeine already stops by
-    noon or who has none (a 4:15 pm cutoff for them contradicted their answer)."""
-    out = already_doing(maxx_id, answers) - ALREADY_LEVEL_UP
-    caff = " ".join(str((answers or {}).get(k) or "") for k in ("caffeine_last_time", "caffeine_pattern")).strip()
+    instead) plus everything their answers rule out (preference_skip_ids)."""
+    return (already_doing(maxx_id, answers or {}) - ALREADY_LEVEL_UP) | preference_skip_ids(answers)
+
+
+def preference_skip_ids(answers: dict) -> set[str]:
+    """What their answers rule out: a caffeine cutoff for someone whose caffeine
+    already stops by noon (a 4:15 pm cutoff contradicted their answer), every
+    caffeine habit for someone with none, cold for "not for me", a sauna with
+    no sauna, a nap with nowhere to lie down. Never padded back in to fill a
+    plan (that is what made 'not for me' come back as the only habit)."""
+    a = answers or {}
+    out: set[str] = set()
+    caff = " ".join(str(a.get(k) or "") for k in ("caffeine_last_time", "caffeine_pattern")).strip()
     if caff and any(_EARLY_OR_NO_CAFFEINE.search(p.strip()) for p in caff.split("  ") + [caff]):
         out.add("caffeine_cutoff")
+    if re.match(r"\s*none\b", str(a.get("caffeine_pattern") or ""), re.I) or \
+            re.search(r"don'?t have caffeine", str(a.get("caffeine_jitters") or ""), re.I):
+        out |= CAFFEINE_HABITS              # no caffeine: nothing to time or cap
+    if re.search(r"no noticeable|don'?t have", str(a.get("caffeine_jitters") or ""), re.I) and \
+            not re.search(r"4\+|energy", str(a.get("caffeine_pattern") or ""), re.I):
+        out.add("caffeine_ceiling")
+    cold = str(a.get("cold_tolerance") or "").lower()
+    if cold.startswith("not for me"):
+        out |= {"cold_shower_finish", "cold_face_reset"}
+    elif "face is my limit" in cold or "already do" in cold:
+        out.add("cold_shower_finish")       # the face reset only / they already have their cold habit
+    heat = str(a.get("heat_access") or "").lower()
+    if heat.startswith("neither"):
+        out |= {"sauna_session", "heat_session", "sauna_after_training"}
+    elif heat.startswith("a bathtub"):
+        out |= {"sauna_session", "sauna_after_training"}   # the sauna data is sauna, not baths
+    if str(a.get("rest_spot") or "").lower().startswith("no"):
+        out |= {"power_nap", "nsdr_break"}
     return out
+
+
+# habits that time or cap caffeine someone drinks
+CAFFEINE_HABITS = {"caffeine_cutoff", "caffeine_for_focus", "green_tea_afternoon", "caffeine_ceiling",
+                   "delay_first_coffee"}

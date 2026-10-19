@@ -48,10 +48,10 @@ def test_every_need_has_at_least_three_alternatives():
 
 
 def test_tweaking_the_schedule_changes_the_list():
-    before = {"habits": [{"habit_id": "deep_work_block", "title": "deep work"}]}
-    after = {"habits": [{"habit_id": "phone_away", "title": "phone in another room"}]}
-    assert "focus_timer" in _items(build_list([("focusmax", before)], None, {}))
-    assert set(_items(build_list([("focusmax", after)], None, {}))) == {"phone_lockbox"}
+    before = {"habits": [{"habit_id": "focus_space_setup", "title": "daylight desk, quiet"}]}
+    after = {"habits": [{"habit_id": "micro_break", "title": "movement micro-break"}]}
+    assert "focus_earplugs" in _items(build_list([("focusmax", before)], None, {}))
+    assert "focus_earplugs" not in _items(build_list([("focusmax", after)], None, {}))
 
 
 def test_supplements_only_from_my_suppmax_plan_never_from_a_sleep_habit():
@@ -119,8 +119,8 @@ def test_task_products_for_skin_follow_that_routine_step_only():
 
 def test_no_gear_habits_get_no_products():
     from api.products import task_products
-    plan = {"habits": [{"habit_id": "posture_break", "title": "desk posture reset"}]}
-    assert task_products([("trainmax", plan)], None, {}, "trainmax", "posture_break", "roll shoulders") == []
+    plan = {"habits": [{"habit_id": "preworkout_caffeine", "title": "coffee before training"}]}
+    assert task_products([("trainmax", plan)], None, {}, "trainmax", "preworkout_caffeine", "have your usual coffee") == []
 
 
 def test_alternatives_never_displace_the_researched_pick_unless_they_fit_better():

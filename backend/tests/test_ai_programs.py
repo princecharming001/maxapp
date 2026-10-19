@@ -62,10 +62,9 @@ def test_validate_clamps_times_into_the_waking_day_and_weekend_window():
 
 def test_validate_spaces_out_same_minute_habits():
     # two habits that take time (rules are boundaries and share any moment)
-    lib = [h for h in ap.get_program_doc("trainmax").habits if not h.is_rule]
     t = ap.validate_template("trainmax", _raw(
-        {"habit_id": lib[2].id, "title": "a", "how": "", "why": "", "minutes": 2, "time": "08:00", "weekend_time": "", "days": ["mon", "tue"]},
-        {"habit_id": lib[3].id, "title": "b", "how": "", "why": "", "minutes": 2, "time": "08:00", "weekend_time": "", "days": ["tue"]},
+        {"habit_id": "balance_drill", "title": "a", "how": "", "why": "", "minutes": 2, "time": "08:00", "weekend_time": "", "days": ["mon", "tue"]},
+        {"habit_id": "protein_each_meal", "title": "b", "how": "", "why": "", "minutes": 2, "time": "08:00", "weekend_time": "", "days": ["tue"]},
     ), PROFILE)
     times = sorted(h["time"] for h in t["habits"])
     assert times == ["08:00", "08:05"]
@@ -269,16 +268,13 @@ def test_meal_habit_sits_at_that_meal_even_inside_work():
 
 
 def test_no_task_starts_inside_another_task():
-    # p2: a 1-minute phone-away sat inside the 25-minute deep-work block
+    # p2: a 1-minute task sat inside a longer one (both allowed at work)
     prof = _prof("09:30", "01:30", minutes=60, work=("11:00", "19:00"))
     days = ["mon", "wed", "fri"]
-    t = ap.validate_template("focusmax", _raw(_h("deep_work_block", "11:15", 25, days=days),
-                                              _h("phone_away", "11:20", 1, days=days)), prof)
+    t = ap.validate_template("focusmax", _raw(_h("move_before_focus", "11:15", 10, days=days),
+                                              _h("hydrate_to_focus", "11:20", 1, days=days)), prof)
     by = {k: _m(v["time"]) for k, v in _by(t).items()}
-    # phone-away is a rule (a boundary over the block), so it may share the
-    # moment; a habit that takes time never starts inside another
-    if _by(t)["phone_away"].get("kind") != "rule":
-        assert not (by["deep_work_block"] <= by["phone_away"] < by["deep_work_block"] + 25)
+    assert not (by["move_before_focus"] <= by["hydrate_to_focus"] < by["move_before_focus"] + 10)
     # across programs too
     other = {"trainmax": {"habits": [_h("strength_full_body", "18:00", 20, days=["mon"])]}}
     t = ap.validate_template("calmmax", _raw(_h("box_breathing", "18:05", 3, days=["mon"])), _prof(minutes=60),
@@ -297,11 +293,11 @@ def test_one_minute_reminders_cost_no_budget():
 
 
 def test_budget_drops_the_one_habit_that_clears_it_before_daily_ones():
-    # p4: keep daily breathing + brain dump rather than one 3x/week walk
+    # p4: keep two daily breathing habits rather than one 3x/week walk
     t = ap.validate_template("calmmax", _raw(_h("outdoor_walk", "17:30", 10, days=["mon", "wed", "fri"]),
                                              _h("box_breathing", "08:30", 3, days=WKD),
-                                             _h("brain_dump", "20:15", 3)), _prof("06:30", "21:00", minutes=10))
-    assert _ids(t) == {"box_breathing", "brain_dump"}
+                                             _h("physiological_sigh", "20:15", 3)), _prof("06:30", "21:00", minutes=10))
+    assert _ids(t) == {"box_breathing", "physiological_sigh"}
 
 
 def test_budget_holds_on_every_day_across_the_stack():
@@ -309,7 +305,7 @@ def test_budget_holds_on_every_day_across_the_stack():
     prof = _prof("06:30", "21:00", minutes=15, work=("09:00", "17:00"))
     calm = ap.validate_template("calmmax", _raw(_h("outdoor_walk", "17:30", 10, days=["mon", "wed", "fri"]),
                                                 _h("box_breathing", "08:30", 2, days=WKD),
-                                                _h("brain_dump", "20:15", 3)), prof)
+                                                _h("physiological_sigh", "20:15", 3)), prof)
     sleep = ap.validate_template("sleepmax", _raw(_h("fixed_wake_time", "06:30", 0), _h("morning_light", "06:35", 5),
                                                   _h("wind_down", "20:15", 10)), prof, others={"calmmax": calm})
     calm = ap.refit_template("calmmax", calm, prof, others={"sleepmax": sleep})      # the stack refit
@@ -318,12 +314,12 @@ def test_budget_holds_on_every_day_across_the_stack():
 
 
 def test_library_minimum_is_never_shrunk_to_fit():
-    # p1: no 2-minute deep-work block for a 5 min/day person; it is left out
+    # p1: no 2-minute NSDR for a 5 min/day person; it is left out
     prof = _prof("05:30", "21:30", minutes=5, work=("07:30", "16:00"))
-    t = ap.validate_template("focusmax", _raw(_h("top_three_plan", "07:30", 2, days=WKD),
-                                              _h("deep_work_block", "08:00", 25, days=["mon", "wed", "fri"])), prof)
-    assert _ids(t) == {"top_three_plan"}
-    assert any("deep_work_block" in n for n in t["fit_notes"])
+    t = ap.validate_template("focusmax", _raw(_h("caffeine_for_focus", "07:30", 2, days=WKD),
+                                              _h("nsdr_break", "13:00", 2, days=["mon", "wed", "fri"])), prof)
+    assert _ids(t) == {"caffeine_for_focus"}
+    assert any("nsdr_break" in n for n in t["fit_notes"])
 
 
 def test_doc_timing_rules():
@@ -339,7 +335,7 @@ def test_doc_timing_rules():
 
 def test_work_hours_hold_only_work_native_habits():
     prof = _prof(minutes=60, work=("09:00", "17:00"))
-    t = ap.validate_template("focusmax", _raw(_h("deep_work_block", "09:30", 25, days=WKD)), prof)
+    t = ap.validate_template("focusmax", _raw(_h("move_before_focus", "09:30", 10, days=WKD)), prof)
     assert t["habits"][0]["time"] == "09:30"
     t = ap.validate_template("calmmax", _raw(_h("outdoor_walk", "10:00", 10, days=WKD)), prof)
     s = _m(t["habits"][0]["time"])
@@ -347,7 +343,7 @@ def test_work_hours_hold_only_work_native_habits():
 
 
 def test_default_plan_keeps_four_habits():
-    ids = ["box_breathing", "brain_dump", "physiological_sigh", "connect_ping", "gratitude_note"]
+    ids = ["box_breathing", "physiological_sigh", "slow_belly_breathing", "pmr_release", "cold_face_reset"]
     t = ap.validate_template("calmmax", _raw(*[_h(x, f"{8 + 2 * i:02d}:00", 3) for i, x in enumerate(ids)]),
                              _prof(minutes=120))
     assert len(t["habits"]) == 4
@@ -383,7 +379,7 @@ def test_daily_task_cap_is_shared_fairly_and_nobody_is_starved():
     b = {"habits": [_h(f"x{i}", f"{12 + i:02d}:10", 1) for i in range(5)]}
     a["habits"] = a["habits"][:5]
     c = ap.validate_template("calmmax", _raw(_h("physiological_sigh", "07:30", 1), _h("box_breathing", "13:00", 3),
-                                             _h("brain_dump", "21:00", 3)), prof, others={"sleepmax": a, "other": b})
+                                             _h("cold_face_reset", "16:00", 2)), prof, others={"sleepmax": a, "other": b})
     assert len(c["habits"]) == 3                        # its fair share (10/3) holds all three
     a2 = ap.refit_template("sleepmax", {**a, "habits": a["habits"]}, prof, others={"other": b, "calmmax": c})
     for d in ALL:
@@ -401,7 +397,7 @@ def test_a_program_squeezed_out_of_minutes_keeps_a_free_habit():
     # can't fit, so it keeps a 1-minute core habit instead of going empty
     prof = _prof("06:30", "21:00", minutes=5)
     others = {"sleepmax": {"habits": [_h("wind_down", "20:00", 10)]}}
-    t = ap.validate_template("calmmax", _raw(_h("brain_dump", "20:30", 3), _h("body_scan", "19:00", 10)),
+    t = ap.validate_template("calmmax", _raw(_h("pmr_release", "20:30", 5), _h("body_scan", "19:00", 10)),
                              prof, others=others)
     assert [h["habit_id"] for h in t["habits"]] == ["physiological_sigh"]
     assert t["habits"][0]["minutes"] == 1
@@ -455,11 +451,11 @@ def test_pending_intake_question_comes_back_on_its_own_thread():
 
 def _focus_5min():
     prof = _prof("05:30", "21:30", minutes=5, work=("07:30", "16:00"))
-    t = ap.validate_template("focusmax", _raw(_h("top_three_plan", "07:30", 2, days=WKD),
-                                              _h("deep_work_block", "08:00", 25, days=["mon", "wed", "fri"])), prof)
-    t["summary"] = "a 25-minute deep-work block right at the start of work, plus your top 3."
-    t["_draft"] = {"summary": t["summary"], "habits": [{"habit_id": "top_three_plan", "title": "Plan your top 3"},
-                                                       {"habit_id": "deep_work_block", "title": "Deep-work block"}]}
+    t = ap.validate_template("focusmax", _raw(_h("caffeine_for_focus", "07:30", 2, days=WKD),
+                                              _h("nsdr_break", "13:00", 10, days=["mon", "wed", "fri"])), prof)
+    t["summary"] = "a 10-minute nsdr after lunch, plus your coffee timed to your focus window."
+    t["_draft"] = {"summary": t["summary"], "habits": [{"habit_id": "caffeine_for_focus", "title": "Coffee for focus"},
+                                                       {"habit_id": "nsdr_break", "title": "NSDR"}]}
     return t, prof
 
 
@@ -470,14 +466,15 @@ async def test_summary_is_rewritten_when_the_fit_leaves_a_habit_out(monkeypatch)
 
     async def fake(system, user, tool, **k):
         calls.append(json.loads(user))
-        return {"summary": "plan your top 3 when work starts. deep work can come later."}
+        return {"summary": "coffee timed to your focus window. nsdr can come later."}
     monkeypatch.setattr(ap, "_claude_tool", fake)
     t, prof = _focus_5min()
     out = await ap.sync_summary("focusmax", t, prof)
-    assert out["summary"].startswith("plan your top 3") and "_draft" not in out
-    assert calls[0]["left_out"] == ["Deep-work block"]
+    assert out["summary"].startswith("coffee timed") and "_draft" not in out
+    assert calls[0]["left_out"] == ["NSDR"]
     # library titles everywhere (beta 1, F36)
-    assert [h["title"] for h in calls[0]["final_habits"]] == ["Plan your top 3"]
+    assert [h["title"] for h in calls[0]["final_habits"]] == \
+        [ap._library_title(ap.get_program_doc("focusmax").habit("caffeine_for_focus"))]
 
 
 @pytest.mark.asyncio
@@ -487,8 +484,8 @@ async def test_summary_falls_back_to_a_plain_truthful_one(monkeypatch):
     monkeypatch.setattr(ap, "_claude_tool", down)
     t, prof = _focus_5min()
     s = (await ap.sync_summary("focusmax", t, prof))["summary"]
-    assert s.startswith("week 1 keeps it simple: plan your top 3.")
-    assert "deep-work block can come in later" in s
+    assert s.startswith("week 1 keeps it simple: caffeine timed to your focus window.")
+    assert "NSDR can come in later" in s            # acronyms keep their case
 
 
 @pytest.mark.asyncio
@@ -496,22 +493,22 @@ async def test_summary_untouched_when_nothing_was_left_out(monkeypatch):
     async def boom(*a, **k):
         raise AssertionError("no rewrite needed")
     monkeypatch.setattr(ap, "_claude_tool", boom)
-    t = ap.validate_template("focusmax", _raw(_h("top_three_plan", "07:30", 2, days=WKD)), _prof())
-    t["summary"] = "your top 3, every workday."
-    t["_draft"] = {"summary": t["summary"], "habits": [{"habit_id": "top_three_plan", "title": "x"}]}
-    assert (await ap.sync_summary("focusmax", t, _prof()))["summary"] == "your top 3, every workday."
+    t = ap.validate_template("focusmax", _raw(_h("caffeine_for_focus", "07:30", 2, days=WKD)), _prof())
+    t["summary"] = "your coffee, timed, every workday."
+    t["_draft"] = {"summary": t["summary"], "habits": [{"habit_id": "caffeine_for_focus", "title": "x"}]}
+    assert (await ap.sync_summary("focusmax", t, _prof()))["summary"] == "your coffee, timed, every workday."
 
 
 def test_refit_rewrites_the_summary_when_the_stack_trims_the_plan():
     prof = _prof("06:30", "21:00", minutes=15)
     calm = ap.validate_template("calmmax", _raw(_h("outdoor_walk", "17:30", 10, days=["mon", "wed", "fri"]),
                                                 _h("box_breathing", "08:30", 2, days=WKD),
-                                                _h("brain_dump", "20:15", 3)), prof)
-    calm["summary"] = "walks after work, box breathing and a brain dump."
+                                                _h("physiological_sigh", "20:15", 3)), prof)
+    calm["summary"] = "walks after work, box breathing and an evening sigh."
     sleep = {"habits": [_h("wind_down", "20:15", 10)]}
     out = ap.refit_template("calmmax", calm, prof, others={"sleepmax": sleep})
     assert "outdoor_walk" not in _ids(out)
-    assert out["summary"] != calm["summary"] and "outdoor walk can come in later" in out["summary"]
+    assert out["summary"] != calm["summary"] and "nature walk can come in later" in out["summary"]
 
 
 def test_stack_order_sorts_fresh_and_stored_rows_together():
@@ -562,11 +559,11 @@ def test_a_minutes_only_refit_rewrites_the_stored_days():
 
 
 def test_summary_rewrite_triggers_when_the_fit_moves_a_time_or_minutes():
-    # p2: "move things later" reply said the top-3 plan moved to ~14:00; the fit kept it at work start
-    t = ap.validate_template("focusmax", _raw(_h("top_three_plan", "14:00", 2, days=WKD)),
+    # p2: "move things later" reply said morning light moved to ~14:00; the fit kept it near waking
+    t = ap.validate_template("focusmax", _raw(_h("morning_light", "14:00", 10, days=WKD)),
                              _prof("09:30", "01:30", minutes=60, work=("11:00", "19:00")))
-    draft = {"summary": "s", "habits": [{"habit_id": "top_three_plan", "time": "14:00", "minutes": 2, "days": WKD}]}
-    assert "11:00" <= t["habits"][0]["time"] <= "11:15" and not ap._draft_matches(draft, t)
+    draft = {"summary": "s", "habits": [{"habit_id": "morning_light", "time": "14:00", "minutes": 10, "days": WKD}]}
+    assert "09:30" <= t["habits"][0]["time"] <= "10:30" and not ap._draft_matches(draft, t)
     # p5: Claude wrote 15-minute strength sessions; the library floor kept them at 20
     t = ap.validate_template("trainmax", _raw(_h("strength_full_body", "19:00", 15, days=["mon", "thu"])),
                              _prof("06:30", "23:00", minutes=60))
@@ -768,14 +765,14 @@ def test_crowded_day_folds_flexible_supplements_into_existing_stacks():
 
 @pytest.mark.asyncio
 async def test_swap_trades_one_habit_for_one():
-    # flows5: "swap plan your top 3 for something else" added deep work, notification cleanup AND phone away
+    # flows5: "swap X for something else" added three habits instead of one
     prof = _prof("09:30", "01:30", minutes=60, work=("11:00", "19:00"))
-    current = ap.validate_template("focusmax", _raw(_h("top_three_plan", "11:00", 2, days=WKD)), prof)
-    claude = ap.validate_template("focusmax", _raw(_h("deep_work_block", "11:15", 25, days=["mon", "wed", "fri"]),
-                                                   _h("notification_cleanup", "10:00", 5, days=["sat"]),
-                                                   _h("phone_away", "11:10", 1, days=["mon", "wed", "fri"])), prof)
-    out = ap._limit_swap("focusmax", claude, current, "swap plan your top 3 for something else", prof, {})
-    assert [h["habit_id"] for h in out["habits"]] == ["deep_work_block"]
+    current = ap.validate_template("focusmax", _raw(_h("caffeine_for_focus", "11:00", 2, days=WKD)), prof)
+    claude = ap.validate_template("focusmax", _raw(_h("move_before_focus", "11:15", 10, days=["mon", "wed", "fri"]),
+                                                   _h("focus_space_setup", "10:00", 10, days=["sat"]),
+                                                   _h("hydrate_to_focus", "11:10", 1, days=["mon", "wed", "fri"])), prof)
+    out = ap._limit_swap("focusmax", claude, current, "swap the coffee timing for something else", prof, {})
+    assert [h["habit_id"] for h in out["habits"]] == ["move_before_focus"]
     assert ap._limit_swap("focusmax", claude, current, "make it harder", prof, {}) is claude
 
 
@@ -858,3 +855,10 @@ def test_protein_at_first_meal_goes_to_lunch_for_people_who_skip_breakfast():
     assert eats["habits"][0]["time"] == "07:30"
     assert skips["habits"][0]["time"] == "12:30"
     assert "first_meal_style" in ap.ABOUT_KEYS
+
+
+def test_minute_ranges_that_already_fit_are_left_alone():
+    # "stay 5–10 min" on a 5-minute light habit came out as "stay 5–5 min"
+    lib = ap.get_program_doc("focusmax").habit("morning_light")
+    assert ap._fix_minutes("stay 5–10 min, longer when overcast", 5, lib) == "stay 5–10 min, longer when overcast"
+    assert ap._fix_minutes("Spend the full 10 minutes outside", 6, lib) == "Spend the full 6 minutes outside"

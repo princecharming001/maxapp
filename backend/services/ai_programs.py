@@ -16,7 +16,7 @@ question list or a fixed skeleton:
     call and every existing reader (Home, Planner, pushes, Google Calendar)
     keeps working on the usual task shape.
   * Redo: any time the user asks ("make it lighter", "move it all later",
-    "swap the journaling"), Claude rebuilds the template from the current one
+    "swap the walk for a cold rinse"), Claude rebuilds the template from the current one
     plus the request, and the row is updated in place (done tasks are kept).
 
 Safety: Claude may only schedule habits from the program's researched library
@@ -37,6 +37,8 @@ from pathlib import Path
 from typing import Any, Optional
 from uuid import UUID
 
+from services import biohack_scope
+
 logger = logging.getLogger(__name__)
 
 # ── Catalog ─────────────────────────────────────────────────────────────────
@@ -48,31 +50,31 @@ AI_PROGRAMS: dict[str, dict[str, str]] = {
     "sleepmax": {
         "label": "Sleepmax", "goal": "sleep", "doc": "sleepmax.md",
         "tagline": "fall asleep faster, wake up rested",
-        "description": "Light, caffeine timing and a short wind-down, set around your real bedtime.",
+        "description": "Morning light, dim evenings, caffeine timing, a warm shower and a cool dark room, set around your real bedtime.",
         "icon": "moon-outline", "color": "#5B6CD9",
     },
     "energymax": {
         "label": "Energymax", "goal": "energy", "doc": "energymax.md",
         "tagline": "steadier energy all day",
-        "description": "Hydration, morning light, movement snacks and smarter caffeine for fewer slumps.",
+        "description": "Water and light after waking, carbs-last meals, walks after eating, stair bursts and smarter caffeine for fewer crashes.",
         "icon": "flash-outline", "color": "#E0A21B",
     },
     "focusmax": {
         "label": "Focusmax", "goal": "focus", "doc": "focusmax.md",
-        "tagline": "longer stretches of deep work",
-        "description": "Plan your top three, protect one deep-work block and shut down on time.",
+        "tagline": "sharper, steadier attention",
+        "description": "Caffeine and green tea timed right, daylight, movement before hard thinking, fresh air, NSDR and a cold finish.",
         "icon": "locate-outline", "color": "#2F8F83",
     },
     "calmmax": {
         "label": "Calmmax", "goal": "stress", "doc": "calmmax.md",
         "tagline": "calmer days, quicker resets",
-        "description": "Breathing resets, walks outside and an evening brain dump that fit busy days.",
+        "description": "Slow breathing and sighs, cold on the face, heat, daylight walks and deep rest to bring your nervous system down.",
         "icon": "leaf-outline", "color": "#4F9D5D",
     },
     "trainmax": {
         "label": "Fitmax", "goal": "training", "doc": "fitmax.md",
         "tagline": "move more, recover better",
-        "description": "Short strength sessions, steps, mobility and posture work that fit your week.",
+        "description": "Strength, aerobic base and intervals, plus the recovery levers: protein, sleep, heat, caffeine timing and readiness.",
         "icon": "barbell-outline", "color": "#D9534F",
     },
     "skinhairmax": {
@@ -84,7 +86,7 @@ AI_PROGRAMS: dict[str, dict[str, str]] = {
     "longevitymax": {
         "label": "Longevitymax", "goal": "longevity", "doc": "longevitymax.md",
         "tagline": "the habits that compound",
-        "description": "Zone-2 cardio, strength twice a week, daily steps and the basics done consistently.",
+        "description": "Cardio fitness, strength, steps, balance, sauna, fiber and olive oil, steady sleep and knowing your numbers.",
         "icon": "infinite-outline", "color": "#7A5CC7",
     },
     "suppmax": {
@@ -161,6 +163,9 @@ class Habit:
     cycle_on: int = 0          # weeks on / weeks off, repeating ("4 on / 1 off")
     cycle_off: int = 0
     trial_weeks: int = 0       # weeks 1..N only, then a review ("trial 12")
+    # the physiological lever it pulls (services/biohack_scope.LEVERS); every
+    # habit has one, so a planner habit with nothing to name can't get in
+    lever: str = ""
 
     @property
     def is_rule(self) -> bool:
@@ -252,6 +257,8 @@ def parse_program_doc(maxx_id: str, text: str) -> ProgramDoc:
             h.kind = k if k in ("action", "rule", "setup", "checkin") else ""
         elif key == "order":
             h.order = val.split()[0].lower() if val else ""
+        elif key == "lever":
+            h.lever = val.split()[0].strip("`,;").lower() if val else ""
         elif key == "after":
             h.after = val.strip("` ").split()[0].lower() if val else ""
         elif key == "cycle":
@@ -336,7 +343,8 @@ def _from_min(m: int) -> str:
 # Energymax asked about caffeine minutes after Sleepmax did, then set a 4:15 pm
 # cutoff for someone whose last caffeine is before noon)
 ABOUT_KEYS = ("age_band", "sex", "first_meal_style", "caffeine_last_time", "caffeine_pattern",
-              "drinks_alcohol", "evening_screens", "sitting_hours")
+              "drinks_alcohol", "evening_screens", "sitting_hours", "health_flags", "cold_tolerance",
+              "heat_access", "rest_spot")
 
 
 def _window(w) -> Optional[list[str]]:
@@ -701,6 +709,11 @@ async def build_plan(
                                  keep_ids={h["habit_id"] for h in raw["habits"]})
         tmpl["summary"] = raw["summary"]
         return tmpl if tmpl["habits"] else None
+    from services import program_quiz
+    facts = {**((profile or {}).get("about") or {}), **(answers or {})}
+    unsafe = program_quiz.safety_skip_ids(maxx_id, facts)
+    pref = program_quiz.preference_skip_ids(facts)
+    excluded = unsafe | (set() if request else pref)
     budget_total = int(_level_profile(profile, level).get("minutes_per_day_total") or 25)
     used = _other_minutes_per_day(other_plans)
     remaining = _program_share(budget_total, other_plans)
@@ -709,8 +722,14 @@ async def build_plan(
         "You build a weekly plan of small habits that fits into this specific person's real day.\n"
         f"{_VOICE}\n{_safety(maxx_id)}\n\n"
         "Planning rules:\n"
+        "- Never use a habit listed in excluded_habits: their health answers or their own answers rule it "
+        "out (cold with Raynaud's, a sauna with no sauna, caffeine for someone who has none).\n"
         "- Only use habits from the habit library below (use their exact ids). A custom_<slug> habit is "
-        "allowed only when the user explicitly asked for that habit.\n"
+        "allowed only when the user explicitly asked for that habit, and only if it acts on the body.\n"
+        "- Superpower is biohacking: every habit pulls a physiological lever (light, temperature, caffeine, "
+        "food, water, movement, breathing, rest, sleep, air, supplements, tracking a body signal). Never plan "
+        "productivity or journaling habits (to-do lists, top-3 plans, deep-work blocks, inbox or notification "
+        "rules, shutdown rituals, gratitude or worry lists), and never write them into a 'how'.\n"
         "- Every time must sit between wake_time and bed_time, and must not land inside work hours, "
         "commute or meals, unless the habit is short and naturally done at a work break or with a meal.\n"
         "- Respect the doc's scheduling rules (e.g. caffeine cutoff vs bedtime, light soon after waking, "
@@ -770,6 +789,7 @@ async def build_plan(
         },
         "current_plan": current_plan,
         "change_request": request,
+        "excluded_habits": sorted(excluded),
     }, default=str)
     out = await _claude_tool(system, user, _PLAN_TOOL, max_tokens=3500)
     if not out:
@@ -778,8 +798,13 @@ async def build_plan(
         if isinstance(h, dict):
             h.pop("priority", None)      # this list's order IS the priority
     out["level"] = level
-    from services import program_quiz
-    skip = program_quiz.skip_ids(maxx_id, {**((profile or {}).get("about") or {}), **(answers or {})})
+    if unsafe:
+        # never a lever their health rules out (cold with Raynaud's, sauna with a heart condition)
+        out["habits"] = [h for h in out.get("habits") or [] if not (isinstance(h, dict) and h.get("habit_id") in unsafe)]
+    if pref and not request:
+        # what their answers ruled out ("not for me" to cold) stays out, even if the plan gets short
+        out["habits"] = [h for h in out.get("habits") or [] if not (isinstance(h, dict) and h.get("habit_id") in pref)]
+    skip = program_quiz.skip_ids(maxx_id, facts) - pref
     if skip and not request:
         # simple habits they already do: the plan adds something new instead
         kept = [h for h in out.get("habits") or [] if not (isinstance(h, dict) and h.get("habit_id") in skip)]
@@ -841,16 +866,21 @@ _SUMMARY_TOOL = {
 }
 
 
+def _lc_first(t: str) -> str:
+    """Sentence-case a title mid-sentence, leaving acronyms alone (NSDR, SPF, HRV)."""
+    return t if t[:2].isupper() else t[:1].lower() + t[1:]
+
+
 def plain_summary(tmpl: dict, left_out: Optional[list[str]] = None, budget: Optional[int] = None) -> str:
     """A truthful summary built from the final habits (no LLM)."""
     titles = [str(h.get("title") or "").strip() for h in tmpl.get("habits") or [] if h.get("title")]
-    titles = [t[:1].lower() + t[1:] for t in titles]
+    titles = [_lc_first(t) for t in titles]
     if not titles:
         return ""
     lst = titles[0] if len(titles) == 1 else ", ".join(titles[:-1]) + " and " + titles[-1]
     out = f"week 1 keeps it simple: {lst}."
     if left_out:
-        lo = [t[:1].lower() + t[1:] for t in left_out if t][:2]
+        lo = [_lc_first(t) for t in left_out if t][:2]
         if lo:
             room = f"your {budget} minutes a day" if budget else "your day"
             out += f" {' and '.join(lo)} can come in later, once there's room in {room}."
@@ -913,8 +943,7 @@ _MENTION_STOP = {
     "focus", "calm", "regular", "gentle", "afternoon", "protect", "window", "slump", "dose", "prescriber",
     "instructions", "build", "keep", "muscle", "comfort", "fiber",
 }
-_MENTION_ALIASES = {"post_meal_walk": r"\bwalk", "outdoor_walk": r"\bwalk", "deep_work_block": r"deep[- ]?work",
-                    "notification_cleanup": r"notification", "cold_chain_check": r"\bstorage",
+_MENTION_ALIASES = {"post_meal_walk": r"\bwalk", "outdoor_walk": r"\bwalk", "cold_chain_check": r"\bstorage",
                     "sleep_regularity": r"(regular|steady|consistent) sleep (window|schedule|times?)"}
 
 
@@ -1050,6 +1079,11 @@ def _fit_caps(maxx_id: str, habits: list[dict]) -> tuple[set, int]:
     return set(), 4
 
 
+def _biology_text(written: Any, library: str) -> str:
+    t = str(written or "")
+    return library if (not t or biohack_scope.is_productivity(t)) and library else t
+
+
 def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optional[dict] = None,
                       keep_ids: Optional[set] = None, refit: bool = False) -> dict:
     """Repair Claude's plan into something always schedulable: library ids
@@ -1069,6 +1103,9 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
             continue
         if hid not in lib and not hid.startswith("custom_"):
             continue
+        if hid.startswith("custom_") and biohack_scope.is_productivity(
+                " ".join([hid.replace("_", " "), str(h.get("title") or ""), str(h.get("how") or "")])):
+            continue            # biology only: no planner, journal or to-do habits, even on request
         if hid in set(raw.get("declined") or []) and hid not in (keep_ids or set()):
             continue            # the person removed it; a rebuild never brings it back
         days = [d for d in WEEKDAYS if d in (h.get("days") or [])]
@@ -1087,8 +1124,10 @@ def validate_template(maxx_id: str, raw: dict, profile: dict, *, others: Optiona
             # with no workout) and differed from the Tune sheet (beta 1, F36)
             "title": (_library_title(lib_h) if lib_h else
                       _clean_text(str(h.get("title") or "") or hid.replace("_", " "), 40)),
-            "how": _clean_text(str(h.get("how") or (lib_h.how if lib_h else "")), 700),
-            "why": _clean_text(str(h.get("why") or (lib_h.why if lib_h else "")), 200),
+            # Claude's steps, unless they drift into planner talk ("plan your
+            # top 3 over your coffee"): then the library's
+            "how": _clean_text(_biology_text(h.get("how"), lib_h.how if lib_h else ""), 700),
+            "why": _clean_text(_biology_text(h.get("why"), lib_h.why if lib_h else ""), 200),
             "minutes": minutes,
             "time": _hm(h.get("time"), ""),
             "weekend_time": _hm(h.get("weekend_time"), ""),
@@ -1181,7 +1220,7 @@ def refit_template(maxx_id: str, tmpl: dict, profile: dict, others: Optional[dic
 _REMINDER_STEP = re.compile(r"\b(set|put|add|turn on|schedule|create|use)\b[^.;]*\b(alarms?|reminders?|notifications?)\b",
                             re.IGNORECASE)
 # where the alarm IS the habit's tool, not a way to remember it
-_ALARM_IS_THE_TOOL = {"nap_rule", "nsdr_break", "phone_away", "screens_off", "bedroom_setup"}
+_ALARM_IS_THE_TOOL = {"nap_rule", "nsdr_break", "power_nap", "screens_off", "bedroom_setup"}
 
 
 def drop_reminder_steps(hid: str, how: str) -> str:
@@ -1272,6 +1311,9 @@ def _fix_minutes(text: str, minutes: int, lib_h: Optional["Habit"]) -> str:
 
     def sub(m: re.Match) -> str:
         n = int(m.group(2))
+        rng = re.search(r"(\d{1,3})\s?[–-]\s?$", text[:m.start()])
+        if rng and int(rng.group(1)) <= minutes:
+            return m.group(0)       # "5–10 min" already covers a 5-minute habit (it said "5–5 min")
         return m.group(0) if n == minutes or n not in own else f"{m.group(1) or ''}{minutes}{m.group(3)}"
     return re.sub(r"\b(the full |a full |full )?(\d{1,3})(\s?(?:-\s?)?(?:minutes?|mins?)\b)", sub, text, flags=re.I)
 

@@ -18,6 +18,7 @@ Check with a dermatologist or clinician first:
 ### `am_routine` — AM skin routine
 - minutes: 2 / 3
 - kind: action
+- lever: topical
 - anchor: get_ready (right after the shower or washing up)
 - frequency: daily
 - tier: core
@@ -29,6 +30,7 @@ Check with a dermatologist or clinician first:
 ### `pm_routine` — PM skin routine
 - minutes: 2 / 4
 - kind: action
+- lever: topical
 - anchor: wind_down
 - frequency: daily
 - tier: core
@@ -40,6 +42,7 @@ Check with a dermatologist or clinician first:
 ### `spf_reapply` — Reapply SPF outdoors
 - minutes: 1 / 2
 - kind: action
+- lever: topical
 - anchor: lunch or before an outdoor block (walks, weekend)
 - frequency: outdoor days
 - tier: medium
@@ -50,6 +53,7 @@ Check with a dermatologist or clinician first:
 ### `keto_wash` — Ketoconazole shampoo wash
 - minutes: 5 / 5
 - kind: action
+- lever: topical
 - anchor: get_ready (in the shower)
 - frequency: 2x per week
 - tier: core
@@ -60,12 +64,52 @@ Check with a dermatologist or clinician first:
 ### `scalp_massage` — Scalp massage
 - minutes: 4 / 4
 - kind: action
+- lever: topical
 - anchor: wind_down
 - frequency: daily
 - tier: medium
 - why: A simple daily habit; small studies link it to thicker-looking hair.
 - how: 1) Fingertips or a soft silicone scalp brush. 2) Small circles, front to back, firm but not scratching, for 4 minutes.
 - source: https://pmc.ncbi.nlm.nih.gov/articles/PMC4740347
+
+### `uv_shade_rule` — Shade and a hat when UV is 3+
+- minutes: 0 / 0
+- kind: rule
+- lever: light
+- anchor: any (outdoor time: lunch, outdoor workouts, weekends)
+- frequency: on days the UV index reaches 3+
+- tier: core
+- avoid if: none
+- why: WHO advises shade, a shirt, a hat and sunscreen whenever the UV index is 3 or higher, and daily sunscreen users had 24% less skin aging over 4.5 years than occasional users.
+- how: 1) Check the UV index in your weather app before heading out. 2) At 3 or higher, pick shade, cover your shoulders, and wear a hat and sunglasses if you have them. 3) Reapply SPF if you're out for 2+ hours.
+- conflicts/synergies: Doesn't apply to `morning_light` (early UV is usually under 3). Pairs with `spf_reapply`. Frequent shade use is linked to slightly lower vitamin D, which is a Suppmax D3 note; never skip sunscreen "for vitamin D".
+- source: https://pubmed.ncbi.nlm.nih.gov/23732711/
+
+### `low_gi_swap` — Slow-carb swap for breakouts
+- minutes: 0 / 0
+- kind: rule
+- lever: nutrition
+- anchor: lunch and dinner (only when the skin goal is breakouts)
+- frequency: daily
+- tier: medium
+- avoid if: history of disordered eating, diabetes medication
+- why: In a 12-week randomized trial in young men with acne, a low-glycemic-load diet cut lesion counts by 23.5 versus 12.0 on a usual high-carb diet.
+- how: 1) At this meal, swap one fast carb (white bread, sugary cereal, juice, soda, sweets) for a slower one (oats, whole grains, beans, fruit). 2) Add a protein or vegetables to the same plate. 3) Swap, don't skip: never cut meals.
+- conflicts/synergies: Same direction as EnergyMax `lunch_balance` and LongevityMax `fiber_swap` and `veg_first` (one card). Works alongside the PM active, doesn't replace it.
+- source: https://pubmed.ncbi.nlm.nih.gov/17616769/
+
+### `red_light_scalp` — Red-light scalp session
+- minutes: 10 / 20
+- kind: action
+- lever: light
+- anchor: wind_down (only for thinning hair, and only with an FDA-cleared device they already own)
+- frequency: 3 times a week (or the device label's schedule)
+- tier: hard
+- avoid if: pregnancy, under 18, photosensitizing medication, scalp skin cancer
+- why: In a sham-controlled trial, men using a 655 nm red-light helmet every other day for 16 weeks had 35% more hairs than sham (women 37% in a second trial); results vary a lot between devices.
+- how: 1) Start with a clean, dry scalp. 2) Wear the device for the time on its label, usually 10–25 minutes, with eye protection if the label says so. 3) Keep the same days each week and judge results only after 16 weeks.
+- conflicts/synergies: Pairs with `keto_wash` and `scalp_massage` (massage afterwards). Sudden or patchy loss goes to a dermatologist; never a substitute for one.
+- source: https://pubmed.ncbi.nlm.nih.gov/24078483/
 
 ## What the AI needs to know (intake)
 The app asks a fixed 3-question quiz (no free-form intake): main goal (breakouts, fine lines, dark spots, redness, smoother/brighter, dryness, healthy and simple), how the face feels an hour after washing (oily, combination, dry, normal, sensitive), and anything that applies (pregnant/trying/breastfeeding, prescription skin product, eczema or rosacea, already uses retinol or acids, thinning hair, dandruff). The routine is then built deterministically by services/skin_routine.py.

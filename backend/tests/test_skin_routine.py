@@ -102,7 +102,9 @@ def test_sensitive_skin_gets_mineral_spf_a_buffered_active_and_a_soothing_mask()
 
 def test_one_task_each_morning_and_night_with_steps_inside_and_scalp_only_when_asked():
     t = sr.build_template(_ans(), started_on=MON)
-    assert [h["habit_id"] for h in t["habits"]] == ["am_routine", "pm_routine"]
+    rules = {"uv_shade_rule", "low_gi_swap"}             # 0-minute light/food rules, nothing to tick
+    assert [h["habit_id"] for h in t["habits"] if h["habit_id"] not in rules] == ["am_routine", "pm_routine"]
+    assert "uv_shade_rule" in {h["habit_id"] for h in t["habits"]}
     t = sr.build_template(_ans(flags="My hair is thinning, Dandruff or an itchy scalp"), started_on=MON)
     assert {"keto_wash", "scalp_massage"} <= {h["habit_id"] for h in t["habits"]}
     assert t["summary"].startswith("your routine: ")
@@ -124,7 +126,7 @@ def test_plan_survives_fit_expand_and_refit_and_shows_the_right_night():
 def test_a_five_minute_person_still_gets_both_routines():
     raw = sr.build_template(_ans(), started_on=MON)
     t = ap.validate_template("skinhairmax", raw, {**PROF, "minutes_per_day_total": 5})
-    assert {h["habit_id"] for h in t["habits"]} == {"am_routine", "pm_routine"}
+    assert {h["habit_id"] for h in t["habits"] if h.get("kind") != "rule"} == {"am_routine", "pm_routine"}
 
 
 def test_chat_changes_irritation_gentler_simpler_drops_extras_new_goal_rebuilds():

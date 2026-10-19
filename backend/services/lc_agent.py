@@ -1005,7 +1005,7 @@ def make_chat_tools(
         Rebuild one of the user's AI programs (sleepmax, energymax, focusmax,
         calmmax, trainmax = Fitmax, skinhairmax = Skin & Hair, longevitymax)
         from what they asked: "make my sleep plan lighter", "move my workouts
-        to evenings", "swap the journaling for a walk", "redo my whole plan".
+        to evenings", "swap the walk for a cold rinse", "redo my whole plan".
         Pass the program id and the user's request in their own words. Use this
         for ANY change to these programs instead of edit/modify tools.
         """

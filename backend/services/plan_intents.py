@@ -9,6 +9,8 @@ was answered as if a workout existed.
   * flight / trip / time zone      → say what it can do (retime to wake/bed there)
   * "only N minutes" / simplify    → set the daily minutes, refit every program
   * a named habit that isn't in any plan → say so and list what is there
+  * "add a gratitude journal / a top-3 plan" → superpower schedules biology,
+    not planner habits (services/biohack_scope.py); offer a lever instead
 """
 from __future__ import annotations
 
@@ -102,6 +104,11 @@ async def handle(user_id: str, message: str, db) -> Optional[str]:
     msg = (message or "").strip()
     if not msg or len(msg) > 400:
         return None
+    from services import biohack_scope
+    if biohack_scope.asks_for_productivity_habit(msg):
+        hint = ("calm" if re.search(r"\b(stress|anxi|calm|worr|overthink|relax)", msg, re.I) else
+                "focus" if re.search(r"\b(focus|work|productiv|task|distract|concentrat|plan)", msg, re.I) else "")
+        return biohack_scope.refusal(hint)
     snap = await plan_diff.snapshot(user_id, db)
     items = plan_items(snap)
     if not items:

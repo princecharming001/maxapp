@@ -21,6 +21,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `protocol_dose` — Dose reminder (your prescriber's instructions)
 - minutes: 1 / 3
 - kind: action
+- lever: compound
 - anchor: the time of day the user said their prescriber set (else a consistent time they choose, e.g. with breakfast or before bed)
 - frequency: exactly as the user stated (e.g. once a week on Sunday, daily, 5 on / 2 off). Never inferred.
 - tier: core
@@ -34,6 +35,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `site_rotation` — Rotate your injection site
 - minutes: 1 / 1
 - kind: action
+- lever: compound
 - anchor: with each injectable dose reminder
 - frequency: every injection day
 - tier: core
@@ -47,6 +49,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `injection_hygiene` — Clean injection steps
 - minutes: 1 / 2
 - kind: action
+- lever: compound
 - anchor: with each injectable dose reminder
 - frequency: every injection day (as a checklist, then less prominent after week 2)
 - tier: core
@@ -60,6 +63,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `reconstitution_check` — Mixing day check
 - minutes: 3 / 5
 - kind: action
+- lever: compound
 - anchor: the day a new vial is mixed (only if the user's product comes as a powder)
 - frequency: per new vial, as the user's pharmacy or prescriber instructions say
 - tier: medium
@@ -73,6 +77,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `cold_chain_check` — Storage and discard dates
 - minutes: 1 / 2
 - kind: checkin
+- lever: tracking
 - anchor: weekend (weekly check) plus travel days
 - frequency: 1×/week
 - tier: core
@@ -86,6 +91,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `sharps_disposal` — Sharps container check
 - minutes: 1 / 2
 - kind: checkin
+- lever: tracking
 - anchor: weekend
 - frequency: 1×/week (and set up once in week 1)
 - tier: medium
@@ -99,6 +105,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `side_effect_log` — 30-second side-effect log
 - minutes: 1 / 1
 - kind: checkin
+- lever: tracking
 - anchor: evening of each dose day and the day after
 - frequency: on dose days and the day after for the first 4 weeks and after any dose change, then 2×/week
 - tier: core
@@ -112,6 +119,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `cycle_review` — On/off cycle tracker
 - minutes: 2 / 3
 - kind: checkin
+- lever: tracking
 - anchor: weekend, on the day a cycle phase starts or ends
 - frequency: only if the user said their prescriber set on/off cycles; at each phase change
 - tier: medium
@@ -125,6 +133,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `bloodwork_checkin` — Bloodwork reminder
 - minutes: 2 / 5
 - kind: action
+- lever: tracking
 - anchor: a weekday morning (many tests are done fasting; follow your clinic's instructions)
 - frequency: as the prescriber set; if none was stated, a monthly "ask about labs" reminder
 - tier: medium
@@ -138,6 +147,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `prescriber_followup` — Prescriber check-in
 - minutes: 5 / 10
 - kind: checkin
+- lever: tracking
 - anchor: a weekday break or after work
 - frequency: monthly, or as the prescriber set. Week 1 only: becomes "Confirm your protocol with your prescriber" if the peptide, schedule or instructions are unclear, or if the user is self-sourcing.
 - tier: core
@@ -151,6 +161,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `refill_planning` — Refill before you run out
 - minutes: 2 / 3
 - kind: action
+- lever: compound
 - anchor: weekday daytime (pharmacy hours)
 - frequency: 1×/month or 7–10 days before the supply the user mentioned runs out
 - tier: medium
@@ -164,6 +175,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `weekly_protocol_review` — Weekly protocol review
 - minutes: 3 / 5
 - kind: checkin
+- lever: tracking
 - anchor: weekend
 - frequency: 1×/week
 - tier: core
@@ -177,6 +189,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `protein_at_meals` — Protein at each meal
 - minutes: 0 / 0 (a meal rule plus a reminder)
 - kind: rule
+- lever: nutrition
 - anchor: meals (breakfast, lunch, dinner)
 - frequency: daily (only for GLP-1 or other weight-loss protocols, or if the user asks)
 - tier: core
@@ -190,6 +203,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `resistance_training` — Strength training to keep muscle
 - minutes: 20 / 30
 - kind: action
+- lever: movement
 - anchor: the user's usual workout time
 - frequency: 2–3×/week, non-consecutive days (only for GLP-1 or other weight-loss protocols, or if the user asks)
 - tier: core
@@ -203,6 +217,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `hydration_fiber` — Water and fiber for GI comfort
 - minutes: 1 / 2
 - kind: action
+- lever: hydration
 - anchor: breakfast and mid-afternoon
 - frequency: daily (only for GLP-1 or other protocols where the user reports GI effects, or if the user asks)
 - tier: medium
@@ -216,6 +231,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `prescriber_review` — Review these with your prescriber
 - minutes: 5 / 10
 - kind: setup
+- lever: compound
 - anchor: a weekday break
 - frequency: once in week 1 (only when the protocol check found soft flags)
 - tier: core
@@ -229,6 +245,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `label_check` — Check your reminders against your label
 - minutes: 2 / 5
 - kind: setup
+- lever: compound
 - anchor: a weekday evening
 - frequency: once in week 1 (when the user set up without the label, or the label's schedule didn't map to days)
 - tier: core
@@ -242,6 +259,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `anti_doping_check` — Check your peptides on Global DRO
 - minutes: 5 / 5
 - kind: setup
+- lever: compound
 - anchor: weekend
 - frequency: once in week 1 (drug-tested athletes with a prohibited peptide)
 - tier: core
@@ -255,6 +273,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `procedure_heads_up` — Tell your surgical team
 - minutes: 3 / 5
 - kind: setup
+- lever: compound
 - anchor: a weekday
 - frequency: once in week 1 (a procedure is coming up)
 - tier: core
@@ -268,6 +287,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `clinician_visit` — See a licensed clinician about your peptides
 - minutes: 10 / 15
 - kind: setup
+- lever: compound
 - anchor: a weekday break
 - frequency: once in week 1 (self-sourced, research-chemical or investigational peptides)
 - tier: core
@@ -281,6 +301,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 ### `learn_first` — Read the peptides course for your goal
 - minutes: 10 / 15
 - kind: setup
+- lever: compound
 - anchor: weekend
 - frequency: once in week 1 (only for people considering peptides)
 - tier: core

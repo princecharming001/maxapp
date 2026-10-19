@@ -1008,7 +1008,7 @@ def build_template(answers: dict, profile: dict, *, started_on: str, runs_fitmax
         habits.append(_habit("learn_first", f"Read: peptides for {topic}", 10, ["sat"],
                              _steps([f"Open the peptides course and read the {topic} section.",
                                      "Note which ones have human trials and which are animal-only.",
-                                     "Write down your questions for a clinician."]),
+                                     "Note the questions you want to ask a clinician."]),
                              "Knowing the evidence and the FDA status first makes the clinician visit count.",
                              weeks=[1]))
         habits.append(_habit("prescriber_followup", "Talk to a clinician about your goal", 10, ["wed"],

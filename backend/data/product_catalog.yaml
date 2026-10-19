@@ -447,7 +447,7 @@ products:
   - water
   - hydration
   - water_on_waking
-  - water_bottle_refill
+  - hydrate_to_focus
   - refill
   - desk
   url: https://www.amazon.com/dp/B085DTZQNZ
@@ -477,7 +477,7 @@ products:
   - water_bottle
   - water
   - hydration
-  - water_bottle_refill
+  - hydrate_to_focus
   - refill
   - cold_water
   - large_bottle
@@ -510,7 +510,7 @@ products:
   - water
   - hydration
   - water_on_waking
-  - water_bottle_refill
+  - hydrate_to_focus
   - refill
   - desk
   url: https://www.amazon.com/dp/B0CP9Z1S51
@@ -542,7 +542,7 @@ products:
   - water
   - hydration
   - water_on_waking
-  - water_bottle_refill
+  - hydrate_to_focus
   - refill
   - desk
   url: https://www.amazon.com/dp/B0842S56G8
@@ -848,16 +848,15 @@ products:
   references:
   - ai_programs/energymax.md
   slug: Orgain-Protein-Shake-30G
-# ── Focusmax: deep-work block, phone away, top-3 plan ─────────────────────────
+# ── Focusmax: quiet for focus (planner, timer and lockbox gear retired 2026-10-18) ─
 - id: time-timer-original-8
   name: Time Timer Original 8" Visual Timer
   brand: Time Timer
-  module: focusmax
-  need: focus_timer
+  module: retired
   concerns:
   - timer
   - visual_timer
-  - deep_work_block
+  - focus_space_setup
   - focus
   - time_blocking
   - pomodoro
@@ -883,13 +882,12 @@ products:
 - id: ticktime-t6-cube-timer
   name: Ticktime T6 Pomodoro Timer Cube
   brand: Ticktime
-  module: focusmax
-  need: focus_timer
+  module: retired
   concerns:
   - timer
   - pomodoro
   - micro_break
-  - deep_work_block
+  - focus_space_setup
   - focus
   - break_timer
   url: https://www.amazon.com/dp/B08HWCWY6Z
@@ -913,13 +911,11 @@ products:
 - id: secura-visual-countdown-timer
   name: "Secura Visual Countdown Timer"
   brand: "Secura"
-  module: focusmax
-  need: focus_timer
-  alternative: true
+  module: retired
   concerns:
   - timer
   - visual_timer
-  - deep_work_block
+  - focus_space_setup
   - focus
   - time_blocking
   - pomodoro
@@ -945,13 +941,11 @@ products:
 - id: ooraii-flip-productivity-timer
   name: "OORAII Flip Productivity Timer"
   brand: "OORAII"
-  module: focusmax
-  need: focus_timer
-  alternative: true
+  module: retired
   concerns:
   - timer
   - visual_timer
-  - deep_work_block
+  - focus_space_setup
   - focus
   - time_blocking
   - pomodoro
@@ -977,8 +971,7 @@ products:
 - id: kitchen-safe-time-locking-container
   name: Kitchen Safe Time Locking Container (Medium)
   brand: Kitchen Safe
-  module: focusmax
-  need: phone_lockbox
+  module: retired
   concerns:
   - phone_away
   - phone
@@ -986,7 +979,7 @@ products:
   - distraction
   - screen_time
   - focus
-  - deep_work_block
+  - focus_space_setup
   url: https://www.amazon.com/dp/B00E92JXHG
   image: https://m.media-amazon.com/images/I/711KKHyXoXL._AC_SL1500_.jpg
   price_tier: mid
@@ -1009,9 +1002,7 @@ products:
 - id: mindsight-timed-lock-box
   name: "Mindsight Timed Lock Box"
   brand: "Mindsight"
-  module: focusmax
-  need: phone_lockbox
-  alternative: true
+  module: retired
   concerns:
   - phone_away
   - phone
@@ -1019,7 +1010,7 @@ products:
   - distraction
   - screen_time
   - focus
-  - deep_work_block
+  - focus_space_setup
   url: https://www.amazon.com/dp/B0DD54LLRG
   image: https://m.media-amazon.com/images/I/41V2Qvxz3eL._AC_SL1000_.jpg
   price_tier: mid
@@ -1042,9 +1033,7 @@ products:
 - id: ysky-phone-lock-box
   name: "ySky Phone Lock Box"
   brand: "ySky"
-  module: focusmax
-  need: phone_lockbox
-  alternative: true
+  module: retired
   concerns:
   - phone_away
   - phone
@@ -1052,7 +1041,7 @@ products:
   - distraction
   - screen_time
   - focus
-  - deep_work_block
+  - focus_space_setup
   url: https://www.amazon.com/dp/B08NS9315J
   image: https://m.media-amazon.com/images/I/515spFpYeYL._AC_SL1000_.jpg
   price_tier: mid
@@ -1075,9 +1064,7 @@ products:
 - id: vaydeer-metal-time-lock-box
   name: "Vaydeer Metal Time Lock Box"
   brand: "Vaydeer"
-  module: focusmax
-  need: phone_lockbox
-  alternative: true
+  module: retired
   concerns:
   - phone_away
   - phone
@@ -1085,7 +1072,7 @@ products:
   - distraction
   - screen_time
   - focus
-  - deep_work_block
+  - focus_space_setup
   url: https://www.amazon.com/dp/B0D1VL567W
   image: https://m.media-amazon.com/images/I/51yTrJ5lCgL._AC_SL1500_.jpg
   price_tier: mid
@@ -1115,7 +1102,7 @@ products:
   - noise
   - open_office
   - focus
-  - deep_work_block
+  - focus_space_setup
   - quiet
   - commute
   url: https://www.amazon.com/dp/B0DJR3GFCP
@@ -1132,7 +1119,7 @@ products:
     sulfate_free: true
     gluten_free: true
     dairy_free: true
-  rationale: 'Three-mode earplugs: full quiet for deep work, a lighter setting for meetings and commutes.'
+  rationale: 'Three-mode earplugs: full quiet when speech nearby breaks your attention, lighter for commutes.'
   references:
   - ai_programs/focusmax.md
   slug: Loop-Switch-2-Adjustable-Ear-Plugs
@@ -1147,7 +1134,7 @@ products:
   - noise
   - open_office
   - focus
-  - deep_work_block
+  - focus_space_setup
   - quiet
   - commute
   url: https://www.amazon.com/dp/B005YUW7A2
@@ -1179,7 +1166,7 @@ products:
   - noise
   - open_office
   - focus
-  - deep_work_block
+  - focus_space_setup
   - quiet
   - commute
   url: https://www.amazon.com/dp/B08GQF3WCN
@@ -1196,7 +1183,7 @@ products:
     sulfate_free: true
     gluten_free: true
     dairy_free: true
-  rationale: "High-blocking foam plugs that cut chatter for deep work."
+  rationale: 'High-blocking foam plugs that cut nearby chatter, the noise that most disrupts reading.'
   references:
   - ai_programs/focusmax.md
   slug: Howard-Leight-Laser-Lite-Foam-Earplugs
@@ -1211,7 +1198,7 @@ products:
   - noise
   - open_office
   - focus
-  - deep_work_block
+  - focus_space_setup
   - quiet
   - commute
   url: https://www.amazon.com/dp/B001F5VDVE
@@ -1235,8 +1222,7 @@ products:
 - id: bloom-daily-planners-to-do-pad
   name: bloom daily planners Daily Planning System To-Do Pad
   brand: bloom daily planners
-  module: focusmax
-  need: daily_planner
+  module: retired
   concerns:
   - planner
   - to_do_list
@@ -1267,9 +1253,7 @@ products:
 - id: taja-daily-to-do-notepad
   name: "Taja Daily To-Do Notepad"
   brand: "Taja"
-  module: focusmax
-  need: daily_planner
-  alternative: true
+  module: retired
   concerns:
   - planner
   - to_do_list
@@ -1299,9 +1283,7 @@ products:
 - id: cicpap-daily-planner-notepad
   name: "CICPAP Daily Planner Notepad"
   brand: "CICPAP"
-  module: focusmax
-  need: daily_planner
-  alternative: true
+  module: retired
   concerns:
   - planner
   - to_do_list
@@ -1331,9 +1313,7 @@ products:
 - id: nokingo-a5-daily-planner-pad
   name: "Nokingo A5 Daily Planner Pad"
   brand: "Nokingo"
-  module: focusmax
-  need: daily_planner
-  alternative: true
+  module: retired
   concerns:
   - planner
   - to_do_list
@@ -1363,8 +1343,7 @@ products:
 - id: taja-weekly-planner-pad
   name: Taja Weekly To Do List Notepad, Undated Weekly Planner Pad
   brand: Taja
-  module: focusmax
-  need: weekly_planner
+  module: retired
   concerns:
   - weekly_review
   - planner
@@ -1392,9 +1371,7 @@ products:
 - id: zotia-weekly-planner-notepad
   name: "ZOTIA Weekly Planner Notepad"
   brand: "ZOTIA"
-  module: focusmax
-  need: weekly_planner
-  alternative: true
+  module: retired
   concerns:
   - weekly_review
   - planner
@@ -1421,9 +1398,7 @@ products:
 - id: hebayy-magnetic-weekly-planner
   name: "Hebayy Magnetic Weekly Planner"
   brand: "Hebayy"
-  module: focusmax
-  need: weekly_planner
-  alternative: true
+  module: retired
   concerns:
   - weekly_review
   - planner
@@ -1450,9 +1425,7 @@ products:
 - id: threekin-weekly-planner-pad
   name: "ThreeKin Weekly Planner Pad"
   brand: "ThreeKin"
-  module: focusmax
-  need: weekly_planner
-  alternative: true
+  module: retired
   concerns:
   - weekly_review
   - planner
@@ -1476,12 +1449,11 @@ products:
   references:
   - ai_programs/focusmax.md
   slug: Threekin-Weekly-Planner-Pad
-# ── Calmmax: writing things down, quieter days, screen-free evening ───────────
+# ── Calmmax: quieter days, screen-free evening (journals retired 2026-10-18) ───
 - id: five-minute-journal
   name: The Five Minute Journal
   brand: Intelligent Change
-  module: calmmax
-  need: gratitude_journal
+  module: retired
   concerns:
   - journal
   - gratitude
@@ -1511,9 +1483,7 @@ products:
 - id: pretty-simple-press-good-days-start-with-gratitude
   name: "Pretty Simple Press Good Days Start With Gratitude"
   brand: "Pretty Simple Press"
-  module: calmmax
-  need: gratitude_journal
-  alternative: true
+  module: retired
   concerns:
   - journal
   - gratitude
@@ -1543,9 +1513,7 @@ products:
 - id: moorea-seal-52-lists-for-happiness
   name: "Moorea Seal 52 Lists for Happiness"
   brand: "Moorea Seal"
-  module: calmmax
-  need: gratitude_journal
-  alternative: true
+  module: retired
   concerns:
   - journal
   - gratitude
@@ -1575,9 +1543,7 @@ products:
 - id: zicvibe-the-original-gratitude-journal
   name: "ZICVIBE The Original Gratitude Journal"
   brand: "ZICVIBE"
-  module: calmmax
-  need: gratitude_journal
-  alternative: true
+  module: retired
   concerns:
   - journal
   - gratitude
@@ -1607,8 +1573,7 @@ products:
 - id: moleskine-classic-notebook-large
   name: Moleskine Classic Notebook (Large, Ruled, Hard Cover)
   brand: Moleskine
-  module: calmmax
-  need: notebook
+  module: retired
   concerns:
   - notebook
   - brain_dump
@@ -1639,9 +1604,7 @@ products:
 - id: amazon-basics-classic-lined-notebook
   name: "Amazon Basics Classic Lined Notebook"
   brand: "Amazon Basics"
-  module: calmmax
-  need: notebook
-  alternative: true
+  module: retired
   concerns:
   - notebook
   - brain_dump
@@ -1672,9 +1635,7 @@ products:
 - id: leuchtturm1917-medium-a5-notebook
   name: "LEUCHTTURM1917 Medium A5 Notebook"
   brand: "LEUCHTTURM1917"
-  module: calmmax
-  need: notebook
-  alternative: true
+  module: retired
   concerns:
   - notebook
   - brain_dump
@@ -1705,9 +1666,7 @@ products:
 - id: rocketbook-core-reusable-notebook
   name: "Rocketbook Core Reusable Notebook"
   brand: "Rocketbook"
-  module: calmmax
-  need: notebook
-  alternative: true
+  module: retired
   concerns:
   - notebook
   - brain_dump
@@ -2064,7 +2023,7 @@ products:
   - bands
   - resistance
   - home_gym
-  - upper_back_strength
+  - strength_full_body
   - rows
   - band_pull_aparts
   - posture
@@ -2162,7 +2121,7 @@ products:
   - pull_ups
   - doorway
   - home_gym
-  - upper_back_strength
+  - strength_full_body
   - pull
   - strength
   url: https://www.amazon.com/dp/B001EJMS6K
@@ -2194,7 +2153,7 @@ products:
   - pull_ups
   - doorway
   - home_gym
-  - upper_back_strength
+  - strength_full_body
   - pull
   - strength
   url: https://www.amazon.com/dp/B08MY13HYC
@@ -2226,7 +2185,7 @@ products:
   - pull_ups
   - doorway
   - home_gym
-  - upper_back_strength
+  - strength_full_body
   - pull
   - strength
   url: https://www.amazon.com/dp/B01KN17NTQ
@@ -2258,7 +2217,7 @@ products:
   - pull_ups
   - doorway
   - home_gym
-  - upper_back_strength
+  - strength_full_body
   - pull
   - strength
   url: https://www.amazon.com/dp/B08NDFMSF6
@@ -2544,7 +2503,7 @@ products:
   need: jump_rope
   concerns:
   - vigorous_intervals
-  - stair_or_burst
+  - vigorous_intervals
   - jump_rope
   - conditioning
   - cardio
@@ -2575,7 +2534,7 @@ products:
   alternative: true
   concerns:
   - vigorous_intervals
-  - stair_or_burst
+  - vigorous_intervals
   - jump_rope
   - conditioning
   - cardio
@@ -2605,7 +2564,7 @@ products:
   alternative: true
   concerns:
   - vigorous_intervals
-  - stair_or_burst
+  - vigorous_intervals
   - jump_rope
   - conditioning
   - cardio
@@ -2635,7 +2594,7 @@ products:
   alternative: true
   concerns:
   - vigorous_intervals
-  - stair_or_burst
+  - vigorous_intervals
   - jump_rope
   - conditioning
   - cardio
@@ -6961,7 +6920,7 @@ products:
   - protein
   - protein_powder
   - whey
-  - post_workout_meal
+  - protein_each_meal
   - protein_each_meal
   - muscle
   - trainmax
@@ -6994,7 +6953,7 @@ products:
   - protein_powder
   - whey
   - whey_isolate
-  - post_workout_meal
+  - protein_each_meal
   - muscle
   - trainmax
   url: https://www.amazon.com/dp/B00HJR6SNK
@@ -7028,7 +6987,7 @@ products:
   - plant_protein
   - dairy_free
   - milk_allergy
-  - post_workout_meal
+  - protein_each_meal
   url: https://www.amazon.com/dp/B00J074W7Q
   image: https://m.media-amazon.com/images/I/711eSL4VeVL._AC_SL1500_.jpg
   price_tier: mid
