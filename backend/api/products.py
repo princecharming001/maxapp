@@ -44,7 +44,8 @@ SKIN = "skinhairmax"
 NEED_LABELS = {
     "dark_room": "Darker bedroom", "quiet_room": "Quieter bedroom", "wake_light": "Wake-up light",
     "water_bottle": "Water bottle", "light_therapy": "Light therapy", "electrolytes": "Electrolytes",
-    "protein_breakfast": "Protein breakfast",
+    "protein_breakfast": "Protein breakfast", "green_tea": "Green tea", "co2_monitor": "CO2 monitor",
+    "bp_monitor": "Blood pressure cuff",
     "focus_earplugs": "Focus earplugs", "everyday_earplugs": "Earplugs",
     "analog_alarm": "Alarm clock", "weights": "Weights", "resistance_bands": "Resistance bands",
     "pull_up_bar": "Pull-up bar", "recovery_roller": "Recovery roller", "exercise_mat": "Exercise mat",
@@ -110,7 +111,7 @@ def _card(p: Product) -> dict[str, Any]:
 # Needs whose product is used up (taken, applied, mixed in). Everything else is
 # gear: bought once, never listed under "What you'll use" in a task guide.
 CONSUMABLE_NEEDS = frozenset({
-    "electrolytes", "protein_breakfast", "fiber", "alcohol_pads",
+    "electrolytes", "protein_breakfast", "fiber", "alcohol_pads", "green_tea",
     "melatonin", "magnesium", "l_theanine", "creatine", "collagen", "vitamin_d3", "omega3",
     "glycine", "multivitamin", "b12", "protein_powder",
     "face_cleanser", "moisturizer", "sunscreen", "sunscreen_stick", "lip_spf", "adapalene",
@@ -206,7 +207,8 @@ NEED_WORDS: dict[str, tuple[str, ...]] = {
     "dark_room": ("dark", "mask", "blackout", "curtain"), "quiet_room": ("quiet", "noise", "earplug"),
     "wake_light": ("light", "sunrise", "alarm"), "water_bottle": ("water", "bottle", "glass", "refill"),
     "light_therapy": ("light", "lamp"), "electrolytes": ("electrolyte", "salt", "sodium"),
-    "protein_breakfast": ("protein", "shake", "breakfast"),
+    "protein_breakfast": ("protein", "shake", "breakfast"), "green_tea": ("green tea", "matcha", "tea"),
+    "co2_monitor": ("co2", "window", "air"), "bp_monitor": ("blood pressure", "cuff"),
     "focus_earplugs": ("noise", "earplug", "quiet"),
     "everyday_earplugs": ("noise", "earplug"), "analog_alarm": ("alarm", "phone", "clock"),
     "weights": ("dumbbell", "weight", "kettlebell", "squat", "press", "row"),

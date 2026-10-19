@@ -25,7 +25,7 @@ import sys
 import yaml
 
 CATALOG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "product_catalog.yaml")
-CONSUMABLE = {"electrolytes", "protein_breakfast", "fiber", "face_cleanser", "moisturizer", "sunscreen",
+CONSUMABLE = {"electrolytes", "protein_breakfast", "fiber", "green_tea", "face_cleanser", "moisturizer", "sunscreen",
               "sunscreen_stick", "lip_spf", "adapalene", "retinol_serum", "niacinamide_serum", "vitamin_c_serum",
               "azelaic_acid", "bha_exfoliant", "aha_exfoliant", "hyaluronic_serum", "clay_mask", "ointment",
               "ketoconazole_shampoo", "melatonin", "magnesium", "l_theanine", "creatine", "collagen", "vitamin_d3",

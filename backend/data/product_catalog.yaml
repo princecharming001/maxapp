@@ -1449,6 +1449,264 @@ products:
   references:
   - ai_programs/focusmax.md
   slug: Threekin-Weekly-Planner-Pad
+- id: jade-leaf-ceremonial-matcha-30g
+  name: "Jade Leaf Ceremonial Grade Matcha Powder, 30g Tin"
+  brand: "Jade Leaf"
+  module: focusmax
+  need: green_tea
+  concerns:
+  - green_tea
+  - matcha
+  - tea
+  - green_tea_afternoon
+  - caffeine_for_focus
+  - delay_first_coffee
+  - focus
+  url: https://www.amazon.com/dp/B014LT0712
+  image: https://m.media-amazon.com/images/I/61X2Qo2jr2L._SL1500_.jpg
+  price_tier: mid
+  price_usd: 26.99
+  rating: 4.5
+  rating_count: 8040
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: true
+  rationale: "Ceremonial matcha: whisk one serving as your afternoon caffeine, with its natural L-theanine."
+  references:
+  - ai_programs/focusmax.md
+  slug: Jade-Leaf-Ceremonial-Grade-Matcha-Powder
+- id: encha-organic-ceremonial-matcha-60g
+  name: "Encha Matcha Powder, Organic Ceremonial Grade, 60g"
+  brand: "Encha"
+  module: focusmax
+  need: green_tea
+  alternative: true
+  concerns:
+  - green_tea
+  - matcha
+  - tea
+  - green_tea_afternoon
+  - caffeine_for_focus
+  - delay_first_coffee
+  - focus
+  url: https://www.amazon.com/dp/B06XXMY1RP
+  image: https://m.media-amazon.com/images/I/815xdcrozaL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 34.99
+  rating: 4.4
+  rating_count: 6324
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: true
+  rationale: "Organic first-harvest matcha in a larger 60 g bag, for a daily cup."
+  references:
+  - ai_programs/focusmax.md
+  slug: Encha-Matcha-Powder-Organic-Ceremonial
+- id: bigelow-classic-green-tea-40x6
+  name: "Bigelow Tea Classic Green Tea Bags, 40 Count (Pack of 6)"
+  brand: "Bigelow"
+  module: focusmax
+  need: green_tea
+  alternative: true
+  concerns:
+  - green_tea
+  - matcha
+  - tea
+  - green_tea_afternoon
+  - caffeine_for_focus
+  - delay_first_coffee
+  - focus
+  url: https://www.amazon.com/dp/B000GG0BNE
+  image: https://m.media-amazon.com/images/I/81ZMdzycRtL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 34.34
+  rating: 4.8
+  rating_count: 7426
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: true
+  rationale: "Plain green tea bags: steep 2 to 3 minutes for a smaller caffeine dose than coffee."
+  references:
+  - ai_programs/focusmax.md
+  slug: Bigelow-Classic-Green-Tea-Bags
+- id: twinings-green-tea-20
+  name: "Twinings Green Tea, 20 Individual Tea Bags"
+  brand: "Twinings"
+  module: focusmax
+  need: green_tea
+  alternative: true
+  concerns:
+  - green_tea
+  - matcha
+  - tea
+  - green_tea_afternoon
+  - caffeine_for_focus
+  - delay_first_coffee
+  - focus
+  url: https://www.amazon.com/dp/B00DE4NPV0
+  image: https://m.media-amazon.com/images/I/913226YHsrL._SL1500_.jpg
+  price_tier: budget
+  price_usd: 4.37
+  rating: 4.7
+  rating_count: 339
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: null
+    sulfate_free: null
+    gluten_free: null
+    dairy_free: true
+  rationale: "A small box to try swapping the second coffee for green tea."
+  references:
+  - ai_programs/focusmax.md
+  slug: Twinings-Green-Tea-Bags
+- id: aranet4-home-co2-monitor
+  name: "Aranet4 Indoor Air Quality Monitor, Wireless CO2 Detector"
+  brand: "Aranet4"
+  module: focusmax
+  need: co2_monitor
+  concerns:
+  - co2_monitor
+  - co2
+  - air_quality
+  - ventilation
+  - fresh_air_flush
+  - focus_space_setup
+  - bedroom_setup
+  - focus
+  url: https://www.amazon.com/dp/B07YY7BH2W
+  image: https://m.media-amazon.com/images/I/71JQkoRVIbL._SL1500_.jpg
+  price_tier: premium
+  price_usd: 189.00
+  rating: 4.7
+  rating_count: 1881
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "NDIR CO2 monitor with an e-ink screen: open a window when it climbs past about 1,000 ppm."
+  references:
+  - ai_programs/focusmax.md
+  slug: Aranet4-Indoor-Quality-Monitor-Wireless
+- id: inkbird-portable-co2-detector
+  name: "INKBIRD Portable CO2 Detector with Bluetooth, Indoor Air Quality Monitor"
+  brand: "INKBIRD"
+  module: focusmax
+  need: co2_monitor
+  alternative: true
+  concerns:
+  - co2_monitor
+  - co2
+  - air_quality
+  - ventilation
+  - fresh_air_flush
+  - focus_space_setup
+  - bedroom_setup
+  - focus
+  url: https://www.amazon.com/dp/B0C8JB82ZZ
+  image: https://m.media-amazon.com/images/I/71QJS7aKPFL._SL1500_.jpg
+  price_tier: premium
+  price_usd: 129.99
+  rating: 4.3
+  rating_count: 167
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Portable CO2 reader for the desk or bedroom, with an app history of your readings."
+  references:
+  - ai_programs/focusmax.md
+  slug: INKBIRD-Portable-Detector-Bluetooth-Monitor
+- id: temtop-c1-plus-co2-monitor
+  name: "Temtop C1+ CO2 Monitor, Smart Indoor Air Quality Monitor"
+  brand: "Temtop"
+  module: focusmax
+  need: co2_monitor
+  alternative: true
+  concerns:
+  - co2_monitor
+  - co2
+  - air_quality
+  - ventilation
+  - fresh_air_flush
+  - focus_space_setup
+  - bedroom_setup
+  - focus
+  url: https://www.amazon.com/dp/B0DHRDSYHZ
+  image: https://m.media-amazon.com/images/I/61hoSIyLa7L._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 42.99
+  rating: 4.2
+  rating_count: 73
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A lower-cost CO2 monitor that shows when your room needs airing out."
+  references:
+  - ai_programs/focusmax.md
+  slug: Temtop-Monitor-Indoor-Quality-Bluetooth
+- id: switchbot-co2-detector
+  name: "SwitchBot CO2 Detector, Indoor Air Quality Monitor"
+  brand: "SwitchBot"
+  module: focusmax
+  need: co2_monitor
+  alternative: true
+  concerns:
+  - co2_monitor
+  - co2
+  - air_quality
+  - ventilation
+  - fresh_air_flush
+  - focus_space_setup
+  - bedroom_setup
+  - focus
+  url: https://www.amazon.com/dp/B0DLN46519
+  image: https://m.media-amazon.com/images/I/71aclmecNOL._SL1500_.jpg
+  price_tier: mid
+  price_usd: 59.48
+  rating: 4.3
+  rating_count: 328
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "CO2, temperature and humidity on one screen, so you can air out and set the room to about 22 °C."
+  references:
+  - ai_programs/focusmax.md
+  slug: SwitchBot-Detector-Quality-Monitor-Indoor
 # ── Calmmax: quieter days, screen-free evening (journals retired 2026-10-18) ───
 - id: five-minute-journal
   name: The Five Minute Journal
@@ -3352,6 +3610,129 @@ products:
   references:
   - ai_programs/longevitymax.md
   slug: Gaiam-Evolve-Balance-Board
+- id: omron-silver-upper-arm-bp-monitor
+  name: "OMRON Silver Blood Pressure Monitor & Upper Arm Cuff"
+  brand: "OMRON"
+  module: longevitymax
+  need: bp_monitor
+  concerns:
+  - bp_monitor
+  - blood_pressure
+  - know_your_numbers
+  - vitals_check
+  - biomarkers
+  - home_monitoring
+  url: https://www.amazon.com/dp/B0DDZP9R7T
+  image: https://m.media-amazon.com/images/I/71R8KuKWhmL._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 62.36
+  rating: 4.3
+  rating_count: 5192
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Upper-arm cuff for logging home blood pressure readings to compare with your clinician."
+  references:
+  - ai_programs/longevitymax.md
+  slug: OMRON-Silver-Pressure-Monitor-Upper
+- id: omron-platinum-upper-arm-bp-monitor
+  name: "OMRON Platinum Blood Pressure Monitor & Upper Arm Cuff"
+  brand: "OMRON"
+  module: longevitymax
+  need: bp_monitor
+  alternative: true
+  concerns:
+  - bp_monitor
+  - blood_pressure
+  - know_your_numbers
+  - vitals_check
+  - biomarkers
+  - home_monitoring
+  url: https://www.amazon.com/dp/B0DXXLYZTL
+  image: https://m.media-amazon.com/images/I/71RECkl8t2L._AC_SL1500_.jpg
+  price_tier: premium
+  price_usd: 97.19
+  rating: 4.2
+  rating_count: 4210
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Stores more readings and averages them, for a clearer weekly trend."
+  references:
+  - ai_programs/longevitymax.md
+  slug: OMRON-Platinum-Pressure-Monitor-Upper
+- id: ihealth-track-upper-arm-bp-monitor
+  name: "iHealth Track Smart Upper Arm Blood Pressure Monitor"
+  brand: "iHealth"
+  module: longevitymax
+  need: bp_monitor
+  alternative: true
+  concerns:
+  - bp_monitor
+  - blood_pressure
+  - know_your_numbers
+  - vitals_check
+  - biomarkers
+  - home_monitoring
+  url: https://www.amazon.com/dp/B01C5QS1T8
+  image: https://m.media-amazon.com/images/I/71wVl0n2dmL._AC_SL1500_.jpg
+  price_tier: mid
+  price_usd: 27.98
+  rating: 4.4
+  rating_count: 68667
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "A budget upper-arm cuff with a wide-range cuff and an app log."
+  references:
+  - ai_programs/longevitymax.md
+  slug: iHealth-Upper-Pressure-Monitor-Wide-Range
+- id: withings-bpm-connect
+  name: "WITHINGS BPM Connect Blood Pressure Cuff, WiFi & Bluetooth"
+  brand: "Withings"
+  module: longevitymax
+  need: bp_monitor
+  alternative: true
+  concerns:
+  - bp_monitor
+  - blood_pressure
+  - know_your_numbers
+  - vitals_check
+  - biomarkers
+  - home_monitoring
+  url: https://www.amazon.com/dp/B07SJV1HNR
+  image: https://m.media-amazon.com/images/I/814Y-B+zqjL._SL1500_.jpg
+  price_tier: premium
+  price_usd: 129.95
+  rating: 4.0
+  rating_count: 16157
+  checked: 2026-10-18
+  tags:
+    vegetarian: true
+    vegan: true
+    fragrance_free: true
+    sulfate_free: true
+    gluten_free: true
+    dairy_free: true
+  rationale: "Wireless cuff that syncs each reading to your phone over Wi-Fi."
+  references:
+  - ai_programs/longevitymax.md
+  slug: WITHINGS-BPM-Connect-Pressure-Bluetooth
 # ── Skin & Hair: cleanse, moisturize, SPF, optional retinoid, scalp care ──────
 - id: cerave-hydrating-cleanser
   name: CeraVe Hydrating Facial Cleanser

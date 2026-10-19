@@ -818,7 +818,8 @@ def _task_needs(items: list[tuple[str, dict]], habit_id: str) -> list[dict]:
 _GEAR_WORDS = {
     "water_bottle": ("bottle",), "wake_light": ("sunrise", "wake light", "wake-up light"),
     "light_therapy": ("lamp", "light box", "light therapy"), "analog_alarm": ("alarm clock",),
-    "travel_cooler": ("cooler",),
+    "travel_cooler": ("cooler",), "co2_monitor": ("co2 monitor", "co2"),
+    "bp_monitor": ("blood-pressure cuff", "blood pressure cuff", "cuff"),
 }
 _NO_GEAR = {("water_bottle", "water_on_waking")}
 
