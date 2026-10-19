@@ -303,6 +303,13 @@ def kind_of(hid: str, inf: HabitInfo) -> str:
     return "any"
 
 
+# placement order by kind (the most constrained first). Every kind kind_of
+# returns must be here (a missing "heat" crashed every Calmmax/Fitmax plan
+# with a sauna; tests/test_biohacking_scope.py checks the whole library).
+KIND_ORDER = {"wake_exact": 0, "wake": 1, "wind_down": 2, "screens_off": 2, "pre_bed": 3, "caffeine": 4,
+              "bath": 5, "meal": 7, "workout": 8, "heat": 9, "evening": 10, "nap": 11, "get_ready": 12,
+              "after_meal": 13, "any": 14, "daytime": 14}
+
 SHIFTS_WITH_WAKE = {"wake", "wake_exact", "get_ready"}
 SHIFTS_WITH_BED = {"wind_down", "screens_off", "pre_bed", "evening", "caffeine", "nap", "heat", "bath"}
 
@@ -826,9 +833,7 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
                 return d.bed - (ob - tt)
         return t0
 
-    order = {"wake_exact": 0, "wake": 1, "wind_down": 2, "pre_bed": 3, "caffeine": 4, "work_start": 5,
-             "work_end": 6, "meal": 7, "workout": 8, "evening": 9, "nap": 10, "get_ready": 11,
-             "after_meal": 12, "any": 13}
+    order = dict(KIND_ORDER)
     placed: list[dict] = []
     cluster: dict[tuple, Taken] = {}     # Suppmax: (day key, meal start) -> the shared slot
     stack_meal = None
@@ -837,8 +842,6 @@ def fit(maxx_id: str, habits: list[dict], profile: dict, lib: dict, *,
         votes = {m: sum(1 for h in hs if m in supp_meals(h["habit_id"], info(h["habit_id"], lib))) for m in MEALS}
         best = max(votes.values(), default=0)
         stack_meal = next((m for m in MEALS if votes[m] == best), None) if best >= 2 else None
-    order["screens_off"] = order["wind_down"]
-    order["daytime"] = order["any"]
 
     def seq(x: dict) -> int:
         inf_ = info(x["habit_id"], lib)

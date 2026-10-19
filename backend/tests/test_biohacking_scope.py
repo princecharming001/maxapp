@@ -30,7 +30,7 @@ def test_every_habit_names_one_physiological_lever(doc, hid, fields):
 @pytest.mark.parametrize("doc,hid,fields", ALL, ids=_ids())
 def test_no_habit_is_a_productivity_habit(doc, hid, fields):
     for k, v in fields:          # titles are checked on the parsed library below
-        if k in ("how", "why"):
+        if k != "source":
             assert not biohack_scope.is_productivity(v), \
                 f"{doc}.{hid} {k}: {biohack_scope.productivity_terms(v)} in {v[:160]!r}"
     assert not biohack_scope.is_productivity(hid.replace("_", " ")), hid
@@ -198,3 +198,41 @@ def test_planner_talk_in_claudes_steps_falls_back_to_the_library():
     h = t["habits"][0]
     assert not biohack_scope.is_productivity(h["how"]) and not biohack_scope.is_productivity(h["why"])
     assert "30 min before" in h["how"]
+
+
+def test_every_library_habit_has_a_placement_order():
+    # a new kind ("heat") missing from the order table crashed every plan with a sauna
+    for mid in ap.AI_PROGRAMS:
+        lib = ap._lib(mid)
+        for hid in lib:
+            k = ai_fit.kind_of(hid, ai_fit.info(hid, lib))
+            assert k in ai_fit.KIND_ORDER, f"{mid}.{hid}: kind {k}"
+
+
+@pytest.mark.parametrize("mid,ids", [
+    ("calmmax", ["physiological_sigh", "heat_session", "cold_shower_finish", "outdoor_walk", "slow_belly_breathing"]),
+    ("trainmax", ["strength_full_body", "sauna_after_training", "zone2_cardio", "session_hydration"]),
+    ("longevitymax", ["zone2_cardio", "sauna_session", "strength_2x", "balance_practice"]),
+    ("sleepmax", ["fixed_wake_time", "morning_light", "warm_shower", "wind_down"]),
+    ("focusmax", ["caffeine_for_focus", "power_nap", "cold_shower_finish", "green_tea_afternoon"]),
+])
+def test_new_levers_fit_into_a_real_day(mid, ids):
+    raw = {"habits": [{"habit_id": h, "title": h, "how": "", "why": "", "minutes": 10, "time": "18:00",
+                       "weekend_time": "", "days": ["mon", "wed", "fri"]} for h in ids]}
+    t = ap.validate_template(mid, {**raw, "level": "full"}, {**_prof(), "minutes_per_day_total": 120})
+    by = {h["habit_id"]: h for h in t["habits"]}
+    assert by, mid
+    bed = 23 * 60
+    def m(x):
+        h, mm = (int(v) for v in x.split(":"))
+        return h * 60 + mm
+    for hid in ("heat_session", "sauna_session", "sauna_after_training"):
+        if hid in by:
+            assert m(by[hid]["time"]) + by[hid]["minutes"] <= bed - 60, (hid, by[hid]["time"])
+    if "warm_shower" in by:
+        assert bed - 120 - by["warm_shower"]["minutes"] <= m(by["warm_shower"]["time"]) <= bed - 60
+    for hid in ("caffeine_for_focus", "green_tea_afternoon"):
+        if hid in by:
+            assert m(by[hid]["time"]) <= bed - 360, (hid, by[hid]["time"])
+    if "power_nap" in by:
+        assert m(by["power_nap"]["time"]) <= bed - 420, by["power_nap"]["time"]

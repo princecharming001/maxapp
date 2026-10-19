@@ -127,16 +127,16 @@ Check with a professional first (the app should suggest this, not diagnose):
 - minutes: 1 / 1
 - kind: action
 - lever: compound
-- anchor: breakfast or the coffee before the focus block (never after the caffeine cutoff)
-- frequency: workdays (on deep-work days)
+- anchor: breakfast or the coffee before their focus window (never after the caffeine cutoff)
+- frequency: workdays (on days they need to be sharp)
 - tier: core
 - programs: focusmax
 - primary for: focusmax
 - avoid if: pregnancy, breastfeeding, under 18, heart rhythm problems, blood pressure meds, stimulant meds
 - dose note: Studies paired roughly 40–150 mg of caffeine (about one cup of coffee is 80–100 mg) with about 100–250 mg of L-theanine. Your caffeine comes from the coffee or tea you already drink; the add-on is one L-theanine serving from your label. The FDA cites 400 mg of caffeine a day as an amount not generally linked to problems in healthy adults; this habit never adds caffeine.
-- timing: With the coffee or tea before your deep-work block, 20–30 min ahead. Never later than 8 hours before bed (6 at the very least), following the shared caffeine cutoff.
+- timing: With the coffee or tea about 30 min before the work you need to be sharp for. Never later than 9 hours before bed (6 at the very least), following the shared caffeine cutoff.
 - why: In placebo-controlled trials the combination improved accuracy when switching between tasks and made people feel more alert for an hour or two, and a meta-analysis of tea compounds found the pairing helped attention more than either alone. Effects are modest and short-lived. This is the lowest-risk way to use caffeine for focus: no caffeine pills, energy drinks or extra cups.
-- how: 1) Keep your normal coffee or tea, no extra caffeine. 2) Take one L-theanine serving with it before the block. 3) Skip it on days without focused work or if you feel jittery.
+- how: 1) Keep your normal coffee or tea, no extra caffeine. 2) Take one L-theanine serving with it. 3) Skip it on days you don't need to be sharp, or if you feel jittery.
 - conflicts/synergies: Attach to Focusmax `caffeine_for_focus` and bound by the Sleepmax/Energymax `caffeine_cutoff`. Do not pair with pre-workout drinks or energy drinks. If `l_theanine` is also active, merge into one theanine dose where the times are close and keep the daily total in the studied range.
 - source: https://pubmed.ncbi.nlm.nih.gov/24946991/
 
@@ -442,7 +442,7 @@ If only three questions can be asked, ask 1, 2 and 3 and use a daily max of 3. K
 - Group into as few reminder slots as possible (aim for 1–3 a day):
   - With the first meal (or the largest meal with some fat, for the fat-soluble items): `vitamin_d3`, `omega3`, `multivitamin`, `b12`, `collagen_peptides`, `caffeine_theanine` (if the coffee is at that meal), `creatine` on rest days. Habit text never names the meal slot ("breakfast stack"); it says "with a meal that has some fat", so it stays true wherever the slot lands.
   - Around the workout: `creatine`, `protein_powder`, `electrolytes` (electrolytes only on 2–3 workout or hot days a week, never daily by default, and not within 3 hours of bedtime).
-  - Afternoon: `l_theanine`, or `caffeine_theanine` before an afternoon focus block if still before the cutoff.
+  - Afternoon: `l_theanine`, or `caffeine_theanine` before an afternoon focus window if still before the cutoff (FocusMax `green_tea_afternoon` already brings theanine).
   - With dinner: `magnesium_glycinate`, `ashwagandha`, `psyllium_fiber` (only if no medicines are taken at dinner; otherwise lunch).
   - Before bed: `melatonin` (30–60 min before), `glycine`.
 - Fat-soluble items (`vitamin_d3`, `omega3`, `multivitamin`) go with a meal that contains some fat.
