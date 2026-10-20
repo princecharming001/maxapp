@@ -6,7 +6,7 @@
  * maxes bar). Renders nothing until the gamification block loads (cold-start
  * invisible).
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -39,8 +39,22 @@ const RANK_ICONS: Record<string, any> = {
     Zeus: require('../assets/ranks/zeus.webp'),
 };
 
-export default function XpProgressCard({ data }: { data: Gamification | null | undefined }) {
+export default function XpProgressCard({ data: incoming }: { data: Gamification | null | undefined }) {
     const nav = useNavigation<any>();
+    // Hold the last good block: a refetch that comes back without it (a
+    // best-effort server miss, an old persisted cache) used to unmount the
+    // card mid-view, so it popped in and out.
+    const lastGood = useRef<Gamification | null>(null);
+    if (incoming) lastGood.current = incoming;
+    const data = incoming ?? lastGood.current;
+    // One navigation per tap: a double tap pushed Ranks twice.
+    const navLock = useRef(false);
+    const openRanks = () => {
+        if (navLock.current) return;
+        navLock.current = true;
+        nav.navigate('Ranks');
+        setTimeout(() => { navLock.current = false; }, 800);
+    };
     // A gentle "floating" idle: a soft vertical bob + slight tilt, looped.
     const t = useSharedValue(0);
     useEffect(() => {
@@ -81,7 +95,7 @@ export default function XpProgressCard({ data }: { data: Gamification | null | u
                     ) : null}
                 </View>
                 <TouchableOpacity
-                    onPress={() => nav.navigate('Ranks')}
+                    onPress={openRanks}
                     activeOpacity={0.8}
                     hitSlop={8}
                     accessibilityRole="button"

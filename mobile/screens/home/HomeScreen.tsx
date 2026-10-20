@@ -929,14 +929,23 @@ export default function HomeScreen() {
             </ScrollView>
 
             {toast ? (
-                <View
+                // Tapping the toast dismisses it. It used to pass taps through
+                // (pointerEvents none), so a tap on "+12 XP" landed on the habit
+                // card underneath and opened its guide mid-celebration.
+                <TouchableOpacity
                     style={[s.toast, { bottom: insets.bottom + 72 }]}
-                    pointerEvents="none"
+                    activeOpacity={0.85}
+                    onPress={() => {
+                        if (toastTimer.current) clearTimeout(toastTimer.current);
+                        setToast(null);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityHint="Dismisses this message"
                     accessibilityLiveRegion="polite"
                     testID="home-toast"
                 >
                     <Text style={s.toastText}>{toast}</Text>
-                </View>
+                </TouchableOpacity>
             ) : null}
 
             <FirstRunWalkthrough
@@ -1005,14 +1014,11 @@ const s = StyleSheet.create({
         color: BW.mute, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10,
     },
     rulesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 2 },
-    rulesCard: {
-        marginTop: 10,
-        backgroundColor: BW.card, borderRadius: 16, paddingHorizontal: 14,
-        borderWidth: StyleSheet.hairlineWidth, borderColor: BW.hair,
-    },
-    ruleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11 },
-    ruleRowDivided: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BW.hair },
-    ruleBar: { width: 3, height: 16, borderRadius: 2 },
+    // Plain list on the page, no card: rules are quiet boundaries, not tasks.
+    rulesCard: { marginTop: 6 },
+    ruleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
+    ruleRowDivided: {},
+    ruleBar: { width: 6, height: 6, borderRadius: 3 },
     ruleText: { flex: 1, fontSize: 14, fontFamily: fonts.sansMedium, color: BW.ink, letterSpacing: -0.1 },
 
     /* Top bar */

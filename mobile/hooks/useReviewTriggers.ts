@@ -5,12 +5,29 @@
  * never fires a spurious celebration. All persistence is local; the actual review
  * gating lives in reviewService (server + local throttle). Never throws.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from '../components/InAppAlert';
 import { checkAndRequestReview } from '../services/reviewService';
 import { useAuth } from '../context/AuthContext';
 import type { Gamification } from '../services/api';
+import { navigationRef } from '../lib/navigationRef';
+import { isOverlayUp, useOverlayUp } from '../lib/overlayTurns';
+
+// Never present over these. TaskGuide is a fullScreenModal: an RN Modal raised
+// while it presents or dismisses strands an invisible touch-eating window on
+// iOS (the whole app stops responding). Completing the habit that crosses a
+// level happens INSIDE TaskGuide, while this hook runs on Home underneath.
+const BLOCKED_ROUTES = new Set<string>(['TaskGuide', 'Onboarding', 'Payment', 'ModuleSelect']);
+
+type Pending = { kind: 'level'; level: number; rank?: string } | { kind: 'review'; reason: 'daily_completion' };
+
+function currentRoute(): string | undefined {
+    return navigationRef.isReady()
+        ? (navigationRef.getCurrentRoute() as { name?: string } | undefined)?.name
+        : undefined;
+}
 
 // Keyed per user (like main_app_tour_v2:<uid>). The device-wide originals
 // leaked between accounts: A (level 8) logs out, B (level 3) resyncs the key
@@ -29,6 +46,41 @@ export function useReviewTriggers(
     const level = gamif?.current_level;
     const rank = gamif?.rank;
     const uid = useAuth().user?.id;
+    // One positive moment at a time, presented only when the screen is calm:
+    // the old code raised the "Level N" alert AND the native review sheet in
+    // the same tick, often on top of the badge celebration (a level-up and a
+    // badge usually land on the same tap). Stacked modals froze the app.
+    const [pending, setPending] = useState<Pending | null>(null);
+    const celebrationUp = useOverlayUp('celebration');
+    const [routeTick, setRouteTick] = useState(0);
+    useEffect(() => {
+        if (!pending || !navigationRef.isReady()) return;
+        return navigationRef.addListener('state', () => setRouteTick((t) => t + 1));
+    }, [pending]);
+
+    useEffect(() => {
+        if (!pending || celebrationUp) return;
+        let cancelled = false;
+        const task = InteractionManager.runAfterInteractions(() => {
+            if (cancelled) return;
+            const route = currentRoute();
+            // Re-runs on the next route change / celebration close.
+            if (!route || BLOCKED_ROUTES.has(route) || isOverlayUp('celebration')) return;
+            const p = pending;
+            setPending(null);
+            if (p.kind === 'level') {
+                Alert.alert(
+                    `Level ${p.level}`,
+                    `You reached ${p.rank ?? ''} \u2014 Level ${p.level}. Keep stacking.`,
+                    // The review sheet only after the alert is gone, never with it.
+                    [{ text: 'Nice', onPress: () => { setTimeout(() => void checkAndRequestReview('level_up'), 800); } }],
+                );
+            } else {
+                void checkAndRequestReview(p.reason);
+            }
+        });
+        return () => { cancelled = true; task.cancel(); };
+    }, [pending, celebrationUp, routeTick]);
 
     useEffect(() => {
         // Whoever owned the device-wide keys, we can't tell — drop them; the
@@ -52,10 +104,7 @@ export function useReviewTriggers(
                 }
                 if (level > lastSeen) {
                     await AsyncStorage.setItem(key, String(level));
-                    if (active) {
-                        Alert.alert(`Level ${level}`, `You reached ${rank ?? ''} — Level ${level}. Keep stacking.`);
-                        void checkAndRequestReview('level_up');
-                    }
+                    if (active) setPending({ kind: 'level', level, rank });
                 } else if (level !== lastSeen) {
                     // Level went down (shouldn't happen — additive) — just resync.
                     await AsyncStorage.setItem(key, String(level));
@@ -78,7 +127,8 @@ export function useReviewTriggers(
                 const seen = await AsyncStorage.getItem(storeKey);
                 if (seen === key) return;
                 await AsyncStorage.setItem(storeKey, key);
-                if (active) void checkAndRequestReview('daily_completion');
+                // A level alert waiting its turn wins; its OK asks for the review.
+                if (active) setPending((p) => p ?? { kind: 'review', reason: 'daily_completion' });
             } catch {
                 /* non-fatal */
             }
