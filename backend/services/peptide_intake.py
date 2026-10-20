@@ -1169,7 +1169,7 @@ def build_template(answers: dict, profile: dict, *, started_on: str, runs_fitmax
                                  "The label sets this check, not me.", weeks=[8]))
         glp1 = any(p["klass"] == GLP1 for p in remind)
         if glp1 and "eating_disorder" not in flags:
-            habits.append(_habit("protein_at_meals", "Protein at each meal", 0, list(ALL_DAYS),
+            habits.append(_habit("protein_at_meals", "Protein at each meal", 1, list(ALL_DAYS),
                                  _steps(["Eat the protein part of the meal first.", "A palm-sized portion at each meal.",
                                          "Small appetite? Smaller protein-rich snacks."]),
                                  "When appetite drops on a GLP-1, protein often drops too."))

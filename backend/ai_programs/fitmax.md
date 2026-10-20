@@ -57,15 +57,15 @@ Check with a professional first (CDC: people with chronic conditions should talk
 - source: https://pubmed.ncbi.nlm.nih.gov/17414804/
 
 ### `daily_steps` — Daily step goal
-- minutes: 0 / 0
-- kind: rule
+- minutes: 1 / 10
+- kind: action
 - lever: movement
-- anchor: any (commute, walking calls and post-meal walks count)
+- anchor: afternoon (late afternoon, with time left to top up)
 - frequency: daily
 - tier: core
 - avoid if: none
 - why: Across 15 cohorts (47,471 adults), death risk fell as steps rose and leveled off around 6,000–8,000 a day at 60+ and 8,000–10,000 for younger adults.
-- how: 1) Start from your current daily average. 2) Add about 1,000 steps a day every week or two. 3) Use the commute, walking calls and a walk after meals.
+- how: 1) Check today's step count. 2) Short of your target (7,000–10,000 depending on age)? Walk 10–20 min now, outside if you can. 3) Already there? Tick it; post-meal and lunch walks count.
 - conflicts/synergies: Same as LongevityMax `daily_steps`; never a separate time cost. EnergyMax `vigorous_burst` and LongevityMax `stair_snack` count here.
 - source: https://pubmed.ncbi.nlm.nih.gov/35247352/
 

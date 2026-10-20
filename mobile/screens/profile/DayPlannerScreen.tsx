@@ -55,9 +55,9 @@ import { useFlag } from '../../constants/featureFlags';
 import { experienceTier } from '../../lib/personalization';
 import { colors, spacing, fonts } from '../../theme/dark';
 import DayEditorSheet, { ShapeFocus } from '../../components/planner/DayEditorSheet';
-import ScheduleGrid, { CalendarEventRow, GridRuleRow, GridTaskRow } from '../../components/planner/ScheduleGrid';
+import ScheduleGrid, { CalendarEventRow, GridTaskRow } from '../../components/planner/ScheduleGrid';
 import { useActiveSchedulesFullQuery, useMaxxesQuery } from '../../hooks/useAppQueries';
-import { buildMaxxMaps, mergeSchedules, normalizeMaxxId, ruleDisplayLine } from '../../utils/scheduleAggregation';
+import { buildMaxxMaps, mergeSchedules, normalizeMaxxId } from '../../utils/scheduleAggregation';
 import api, { GOOGLE_STATUS_QUERY_KEY, type DayShapeWarning } from '../../services/api';
 import ObligationsManager, { ObligationsManagerHandle } from '../../components/planner/ObligationsManager';
 import {
@@ -81,7 +81,6 @@ import {
   hasOverride,
   obligationColor,
   fmt12Compact,
-  fmt12,
   daysLabel,
   toMin,
 } from '../../components/planner/plannerModel';
@@ -581,18 +580,16 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
   // reminder fires. Tapping one opens the habit like the Home card does.
   const schedulesQ = useActiveSchedulesFullQuery();
   const maxesQ = useMaxxesQuery();
-  const { dayTasks, dayRules } = useMemo<{ dayTasks: GridTaskRow[]; dayRules: GridRuleRow[] }>(() => {
+  // Rules (C1: a wake time, a caffeine cutoff) are boundaries, not things on
+  // the calendar: they live on Home (collapsible) and never draw on this grid.
+  const { dayTasks } = useMemo<{ dayTasks: GridTaskRow[] }>(() => {
     const full = schedulesQ.data;
-    if (!full) return { dayTasks: [], dayRules: [] };
+    if (!full) return { dayTasks: [] };
     try {
       const { labels, colors: colorMap } = buildMaxxMaps(maxesQ.data?.maxes ?? []);
       const merged = mergeSchedules(full.schedules || [], labels, colorMap);
       const maxxBySchedule: Record<string, string> = {};
       for (const s of (full.schedules || []) as any[]) maxxBySchedule[String(s.id)] = normalizeMaxxId(s.maxx_id);
-      // Rules (C1): a line at their time on the grid, never a habit card.
-      const rules: GridRuleRow[] = (merged.rulesByDate[selectedIso] || [])
-        .filter((r) => !!r.time)
-        .map((r) => ({ key: r.key, time: r.time, label: ruleDisplayLine(r, fmt12), color: r.moduleColor }));
       const tasks = (merged.byDate[selectedIso] || []).map((row) => {
         const done = row.status === 'completed';
         return {
@@ -612,9 +609,9 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           }),
         };
       });
-      return { dayTasks: tasks, dayRules: rules };
+      return { dayTasks: tasks };
     } catch {
-      return { dayTasks: [], dayRules: [] };
+      return { dayTasks: [] };
     }
   }, [schedulesQ.data, maxesQ.data, selectedIso, navigation]);
 
@@ -928,7 +925,6 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             }}
             calendarEvents={calendarEvents}
             tasks={dayTasks}
-            rules={dayRules}
           />
 
           <Text style={styles.gridHint}>

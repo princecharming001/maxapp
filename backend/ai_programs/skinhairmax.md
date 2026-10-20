@@ -81,13 +81,13 @@ Check with a dermatologist or clinician first:
 - tier: core
 - avoid if: none
 - why: WHO advises shade, a shirt, a hat and sunscreen whenever the UV index is 3 or higher, and daily sunscreen users had 24% less skin aging over 4.5 years than occasional users.
-- how: 1) Check the UV index in your weather app before heading out. 2) At 3 or higher, pick shade, cover your shoulders, and wear a hat and sunglasses if you have them. 3) Reapply SPF if you're out for 2+ hours.
+- how: 1) Whenever you're outside and the UV index (in your weather app) is 3 or higher, it applies. 2) Pick shade, cover your shoulders, and wear a hat and sunglasses if you have them. 3) Reapply SPF if you're out for 2+ hours.
 - conflicts/synergies: Doesn't apply to `morning_light` (early UV is usually under 3). Pairs with `spf_reapply`. Frequent shade use is linked to slightly lower vitamin D, which is a Suppmax D3 note; never skip sunscreen "for vitamin D".
 - source: https://pubmed.ncbi.nlm.nih.gov/23732711/
 
 ### `low_gi_swap` — Slow-carb swap for breakouts
-- minutes: 0 / 0
-- kind: rule
+- minutes: 1 / 1
+- kind: action
 - lever: nutrition
 - anchor: lunch and dinner (only when the skin goal is breakouts)
 - frequency: daily

@@ -5,6 +5,7 @@ ritual) and Calmmax as a journal. These tests keep every surface that names a
 habit inside the biohacking scope: the program docs, the program blurbs, the
 quiz labels, the fit engine's id lists, the product catalog and custom habits
 written at runtime."""
+import re
 from pathlib import Path
 
 import pytest
@@ -236,3 +237,36 @@ def test_new_levers_fit_into_a_real_day(mid, ids):
             assert m(by[hid]["time"]) <= bed - 360, (hid, by[hid]["time"])
     if "power_nap" in by:
         assert m(by["power_nap"]["time"]) <= bed - 420, by["power_nap"]["time"]
+
+
+# ── rules vs tasks: anything you can do at a moment is a task ────────────────
+ACTIONABLE = {("sleepmax", "dim_evening_light"), ("sleepmax", "screens_off"), ("calmmax", "screen_free_evening"),
+              ("energymax", "lunch_balance"), ("longevitymax", "veg_first"), ("skinhairmax", "low_gi_swap"),
+              ("peptidemax", "protein_at_meals"), ("fitmax", "daily_steps"), ("longevitymax", "daily_steps")}
+
+
+@pytest.mark.parametrize("doc,hid", sorted(ACTIONABLE))
+def test_things_you_do_are_tasks_not_rules(doc, hid):
+    by = {(d, h): dict(f) for d, h, f in ALL}
+    assert by[(doc, hid)]["kind"] == "action", f"{doc}.{hid} is something you do: a task, not a rule"
+
+
+def test_rules_are_only_boundaries():
+    """A rule is a boundary with nothing to tick (wake time, a caffeine cutoff,
+    no cold after lifting). Its steps never start with doing something now."""
+    for doc, hid, fields in ALL:
+        f = dict(fields)
+        if f.get("kind") != "rule":
+            continue
+        assert (doc, hid) not in ACTIONABLE
+        assert not re.match(r"1\)\s*(switch|turn|put|drink|eat|walk|check|open|brew|take)\b", f.get("how", ""), re.I), \
+            f"{doc}.{hid} reads like a task: {f.get('how', '')[:80]}"
+
+
+def test_dim_lights_lands_two_to_three_hours_before_bed():
+    raw = {"habits": [{"habit_id": "dim_evening_light", "title": "x", "how": "", "why": "", "minutes": 1,
+                       "time": "16:00", "weekend_time": "", "days": ap.WEEKDAYS}]}
+    t = ap.validate_template("sleepmax", raw, _prof())
+    h, m = (int(v) for v in t["habits"][0]["time"].split(":"))
+    assert 20 * 60 <= h * 60 + m <= 21 * 60 + 30, t["habits"][0]["time"]
+    assert t["habits"][0].get("kind") == "action"

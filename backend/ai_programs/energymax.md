@@ -53,7 +53,7 @@ Check with a professional first:
 - tier: core
 - avoid if: none
 - why: After a broken night, strong black coffee on an empty stomach raised the glucose peak and insulin about 32% after a sugary drink; the popular "wait 90 minutes" rule has no trial behind it.
-- how: 1) Eat first, at least the protein part of your breakfast. 2) Then have your coffee or tea. 3) For a gentler lift, make this cup green tea or matcha (less caffeine, plus L-theanine).
+- how: 1) No coffee or tea until you've eaten something, at least the protein part of your breakfast. 2) The first cup comes after food. 3) For a gentler lift, make that cup green tea or matcha (less caffeine, plus L-theanine).
 - conflicts/synergies: Follows `protein_first_meal`. For people who skip breakfast, the gate is their first meal. Counts toward the `caffeine_cutoff` budget; same cup as FocusMax `caffeine_for_focus`.
 - source: https://pubmed.ncbi.nlm.nih.gov/32475359/
 
@@ -71,8 +71,8 @@ Check with a professional first:
 - source: https://pubmed.ncbi.nlm.nih.gov/23446906/
 
 ### `lunch_balance` — Carbs-last lunch
-- minutes: 0 / 0
-- kind: rule
+- minutes: 1 / 1
+- kind: action
 - lever: nutrition
 - anchor: lunch (the meal before the usual afternoon dip)
 - frequency: daily

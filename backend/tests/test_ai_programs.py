@@ -673,18 +673,18 @@ def test_plan_card_header_is_the_real_day_total_in_waking_order():
     # sim: "1 min a day" on a card with a 5-min habit 3x/week and 20-min strength 2x/week;
     # a night owl's 00:45 wind-down sorted first
     t = {"fit_for": {"weekday": ["09:30", "01:30"]}, "habits": [
-        {"habit_id": "daily_steps", "title": "Daily step goal", "minutes": 1, "time": "10:00", "days": ALL},
+        {"habit_id": "recovery_day", "title": "Rest and recovery day", "minutes": 1, "time": "10:00", "days": ALL},
         {"habit_id": "mobility_flow", "title": "5-minute mobility", "minutes": 5, "time": "09:40",
          "days": ["tue", "fri", "sun"]},
         {"habit_id": "strength_full_body", "title": "Strength", "minutes": 20, "time": "21:30", "days": ["mon", "thu"]},
         {"habit_id": "wind_down", "title": "Wind-down", "minutes": 10, "time": "00:45", "days": ALL}]}
     block = json.loads(ap.plan_block("trainmax", t).split("[VISUAL_BLOCK]")[1].split("[/VISUAL_BLOCK]")[0])
     # beta 1 (F15): "22 min a day" was a 7-day average nobody's day matches. Now the
-    # busiest regular weekday and weekend day, rules (step goal) left out
+    # busiest regular weekday and weekend day, rules (rest day) left out
     assert block["data"]["weekday_minutes"] == 30 and block["data"]["total_minutes"] == 30   # mon/thu: 20 + 10
     assert block["data"]["weekend_minutes"] == 15                                           # sun: 5 + 10
-    assert {i["title"]: i["kind"] for i in block["data"]["items"]}["Daily step goal"] == "rule"
-    assert [i["title"] for i in block["data"]["items"]] == ["5-minute mobility", "Daily step goal", "Strength",
+    assert {i["title"]: i["kind"] for i in block["data"]["items"]}["Rest and recovery day"] == "rule"
+    assert [i["title"] for i in block["data"]["items"]] == ["5-minute mobility", "Rest and recovery day", "Strength",
                                                             "Wind-down"]
     # morning habits never take a work-break slot at the start of work (sim: mobility at 11:00, work 11-19)
     prof = _prof("09:30", "01:30", minutes=60, work=("11:00", "19:00"),

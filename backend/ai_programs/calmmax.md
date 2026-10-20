@@ -166,15 +166,15 @@ Check with a professional first:
 - source: https://doi.org/10.3389/fpsyg.2019.00722
 
 ### `screen_free_evening` — Dim lights, screens off
-- minutes: 0 / 0
-- kind: rule
+- minutes: 1 / 2
+- kind: action
 - lever: light
 - anchor: pre_bed (the last 60 min before bed)
 - frequency: daily
 - tier: core
 - avoid if: none
 - why: Ordinary evening room light (about 25 lux) was enough for half the maximum melatonin suppression, and more night-time light went with higher rates of anxiety and depression.
-- how: 1) From now on, switch off the overhead lights and use one or two low lamps (warm bulbs if you have them). 2) Put the phone on its charger across the room or outside the bedroom, with screens off. 3) Swap in a paper book, a stretch, or slow music or audio at low volume.
+- how: 1) Switch off the overhead lights and use one or two low lamps (warm bulbs if you have them). 2) Put the phone on its charger across the room or outside the bedroom, with screens off. 3) Swap in a paper book, a stretch, or slow music or audio at low volume.
 - conflicts/synergies: Same as SleepMax `screens_off` (schedule once), at or before the start of SleepMax `wind_down`, never after it. Slow music here is the CalmMax music lever (slow tempo and pauses lower heart rate, blood pressure and breathing).
 - source: https://doi.org/10.1073/pnas.1901824116
 

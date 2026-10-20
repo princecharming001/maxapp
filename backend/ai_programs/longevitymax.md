@@ -57,15 +57,15 @@ Check with a professional first:
 - source: https://pubmed.ncbi.nlm.nih.gov/35228201/
 
 ### `daily_steps` — Hit your step floor
-- minutes: 0 / 0
-- kind: rule
+- minutes: 1 / 10
+- kind: action
 - lever: movement
-- anchor: any (commute, walking calls, post-meal walks and a top-up walk all count)
+- anchor: afternoon (late afternoon, with time left to top up)
 - frequency: daily
 - tier: core
 - avoid if: none
 - why: Across 15 cohorts, the top step group (about 10,900 a day) had 53% lower mortality than the bottom; the benefit leveled off at 6,000–8,000 steps at 60+ and 8,000–10,000 under 60.
-- how: 1) Check today's step count in the late afternoon. 2) If you're under your target (7,000–10,000 depending on age), add a 10–30 min walk this evening. 3) Post-meal and lunch walks count; it doesn't have to be a workout.
+- how: 1) Check today's step count. 2) Short of your target (7,000–10,000 depending on age)? Walk 10–20 min now, outside if you can. 3) Already there? Tick it; post-meal and lunch walks count.
 - conflicts/synergies: Fed by EnergyMax `post_meal_walk`, `outdoor_lunch` and `slump_reset` and by `zone2_cardio`. Same habit as FitMax `daily_steps`; schedule once.
 - source: https://pubmed.ncbi.nlm.nih.gov/35247352/
 
@@ -122,8 +122,8 @@ Check with a professional first:
 - source: https://pubmed.ncbi.nlm.nih.gov/25705824/
 
 ### `veg_first` — Veg first, olive oil on top
-- minutes: 0 / 0
-- kind: rule
+- minutes: 1 / 1
+- kind: action
 - lever: nutrition
 - anchor: dinner (and lunch if EnergyMax `lunch_balance` isn't on)
 - frequency: daily

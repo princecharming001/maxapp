@@ -276,6 +276,8 @@ def kind_of(hid: str, inf: HabitInfo) -> str:
         return "daytime"
     if hid in ("screens_off", "screen_free_evening"):
         return "screens_off"
+    if hid == "dim_evening_light":
+        return "dim"
     if hid == "wind_down":
         return "wind_down"
     if hid in ("melatonin", "glycine", "pm_retinoid") or a.startswith("pre_bed"):
@@ -306,12 +308,12 @@ def kind_of(hid: str, inf: HabitInfo) -> str:
 # placement order by kind (the most constrained first). Every kind kind_of
 # returns must be here (a missing "heat" crashed every Calmmax/Fitmax plan
 # with a sauna; tests/test_biohacking_scope.py checks the whole library).
-KIND_ORDER = {"wake_exact": 0, "wake": 1, "wind_down": 2, "screens_off": 2, "pre_bed": 3, "caffeine": 4,
+KIND_ORDER = {"wake_exact": 0, "wake": 1, "wind_down": 2, "screens_off": 2, "dim": 2, "pre_bed": 3, "caffeine": 4,
               "bath": 5, "meal": 7, "workout": 8, "heat": 9, "evening": 10, "nap": 11, "get_ready": 12,
               "after_meal": 13, "any": 14, "daytime": 14}
 
 SHIFTS_WITH_WAKE = {"wake", "wake_exact", "get_ready"}
-SHIFTS_WITH_BED = {"wind_down", "screens_off", "pre_bed", "evening", "caffeine", "nap", "heat", "bath"}
+SHIFTS_WITH_BED = {"wind_down", "screens_off", "dim", "pre_bed", "evening", "caffeine", "nap", "heat", "bath"}
 
 
 def window(kind: str, dur: int, d: Day, *, weekday: bool) -> tuple[int, int]:
@@ -346,6 +348,10 @@ def window(kind: str, dur: int, d: Day, *, weekday: bool) -> tuple[int, int]:
         return w, max(w, b - 120 - dur)
     if kind == "heat":
         return min(w + 15, hi), max(min(w + 15, hi), b - 60 - dur)
+    if kind == "dim":
+        # lights down 2-3 h before bed (melatonin onset), before screens go away
+        lo = max(w, b - 180)
+        return lo, max(lo, b - 90 - dur)
     if kind == "bath":
         # ends 1-2 h before bed
         return max(w, b - 120 - dur), max(w, b - 60 - dur)
@@ -387,6 +393,8 @@ def _why_here(kind: str, asked: int, d: Day, meals: list[str]) -> str:
         return "workouts finish at least 2 hours before bed"
     if kind == "heat":
         return "heat has to end at least an hour before bed"
+    if kind == "dim":
+        return "lights go down 2 to 3 hours before bed"
     if kind == "bath":
         return "a warm shower works best 1 to 2 hours before bed"
     for k, a, b in d.busy:

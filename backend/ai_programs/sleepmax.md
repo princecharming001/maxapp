@@ -58,28 +58,28 @@ Check with a professional first (the app suggests this, never diagnoses):
 - source: https://pubmed.ncbi.nlm.nih.gov/36870101/
 
 ### `dim_evening_light` — Dim the lights for the evening
-- minutes: 0 / 0
-- kind: rule
+- minutes: 1 / 2
+- kind: action
 - lever: light
 - anchor: wind_down (starts 2–3 h before bed)
 - frequency: daily
 - tier: core
 - avoid if: none
 - why: Ordinary room light in the evening delayed melatonin onset in 99% of people and cut the melatonin night by about 90 min versus dim light; half of the suppression already happens at about 25 lux.
-- how: 1) Switch off overhead lights and use one or two low lamps below eye level. 2) Pick the warmest, dimmest setting you have; screens on night mode and low brightness. 3) Keep bathroom and hallway trips dim too.
+- how: 1) Switch off the overhead lights and turn on one or two low lamps below eye level. 2) Pick the warmest, dimmest setting you have, and drop your screens to night mode and low brightness. 3) Keep bathroom and hallway trips dim for the rest of the evening.
 - conflicts/synergies: `screens_off` and `wind_down` fall inside this window. CalmMax `screen_free_evening` shares the evening slot. The Skin & Hair PM routine works fine under a low lamp.
 - source: https://pubmed.ncbi.nlm.nih.gov/21193540/
 
 ### `screens_off` — Screens off before bed
-- minutes: 0 / 0
-- kind: rule
+- minutes: 1 / 2
+- kind: action
 - lever: light
 - anchor: pre_bed (30–60 min before bed; at or before the start of `wind_down`)
 - frequency: daily
 - tier: medium
 - avoid if: none
 - why: Reading on a light-emitting tablet before bed for 5 nights, versus a printed book, lowered melatonin, delayed the body clock, slowed sleep onset and left people less alert next morning.
-- how: 1) Put the phone on its charger across the room or outside the bedroom. 2) Switch to paper, audio or stretching. 3) If you must use a screen, lowest brightness with night mode, held farther away.
+- how: 1) Put the phone on its charger across the room or outside the bedroom. 2) Switch to paper, audio or stretching. 3) If you must use a screen later, lowest brightness with night mode, held farther away.
 - conflicts/synergies: Same as CalmMax `screen_free_evening`; schedule once. Its time is never after the `wind_down` start.
 - source: https://pubmed.ncbi.nlm.nih.gov/25535358/
 

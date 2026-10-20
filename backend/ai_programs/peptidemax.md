@@ -187,8 +187,8 @@ Check with a professional first (the app should suggest this, not diagnose):
 - source: https://pubmed.ncbi.nlm.nih.gov/40450457/
 
 ### `protein_at_meals` — Protein at each meal
-- minutes: 0 / 0 (a meal rule plus a reminder)
-- kind: rule
+- minutes: 1 / 1
+- kind: action
 - lever: nutrition
 - anchor: meals (breakfast, lunch, dinner)
 - frequency: daily (only for GLP-1 or other weight-loss protocols, or if the user asks)
