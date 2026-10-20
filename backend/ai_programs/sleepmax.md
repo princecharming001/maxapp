@@ -57,7 +57,7 @@ Check with a professional first (the app suggests this, never diagnoses):
 - conflicts/synergies: Same rule as EnergyMax and FocusMax `caffeine_cutoff`; the stricter cutoff wins. FitMax `preworkout_caffeine` only applies to sessions that start before it.
 - source: https://pubmed.ncbi.nlm.nih.gov/36870101/
 
-### `dim_evening_light` — Dim the lights for the evening
+### `dim_evening_light` — Dim the lights
 - minutes: 1 / 2
 - kind: action
 - lever: light
@@ -83,7 +83,7 @@ Check with a professional first (the app suggests this, never diagnoses):
 - conflicts/synergies: Same as CalmMax `screen_free_evening`; schedule once. Its time is never after the `wind_down` start.
 - source: https://pubmed.ncbi.nlm.nih.gov/25535358/
 
-### `warm_shower` — Warm shower or bath before bed
+### `warm_shower` — Warm shower
 - minutes: 10 / 15
 - kind: action
 - lever: temperature
@@ -109,7 +109,7 @@ Check with a professional first (the app suggests this, never diagnoses):
 - conflicts/synergies: Sets up `dim_evening_light`. Earplugs and an eye mask helped sleep in lab studies with ICU-level noise. Continuous white noise is not scheduled (weak evidence).
 - source: https://pubmed.ncbi.nlm.nih.gov/22738673/
 
-### `wind_down` — Slow-breathing wind-down
+### `wind_down` — Breathing wind-down
 - minutes: 5 / 10
 - kind: action
 - lever: breathing
@@ -122,7 +122,7 @@ Check with a professional first (the app suggests this, never diagnoses):
 - conflicts/synergies: Same technique as CalmMax `slow_belly_breathing`; one evening breathing slot. The Skin & Hair PM routine and `scalp_massage` fit just before it.
 - source: https://pubmed.ncbi.nlm.nih.gov/25234581/
 
-### `alcohol_buffer` — Alcohol buffer before bed
+### `alcohol_buffer` — Alcohol buffer
 - minutes: 0 / 0
 - kind: rule
 - lever: compound
@@ -148,7 +148,7 @@ Check with a professional first (the app suggests this, never diagnoses):
 - conflicts/synergies: Pairs with EnergyMax `post_meal_walk`. Late FitMax sessions get a small protein snack, not a big meal. Not a fasting rule.
 - source: https://pubmed.ncbi.nlm.nih.gov/32525525/
 
-### `exercise_timing` — Hard training ends earlier
+### `exercise_timing` — Train earlier
 - minutes: 0 / 0
 - kind: rule
 - lever: movement

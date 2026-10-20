@@ -108,7 +108,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 - conflicts/synergies: Same as LongevityMax `protein_each_meal`; EnergyMax `protein_first_meal` covers breakfast. Food habit only, never a gram target. Late sessions get a small snack (SleepMax `late_meal_buffer`).
 - source: https://pubmed.ncbi.nlm.nih.gov/28698222/
 
-### `session_hydration` — Fluids and salt for long sessions
+### `session_hydration` — Fluids and salt
 - minutes: 1 / 2
 - kind: action
 - lever: hydration
@@ -121,7 +121,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 - conflicts/synergies: Suppmax `electrolytes` stays daytime only, never daily. Applies after sauna sessions too. Never drink so much that you gain weight during exercise.
 - source: https://pubmed.ncbi.nlm.nih.gov/17277604/
 
-### `preworkout_caffeine` — Coffee before training, timed
+### `preworkout_caffeine` — Pre-workout coffee
 - minutes: 0 / 0
 - kind: rule
 - lever: caffeine
@@ -134,7 +134,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 - conflicts/synergies: Governed by `caffeine_cutoff` (the stricter wins); counts toward daily caffeine. Evening trainers effectively never get it.
 - source: https://pubmed.ncbi.nlm.nih.gov/33388079/
 
-### `cold_timing` — Keep cold away from lifting
+### `cold_timing` — No cold after lifting
 - minutes: 0 / 0
 - kind: rule
 - lever: temperature
@@ -174,7 +174,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 - conflicts/synergies: Pairs with CalmMax `outdoor_walk` and SleepMax. A lighter week (about half the sets) every 6–8 weeks is a scheduling rule.
 - source: https://pubmed.ncbi.nlm.nih.gov/38274324/
 
-### `readiness_check` — Morning readiness check
+### `readiness_check` — Readiness check
 - minutes: 1 / 1
 - kind: checkin
 - lever: tracking

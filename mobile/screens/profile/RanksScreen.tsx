@@ -18,7 +18,7 @@ const SUB = '#6B6B6B';
 const MUTE = '#9A9A9A';
 const BG = '#F1F1EF';
 const CARD = '#FFFFFF';
-const GOLD = '#C29A4E';
+const GOLD = INK; // rank accents are ink now (was gold #C29A4E)
 const TRACK = '#E4E3E0';
 
 // Mirrors backend RANKS + xp_for_level (services/gamification.py).
@@ -122,8 +122,8 @@ const s = StyleSheet.create({
     icon: { width: 60, height: 60 },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     name: { fontFamily: fonts.serif, fontSize: 20, color: INK, letterSpacing: -0.2 },
-    youPill: { backgroundColor: 'rgba(194,154,78,0.16)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2.5 },
-    youText: { fontFamily: fonts.sansSemiBold, fontSize: 9.5, color: '#8A6D2E', letterSpacing: 1 },
+    youPill: { backgroundColor: 'rgba(17,17,19,0.08)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2.5 },
+    youText: { fontFamily: fonts.sansSemiBold, fontSize: 9.5, color: INK, letterSpacing: 1 },
     range: { fontFamily: fonts.sansMedium, fontSize: 12, color: SUB, marginTop: 2 },
     line: { fontFamily: fonts.sans, fontSize: 12.5, color: MUTE, marginTop: 2 },
     progressWrap: { marginTop: 9 },

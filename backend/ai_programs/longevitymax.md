@@ -30,7 +30,7 @@ Check with a professional first:
 - conflicts/synergies: Once unlocked, `interval_4x4` replaces one session a week. Counts toward `daily_steps`. The weekend outdoor session doubles as green time (green space and daylight are linked to lower mortality). Same habit as FitMax `zone2_cardio`; CalmMax `move_it_out` that day counts. With a heart or blood-pressure flag, add a check-with-your-clinician note before the first session.
 - source: https://pubmed.ncbi.nlm.nih.gov/30646252/
 
-### `interval_4x4` — Norwegian 4×4 intervals
+### `interval_4x4` — 4×4 intervals
 - minutes: 25 / 35
 - kind: action
 - lever: movement
@@ -69,7 +69,7 @@ Check with a professional first:
 - conflicts/synergies: Fed by EnergyMax `post_meal_walk`, `outdoor_lunch` and `slump_reset` and by `zone2_cardio`. Same habit as FitMax `daily_steps`; schedule once.
 - source: https://pubmed.ncbi.nlm.nih.gov/35247352/
 
-### `stair_snack` — Vigorous 1-minute bursts
+### `stair_snack` — 1-minute bursts
 - minutes: 1 / 2
 - kind: action
 - lever: movement
@@ -82,7 +82,7 @@ Check with a professional first:
 - conflicts/synergies: Same mechanism as EnergyMax `vigorous_burst`; one burst counts for both. People this rules out get `move_after_sitting` instead.
 - source: https://pubmed.ncbi.nlm.nih.gov/36482104/
 
-### `move_after_sitting` — Easy walk every sitting hour
+### `move_after_sitting` — Hourly walk break
 - minutes: 2 / 5
 - kind: action
 - lever: movement
@@ -121,7 +121,7 @@ Check with a professional first:
 - conflicts/synergies: Only with sauna access. Never with alcohol that day (raises the risk of low blood pressure, arrhythmia and sudden death). A cold rinse after only with no health flags. Works well after `strength_2x` or `zone2_cardio`. Sauna lowers sperm counts for a while, so men trying to conceive can skip it. Same lever as CalmMax `heat_session`; schedule one.
 - source: https://pubmed.ncbi.nlm.nih.gov/25705824/
 
-### `veg_first` — Veg first, olive oil on top
+### `veg_first` — Veg first
 - minutes: 1 / 1
 - kind: action
 - lever: nutrition
@@ -147,7 +147,7 @@ Check with a professional first:
 - conflicts/synergies: Raise by about 5 g a week to avoid bloating. Strengthens the glucose effect of `veg_first` and `lunch_balance`.
 - source: https://pubmed.ncbi.nlm.nih.gov/30638909/
 
-### `protein_each_meal` — 25–30 g protein per meal
+### `protein_each_meal` — Protein each meal
 - minutes: 1 / 3
 - kind: action
 - lever: nutrition
@@ -160,7 +160,7 @@ Check with a professional first:
 - conflicts/synergies: Pairs with `strength_2x`. Same habit as FitMax `protein_each_meal`; shares the breakfast card with EnergyMax `protein_first_meal`. Protein powders go to Suppmax. Core tier at 65+.
 - source: https://pubmed.ncbi.nlm.nih.gov/23867520/
 
-### `sleep_regularity` — Same wake time, 7 days a week
+### `sleep_regularity` — Same wake time
 - minutes: 0 / 0
 - kind: rule
 - lever: sleep
@@ -173,7 +173,7 @@ Check with a professional first:
 - conflicts/synergies: Same idea as SleepMax `fixed_wake_time`; schedule once. Protected by `caffeine_cutoff` and `alcohol_awareness`. Shift workers keep a consistent core sleep block on work and off days.
 - source: https://pubmed.ncbi.nlm.nih.gov/37738616/
 
-### `alcohol_awareness` — Alcohol: zero or capped
+### `alcohol_awareness` — Alcohol cap
 - minutes: 0 / 0
 - kind: rule
 - lever: compound
@@ -199,7 +199,7 @@ Check with a professional first:
 - conflicts/synergies: Replaces the old checkup reminder. Feeds Suppmax (vitamin D, ferritin) and the EnergyMax fatigue note. These values are consumer health data and never appear in push, SMS or calendar text.
 - source: https://pubmed.ncbi.nlm.nih.gov/26724178/
 
-### `vitals_check` — Weekly resting heart rate
+### `vitals_check` — Resting heart rate
 - minutes: 1 / 2
 - kind: checkin
 - lever: tracking

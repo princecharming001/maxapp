@@ -32,7 +32,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Pairs with `site_rotation` and `side_effect_log` on dose days. If two peptides share a time, keep them as two reminders 5 min apart so each one is ticked off separately.
 - source: https://www.accessdata.fda.gov/drugsatfda_docs/label/2024/215256s011lbl.pdf
 
-### `site_rotation` — Rotate your injection site
+### `site_rotation` — Rotate the site
 - minutes: 1 / 1
 - kind: action
 - lever: compound
@@ -74,7 +74,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Triggers `cold_chain_check` discard date. Skip entirely for pre-filled pens.
 - source: https://www.fda.gov/drugs/postmarket-drug-safety-information-patients-and-providers/fdas-concerns-unapproved-glp-1-drugs-used-weight-loss
 
-### `cold_chain_check` — Storage and discard dates
+### `cold_chain_check` — Storage check
 - minutes: 1 / 2
 - kind: checkin
 - lever: tracking
@@ -88,7 +88,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Pairs with `refill_planning` (an expired vial can mean an early refill).
 - source: https://www.accessdata.fda.gov/drugsatfda_docs/label/2024/215256s011lbl.pdf
 
-### `sharps_disposal` — Sharps container check
+### `sharps_disposal` — Sharps check
 - minutes: 1 / 2
 - kind: checkin
 - lever: tracking
@@ -102,7 +102,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: None. One-time setup is a good week-1 win.
 - source: https://www.fda.gov/medical-devices/safely-using-sharps-needles-and-syringes-home-work-and-travel/best-way-get-rid-used-needles-and-other-sharps
 
-### `side_effect_log` — 30-second side-effect log
+### `side_effect_log` — Side-effect log
 - minutes: 1 / 1
 - kind: checkin
 - lever: tracking
@@ -158,7 +158,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Pairs with `bloodwork_checkin` and `refill_planning`.
 - source: https://www.fda.gov/drugs/postmarket-drug-safety-information-patients-and-providers/fdas-concerns-unapproved-glp-1-drugs-used-weight-loss
 
-### `refill_planning` — Refill before you run out
+### `refill_planning` — Plan your refill
 - minutes: 2 / 3
 - kind: action
 - lever: compound
@@ -200,7 +200,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Pairs with `resistance_training`. Do not frame as calorie restriction or fasting.
 - source: https://pubmed.ncbi.nlm.nih.gov/40450457/
 
-### `resistance_training` — Strength training to keep muscle
+### `resistance_training` — Strength training
 - minutes: 20 / 30
 - kind: action
 - lever: movement
@@ -214,7 +214,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: If the user also runs Fitmax, do not schedule a second strength session. Credit the Fitmax sessions here. Keep hard sessions away from the hours right after a dose if the user reports nausea then.
 - source: https://pubmed.ncbi.nlm.nih.gov/40450457/
 
-### `hydration_fiber` — Water and fiber for GI comfort
+### `hydration_fiber` — Water and fiber
 - minutes: 1 / 2
 - kind: action
 - lever: hydration
@@ -228,7 +228,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Same lever as Energymax hydration. If both are on, count it once. Ongoing vomiting or no fluids staying down: contact a clinician.
 - source: https://pubmed.ncbi.nlm.nih.gov/40450457/
 
-### `prescriber_review` — Review these with your prescriber
+### `prescriber_review` — Prescriber review
 - minutes: 5 / 10
 - kind: setup
 - lever: compound
@@ -242,7 +242,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Written by the protocol check, never by the model.
 - source: https://www.accessdata.fda.gov/drugsatfda_docs/label/2024/215256s011lbl.pdf
 
-### `label_check` — Check your reminders against your label
+### `label_check` — Label check
 - minutes: 2 / 5
 - kind: setup
 - lever: compound
@@ -256,7 +256,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: None.
 - source: https://medlineplus.gov/ency/patientinstructions/000430.htm
 
-### `anti_doping_check` — Check your peptides on Global DRO
+### `anti_doping_check` — Anti-doping check
 - minutes: 5 / 5
 - kind: setup
 - lever: compound
@@ -284,7 +284,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: None.
 - source: https://www.asahq.org/about-asa/newsroom/news-releases/2024/10/new-multi-society-guidance-on-glp-1-receptor-agonists
 
-### `clinician_visit` — See a licensed clinician about your peptides
+### `clinician_visit` — See a clinician
 - minutes: 10 / 15
 - kind: setup
 - lever: compound
@@ -298,7 +298,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Written by the protocol check, never by the model.
 - source: https://www.fda.gov/drugs/postmarket-drug-safety-information-patients-and-providers/fdas-concerns-unapproved-glp-1-drugs-used-weight-loss
 
-### `learn_first` — Read the peptides course for your goal
+### `learn_first` — Read the course
 - minutes: 10 / 15
 - kind: setup
 - lever: compound

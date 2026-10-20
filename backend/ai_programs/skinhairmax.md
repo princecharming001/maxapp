@@ -50,7 +50,7 @@ Check with a dermatologist or clinician first:
 - how: 1) Reapply SPF 30+ to face, neck and ears. 2) A stick or powder SPF works over makeup.
 - source: https://www.aad.org/public/everyday-care/sun-protection/shade-clothing-sunscreen/how-to-apply-sunscreen
 
-### `keto_wash` — Ketoconazole shampoo wash
+### `keto_wash` — Ketoconazole wash
 - minutes: 5 / 5
 - kind: action
 - lever: topical
@@ -72,7 +72,7 @@ Check with a dermatologist or clinician first:
 - how: 1) Fingertips or a soft silicone scalp brush. 2) Small circles, front to back, firm but not scratching, for 4 minutes.
 - source: https://pmc.ncbi.nlm.nih.gov/articles/PMC4740347
 
-### `uv_shade_rule` — Shade and a hat when UV is 3+
+### `uv_shade_rule` — Shade when UV is 3+
 - minutes: 0 / 0
 - kind: rule
 - lever: light
@@ -85,7 +85,7 @@ Check with a dermatologist or clinician first:
 - conflicts/synergies: Doesn't apply to `morning_light` (early UV is usually under 3). Pairs with `spf_reapply`. Frequent shade use is linked to slightly lower vitamin D, which is a Suppmax D3 note; never skip sunscreen "for vitamin D".
 - source: https://pubmed.ncbi.nlm.nih.gov/23732711/
 
-### `low_gi_swap` — Slow-carb swap for breakouts
+### `low_gi_swap` — Slow-carb swap
 - minutes: 1 / 1
 - kind: action
 - lever: nutrition

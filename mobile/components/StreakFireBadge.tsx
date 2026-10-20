@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { AccessibilityInfo, Platform, View, StyleSheet } from 'react-native';
-import Svg, { Path, Text as SvgText } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -112,7 +112,35 @@ export function StreakFireBadge({ streakDays, variant = 'header' }: Props) {
             viewBox="0 0 40 40"
             accessibilityElementsHidden
           >
-            <Path d={FLAME_PATH} fill={INK} opacity={inactive ? 0.3 : 1} />
+            <Defs>
+              {/* Black glass: lit from above, a soft gleam on the left
+                  shoulder, a faint bright rim. Same language as the glass bars. */}
+              <LinearGradient id={`sfb-body-${variant}`} x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor="#4A4A52" />
+                <Stop offset="0.45" stopColor="#1A1A1E" />
+                <Stop offset="1" stopColor="#050506" />
+              </LinearGradient>
+              <RadialGradient id={`sfb-gleam-${variant}`} cx="14.5" cy="21" r="8" gradientUnits="userSpaceOnUse">
+                <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.38" />
+                <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+              </RadialGradient>
+            </Defs>
+            <Path
+              d={FLAME_PATH}
+              fill={`url(#sfb-body-${variant})`}
+              stroke="rgba(255,255,255,0.22)"
+              strokeWidth={0.6}
+              opacity={inactive ? 0.3 : 1}
+            />
+            <Path d={FLAME_PATH} fill={`url(#sfb-gleam-${variant})`} opacity={inactive ? 0.3 : 1} />
+            <Path
+              d="M12.6 18.4C11.4 19.9 10.8 21.5 10.6 23.2"
+              stroke="#FFFFFF"
+              strokeOpacity={inactive ? 0.15 : 0.5}
+              strokeWidth={1.1}
+              strokeLinecap="round"
+              fill="none"
+            />
           </Svg>
         </AnimatedView>
         <View style={styles.numOverlay} pointerEvents="none">

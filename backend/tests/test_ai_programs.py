@@ -484,7 +484,7 @@ async def test_summary_falls_back_to_a_plain_truthful_one(monkeypatch):
     monkeypatch.setattr(ap, "_claude_tool", down)
     t, prof = _focus_5min()
     s = (await ap.sync_summary("focusmax", t, prof))["summary"]
-    assert s.startswith("week 1 keeps it simple: caffeine timed to your focus window.")
+    assert s.startswith("week 1 keeps it simple: focus caffeine.")
     assert "NSDR can come in later" in s            # acronyms keep their case
 
 

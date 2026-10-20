@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     textWrap: { alignItems: 'center', marginTop: spacing.xl },
     kicker: {
         fontFamily: fonts.sansSemiBold, fontSize: 11, letterSpacing: 2,
-        color: '#E7CFA6', marginBottom: 10,
+        color: 'rgba(251,246,238,0.7)', marginBottom: 10,
     },
     title: {
         fontFamily: fonts.serif, fontSize: 30, color: '#FBF6EE',
@@ -212,11 +212,10 @@ const styles = StyleSheet.create({
         lineHeight: 21, textAlign: 'center', marginTop: 8, maxWidth: 300,
     },
     xpPill: {
-        marginTop: 14, backgroundColor: 'rgba(201,162,78,0.18)', borderRadius: borderRadius.full,
+        marginTop: 14, backgroundColor: '#FFFFFF', borderRadius: borderRadius.full,
         paddingHorizontal: 16, paddingVertical: 7,
-        borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(231,207,166,0.55)',
     },
-    xpText: { fontFamily: fonts.sansSemiBold, fontSize: 13.5, color: '#E7CFA6', letterSpacing: 0.4 },
+    xpText: { fontFamily: fonts.sansBold, fontSize: 13.5, color: '#111113', letterSpacing: 0.4 },
     count: { fontFamily: fonts.sansMedium, fontSize: 12, color: 'rgba(251,246,238,0.5)', marginTop: 14 },
     cta: {
         marginTop: spacing.xl, backgroundColor: '#FBF6EE',

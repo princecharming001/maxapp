@@ -30,7 +30,7 @@ Check with a professional first:
 - conflicts/synergies: Comes before `morning_light` and the first coffee (water, light, food, coffee). Shown once if other programs also hydrate (FocusMax `hydrate_to_focus` is the work-start glass).
 - source: https://pubmed.ncbi.nlm.nih.gov/22190027/
 
-### `morning_light` — Outdoor light in your first hour
+### `morning_light` — Morning light
 - minutes: 10 / 15
 - kind: action
 - lever: light
@@ -44,7 +44,7 @@ Check with a professional first:
 - conflicts/synergies: Same habit as SleepMax and FocusMax `morning_light`; schedule once. Shares the wake card with LongevityMax `sleep_regularity`. Walking outside counts toward `daily_steps`.
 - source: https://pubmed.ncbi.nlm.nih.gov/23910656/
 
-### `delay_first_coffee` — Coffee after food, not before
+### `delay_first_coffee` — Coffee after food
 - minutes: 0 / 0
 - kind: rule
 - lever: caffeine
@@ -57,7 +57,7 @@ Check with a professional first:
 - conflicts/synergies: Follows `protein_first_meal`. For people who skip breakfast, the gate is their first meal. Counts toward the `caffeine_cutoff` budget; same cup as FocusMax `caffeine_for_focus`.
 - source: https://pubmed.ncbi.nlm.nih.gov/32475359/
 
-### `protein_first_meal` — Protein-forward first meal
+### `protein_first_meal` — Protein breakfast
 - minutes: 2 / 5
 - kind: action
 - lever: nutrition
@@ -96,7 +96,7 @@ Check with a professional first:
 - conflicts/synergies: Counts toward `daily_steps`. The lunch version is `outdoor_lunch`; don't schedule both after lunch.
 - source: https://pubmed.ncbi.nlm.nih.gov/27747394/
 
-### `outdoor_lunch` — Daylight walk after lunch
+### `outdoor_lunch` — Walk after lunch
 - minutes: 10 / 15
 - kind: action
 - lever: light
@@ -122,7 +122,7 @@ Check with a professional first:
 - conflicts/synergies: Same concept group as FocusMax `micro_break`, FitMax `posture_break` and LongevityMax `move_after_sitting`: one card. Skip the hour that holds `outdoor_lunch` or `slump_reset`.
 - source: https://pubmed.ncbi.nlm.nih.gov/27809874/
 
-### `slump_reset` — Stairs instead of a snack
+### `slump_reset` — Stairs, not snacks
 - minutes: 5 / 10
 - kind: action
 - lever: movement

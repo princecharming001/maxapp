@@ -1,10 +1,10 @@
 /**
  * GlassBar — a progress/segment fill rendered as CLEAR glass, the same material
- * as the app's glass DNA logo: a frosted milky body, an iridescent magenta→cyan
+ * as the app's glass DNA logo: a frosted milky body, a neutral silver
  * rim, and a bright gleam along the top. (It used to be black "obsidian" glass.)
  *
  * Layering (bottom → top):
- *   1. Iridescent rim — a thin magenta/cyan/violet band that shows around the
+ *   1. Silver rim — a thin neutral band that shows around the
  *      body (the chromatic edge on every glass icon in the app).
  *   2. Frosted body — milky white to soft pearl, top to bottom, so the bar
  *      reads as a rounded rod of glass on light tracks.
@@ -42,8 +42,9 @@ export type GlassBarProps = {
     sweepDelayMs?: number;
 };
 
-// Iridescent rim ramp (magenta → cyan → violet), sampled by from/to.
-const RIM_STOPS: [number, number, number][] = [[255, 95, 210], [127, 214, 255], [180, 140, 255], [255, 122, 200]];
+// Rim ramp, sampled by from/to: neutral silver with the faintest warm/cool
+// drift (it used to be a loud magenta → cyan iridescence).
+const RIM_STOPS: [number, number, number][] = [[178, 176, 182], [162, 166, 174], [184, 182, 186], [168, 168, 176]];
 function rimAt(t: number, alpha = 0.78): string {
     const x = Math.max(0, Math.min(1, t)) * (RIM_STOPS.length - 1);
     const i = Math.min(RIM_STOPS.length - 2, Math.floor(x));
@@ -110,7 +111,7 @@ export default function GlassBar({ from = 0, to = 1, style, radius = 5, sweepDel
 
                     {/* 4. Bottom bounce — a faint cool tint where light exits. */}
                     <LinearGradient
-                        colors={['rgba(255,255,255,0)', 'rgba(170,200,255,0.30)']}
+                        colors={['rgba(255,255,255,0)', 'rgba(150,152,160,0.22)']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 0, y: 1 }}
                         style={styles.bounce}

@@ -74,7 +74,7 @@ Check with a professional first:
 - conflicts/synergies: The spike tool next to `physiological_sigh`. Cloth only (no dip) for people with panic attacks or asthma. Never in the same slot as `cold_shower_finish`. Fine after FitMax sessions.
 - source: https://doi.org/10.2196/10257
 
-### `cold_shower_finish` — Cold finish to your shower
+### `cold_shower_finish` — Cold shower finish
 - minutes: 1 / 2
 - kind: action
 - lever: temperature
@@ -113,7 +113,7 @@ Check with a professional first:
 - conflicts/synergies: Same as FocusMax `nsdr_break` (schedule once). Can replace a nap under SleepMax `nap_rule`. Before bed it sits inside SleepMax `wind_down` as audio only, screen face-down. One rest habit a day: not on the same day as `pmr_release`. Never while driving.
 - source: https://doi.org/10.1002/smi.70049
 
-### `pmr_release` — Progressive muscle release
+### `pmr_release` — Muscle release
 - minutes: 5 / 10
 - kind: action
 - lever: rest
@@ -178,7 +178,7 @@ Check with a professional first:
 - conflicts/synergies: Same as SleepMax `screens_off` (schedule once), at or before the start of SleepMax `wind_down`, never after it. Slow music here is the CalmMax music lever (slow tempo and pauses lower heart rate, blood pressure and breathing).
 - source: https://doi.org/10.1073/pnas.1901824116
 
-### `caffeine_ceiling` — Caffeine ceiling for jitters
+### `caffeine_ceiling` — Caffeine ceiling
 - minutes: 0 / 0
 - kind: rule
 - lever: caffeine
@@ -191,7 +191,7 @@ Check with a professional first:
 - conflicts/synergies: Works with `caffeine_cutoff` from SleepMax or EnergyMax (that one sets the time, this one the amount; both apply). FocusMax `caffeine_for_focus` fits inside the cap. FitMax pre-workout drinks count toward it.
 - source: https://doi.org/10.1038/npp.2008.17
 
-### `stress_checkin` — 30-second body-stress check-in
+### `stress_checkin` — Stress check-in
 - minutes: 1 / 1
 - kind: checkin
 - lever: tracking

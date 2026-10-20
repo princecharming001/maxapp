@@ -31,7 +31,7 @@ Check with a professional first:
 - conflicts/synergies: Same habit as SleepMax and EnergyMax `morning_light`; schedule once. Pairs with `caffeine_for_focus` (coffee outside) and `cold_shower_finish` (light straight after the shower). On days they can't get out, `focus_space_setup` (a window seat) is the fallback.
 - source: https://doi.org/10.1371/journal.pbio.3001571
 
-### `caffeine_for_focus` — Caffeine timed to your focus window
+### `caffeine_for_focus` — Focus caffeine
 - minutes: 1 / 2
 - kind: action
 - lever: caffeine
@@ -57,7 +57,7 @@ Check with a professional first:
 - conflicts/synergies: Same rule as SleepMax and EnergyMax `caffeine_cutoff`; schedule once and the strictest wins. Limits `caffeine_for_focus`, `green_tea_afternoon` and a caffeine nap.
 - source: https://doi.org/10.1016/j.smrv.2023.101764
 
-### `green_tea_afternoon` — Green tea instead of a second coffee
+### `green_tea_afternoon` — Afternoon green tea
 - minutes: 2 / 5
 - kind: action
 - lever: caffeine
@@ -70,7 +70,7 @@ Check with a professional first:
 - conflicts/synergies: Counts toward the daily caffeine total with `caffeine_for_focus` and is bound by `caffeine_cutoff`. Use it in place of Suppmax `caffeine_theanine` in the afternoon, since tea already brings theanine. Tea as a drink only: green-tea extract pills are not part of this habit.
 - source: https://doi.org/10.1111/nure.12120
 
-### `move_before_focus` — Movement primer before hard thinking
+### `move_before_focus` — Move before focus
 - minutes: 5 / 10
 - kind: action
 - lever: movement
@@ -109,7 +109,7 @@ Check with a professional first:
 - conflicts/synergies: Same lever as EnergyMax `water_on_waking` and `water_bottle_refill`; count it once and never stack fluid targets. Electrolytes on sweaty days live in Suppmax. Keep big drinks out of the last hour before bed (SleepMax).
 - source: https://doi.org/10.1249/MSS.0000000000001682
 
-### `protein_first_lunch` — Moderate lunch, protein and veg first
+### `protein_first_lunch` — Protein-first lunch
 - minutes: 0 / 2
 - kind: action
 - lever: nutrition
@@ -122,7 +122,7 @@ Check with a professional first:
 - conflicts/synergies: Same lever as EnergyMax `lunch_balance` and LongevityMax `veg_first`; one lunch task. Pairs with `walk_to_think` or EnergyMax `post_meal_walk` straight after. Keep the hardest thinking out of the first 30–60 min after lunch when they have a choice.
 - source: https://doi.org/10.1016/j.physbeh.2011.11.025
 
-### `walk_to_think` — Outdoor walk in daylight
+### `walk_to_think` — Daylight walk
 - minutes: 10 / 15
 - kind: action
 - lever: movement
@@ -161,7 +161,7 @@ Check with a professional first:
 - conflicts/synergies: Follows SleepMax `nap_rule` (no naps within 7 h of bed, none for people who struggle to fall asleep). Pick this or `nsdr_break` on a given day. The caffeine version spends the day's caffeine budget and must sit before `caffeine_cutoff`.
 - source: https://doi.org/10.1093/sleep/29.6.831
 
-### `cold_shower_finish` — Cold finish to your shower
+### `cold_shower_finish` — Cold shower finish
 - minutes: 1 / 2
 - kind: action
 - lever: temperature
@@ -187,7 +187,7 @@ Check with a professional first:
 - conflicts/synergies: Run it during `micro_break`. On bad-air days rely on the building's ventilation or a purifier. SleepMax `bedroom_setup` pulls the same lever at night.
 - source: https://doi.org/10.1289/ehp.1510037
 
-### `focus_space_setup` — Daylight desk, comfortable temperature, quiet
+### `focus_space_setup` — Set up your desk
 - minutes: 10 / 15
 - kind: setup
 - lever: light

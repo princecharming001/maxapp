@@ -649,7 +649,7 @@ _PLAN_TOOL = {
                     "type": "object",
                     "properties": {
                         "habit_id": {"type": "string", "description": "an id from the habit library, or custom_<slug> ONLY for a habit the user explicitly asked for"},
-                        "title": {"type": "string", "description": "short title, 4 words max"},
+                        "title": {"type": "string", "description": "short title, 2-3 words, under 20 characters (it must fit one line on a phone)"},
                         "how": {"type": "string", "description": "1-2 concrete steps tailored to this user"},
                         "why": {"type": "string", "description": "one short line"},
                         "minutes": {"type": "integer"},

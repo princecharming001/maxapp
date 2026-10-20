@@ -215,9 +215,17 @@ function GradientHabit({
                     )}
                 </TouchableOpacity>
                 <View style={gh.body}>
-                    {/* Up to two lines: "Morning light walk outside" must read
-                        in full, not as "Morning light wal…". */}
-                    <Text style={[gh.title, { color: txt }]} numberOfLines={2}>{row.title}</Text>
+                    {/* Always one line. Library titles are written to fit a
+                        375pt phone; anything longer (a custom habit) shrinks a
+                        little rather than wrapping or cutting off. */}
+                    <Text
+                        style={[gh.title, { color: txt }]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.82}
+                    >
+                        {row.title}
+                    </Text>
                     {row.moduleLabel || isSetup ? (
                         <View style={gh.subRow}>
                             {row.moduleLabel ? (
@@ -263,10 +271,10 @@ const gh = StyleSheet.create({
         minHeight: 88, borderRadius: 22, overflow: 'hidden', marginBottom: 12,
         shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 3,
     },
-    inner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 16, paddingVertical: 18 },
+    inner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 18 },
     checkHit: { padding: 2 },
-    checkDone: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.82)', alignItems: 'center', justifyContent: 'center' },
-    checkOpen: { width: 48, height: 48, borderRadius: 24, borderWidth: 2 },
+    checkDone: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.82)', alignItems: 'center', justifyContent: 'center' },
+    checkOpen: { width: 44, height: 44, borderRadius: 22, borderWidth: 2 },
     body: { flex: 1, minWidth: 0 },
     title: { fontSize: 17, fontFamily: fonts.sansSemiBold, fontWeight: '600', letterSpacing: -0.3 },
     sub: { fontSize: 13.5, fontFamily: fonts.sans, flexShrink: 1 },

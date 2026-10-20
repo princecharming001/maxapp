@@ -132,7 +132,7 @@ const s = StyleSheet.create({
     topRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
     rank: { fontFamily: fonts.serif, fontSize: 26, color: INK, letterSpacing: -0.3 },
     level: { fontFamily: fonts.sansMedium, fontSize: 13, color: SUB, marginTop: 3, letterSpacing: 0.2 },
-    today: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: '#8A6D2E', marginTop: 6 },
+    today: { fontFamily: fonts.sansSemiBold, fontSize: 12, color: INK, marginTop: 6 },
     iconWrap: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center' },
     icon: { width: 72, height: 72 },
     // 12pt, not the old 8: glass needs thickness to read as a rod (see GlassBar).

@@ -123,7 +123,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Melatonin-related claims are overstated in marketing; it is not a melatonin substitute.
 - source: https://pubmed.ncbi.nlm.nih.gov/20438325/
 
-### `caffeine_theanine` — L-theanine with your coffee
+### `caffeine_theanine` — L-theanine + coffee
 - minutes: 1 / 1
 - kind: action
 - lever: compound
@@ -174,7 +174,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Same lever as Fitmax `protein_each_meal` and `post_workout_meal` and Energymax `protein_first_meal`; never schedule as a separate task when a protein meal already sits there. Do not frame as a gram-per-kg prescription. Plant powders work for users with a milk allergy.
 - source: https://pubmed.ncbi.nlm.nih.gov/28698222/
 
-### `electrolytes` — Electrolytes on sweaty days
+### `electrolytes` — Electrolytes (sweaty days)
 - minutes: 1 / 1
 - kind: action
 - lever: compound
@@ -329,7 +329,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Must not share a slot with `multivitamin` (calcium), `magnesium_glycinate`, coffee or tea. If the user is tired and asks about iron, suggest bloodwork, not a supplement.
 - source: https://ods.od.nih.gov/factsheets/Iron-HealthProfessional/
 
-### `parent_check` — Check with a parent or doctor (under 18)
+### `parent_check` — Parent check (under 18)
 - minutes: 5 / 10
 - kind: setup
 - lever: compound
