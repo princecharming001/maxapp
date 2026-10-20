@@ -433,6 +433,10 @@ class Settings(BaseSettings):
     apple_iap_product_id_premium: str = Field(default="com.cannon.mobile.subscribe.premium.weekly")
     apple_iap_force_sandbox_api: bool = Field(default=False, description="Try sandbox API first when verifying transactions")
     apple_asn_shared_secret: str = Field(default="", description="Shared secret for App Store Server Notifications V2")
+    sales_alert_emails: str = Field(
+        default="",
+        description="Comma-separated account emails that get a push for every App Store sale event "
+                    "(new sub, trial, renewal, cancel, refund). Empty = every admin account.")
     
     # AWS S3
     aws_access_key_id: str = Field(default="")

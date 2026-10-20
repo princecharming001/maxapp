@@ -753,7 +753,9 @@ async def apple_server_notifications(
     ntype = (outer.get("notificationType") or "").upper()
     data = outer.get("data") or {}
     signed_tx = data.get("signedTransactionInfo")
+    from services import sales_alerts
     if not signed_tx:
+        sales_alerts.notify(outer, {})        # Apple's TEST ping proves the chain end to end
         return {"status": "ok"}
 
     try:
@@ -761,6 +763,8 @@ async def apple_server_notifications(
     except Exception as e:
         logger.warning("ASN decode transaction failed: %s", e)
         return {"status": "ok"}
+    # a push to the owner's phone for every sale event (never blocks this webhook)
+    sales_alerts.notify(outer, txn_inner)
 
     txn_id = (txn_inner.get("transactionId") or "").strip() or None
     original_id = str(txn_inner.get("originalTransactionId") or "")
