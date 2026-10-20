@@ -2,6 +2,7 @@
  * API Service - Backend communication
  */
 
+import { endpointPattern, phCapture } from '../lib/posthog';
 import axios, { AxiosInstance } from 'axios';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
@@ -613,6 +614,17 @@ class ApiService {
                 const cfg = error.config as
                     | ({ _retry?: boolean; _netRetries?: number } & typeof error.config)
                     | undefined;
+                // Every failed request users hit, for PostHog (endpoint pattern + status
+                // only, never bodies). 401s are the normal token-refresh path.
+                if (error.response?.status !== 401) {
+                    phCapture('api_error', {
+                        endpoint: endpointPattern(cfg?.url || ''),
+                        method: String(cfg?.method || '').toUpperCase(),
+                        status: error.response?.status ?? 0,
+                        network: !error.response,
+                        retry: Boolean(cfg?._retry || cfg?._netRetries),
+                    });
+                }
                 // 402 = entitlement expired server-side (subscription lapsed
                 // mid-session). Notify auth so the whole app degrades to the
                 // paywall consistently instead of per-screen error roulette.

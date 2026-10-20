@@ -444,6 +444,8 @@ class Settings(BaseSettings):
     apple_iap_product_id_premium: str = Field(default="com.cannon.mobile.subscribe.premium.weekly")
     apple_iap_force_sandbox_api: bool = Field(default=False, description="Try sandbox API first when verifying transactions")
     apple_asn_shared_secret: str = Field(default="", description="Shared secret for App Store Server Notifications V2")
+    posthog_api_key: str = Field(default="", description="PostHog project API key (phc_…); empty = off")
+    posthog_host: str = Field(default="https://us.i.posthog.com", description="PostHog host (us or eu)")
     sales_alert_emails: str = Field(
         default="",
         description="Comma-separated account emails that get a push for every App Store sale event "

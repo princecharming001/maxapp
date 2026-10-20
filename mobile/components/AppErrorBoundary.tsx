@@ -1,3 +1,4 @@
+import { phException } from '../lib/posthog';
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -43,6 +44,8 @@ export class AppErrorBoundary extends React.Component<Props, State> {
     componentDidCatch(error: Error, info: React.ErrorInfo) {
         // Best-effort: clear poisoned boot-restored blobs so a relaunch is clean.
         AsyncStorage.multiRemove(BOOT_RESTORED_KEYS).catch(() => undefined);
+        // the crash that showed the recovery screen, in PostHog error tracking
+        phException(error, { boundary: this.props.label || 'unnamed', handled: true });
         try {
             // eslint-disable-next-line no-console
             console.error(

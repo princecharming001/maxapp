@@ -138,7 +138,8 @@ export const privacyBlocks: LegalBlock[] = [
             'Payments: Apple App Store / Google Play billing for in-app purchases; Stripe (or similar) for web or non-store payments where used.',
             'Messaging: Twilio or similar SMS providers for verification, password reset, or notifications where enabled.',
             'AI and analysis: Anthropic, Google (Gemini), OpenAI or other model providers for generating or processing text and images you send to the coach.',
-            'Analytics, logging, and security: tools used to monitor errors, performance, or abuse, subject to configuration and consent where required.',
+            'Product analytics, error tracking and session replay: PostHog, which receives your account ID, the screens you open, which buttons you tap (not their text), error and crash details, and screen recordings with every text field and image masked. The coach chat, task guides and chat threads are never recorded, and people running Peptidemax are never recorded.',
+            'Logging and security: tools used to monitor performance or abuse, subject to configuration and consent where required.',
         ],
     },
     {

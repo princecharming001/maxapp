@@ -30,6 +30,9 @@ import { ensureFirstRunClean } from './lib/firstRunGuard';
 import { checkAndApplyUpdate } from './lib/otaUpdates';
 import { installGlobalErrorHandlers } from './lib/globalErrorHandlers';
 import AppErrorBoundary from './components/AppErrorBoundary';
+import { PostHogProvider } from 'posthog-react-native';
+import { posthog, PH_AUTOCAPTURE, phRouteChanged } from './lib/posthog';
+import PosthogRecordingGate from './components/PosthogRecordingGate';
 import { loadRestoredTab, persistActiveTab, extractActiveTab } from './lib/navState';
 import { navigationRef } from './lib/navigationRef';
 import { colors } from './theme/dark';
@@ -438,11 +441,15 @@ function AppNavigator() {
                 // propagates to the root error boundary before anything renders.
                 try { flushPendingDeepLink(); } catch (e) { console.warn('[DeepLink] flush failed:', e); }
                 try { flushWidgetHome(); } catch (e) { console.warn('[Widget] flush failed:', e); }
+                phRouteChanged((navRef.getCurrentRoute() as { name?: string } | undefined)?.name);
             }}
             // Remember which paid-app tab the user is on so a reload/relaunch
             // restores it instead of bouncing to the default tab. Scoped + safe:
             // persistActiveTab only writes known Main tabs (see lib/navState).
-            onStateChange={(state) => persistActiveTab(extractActiveTab(state))}
+            onStateChange={(state) => {
+                persistActiveTab(extractActiveTab(state));
+                phRouteChanged((navRef.getCurrentRoute() as { name?: string } | undefined)?.name);
+            }}
         >
             <StatusBar style="dark" />
             <RootNavigator />
@@ -452,6 +459,16 @@ function AppNavigator() {
                 navigation prop. */}
             <DevDrawer />
         </NavigationContainer>
+    );
+}
+
+/** PostHog around the whole tree when a key is set; otherwise just the children. */
+function PostHogRoot({ children }: { children: React.ReactNode }) {
+    if (!posthog) return <>{children}</>;
+    return (
+        <PostHogProvider client={posthog} autocapture={PH_AUTOCAPTURE as any}>
+            {children}
+        </PostHogProvider>
     );
 }
 
@@ -559,6 +576,7 @@ export default function App() {
                 clears the boot-restored blobs) so recovery doesn't immediately
                 re-throw on the same poisoned state. Uses plain RN components, so
                 it renders even if a provider is what failed. */}
+            <PostHogRoot>
             <AppErrorBoundary label="root" onReset={() => { try { queryClient.clear(); } catch { /* ignore */ } }}>
                 <StripeProviderGate>
                     <QueryClientProvider client={queryClient}>
@@ -567,6 +585,7 @@ export default function App() {
                                 <FeatureFlagsProvider>
                                     <AuthProvider>
                                         <AppNavigator />
+                                        <PosthogRecordingGate />
                                     </AuthProvider>
                                     {/* In-app alert host — renders Alert.alert() prompts as
                                         on-brand modals instead of the native OS dialog. */}
@@ -577,6 +596,7 @@ export default function App() {
                     </QueryClientProvider>
                 </StripeProviderGate>
             </AppErrorBoundary>
+            </PostHogRoot>
         </GestureHandlerRootView>
     );
 }

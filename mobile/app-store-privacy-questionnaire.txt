@@ -11,7 +11,11 @@ Sensitive:
 - Health & Fitness: onboarding goals (sleep, energy, focus, stress, training, skin and hair, longevity), routine level, wake/bed times and workout time — disclose as Health & Fitness if you treat these as fitness data.
 
 Third-party SDKs (scan package.json / native projects before submitting):
-- This repo’s mobile app did not include a dedicated analytics SDK in the dependency list at time of writing; confirm before you declare “Data Not Collected” for analytics.
+- PostHog (posthog-react-native + @posthog/react-native-plugin), live once EXPO_PUBLIC_POSTHOG_KEY is set.
+  Declare in App Privacy (all Linked to the user via account ID, NOT used for tracking, purpose Analytics + App Functionality):
+    Usage Data: Product Interaction (screens, taps, session recordings with text inputs/images masked)
+    Diagnostics: Crash Data, Performance Data, Other Diagnostic Data (errors)
+    Identifiers: User ID
 
 Linked to user: typically Yes for account-backed data.
 

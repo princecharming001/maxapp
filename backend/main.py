@@ -213,7 +213,14 @@ async def global_exception_handler(request: Request, exc: Exception):
 
     # A database connectivity failure is transient infrastructure, not a client
     # mistake — surface it as 503 so the app can show "try again" and retry.
-    if _looks_like_db_outage(exc):
+    outage = _looks_like_db_outage(exc)
+    try:
+        from services.posthog_server import capture_server_error
+        capture_server_error(request, exc, 503 if outage else 500)
+    except Exception:  # noqa: BLE001  error reporting must never change the response
+        pass
+
+    if outage:
         print(f"[DB][OUTAGE] {type(exc).__name__}: {str(exc)[:200]}")
         return JSONResponse(
             status_code=503,

@@ -4,6 +4,7 @@
  * Event names mirror the backend allowlist exactly.
  */
 import api from '../services/api';
+import { phCapture } from './posthog';
 
 export type AnalyticsEvent =
     | 'reveal_completed'
@@ -49,6 +50,7 @@ async function flush() {
 }
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>) {
+    phCapture(event, props);   // the same funnel events in PostHog
     queue.push({ event, props });
     if (queue.length >= 10) {
         void flush();
