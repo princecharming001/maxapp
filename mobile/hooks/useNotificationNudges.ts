@@ -215,10 +215,11 @@ export function useNotificationNudges(input: NotificationNudgesInput) {
 
     /** "not now" / scrim tap. */
     const onPrimerNotNow = useCallback(() => {
-        if (primerBusy) return;
+        // Works even mid-request: the card must never be the thing that traps
+        // the screen. A late answer just records its outcome.
         setPrimerVisible(false);
         snoozePrimer();
-    }, [primerBusy, snoozePrimer]);
+    }, [snoozePrimer]);
 
     /** "turn on reminders": the ONE place Home shows the iOS system prompt. */
     const onPrimerEnable = useCallback(async () => {

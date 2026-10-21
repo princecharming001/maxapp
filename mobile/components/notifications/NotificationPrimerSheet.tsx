@@ -54,7 +54,7 @@ export default function NotificationPrimerSheet({ visible, title, body, busy, on
         <View style={StyleSheet.absoluteFill} pointerEvents="auto">
             <Pressable
                 style={s.scrim}
-                onPress={busy ? undefined : onNotNow}
+                onPress={onNotNow}
                 accessibilityRole="button"
                 accessibilityLabel="Not now"
             />
@@ -77,13 +77,11 @@ export default function NotificationPrimerSheet({ visible, title, body, busy, on
                 <View style={s.actions}>
                     <TouchableOpacity
                         onPress={onNotNow}
-                        disabled={busy}
                         hitSlop={10}
                         accessibilityRole="button"
-                        accessibilityState={{ disabled: busy }}
                         testID="notification-primer-not-now"
                     >
-                        <Text style={[s.secondary, busy && s.dimmed]}>not now</Text>
+                        <Text style={s.secondary}>not now</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={s.primaryBtn}
@@ -129,7 +127,6 @@ const s = StyleSheet.create({
     },
     actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 18 },
     secondary: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: 'rgba(255,255,255,0.55)' },
-    dimmed: { opacity: 0.4 },
     primaryBtn: {
         backgroundColor: colors.buttonText, borderRadius: borderRadius.full,
         paddingHorizontal: 20, paddingVertical: 11, minWidth: 156, alignItems: 'center',

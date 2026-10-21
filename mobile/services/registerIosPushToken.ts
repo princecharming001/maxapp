@@ -15,7 +15,7 @@
  * users spent that one prompt before seeing any value, and a "Don't Allow"
  * there was permanent.
  */
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import api from './api';
 import {
@@ -30,6 +30,37 @@ import {
 const IOS_PUSH_TOKEN_FLOW_MS = 22_000;
 /** The system prompt waits on the user; cap it so a wedged dialog can't spin a caller's button forever. */
 const IOS_PERMISSION_PROMPT_MS = 120_000;
+/**
+ * iOS raises its prompt within a beat, and the app goes 'inactive' while it is
+ * up. If the app is still 'active' after this long there is no prompt to wait
+ * for (already decided, or iOS swallowed the request): answer from the
+ * current setting instead of holding the caller's spinner for two minutes.
+ */
+const IOS_PROMPT_APPEAR_MS = 3_500;
+
+/** The permission request, bounded: resolves when answered, when no prompt appeared, or at the hard cap. */
+function awaitPermissionPrompt<T>(work: Promise<T>, fallback: T): Promise<T> {
+    return new Promise<T>((resolve) => {
+        let done = false;
+        let promptSeen = AppState.currentState !== 'active';
+        const sub = AppState.addEventListener('change', (st) => {
+            if (st !== 'active') promptSeen = true;
+        });
+        const finish = (v: T) => {
+            if (done) return;
+            done = true;
+            clearTimeout(noPrompt);
+            clearTimeout(hardCap);
+            sub.remove();
+            resolve(v);
+        };
+        const noPrompt = setTimeout(() => {
+            if (!promptSeen) finish(fallback);
+        }, IOS_PROMPT_APPEAR_MS);
+        const hardCap = setTimeout(() => finish(fallback), IOS_PERMISSION_PROMPT_MS);
+        work.then(finish, () => finish(fallback));
+    });
+}
 
 /** Resolve `fallback` on timeout or rejection — these flows must never throw or hang. */
 function withTimeout<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -89,9 +120,8 @@ export async function getIosPushTokenIfGranted(): Promise<string | null> {
  */
 export async function requestIosPushPermissionAndToken(): Promise<{ state: PushPermissionState; token: string | null }> {
     if (Platform.OS !== 'ios') return { state: 'unknown', token: null };
-    const res = await withTimeout(
+    const res = await awaitPermissionPrompt(
         Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } }),
-        IOS_PERMISSION_PROMPT_MS,
         null,
     );
     const state = res ? toPushPermissionState(res) : await readPushPermission();
@@ -167,13 +197,23 @@ export function syncIosPushTokenIfGranted(userId: string): Promise<void> {
 
 /**
  * The explicit opt-in behind "turn on reminders" (Home primer) and Settings →
- * Notifications: prompt (only if undetermined) → token → register right away.
- * Returns the resulting permission state.
+ * Notifications: prompt (only if undetermined), then return the permission
+ * state AT ONCE. Fetching the APNs token and registering it with the server
+ * run in the background: a slow token or network used to keep the caller's
+ * card busy (every button disabled) for up to a minute — it read as a frozen
+ * screen.
  */
 export async function enableIosPushFromUserTap(userId: string | null | undefined): Promise<PushPermissionState> {
-    const { state, token } = await requestIosPushPermissionAndToken();
-    if (state === 'granted' && token && userId) {
-        await registerPushTokenForUser(userId, token, { force: true });
+    if (Platform.OS !== 'ios') return 'unknown';
+    const res = await awaitPermissionPrompt(
+        Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } }),
+        null,
+    );
+    const state = res ? toPushPermissionState(res) : await readPushPermission();
+    if (state === 'granted' && userId) {
+        void withTimeout(fetchApnsDeviceToken(), IOS_PUSH_TOKEN_FLOW_MS, null).then((token) =>
+            token ? registerPushTokenForUser(userId, token, { force: true }) : false,
+        );
     }
     return state;
 }
