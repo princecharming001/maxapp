@@ -316,10 +316,16 @@ export default function HomeScreen() {
     // copy turns it into "try again". One message at a time, auto-clears.
     const [toast, setToast] = useState<string | null>(null);
     const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const showToast = (msg: string) => {
+    const [toastOk, setToastOk] = useState(false);
+    const showToast = (msg: string, ok = false) => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setToastOk(ok);
         setToast(msg);
         if (toastTimer.current) clearTimeout(toastTimer.current);
-        toastTimer.current = setTimeout(() => setToast(null), 2800);
+        toastTimer.current = setTimeout(() => {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setToast(null);
+        }, 3200);
     };
     useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
@@ -902,6 +908,28 @@ export default function HomeScreen() {
                                 </TouchableOpacity>
                             </View>
 
+                            {/* Confirmations and errors sit IN the list, right under
+                                the + the person just tapped, pushing the cards down
+                                for a few seconds. They used to float over the cards. */}
+                            {toast ? (
+                                <TouchableOpacity
+                                    style={s.inlineNote}
+                                    activeOpacity={0.7}
+                                    onPress={() => {
+                                        if (toastTimer.current) clearTimeout(toastTimer.current);
+                                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                        setToast(null);
+                                    }}
+                                    accessibilityRole="button"
+                                    accessibilityHint="Dismisses this message"
+                                    accessibilityLiveRegion="polite"
+                                    testID="home-toast"
+                                >
+                                    {toastOk ? <Ionicons name="checkmark-circle" size={16} color={BW.ink} /> : null}
+                                    <Text style={s.inlineNoteText} numberOfLines={2}>{toast}</Text>
+                                </TouchableOpacity>
+                            ) : null}
+
                             {displaySchedulesError ? (
                                 <Text style={s.errorText}>{displaySchedulesError}</Text>
                             ) : null}
@@ -985,25 +1013,6 @@ export default function HomeScreen() {
                 </Animated.View>
             </ScrollView>
 
-            {toast ? (
-                // Tapping the toast dismisses it. It used to pass taps through
-                // (pointerEvents none), so a tap on "+12 XP" landed on the habit
-                // card underneath and opened its guide mid-celebration.
-                <TouchableOpacity
-                    style={[s.toast, { bottom: insets.bottom + 72 }]}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                        if (toastTimer.current) clearTimeout(toastTimer.current);
-                        setToast(null);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityHint="Dismisses this message"
-                    accessibilityLiveRegion="polite"
-                    testID="home-toast"
-                >
-                    <Text style={s.toastText}>{toast}</Text>
-                </TouchableOpacity>
-            ) : null}
 
             <FirstRunWalkthrough
                 visible={walkthrough.visible}
@@ -1036,7 +1045,7 @@ export default function HomeScreen() {
                 onFinish={walkthrough.finish}
             />
 
-            <CustomTaskSheet ref={customSheetRef} onDone={showToast} />
+            <CustomTaskSheet ref={customSheetRef} onDone={(m) => showToast(m, true)} />
 
             <NotificationPrimerSheet
                 visible={nudges.primer.visible}
@@ -1170,11 +1179,7 @@ const s = StyleSheet.create({
     },
     emptyProgramText: { fontSize: 13, fontFamily: fonts.sans, color: BW.mute, letterSpacing: 0.2 },
 
-    /* Inline toast (habit toggle failure) */
-    toast: {
-        position: 'absolute', left: PAD, right: PAD,
-        paddingVertical: 12, paddingHorizontal: 16, borderRadius: 14,
-        backgroundColor: BW.ink, alignItems: 'center',
-    },
-    toastText: { fontSize: 13.5, fontFamily: fonts.sansMedium, color: BW.onInk, textAlign: 'center' },
+    /* In-list note under the HABITS header (confirmations + errors) */
+    inlineNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -6, marginBottom: 14 },
+    inlineNoteText: { flex: 1, fontSize: 13.5, fontFamily: fonts.sansMedium, color: BW.ink, letterSpacing: -0.1 },
 });

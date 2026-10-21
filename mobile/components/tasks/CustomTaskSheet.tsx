@@ -165,7 +165,7 @@ const CustomTaskSheet = forwardRef<CustomTaskSheetHandle, Props>(function Custom
       busyRef.current = false;
       setBusy(null);
       setOpen(false);
-      onDone?.(editId ? 'Saved' : 'Added to your stack');
+      onDone?.(editId ? `${trimmed} saved` : `${trimmed} added to your stack`);
     } catch (e) {
       busyRef.current = false;
       setBusy(null);
@@ -225,6 +225,10 @@ const CustomTaskSheet = forwardRef<CustomTaskSheetHandle, Props>(function Custom
               contentContainerStyle={{ paddingBottom: spacing.md }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              // Swipe down to put the keyboard away (bounces even when the
+              // content is short, so the gesture always works).
+              keyboardDismissMode="interactive"
+              alwaysBounceVertical
             >
               <View style={st.card}>
                 <TextInput
