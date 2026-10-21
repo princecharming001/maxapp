@@ -17,33 +17,61 @@
  *   - users are identified by id only (no email, no name);
  *   - API errors report the endpoint pattern and status, never bodies.
  */
-import { PostHog } from 'posthog-react-native';
+import type { PostHog } from 'posthog-react-native';
 
 const KEY = (process.env.EXPO_PUBLIC_POSTHOG_KEY || '').trim();
 const HOST = (process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com').trim();
 
-export const posthog: PostHog | null = KEY
-    ? new PostHog(KEY, {
-        host: HOST,
-        personProfiles: 'identified_only',
-        captureAppLifecycleEvents: true,
-        enableSessionReplay: true,
-        sessionReplayConfig: {
-            maskAllTextInputs: true,
-            maskAllImages: true,
-            maskAllSandboxedViews: true,   // the contacts picker in share-to-unlock
-            captureLog: false,             // console lines can carry plan text
-        },
-        errorTracking: {
-            autocapture: {
-                uncaughtExceptions: true,
-                unhandledRejections: true,
-                console: ['error'],
-                nativeCrashes: true,
+/**
+ * Only on installs built with PostHog's native companions (expo-device and
+ * expo-application arrived with build 348 / 3.1.5). Older runtimes never load
+ * the library at all: an OTA must boot on every live binary, and nothing
+ * PostHog-related may run at module scope there. Never throws.
+ */
+function loadPostHogLib(): typeof import('posthog-react-native') | null {
+    if (!KEY) return null;
+    try {
+        const { requireOptionalNativeModule } = require('expo-modules-core');
+        if (!requireOptionalNativeModule('ExpoDevice') || !requireOptionalNativeModule('ExpoApplication')) return null;
+        return require('posthog-react-native');
+    } catch {
+        return null;
+    }
+}
+const lib = loadPostHogLib();
+
+/** The provider component, or null when PostHog is off on this install. */
+export const PostHogProviderComponent = lib ? lib.PostHogProvider : null;
+
+function create(): PostHog | null {
+    if (!lib) return null;
+    try {
+        return new lib.PostHog(KEY, {
+            host: HOST,
+            personProfiles: 'identified_only',
+            captureAppLifecycleEvents: true,
+            enableSessionReplay: true,
+            sessionReplayConfig: {
+                maskAllTextInputs: true,
+                maskAllImages: true,
+                maskAllSandboxedViews: true,   // the contacts picker in share-to-unlock
+                captureLog: false,             // console lines can carry plan text
             },
-        },
-    })
-    : null;
+            errorTracking: {
+                autocapture: {
+                    uncaughtExceptions: true,
+                    unhandledRejections: true,
+                    console: ['error'],
+                    nativeCrashes: true,
+                },
+            },
+        });
+    } catch {
+        return null;
+    }
+}
+
+export const posthog: PostHog | null = create();
 
 export const posthogEnabled = posthog !== null;
 

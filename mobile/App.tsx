@@ -30,8 +30,7 @@ import { ensureFirstRunClean } from './lib/firstRunGuard';
 import { checkAndApplyUpdate } from './lib/otaUpdates';
 import { installGlobalErrorHandlers } from './lib/globalErrorHandlers';
 import AppErrorBoundary from './components/AppErrorBoundary';
-import { PostHogProvider } from 'posthog-react-native';
-import { posthog, PH_AUTOCAPTURE, phRouteChanged } from './lib/posthog';
+import { posthog, PostHogProviderComponent, PH_AUTOCAPTURE, phRouteChanged } from './lib/posthog';
 import PosthogRecordingGate from './components/PosthogRecordingGate';
 import { loadRestoredTab, persistActiveTab, extractActiveTab } from './lib/navState';
 import { navigationRef } from './lib/navigationRef';
@@ -464,11 +463,11 @@ function AppNavigator() {
 
 /** PostHog around the whole tree when a key is set; otherwise just the children. */
 function PostHogRoot({ children }: { children: React.ReactNode }) {
-    if (!posthog) return <>{children}</>;
+    if (!posthog || !PostHogProviderComponent) return <>{children}</>;
     return (
-        <PostHogProvider client={posthog} autocapture={PH_AUTOCAPTURE as any}>
+        <PostHogProviderComponent client={posthog} autocapture={PH_AUTOCAPTURE as any}>
             {children}
-        </PostHogProvider>
+        </PostHogProviderComponent>
     );
 }
 
