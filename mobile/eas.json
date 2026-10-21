@@ -26,7 +26,8 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://maxapp-api-va.onrender.com/api/",
         "RCT_NEW_ARCH_ENABLED": "1",
-        "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com"
+        "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_rtjixf2YpAZAcwhEYkv5CDCJYPCqxbs7DebE7gUQ36xW"
       },
       "autoIncrement": true,
       "ios": {
