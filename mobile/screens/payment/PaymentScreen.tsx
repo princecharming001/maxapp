@@ -15,6 +15,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { shareUnlockSupported } from '../../lib/shareUnlockNative';
 import {
     View,
     Text,
@@ -423,7 +424,7 @@ export default function PaymentScreen() {
 
                 {/* The other way in: text the preset message to N friends from the
                     system composer and the server grants the first week (ShareUnlock). */}
-                {shareUnlock?.eligible ? (
+                {shareUnlock?.eligible && shareUnlockSupported() ? (
                     <TouchableOpacity
                         style={s.referralLinkWrap}
                         onPress={() => navigation.navigate('ShareUnlock', route?.params)}

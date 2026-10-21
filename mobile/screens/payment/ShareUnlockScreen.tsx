@@ -23,8 +23,8 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform, Activit
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as SMS from 'expo-sms';
-import * as Contacts from 'expo-contacts';
+import type { Contact } from 'expo-contacts';
+import { loadShareUnlockNative } from '../../lib/shareUnlockNative';
 import * as Haptics from 'expo-haptics';
 import { Alert } from '../../components/InAppAlert';
 import api, { ShareUnlockStatus } from '../../services/api';
@@ -41,7 +41,7 @@ const BG = '#F4F2ED';
 const ACCENT = '#2F6B4E';
 
 /** The number to text for a picked contact: a mobile-labelled one first. */
-function pickNumber(contact: Contacts.Contact): string | null {
+function pickNumber(contact: Contact): string | null {
     const nums = contact.phoneNumbers ?? [];
     const mobile = nums.find((p) => /mobile|iphone|cell/i.test(p.label ?? ''));
     const chosen = mobile ?? nums[0];
@@ -178,6 +178,13 @@ export default function ShareUnlockScreen() {
         busyRef.current = true;
         setBusy(true);
         try {
+            // Older installs lack the native Messages/contacts modules (3.1.5+).
+            const native = loadShareUnlockNative();
+            if (!native) {
+                Alert.alert('Update Superpower', 'Texting friends needs the latest version of the app. Update it from the App Store, then try again.');
+                return;
+            }
+            const { SMS, Contacts } = native;
             const available = await SMS.isAvailableAsync();
             let phone: string;
             if (!available) {
