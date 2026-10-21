@@ -70,7 +70,7 @@ Check with a professional first (the app suggests this, never diagnoses):
 - conflicts/synergies: `screens_off` and `wind_down` fall inside this window. CalmMax `screen_free_evening` shares the evening slot. The Skin & Hair PM routine works fine under a low lamp.
 - source: https://pubmed.ncbi.nlm.nih.gov/21193540/
 
-### `screens_off` — Screens off before bed
+### `screens_off` — Screens off
 - minutes: 1 / 2
 - kind: action
 - lever: light
@@ -96,7 +96,7 @@ Check with a professional first (the app suggests this, never diagnoses):
 - conflicts/synergies: Can double as the Skin & Hair PM cleanse slot (keep face water lukewarm). Never the same evening as CalmMax `heat_session`, LongevityMax `sauna_session` or FitMax `sauna_after_training`, or after alcohol. No cold water in this window.
 - source: https://pubmed.ncbi.nlm.nih.gov/31102877/
 
-### `bedroom_setup` — Cool, dark, quiet room
+### `bedroom_setup` — Cool, dark room
 - minutes: 5 / 10
 - kind: setup
 - lever: temperature
@@ -135,7 +135,7 @@ Check with a professional first (the app suggests this, never diagnoses):
 - conflicts/synergies: Merges with LongevityMax `alcohol_awareness`. No `warm_shower` or sauna on drinking evenings.
 - source: https://pubmed.ncbi.nlm.nih.gov/39631226/
 
-### `late_meal_buffer` — Finish big meals earlier
+### `late_meal_buffer` — Early last meal
 - minutes: 0 / 0
 - kind: rule
 - lever: nutrition
@@ -187,7 +187,7 @@ Check with a professional first (the app suggests this, never diagnoses):
 - conflicts/synergies: Governs FocusMax and EnergyMax `power_nap` and CalmMax `body_scan` (one rest slot a day). No naps when falling asleep is the main issue.
 - source: https://pubmed.ncbi.nlm.nih.gov/16796222/
 
-### `sleep_log` — Morning sleep check-in
+### `sleep_log` — Sleep check-in
 - minutes: 1 / 1
 - kind: checkin
 - lever: tracking

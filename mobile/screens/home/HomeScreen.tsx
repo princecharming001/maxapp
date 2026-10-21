@@ -165,9 +165,11 @@ function textOn(hex: string): string {
 }
 
 function GradientHabit({
-    row, done, busy, onToggle, onOpen, testID,
+    row, done, busy, onToggle, onOpen, testID, xpNote,
 }: {
     row: MergedScheduleTask; done: boolean; busy: boolean; onToggle: () => void; onOpen: () => void; testID?: string;
+    /** "+12 XP" for a few seconds after this habit is checked (shown on the card, not floating). */
+    xpNote?: string | null;
 }) {
     const c = row.moduleColor && /^#/.test(row.moduleColor) ? row.moduleColor : '#8E8E93';
     // Unchecked: white card with black text. Checked: brand color gradient with
@@ -218,15 +220,11 @@ function GradientHabit({
                     )}
                 </TouchableOpacity>
                 <View style={gh.body}>
-                    {/* Always one line. Library titles are written to fit a
-                        375pt phone; anything longer (a custom habit) shrinks a
-                        little rather than wrapping or cutting off. */}
-                    <Text
-                        style={[gh.title, { color: txt }]}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.82}
-                    >
+                    {/* Always one line at full size. Titles are shortened to fit
+                        a 375pt phone by the server (services/card_title.py)
+                        and custom names are checked before saving; the tail
+                        ellipsis is only a last resort. */}
+                    <Text style={[gh.title, { color: txt }]} numberOfLines={1} ellipsizeMode="tail">
                         {row.title}
                     </Text>
                     {row.moduleLabel || isSetup ? (
@@ -249,12 +247,18 @@ function GradientHabit({
                     reminder fires — and how long it takes. Right-aligned, quiet,
                     tabular so a column of cards lines up. "late" only after a
                     late completion. */}
-                {row.time ? (
+                {row.time || xpNote ? (
                     <View style={gh.when}>
-                        <Text style={[gh.time, { color: done ? 'rgba(255,255,255,0.9)' : '#111113' }]} numberOfLines={1}>
-                            {formatTimeTo12Hour(row.time)}
-                        </Text>
-                        {minutes > 1 || (done && row.completed_on_time === false) ? (
+                        {row.time ? (
+                            <Text style={[gh.time, { color: done ? 'rgba(255,255,255,0.9)' : '#111113' }]} numberOfLines={1}>
+                                {formatTimeTo12Hour(row.time)}
+                            </Text>
+                        ) : null}
+                        {xpNote ? (
+                            <Text style={[gh.xpNote, { color: done ? '#FFFFFF' : '#111113' }]} numberOfLines={1} testID="habit-xp-note">
+                                {xpNote}
+                            </Text>
+                        ) : minutes > 1 || (done && row.completed_on_time === false) ? (
                             <Text style={[gh.late, { color: subColor }]} numberOfLines={1}>
                                 {[
                                     minutes > 1 ? `${minutes} min` : null,
@@ -274,7 +278,7 @@ const gh = StyleSheet.create({
         minHeight: 88, borderRadius: 22, overflow: 'hidden', marginBottom: 12,
         shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 3,
     },
-    inner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 18 },
+    inner: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 18 },
     checkHit: { padding: 2 },
     checkDone: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.82)', alignItems: 'center', justifyContent: 'center' },
     checkOpen: { width: 44, height: 44, borderRadius: 22, borderWidth: 2 },
@@ -285,6 +289,7 @@ const gh = StyleSheet.create({
     onceTag: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 },
     onceText: { fontSize: 10.5, fontFamily: fonts.sansMedium, letterSpacing: 0.4 },
     when: { alignItems: 'flex-end', justifyContent: 'center', marginLeft: 4 },
+    xpNote: { fontSize: 12.5, fontFamily: fonts.sansBold, fontWeight: '700', marginTop: 2, letterSpacing: 0.2 },
     time: { fontSize: 14, fontFamily: fonts.sansMedium, letterSpacing: -0.2, fontVariant: ['tabular-nums'] },
     late: { fontSize: 11, fontFamily: fonts.sans, marginTop: 2, letterSpacing: 0.2 },
 });
@@ -317,6 +322,17 @@ export default function HomeScreen() {
         toastTimer.current = setTimeout(() => setToast(null), 2800);
     };
     useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
+
+    // "+12 XP" lives on the habit that earned it for a few seconds (it used to
+    // be a floating pill that landed over whatever sat near the bottom).
+    const [xpFlash, setXpFlash] = useState<{ key: string; text: string } | null>(null);
+    const xpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const flashXp = (key: string, text: string) => {
+        setXpFlash({ key, text });
+        if (xpTimer.current) clearTimeout(xpTimer.current);
+        xpTimer.current = setTimeout(() => setXpFlash(null), 2800);
+    };
+    useEffect(() => () => { if (xpTimer.current) clearTimeout(xpTimer.current); }, []);
 
     // One-time "welcome to Chad" popup for grandfathered Chad-Lite subscribers
     // (the single-plan pivot upgraded them server-side; the migration sets
@@ -666,7 +682,7 @@ export default function HomeScreen() {
                 // decides on-time against the printed time; nothing when the
                 // task was already paid today or belongs to another day.
                 const earned = xpToastLine(res?.xp);
-                if (earned) showToast(earned);
+                if (earned) flashXp(key, earned);
                 // A COMPLETE can earn a streak/achievement/celebration → re-sync.
                 void queryClient.invalidateQueries({ queryKey: queryKeys.schedulesActiveFull });
             } else {
@@ -882,7 +898,7 @@ export default function HomeScreen() {
                                     accessibilityLabel="Add your own task"
                                     testID="home-add-task"
                                 >
-                                    <Ionicons name="add" size={20} color={BW.onInk} />
+                                    <Ionicons name="add" size={26} color={BW.ink} />
                                 </TouchableOpacity>
                             </View>
 
@@ -919,6 +935,7 @@ export default function HomeScreen() {
                                         done={done}
                                         busy={busy}
                                         onToggle={() => toggleTodayTask(row)}
+                                        xpNote={xpFlash?.key === rowKey && done ? xpFlash.text : null}
                                         onOpen={() => {
                                             const guide = () => navigation.navigate('TaskGuide', {
                                                 scheduleId: row.scheduleId,
@@ -1108,8 +1125,7 @@ const s = StyleSheet.create({
     section: { paddingHorizontal: PAD, paddingTop: 26 },
     sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
     addBtn: {
-        width: 32, height: 32, borderRadius: 16, backgroundColor: BW.ink,
-        alignItems: 'center', justifyContent: 'center',
+        width: 32, height: 32, alignItems: 'center', justifyContent: 'center',
     },
     sectionLabel: {
         fontSize: 13, fontFamily: fonts.sansBold, fontWeight: '800',

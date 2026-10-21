@@ -11,6 +11,7 @@
  * Driven by ref so one always-mounted instance serves every entry point.
  */
 import React, { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { cardTitleFits } from '../../lib/cardTitle';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -129,7 +130,9 @@ const CustomTaskSheet = forwardRef<CustomTaskSheetHandle, Props>(function Custom
   }));
 
   const trimmed = title.trim();
-  const canSave = trimmed.length > 0 && days.length > 0 && minutes > 0 && !busy;
+  // The card shows one line at full size, never shrunk: a longer name can't save.
+  const tooLong = trimmed.length > 0 && !cardTitleFits(trimmed);
+  const canSave = trimmed.length > 0 && !tooLong && days.length > 0 && minutes > 0 && !busy;
   const quick = quickOf(days);
   const durations = useMemo(
     () => (DURATIONS.includes(minutes) ? DURATIONS : [...DURATIONS, minutes].sort((a, b) => a - b)),
@@ -236,6 +239,9 @@ const CustomTaskSheet = forwardRef<CustomTaskSheetHandle, Props>(function Custom
                   accessibilityLabel="Task name"
                   testID="custom-task-name"
                 />
+                {tooLong ? (
+                  <Text style={[st.error, { marginTop: 4, marginBottom: 10 }]} testID="custom-task-too-long">Too long for one line. Try a shorter name, like "Gym" or "Evening walk".</Text>
+                ) : null}
                 <View style={st.hair} />
                 <WheelTimeRow label="Time" display={fmt12(minToHHMM(minute))} onPress={() => setPicker(true)} />
               </View>

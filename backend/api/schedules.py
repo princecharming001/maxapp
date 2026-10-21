@@ -193,8 +193,12 @@ async def get_all_active_schedules_full(
         )
     except Exception:
         gamification = None
+    # One-line card titles (never wrapped or shrunk in the app). On a copy:
+    # the stored documents are untouched.
+    import copy
+    from services.card_title import fit_task_titles
     return {
-        "schedules": schedules,
+        "schedules": fit_task_titles(copy.deepcopy(schedules)),
         "schedule_streak": streak,
         "today_date": streak.get("today_date"),
         "day_number": streak.get("day_number"),
@@ -236,6 +240,9 @@ async def get_master_schedule(
         days=days,
         today_iso=today,
     )
+    import copy
+    from services.card_title import fit_task_titles
+    out = fit_task_titles([{"days": copy.deepcopy(out)}])[0]["days"]
     return {"days": out, "window_days": days}
 
 

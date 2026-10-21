@@ -172,7 +172,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Pairs with `cold_chain_check`. Never suggest another source when there is a supply gap.
 - source: https://www.accessdata.fda.gov/drugsatfda_docs/label/2024/215256s011lbl.pdf
 
-### `weekly_protocol_review` — Weekly protocol review
+### `weekly_protocol_review` — Protocol check
 - minutes: 3 / 5
 - kind: checkin
 - lever: tracking
@@ -270,7 +270,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: None.
 - source: https://www.wada-ama.org/en/prohibited-list
 
-### `procedure_heads_up` — Tell your surgical team
+### `procedure_heads_up` — Tell your surgeon
 - minutes: 3 / 5
 - kind: setup
 - lever: compound

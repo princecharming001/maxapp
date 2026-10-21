@@ -83,7 +83,7 @@ Check with a professional first:
 - conflicts/synergies: Same lever as EnergyMax `vigorous_burst` and FitMax `stair_or_burst`; keep one when both land near the start of work. Counts toward `daily_steps`. Done outdoors, it doubles as `morning_light`. Skip it when a FitMax or LongevityMax workout already falls in the 2 hours before.
 - source: https://doi.org/10.1111/psyp.12736
 
-### `micro_break` — Movement micro-break
+### `micro_break` — Micro-break
 - minutes: 2 / 5
 - kind: action
 - lever: movement
@@ -96,7 +96,7 @@ Check with a professional first:
 - conflicts/synergies: Same concept group as EnergyMax `movement_snack`, FitMax `posture_break` and LongevityMax `move_after_sitting`: one task. The natural slot for `hydrate_to_focus` refills and `fresh_air_flush`.
 - source: https://doi.org/10.1152/japplphysiol.00310.2018
 
-### `hydrate_to_focus` — Water before you focus
+### `hydrate_to_focus` — Water to focus
 - minutes: 1 / 1
 - kind: action
 - lever: hydration
@@ -174,7 +174,7 @@ Check with a professional first:
 - conflicts/synergies: Keep it 4–6 h away from a FitMax strength session when muscle growth is the goal (cold right after lifting blunts gains). Keep it brief: long cold exposure impairs working memory until you've rewarmed. Never combine it with breath-hold rounds. Pairs with `morning_light` straight after. Same lever as EnergyMax and CalmMax cold habits; schedule one.
 - source: https://doi.org/10.1371/journal.pone.0161749
 
-### `fresh_air_flush` — Air out your workspace
+### `fresh_air_flush` — Fresh air
 - minutes: 1 / 5
 - kind: action
 - lever: air

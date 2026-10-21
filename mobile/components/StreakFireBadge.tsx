@@ -31,8 +31,8 @@ const FLAME_PATH =
 const INK = '#111113';
 
 const VARIANT_DIM = {
-  header: { box: 40, flameSize: 42, numSize: 12, numLineHeight: 14 },
-  hero: { box: 46, flameSize: 48, numSize: 13, numLineHeight: 15 },
+  header: { box: 32, flameSize: 31, numSize: 10, numLineHeight: 12 },
+  hero: { box: 38, flameSize: 37, numSize: 11.5, numLineHeight: 14 },
 } as const;
 
 export function StreakFireBadge({ streakDays, variant = 'header' }: Props) {
@@ -95,8 +95,8 @@ export function StreakFireBadge({ streakDays, variant = 'header' }: Props) {
   }));
 
   const fontSize = narrow ? dim.numSize - 1.5 : dim.numSize;
-  /** Baseline in the flame's belly (its widest part sits ~70% down). */
-  const numCenterY = dim.box * 0.69 + fontSize * 0.36;
+  /** Baseline in the flame's belly (its widest part sits ~70% down the flame). */
+  const numCenterY = (dim.box - dim.flameSize) / 2 + dim.flameSize * 0.69 + fontSize * 0.36;
 
   return (
     <View

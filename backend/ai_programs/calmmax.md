@@ -165,7 +165,7 @@ Check with a professional first:
 - conflicts/synergies: Same as LongevityMax `nature_time`, FocusMax `walk_to_think` and EnergyMax `outdoor_lunch` (schedule once). Within 60 min of waking it also counts as `morning_light`. An outdoor `move_it_out` counts. On extreme-heat or poor-air days, swap for `slow_yoga` indoors.
 - source: https://doi.org/10.3389/fpsyg.2019.00722
 
-### `screen_free_evening` — Dim lights, screens off
+### `screen_free_evening` — Screen-free evening
 - minutes: 1 / 2
 - kind: action
 - lever: light

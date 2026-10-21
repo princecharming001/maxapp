@@ -140,7 +140,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Attach to Focusmax `caffeine_for_focus` and bound by the Sleepmax/Energymax `caffeine_cutoff`. Do not pair with pre-workout drinks or energy drinks. If `l_theanine` is also active, merge into one theanine dose where the times are close and keep the daily total in the studied range.
 - source: https://pubmed.ncbi.nlm.nih.gov/24946991/
 
-### `creatine` — Creatine monohydrate
+### `creatine` — Creatine (monohydrate)
 - minutes: 1 / 1
 - kind: action
 - lever: compound
@@ -227,7 +227,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Never replaces Skin & Hair `am_spf` or `pm_retinoid`. Counts toward daily protein. Do not add biotin "hair" supplements: high-dose biotin can distort lab tests and there is no good evidence it helps people who are not deficient.
 - source: https://pubmed.ncbi.nlm.nih.gov/37432180/
 
-### `vitamin_d3` — Vitamin D3 with a meal
+### `vitamin_d3` — Vitamin D3 (with a meal)
 - minutes: 1 / 1
 - kind: action
 - lever: compound
@@ -346,7 +346,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Replaces `stack_audit` for anyone under 18. Always first in a teen plan.
 - source: https://www.healthychildren.org/English/healthy-living/nutrition/Pages/Dietary-Supplements-for-Children.aspx
 
-### `food_first` — Food first at every meal (under 18)
+### `food_first` — Food first (under 18)
 - minutes: 2 / 5
 - kind: action
 - lever: nutrition
@@ -380,7 +380,7 @@ Check with a professional first (the app should suggest this, not diagnose):
 - conflicts/synergies: Required first step if the user reports any regular medication or more than 3 current products.
 - source: https://ods.od.nih.gov/factsheets/WYNTK-Consumer/
 
-### `weekly_stack_checkin` — Weekly stack check-in
+### `weekly_stack_checkin` — Stack check-in
 - minutes: 2 / 3
 - kind: checkin
 - lever: tracking

@@ -39,7 +39,7 @@ Check with a dermatologist or clinician first:
 - conflicts/synergies: The same steps every night, except a weekly mask night and (some goals) a weekly microneedling night, which replace the active.
 - source: https://www.aad.org/public/everyday-care/skin-care-secrets/anti-aging/retinoid-retinol
 
-### `spf_reapply` — Reapply SPF outdoors
+### `spf_reapply` — Reapply SPF
 - minutes: 1 / 2
 - kind: action
 - lever: topical
@@ -98,7 +98,7 @@ Check with a dermatologist or clinician first:
 - conflicts/synergies: Same direction as EnergyMax `lunch_balance` and LongevityMax `fiber_swap` and `veg_first` (one card). Works alongside the PM active, doesn't replace it.
 - source: https://pubmed.ncbi.nlm.nih.gov/17616769/
 
-### `red_light_scalp` — Red-light scalp session
+### `red_light_scalp` — Red-light scalp
 - minutes: 10 / 20
 - kind: action
 - lever: light

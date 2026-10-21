@@ -161,7 +161,7 @@ Check with a professional first (CDC: people with chronic conditions should talk
 - conflicts/synergies: No alcohol before. Not the same evening as SleepMax `warm_shower`. Pairs with `session_hydration`. Heat after lifting has no known muscle-growth penalty, unlike cold. Same lever as LongevityMax `sauna_session` and CalmMax `heat_session`; schedule one.
 - source: https://pubmed.ncbi.nlm.nih.gov/16877041/
 
-### `recovery_day` — Rest and recovery day
+### `recovery_day` — Recovery day
 - minutes: 0 / 0
 - kind: rule
 - lever: rest

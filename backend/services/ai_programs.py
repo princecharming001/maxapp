@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any, Optional
 from uuid import UUID
 
+from services import card_title
 from services import biohack_scope
 
 logger = logging.getLogger(__name__)
@@ -1321,7 +1322,7 @@ def _fix_minutes(text: str, minutes: int, lib_h: Optional["Habit"]) -> str:
 def _library_title(h: "Habit") -> str:
     """A library title for the card: notes for the planner ("(caution)",
     "(vegans, 50+)") left out."""
-    return _clean_text(re.sub(r"\s*\([^)]*\)", "", h.title or h.id).strip() or h.id, 40)
+    return card_title.shorten(_clean_text(re.sub(r"\s*\([^)]*\)", "", h.title or h.id).strip() or h.id, 40))
 
 
 _TIMES_A_WEEK = re.compile(r"(\d)\s*(?:[–-]\s*(\d)\s*)?times? a week", re.I)
@@ -1605,8 +1606,8 @@ def _group_same_time(tasks: list[dict]) -> list[dict]:
             continue
         names = [_short_supp_name(g["title"]) for g in group]
         title = " + ".join(names)
-        if len(title) > 40:
-            title = f"{names[0]} + {len(names) - 1} more"
+        if not card_title.fits(title):    # one line on the card, never shrunk
+            title = card_title.supplement_slot_title(tm)
         first = dict(group[0])
         first.update({
             "title": title,

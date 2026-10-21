@@ -134,7 +134,7 @@ Check with a professional first:
 - conflicts/synergies: Merges with EnergyMax `lunch_balance` at lunch. Pairs with `fiber_swap`. In the PREDIMED trial a Mediterranean diet with extra-virgin olive oil cut major heart events (HR 0.69).
 - source: https://pubmed.ncbi.nlm.nih.gov/26106234/
 
-### `fiber_swap` — Fiber swap at one meal
+### `fiber_swap` — Fiber swap
 - minutes: 1 / 2
 - kind: action
 - lever: nutrition
