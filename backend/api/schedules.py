@@ -257,6 +257,104 @@ async def backfill_task_guides(
     return {"queued": len(schedules)}
 
 
+class CustomTaskRequest(BaseModel):
+    title: Optional[str] = None
+    time: Optional[str] = None
+    minutes: Optional[int] = None
+    days: Optional[list[str]] = None
+    note: Optional[str] = None
+
+
+def _kick_mirror(user_id: str) -> None:
+    try:
+        from services.gcal_mirror import kick_gcal_mirror
+        kick_gcal_mirror(str(user_id))
+    except Exception:
+        pass
+
+
+@router.get("/custom-tasks")
+async def list_custom_tasks(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """The person's own recurring tasks (templates, as the editor shows them)."""
+    from services import custom_tasks as ct
+    row = await ct.get_row(current_user["id"], db)
+    return {"tasks": ct.public_tasks(row), "schedule_id": str(row.id) if row else None,
+            "limit": ct.MAX_TASKS}
+
+
+@router.post("/custom-tasks")
+async def create_custom_task(
+    data: CustomTaskRequest,
+    current_user: dict = Depends(require_paid_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add a task of their own (a workout, a run...) to the person's stack."""
+    from services import custom_tasks as ct
+    try:
+        out = await ct.create_task(current_user["id"], db, data.model_dump(exclude_none=True))
+    except ct.CustomTaskError as e:
+        await db.rollback()
+        raise HTTPException(status_code=422, detail=str(e))
+    await db.commit()
+    _kick_mirror(current_user["id"])
+    return out
+
+
+@router.put("/custom-tasks/{task_id}")
+async def update_custom_task(
+    task_id: str,
+    data: CustomTaskRequest,
+    current_user: dict = Depends(require_paid_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services import custom_tasks as ct
+    try:
+        out = await ct.update_task(current_user["id"], db, task_id, data.model_dump(exclude_none=True))
+    except ct.CustomTaskError as e:
+        await db.rollback()
+        raise HTTPException(status_code=422, detail=str(e))
+    except LookupError:
+        await db.rollback()
+        raise HTTPException(status_code=404, detail="Task not found")
+    await db.commit()
+    _kick_mirror(current_user["id"])
+    return out
+
+
+@router.delete("/custom-tasks/{task_id}")
+async def delete_custom_task(
+    task_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from services import custom_tasks as ct
+    try:
+        out = await ct.delete_task(current_user["id"], db, task_id)
+    except LookupError:
+        await db.rollback()
+        raise HTTPException(status_code=404, detail="Task not found")
+    await db.commit()
+    _kick_mirror(current_user["id"])
+    return out
+
+
+async def _custom_series_target(schedule_id: str, task_id: str, user_id: str, db: AsyncSession):
+    """For a series edit/delete on one of the person's own tasks, the template
+    is the source of truth: return its template id (else None)."""
+    from services import custom_tasks as ct
+    sched = await schedule_service._load_schedule(schedule_id, user_id, db)
+    if sched is None or not ct.is_custom(sched.maxx_id):
+        return None
+    for day in sched.days or []:
+        for t in day.get("tasks") or []:
+            if t.get("task_id") == task_id:
+                return ct.template_id_from_catalog(t.get("catalog_id"))
+    return None
+
+
 @router.get("/{schedule_id}")
 async def get_schedule(
     schedule_id: str,
@@ -327,6 +425,24 @@ async def edit_task(
     scope="series" applies the change to the recurring part across every day
     and (for a time change) durably re-pins it through future re-expansions.
     """
+    if scope == "series":
+        tid = await _custom_series_target(schedule_id, task_id, current_user["id"], db)
+        if tid:
+            from services import custom_tasks as ct
+            u = data.model_dump(exclude_none=True)
+            patch = {"title": u.get("title"), "time": u.get("time"),
+                     "minutes": u.get("duration_minutes"), "note": u.get("description")}
+            try:
+                out = await ct.update_task(current_user["id"], db, tid, {k: v for k, v in patch.items() if v is not None})
+            except ct.CustomTaskError as e:
+                await db.rollback()
+                raise HTTPException(status_code=422, detail=str(e))
+            except LookupError:
+                await db.rollback()
+                raise HTTPException(status_code=404, detail="Task not found")
+            await db.commit()
+            _kick_mirror(current_user["id"])
+            return {"status": "updated", "scope": "series", **out}
     try:
         result = await schedule_service.edit_task(
             user_id=current_user["id"],
@@ -355,6 +471,18 @@ async def delete_task(
     scope="series" removes the whole recurring part across every day and
     keeps it from coming back on re-expansion.
     """
+    if scope == "series":
+        tid = await _custom_series_target(schedule_id, task_id, current_user["id"], db)
+        if tid:
+            from services import custom_tasks as ct
+            try:
+                out = await ct.delete_task(current_user["id"], db, tid)
+            except LookupError:
+                await db.rollback()
+                raise HTTPException(status_code=404, detail="Task not found")
+            await db.commit()
+            _kick_mirror(current_user["id"])
+            return {"status": "deleted", "scope": "series", **out}
     try:
         result = await schedule_service.delete_task(
             user_id=current_user["id"],

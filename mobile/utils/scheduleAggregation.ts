@@ -17,6 +17,8 @@ const DEFAULT_MAXX_LABELS: Record<string, string> = {
   bonemax: 'Bonemax',
   heightmax: 'Heightmax',
   coloringmax: 'Coloring Max',
+  // The person's own tasks (a workout, a run) — one row, not a program.
+  custom: 'Custom',
 };
 
 const DEFAULT_MAXX_COLORS: Record<string, string> = {
@@ -27,6 +29,7 @@ const DEFAULT_MAXX_COLORS: Record<string, string> = {
   bonemax: '#F59E0B',
   heightmax: '#6366F1',
   coloringmax: '#BC7A3C',
+  custom: '#1C1C1E',
 };
 
 const BIOHACK_PROGRAM_IDS = new Set(BIOHACK_PROGRAMS.map((p) => p.id));
@@ -453,7 +456,8 @@ export function mergeSchedules(
         );
         byDate[d].push({
           ...t,
-          title: stripMaxxTitlePrefix(t.title),
+          // The person's own task keeps their words exactly.
+          title: String(t.catalog_id || '').startsWith('custom.') ? t.title : stripMaxxTitlePrefix(t.title),
           scheduleId: s.id,
           moduleLabel,
           moduleColor,

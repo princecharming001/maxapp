@@ -347,6 +347,10 @@ def _day_iso(inp: EngineInput) -> str:
 
 
 def _plausible(t: EngineTask, inp: EngineInput) -> bool:
+    # The person's own task (a 5:30am gym session): they chose the minute, so
+    # it reminds them whenever it falls in their logical day.
+    if t.maxx == "custom":
+        return True
     return inp.wake_min - 60 <= t.at <= inp.sleep_ext + 30
 
 

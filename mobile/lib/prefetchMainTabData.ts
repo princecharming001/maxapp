@@ -64,6 +64,8 @@ export function collectTodayGuideTargets(data: any, today: string): GuidePrefetc
     for (const schedule of schedules) {
         const scheduleId = schedule?.id ? String(schedule.id) : null;
         if (!scheduleId) continue;
+        // The person's own tasks have no guide (tapping one edits it).
+        if (String(schedule?.maxx_id || '').toLowerCase() === 'custom') continue;
         const byCatalog = new Map<string, GuidePrefetchTarget>();
         const seenTaskIds = new Set<string>();
         for (const day of Array.isArray(schedule.days) ? schedule.days : []) {

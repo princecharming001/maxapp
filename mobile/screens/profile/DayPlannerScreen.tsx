@@ -60,6 +60,9 @@ import { useActiveSchedulesFullQuery, useMaxxesQuery } from '../../hooks/useAppQ
 import { buildMaxxMaps, mergeSchedules, normalizeMaxxId } from '../../utils/scheduleAggregation';
 import api, { GOOGLE_STATUS_QUERY_KEY, type DayShapeWarning } from '../../services/api';
 import ObligationsManager, { ObligationsManagerHandle } from '../../components/planner/ObligationsManager';
+import CustomTaskSheet, { type CustomTaskSheetHandle } from '../../components/tasks/CustomTaskSheet';
+import { isCustomTaskRow } from '../../components/tasks/customTaskModel';
+import { usePaywallGate } from '../../hooks/usePaywallGate';
 import {
   DayShape,
   Obligation,
@@ -81,6 +84,8 @@ import {
   hasOverride,
   obligationColor,
   fmt12Compact,
+  fmt12,
+  minToHHMM,
   daysLabel,
   toMin,
 } from '../../components/planner/plannerModel';
@@ -369,6 +374,11 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
 
   // Commitments + chat live behind the floating button now (merged surface).
   const [commitmentsOpen, setCommitmentsOpen] = useState(false);
+  // "+" (and a tap on empty grid time) asks: your own task, or a commitment?
+  // `at` = the tapped minute, prefilled into whichever editor opens.
+  const [addChooser, setAddChooser] = useState<{ at: number | null } | null>(null);
+  const customTaskRef = useRef<CustomTaskSheetHandle>(null);
+  const paywallGate = usePaywallGate();
 
   // Editor sheet: keep the scope set across the close animation to avoid a flash.
   const [editScope, setEditScope] = useState<Scope>('all');
@@ -599,14 +609,21 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           title: row.title,
           color: row.moduleColor,
           done,
-          onPress: () => navigation.navigate('TaskGuide', {
-            scheduleId: row.scheduleId,
-            taskId: row.task_id,
-            maxxId: maxxBySchedule[row.scheduleId],
-            moduleColor: row.moduleColor,
-            moduleLabel: row.moduleLabel,
-            done,
-          }),
+          onPress: () => {
+            // Their own task has no guide: tapping it edits it.
+            if (isCustomTaskRow(row) && row.catalog_id) {
+              void customTaskRef.current?.openEditByCatalogId(row.catalog_id);
+              return;
+            }
+            navigation.navigate('TaskGuide', {
+              scheduleId: row.scheduleId,
+              taskId: row.task_id,
+              maxxId: maxxBySchedule[row.scheduleId],
+              moduleColor: row.moduleColor,
+              moduleLabel: row.moduleLabel,
+              done,
+            });
+          },
         };
       });
       return { dayTasks: tasks };
@@ -830,8 +847,8 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
           <GlassButton onPress={() => setChatOpen(true)} accessibilityLabel="Ask Superpower">
             <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.foreground} />
           </GlassButton>
-          {/* Commitments — opens the commitments sheet (list + add). */}
-          <GlassButton onPress={() => setCommitmentsOpen(true)} accessibilityLabel="Commitments">
+          {/* Add — your own task (a workout, a run) or a commitment. */}
+          <GlassButton onPress={() => setAddChooser({ at: null })} accessibilityLabel="Add to your day">
             <Ionicons name="add" size={22} color={colors.foreground} />
           </GlassButton>
         </View>
@@ -917,20 +934,15 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
             isToday={selectedIso === todayIso}
             onEditShape={(focus) => openEditor(scope, focus)}
             onEditObligation={(i) => obligationsRef.current?.openEdit(i)}
-            onAddAt={(startMin) => {
-              // Prefill a one-hour commitment at the tapped slot, clamped to
-              // the editor's rails.
-              const start = Math.min(Math.max(startMin, 240), 1365);
-              obligationsRef.current?.openAdd({ start, end: start + 60 });
-            }}
+            onAddAt={(startMin) => setAddChooser({ at: Number.isFinite(startMin) ? startMin : null })}
             calendarEvents={calendarEvents}
             tasks={dayTasks}
           />
 
           <Text style={styles.gridHint}>
             {dayTasks.length > 0
-              ? 'Tap a habit to open it · tap a block to adjust it · tap empty space to add a commitment'
-              : 'Tap a block to adjust it · tap empty space to add a commitment'}
+              ? 'Tap a habit to open it · tap a block to adjust it · tap empty space to add a task or commitment'
+              : 'Tap a block to adjust it · tap empty space to add a task or commitment'}
           </Text>
 
           <View style={{ height: 96 + insets.bottom }} />
@@ -1025,6 +1037,77 @@ export default function DayPlannerScreen({ embedded = false }: { embedded?: bool
         obligations={obligations}
         onChange={changeObligations}
       />
+
+      {/* Add chooser — one small sheet, two clear paths. Each path closes
+          this sheet FIRST, then opens its editor (two stacked modals present
+          the editor behind this one). */}
+      <Modal
+        visible={!!addChooser}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddChooser(null)}
+      >
+        <View style={styles.chatRoot}>
+          <Pressable style={styles.chatBackdrop} onPress={() => setAddChooser(null)} />
+          <View style={[styles.commitSheet, { paddingBottom: Math.max(insets.bottom, 12) + 12 }]} testID="planner-add-chooser">
+            <View style={styles.grabber} />
+            <Text style={styles.chatHeadline}>
+              {addChooser?.at != null ? `Add at ${fmt12(minToHHMM(addChooser.at))}` : 'Add to your day'}
+            </Text>
+            {([
+              {
+                key: 'task',
+                icon: 'barbell-outline',
+                title: 'Your own task',
+                sub: 'A workout, a run, a sauna. On your stack, reminded and tracked.',
+                go: () => {
+                  if (paywallGate('planner_add_task')) return;
+                  const at = addChooser?.at;
+                  setTimeout(() => customTaskRef.current?.openAdd(at != null ? { time: minToHHMM(at) } : undefined), 280);
+                },
+              },
+              {
+                key: 'commitment',
+                icon: 'briefcase-outline',
+                title: 'A commitment',
+                sub: 'Work, a class, a commute. Superpower plans around it.',
+                go: () => {
+                  const at = addChooser?.at;
+                  if (at != null) {
+                    // Prefill a one-hour commitment at the tapped slot, clamped
+                    // to the editor's rails.
+                    const start = Math.min(Math.max(at, 240), 1365);
+                    setTimeout(() => obligationsRef.current?.openAdd({ start, end: start + 60 }), 280);
+                  } else {
+                    setTimeout(() => setCommitmentsOpen(true), 280);
+                  }
+                },
+              },
+            ] as const).map((o) => (
+              <TouchableOpacity
+                key={o.key}
+                style={styles.addRow}
+                activeOpacity={0.6}
+                onPress={() => { setAddChooser(null); o.go(); }}
+                accessibilityRole="button"
+                accessibilityLabel={o.title}
+                testID={`planner-add-${o.key}`}
+              >
+                <View style={styles.addIcon}>
+                  <Ionicons name={o.icon} size={19} color={colors.foreground} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.commitLabel}>{o.title}</Text>
+                  <Text style={styles.addSub}>{o.sub}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
+
+      <CustomTaskSheet ref={customTaskRef} />
 
       {/* Minimal "tell Superpower" change sheet — serif prompt + quick chips + a clean
           borderless composer. Opened only from the floating button. */}
@@ -1670,6 +1753,25 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   commitAddText: { fontFamily: fonts.sansSemiBold, fontSize: 14.5, color: colors.background, letterSpacing: 0.1 },
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderLight,
+  },
+  addIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  addSub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.textMuted, lineHeight: 17, marginTop: 2 },
   commitChatRow: {
     alignItems: 'center',
     paddingVertical: 16,

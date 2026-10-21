@@ -221,6 +221,14 @@ def reconcile_schedules(
     apply SPF *before* leaving) rather than dumping it after work. Omitted args
     → no-op, so the master-view merge and unit tests are unaffected.
     """
+    # The person's own tasks are pinned: never re-timed, deferred or held back.
+    # Take them out, reconcile the programs, hand them back untouched.
+    from services.custom_tasks import is_custom
+    if schedules and any(is_custom(k) for k in schedules):
+        pinned = {k: v for k, v in schedules.items() if is_custom(k)}
+        rest = {k: v for k, v in schedules.items() if not is_custom(k)}
+        return {**reconcile_schedules(rest, user_ctx=user_ctx, start_date=start_date), **pinned}
+
     if not schedules or len(schedules) < 2:
         return schedules
 

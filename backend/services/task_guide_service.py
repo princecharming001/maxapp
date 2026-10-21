@@ -1037,6 +1037,11 @@ async def get_task_guide(schedule_id: str, task_id: str, user_id: str, db: Async
     if not task:
         return _error_guide("Task not found")
 
+    if str(maxx_id or "").lower() == "custom":
+        # The person's own task: no library habit and nothing to generate. Their
+        # note is the guide (current apps open the edit sheet instead).
+        return _own_task_guide(task)
+
     habit_id = str(task.get("catalog_id") or "").split(".", 1)[-1]
     profile = await _load_profile(user_id, db)
     by_date = await _active_days(user_id, db)
@@ -1082,6 +1087,25 @@ async def get_task_guide(schedule_id: str, task_id: str, user_id: str, db: Async
     except Exception as e:
         logger.warning("[task_guide] attach products failed: %s", e)
     return {"task_key": task_key, "title": title, **out}
+
+
+def _own_task_guide(task: dict) -> dict:
+    title = str(task.get("title") or "Your task")
+    note = str(task.get("description") or "").strip()
+    return {
+        "task_key": "",
+        "title": title,
+        "overview": note or "One of your own tasks.",
+        "hero_image": "",
+        "steps": [{"n": 1, "title": title, "body": note or "Your own task, at the time you set.",
+                   "tip": None, "ingredients": [], "gear": []}],
+        "products": [],
+        "ingredients": [],
+        "gear": [],
+        "duration_minutes": int(task.get("duration_minutes") or task.get("duration_min") or 5),
+        "why_it_matters": "",
+        "_v": _PAYLOAD_V,
+    }
 
 
 def _error_guide(msg: str) -> dict:

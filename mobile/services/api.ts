@@ -43,6 +43,10 @@ export interface PersonalizationProfile {
     memories_by_dimension: Record<string, PersonalMemory[]>;
 }
 
+export type CustomTaskDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export type CustomTaskInput = { title: string; time: string; minutes: number; days: CustomTaskDay[]; note?: string };
+export type CustomTask = CustomTaskInput & { id: string; catalog_id: string; note: string };
+
 export type AchievementTier = 'bronze' | 'silver' | 'gold';
 
 export interface AchievementItem {
@@ -2780,6 +2784,28 @@ class ApiService {
         why_it_matters: string;
     }> {
         const response = await this.client.get(`schedules/${scheduleId}/tasks/${taskId}/guide`);
+        return response.data;
+    }
+
+    /** The person's own recurring tasks (a workout, a run...) — templates as
+     *  the add/edit sheet shows them. Days are 'mon'..'sun'. */
+    async getCustomTasks(): Promise<{ tasks: CustomTask[]; schedule_id: string | null; limit: number }> {
+        const response = await this.client.get('schedules/custom-tasks');
+        return response.data;
+    }
+
+    async createCustomTask(body: CustomTaskInput): Promise<{ task: CustomTask; schedule_id: string }> {
+        const response = await this.client.post('schedules/custom-tasks', body);
+        return response.data;
+    }
+
+    async updateCustomTask(id: string, body: Partial<CustomTaskInput>): Promise<{ task: CustomTask; schedule_id: string }> {
+        const response = await this.client.put(`schedules/custom-tasks/${encodeURIComponent(id)}`, body);
+        return response.data;
+    }
+
+    async deleteCustomTask(id: string): Promise<{ deleted: string; remaining: number }> {
+        const response = await this.client.delete(`schedules/custom-tasks/${encodeURIComponent(id)}`);
         return response.data;
     }
 

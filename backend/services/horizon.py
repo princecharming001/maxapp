@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from models.sqlalchemy_models import User, UserSchedule
+from services.custom_tasks import is_custom
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +119,8 @@ async def ensure_plan_horizon(user: User, db: AsyncSession) -> dict[str, int]:
                     out["course_extensions"] += 1
             except Exception as e:
                 logger.warning("course horizon extend failed (non-fatal): %s", e)
-        elif has_skeleton(sched.maxx_id or "") or (sched.schedule_context or {}).get("ai_plan"):
+        elif (has_skeleton(sched.maxx_id or "") or (sched.schedule_context or {}).get("ai_plan")
+              or is_custom(sched.maxx_id)):
             regen_targets.append(sched.maxx_id or "")
             attempted.append(sched)
 

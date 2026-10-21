@@ -46,6 +46,8 @@ export const queryKeys = {
     maxx: (id: string) => ['maxx', id] as const,
     maxxSchedule: (id: string) => ['maxxSchedule', id] as const,
     activeSchedulesSummary: ['activeSchedules', 'summary'] as const,
+    /** The person's own task templates (CustomTaskSheet). */
+    customTasks: ['customTasks'] as const,
     /** Forums channel list; `q` is trimmed search (empty = full list). */
     channels: (q: string) => ['channels', q] as const,
     forumV2Categories: ['forumV2', 'categories'] as const,

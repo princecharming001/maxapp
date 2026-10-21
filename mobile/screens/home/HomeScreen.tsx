@@ -33,6 +33,9 @@ import RemindersOffCard from '../../components/notifications/RemindersOffCard';
 import { useNotificationNudges } from '../../hooks/useNotificationNudges';
 import { addDaysISO } from '../../lib/notificationPermission';
 import { getMaxxDisplayLabel } from '../../utils/maxxDisplay';
+import CustomTaskSheet, { type CustomTaskSheetHandle } from '../../components/tasks/CustomTaskSheet';
+import { isCustomTaskRow } from '../../components/tasks/customTaskModel';
+import { usePaywallGate } from '../../hooks/usePaywallGate';
 
 /* ─── Progress Ring ─── */
 
@@ -299,6 +302,9 @@ export default function HomeScreen() {
     const schedulesQuery = useActiveSchedulesFullQuery();
 
     const taskToggleInFlightRef = useRef(new Set<string>());
+    // The person's own tasks: one sheet serves the "+" and tapping one of theirs.
+    const customSheetRef = useRef<CustomTaskSheetHandle>(null);
+    const paywallGate = usePaywallGate();
 
     // Inline toast for a failed habit toggle. The old behaviour — checkbox flips
     // on, then silently flips back — read as "the app is broken"; one line of
@@ -552,7 +558,8 @@ export default function HomeScreen() {
     // Today's first still-pending task — the walkthrough's "start with this"
     // action. Null while the funnel-completion pass is still building the plan.
     const walkthroughFirstRow = useMemo(
-        () => (byDate[today] || []).find((r) => r.status !== 'completed') ?? null,
+        // A program task (it has a guide to walk through) — never their own.
+        () => (byDate[today] || []).find((r) => r.status !== 'completed' && !isCustomTaskRow(r)) ?? null,
         [byDate, today],
     );
 
@@ -861,7 +868,23 @@ export default function HomeScreen() {
 
                     {/* ── HABITS ── */}
                     <View style={s.section}>
-                            <Text style={s.sectionLabel}>HABITS</Text>
+                            <View style={s.sectionHead}>
+                                <Text style={[s.sectionLabel, { marginBottom: 0 }]}>HABITS</Text>
+                                <TouchableOpacity
+                                    style={s.addBtn}
+                                    activeOpacity={0.75}
+                                    onPress={() => {
+                                        if (paywallGate('home_add_task')) return;
+                                        customSheetRef.current?.openAdd();
+                                    }}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Add your own task"
+                                    testID="home-add-task"
+                                >
+                                    <Ionicons name="add" size={20} color={BW.onInk} />
+                                </TouchableOpacity>
+                            </View>
 
                             {displaySchedulesError ? (
                                 <Text style={s.errorText}>{displaySchedulesError}</Text>
@@ -896,14 +919,23 @@ export default function HomeScreen() {
                                         done={done}
                                         busy={busy}
                                         onToggle={() => toggleTodayTask(row)}
-                                        onOpen={() => navigation.navigate('TaskGuide', {
-                                            scheduleId: row.scheduleId,
-                                            taskId: row.task_id,
-                                            maxxId: maxxIdBySchedule[row.scheduleId],
-                                            moduleColor: row.moduleColor,
-                                            moduleLabel: row.moduleLabel,
-                                            done: done,
-                                        })}
+                                        onOpen={() => {
+                                            const guide = () => navigation.navigate('TaskGuide', {
+                                                scheduleId: row.scheduleId,
+                                                taskId: row.task_id,
+                                                maxxId: maxxIdBySchedule[row.scheduleId],
+                                                moduleColor: row.moduleColor,
+                                                moduleLabel: row.moduleLabel,
+                                                done: done,
+                                            });
+                                            // Their own task has no guide: tapping it edits it.
+                                            if (isCustomTaskRow(row) && row.catalog_id) {
+                                                void customSheetRef.current?.openEditByCatalogId(row.catalog_id)
+                                                    .then((ok) => { if (!ok) showToast('That task was just changed. Pull to refresh.'); });
+                                                return;
+                                            }
+                                            guide();
+                                        }}
                                     />
                                 );
                             })}
@@ -986,6 +1018,8 @@ export default function HomeScreen() {
                 onDismiss={walkthrough.dismiss}
                 onFinish={walkthrough.finish}
             />
+
+            <CustomTaskSheet ref={customSheetRef} onDone={showToast} />
 
             <NotificationPrimerSheet
                 visible={nudges.primer.visible}
@@ -1072,6 +1106,11 @@ const s = StyleSheet.create({
 
     /* Section */
     section: { paddingHorizontal: PAD, paddingTop: 26 },
+    sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+    addBtn: {
+        width: 32, height: 32, borderRadius: 16, backgroundColor: BW.ink,
+        alignItems: 'center', justifyContent: 'center',
+    },
     sectionLabel: {
         fontSize: 13, fontFamily: fonts.sansBold, fontWeight: '800',
         color: BW.ink, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 16,

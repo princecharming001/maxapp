@@ -125,7 +125,7 @@ function deriveMyMaxxes(full: { schedules?: any[]; today_date?: string } | undef
     const out: MyMax[] = [];
     for (const s of (full?.schedules || [])) {
         const mid = String(s?.maxx_id || '').toLowerCase();
-        if (!mid) continue;
+        if (!mid || mid === 'custom') continue; // their own tasks, not a Max
         const days = s?.days || [];
         const todayDay = today ? days.find((d: any) => d?.date === today) : days[0];
         const tasks = (todayDay?.tasks || []) as any[];

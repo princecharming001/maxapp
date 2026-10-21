@@ -548,10 +548,14 @@ async def regenerate_active_schedules(
         if only_max and mid != only_max:
             continue
         from services.ai_programs import AI_PLAN_DAYS, expand_template, is_ai_program
+        from services.custom_tasks import expand_custom, is_custom
         if only_ai and not is_ai_program(mid):
             continue
+        # The person's own tasks: their time is the time. Expanded from the
+        # row's templates and kept out of every pass below that moves tasks.
+        pinned = is_custom(mid)
         ai_tmpl = (sched.schedule_context or {}).get("ai_plan") if is_ai_program(mid) else None
-        if ai_tmpl is None:
+        if ai_tmpl is None and not pinned:
             if not has_skeleton(mid):
                 continue
             doc = get_doc(mid)
@@ -562,6 +566,11 @@ async def regenerate_active_schedules(
             budget = sd.get("daily_task_budget") or [2, 6]
 
         try:
+            if pinned:
+                fixed_new = expand_custom(sched.schedule_context, start_date=today, n_days=AI_PLAN_DAYS)
+                from services.task_fields import normalize_days as _nd_custom
+                _nd_custom(fixed_new, mid)
+                raise _AiExpanded()
             if ai_tmpl is not None:
                 # AI program: the stored Claude template IS the plan. Re-fit it
                 # to the person's CURRENT day and stack (a no-op unless wake/bed,
@@ -618,7 +627,8 @@ async def regenerate_active_schedules(
         # Re-assert the no-meeting-collision invariant after humanize_days.
         # This is the ONLY calendar guard for single-program users: the
         # cross-module reconcile below early-returns when there are <2 actives.
-        fixed_new = apply_calendar_busy(fixed_new, _regen_busy)
+        if not pinned:
+            fixed_new = apply_calendar_busy(fixed_new, _regen_busy)
 
         # Per-schedule habit prefs live in schedule_context:
         #   excluded_catalog_ids  — series-delete ("remove this recurring task")
@@ -633,7 +643,7 @@ async def regenerate_active_schedules(
 
         # Ensure habits the user explicitly WANTED stay present on every regen.
         wanted = set(sctx.get("wanted_catalog_ids") or []) - excluded
-        if wanted and ai_tmpl is None:
+        if wanted and ai_tmpl is None and not pinned:
             fixed_new = _ensure_wanted_tasks(fixed_new, wanted, mid, state=state, wake=wake, sleep=sleep)
             # Re-space the injected tasks, then stamp canonical fields on them —
             # the single-program regen path has no later normalize/reconcile pass,
@@ -648,7 +658,7 @@ async def regenerate_active_schedules(
         # BEFORE the user's own pins below, which always win. AI programs are
         # already fitted to the day (services/ai_fit.py, which lets work-native
         # habits sit in work hours) and must not be re-fenced.
-        if ai_tmpl is None:
+        if ai_tmpl is None and not pinned:
             from services.day_fence import fence_days as _fence_days
             fixed_new = _fence_days(fixed_new, state)
 
@@ -717,7 +727,7 @@ async def regenerate_active_schedules(
                     continue
                 # AI programs are fitted against each other at the template
                 # level; the skeleton re-pack would only undo that.
-                if _is_ai_prog(s.maxx_id):
+                if _is_ai_prog(s.maxx_id) or is_custom(s.maxx_id):
                     continue
                 hist, live = _split_days_by_date(list(s.days), today)
                 if not live:

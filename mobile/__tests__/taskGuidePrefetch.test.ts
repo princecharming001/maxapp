@@ -82,6 +82,13 @@ export const tests: Record<string, () => void | Promise<void>> = {
         assert.ok(!targets.some((t) => t.taskId === 'y1' || t.taskId === 'z1' || t.taskId === 'q'));
     },
 
+    "the person's own tasks are never prefetched (no guide; tapping edits)": () => {
+        const data = { ...payload(), schedules: [...payload().schedules,
+            { id: 's3', maxx_id: 'custom', days: [{ date: TODAY, tasks: [{ task_id: 'g', catalog_id: 'custom.g1', title: 'Gym' }] }] }] };
+        assert.ok(!collectTodayGuideTargets(data, TODAY).some((t) => t.scheduleId === 's3'));
+        assert.strictEqual(collectTodayGuideTargets(data, TODAY).length, 4);
+    },
+
     'no schedule day for today => nothing to prefetch': () => {
         assert.deepStrictEqual(collectTodayGuideTargets(payload(), '2030-01-01'), []);
         assert.deepStrictEqual(collectTodayGuideTargets(null, TODAY), []);

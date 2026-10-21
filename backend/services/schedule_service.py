@@ -358,7 +358,8 @@ class ScheduleService:
                 (UserSchedule.user_id == user_uuid) & (UserSchedule.is_active == True)
             )
         )
-        schedules = result.scalars().all()
+        from services.custom_tasks import is_custom
+        schedules = [s for s in result.scalars().all() if not is_custom(s.maxx_id)]
         labels = []
         for s in schedules:
             label = getattr(s, "maxx_id", None) or getattr(s, "course_title", None) or "unknown"
@@ -391,7 +392,10 @@ class ScheduleService:
         )
         active = result.scalars().all()
         filtered = []
+        from services.custom_tasks import is_custom
         for s in active:
+            if is_custom(getattr(s, "maxx_id", None)):
+                continue  # the person's own tasks are not a program slot
             if replacing_maxx_id and getattr(s, "maxx_id", None) == replacing_maxx_id:
                 continue
             if replacing_course_module:
@@ -3722,7 +3726,9 @@ def _humanize_titles_in_days(days: list[dict]) -> list[dict]:
             raw = t.get("title") or ""
             new_t = dict(t)
             changed = False
-            if raw:
+            # The person's own task: their words exactly as they typed them.
+            own = bool(t.get("custom")) or str(t.get("catalog_id") or "").startswith("custom.")
+            if raw and not own:
                 try:
                     friendly = _humanize_title(strip_brand_prefix(raw))
                 except Exception:
